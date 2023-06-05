@@ -102,8 +102,8 @@ DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
 ALL : DFLT STORE_TEST $(DOC)/lmake.html
 
-sys_config.h :
-	CC=$(CC) PYTHON=$(PYTHON) ./sys_config > $@
+sys_config.h : sys_config
+	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
 lmake.tar.gz : $(LMAKE_FILES)
 	tar -cz -f $@ $^

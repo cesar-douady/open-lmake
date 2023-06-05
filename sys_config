@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 # This file is part of the lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023 Doliam
@@ -18,8 +18,10 @@ HAS_PTRACE=1
 # HAS_CLOSE_RANGE
 # test whether we can include linux/close_range.h
 #
-$CC -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
-HAS_CLOSE_RANGE=$(($?==0))
+if $CC -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
+then HAS_CLOSE_RANGE=1
+else HAS_CLOSE_RANGE=0
+fi
 
 #
 # HAS_LD_AUDIT
@@ -42,14 +44,29 @@ HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
 # NEED_STAT_WRAPPERS
 # test whether stat syscalls are transformed into __xstat
 #
-cat <<-"EOF" > stat.c
+cat <<"EOF" > stat.c
 	#include <sys/stat.h>
 	struct stat buf ;
 	int main() { stat("",&buf) ; }
 EOF
 $CC -o stat_trial stat.c
-nm -D stat_trial | grep -wq stat
-NEED_STAT_WRAPPERS=$?
+if nm -D stat_trial | grep -wq stat
+then NEED_STAT_WRAPPERS=0
+else NEED_STAT_WRAPPERS=1
+fi
+
+#
+# HAS_OSTRINGSTREAM_VIEW
+# test whether std::ostringstream has method view()
+#
+cat <<"EOF" > ostringstream_view.cc
+	#include <sstream>
+	std::string_view ossv = std::ostringstream().view() ;
+EOF
+if $CC -c -std=c++20 -o ostringstream_view.o ostringstream_view.cc 2>/dev/null
+then HAS_OSTRINGSTREAM_VIEW=1
+else HAS_OSTRINGSTREAM_VIEW=0
+fi
 
 #
 # CentOS7 fix
@@ -62,9 +79,10 @@ then
 fi
 
 cat <<EOF
-	#define HAS_CLOSE_RANGE    $HAS_CLOSE_RANGE
-	#define HAS_PTRACE         $HAS_PTRACE
-	#define HAS_LD_AUDIT       $HAS_LD_AUDIT
-	#define NEED_STAT_WRAPPERS $NEED_STAT_WRAPPERS
-	#define PYTHON             "$PYTHON"
+	#define HAS_CLOSE_RANGE        $HAS_CLOSE_RANGE
+	#define HAS_PTRACE             $HAS_PTRACE
+	#define HAS_LD_AUDIT           $HAS_LD_AUDIT
+	#define NEED_STAT_WRAPPERS     $NEED_STAT_WRAPPERS
+	#define HAS_OSTRINGSTREAM_VIEW $HAS_OSTRINGSTREAM_VIEW
+	#define PYTHON                 "$PYTHON"
 EOF
