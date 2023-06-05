@@ -46,6 +46,9 @@ class BaseRule(Rule) :
 	start_delay = 2
 	n_tokens    = config.backends.local.cpu
 
+class Centos7Rule(BaseRule) :
+	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
+
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
@@ -150,6 +153,14 @@ class ConfigH(BaseRule) :
 	deps = { 'CONFIGURE' : 'ext/{Dir}/configure' }
 	cmd  = 'cd ext/$Dir ; ./configure'
 
+class SysConfigH(Centos7Rule) :
+    targets = {
+		'H'     : 'sys_config.h'
+	,	'TRIAL' : 'trial/{*:.*}'
+	}
+    deps = { 'EXE' : 'sys_config' }
+    cmd  = f'CC=gcc PYTHON={sys.executable} ./$EXE 2>&1  >$H'
+
 opt_tab = {}
 class GenOpts(BaseRule) :
 	targets = { 'OPTS' : '{File}.opts' }
@@ -159,6 +170,7 @@ class GenOpts(BaseRule) :
 		res = []
 		for key,opts in opt_tab.items() :
 			if re.fullmatch(key,File) : res += opts
+		res += ('-iquote','.')
 		dir = osp.dirname(File)
 		while dir :
 			res += ('-iquote',dir)
@@ -170,9 +182,6 @@ class Marker(BaseRule) :
 	targets = { 'MRKR' : '{Dir}/mrkr' }
 	def cmd() :
 		open(MRKR,'w')
-
-class Centos7Rule(BaseRule) :
-	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
 
 basic_opts_tab = {
 	'c'   : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-std=c99'  )

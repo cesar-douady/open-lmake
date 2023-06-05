@@ -97,6 +97,7 @@ src/trace.hh
 src/utils.cc
 src/utils.hh
 src/xxhsum.cc
+sys_config
 unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
 unit_tests/base/src1

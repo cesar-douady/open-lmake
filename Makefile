@@ -24,68 +24,15 @@ ifeq ($(CC),clang)
 WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option
 endif
 
-# system configuration
-IS_CENTOS7 :=  $(shell if grep -q 'release 7' /etc/redhat-release 2>/dev/null ; then echo 1 ; else echo 0 ; fi )
-
-# waiting for a good and easy test
-ifeq ($(IS_CENTOS7),1)
-HAS_PTRACE := 0
-else
-HAS_PTRACE := 1
-endif
-
-# test whether we can include linux/close_range.h
-HAS_CLOSE_RANGE := $(shell $(CC) -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null ; echo $$(($$?==0)) )
-
-# test whether LD_AUDIT environment variable is managed by dynamic linker
-ifeq ($(IS_CENTOS7),1)
-HAS_LD_AUDIT := 0
-else
-HAS_LD_AUDIT := $(shell                                                            \
-	mkdir -p trial                                                               ; \
-	cd       trial                                                               ; \
-	{	echo '#include<stdio.h>'                                                 ; \
-		echo 'int main() { printf("0") ; }'                                      ; \
-	} > audited.c                                                                ; \
-	{	echo '#include<stdio.h>'                                                 ; \
-		echo '#include<stdlib.h>'                                                ; \
-		echo 'unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }' ; \
-	} > ld_audit.c                                                               ; \
-	$(CC) -o audited                   audited.c                                 ; \
-	$(CC) -o ld_audit.so -shared -fPIC ld_audit.c                                ; \
-	LD_AUDIT=./ld_audit.so ./audited                                               \
-)
-endif
-
-# test whether stat syscalls are transformed into __xstat
-NEED_STAT_WRAPPERS := $(shell                                                                                    \
-	mkdir -p trial                            ; \
-	cd       trial                            ; \
-	{	echo '#include <sys/stat.h>'          ; \
-		echo 'struct stat buf ;'              ; \
-		echo 'int main() { stat("",&buf) ; }' ; \
-	} > stat.c                                ; \
-	$(CC) -o stat_trial stat.c                ; \
-	nm -D stat_trial | grep -wq stat          ; \
-	echo $$?                                    \
-)
-
 # python configuration
 PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
 ifeq ($(PYTHON),)
 $(error cannot find python3)
 endif
 
-CONFIG_OPTIONS := \
-	-DHAS_CLOSE_RANGE=$(HAS_CLOSE_RANGE)       \
-	-DHAS_LD_AUDIT=$(HAS_LD_AUDIT)             \
-	-DHAS_PTRACE=$(HAS_PTRACE)                 \
-	-DNEED_STAT_WRAPPERS=$(NEED_STAT_WRAPPERS) \
-	-DPYTHON='"$(PYTHON)"'
-
 SAN                := $(if $(SAN_FLAGS),.san,)
 PREPROCESS         := $(CC) -E
-COMPILE            := $(CC) -c -fvisibility=hidden $(CONFIG_OPTIONS)
+COMPILE            := $(CC) -c -fvisibility=hidden
 LINK_O             := $(CC) -r
 LINK_SO            := $(CC) -shared-libgcc -shared -pthread
 LINK_BIN           := $(CC) -pthread
@@ -154,6 +101,9 @@ LMAKE_FILES = \
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
 ALL : DFLT STORE_TEST $(DOC)/lmake.html
+
+sys_config.h : sys_config
+	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
 lmake.tar.gz : $(LMAKE_FILES)
 	tar -cz -f $@ $^
@@ -244,23 +194,18 @@ $(STORE_LIB)/unit_test.tok : $(STORE_LIB)/unit_test
 # engine
 #
 
-ifeq ($(HAS_PTRACE),1)
 INCLUDE_SECCOMP := -I $(SECCOMP_INCLUDE_DIR)
 INSTALL_SECCOMP := $(SECCOMP).install.stamp
-else
-INCLUDE_SECCOMP :=
-INSTALL_SECCOMP :=
-endif
 
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib pycxx rpc_client rpc_job serialize time trace utils )
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                  )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x    )
 
-ALL_TOP_H    := $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp $(INSTALL_SECCOMP) ext/xxhash.patched.h
+ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp $(INSTALL_SECCOMP) ext/xxhash.patched.h
 ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
 
-INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) $(INCLUDE_SECCOMP)
+INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) $(INCLUDE_SECCOMP) -I.
 %.san.i : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS) $(SAN_FLAGS)              $(INCLUDES) -o $@ $<
 %.san.o : %.cc $(ALL_ENGINE_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
 %.i     : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
@@ -270,17 +215,7 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 # lmake
 #
 
-ifeq ($(HAS_PTRACE),1)
-PTRACE_O := $(SRC)/autodep/ptrace$(SAN).o
-else
-PTRACE_O :=
-endif
-
-ifeq ($(HAS_PTRACE),1)
 LIB_SECCOMP := -L $(SECCOMP_LIB_DIR) -lseccomp
-else
-LIB_SECCOMP :=
-endif
 
 $(SBIN)/lmakeserver : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                \
@@ -296,7 +231,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/utils$(SAN).o                      \
 	$(SRC)/store/file$(SAN).o                 \
 	$(SRC)/autodep/gather_deps$(SAN).o        \
-	$(PTRACE_O)                               \
+	$(SRC)/autodep/ptrace$(SAN).o             \
 	$(SRC)/autodep/record$(SAN).o             \
 	$(SRC)/lmakeserver/backend$(SAN).o        \
 	$(SRC)/lmakeserver/backends/local$(SAN).o \
@@ -361,7 +296,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/utils$(SAN).o               \
 	$(SRC)/autodep/gather_deps$(SAN).o \
-	$(PTRACE_O)                        \
+	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/job_exec$(SAN).o
 	mkdir -p $(@D)
@@ -466,7 +401,7 @@ $(BIN)/autodep : \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/utils$(SAN).o               \
 	$(SRC)/autodep/gather_deps$(SAN).o \
-	$(PTRACE_O)                        \
+	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/autodep/autodep$(SAN).o
 	mkdir -p $(@D)
@@ -558,13 +493,13 @@ LMAKE_TEST : $(LMAKE_ENV)/tok
 
 $(LMAKE_ENV)/Manifest : Manifest
 	@mkdir -p $(@D)
-	grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ Manifest > $@
-	grep ^$(@D)/ Manifest | sed s:$(@D)/::                                >>$@
-	echo $(@F)                                                            >>$@
+	grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest > $@
+	grep ^$(@D)/ Manifest | sed s:$(@D)/::                                                  >>$@
+	echo $(@F)                                                                              >>$@
 $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
-$(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ Manifest))
+$(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(shell grep ^$(@D)/ Manifest )
 	set -e ; cd $(LMAKE_ENV) ; $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)

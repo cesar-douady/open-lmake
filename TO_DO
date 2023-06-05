@@ -11,11 +11,6 @@
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* avoid "dep not ready" when depending on pyc. Try to get a may_rerun instead of a rerun to avoid actual rerun.
-	- make a unit_test before doing that
-	- change pyc rule : cmd='', flags = 'Optional','Incremental'
-	- this way, file does not change and becomes official
-	- and dependents create them on the file upon need
 * find a means to lshow a job, even if we have no target
 	- or to lshow a job that does not produce a target
 ? report resources even when job spawn process groups
@@ -43,6 +38,8 @@
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add the possibility to force existence of hidden deps
+	- typically when used with depend
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * implement star optional :
 	- walk through nodes from best root (which means implementing "find")

@@ -64,6 +64,8 @@
 #include <utility>
 #include <vector>
 
+#include "sys_config.h"
+
 using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
 
 //

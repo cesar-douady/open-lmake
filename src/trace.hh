@@ -87,7 +87,11 @@ template<class... Ts> void Trace::_record(Ts const&... args) {
 	int _[1+sizeof...(Ts)] = { 0 , (_t_buf<<' ',_output(args),0)... } ; (void)_ ;
 	_t_buf << '\n' ;
 	//
-	::string_view buf_view = _t_buf.view() ;
+	#if HAS_OSTRINGSTREAM_VIEW
+		::string_view buf_view = _t_buf.view() ;
+	#else
+		::string      buf_view = _t_buf.str () ;
+	#endif
 	//
 	{	::unique_lock lock     { _s_mutex }            ;
 		size_t        new_pos  = s_pos+buf_view.size() ;
