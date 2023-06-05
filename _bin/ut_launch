@@ -1,0 +1,64 @@
+#!/bin/python3
+
+# This file is part of the lmake distribution (https://wgit.doliam.net/cdy/lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+import os
+import re
+import subprocess as sp
+import sys
+
+import signal
+
+def interrupted(sig,frame) :
+	os.killpg(proc.pid,signal.SIGINT)
+
+signal.signal(signal.SIGINT,interrupted)
+
+lmake_s_dir = sys.argv[0].rsplit('/',2)[0]
+sys.path[0:0] = [lmake_s_dir+'/_lib']
+
+ref_cnt = {}
+ref_rc  = 0
+
+cmd = None
+
+argv = sys.argv
+for i in range(1,len(sys.argv),2) :
+	a = argv[i]
+	if a[0]=='-' :
+		v = int(argv[i+1])
+		if a=='-rc' : ref_rc         = v
+		else        : ref_cnt[a[1:]] = v
+	else :
+		cmd = argv[i:]
+		break
+
+assert cmd
+
+print(' '.join(cmd))
+proc     = sp.Popen( cmd , universal_newlines=True , stdout=sp.PIPE , preexec_fn=os.setpgrp )
+stdout,_ = proc.communicate()
+sys.stdout.write(stdout)
+
+actual_cnt = {}
+for l in stdout.splitlines() :
+	m = re.fullmatch('(\x1b\\[[0-9]*m)*(?P<key>\\w+) .*',l)
+	if not m : continue
+	k = m.group('key')
+	actual_cnt[k] = actual_cnt.get(k,0) + 1
+
+err = False
+
+if proc.returncode!=ref_rc :
+	print(f'bad return code {proc.returncode} != {ref_rc}')
+	err = True
+
+for k,c in ref_cnt.items() :
+	if actual_cnt.get(k,0)!=c :
+		print(f'bad count for {k} {actual_cnt.get(k,0)} != {c}',file=sys.stderr)
+		err = True
+
+exit(err)

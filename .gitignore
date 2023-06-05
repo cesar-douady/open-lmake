@@ -1,0 +1,56 @@
+# vim swap files
+.*.sw?
+
+# python caches
+__pycache__
+
+# directories
+*.dir
+
+# doc
+/doc/lmake.html
+
+#auto-configuration
+/trial
+
+# compiled files
+*.i
+*.o
+*.so
+/ext/**.dir
+/ext/**.patched*
+*.stamp
+*/stamp
+/_bin/autodep
+/_bin/job_exec
+/_bin/ldump
+/_bin/ldump_job
+/_bin/lmakeserver
+/_bin/read_makefiles
+/bin
+
+# tests
+*.tok
+*/tok
+/src/store/unit_test
+
+# IDE files
+/.idea
+/.vscode
+
+# Lmake env
+/lmake_env/LMAKE
+/lmake_env/LMAKE_LOCAL
+/lmake_env/LMAKE_REMOTE
+/lmake_env/Manifest
+/lmake_env/_bin/
+/lmake_env/_lib/
+/lmake_env/bin
+/lmake_env/doc
+/lmake_env/ext
+/lmake_env/lib
+/lmake_env/lmake.tar.gz
+/lmake_env/src/
+
+# tarball
+/lmake.tar.gz

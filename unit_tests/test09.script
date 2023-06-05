@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+# This file is part of the lmake distribution (https://wgit.doliam.net/cdy/lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+ut_launch -dangling 0 -done 1 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
+
+touch src3
+rm src3.hide
+ut_launch -dangling 1 -done 0 -failed 0 -steady 0 -manual 0 -rc 1 lmake src3.hide
+
+rm src3
+ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hide
+
+ut_launch -dangling 0 -done 0 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
+
+lshow -a src3.hide
+lforget src3.hide
+lshow -a src3.hide
+ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hide

@@ -1,0 +1,25 @@
+// This file is part of the lmake distribution (https://wgit.doliam.net/cdy/lmake.git)
+// Copyright (c) 2023 Doliam
+// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+#include "time.hh"
+
+#pragma once
+
+namespace Engine {
+
+	struct Makefiles {
+		// statics
+		static void       s_refresh_makefiles() ;
+		static bool/*ok*/ s_chk_makefiles    () { Time::DiskDate _ ; return _s_chk_makefiles(_) ; }
+	private :
+		static bool/*ok*/ _s_chk_makefiles(Time::DiskDate& latest_makefile/*output*/) ;
+		// static data
+	public :
+		static ::string s_makefiles    ;                   // file that contains makefiles read while reading Lmakefiles.py
+		static ::string s_no_makefiles ;                   // marker that says that previous file is invalid (so that it can be written early to improve date compararisons)
+		static ::string s_config_file  ;
+	} ;
+
+}

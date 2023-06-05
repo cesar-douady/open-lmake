@@ -1,0 +1,146 @@
+* This file is part of the lmake distribution (https://wgit.doliam.net/cdy/lmake.git)
+* Copyright (c) 2023 Doliam
+* This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+* This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+****************************************************************************************************
+* BUGS (implemented but does not work)
+****************************************************************************************************
+
+****************************************************************************************************
+* LACK (not implemented but necessary for lmake semantic)
+****************************************************************************************************
+
+* avoid "dep not ready" when depending on pyc. Try to get a may_rerun instead of a rerun to avoid actual rerun.
+	- make a unit_test before doing that
+	- change pyc rule : cmd='', flags = 'Optional','Incremental'
+	- this way, file does not change and becomes official
+	- and dependents create them on the file upon need
+* find a means to lshow a job, even if we have no target
+	- or to lshow a job that does not produce a target
+? report resources even when job spawn process groups
+	? dont know how to do that
+
+****************************************************************************************************
+* COSMETIC (not implemented and ugly as long as not implemented)
+****************************************************************************************************
+
+? if actual_job!=conform_job, show both with warning in lshow
+? consider using a single command check_deps/critical_barrier
+	? a priori they serve the same purpose
+
+****************************************************************************************************
+* ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
+****************************************************************************************************
+
+* use RecordSock in src/autodep/ptrace instead of Record as we do exactly the same thing
+* autodep=ptrace reports launched exe as dep while other methods do not
+	- reduce discrepency
+* add a warning when ids reach 7/8 of their limits
+* find a use case to ensure dates are correctly handled with NFS
+
+****************************************************************************************************
+* FEATURES (not implemented and can work without)
+****************************************************************************************************
+
+* add scheduling info (pressure, ETA, resources) to lshow -i
+* implement star optional :
+	- walk through nodes from best root (which means implementing "find")
+	- match against regexpr
+	- operate as for star in star_targets
+* ldebug
+	- low priority (wait for user experience)
+* implement slurm interface
+	- and implement lmake -l (--local) to force local backend for all jobs
+	- for heavy rules
+	- implement job resources
+	- implement job postlude
+	- record deps during resources computation
+* implement a ref/check mechanism
+	- record a map file:crc under git
+	- err if generated crc does not match recorded crc
+	- implement "lref file crc" to record/update map
+? implement steal
+	? 2 possible implementation :
+		? read disk file, and support live updates (with a seq number, check it did not change during the access)
+		? send request to server
+? lshow does not need to read Lmakefile
+	- this allows to use lshow even if Lmakefile is unreadable
+? provide a lock mechanism in local backend
+	? much like a bunch of resources w/ capacity=1
+	? stored as a set
+? implement prelude
+	? for very short rules (.pyc, opts, ...), put script in prelude and no cmd
+	? generally speaking, prelude can trigger deps and avoid rerun
+	? use autodep from within server
+		? it should be possible to link in such a way that only Python sees autodep, that would be ideal
+		? once this is done, we may record deps for rsrcs & forbid them for deps computation
+? find a way for resources to be anything
+	? int/float/str/bool/None/... or list/tuple/set/dict thereof
+? add a new autodep mechanism based on syscall user dispatch
+	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
+	? seems to be highly architecture dependent, is it worth ?
+
+****************************************************************************************************
+* OPTIMIZATIONS
+****************************************************************************************************
+
+* gprof
+* get rid of libseccomp
+* get rid of pycxx
+* manage HUGE pages in store
+	- does not work straight forward
+	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
+	- need to do some trials
+? set an access cache in autodep
+	? put only static info
+	? mark target dirs & tmp as beginning of writable area -> do not cache within
+	? cache accesses as long as we are not in the writable area
+		? maintain table file -> Dir/Lnk(value)/FileOrNone
+? replace db_date() with an index into a table
+	? put db_date() in ReqInfo, which is somewhat delicate
+		? or invent a new temporary struct which is not indexed by req
+	? capture table at start of req with existing reqs
+	? just replace in Src, a direct copy of file date by a search in this table
+	? replace check with a comparison on index
+	? rest of code is identical
+? improve rule updating
+	? when matching changes but command does not change, avoid to relaunch job
+	? compute cmd checksum on its code rather than on the source to resist to cosmetic changes such as comments modifs
+
+****************************************************************************************************
+* DOC
+****************************************************************************************************
+
+* add hard limits
+	- rules, targets, deps, rscrs, nodes, jobs...
+
+****************************************************************************************************
+* TESTS
+****************************************************************************************************
+
+* ancillary commands to unit tests
+	- lcheck_deps, ...
+* lmake module
+	- depend, ...
+* gcov
+* idx overflow
+	- check with 8-bits indexes
+* test crash recovery
+	- including atomicity of store
+
+****************************************************************************************************
+* TOOLS
+****************************************************************************************************
+
+* lrepair
+	- ensure ancillary file contains all necessary info to rebuild DB
+		- rule crc
+		- deps crc
+* implement a file dump
+	- put a header in files so that format can be automatically recognized
+	- suitable for use in vim
+* develop lmake under lmake
+	- autodep must support to be audited by autodep for unit tests
+	- provide a bootstrap script
+? make a navigation tool based on Neo4J or a similarly complete tool
