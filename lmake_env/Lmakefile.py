@@ -150,6 +150,14 @@ class ConfigH(BaseRule) :
 	deps = { 'CONFIGURE' : 'ext/{Dir}/configure' }
 	cmd  = 'cd ext/$Dir ; ./configure'
 
+class SysConfigH(BaseRule) :
+    targets = {
+		'H'     : 'sys_config.h'
+	,	'TRIAL' : 'trial/{*:.*}'
+	}
+    deps = { 'EXE' : 'sys_config' }
+    cmd  = f'CC=gcc PYTHON={sys.executable} ./$EXE >$H'
+
 opt_tab = {}
 class GenOpts(BaseRule) :
 	targets = { 'OPTS' : '{File}.opts' }
@@ -159,6 +167,7 @@ class GenOpts(BaseRule) :
 		res = []
 		for key,opts in opt_tab.items() :
 			if re.fullmatch(key,File) : res += opts
+		res += ('-iquote','.')
 		dir = osp.dirname(File)
 		while dir :
 			res += ('-iquote',dir)

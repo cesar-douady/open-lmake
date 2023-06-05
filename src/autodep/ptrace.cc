@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-static_assert(HAS_PTRACE) ;
-
 #include <err.h>
 #include <fcntl.h>
 #include <linux/sched.h>
@@ -30,6 +28,8 @@ static_assert(HAS_PTRACE) ;
 #include "record.hh"
 
 #include "ptrace.hh"
+
+#if HAS_PTRACE
 
 using namespace Disk ;
 
@@ -424,3 +424,5 @@ template<bool At,int FlagArg> void entry_access( PidInfo& info , pid_t pid , Sys
 ,	{ SYS_unlink            , entry_unlink  <false/*At*/>                , exit_unlink   , 1 , true  }
 ,	{ SYS_unlinkat          , entry_unlink  <true /*At*/>                , exit_unlink   , 1 , true  }
 } ;
+
+#endif // HAS_PTRACE

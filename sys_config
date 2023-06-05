@@ -1,0 +1,70 @@
+#!/bin/bash -e
+
+# This file is part of the lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+mkdir -p trial
+cd       trial
+
+#
+# HAS_PTRACE
+# waiting for a good and easy test
+#
+HAS_PTRACE=1
+
+#
+# HAS_CLOSE_RANGE
+# test whether we can include linux/close_range.h
+#
+$CC -E --include 'linux/close_range.h' -xc - </dev/null >/dev/null 2>/dev/null
+HAS_CLOSE_RANGE=$(($?==0))
+
+#
+# HAS_LD_AUDIT
+# test whether LD_AUDIT environment variable is managed by dynamic linker
+#
+cat <<"EOF" > audited.c
+	#include<stdio.h>
+	int main() { printf("0") ; }
+EOF
+cat <<"EOF" > ld_audit.c
+	#include<stdio.h>
+	#include<stdlib.h>
+	unsigned int la_version(unsigned int) { printf("1") ; exit(0) ; }
+EOF
+$CC -o audited                   audited.c
+$CC -o ld_audit.so -shared -fPIC ld_audit.c
+HAS_LD_AUDIT=$(LD_AUDIT=./ld_audit.so ./audited)
+
+#
+# NEED_STAT_WRAPPERS
+# test whether stat syscalls are transformed into __xstat
+#
+cat <<-"EOF" > stat.c
+	#include <sys/stat.h>
+	struct stat buf ;
+	int main() { stat("",&buf) ; }
+EOF
+$CC -o stat_trial stat.c
+nm -D stat_trial | grep -wq stat
+NEED_STAT_WRAPPERS=$?
+
+#
+# CentOS7 fix
+# This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+#
+if grep -q 'release 7' /etc/redhat-release 2>/dev/null
+then
+	HAS_PTRACE=0
+	HAS_LD_AUDIT=0
+fi
+
+cat <<EOF
+	#define HAS_CLOSE_RANGE    $HAS_CLOSE_RANGE
+	#define HAS_PTRACE         $HAS_PTRACE
+	#define HAS_LD_AUDIT       $HAS_LD_AUDIT
+	#define NEED_STAT_WRAPPERS $NEED_STAT_WRAPPERS
+	#define PYTHON             "$PYTHON"
+EOF

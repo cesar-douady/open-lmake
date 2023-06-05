@@ -12,6 +12,7 @@ __pycache__
 
 #auto-configuration
 /trial
+/sys_config.h
 
 # compiled files
 *.i
@@ -39,6 +40,9 @@ __pycache__
 /.vscode
 
 # Lmake env
+/lmake_env/sys_config
+/lmake_env/sys_config.h
+/lmake_env/trial
 /lmake_env/LMAKE
 /lmake_env/LMAKE_LOCAL
 /lmake_env/LMAKE_REMOTE
