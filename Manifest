@@ -18,10 +18,6 @@ ext/xxhash.patch_script
 lib/lmake.py
 lmake_env/Lmakefile.py
 lmake_env/ext_lnk
-requirements/apt.txt
-requirements/dockers/centos7.docker
-requirements/pip.txt
-requirements/system
 src/app.cc
 src/app.hh
 src/autodep/autodep.cc

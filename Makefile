@@ -151,41 +151,12 @@ LMAKE_FILES = \
 	$(BIN)/lunlink                \
 	$(BIN)/xxhsum
 
-# Build requirements
-REQ_DIR := requirements
-
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
-ALL : DFLT REQUIREMENTS STORE_TEST $(DOC)/lmake.html
+ALL : DFLT STORE_TEST $(DOC)/lmake.html
 
 lmake.tar.gz : $(LMAKE_FILES)
 	tar -cz -f $@ $^
-
-REQUIREMENTS: $(REQ_DIR)/apt.stamp $(REQ_DIR)/pip.stamp
-$(REQ_DIR)/apt/%.stamp:
-	@mkdir -p $(REQ_DIR)/apt
-	@if [ $(shell apt list $* 2>/dev/null | grep "\[installed\]\|\[upgradable.*\]" | wc -l) -eq 0 ] ; \
-	then \
-		echo "Missing required package to build lmake.\nRun: sudo apt install $*"; \
-		exit 1 ; \
-	else \
-		echo "[APT] $* is installed" ; \
-		touch $@ ; \
-	fi
-$(REQ_DIR)/pip/%.stamp:
-	@mkdir -p $(REQ_DIR)/pip
-	@if [ $(shell pip3 show $* 2>/dev/null | wc -l) -eq 0 ] ; \
-	then \
-		echo "Missing required package to run lmake.\nRun: pip3 install $*" ; \
-		exit 1 ; \
-	else \
-		echo "[PIP] $* is installed" ; \
-		touch $@ ; \
-	fi
-$(REQ_DIR)/apt.stamp: $(REQ_DIR)/apt.txt $(patsubst %,$(REQ_DIR)/apt/%.stamp,$(shell cat $(REQ_DIR)/apt.txt))
-	touch $@
-$(REQ_DIR)/pip.stamp: $(REQ_DIR)/pip.txt $(patsubst %,$(REQ_DIR)/pip/%.stamp,$(shell cat $(REQ_DIR)/pip.txt))
-	touch $@
 
 EXT : $(PYCXX).test.stamp
 
