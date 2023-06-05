@@ -28,7 +28,6 @@
 * ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* use RecordSock in src/autodep/ptrace instead of Record as we do exactly the same thing
 * autodep=ptrace reports launched exe as dep while other methods do not
 	- reduce discrepency
 * add a warning when ids reach 7/8 of their limits

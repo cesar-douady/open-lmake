@@ -194,22 +194,23 @@ struct RecordSock : Record {
 		}
 		return _t_report_fd ;
 	}
-	static void s_init() {
-		if (!has_env("LMAKE_AUTODEP_ENV")) throw "dont know where to report deps"s ;
-		//
-		AutodepEnv autodep_env{get_env("LMAKE_AUTODEP_ENV")} ;
-		lib_init(autodep_env.root_dir) ;
-		_s_service = new ::string{autodep_env.service} ;
+	static void s_init(AutodepEnv const& ade) {
+		lib_init(ade.root_dir) ;
+		_s_service = new ::string{ade.service} ;
 		if (_s_service->back()==':') {
 			*_s_service        = to_string(*g_root_dir,'/',_s_service->substr(0,_s_service->size()-1)) ; // for debugging purpose, log to a file
 			_s_service_is_file = true                                                                  ;
 		}
-		Record::s_init(autodep_env) ;
+		Record::s_init(ade) ;
+	}
+	static void s_init() {
+		if (!has_env("LMAKE_AUTODEP_ENV")) throw "dont know where to report deps"s ;
+		s_init(get_env("LMAKE_AUTODEP_ENV")) ;
 	}
 	// static data
 	static thread_local Fd _t_report_fd       ;
 	static ::string        *_s_service        ;            // pointer to avoid init/fin order hazard
 	static bool            _s_service_is_file ;
 	// cxtors & casts
-	RecordSock() : Record{ _s_report , _s_get_reply } {}
+	RecordSock(pid_t p=0) : Record{ _s_report , _s_get_reply , p } {}
 } ;
