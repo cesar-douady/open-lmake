@@ -349,11 +349,11 @@ class LinkClientAppExe(LinkAppExe) :
 class LinkAutodepAppExe(LinkAppExe) :
 	deps = {
 		'GATHER_DEPS' : 'src/autodep/gather_deps.o'
+	,	'PTRACE'      : 'src/autodep/ptrace.o'
 	,	'RECORD'      : 'src/autodep/record.o'
 	,	'RPC_JOB'     : 'src/rpc_job.o'
 	,	'RPC_CLIENT'  : None
 	}
-	if (lmake.has_ptrace) : deps['PTRACE'] = 'src/autodep/ptrace.o'
 	rev_post_opts = ( f'-Lext/{libseccomp}.dir/{libseccomp}/src' , '-lseccomp' )
 
 class LinkPythonAppExe(LinkAppExe) :

@@ -28,6 +28,8 @@
 
 #include "ptrace.hh"
 
+AutodepEnv AutodepPtrace::s_autodep_env ;
+
 #if HAS_PTRACE
 
 using namespace Disk ;
@@ -44,8 +46,6 @@ struct Action {
 	RecordSock::SymLnk  sym_lnk  = {} ;
 	RecordSock::Unlink  unlink   = {} ;
 } ;
-
-AutodepEnv AutodepPtrace::s_autodep_env ;
 
 // When tracing a child, initially, the child will run till first signal and only then will follow the specified seccomp filter.
 // If a traced system call (as per the seccomp filter) is done before, it will fail.
