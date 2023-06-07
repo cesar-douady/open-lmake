@@ -59,10 +59,11 @@
 	- snake_case for other names
 
 * name prefixes :
-	- _  : private (including static functions in .cc files that are de facto not accessible from elsewhere)
-	- s_ : static
-	- g_ : global
-	- t_ : thread local
+	- _   : private (including static functions in .cc files that are de facto not accessible from elsewhere)
+	- s_  : static
+	- g_  : global
+	- t_  : thread local
+	- np_ : non-portable
 
 * names are suffixed with _ if needed to suppress ambiguities
 
@@ -153,6 +154,7 @@
 		- "fast path"      means that the corresponding code can be suppressed without altering the semantic
 		- "."              means same as above
 		- "..." at the end means comment continue on next line
+		- /*garbage*/      means we dont care about the value, it is only there to be certain having no uninitialized values
 
 * apply https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines to the best extent
 

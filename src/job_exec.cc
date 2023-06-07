@@ -43,9 +43,7 @@ int main( int argc , char* argv[] ) {
 		/**/         OMsgBuf().send                ( fd , JobRpcReq( JobProc::Start , seq_id , job , gather_deps.master_sock.port() ) ) ;
 		start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                               ) ;
 		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch(...) {
-		return 1 ;                                                             // cannot communicate with server, give up
-	}
+	} catch(...) { return 2 ; }                                                // if server is dead, give up
 
 	if (::chdir(start_info.root_dir.c_str())!=0) {
 		JobRpcReq end_report = JobRpcReq(
@@ -54,8 +52,9 @@ int main( int argc , char* argv[] ) {
 		,	job
 		,	{ .status =Status::Err , .stderr {to_string("cannot chdir to root : ",start_info.root_dir)} }
 		) ;
-		OMsgBuf().send( ClientSockFd(service) , end_report ) ;
-		return 0 ;
+		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
+		catch (...) {                                                        } // if server is dead, we cant do much about it
+		return 2 ;
 	}
 
 	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
@@ -177,9 +176,10 @@ int main( int argc , char* argv[] ) {
 		}
 		trace("server_cb",jerr.proc,jrr.digest.deps.size()) ;
 		ClientSockFd fd{service} ;
-		//vvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send(fd,jrr) ;
-		//^^^^^^^^^^^^^^^^^^^^
+		//    vvvvvvvvvvvvvvvvvvvvvv
+		try { OMsgBuf().send(fd,jrr) ; }
+		//    ^^^^^^^^^^^^^^^^^^^^^^
+		catch (...) { return {} ; }                                            // server is dead, do as if there is no server
 		return fd ;
 	} ;
 	::string live_out_buf ;                                                    // used to store incomplete last line to have line coherent chunks
@@ -267,7 +267,7 @@ int main( int argc , char* argv[] ) {
 	//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	try { OMsgBuf().send(ClientSockFd(service),end_report) ; }
 	//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (...) { return 1 ; }                                                 // if we cannot communicate with server, silently die
+	catch (...) { return 2 ; }                                                 // if server is dead, we cant do much about it
 	serialize(ancillary_stream,end_report) ;
 	JobInfo info{
 		.end_date = end_job

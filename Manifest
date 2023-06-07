@@ -73,6 +73,8 @@ src/lmakeserver/rule.x.hh
 src/lmakeserver/store.cc
 src/lmakeserver/store.x.hh
 src/lshow.cc
+src/non_portable.cc
+src/non_portable.hh
 src/pycxx.cc
 src/pycxx.hh
 src/rpc_client.cc

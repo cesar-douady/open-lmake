@@ -13,11 +13,13 @@
 	struct AutodepPtrace {
 		// statics
 		static void s_prepare_child() ;                                        // must be called from child
+		// static data
+		static AutodepEnv s_autodep_env ;
 		// cxtors & casts
-		AutodepPtrace() = default ;
-		AutodepPtrace( int cp , AutodepEnv const& ade , Record::ReportCb rcb , Record::GetReplyCb grcb ) { _init(cp,ade,rcb,grcb) ; }
+		AutodepPtrace(        ) = default ;
+		AutodepPtrace(pid_t cp) { _init(cp) ; }
 	private :
-		void _init( int child_pid , AutodepEnv const& , Record::ReportCb , Record::GetReplyCb ) ;
+		void _init(pid_t child_pid) ;
 		// services
 		::pair<bool/*done*/,int/*wstatus*/> _changed( int pid , int wstatus ) ;
 	public :
@@ -32,9 +34,7 @@
 			fail("process ",child_pid," did not exit nor was signaled") ;
 		}
 		// data
-		int                child_pid    ;
-		Record::ReportCb   report_cb    ;
-		Record::GetReplyCb get_reply_cb ;
+		int child_pid ;
 	} ;
 
 #else
@@ -45,7 +45,7 @@
 		static void s_prepare_child() { bad() ; }
 		// cxtors & casts
 		AutodepPtrace() = default ;
-		AutodepPtrace( int /*child_pid*/ , AutodepEnv const& , Record::ReportCb , Record::GetReplyCb ) { bad() ; }
+		AutodepPtrace(int /*child_pid*/) { bad() ; }
 		int/*wstatus*/ process() { bad() ; }
 	} ;
 

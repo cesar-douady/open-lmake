@@ -85,7 +85,8 @@ namespace Time {
 		constexpr Date   operator+ (Date       ) const ;
 		//
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay  operator* (T f) const ;
-		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay  operator/ (T f) const ;
+		template<class T> requires(::is_signed_v    <T>) constexpr Delay  operator/ (T f) const ;
+		template<class T> requires(::is_unsigned_v  <T>) constexpr Delay  operator/ (T f) const ;
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay& operator*=(T f)       { *this = *this*f ; return *this ; }
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay& operator/=(T f)       { *this = *this/f ; return *this ; }
 		//
@@ -250,8 +251,9 @@ namespace Time {
 		TimeSpec ts(*this) ;
 		::nanosleep(&ts,nullptr) ;
 	}
-	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator*(T f) const { return Delay(int64_t(_val*f)) ; }
-	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(int64_t(_val/f)) ; }
+	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator*(T f) const { return Delay(int64_t(_val*                   f )) ; }
+	template<class T> requires(::is_signed_v    <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(int64_t(_val/                   f )) ; }
+	template<class T> requires(::is_unsigned_v  <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(int64_t(_val/::make_signed_t<T>(f))) ; }
 
 	//
 	// Date

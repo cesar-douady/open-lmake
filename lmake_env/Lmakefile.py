@@ -320,27 +320,25 @@ opt_tab.update({
 ,	r'src/lmakeserver/makefiles' : ( '-D'      , f'PYTHON="{sys.executable}"'                                               )
 })
 
-class LinkLibSo(LinkSo) :
+class Link(BaseRule) :
 	deps = {
-		'DISK'    : 'src/disk.o'
-	,	'LIB'     : 'src/lib.o'
-	,	'HASH'    : 'src/hash.o'
-	,	'RPC_JOB' : 'src/rpc_job.o'
-	,	'UTILS'   : 'src/utils.o'
+		'DISK'         : 'src/disk.o'
+	,	'HASH'         : 'src/hash.o'
+	,	'LIB'          : 'src/lib.o'
+	,	'NON_PORTABLE' : 'src/non_portable.o'
+	,	'TIME'         : 'src/time.o'
+	,	'UTILS'        : 'src/utils.o'
 	}
 	rev_post_opts = '-ldl'
 
-class LinkAppExe(LinkExe) :
+class LinkLibSo(Link,LinkSo) :
+	deps = { 'RPC_JOB' : 'src/rpc_job.o' }
+
+class LinkAppExe(Link,LinkExe) :
 	deps = {
-		'APP'        : 'src/app.o'
-	,	'DISK'       : 'src/disk.o'
-	,	'HASH'       : 'src/hash.o'
-	,	'LIB'        : 'src/lib.o'
-	,	'TIME'       : 'src/time.o'
-	,	'TRACE'      : 'src/trace.o'
-	,	'UTILS'      : 'src/utils.o'
+		'APP'   : 'src/app.o'
+	,	'TRACE' : 'src/trace.o'
 	}
-	rev_post_opts = '-ldl'
 
 class LinkClientAppExe(LinkAppExe) :
 	deps = {

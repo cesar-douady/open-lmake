@@ -50,16 +50,8 @@ ENUM( DepAccess    // content which syscall has access to
 ,	Lnk            // syscall sees link    content if dep is a link
 ,	Reg            // syscall sees regular content if dep is regular
 )
-struct DepAccesses : BitMap<DepAccess> {                                       // a syscall may have access to any of the contents
-	using Base = BitMap<DepAccess> ;
-	using Base::Base ;
-	static const DepAccesses None ;
-	static const DepAccesses Data ;
-	static const DepAccesses All  ;
-} ;
-constexpr DepAccesses DepAccesses::None = DepAccesses(+Base::None)      ;
-constexpr DepAccesses DepAccesses::Data = DepAccess::Lnk|DepAccess::Reg ;
-constexpr DepAccesses DepAccesses::All  = DepAccesses(+Base::All )      ;
+using DepAccesses = BitMap<DepAccess> ;                                        // a syscall may have access to any of the contents
+constexpr DepAccesses DepAccessesData =  DepAccess::Lnk|DepAccess::Reg ;
 
 ENUM_1( JobReasonTag                   // see explanations in table below
 ,	HasNode = ClashTarget              // if >=HasNode, a node is associated
@@ -327,38 +319,38 @@ struct JobRpcReply {
 	}
 	// data
 	Proc                 proc             = Proc         ::None ;
-	in_addr_t            addr             = 0                   ;                // proc == Start, the address at which server can contact job, it is assumed that it can be used by subprocesses
-	::string             ancillary_file   ;                                      // proc == Start
-	AutodepMethod        autodep_method   = AutodepMethod::None ;                // proc == Start
-	bool                 auto_mkdir       = false               ;                // proc == Start, if true <=> auto mkdir in case of chdir
-	::string             chroot           ;                                      // proc == Start
-	::string             cwd              ;                                      // proc == Start
-	::vmap_ss            env              ;                                      // proc == Start
-	::vector_s           force_deps       ;                                      // proc == Start, deps that may clash with targets
-	Hash::Algo           hash_algo        = Hash::Algo::Unknown ;                // proc == Start
-	::string             host             ;                                      // proc == Start, filled in job_exec
-	bool                 ignore_stat      = false               ;                // proc == Start, if true <=> stat-like syscalls do not trigger dependencies
-	::vector_s           interpreter      ;                                      // proc == Start, actual interpreter used to execute script
-	bool                 is_python        = false               ;                // proc == Start, if true <=> script is a Python script
-	JobIdx               job_id           = 0                   ;                // proc == Start, filled in job_exec
-	::string             job_tmp_dir      ;                                      // proc == Start
-	bool                 keep_tmp         = false               ;                // proc == Start
-	vector<int>          kill_sigs        ;                                      // proc == Start
-	bool                 live_out         ;                                      // proc == Start
-	LnkSupport           lnk_support      = LnkSupport   ::None ;                // proc == Start
-	JobReason            reason           = JobReasonTag ::None ;                // proc == Start
-	::string             remote_admin_dir ;                                      // proc == Start
-	::string             root_dir         ;                                      // proc == Start
-	::vmap_ss            rsrcs            ;                                      // proc == Start
-	::string             script           ;                                      // proc == Start
-	SeqId                seq_id           = 0                   ;                // proc == Start, filled in job_exec
-	SmallId              small_id         = 0                   ;                // proc == Start
-	::string             stdin            ;                                      // proc == Start
-	::string             stdout           ;                                      // proc == Start
-	::vector<TargetSpec> targets          ;                                      // proc == Start
-	Time::Delay          timeout          ;                                      // proc == Start
-	Bool3                ok               = No                  ;                // proc == ChkDeps || DepCrcs, if No <=> deps in error, if Maybe <=> deps not ready
-	::vector<Crc>        crcs             ;                                      // proc ==            DepCrcs
+	in_addr_t            addr             = 0                   ;              // proc == Start, the address at which server can contact job, it is assumed that it can be used by subprocesses
+	::string             ancillary_file   ;                                    // proc == Start
+	AutodepMethod        autodep_method   = AutodepMethod::None ;              // proc == Start
+	bool                 auto_mkdir       = false               ;              // proc == Start, if true <=> auto mkdir in case of chdir
+	::string             chroot           ;                                    // proc == Start
+	::string             cwd              ;                                    // proc == Start
+	::vmap_ss            env              ;                                    // proc == Start
+	::vector_s           force_deps       ;                                    // proc == Start, deps that may clash with targets
+	Hash::Algo           hash_algo        = Hash::Algo::Unknown ;              // proc == Start
+	::string             host             ;                                    // proc == Start, filled in job_exec
+	bool                 ignore_stat      = false               ;              // proc == Start, if true <=> stat-like syscalls do not trigger dependencies
+	::vector_s           interpreter      ;                                    // proc == Start, actual interpreter used to execute script
+	bool                 is_python        = false               ;              // proc == Start, if true <=> script is a Python script
+	JobIdx               job_id           = 0                   ;              // proc == Start, filled in job_exec
+	::string             job_tmp_dir      ;                                    // proc == Start
+	bool                 keep_tmp         = false               ;              // proc == Start
+	vector<int>          kill_sigs        ;                                    // proc == Start
+	bool                 live_out         = false               ;              // proc == Start
+	LnkSupport           lnk_support      = LnkSupport   ::None ;              // proc == Start
+	JobReason            reason           = JobReasonTag ::None ;              // proc == Start
+	::string             remote_admin_dir ;                                    // proc == Start
+	::string             root_dir         ;                                    // proc == Start
+	::vmap_ss            rsrcs            ;                                    // proc == Start
+	::string             script           ;                                    // proc == Start
+	SeqId                seq_id           = 0                   ;              // proc == Start, filled in job_exec
+	SmallId              small_id         = 0                   ;              // proc == Start
+	::string             stdin            ;                                    // proc == Start
+	::string             stdout           ;                                    // proc == Start
+	::vector<TargetSpec> targets          ;                                    // proc == Start
+	Time::Delay          timeout          ;                                    // proc == Start
+	Bool3                ok               = No                  ;              // proc == ChkDeps || DepCrcs, if No <=> deps in error, if Maybe <=> deps not ready
+	::vector<Crc>        crcs             ;                                    // proc ==            DepCrcs
 } ;
 
 struct JobInfo {
@@ -485,6 +477,7 @@ struct JobExecRpcReply {
 	JobExecRpcReply( Proc p , ::vector<Crc> const& cs ) : proc{p} , crcs{cs} { SWEAR( proc==Proc::DepCrcs                        ) ; }
 	JobExecRpcReply( JobRpcReply const& jrr ) {
 		switch (jrr.proc) {
+			case JobProc::None    :                        proc = Proc::None    ;                      break ;
 			case JobProc::ChkDeps : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps ; ok   = jrr.ok==Yes ; break ;
 			case JobProc::DepCrcs :                        proc = Proc::DepCrcs ; crcs = jrr.crcs    ; break ;
 			default : FAIL(jrr.proc) ;
@@ -502,6 +495,6 @@ struct JobExecRpcReply {
 	}
 	// data
 	Proc          proc = Proc::None ;
-	bool          ok   ;               // if proc==ChkDeps
+	bool          ok   = false      ;  // if proc==ChkDeps
 	::vector<Crc> crcs ;               // if proc==DepCrcs
 } ;

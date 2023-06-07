@@ -112,6 +112,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		bool in_parent = child.spawn( true/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
 		if (!in_parent) {
 			Child grand_child ;
+			AutodepPtrace::s_autodep_env = autodep_env ;
 			try {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				grand_child.spawn(
@@ -127,14 +128,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 				exit(2,e) ;
 			}
 			trace("pid",grand_child.pid) ;
-			ClientSockFd fd{master_sock.service(addr)} ;
-			AutodepPtrace autodep_ptrace {
-				grand_child.pid
-			,	autodep_env
-			,	[&](JobExecRpcReq const& jerr)->void            {        OMsgBuf().send                    (fd,jerr) ; }
-			,	[&](                         )->JobExecRpcReply { return IMsgBuf().receive<JobExecRpcReply>(fd     ) ; }
-			} ;
-			int wstatus = autodep_ptrace.process() ;
+			AutodepPtrace autodep_ptrace { grand_child.pid }        ;
+			int           wstatus        = autodep_ptrace.process() ;
 			grand_child.waited() ;                                             // grand_child has already been waited
 			if      (WIFEXITED  (wstatus)) ::_exit  (WEXITSTATUS(wstatus)) ;
 			else if (WIFSIGNALED(wstatus)) kill_self(WTERMSIG   (wstatus)) ;

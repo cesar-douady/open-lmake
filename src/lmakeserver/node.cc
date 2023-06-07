@@ -103,7 +103,7 @@ namespace Engine {
 		//
 		::string name_     = name()    ;
 		Prio     prio      = -Infinity ;                                       // initially, we are ready to accept any rule
-		RuleIdx  n         ;
+		RuleIdx  n         = 0         ;
 		bool     clear     = false     ;
 		Bool3    buildable = No        ;                                       // return if we found a job candidate
 		//

@@ -32,10 +32,15 @@ bool at_init( int pass , void(*func)() ) {
 	return true ;                                                              // return val is useless, just more practical to use
 }
 
+#pragma GCC visibility push(default)                                           // force visibility of functions defined hereinafter, until the corresponding pop
+extern "C" {
+	const char* __asan_default_options () { return "verify_asan_link_order=0,detect_leaks=0" ; }
+	const char* __ubsan_default_options() { return "halt_on_error=1"                         ; }
+	const char* __tsan_default_options () { return "report_signal_unsafe=0"                  ; }
+}
+#pragma GCC visibility pop
+
 void app_init( bool search_root , bool cd_root ) {
-	set_env("ASAN_OPTIONS" ,"detect_leaks=0"        ) ;                        // /!\ __asan_default_options () is not called, do our best
-	set_env("UBSAN_OPTIONS","halt_on_error=1"       ) ;                        // /!\ __ubsan_default_options() .
-	set_env("TSAN_OPTIONS" ,"report_signal_unsafe=0") ;                        // /!\ __tsan_default_options () .
 	//
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//

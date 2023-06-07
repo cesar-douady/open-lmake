@@ -3,25 +3,31 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#
 # build configuration
+#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
 MAKEFLAGS = -j8 -r -R -k
 
 CC := gcc
 #CC := gcc --coverage
-#CC := clang
+#CC := clang                                                                   # for some unknown reason, clang is incompatible with -fsanitize
 
-#SAN_FLAGS := -fsanitize=address -fsanitize=undefined
-#SAN_FLAGS := -fsanitize=address
-#SAN_FLAGS := -fsanitize=thread
+# -fsanitize=address and -fsanitize=thread are exclusive of one another
+#ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
+#ASAN_FLAGS := -fsanitize=address
+#TSAN_FLAGS := -fsanitize=thread
 
 #OPT_FLAGS := -O0 -g
-OPT_FLAGS := -O3
-#OPT_FLAGS := -O3 -DNDEBUG
+#OPT_FLAGS := -O3
+OPT_FLAGS := -O3 -DNDEBUG
+
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 
 WARNING_FLAGS := -Wall -Wextra
-ifeq ($(CC),clang)
-WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option
+ifeq ($(strip $(CC)),clang)
+WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
 endif
 
 # python configuration
@@ -30,7 +36,10 @@ ifeq ($(PYTHON),)
 $(error cannot find python3)
 endif
 
+SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                := $(if $(SAN_FLAGS),.san,)
+ASAN               := $(if $(findstring address,$(SAN_FLAGS)),.san,)
+TSAN               := $(if $(findstring thread,$(SAN_FLAGS)),.san,)
 PREPROCESS         := $(CC) -E
 COMPILE            := $(CC) -c -fvisibility=hidden
 LINK_O             := $(CC) -r
@@ -179,6 +188,7 @@ $(STORE_LIB)/unit_test : \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/disk$(SAN).o       \
 	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/utils$(SAN).o      \
@@ -197,10 +207,10 @@ $(STORE_LIB)/unit_test.tok : $(STORE_LIB)/unit_test
 INCLUDE_SECCOMP := -I $(SECCOMP_INCLUDE_DIR)
 INSTALL_SECCOMP := $(SECCOMP).install.stamp
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib pycxx rpc_client rpc_job serialize time trace utils )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                )
-STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                  )
-ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x    )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                             )
+STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                               )
+ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x                 )
 
 ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp $(INSTALL_SECCOMP) ext/xxhash.patched.h
 ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
@@ -223,6 +233,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/disk$(SAN).o                       \
 	$(SRC)/hash$(SAN).o                       \
 	$(SRC)/lib$(SAN).o                        \
+	$(SRC)/non_portable.o                     \
 	$(SRC)/pycxx$(SAN).o                      \
 	$(SRC)/rpc_client$(SAN).o                 \
 	$(SRC)/rpc_job$(SAN).o                    \
@@ -253,6 +264,7 @@ $(SBIN)/ldump : \
 	$(SRC)/disk$(SAN).o                \
 	$(SRC)/hash$(SAN).o                \
 	$(SRC)/lib$(SAN).o                 \
+	$(SRC)/non_portable.o              \
 	$(SRC)/pycxx$(SAN).o               \
 	$(SRC)/rpc_client$(SAN).o          \
 	$(SRC)/rpc_job$(SAN).o             \
@@ -276,6 +288,7 @@ $(SBIN)/ldump_job : \
 	$(SRC)/disk$(SAN).o    \
 	$(SRC)/hash$(SAN).o    \
 	$(SRC)/lib$(SAN).o     \
+	$(SRC)/non_portable.o  \
 	$(SRC)/rpc_job$(SAN).o \
 	$(SRC)/time$(SAN).o    \
 	$(SRC)/trace$(SAN).o   \
@@ -290,6 +303,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/disk$(SAN).o                \
 	$(SRC)/hash$(SAN).o                \
 	$(SRC)/lib$(SAN).o                 \
+	$(SRC)/non_portable.o              \
 	$(SRC)/pycxx$(SAN).o               \
 	$(SRC)/rpc_job$(SAN).o             \
 	$(SRC)/time$(SAN).o                \
@@ -307,6 +321,7 @@ $(BIN)/lmake : \
 	$(SRC)/client$(SAN).o     \
 	$(SRC)/disk$(SAN).o       \
 	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
@@ -320,6 +335,7 @@ $(BIN)/lshow : \
 	$(SRC)/client$(SAN).o     \
 	$(SRC)/disk$(SAN).o       \
 	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
@@ -333,6 +349,7 @@ $(BIN)/lforget : \
 	$(SRC)/client$(SAN).o     \
 	$(SRC)/disk$(SAN).o       \
 	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
@@ -346,6 +363,7 @@ $(BIN)/lfreeze : \
 	$(SRC)/client$(SAN).o     \
 	$(SRC)/disk$(SAN).o       \
 	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
@@ -355,11 +373,12 @@ $(BIN)/lfreeze : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/xxhsum : \
-	$(SRC)/disk$(SAN).o  \
-	$(SRC)/hash$(SAN).o  \
-	$(SRC)/lib$(SAN).o   \
-	$(SRC)/time$(SAN).o  \
-	$(SRC)/utils$(SAN).o \
+	$(SRC)/disk$(SAN).o   \
+	$(SRC)/hash$(SAN).o   \
+	$(SRC)/lib$(SAN).o    \
+	$(SRC)/non_portable.o \
+	$(SRC)/time$(SAN).o   \
+	$(SRC)/utils$(SAN).o  \
 	$(SRC)/xxhsum$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
@@ -368,20 +387,22 @@ $(BIN)/xxhsum : \
 # job_exec
 #
 
+# ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
 $(BIN)/ldepend : \
-	$(SRC)/app$(SAN).o                     \
-	$(SRC)/disk$(SAN).o                    \
-	$(SRC)/hash$(SAN).o                    \
-	$(SRC)/lib$(SAN).o                     \
-	$(SRC)/rpc_job$(SAN).o                 \
-	$(SRC)/time$(SAN).o                    \
-	$(SRC)/trace$(SAN).o                   \
-	$(SRC)/utils$(SAN).o                   \
-	$(SRC)/autodep/autodep_support$(SAN).o \
-	$(SRC)/autodep/record$(SAN).o          \
-	$(SRC)/autodep/ldepend$(SAN).o
+	$(SRC)/app$(ASAN).o                     \
+	$(SRC)/disk$(ASAN).o                    \
+	$(SRC)/hash$(ASAN).o                    \
+	$(SRC)/lib$(ASAN).o                     \
+	$(SRC)/non_portable.o                   \
+	$(SRC)/rpc_job$(ASAN).o                 \
+	$(SRC)/time$(ASAN).o                    \
+	$(SRC)/trace$(ASAN).o                   \
+	$(SRC)/utils$(ASAN).o                   \
+	$(SRC)/autodep/autodep_support$(ASAN).o \
+	$(SRC)/autodep/record$(ASAN).o          \
+	$(SRC)/autodep/ldepend$(ASAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
 $(BIN)/lunlink           \
 $(BIN)/ltarget           \
 $(BIN)/lcritical_barrier \
@@ -396,6 +417,7 @@ $(BIN)/autodep : \
 	$(SRC)/disk$(SAN).o                \
 	$(SRC)/hash$(SAN).o                \
 	$(SRC)/lib$(SAN).o                 \
+	$(SRC)/non_portable.o              \
 	$(SRC)/rpc_job$(SAN).o             \
 	$(SRC)/time$(SAN).o                \
 	$(SRC)/trace$(SAN).o               \
@@ -412,6 +434,7 @@ $(SLIB)/autodep_ld_preload.so : \
 	$(SRC)/disk.o           \
 	$(SRC)/hash.o           \
 	$(SRC)/lib.o            \
+	$(SRC)/non_portable.o   \
 	$(SRC)/rpc_job.o        \
 	$(SRC)/time.o           \
 	$(SRC)/utils.o          \
@@ -425,6 +448,7 @@ $(SLIB)/autodep_ld_audit.so : \
 	$(SRC)/disk.o               \
 	$(SRC)/hash.o               \
 	$(SRC)/lib.o                \
+	$(SRC)/non_portable.o       \
 	$(SRC)/rpc_job.o            \
 	$(SRC)/time.o               \
 	$(SRC)/utils.o              \
@@ -437,6 +461,7 @@ $(LIB)/clmake.so : \
 	$(SRC)/disk.o                    \
 	$(SRC)/hash.o                    \
 	$(SRC)/lib.o                     \
+	$(SRC)/non_portable.o            \
 	$(SRC)/rpc_job.o                 \
 	$(SRC)/time.o                    \
 	$(SRC)/utils.o                   \
