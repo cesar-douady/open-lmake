@@ -28,11 +28,6 @@
 * ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* ensure serialize is semantically correct :
-	- no decorator
-	- ensure name appears as name in def
-	- global accessed vars correspond to what we have
-	- no cell vars
 * autodep=ptrace reports launched exe as dep while other methods do not
 	- reduce discrepency
 * add a warning when ids reach 7/8 of their limits

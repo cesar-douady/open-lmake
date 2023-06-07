@@ -49,36 +49,30 @@ namespace Engine {
 		::vector_view_c_s sts = match_.static_targets() ;
 		for( VarIdx t=0 ; t<sts.size() ; t++ ) {
 			Node target{sts[t]} ;
-			if (target->crc==Crc::None           ) continue ;                     // no interest to wash file if it does not exist
-			if (rule->flags(t)[Flag::Incremental]) continue ;                     // keep file for incremental targets
+			if ( target->crc==Crc::None                                              ) continue ;                        // no interest to wash file if it does not exist
+			if (                                   rule->flags(t)[Flag::Incremental] ) continue ;                        // keep file for incremental targets
+			if ( !target->has_actual_job(*this) && rule->flags(t)[Flag::Warning    ] ) report_unlink.push_back(target) ;
 			to_wash.push_back(sts[t]) ;
-			if (!target->has_actual_job(*this)) {
-				if (rule->flags(t)[Flag::Warning]) report_unlink.push_back(target) ;
-			}
 		}
 		// handle star targets
 		Rule::Match full_match ;                                               // lazy evaluated, if we find any target to report_unlink
 		for( Target target : (*this)->star_targets ) {
 			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
 			if (target.is_update()    ) continue ;                             // if reads were allowed, keep file
-			to_wash.push_back(target.name()) ;
 			if (!target->has_actual_job(*this)) {
-				if (!full_match) full_match = match_ ;                                                           // solve lazy evaluation
+				if (!full_match                                              ) full_match = match_ ;             // solve lazy evaluation
 				if (rule->flags(full_match.idx(target.name()))[Flag::Warning]) report_unlink.push_back(target) ;
 			}
+			to_wash.push_back(target.name()) ;
 		}
 		// remove old_targets
 		::set_s       to_mk_dir_set = mk_set(to_mk_dirs)     ;                 // uncomfortable on how a hash tab may work with repetitive calls to begin/erase, safer with a set
 		::unique_lock lock          { _s_target_dirs_mutex } ;
 		for( ::string const& t : to_wash ) {
 			trace("unlink_target",t) ;
-			//    vvvvvvvvvvvvvvvvv
-			if (::unlink(t.c_str())==0) goto Ok ;
-			//    ^^^^^^^^^^^^^^^^^
-			if (errno==ENOENT         ) goto Ok ;
-			SWEAR_PROD(errno!=EISDIR) ;                                        // what is that ?
-			throw to_string("target appear to be a directory : ",t) ;
-		Ok :
+			//vvvvvvv
+			unlink(t) ;
+			//^^^^^^^
 			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , dir_name(t) ) ; // _s_target_dirs must protect all dirs beneath it
 		}
 		// create target dirs
@@ -385,6 +379,10 @@ namespace Engine {
 		//
 		// handle targets
 		//
+		auto report_missing_target = [&](::string const& tn)->void {
+			FileInfo fi{tn} ;
+			analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , tn ) ;
+		} ;
 		::uset<VarIdx> seen_static_targets ;
 
 		for( UNode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
@@ -423,7 +421,7 @@ namespace Engine {
 				if (!RuleData::s_sure(flags)) continue ;                       // if we are not sure, a target is not generated if it does not exist
 				if ( !flags[Flag::Star] && !flags[Flag::Optional] ) {
 					err = true ;
-					analysis_err.emplace_back("missing static target",tn) ;
+					report_missing_target(tn) ;
 				}
 			}
 			if ( td.write && crc!=Crc::None && !flags[Flag::Write] ) {
@@ -463,7 +461,7 @@ namespace Engine {
 				//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (!flags[Flag::Optional]) {
 					err = true ;
-					if (status==Status::Ok) analysis_err.emplace_back("missing target",static_targets[t]) ; // only report if job was ok, else it is quite normal
+					if (status==Status::Ok) report_missing_target(static_targets[t]) ; // only report if job was ok, else it is quite normal
 				}
 			}
 		}

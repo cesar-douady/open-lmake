@@ -148,9 +148,10 @@ namespace Engine {
 		RuleTgt           art       ;                                        // set if an anti-rule matches
 		RuleIdx           n_missing = 0                    ;                 // number of rules missing deps
 		//
-		Node dir = node ; while ( !dir->job_tgts.empty() && dir->job_tgts[0]->rule.special()==Special::Uphill ) dir = dir->job_tgts[0]->deps[0] ;
-		if (dir!=node) {
-			req->audit_node(Color::Warning,"dir is buildable :",dir,lvl) ;
+		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
+		if ( dir!=node && dir->makable() ) {
+			req->audit_node(Color::Err    ,"no rule for"       ,name,lvl  ) ;
+			req->audit_node(Color::Warning,"dir is buildable :",dir ,lvl+1) ;
 			return ;
 		}
 		//
@@ -185,7 +186,9 @@ namespace Engine {
 			for( VarIdx d=0 ; d<rt->n_deps() ; d++ ) if (!static_deps[d]->makable()    ) { missing_dep = static_deps[d] ; missing_key = rt->deps.dct[d].first ; goto Missing ; }
 		Missing :
 			SWEAR(+missing_dep) ;                                                                                    // else why wouldn't it apply ?!?
-			reason = to_string( "misses " , is_target(missing_dep.name())?"(existing) ":"" , "dep ", missing_key ) ;
+			{	FileInfo fi{missing_dep.name()} ;
+				reason = to_string( "misses dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
+			}
 		Report :
 			if ( !missing_dep                             ) req->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
 			else                                            req->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;

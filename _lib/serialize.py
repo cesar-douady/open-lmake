@@ -31,7 +31,7 @@ def get_src(*args,no_imports=(),ctx=()) :
 			for k,v in a.items() : s.val_src(k,v)
 		else :
 			s.val_src(None,a)
-	return s.get_src() , s.in_sets
+	return s.get_src()
 
 def get_code_ctx(*args,no_imports=(),ctx=()) :
 	'''
@@ -47,7 +47,7 @@ def get_code_ctx(*args,no_imports=(),ctx=()) :
 	for a in args :
 		if not isinstance(a,get_code_ctx.__code__.__class__) : raise TypeError(f'args must be code, not {a.__class__.__name__}')
 		for glb_var in s.get_glbs(a) : s.gather_ctx(glb_var)
-	return s.get_src() , s.in_sets
+	return s.get_src()
 
 end_liness = {}
 srcs       = {}
@@ -81,8 +81,9 @@ def analyze(file_name) :
 		file_end_lines[start_lineno] = end_lineno
 
 class Serialize :
+	InSet = object()                                                           # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
 	def __init__(self,no_imports,ctx) :
-		self.seen    = set()
+		self.seen    = {}
 		self.src_lst = []
 		self.in_sets = set()
 		self.ctx     = list(ctx)
@@ -100,7 +101,7 @@ class Serialize :
 
 	def get_src(self) :
 		if len(self.src_lst) and len(self.src_lst[-1]) : self.src_lst.append('') # ensure there is \n at the end
-		return '\n'.join(self.src_lst)
+		return '\n'.join(self.src_lst) , {k for k,v in self.seen.items() if v is self.InSet}
 
 	have_name = {
 		'LOAD_GLOBAL' , 'STORE_GLOBAL' , 'DELETE_GLOBAL'
@@ -128,8 +129,10 @@ class Serialize :
 			try                   : name = val.__name__
 			except AttributeError : pass
 		if name :
-			if name in self.seen : return
-			self.seen.add(name)
+			if name in self.seen :
+				if val==self.seen[name] : return
+				else                    : raise f'name conflict : {name} is both {val} and {self.seen[name]}'
+			self.seen[name] = val
 		if isinstance(val,types.ModuleType) :
 			if name==val.__name__ : self.src_lst.append(f'import {val.__name__}'          )
 			else                  : self.src_lst.append(f'import {val.__name__} as {name}')
@@ -159,7 +162,7 @@ class Serialize :
 		for d in self.ctx :
 			if name not in d : continue
 			try    : val = d[name]
-			except : self.in_sets.add(name)
+			except : self.seen[name] = self.InSet
 			else   : self.val_src(name,val)
 			return
 		# name may be a builtins or it does not exist, in both case, do nothing and we'll have a NameError exception at runtime if name is accessed and it is not a builtin
@@ -185,6 +188,7 @@ class Serialize :
 		file_end_lines = end_liness[file_name]
 		first_line_no  = code.co_firstlineno-1
 		end_line_no    = file_end_lines.get(first_line_no)
+		if first_line_no!=0 and file_src[first_line_no-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
 		assert end_line_no,f'{file_name}:{first_line_no+1} : cannot find def {name}'
 		#
 		if func.__globals__ not in self.ctx : self.ctx.append(func.__globals__)
