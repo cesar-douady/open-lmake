@@ -19,8 +19,8 @@ CC := gcc
 #TSAN_FLAGS := -fsanitize=thread
 
 #OPT_FLAGS := -O0 -g
-#OPT_FLAGS := -O3
-OPT_FLAGS := -O3 -DNDEBUG
+OPT_FLAGS := -O3
+#OPT_FLAGS := -O3 -DNDEBUG
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
