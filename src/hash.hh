@@ -128,14 +128,15 @@ namespace Hash {
 	} ;
 
 	struct _Xxh {
-		static void _s_init_lnk() { if (_s_lnk_secret_inited) return ; XXH3_generateSecret( _s_lnk_secret , sizeof(_s_lnk_secret) , "lnk" , 3 ) ; _s_lnk_secret_inited = true ; }
-		static void _s_init_exe() { if (_s_exe_secret_inited) return ; XXH3_generateSecret( _s_exe_secret , sizeof(_s_exe_secret) , "exe" , 3 ) ; _s_exe_secret_inited = true ; }
+		static void _s_init_lnk() { ::unique_lock lock{_s_inited_mutex} ; if (_s_lnk_inited) return ; XXH3_generateSecret(_s_lnk_secret,sizeof(_s_lnk_secret),"lnk",3) ; _s_lnk_inited = true ; }
+		static void _s_init_exe() { ::unique_lock lock{_s_inited_mutex} ; if (_s_exe_inited) return ; XXH3_generateSecret(_s_exe_secret,sizeof(_s_exe_secret),"exe",3) ; _s_exe_inited = true ; }
 		// static data
 	private :
-		static char _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
-		static char _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
-		static bool _s_lnk_secret_inited                ;
-		static bool _s_exe_secret_inited                ;
+		static char    _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
+		static char    _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
+		static ::mutex _s_inited_mutex                     ;
+		static bool    _s_lnk_inited                       ;
+		static bool    _s_exe_inited                       ;
 	protected :
 		// cxtors & cast
 		_Xxh(       ) ;

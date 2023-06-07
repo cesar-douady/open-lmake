@@ -17,11 +17,11 @@ using namespace Time   ;
 
 ENUM( EventKind , Master , Int , Slave , Std )
 
-static ServerSockFd _g_server_fd      ;
-static bool         _g_is_daemon      = false ;
-static bool         _g_done           = false ;
-static bool         _g_server_running = false ;
-static ::string     _g_server_mrkr    ;
+static ServerSockFd   _g_server_fd      ;
+static bool           _g_is_daemon      = false ;
+static ::atomic<bool> _g_done           = false ;
+static bool           _g_server_running = false ;
+static ::string       _g_server_mrkr    ;
 
 static int _get_mrkr_pid() {
 	::ifstream server_mrkr_stream {_g_server_mrkr} ;
@@ -237,8 +237,9 @@ bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
 	::umap<Fd,Req                      > req_tab ;                             // indexed by out_fd
 	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab  ;
-	 while ( _g_is_daemon || Req::s_n_reqs() || !_g_done || !g_engine_queue.empty() ) {
-		if (g_engine_queue.empty()) {                                                   // we are about to block, do some book-keeping
+	 bool                                empty   = false/*garbage*/ ;
+	 while ( !(empty=!g_engine_queue) || _g_is_daemon || Req::s_n_reqs() || !_g_done ) {
+		if (empty) {                                                                     // we are about to block, do some book-keeping
 			trace("wait") ;
 			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;
 			if ( !_g_is_daemon && !Req::s_n_reqs() && _g_done ) break ;

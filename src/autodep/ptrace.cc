@@ -6,7 +6,6 @@
 #include <err.h>
 #include <fcntl.h>
 #include <linux/sched.h>
-#include <sys/user.h>                  // for user_regs_struct
 #include <syscall.h>                   // for SYS_* macros
 
 #include <sys/ptrace.h>
@@ -212,28 +211,20 @@ void put_str( pid_t pid , uint64_t val , ::string const& str ) {
 
 int get_errno(int pid) {
 	errno = 0 ;
-	#ifdef __x86_64__
-		struct ::user_regs_struct regs ;
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		SWEAR(!errno) ;
-		return -regs.rax ;
-	#else
-		#error "errno not implemented for this architecture"                     // if situation arises, please provide the adequate code using x86_64 case as a template
-	#endif
+	struct ::user_regs_struct regs ;
+	ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+	SWEAR(!errno) ;
+	return np_get_errno(regs) ;
 }
 
 void clear_syscall(int pid) {
 	errno = 0 ;
-	#ifdef __x86_64__
-		struct ::user_regs_struct regs ;
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-		regs.orig_rax = -1 ;
-		ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-	#else
-		#error "errno not implemented for this architecture"                     // if situation arises, please provide the adequate code using x86_64 case as a template
-	#endif
+	struct ::user_regs_struct regs ;
+	ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+	if (errno) throw 0 ;
+	np_clear_syscall(regs) ;
+	ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
+	if (errno) throw 0 ;
 }
 
 //

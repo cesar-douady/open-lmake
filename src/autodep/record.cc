@@ -218,15 +218,15 @@ int Record::Rename::operator()( Record& r , int rc , int errno_ ) {
 			if ( !old_real.empty() ) for( ::string const& d : sfxs ) writes.push_back( old_real + d ) ;
 		}
 		::string c = comment+(exchange?"<>":"") ;
-		r._report_deps   ( Proc::Deps    , reads  , DepAccesses::Data , c ) ;
-		r._report_targets( Proc::Unlinks , reads  ,                     c ) ;  // do unlink before write so write has priority
-		r._report_targets( Proc::Targets , writes ,                     c ) ;
+		r._report_deps   ( Proc::Deps    , reads  , DepAccessesData , c ) ;
+		r._report_targets( Proc::Unlinks , reads  ,                   c ) ;    // do unlink before write so write has priority
+		r._report_targets( Proc::Targets , writes ,                   c ) ;
 	} else if (s_no_file(errno_)) {                                            // rename has not occurred : the read part must still be reported
 		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
 		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
 		::string c = comment+(exchange?"!<>":"!") ;
-		if ( !old_real.empty()             ) r._report_deps( Proc::Deps , walk( old_at,old_file , old_real ) , DepAccesses::Data , c ) ;
-		if ( !new_real.empty() && exchange ) r._report_deps( Proc::Deps , walk( new_at,new_file , new_real ) , DepAccesses::Data , c ) ;
+		if ( !old_real.empty()             ) r._report_deps( Proc::Deps , walk( old_at,old_file , old_real ) , DepAccessesData , c ) ;
+		if ( !new_real.empty() && exchange ) r._report_deps( Proc::Deps , walk( new_at,new_file , new_real ) , DepAccessesData , c ) ;
 	}
 	return rc ;
 }

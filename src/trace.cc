@@ -13,17 +13,17 @@ using namespace Time ;
 
 ::string* g_trace_file ;               // pointer to avoid init/fini order hazards, relative to admin dir
 
-thread_local int        Trace::t_lvl  = 0   ;
-thread_local char       Trace::t_key  = '?' ;
-thread_local Trace::Buf Trace::_t_buf ;
+thread_local int            Trace::t_lvl  = 0       ;
+thread_local char           Trace::t_key  = '?'     ;
+thread_local bool           Trace::t_hide = false   ;
+thread_local OStringStream* Trace::_t_buf = nullptr ;
 
-size_t   Trace::s_pos          =  0    ;
-size_t   Trace::s_sz           = -1    ;                   // do not limit trace as long as not instructed to
-bool     Trace::s_ping         = false ;
-bool     Trace::s_hide         = false ;
-bool     Trace::s_backup_trace = false ;
-Fd       Trace::_s_fd          ;
-::mutex  Trace::_s_mutex       ;
+size_t           Trace::s_pos          =  0    ;
+::atomic<size_t> Trace::s_sz           = -1    ;           // do not limit trace as long as not instructed to
+bool             Trace::s_ping         = false ;
+bool             Trace::s_backup_trace = false ;
+Fd               Trace::_s_fd          ;
+::mutex          Trace::_s_mutex       ;
 
 void Trace::s_start() {
 	if ( !g_trace_file || g_trace_file->empty() ) return ;

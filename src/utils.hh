@@ -65,6 +65,7 @@
 #include <vector>
 
 #include "sys_config.h"
+#include "non_portable.hh"
 
 using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
 
@@ -213,39 +214,40 @@ protected :
 using OFakeStream = FakeStream<::ostream> ;
 using IFakeStream = FakeStream<::istream> ;
 
-struct _FileBuf : ::filebuf { int fd() { return _M_file.fd() ; } } ;           // only for use in IFStream/OFStream
+static inline void _set_cloexec(::filebuf* fb) {
+	int fd = np_get_fd(*fb) ;
+	if (fd>=0) ::fcntl(fd,F_SETFD,FD_CLOEXEC) ;
+}
+static inline void _sanitize(::ostream& os) {
+	os.exceptions(~os.goodbit) ;
+	os<<::left<<::boolalpha ;
+}
 struct OFStream : ::ofstream {
 	using Base = ::ofstream ;
 	// cxtors & casts
-	OFStream(                                 ) : Base{           } { exceptions(~goodbit) ;                  }
-	OFStream( ::string const& f               ) : Base{f          } { exceptions(~goodbit) ; _set_cloexec() ; }
-	OFStream( ::string const& f , openmode om ) : Base{f,om       } { exceptions(~goodbit) ; _set_cloexec() ; }
-	OFStream( OFStream&& ofs                  ) : Base{::move(ofs)} {                                         }
+	OFStream(                                 ) : Base{           } { _sanitize(*this) ;                         }
+	OFStream( ::string const& f               ) : Base{f          } { _sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream( ::string const& f , openmode om ) : Base{f,om       } { _sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream( OFStream&& ofs                  ) : Base{::move(ofs)} {                                            }
 	//
 	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return *this ; }
 	// services
-	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec() ; }
-private :
-	int  _fd         () { return static_cast<_FileBuf*>(rdbuf())->fd() ; }     // /!\ this works on all systems I know but is non-portable, put adequate code as experience arises
-	void _set_cloexec() { ::fcntl( _fd() , F_SETFD , FD_CLOEXEC ) ;      }     // an alternative (on recent systems) to this non-portable code is to activate ::close_range in child.spawn
+	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
 } ;
 struct IFStream : ::ifstream {
 	using Base = ::ifstream ;
 	// cxtors & casts
-	IFStream(                                 ) : Base{    } { exceptions(~goodbit) ; _set_cloexec() ; }
-	IFStream( ::string const& f               ) : Base{f   } { exceptions(~goodbit) ; _set_cloexec() ; }
-	IFStream( ::string const& f , openmode om ) : Base{f,om} { exceptions(~goodbit) ; _set_cloexec() ; }
+	IFStream(                                 ) : Base{    } { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
+	IFStream( ::string const& f               ) : Base{f   } { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
+	IFStream( ::string const& f , openmode om ) : Base{f,om} { exceptions(~goodbit) ; _set_cloexec(rdbuf()) ; }
 	//
 	IFStream& operator=(IFStream&& ifs) { Base::operator=(::move(ifs)) ; return *this ; }
 	// services
-	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec() ; }
-private :
-	int  _fd         () { return static_cast<_FileBuf*>(rdbuf())->fd() ; }     // /!\ this works on all systems I know but is non-portable, put adequate code as experience arises
-	void _set_cloexec() { ::fcntl( _fd() , F_SETFD , FD_CLOEXEC ) ;      }     // an alternative (on recent systems) to this non-portable code is to activate ::close_range in child.spawn
+	template<class... A> void open(A&&... args) { Base::open(::forward<A>(args)...) ; _set_cloexec(rdbuf()) ; }
 } ;
 
 struct OStringStream : ::ostringstream {
-	OStringStream() : ::ostringstream{} { exceptions(~goodbit) ; *this<<::left ; }
+	OStringStream() : ::ostringstream{} { _sanitize(*this) ; }
 } ;
 struct IStringStream : ::istringstream {
 	IStringStream(::string const& s) : ::istringstream{s} { exceptions(~goodbit) ; }
@@ -668,7 +670,7 @@ template<StdEnum E> struct BitMap {
 	constexpr bool    operator==(BitMap const&) const = default ;
 	constexpr bool    operator<=(BitMap other ) const { return !(  _val & ~other._val )      ; }
 	constexpr bool    operator>=(BitMap other ) const { return !( ~_val &  other._val )      ; }
-	constexpr BitMap  operator~ (             ) const { return BitMap(~_val)                 ; }
+	constexpr BitMap  operator~ (             ) const { return BitMap(lsb_msk(+E::N)&~_val)  ; }
 	constexpr BitMap  operator& (BitMap other ) const { return BitMap(_val&other._val)       ; }
 	constexpr BitMap  operator| (BitMap other ) const { return BitMap(_val|other._val)       ; }
 	constexpr BitMap& operator&=(BitMap other )       { *this = *this & other ; return *this ; }
@@ -679,8 +681,8 @@ template<StdEnum E> struct BitMap {
 private :
 	Val _val = 0 ;
 } ;
-template<StdEnum E> constexpr BitMap<E> BitMap<E>::None = BitMap<E>(0             ) ;
-template<StdEnum E> constexpr BitMap<E> BitMap<E>::All  = BitMap<E>(lsb_msk(+E::N)) ;
+template<StdEnum E> constexpr BitMap<E> BitMap<E>::None =  BitMap<E>() ;
+template<StdEnum E> constexpr BitMap<E> BitMap<E>::All  = ~BitMap<E>() ;
 
 template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
@@ -1010,7 +1012,11 @@ public :
 	using Base::size  ;
 	// cxtors & casts
 	ThreadQueue() = default ;
-	operator bool() const { return !Base::empty() ; }
+	bool operator+() const {
+		::unique_lock lock{_mutex} ;
+		return !Base::empty() ;
+	}
+	bool operator!() const { return !+*this ; }
 	// services
 	/**/                 void push   (T const& x) { ::unique_lock lock{_mutex} ; Base::push_back   (x                 ) ; _cond.notify_one() ; }
 	template<class... A> void emplace(A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
@@ -1036,7 +1042,7 @@ private :
 		return res ;
 	}
 	// data
-	::mutex                  _mutex ;
+	::mutex mutable          _mutex ;
 	::condition_variable_any _cond  ;
 } ;
 
