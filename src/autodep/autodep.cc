@@ -68,20 +68,20 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep      ;
 	bool     prev_parallel = false ;
 	NodeIdx  critical_lvl  = 0     ;
-	auto send = [&]( ::string const& dep , DepInfo info ) {                    // process deps with a delay of 1 because we need next info for ascii art
+	auto send = [&]( ::string const& dep , DepOrder order ) {                  // process deps with a delay of 1 because we need next order for ascii art
 		if (!prev_dep.empty()) {
 			deps_stream << setw(critical_lvl*2)<<"" ;
-			if      ( !prev_parallel && info!=DepInfo::Parallel ) deps_stream << "  "  ;
-			else if ( !prev_parallel && info==DepInfo::Parallel ) deps_stream << "/ "  ;
-			else if (  prev_parallel && info==DepInfo::Parallel ) deps_stream << "| "  ;
-			else                                                  deps_stream << "\\ " ;
+			if      ( !prev_parallel && order!=DepOrder::Parallel ) deps_stream << "  "  ;
+			else if ( !prev_parallel && order==DepOrder::Parallel ) deps_stream << "/ "  ;
+			else if (  prev_parallel && order==DepOrder::Parallel ) deps_stream << "| "  ;
+			else                                                    deps_stream << "\\ " ;
 			deps_stream << prev_dep << '\n' ;
 		}
-		prev_parallel = info==DepInfo::Parallel ;
-		critical_lvl += info==DepInfo::Critical ;
-		prev_dep      = dep                     ;
+		prev_parallel = order==DepOrder::Parallel ;
+		critical_lvl += order==DepOrder::Critical ;
+		prev_dep      = dep                       ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.write==No) send(dep,ai.dep_info ) ;
-	/**/                                                                 send({} ,DepInfo::Seq) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.write==No) send(dep,ai.dep_order ) ;
+	/**/                                                                 send({} ,DepOrder::Seq) ; // send last
 	return status!=Status::Ok ;
 }

@@ -7,10 +7,16 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* rust code seems to manage to do file accesses without ld_preload/ld_audit catching them.
+
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* in autodep dlopen (cf man 3 dlopen)
+	- handle DT_RPATH & DT_RUNPATH tags
+	- handle indirect loads
+* before erasing a dir, check for phony targets, not only files on disk
 * find a means to lshow a job, even if we have no target
 	- or to lshow a job that does not produce a target
 ? report resources even when job spawn process groups
@@ -20,6 +26,15 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
+* consider a package for option passing
+	- gnu argp
+	- https://www.google.com/url?sa=t&source=web&rct=j&url=http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf&ved=2ahUKEwiu_qn_7bH_AhUKVqQEHSc4AtwQFnoECA4QAQ&usg=AOvVaw0BH-4w3AQP6qFg-iZO7QaP
+	- or simply allow options to be anywhere (unless after --)
+* add a config to tailor start/done lines
+	- message date : yes/no
+	- host         : size
+	- exec_time    : yes/no
+	- fields order (file always last)
 ? if actual_job!=conform_job, show both with warning in lshow
 ? consider using a single command check_deps/critical_barrier
 	? a priori they serve the same purpose
@@ -30,24 +45,45 @@
 
 * autodep=ptrace reports launched exe as dep while other methods do not
 	- reduce discrepency
-* add a warning when ids reach 7/8 of their limits
+* add a warning when ids reach 15/16 of their limits
 * find a use case to ensure dates are correctly handled with NFS
 
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* add the possibility to force existence of hidden deps
-	- typically when used with depend
-* add result cache :
-	- use a prefix tree with following keys and targets as values :
-		- rule (match+cmd) + stems + static deps (crc) as first key
-		- then hidden deps (name+crc)
-	- walk through tree and at each divergence, compare local crc with cache list of possible crc's
-	- maintain origin of result and limit caching to a single result per origin
-	- manage parallel builds by either
-		- allow parallel builds and serialize cache updates
-		- store an indication that target is on-going (with means to ensure target building is still alive) to avoid parallel builds
+* lshow must show dep & target flags
+* add result cache v1 (copy only) :
+	- add config.cache service (host+port)
+	- meta-data = target crcs + stderr + stdout
+	- send rule (match+cmd) + job-name + static deps (crc)
+	- receive list of hits : hidden_deps (name+crc)
+	- if out of date :
+		- rebuild deps
+		- stop at critical barriers
+	- if hit :
+		- send hit idx
+		- receive data + meta-data
+	- if not hit :
+		- compute
+		- once qualified as done, send root_dir + data + meta-data
+	- on cache side
+		- maintain doubly linked list of LRU
+		- upon req
+			- reply with list of available hits
+			- if hit, reply with data and update LRU
+		- upon update
+			- if hit, check coherence
+			- replace if same root_dir
+			- record root_dir + data + meta-data
+			- if size overflow, erase LRU's until enough space
+			- put as MRU
+* result cache v2 (copy & link) :
+	- 2 levels : disk level, global level
+	- use link instead of copy
+	- warning : links change cdate
+		- and cdates are used as dates
+		- because exec bit is part of crc
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * implement star optional :
 	- walk through nodes from best root (which means implementing "find")
@@ -65,6 +101,18 @@
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
+? consider fuse as an autodep method
+	? unclear it is faster than ptrace
+		? all data traffic goes through it
+		? many context switches
+		? an advantage is that accesses to system files (outside the repository) are transparent
+	? there must be one fuse mount for each job so as to recognize which job does the access
+	? how to manage so that the job sees the repository with its nominal name
+? add unsafe keyword whenever there is reponsibility transfer from lmake to user
+	- incremental target
+	- -dep target
+	- non cmd env variable
+	- verbose check_deps
 ? implement steal
 	? 2 possible implementation :
 		? read disk file, and support live updates (with a seq number, check it did not change during the access)
@@ -138,6 +186,11 @@
 * TOOLS
 ****************************************************************************************************
 
+* consider gdb guis :
+	- apt install nemiver
+* consider serialization libs :
+	- https://github.com/alibaba/yalantinglibs
+		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
 * lrepair
 	- ensure ancillary file contains all necessary info to rebuild DB
 		- rule crc

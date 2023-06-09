@@ -69,15 +69,15 @@ struct GatherDeps {
 	using DD   = Time::DiskDate    ;
 	using PD   = Time::ProcessDate ;
 	using FI   = Disk::FileInfo    ;
-	using DAs  = DepAccesses       ;
+	using DFs  = DFlags            ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		DAs     dep_accesses ;
-		Bool3   write        = No ;    // if No => file was not written, if Maybe => file was unlinked, if Yes => file was written
-		DepInfo dep_info     ;         // if read and not written
-		PD      access_date  ;         // first access date
-		DD      file_date    ;         // date of file when first accessed if it was a read
+		DFs      dep_flags   ;
+		Bool3    write       = No ;    // if No => file was not written, if Maybe => file was unlinked, if Yes => file was written
+		DepOrder dep_order   ;         // if read and not written
+		PD       access_date ;         // first access date
+		DD       file_date   ;         // date of file when first accessed if it was a read
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -90,19 +90,19 @@ private :
 	::pair<AccessInfo&,bool/*created*/> _info(::string const& name) ;
 	//
 	void _new_target( PD , ::string const& target ,      bool unlink ,       Fd={} , ::string const& comment={} ) ;
-	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DAs , Fd={} , ::string const& comment={} ) ;
+	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs , Fd={} , ::string const& comment={} ) ;
 	//
 	void _new_targets( PD d , ::vector_s const& targets , bool unlink , Fd fd={} , ::string const& comment={} ) {
 		for( auto const& f : targets ) _new_target(d,f,unlink,fd,comment) ;
 	}
-	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DAs das , Fd fd={} , ::string const& comment={} ) {
-		if (deps.empty()) return ;                                             // do not update nxt_info if deps is empty
-		for( auto const& [f,dd] : deps ) _new_dep(pd,f,dd,update,das,fd,comment) ;
-		_nxt_info = DepInfo::Seq ;
+	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DFs dfs , Fd fd={} , ::string const& comment={} ) {
+		if (deps.empty()) return ;                                                                                       // do not update nxt_order if deps is empty
+		for( auto const& [f,dd] : deps ) _new_dep(pd,f,dd,update,dfs,fd,comment) ;
+		_nxt_order = DepOrder::Seq ;
 	}
 public :
-	void new_target( PD pd , ::string const& tgt ,           Fd fd={} , ::string const& c={} ) { _new_target(pd,tgt                     ,false/*unlink*/,    fd,c) ;                            }
-	void new_dep   ( PD pd , ::string const& dep , DAs das , Fd fd={} , ::string const& c={} ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,das,fd,c) ; _nxt_info = DepInfo::Seq ; }
+	void new_target( PD pd , ::string const& tgt ,           Fd fd={} , ::string const& c={} ) { _new_target(pd,tgt                     ,false/*unlink*/,    fd,c) ;                              }
+	void new_dep   ( PD pd , ::string const& dep , DFs dfs , Fd fd={} , ::string const& c={} ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs,fd,c) ; _nxt_order = DepOrder::Seq ; }
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
 		OMsgBuf().send(sock,jerr) ;
@@ -129,5 +129,5 @@ public :
 	::string                                      stdout         ;                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr         ;                                                  // contains child stderr if child_stderr==Pipe
 private :
-	DepInfo _nxt_info = DepInfo::Seq ;
+	DepOrder _nxt_order = DepOrder::Seq ;
 } ;

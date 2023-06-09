@@ -645,7 +645,8 @@ template<class E> concept StdEnum  = ::is_enum_v<E> && ::is_unsigned_v<underlyin
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
-	using Val = Uint<+E::N> ;
+	using Elem =       E     ;
+	using Val  = Uint<+E::N> ;
 	static const BitMap None ;
 	static const BitMap All  ;
 	// cxtors & casts

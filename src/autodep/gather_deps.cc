@@ -32,16 +32,16 @@ using namespace Hash ;
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
 	os << "GatherDeps(" << gd.accesses ;
-	if (gd._nxt_info!=DepInfo::Seq) os <<','<< gd._nxt_info ;
-	if (gd.seen_tmp               ) os <<",seen_tmp"        ;
+	if (gd._nxt_order!=DepOrder::Seq) os <<','<< gd._nxt_order ;
+	if (gd.seen_tmp                 ) os <<",seen_tmp"         ;
 	return os << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" << '@'<<ai.access_date <<','<<ai.dep_accesses ;
+	os << "AccessInfo(" << '@'<<ai.access_date <<','<<ai.dep_flags ;
 	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date              ;
 	if (ai.write!=No ) os <<','<< (ai.write==Maybe?"Unlink":"Write") ;
-	return os <<','<< ai.dep_info << ')' ;
+	return os <<','<< ai.dep_order << ')' ;
 }
 
 ::pair<GatherDeps::AccessInfo&,bool/*created*/> GatherDeps::_info(::string const& name) {
@@ -58,31 +58,31 @@ void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , Fd 
 	bool stamp          = created || pd<info.access_date ;
 	if (
 		stamp
-	||	info.write<(Maybe|!unlink)
+	||	info.write!=(Maybe|!unlink)
 	) Trace trace("_new_target",STR(unlink),fd,STR(created),pd,STR(stamp),pd,target,comment) ;
-	info.write |= Maybe|!unlink ;                                              // for the write side, last action is the significant one
+	info.write = Maybe|!unlink ;                                               // for the write side, last action is the significant one
 	if (!stamp) return ;                                                       // existing file has already been accessed (if file did not exist, it is not an update)
 	info.access_date = pd ;
 	info.file_date   = {} ;                                                    // if first access is a write, no file_date is attached
 }
 
-void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , DAs das , Fd fd , ::string const& comment ) {
+void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , DFs dfs , Fd fd , ::string const& comment ) {
 	SWEAR(!dep.empty()) ;
 	auto [info,created] = _info(dep)                     ;
 	bool stamp          = created || pd<info.access_date ;
 	//
 	if (
-		( stamp                                       )
-	||	( info.write==No && +(das&~info.dep_accesses) )
-	||	( update         && info.write!=Yes           )
-	) Trace trace("_new_dep",STR(update),fd,STR(created),pd,STR(stamp),dep,das,dd,comment) ;
+		( stamp                                    )
+	||	( info.write==No && +(dfs&~info.dep_flags) )
+	||	( update         && info.write!=Yes        )
+	) Trace trace("_new_dep",STR(update),fd,STR(created),pd,STR(stamp),dep,dfs,dd,comment) ;
 	//
-	if (info.write==No) info.dep_accesses |= das ;
-	if (update        ) info.write         = Yes ;
+	if (info.write==No) info.dep_flags |= dfs ;
+	if (update        ) info.write      = Yes ;
 	if (!stamp        ) return ;                                               // file has already been accessed, ignore read
-	info.access_date = pd                ;
-	info.dep_info    = _nxt_info         ;
-	_nxt_info        = DepInfo::Parallel ;
+	info.access_date = pd                 ;
+	info.dep_order   = _nxt_order         ;
+	_nxt_order       = DepOrder::Parallel ;
 	info.file_date   = dd ;
 }
 
@@ -241,10 +241,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					try         { if (!it->second.buf.receive_step(fd,jrr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
 					trace("server_reply",jrr) ;
-					//                                                 vvvvvvvvvvvvvvvvvvvvvvvvv
-					if ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) kill_job(Status::ChkDeps) ;
-					else                                               sync(it->second.fd,JobExecRpcReply(jrr)) ;
-					//                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                                                      vvvvvvvvvvvvvvvvvvvvvvvvv
+					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) kill_job(Status::ChkDeps) ;
+					else if ( +it->second.fd                              ) sync(it->second.fd,JobExecRpcReply(jrr)) ;
+					//                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					server_replies.erase(it) ;
 					epoll.close(fd) ;
 				} break ;
@@ -256,21 +256,21 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					Proc            proc       = jerr.proc ;                             // .
 					JobExecRpcReply sync_reply ;
 					switch (proc) {
-						case Proc::None            :                                                          goto Close ;
-						case Proc::Tmp             : seen_tmp  = true              ; trace("slave",fd,jerr) ; break      ;
-						case Proc::CriticalBarrier : _nxt_info = DepInfo::Critical ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat       :                                                          goto Close ; //           accept & read is enough to report liveness
+						case Proc::None            :                                                            goto Close ;
+						case Proc::Tmp             : seen_tmp   = true               ; trace("slave",fd,jerr) ; break      ;
+						case Proc::CriticalBarrier : _nxt_order = DepOrder::Critical ; trace("slave",fd,jerr) ; break      ;
+						case Proc::Heartbeat       :                                                            goto Close ; //           accept & read is enough to report liveness
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill            : kill_job(Status::Killed) ;                               goto Close ; // no reply, accept & read is enough to ack
+						case Proc::Kill            : kill_job(Status::Killed) ;                                 goto Close ; // no reply, accept & read is enough to ack
 						//                   vvvvvvvv------------------------vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ ,            fd , jerr.comment ) ; break ; // file dates are only for deps
 						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ ,            fd , jerr.comment ) ; break ; // .
-						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.das , fd , jerr.comment ) ; break ; // .
-						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.das , fd , jerr.comment ) ; break ;
+						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs , fd , jerr.comment ) ; break ; // .
+						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs , fd , jerr.comment ) ; break ;
 						//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						case Proc::DepCrcs :
+						case Proc::DepInfos :
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							_new_deps( jerr.date , jerr.files , false/*update*/ , jerr.das , fd , jerr.comment ) ; // getting the crc is a dependence on a file
+							_new_deps( jerr.date , jerr.files , false/*update*/ , jerr.dfs , fd , jerr.comment ) ; // getting the crc is a dependence on a file
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							/*fall through*/
 						case Proc::ChkDeps : {
@@ -279,15 +279,13 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 							Fd reply_fd = server_cb(::move(jerr)) ;
 							trace("reply",reply_fd) ;
 							if (!reply_fd) {
-								sync_reply.proc = proc                           ; // try to mimic server as much as possible when none is available
-								sync_reply.ok   = true                           ; // .
-								sync_reply.crcs = ::vector<Crc>(sz,Crc::Unknown) ; // .
+								sync_reply.proc  = proc                                                   ; // try to mimic server as much as possible when none is available
+								sync_reply.ok    = Yes                                                    ; // .
+								sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,Crc::Unknown}) ; // .
 							} else {
 								epoll.add_read(reply_fd,Kind::ServerReply) ;
-								if (sync_) {
-									server_replies[reply_fd].fd = fd ;
-									sync_ = false ;                            // do sync when we have the reply from server
-								}
+								server_replies[reply_fd].fd = sync_ ? fd : Fd() ;
+								sync_ = false ;                                   // do sync when we have the reply from server
 							}
 						} break ;
 						case Proc::Trace : trace("from_job",jerr.comment) ; break ;

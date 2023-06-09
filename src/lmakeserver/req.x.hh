@@ -217,6 +217,10 @@ namespace Engine {
 #ifdef IMPL
 namespace Engine {
 
+	struct JobAudit {
+		bool                   modified     ;
+		::vector<pair_s<Node>> analysis_err ;
+	} ;
 	struct ReqData {
 		friend struct Req ;
 		using Idx = Req::Idx ;
@@ -281,21 +285,22 @@ namespace Engine {
 			return Disk::localize(file,options.startup_dir_s) ;
 		}
 		// data
-		Idx                 idx_by_start = Idx(-1) ;
-		Idx                 idx_by_eta   = Idx(-1) ;
-		Owned<Job>          job          ;
-		InfoMap<Job >       jobs         ;
-		InfoMap<Node>       nodes        ;
-		bool                zombie       = false   ;       // req has been killed, waiting to be closed when all jobs are actually killed
-		ReqStats            stats        ;
-		Fd                  audit_fd     ;                 // to report to user
-		OFStream  mutable   trace_stream ;                 // saved output
-		ReqOptions          options      ;
-		DiskDate            start        ;
-		Delay               ete          ;                 // Estimated Time Enroute
-		::umap<Rule,JobIdx> ete_n_rules  ;                 // number of jobs participating to stats.ete with exec_time from rule
-		::vector<Job>       frozens      ;                 // frozen jobs to report in summary
-		::uset<Node>        clash_nodes  ;                 // nodes that have been written by simultaneous jobs
+		Idx                  idx_by_start   = Idx(-1) ;
+		Idx                  idx_by_eta     = Idx(-1) ;
+		Owned<Job>           job            ;
+		InfoMap<Job >        jobs           ;
+		InfoMap<Node>        nodes          ;
+		::umap<Job,JobAudit> missing_audits ;
+		bool                 zombie         = false   ;    // req has been killed, waiting to be closed when all jobs are actually killed
+		ReqStats             stats          ;
+		Fd                   audit_fd       ;              // to report to user
+		OFStream  mutable    trace_stream   ;              // saved output
+		ReqOptions           options        ;
+		DiskDate             start          ;
+		Delay                ete            ;              // Estimated Time Enroute
+		::umap<Rule,JobIdx>  ete_n_rules    ;              // number of jobs participating to stats.ete with exec_time from rule
+		::vector<Job>        frozens        ;              // frozen jobs to report in summary
+		::uset<Node>         clash_nodes    ;              // nodes that have been written by simultaneous jobs
 	} ;
 
 	//

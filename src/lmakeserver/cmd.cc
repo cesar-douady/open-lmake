@@ -178,12 +178,13 @@ namespace Engine {
 		return true ;
 	}
 
-	static void _send_node( Fd fd , ReqOptions const& ro , bool always , bool hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
+	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      ( hide                  ) { if (!always) return ; color = Color::HiddenNote ; }
-		else if (!node->has_actual_job()) { if (!always) return ; color = Color::HiddenNote ; }
-		else if ( node->err()           ) {                       color = Color::Err        ; }
-		audit( fd , ro , color , lvl , pfx , node.name() ) ;
+		if      ( hide==Yes             ) color =                         Color::HiddenNote ;
+		else if (!node->has_actual_job()) color = hide==No ? Color::Err : Color::HiddenNote ;
+		else if ( node->err()           ) color =            Color::Err                     ;
+		//
+		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , lvl , pfx , node.name() ) ;
 	}
 
 	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
@@ -200,15 +201,15 @@ namespace Engine {
 		for( VarIdx d=0 ; d<rule->n_deps() ; d++ ) w = ::max( w , rule->deps.dct[d].first.size() ) ;
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
 			Dep const& dep = job->deps[d] ;
-			DepInfo    di  = d  >0                ? dep.info            : DepInfo::Seq ;
-			DepInfo    ndi = d+1<job->deps.size() ? job->deps[d+1].info : DepInfo::Seq ;
-			if (di==DepInfo::Critical) critical_lvl++ ;
+			DepOrder   cdo = d  >0                ? dep           .order : DepOrder::Seq ;
+			DepOrder   ndo = d+1<job->deps.size() ? job->deps[d+1].order : DepOrder::Seq ;
+			if (cdo==DepOrder::Critical) critical_lvl++ ;
 			::string pfx = to_string( ::setw(w) , d<rule->n_deps()?rule->deps.dct[d].first:""s ) ;
-			if      ( di!=DepInfo::Parallel && ndi!=DepInfo::Parallel ) pfx.push_back(' ' ) ;
-			else if ( di!=DepInfo::Parallel && ndi==DepInfo::Parallel ) pfx.push_back('/' ) ;
-			else if ( di==DepInfo::Parallel && ndi==DepInfo::Parallel ) pfx.push_back('|' ) ;
-			else                                                        pfx.push_back('\\') ;
-			_send_node( fd , ro , show_deps==Yes , hide , pfx , dep , lvl+1+critical_lvl ) ;
+			if      ( cdo!=DepOrder::Parallel && ndo!=DepOrder::Parallel ) pfx.push_back(' ' ) ;
+			else if ( cdo!=DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('/' ) ;
+			else if ( cdo==DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('|' ) ;
+			else                                                           pfx.push_back('\\') ;
+			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.flags[DFlag::Required])|hide , pfx , dep , lvl+1+critical_lvl ) ;
 		}
 	}
 
@@ -219,7 +220,7 @@ namespace Engine {
 			trace("target",target) ;
 			DepDepth lvl = 0 ;
 			if (targets.size()>1) {
-				_send_node( fd , ro , true/*always*/ , false/*hide*/ , {} , target ) ;
+				_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target ) ;
 				lvl++ ;
 			}
 			JobTgt jt = target->actual_job_tgt ;
@@ -310,17 +311,23 @@ namespace Engine {
 								::string rc  = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s ;
 								::string ids = to_string("small=",report_start.small_id," , job=",report_start.job_id," , seq=",report_start.seq_id)                             ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl                                                                                            ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "reason         : "+( has_start ? Job::s_reason_str(report_start.reason)                              : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "host           : "+( has_start ?                   report_start.host                                 : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "id's           : "+( has_start ? ids                                                                 : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "tmp dir        : "+( has_start ? report_start.job_tmp_dir                                            : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "end date       : "+( has_info  ? report_info.end_date.str()                                          : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "rc             : "+( has_info  ? rc                                                                  : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "cpu time       : "+( has_end   ? to_string(float(report_end.digest.stats.cpu  )         ,'s' )       : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "elapsed in job : "+( has_end   ? to_string(float(report_end.digest.stats.job  )         ,'s' )       : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "elapsed total  : "+( has_end   ? to_string(float(report_end.digest.stats.total)         ,'s' )       : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "memory         : "+( has_end   ? to_string(      report_end.digest.stats.mem  /1'000'000,"MB")       : "N/A" ) ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , "resources      : "+( has_start ? ""s                                                                 : "N/A" ) ) ;
+								bool wn =  has_start && +report_start.reason.node ;
+								if (wn) {
+									::pair_s<Node> reason = Job::s_reason_str(report_start.reason) ;
+									bool           err    = report_start.reason.has_err()          ;
+									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason         : ",reason.first," :") , reason.second.name() , lvl+1 ) ;
+								}
+								if (!wn) audit( fd , ro , Color::None , lvl+1 , "reason         : "+( has_start ? Job::s_reason_str(report_start.reason).first                        : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "host           : "+( has_start ?                   report_start.host                                 : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "id's           : "+( has_start ? ids                                                                 : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "tmp dir        : "+( has_start ? report_start.job_tmp_dir                                            : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "end date       : "+( has_info  ? report_info.end_date.str()                                          : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "rc             : "+( has_info  ? rc                                                                  : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "cpu time       : "+( has_end   ? to_string(float(report_end.digest.stats.cpu  )         ,'s' )       : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "elapsed in job : "+( has_end   ? to_string(float(report_end.digest.stats.job  )         ,'s' )       : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "elapsed total  : "+( has_end   ? to_string(float(report_end.digest.stats.total)         ,'s' )       : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "memory         : "+( has_end   ? to_string(      report_end.digest.stats.mem  /1'000'000,"MB")       : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "resources      : "+( has_start ? ""s                                                                 : "N/A" ) ) ;
 								if (has_start) {
 									if (!report_start.rsrcs.empty()) {
 										size_t kw = 0 ;
@@ -340,26 +347,27 @@ namespace Engine {
 					bool     always      = ro.key==ReqKey::AllDeps ;
 					::string uphill_name = dir_name(target.name()) ;
 					double   prio        = -Infinity               ;
-					if (!uphill_name.empty()) _send_node( fd , ro , always , false/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
+					if (!uphill_name.empty()) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts ) {
 						if (job_tgt->rule->prio<prio) break ;
 						if (job_tgt==jt ) { prio = rule->prio ; continue ; }                                                          // actual job is output last as this is what user views first
-						if (always)                        _send_job( fd , ro , Yes   , !job_tgt.produces(target) , job_tgt , lvl ) ;
-						else if (job_tgt.produces(target)) _send_job( fd , ro , Maybe , false/*hide*/             , job_tgt , lvl ) ;
+						bool hide = !job_tgt.produces(target) ;
+						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
+						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;
 					}
 					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , jt ) ; // actual job is output last as this is what user views first
 				} break ;
 				case ReqKey::Targets :
 					if (rule.is_special()) {
-						_send_node( fd , ro , true/*always*/ , false/*hide*/ , {} , target , lvl ) ;
+						_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target , lvl ) ;
 					} else {
-						Rule::Match match = jt.match() ;
-						::vector_view_c_s sts = match.static_targets() ;
-						size_t w = 0 ;
-						for( auto const& [k,_] : rule->targets ) w = ::max(w,k.size()) ;
+						Rule::Match       match = jt.match()             ;
+						::vector_view_c_s sts   = match.static_targets() ;
+						size_t            wk    = 0                      ;
+						for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
 						auto send_target = [&]( VarIdx ti , char star , Node t )->void {
-							bool m = rule->flags(ti)[Flag::Match] ;
-							_send_node( fd , ro , true/*always*/ , !m/*hide*/ , to_string( m?' ':'!' , star , ::setw(w) , rule->targets[ti].first ) , t , lvl ) ;
+							bool m = rule->flags(ti)[TFlag::Match] ;
+							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( m?' ':'!' , star , ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
 						} ;
 						for( VarIdx t=0 ; t<sts.size() ; t++ ) send_target( t                   , ' ' , Node(sts[t]) ) ;
 						for( Target t : jt->star_targets     ) send_target( match.idx(t.name()) , '*' , t            ) ;

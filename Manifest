@@ -30,7 +30,10 @@ src/autodep/autodep_support.hh
 src/autodep/clmake.cc
 src/autodep/gather_deps.cc
 src/autodep/gather_deps.hh
+src/autodep/lcheck_deps.cc
+src/autodep/lcritical_barrier.cc
 src/autodep/ldepend.cc
+src/autodep/ltarget.cc
 src/autodep/ptrace.cc
 src/autodep/ptrace.hh
 src/autodep/record.cc

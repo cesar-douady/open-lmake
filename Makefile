@@ -25,7 +25,7 @@ OPT_FLAGS := -O3
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 
-WARNING_FLAGS := -Wall -Wextra
+WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type
 ifeq ($(strip $(CC)),clang)
 WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
 endif
@@ -34,6 +34,10 @@ endif
 PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
 ifeq ($(PYTHON),)
 $(error cannot find python3)
+else
+ifeq ($(shell $(PYTHON) -c 'import sys ; print(sys.version_info.major==3 and sys.version_info.minor>=6)'),False)
+$(error python3 must be at least 3.6)
+endif
 endif
 
 SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
@@ -98,13 +102,11 @@ LMAKE_FILES = \
 	$(BIN)/lcheck_deps            \
 	$(BIN)/lcritical_barrier      \
 	$(BIN)/ldepend                \
-	$(BIN)/ldep_crcs              \
 	$(BIN)/lforget                \
 	$(BIN)/lfreeze                \
 	$(BIN)/lmake                  \
 	$(BIN)/lshow                  \
 	$(BIN)/ltarget                \
-	$(BIN)/lunlink                \
 	$(BIN)/xxhsum
 
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
@@ -388,6 +390,22 @@ $(BIN)/xxhsum : \
 #
 
 # ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
+$(BIN)/lcritical_barrier : \
+	$(SRC)/app$(ASAN).o                     \
+	$(SRC)/disk$(ASAN).o                    \
+	$(SRC)/hash$(ASAN).o                    \
+	$(SRC)/lib$(ASAN).o                     \
+	$(SRC)/non_portable.o                   \
+	$(SRC)/rpc_job$(ASAN).o                 \
+	$(SRC)/time$(ASAN).o                    \
+	$(SRC)/trace$(ASAN).o                   \
+	$(SRC)/utils$(ASAN).o                   \
+	$(SRC)/autodep/autodep_support$(ASAN).o \
+	$(SRC)/autodep/record$(ASAN).o          \
+	$(SRC)/autodep/lcritical_barrier$(ASAN).o
+	mkdir -p $(BIN)
+	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+
 $(BIN)/ldepend : \
 	$(SRC)/app$(ASAN).o                     \
 	$(SRC)/disk$(ASAN).o                    \
@@ -403,14 +421,38 @@ $(BIN)/ldepend : \
 	$(SRC)/autodep/ldepend$(ASAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
-$(BIN)/lunlink           \
-$(BIN)/ltarget           \
-$(BIN)/lcritical_barrier \
-$(BIN)/lcheck_deps       \
-$(BIN)/ldep_crcs         \
-: $(BIN)/ldepend
-	rm -f $@
-	ln $< $@
+
+$(BIN)/ltarget : \
+	$(SRC)/app$(ASAN).o                     \
+	$(SRC)/disk$(ASAN).o                    \
+	$(SRC)/hash$(ASAN).o                    \
+	$(SRC)/lib$(ASAN).o                     \
+	$(SRC)/non_portable.o                   \
+	$(SRC)/rpc_job$(ASAN).o                 \
+	$(SRC)/time$(ASAN).o                    \
+	$(SRC)/trace$(ASAN).o                   \
+	$(SRC)/utils$(ASAN).o                   \
+	$(SRC)/autodep/autodep_support$(ASAN).o \
+	$(SRC)/autodep/record$(ASAN).o          \
+	$(SRC)/autodep/ltarget$(ASAN).o
+	mkdir -p $(BIN)
+	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+
+$(BIN)/lcheck_deps : \
+	$(SRC)/app$(ASAN).o                     \
+	$(SRC)/disk$(ASAN).o                    \
+	$(SRC)/hash$(ASAN).o                    \
+	$(SRC)/lib$(ASAN).o                     \
+	$(SRC)/non_portable.o                   \
+	$(SRC)/rpc_job$(ASAN).o                 \
+	$(SRC)/time$(ASAN).o                    \
+	$(SRC)/trace$(ASAN).o                   \
+	$(SRC)/utils$(ASAN).o                   \
+	$(SRC)/autodep/autodep_support$(ASAN).o \
+	$(SRC)/autodep/record$(ASAN).o          \
+	$(SRC)/autodep/lcheck_deps$(ASAN).o
+	mkdir -p $(BIN)
+	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/autodep : \
 	$(SRC)/app$(SAN).o                 \
@@ -526,5 +568,5 @@ $(LMAKE_ENV)/% : %
 	cp $< $@
 $(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
 	touch $@
-$(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(shell grep ^$(@D)/ Manifest )
+$(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	set -e ; cd $(LMAKE_ENV) ; $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)

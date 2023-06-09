@@ -14,12 +14,12 @@
 ::ostream& operator<<( ::ostream& os , DepDigest const& dd ) {
 	os << "DepDigest(" ;
 	if (!dd.garbage) os << dd.date <<',' ;
-	return os << dd.info <<')' ;
+	return os << dd.order <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	os << "TargetDigest(" << int(td.tgt_idx) ;
-	if (+td.das ) os <<','<<td.das ;
+	if (+td.dfs ) os <<','<<td.dfs ;
 	if (td.write) os << ",write"   ;
 	if (+td.crc ) os <<','<< td.crc ;
 	return os <<')' ;
@@ -32,10 +32,10 @@
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::LiveOut : os <<','<< jrr.txt         ; break ;
-		case JobProc::ChkDeps :                              break ;
-		case JobProc::DepCrcs : os <<','<< jrr.digest.deps ; break ;
-		case JobProc::End     : os <<','<< jrr.digest      ; break ;
+		case JobProc::LiveOut  : os <<','<< jrr.txt         ; break ;
+		case JobProc::ChkDeps  :                              break ;
+		case JobProc::DepInfos : os <<','<< jrr.digest.deps ; break ;
+		case JobProc::End      : os <<','<< jrr.digest      ; break ;
 		default : ;
 	}
 	return os << ')' ;
@@ -48,8 +48,8 @@
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
 	os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
-		case JobProc::ChkDeps : os <<','<< jrr.ok   ; break ;
-		case JobProc::DepCrcs : os <<','<< jrr.crcs ; break ;
+		case JobProc::ChkDeps  : os <<','<< jrr.ok    ; break ;
+		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
 		case JobProc::Start :
 			/**/                         os       << hex<<jrr.addr<<dec   ;
 			/**/                         os <<',' << jrr.ancillary_file   ;
@@ -98,6 +98,6 @@
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
-	if (jerr.proc==JobExecRpcProc::DepCrcs) os <<','<< jerr.crcs ;
+	if (jerr.proc==JobExecRpcProc::DepInfos) os <<','<< jerr.infos ;
 	return os << ')' ;
 }

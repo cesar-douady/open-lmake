@@ -32,7 +32,8 @@ thread_local uint8_t Lock::t_loop  ;
 static void* _s_libc_handle = nullptr ;
 static int _dl_cb( struct dl_phdr_info* info , size_t /*size*/ , void* ) {
 	if (!is_libc(info->dlpi_name)) return 0 ;
-	_s_libc_handle = ::dlopen( info->dlpi_name , RTLD_NOW|RTLD_NOLOAD ) ;
+	void* orig_dlopen = ::dlsym(RTLD_NEXT,"dlopen") ;                                                               // cant call dlopen directly to avoid recursion
+	_s_libc_handle = reinterpret_cast<decltype(::dlopen)*>(orig_dlopen)( info->dlpi_name , RTLD_NOW|RTLD_NOLOAD ) ;
 	return 1 ;
 }
 void* get_libc_handle() {

@@ -19,7 +19,7 @@ static constexpr int AT_BACKDOOR = Fd::Cwd.fd==-200 ? -300 : -200 ;            /
 struct Record {
 	using Proc       = JobExecRpcProc                                    ;
 	using DD         = Time::DiskDate                                    ;
-	using DAs        = DepAccesses                                       ;
+	using DFs        = DFlags                                            ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
 	// init
@@ -59,11 +59,23 @@ struct Record {
 private :
 	void _report( JobExecRpcReq const& jerr ) const {
 		if ( jerr.proc>=JobExecRpcProc::Cached && !jerr.sync ) {
-			bool miss = false ;
+			bool           miss = false     ;
+			JobExecRpcProc proc = jerr.proc ; if (proc==JobExecRpcProc::Updates) proc = JobExecRpcProc::Targets ; // Updates are like Deps then Targets, and only most important is retained
+			DFlags         dfs  = jerr.dfs  ;
 			for( auto const& [f,dd] : jerr.files ) {
 				auto it = access_cache.find(f) ;
-				if      (it==access_cache.end()) { miss = true ; access_cache[f] = jerr.proc ; }
-				else if (jerr.proc>it->second  ) { miss = true ; it->second      = jerr.proc ; }
+				if (it==access_cache.end()) {
+					miss            = true       ;
+					access_cache[f] = {dfs,proc} ;                             // create entry
+				} else {
+					DFlags new_dfs  = dfs | it->second.first                                ;
+					bool   proc_hit = proc==JobExecRpcProc::Deps || proc==it->second.second ;
+					bool   dfs_hit  = new_dfs==it->second.first                             ;
+					if (!( proc_hit && dfs_hit )) {
+						miss       = true               ;
+						it->second = { new_dfs , proc } ;                      // update entry
+					}
+				}
 			}
 			if (!miss) return ;
 		}
@@ -76,19 +88,20 @@ private :
 		}
 		report_cb(JobExecRpcReq(proc,sync,comment)) ;
 	}
-	//
-	void _report_dep ( Proc proc , ::string     const& f  , DD d , DAs das , ::string const& c={} ) const { swear(!f.empty(),f) ; _report( JobExecRpcReq(proc,       f  ,d,das,c) ) ; }
-	void _report_dep ( Proc proc , ::string         && f  , DD d , DAs das , ::string const& c={} ) const { swear(!f.empty(),f) ; _report( JobExecRpcReq(proc,::move(f ),d,das,c) ) ; }
-	void _report_deps( Proc proc , ::vmap_s<DD> const& fs ,        DAs das , ::string const& c={} ) const {                       _report( JobExecRpcReq(proc,       fs ,  das,c) ) ; }
-	void _report_deps( Proc proc , ::vmap_s<DD>     && fs ,        DAs das , ::string const& c={} ) const {                       _report( JobExecRpcReq(proc,::move(fs),  das,c) ) ; }
-	//
-	void _report_dep ( Proc proc , ::string const& f , DAs das , ::string const& c={} ) const { _report_dep(proc,       f ,Disk::file_date(s_get_root_fd(),f),das,c) ; }
-	void _report_dep ( Proc proc , ::string     && f , DAs das , ::string const& c={} ) const { _report_dep(proc,::move(f),Disk::file_date(s_get_root_fd(),f),das,c) ; }
-	//
-	void _report_deps( Proc proc , ::vector_s const& fs , DAs das , ::string const& c={} ) const {
+	void _report_dep ( Proc proc , ::string&& f , DD d , DFs dfs , ::string const& c={} ) const {
+		swear(!f.empty(),f) ;
+		_report( JobExecRpcReq( proc , ::forward<string>(f) , d , HiddenDFlags|dfs , c ) ) ;
+	}
+	void _report_deps( Proc proc , ::vmap_s<DD>&& fs , DFs dfs , ::string const& c={} ) const {
+		_report( JobExecRpcReq( proc , ::forward<vmap_s<DD>>(fs) , HiddenDFlags|dfs , c ) ) ;
+	}
+	void _report_dep ( Proc proc , ::string&& f , DFs dfs , ::string const& c={} ) const {
+		_report_dep( proc , ::forward<string>(f), Disk::file_date(s_get_root_fd(),f) , dfs , c ) ;
+	}
+	void _report_deps( Proc proc , ::vector_s const& fs , DFs dfs , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_get_root_fd(),f) ) ;
-		_report_deps(proc,::move(fds),das,c) ;
+		_report_deps( proc , ::move(fds) , dfs , c ) ;
 	}
 	//
 	void _report_target ( Proc proc , ::string   const& f  , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       f ,c) ) ; }
@@ -168,17 +181,17 @@ public :
 	void exec ( int at , ::string const& file , bool no_follow=false , ::string const& comment="exec" ) ;
 	void solve( int at , ::string const& file , bool no_follow=false , ::string const& comment={} ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
-		if ( !s_ignore_stat && !real.empty() ) _report_dep( Proc::Deps , ::move(real) , DepAccess::Stat , comment ) ;
+		if ( !s_ignore_stat && !real.empty() ) _report_dep( Proc::Deps , ::move(real) , DFlag::Stat , comment ) ;
 	}
 	JobExecRpcReply backdoor(JobExecRpcReq&& jerr) ;
 	//
 	// data
 protected :
-	ReportCb                         report_cb    = nullptr ;
-	GetReplyCb                       get_reply_cb = nullptr ;
-	Disk::RealPath                   real_path    ;
-	mutable bool                     tmp_cache    = false   ;                  // record that tmp usage has been reported, no need to report any further
-	mutable ::umap_s<JobExecRpcProc> access_cache ;                            // map file to highest access that has been reported (read<unlink<write)
+	ReportCb                                      report_cb    = nullptr ;
+	GetReplyCb                                    get_reply_cb = nullptr ;
+	Disk::RealPath                                real_path    ;
+	mutable bool                                  tmp_cache    = false   ;     // record that tmp usage has been reported, no need to report any further
+	mutable ::umap_s<pair<DFlags,JobExecRpcProc>> access_cache ;               // map file to access summary
 } ;
 
 struct RecordSock : Record {

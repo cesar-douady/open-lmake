@@ -39,7 +39,7 @@ namespace Engine {
 		for( Job job : conform_job_tgts(ri) ) job.set_pressure(job.req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
-	void Node::set_special( Special special , ::vector<Node> const& deps ) {
+	void Node::set_special( Special special , ::vmap<Node,DFlags> const& deps ) {
 		Trace trace("set_special",*this,special,deps) ;
 		JobTgts jts       = (*this)->job_tgts ;
 		UNode   un        { *this }           ;
@@ -133,7 +133,7 @@ namespace Engine {
 
 	void Node::_set_buildable_raw(DepDepth lvl) {
 		Trace trace("set_buildable",*this,lvl) ;
-		if (lvl>=g_config.max_dep_depth) throw ::vector<Node>({*this}) ;       // infinite dep path
+		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,SpecialDFlags}}) ; // infinite dep path
 		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
 		if (!shared()) {
 			UNode un{*this} ;
@@ -155,9 +155,9 @@ namespace Engine {
 				dir_.set_buildable(lvl+1) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^
 				if (dir_->buildable!=No) {
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					set_special(Special::Uphill,{dir_}) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					set_special(Special::Uphill,{{dir_,SpecialDFlags|DFlag::Lnk}}) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (dir_->buildable==Yes) goto Return   ;
 					else                      goto AllRules ;
 				}
@@ -174,11 +174,11 @@ namespace Engine {
 				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			}
-		} catch (::vector<Node>& e) {
+		} catch (::vmap<Node,DFlags>& e) {
 			//vvvvvvvvvvvvvv
 			_set_buildable() ;                                                 // restore Unknown as we do not want to appear as having been analyzed
 			//^^^^^^^^^^^^^^
-			e.push_back(*this) ;
+			e.emplace_back(*this,SpecialDFlags) ;
 			throw ;
 		}
 	AllRules :
@@ -198,11 +198,11 @@ namespace Engine {
 		Bool3   clean    = Maybe   ;                                           // lazy evaluate manual_ok()==Yes
 		Trace trace("Nmake",*this,cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
-		//                                vvvvvvvvvvvvvvv
-		try                             { set_buildable() ;                  }
-		//                                ^^^^^^^^^^^^^^^
-		catch (::vector<Node> const& e) { set_special(Special::Infinite,e) ; }
-		if ((*this)->buildable==No) {                                          // avoid allocating ReqInfo for non-buildable Node's
+		//                                     vvvvvvvvvvvvvvv
+		try                                  { set_buildable() ;                  }
+		//                                     ^^^^^^^^^^^^^^^
+		catch (::vmap<Node,DFlags> const& e) { set_special(Special::Infinite,e) ; }
+		if ((*this)->buildable==No) {                                              // avoid allocating ReqInfo for non-buildable Node's
 			SWEAR(make_action<MakeAction::Dec) ;
 			SWEAR(!cri.has_watchers()        ) ;
 			trace("not_buildable",cri) ;
@@ -244,8 +244,8 @@ namespace Engine {
 					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (shorten_by==NoIdx) { if (!shared()) { UNode(*this)->rule_tgts.clear()                ; share() ; } }
 					else                   {                  UNode(*this)->rule_tgts.shorten_by(shorten_by) ;             }
-					if (ri.prio_idx>=(*this)->job_tgts.size()) break ;         // fast path
-				} catch (::vector<Node> const& e) {
+					if (ri.prio_idx>=(*this)->job_tgts.size()) break ;                                                       // fast path
+				} catch (::vmap<Node,DFlags> const& e) {
 					set_special(Special::Infinite,e) ;
 					break ;
 				}
@@ -435,7 +435,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Dep const& d ) {
-		os << "D(" << +d <<','<< d.info ;
+		os << "D(" << +d <<','<< d.order ;
 		switch (d.is_date) {
 			case No    : os <<','<< d.crc () ; break ;
 			case Yes   : os <<','<< d.date() ; break ;

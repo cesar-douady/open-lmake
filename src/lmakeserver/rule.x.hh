@@ -47,21 +47,26 @@ namespace Engine {
 		struct DepSpec {
 			friend ::ostream& operator<<( ::ostream& , DepSpec const& ) ;
 			// cxtors & casts
-			DepSpec(                             )                            {}
-			DepSpec( ::string const& p , bool ic ) : pattern{p} , is_code(ic) {}
+			DepSpec(                                             ) = default ;
+			DepSpec( ::string const& p , bool ic , DFlags dfs={} ) : pattern{p} , flags{dfs} , is_code(ic) {}
 			template<IsStream S> void serdes(S& s) {
 				if (is_base_of_v<::istream,S>) code = nullptr ;
 				::serdes(s,pattern) ;
+				::serdes(s,flags  ) ;
 				::serdes(s,is_code) ;
 			}
 			// services
-			bool              operator== (DepSpec const&) const = default ;
-			::strong_ordering operator<=>(DepSpec const&) const = default ;
+			bool              operator== (DepSpec const&      ) const = default ;
+			::strong_ordering operator<=>(DepSpec const& other) const {
+				if (pattern!=other.pattern) return pattern<=>other.pattern ;
+				/**/                        return +flags <=>+other.flags  ;
+			}
 			// data
 			::string pattern ;
+			DFlags   flags   ;
 			bool     is_code = false ;
 			// not stored on disk
-			PyObject* code = nullptr ;                                         // code object when dep is a f-string
+			PyObject* code = nullptr ; // code object when dep is a f-string
 		} ;
 
 		struct DepsSpec {
@@ -102,7 +107,7 @@ namespace Engine {
 		} ;
 
 		// statics
-		static bool s_sure(Flags flags) { return !flags[Flag::Star] || flags[Flag::Optional] ; } // if optional, a target is deemed generated, even if it does not exist, hence it is sure
+		static bool s_sure(TFlags flags) { return !flags[TFlag::Star] || flags[TFlag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
 		// static data
 		static size_t s_name_sz ;
 
@@ -132,8 +137,8 @@ namespace Engine {
 		::string pretty_str() const ;
 
 		// accesses
-		Flags flags(VarIdx t) const { return targets[t].second.flags ; }
-		bool  sure (VarIdx t) const { return s_sure(flags(t))        ; }
+		TFlags flags(VarIdx t) const { return targets[t].second.flags ; }
+		bool   sure (VarIdx t) const { return s_sure(flags(t))        ; }
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
@@ -312,8 +317,8 @@ namespace Engine {
 		::string const&    key        (              ) const { return (*this)->targets[tgt_idx].first          ; }
 		::string const&    target     (              ) const { return (*this)->targets[tgt_idx].second.pattern ; }
 		//
-		Flags flags() const { return (*this)->flags(tgt_idx) ; }
-		bool  sure () const { return (*this)->sure (tgt_idx) ; }
+		TFlags flags() const { return (*this)->flags(tgt_idx) ; }
+		bool   sure () const { return (*this)->sure (tgt_idx) ; }
 		// services
 		Py::Pattern pattern() const { return (*this)->target_patterns[tgt_idx] ; }
 		// data

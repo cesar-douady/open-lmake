@@ -9,19 +9,20 @@ import re
 
 lmake_s_dir = osp.dirname(osp.dirname(__file__))
 
-save_path = list(sys.path)
-
 sys.implementation.cache_tag = None
 sys.dont_write_bytecode      = True
-sys.path[0:0]                = [lmake_s_dir+'/lib','.']                        # lmake_s_dir is provided in global dict by _bin/read_makefiles
-sys.reading_makefiles        = True                                            # signal we are reading makefiles to define the proper primitives
+save_path                    = list(sys.path)
+sys.path                     = [lmake_s_dir+'/_lib',lmake_s_dir+'/lib',*save_path]
 
+sys.reading_makefiles        = True                                            # signal we are reading makefiles to define the proper primitives
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
-import Lmakefile
+import serialize
 pdict = lmake.pdict
 
-sys.path = [lmake_s_dir+'/_lib']+save_path                                     # restore sys.path in case user played with it
-import serialize
+sys.path = [lmake_s_dir+'/lib','.',*save_path]
+import Lmakefile
+
+sys.path = save_path                                                           # restore sys.path in case user played with it
 
 # helper constants
 # AntiRule's only need a subset of plain rule attributes as there is no execution
@@ -103,13 +104,13 @@ def mk_snake(txt) :
 		start_of_word = not c.isalnum()
 	return ''.join(res)
 
-def fmt_target(target) :
-	if       isinstance(target,str         ) : flags = ()
-	elif not isinstance(target,(tuple,list)) : raise TypeError(f'bad format for target {k} of type {target.__class__.__name__}')
-	elif not target                          : raise TypeError(f'cannot find target {k} in empty entry')
-	elif not isinstance(target[0],str)       : raise TypeError(f'bad format for target {k} of type {target[0].__class__.__name__}')
-	else                                     : target,flags = target[0],tuple(mk_snake(f) for f in target[1:] if f)
-	return (target,*flags)
+def fmt_entry(kind,entry) :
+	if       isinstance(entry,str         ) : flags = ()
+	elif not isinstance(entry,(tuple,list)) : raise TypeError(f'bad format for {kind} {k} of type {entry.__class__.__name__}')
+	elif not entry                          : raise TypeError(f'cannot find {kind} {k} in empty entry')
+	elif not isinstance(entry[0],str)       : raise TypeError(f'bad format for {kind} {k} of type {entry[0].__class__.__name__}')
+	else                                     : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
+	return (entry,*flags)
 
 def no_match(target) :
 	return '-match' in target[1:]
@@ -239,8 +240,8 @@ def handle_targets(rule_rep,attrs) :
 	if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
 	#
 	rule_rep.targets = {
-		**{ k:fmt_target(t) for k,t in               rule_rep.targets     .items()   }
-	,	**{ k:fmt_target(t) for k,t in reversed(list(rule_rep.post_targets.items())) }
+		**{ k:fmt_entry('target',t) for k,t in               rule_rep.targets     .items()   }
+	,	**{ k:fmt_entry('target',t) for k,t in reversed(list(rule_rep.post_targets.items())) }
 	}
 	rule_rep.pop('post_targets')
 	#
@@ -260,13 +261,15 @@ def dep_code(rule_rep,kind,key,dep) :
 
 def mk_deps(rule_rep,kind,serialize_ctx,code=None) :
 	deps = rule_rep[kind]
-	res = pdict(dct={})
+	res  = pdict(dct={})
 	if code : codes = [code]
 	else    : codes = []
 	for k,d in deps.items() :
-		d,code = dep_code(rule_rep,kind,k,d)
+		d      = fmt_entry('dep',d)
+		d0,code = dep_code(rule_rep,kind,k,d[0])
+		d       = d0,*d[1:]
 		if code : codes.append(code)
-		res.dct[k] = (d,bool(code))
+		res.dct[k] = (d[0],bool(code),*d[1:])
 	if codes :
 		res.prelude , ctx = serialize.get_code_ctx(
 			*codes

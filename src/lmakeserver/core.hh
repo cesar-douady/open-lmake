@@ -5,6 +5,10 @@
 
 #pragma once
 
+#include "config.hh"
+#include "pycxx.hh"
+#include "rpc_job.hh"
+
 #include "app.hh"
 #include "disk.hh"
 #include "hash.hh"

@@ -91,22 +91,22 @@ int main( int argc , char* argv[] ) {
 	//
 	Fd child_stdin  = Child::None ;
 	Fd child_stdout = Child::Pipe ;
-	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DepAccess::Reg,{},"<stdin>" ) ; }
-	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,               {},"<stdout>") ; }
+	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg,{},"<stdin>" ) ; }
+	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,           {},"<stdout>") ; }
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
 	args.emplace_back("-c"             ) ;
 	args.push_back   (start_info.script) ;
 	RealPath              real_path        { start_info.lnk_support }                   ;
 	RealPath::SolveReport interpreter_deps = real_path.solve(start_info.interpreter[0]) ;
-	for( ::string const& lnk : interpreter_deps.lnks ) gather_deps.new_dep(start_overhead,lnk                  ,DepAccess::Lnk,{},"<interpreter> lnks") ;
-	if (!interpreter_deps.real.empty())                gather_deps.new_dep(start_overhead,interpreter_deps.real,DepAccess::Reg,{},"<interpreter>"     ) ;
+	for( ::string const& lnk : interpreter_deps.lnks ) gather_deps.new_dep(start_overhead,lnk                  ,DFlag::Lnk,{},"<interpreter> lnks") ;
+	if (!interpreter_deps.real.empty())                gather_deps.new_dep(start_overhead,interpreter_deps.real,DFlag::Reg,{},"<interpreter>"     ) ;
 	//
 	::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 	for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 		TargetSpec const& tf = start_info.targets[t] ;
-		if (tf.flags[Flag::Star]) target_patterns.emplace_back(tf.pattern) ;
-		else                      target_patterns.emplace_back(          ) ;
+		if (tf.flags[TFlag::Star]) target_patterns.emplace_back(tf.pattern) ;
+		else                       target_patterns.emplace_back(          ) ;
 	}
 	//
 	::vmap_s<TargetDigest>              targets    ;
@@ -117,43 +117,44 @@ int main( int argc , char* argv[] ) {
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
-			Flags  flags   = UnexpectedFlags ;
-			VarIdx tgt_idx = -1              ;
-			Bool3  write   = info.write      ;
+			TFlags flags   = UnexpectedTFlags ;
+			VarIdx tgt_idx = -1               ;
+			Bool3  write   = info.write       ;
 			if (!force_deps.contains(file)) {
 				for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 					TargetSpec const& spec = start_info.targets[t] ;
-					if (spec.flags[Flag::Star]) { if (+target_patterns[t].match(file)) { tgt_idx = t ; flags = spec.flags ; break ; } }
-					else                        { if (file==spec.pattern             ) { tgt_idx = t ; flags = spec.flags ; break ; } }
+					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tgt_idx = t ; flags = spec.flags ; break ; } }
+					else                         { if (file==spec.pattern             ) { tgt_idx = t ; flags = spec.flags ; break ; } }
 				}
 			}
 			//
-			DepAccesses das = info.dep_accesses ;                              // das represents what we have seen different w.r.t. non-existent file
-			if (!flags[Flag::Stat]) das &= ~DepAccess::Stat ;
-			if ( write==No && flags[Flag::Dep] ) {
-				if (+das) {
+			DFlags dfs  = info.dep_flags ; if (!flags[TFlag::Stat]) dfs &= ~DFlag::Stat ;
+			bool   read = +( dfs & AccessDFlags ) ;                                       // access represents what we have seen different w.r.t. non-existent file
+			if ( write==No && flags[TFlag::Dep] ) {
+				if (read) {
 					// only generate an access date if it was coherent all the way from first access to end of job (as we have no end of access date)
-					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,info.dep_info)) ;
-					else                                 deps.emplace_back(file,DepDigest(               info.dep_info)) ;
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("    ","dep   ",setw(3),tgt_idx,deps.back()) ;
+					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,dfs,info.dep_order)) ;
+					else                                 deps.emplace_back(file,DepDigest(               dfs,info.dep_order)) ;
+					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					trace("    ","dep   ",setw(3),tgt_idx,deps.back(),dfs) ;
 				} else {
-					trace("    ","!dep  ",setw(3),tgt_idx,file) ;
+					trace("    ","!dep  ",setw(3),tgt_idx,file,dfs) ;
 				}
 			} else if (at_end) {                                               // else we are handling chk_deps and we only care about deps
-				if (!info.file_date) das = DepAccesses::None ;
-				if ( write==Yes &&  flags[Flag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				if ( !info.file_date                 ) dfs = DFlags::None ;
+				if ( write==Yes && flags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
 				const char* str ;
 				switch (write) {
-					//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case No    : str = "idle  " ; targets.emplace_back(file,TargetDigest( tgt_idx , das , false/*write*/             ) ) ; break ;
-					case Maybe : str = "unlink" ; targets.emplace_back(file,TargetDigest( tgt_idx , das , true /*write*/ , Crc::None ) ) ; break ;
-					case Yes   : str = "write " ; targets.emplace_back(file,TargetDigest( tgt_idx , das , true /*write*/             ) ) ; break ;
-					//                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					// if file is unlinked, ignore it unless it has been read or we declared it as phony, so that tmp files are ignored
+					//                                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case No    : str = "idle  " ;                                targets.emplace_back(file,TargetDigest( tgt_idx , dfs , false/*write*/             ) ) ; break ;
+					case Maybe : str = "unlink" ; if (read||flags[TFlag::Phony]) targets.emplace_back(file,TargetDigest( tgt_idx , dfs , true /*write*/ , Crc::None ) ) ; break ;
+					case Yes   : str = "write " ;                                targets.emplace_back(file,TargetDigest( tgt_idx , dfs , true /*write*/             ) ) ; break ;
+					//                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(write) ;
 				}
-				trace(das,str,setw(3),tgt_idx,targets.back(),info.file_date) ;
+				trace(dfs,str,setw(3),tgt_idx,targets.back(),info.file_date) ;
 			}
 		}
 	} ;
@@ -167,10 +168,10 @@ int main( int argc , char* argv[] ) {
 				jrr = JobRpcReq( JobProc::ChkDeps , seq_id , job , ::move(deps) ) ;
 				deps.clear() ;
 			break ;
-			case JobExecRpcProc::DepCrcs : {
+			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
 				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(date) ) ;
-				jrr = JobRpcReq( JobProc::DepCrcs , seq_id , job , ::move(ds) ) ;
+				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;
 		}

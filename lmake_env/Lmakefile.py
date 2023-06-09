@@ -37,12 +37,13 @@ def dir_guard(file) :
 
 class BaseRule(Rule) :
 	stems = {
-		'Dir'  : r'.+?'                                                        # use non-greedy to be protected against dirs ending in .dir in tar file
+		'Dir'  : r'.+?'                # use non-greedy to be protected against dirs ending in .dir in tar file
+	,	'DirS' : r'.+/|'               # include trailing / or empty to designate top-level
 	,	'File' : r'.+'
 	,	'Base' : r'[^/]+'
 	,	'Ext'  : r'[^/]+'
 	}
-	resources   = { 'mem' : 100 }                                              # in MB
+	resources   = { 'mem' : 100 }      # in MB
 	start_delay = 2
 	n_tokens    = config.backends.local.cpu
 
@@ -107,11 +108,8 @@ class Unzip(Unpack) :
 
 class PatchDir(BaseRule) :
 	targets = {
-		'PATCHED_TMP1'     : ( 'ext/{Dir}.patched_dir/{SubDir*:([^/]+/)*}.{SubFile*:[^/]+}.swp' , '-Match' , 'Incremental' , '-Dep' )
-	,	'PATCHED_TMP2'     : ( 'ext/{Dir}.patched_dir/{SubDir*          }.{SubFile*      }.swx' , '-Match' , 'Incremental' , '-Dep' )
-	,	'PATCHED_TMP3'     : ( 'ext/{Dir}.patched_dir/{SubDir*          }.{SubFile*      }~'    , '-Match' , 'Incremental' , '-Dep' )
-	,	'PATCHED_FILE'     :   'ext/{Dir}.patched_dir/{File*}'
-	,	'PATCHED_MANIFEST' :   'ext/{Dir}.patched_manifest'
+		'PATCHED_FILE'     : 'ext/{Dir}.patched_dir/{File*}'
+	,	'PATCHED_MANIFEST' : 'ext/{Dir}.patched_manifest'
 	}
 	deps = {
 		'MANIFEST'     : 'ext/{Dir}.manifest'
@@ -130,12 +128,7 @@ class PatchDir(BaseRule) :
 		run((osp.abspath(PATCH_SCRIPT),),cwd=pdir,stdin=DEVNULL,stderr=STDOUT,check=True)
 
 class PatchFile(BaseRule) :
-	targets = {
-		'TMP1' : ( 'ext/{DirS:([^/]+/)*}.{File}.patched.{Ext}.swp' , '-Match' , 'Optional' , 'Incremental' , '-Dep' )
-	,	'TMP2' : ( 'ext/{DirS          }.{File}.patched.{Ext}.swx' , '-Match' , 'Optional' , 'Incremental' , '-Dep' )
-	,	'TMP3' : ( 'ext/{DirS          }{ File}.patched.{Ext}~'    , '-Match' , 'Optional' , 'Incremental' , '-Dep' )
-	,	'DST'  :   'ext/{DirS          }{ File}.patched.{Ext}'
-	}
+	targets = { 'DST' : 'ext/{DirS}{ File}.patched.{Ext}' }
 	deps = {
 		'SRC'          : 'ext/{DirS}{File}.{Ext}'
 	,	'PATCH_SCRIPT' : 'ext/{DirS}{File}.patch_script'
@@ -147,11 +140,11 @@ class PatchFile(BaseRule) :
 
 class ConfigH(BaseRule) :
 	targets = {
-		'CONFIG_H'   :   'ext/{Dir}/config.h'
-	,	'SCRATCHPAD' : ( 'ext/{Dir}/{File*}'  , '-Match' )
+		'CONFIG_H'   :   'ext/{DirS}config.h'
+	,	'SCRATCHPAD' : ( 'ext/{DirS}{File*}'  , '-Match' )
 	}
-	deps = { 'CONFIGURE' : 'ext/{Dir}/configure' }
-	cmd  = 'cd ext/$Dir ; ./configure'
+	deps = { 'CONFIGURE' : 'ext/{DirS}configure' }
+	cmd  = 'cd ext/$DirS ; ./configure'
 
 class SysConfigH(Centos7Rule) :
     targets = {
@@ -179,7 +172,7 @@ class GenOpts(BaseRule) :
 
 # a rule to ensure dir exists
 class Marker(BaseRule) :
-	targets = { 'MRKR' : '{Dir}/mrkr' }
+	targets = { 'MRKR' : '{DirS}mrkr' }
 	def cmd() :
 		open(MRKR,'w')
 
@@ -316,8 +309,9 @@ class TarLmake(BaseRule) :
 opt_tab.update({
 	r'.*'                        : ( '-I'      , sysconfig.get_path("include")                                            )
 ,	r'src/.*'                    : ( '-iquote' , f'ext_lnk/{pycxx}.patched_dir/{pycxx}'           , '-iquote' , 'ext_lnk' )
+,	r'src/autodep/clmake'        : (             '-Wno-cast-function-type'                        ,                       )
 ,	r'src/autodep/ptrace'        : ( '-iquote' , f'ext_lnk/{libseccomp}.dir/{libseccomp}/include'                         )
-,	r'src/lmakeserver/makefiles' : ( '-D'      , f'PYTHON="{sys.executable}"'                                               )
+,	r'src/lmakeserver/makefiles' : ( '-D'      , f'PYTHON="{sys.executable}"'                                             )
 })
 
 class Link(BaseRule) :

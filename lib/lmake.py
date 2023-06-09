@@ -121,18 +121,23 @@ if getattr(_sys,'reading_makefiles',False) :
 		}
 	#	name                                               # must be specific for each rule, defaults to class name
 	#	job_name                                           # defaults to first target
-		stems        = {}                                  # defines stems as regexprs for use in targets & deps, e.g. {'File':'.*'}
+		stems = {                                          # defines stems as regexprs for use in targets & deps, e.g. {'File':'.*'}
+			'__dir__'  : r'.+/|'
+		,	'__file__' : r'.+'
+		,	'__base__' : r'[^/]+'
+		}
 		targets      = {}                                  # patterns used to trigger rule execution, refers to stems above through {} notation, e.g. {'OBJ':'{File}.o'}
 		#                                                  # in case of multiple matches, first matching entry is considered, others are ignored
-		#                                                  # targets may have flags (use - to reset), e.g. {'TMP' : ('{File}.tmp/{Tmp*}','Incremental','-Match','-Crc') }, flags may be :
+		#                                                  # targets may have flags (use - to reset), e.g. {'TMP' : ('{File}.tmp/{Tmp*}','Phony','-Match','-Crc') }, flags may be :
 		#                                                  #   flag         | default | description
 		#                                                  #   -------------+---------+--------------------------------------------------------------------------------------------
 		#                                                  #   Crc          | x       | compute CRC on target
 		#                                                  #   Dep          | x       | make it a Dep if accessed read-only
+		#                                                  #   Essential    | x       | show in graphic flow
 		#                                                  #   Incremmental |         | file is not unlinked before job execution and can be read before written to or unlinked
 		#                                                  #   ManualOk     |         | no error if file is modified outside lmake
 		#                                                  #   Match        | x       | can match to select rule to rebuild this target
-		#                                                  #   Optional     |         | file may not be generated or can be unlinked
+		#                                                  #   Phony        |         | file may not be generated or can be unlinked
 		#                                                  #   SourceOk     |         | no error if file is a source that will be overwritten (e.g. by asking another target)
 		#                                                  #   Star         |         | force target to be a star if no star stem appears (next rule will be tried if not generate)
 		#                                                  #   Stat         | x       | consider stat-like accesses as reads, else ignore them
@@ -152,6 +157,11 @@ if getattr(_sys,'reading_makefiles',False) :
 	#                                                      # defaults to the nearest root dir of the module in which the rule is defined
 		cmd          = []                                  # must be set anywhere in the inheritance hierarchy for the rule to be runable, if several definitions, they are chained
 		deps         = {}                                  # patterns used to express explicit depencies, refers to stems through f-string notation, e.g. {'SRC':'{File}.c'}
+		#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','-Essential')}, flags may be :
+		#                                                  #   flag         | default | description
+		#                                                  #   -------------+---------+--------------------------------------------------------------------------------------------
+		#                                                  #   Essential    | x       | show in graphic flow
+		#                                                  #   Required     | x       | requires that dep is buildable
 	#	dep                                                # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
 		ete          = 0                                   # Estimated Time Enroute, initial guess for job exec time (in s)
 		force        = False                               # if set, jobs are never up-to-date, they are rebuilt every time they are needed
@@ -183,45 +193,34 @@ if getattr(_sys,'reading_makefiles',False) :
 			HOME       = root_dir                                    # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
 		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' ,           ))
-		,	UID        = str(_os.getuid())                           # this may be necessary by some tools and usually does not lead to user specific configuration
-		,	USER       = _pwd.getpwuid(_os.getuid()).pw_name         # .
+		,	UID        = ( str(_os.getuid())                  ,'none') # this may be necessary by some tools and usually does not lead to user specific configuration
+		,	USER       = ( _pwd.getpwuid(_os.getuid()).pw_name,'none') # .
 		)
 
 	class AntiRule(_RuleBase) :
 		__anti__ = True                                    # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected
 		prio     = float('inf')                            # default to high prio as the goal of AntiRule's is to hide other rules
 
-	class PyRule(Rule) :                                                       # base rule that handle pyc creation when importing modules in Python
+	class PyRule(Rule) :
+		'base rule that handle pyc creation when importing modules in Python'
 		def __init_subclass__(cls) :
 			super().__init_subclass__()
 			if cls.ignore_stat and '-B' not in cls.python[1:] :
 				raise AttributeError('if the ignore_stat attribute is set on one rule, python must run with the -B flag set on all rules')
-		stems = {
-			'__dir__'       : r'([^/]+/)*'
-		,	'__module__'    : r'[^/]+'
-		,	'__cache_tag__' : r'\w+-\d+'
-		,	'__tmp__'       : r'\d+'
-		}
 		# ignore pyc files, Python takes care of them
-		post_targets = {
-			'__PYC__'     : ( '{__dir__*}__pycache__/{__module__*}.{__cache_tag__*}.pyc'            , '-Dep','Incremental','-Match','-Crc' )
-		,	'__TMP_PYC__' : ( '{__dir__*}__pycache__/{__module__*}.{__cache_tag__*}.pyc.{__tmp__*}' ,                      '-Match','-Crc' ) # Python writes to a tmp file and renames it to pyc
-		}
+		post_targets = { '__PYC__' : ( r'{__dir__*}__pycache__/{__base__*}.{__cache_tag__*:\w+-\d+}.pyc' , '-Dep','Incremental','-Match','-Crc' ) }
+
+	class GitRule(Rule) :
+		'base rule that ignores read accesses (and forbid writes) to git administrative files'
+		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Write' ) }
 
 	class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
 		virtual = True
 		def cmd() :                                                            # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 			fix_imports()
 
-	class Src(Rule) :
-		prio = inf
-		def __init_subclass__(cls) :
-			super().__init_subclass__()
-			targets = cls.targets
-			for k,v in targets.items() :
-				if   isinstance(v,str  ) : targets[k] = (v,) + ('Incremental','ManualOk')
-				elif isinstance(v,tuple) : targets[k] =  v   + ('Incremental','ManualOk')
-		cmd = ''
+	class DirtyRule(Rule) :
+		post_targets = { '__NO_MATCH__' : ('{*:.*}','-crc','-essential','incremental','-match','-warning') }
 
 	#
 	# sources

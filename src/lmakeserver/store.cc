@@ -216,7 +216,7 @@ namespace Engine {
 		for( Rule r : rule_lst() )
 			for( VarIdx ti=0 ; ti<r->targets.size() ; ti++ ) {
 				RuleTgt rt{r,ti} ;
-				if (!rt.flags()[Flag::Match]) continue ;
+				if (!rt.flags()[TFlag::Match]) continue ;
 				sfx_map[ parse_suffix(rt.target()) ].insert(rt) ;
 			}
 		_propagate_to_longer<true/*IsSfx*/>(sfx_map) ;                         // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix

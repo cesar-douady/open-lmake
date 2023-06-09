@@ -44,7 +44,8 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx = -1 ;
+		static constexpr RuleIdx NoIdx         = -1                               ;
+		static constexpr DFlags  SpecialDFlags = DFlag::Essential|DFlag::Required ;
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
@@ -74,7 +75,7 @@ namespace Engine {
 		void set_buildable( DepDepth lvl=0                     ) ;             // data independent, may be pessimistic (Maybe instead of Yes)
 		void set_pressure ( ReqInfo& ri , CoarseDelay pressure ) const ;
 		//
-		void set_special( Special , ::vector<Node> const& deps={} ) ;
+		void set_special( Special , ::vmap<Node,DFlags> const& deps={} ) ;
 		//
 		ReqInfo const& make( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
 		ReqInfo const& make( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
@@ -151,7 +152,7 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps(::vector<Node> const&) ;
+		Deps(::vmap<Node,DFlags> const&) ;
 	} ;
 
 	//
@@ -161,11 +162,12 @@ namespace Engine {
 	struct Dep : Node {
 		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
 		//cxtors & casts
-		Dep(                                bool kn=false ) :                                     known{kn}            {}
-		Dep( Node n , DepInfo di          , bool kn=false ) : Node{n} , info{di}                , known{kn}            {}
-		Dep( Node n , DepInfo di , Crc  c , bool kn=false ) : Node{n} , info{di} , is_date{No } , known{kn} , _crc {c} {}
-		Dep( Node n , DepInfo di , Date d , bool kn=false ) : Node{n} , info{di} , is_date{Yes} , known{kn} , _date{d} {}
-		Dep( Dep const& d                                 ) : Dep{d,d.info,d.known} {
+		Dep(                                                             ) = default ;
+		Dep( Node n , DFlags dfs , DepOrder o ,          bool kn=false ) : Node{n} , flags(dfs) , order{o}                , known{kn}            {}
+		Dep( Node n , DFlags dfs , DepOrder o , Crc  c , bool kn=false ) : Node{n} , flags(dfs) , order{o} , is_date{No } , known{kn} , _crc {c} {}
+		Dep( Node n , DFlags dfs , DepOrder o , Date d , bool kn=false ) : Node{n} , flags(dfs) , order{o} , is_date{Yes} , known{kn} , _date{d} {}
+		//
+		Dep(Dep const& d) : Dep{d,d.flags,d.order,d.known} {
 			switch (d.is_date) {
 				case No    : crc (d._crc ) ; break ;
 				case Yes   : date(d._date) ; break ;
@@ -177,7 +179,8 @@ namespace Engine {
 			Node::operator=(d) ;
 			if (  is_date==Yes) _date.~Date()             ; else _crc.~Crc()            ;
 			if (d.is_date==Yes) new(&_date) Date{d._date} ; else new(&_crc) Crc{d._crc} ;
-			info    = d.info    ;
+			flags   = d.flags   ;
+			order   = d.order   ;
 			is_date = d.is_date ;
 			known   = d.known   ;
 			return *this ;
@@ -200,9 +203,10 @@ namespace Engine {
 		bool crc_ok     () const ;
 		void acquire_crc() ;
 		// data
-		DepInfo info    = DepInfo::Unknown ;               //   2< 8 bits
-		Bool3   is_date = Maybe            ;               //   2< 8 bits, Maybe means no access : no date, no crc (for C++, _crc is constructed but is meaningless)
-		bool    known   = false            ;               //   1< 8 bits, dep was known (and thus done) before starting last execution
+		DFlags   flags   ;                                 //   5< 8 bits
+		DepOrder order   = DepOrder::Unknown ;             //   2< 8 bits
+		Bool3    is_date = Maybe             ;             //   2< 8 bits, Maybe means no access : no date, no crc (for C++, _crc is constructed but is meaningless)
+		bool     known   = false             ;             //   1< 8 bits, dep was known (and thus done) before starting last execution
 	private :
 		union {
 			Crc  _crc  ;                                   // ~45<64 bits
@@ -280,13 +284,13 @@ namespace Engine {
 		// services
 		Date db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Date() ; }
 		//
-		bool read(DepAccesses das) const {                                     // return true <= file was perceived different from non-existent, assuming access provided in das
-			if (crc==Crc::None      ) return false               ;             // file does not exist, cannot perceive difference
-			if (das[DepAccess::Stat]) return true                ;             // if file exists, stat is different
-			if (is_lnk              ) return das[DepAccess::Lnk] ;
-			if (!crc                ) return +das                ;             // dont know if file is a link, any access may have perceived a difference
-			/**/                      return das[DepAccess::Reg] ;
-			return +das ;
+		bool read(DFlags dfs) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in dfs
+			if (crc==Crc::None  ) return false           ;                     // file does not exist, cannot perceive difference
+			if (dfs[DFlag::Stat]) return true            ;                     // if file exists, stat is different
+			if (is_lnk          ) return dfs[DFlag::Lnk] ;
+			if (!crc            ) return +dfs            ;                     // dont know if file is a link, any access may have perceived a difference
+			/**/                  return dfs[DFlag::Reg] ;
+			return +dfs ;
 		}
 		// data
 		Date     date             ;                        // ~40<=64 bits,         deemed ctime (in ns) of file or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
@@ -463,9 +467,9 @@ namespace Engine {
 	// Deps
 	//
 
-	inline Deps::Deps(::vector<Node> const& static_deps) {
+	inline Deps::Deps(::vmap<Node,DFlags> const& static_deps) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( Node d : static_deps ) ds.emplace_back( d , DepInfo::Parallel ) ;
+		for( auto const& [d,f] : static_deps ) ds.emplace_back( d , f , DepOrder::Parallel ) ;
 		*this = Deps(ds) ;
 	}
 

@@ -91,13 +91,22 @@ class Serialize :
 		else                          : self.by_values = set(no_imports)
 
 	@staticmethod
-	def has_repr(val) :
-		cls = val.__class__
-		if val in (None,...)                   : return True
-		if cls in (bool,int,float,complex,str) : return True
-		if cls in (tuple,list,set            ) : return all( Serialize.has_repr(v)                           for v   in val         )
-		if cls is  dict                        : return all( Serialize.has_repr(k) and Serialize.has_repr(v) for k,v in val.items() )
-		return False
+	def has_repr(val,avoid=None) :
+		try :
+			if avoid is None : avoid = set()                                   # avoid is used to detect loops : loops have no repr (i.e. the repr output does not represent to object)
+			cls = val.__class__
+			if val in (None,...)                         : return True
+			if cls in (bool,int,float,complex,str,bytes) : return True
+			val_id = id(val)
+			if val_id in avoid : raise RuntimeError()
+			avoid.add(val_id)
+			if cls in (tuple,list,set) : return all( Serialize.has_repr(v,avoid)                                 for v   in val         )
+			if cls is  dict            : return all( Serialize.has_repr(k,avoid) and Serialize.has_repr(v,avoid) for k,v in val.items() )
+			avoid.discard(val_id)
+			return False
+		except RuntimeError :
+			if not avoid : return False
+			else         : raise
 
 	def get_src(self) :
 		if len(self.src_lst) and len(self.src_lst[-1]) : self.src_lst.append('') # ensure there is \n at the end

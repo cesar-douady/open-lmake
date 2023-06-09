@@ -118,9 +118,9 @@ void Audit::hide_range( int min , int max ) {
 //
 
 // search file in PATH if asked to do so
-static void _search_exec( const char* file , bool do_search , ::string const& comment="search_exec" ) {
+static void _search( const char* file , bool do_search , bool do_exec , const char* env_var , ::string const& comment="search" ) {
 	const char* path = nullptr ;
-	if ( do_search && !::strchr(file,'/') ) path = getenv("PATH") ;            // file contains a /, do not search
+	if ( do_search && !::strchr(file,'/') ) path = getenv(env_var) ;            // file contains a /, do not search
 	if (!path) path = "" ;
 	for( const char* start = path ;;) {
 		char        buf[PATH_MAX] ;
@@ -138,7 +138,8 @@ static void _search_exec( const char* file , bool do_search , ::string const& co
 		} else {
 			trial = file ;
 		}
-		Audit::exec(AT_FDCWD,trial,comment) ;
+		if (do_exec) Audit::exec(AT_FDCWD,trial,false/*no_follow*/,comment) ;
+		else         Audit::read(AT_FDCWD,trial,false/*no_follow*/,comment) ;
 		if (!*end           ) break ;                                          // exhausted all entries
 		if (is_target(trial)) break ;                                          // found entry, do not search further
 		start = end+1 ;
@@ -177,6 +178,12 @@ static void _search_exec( const char* file , bool do_search , ::string const& co
 	int  close_range(unsigned int fd1,unsigned int fd2,int flgs) noexcept { ORIG(close_range) ; LCK ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) Audit::hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
 	void closefrom  (int          fd1                          ) noexcept { ORIG(closefrom  ) ; LCK ;                                  Audit::hide_range(fd1    ) ; return orig(fd1         ) ; }
 
+	// dlopen
+	#ifndef LD_PRELOAD // XXX : fix dlopen with centOS-7
+	void* dlopen (             const char* p , int fs ) { ORIG(dlopen ) ; LCK ; _search(p,true/*search*/,false/*exec*/,"LD_LIBRARY_PATH","dlopen" ) ; return orig(   p,fs) ; }
+	void* dlmopen( Lmid_t lm , const char* p , int fs ) { ORIG(dlmopen) ; LCK ; _search(p,true/*search*/,false/*exec*/,"LD_LIBRARY_PATH","dlmopen") ; return orig(lm,p,fs) ; }
+	#endif
+
 	// dup2
 	// in case dup2/3 is called with one our fd's, we must hide somewhere else
 	int dup2  ( int oldfd , int newfd             ) { ORIG(dup2  ) ; LCK ; Audit::hide(newfd) ; return orig(oldfd,newfd      ) ; }
@@ -184,10 +191,10 @@ static void _search_exec( const char* file , bool do_search , ::string const& co
 	int __dup2( int oldfd , int newfd             ) { ORIG(__dup2) ; LCK ; Audit::hide(newfd) ; return orig(oldfd,newfd      ) ; }
 
 	// execv
-	int execv  ( const char* path , char* const argv[]                      ) { ORIG(execv  ) ; LCK ; _search_exec(path,false,"execv"  ) ; return orig(path,argv     ) ; }
-	int execvp ( const char* path , char* const argv[]                      ) { ORIG(execvp ) ; LCK ; _search_exec(path,true ,"execvp" ) ; return orig(path,argv     ) ; }
-	int execve ( const char* path , char* const argv[] , char* const envp[] ) { ORIG(execve ) ; LCK ; _search_exec(path,false,"execve" ) ; return orig(path,argv,envp) ; }
-	int execvpe( const char* path , char* const argv[] , char* const envp[] ) { ORIG(execvpe) ; LCK ; _search_exec(path,true ,"execvpe") ; return orig(path,argv,envp) ; }
+	int execv  ( const char* path , char* const argv[]                      ) { ORIG(execv  ) ; LCK ; _search(path,false/*search*/,true/*exec*/,"PATH","execv"  ) ; return orig(path,argv     ) ; }
+	int execvp ( const char* path , char* const argv[]                      ) { ORIG(execvp ) ; LCK ; _search(path,true /*search*/,true/*exec*/,"PATH","execvp" ) ; return orig(path,argv     ) ; }
+	int execve ( const char* path , char* const argv[] , char* const envp[] ) { ORIG(execve ) ; LCK ; _search(path,false/*search*/,true/*exec*/,"PATH","execve" ) ; return orig(path,argv,envp) ; }
+	int execvpe( const char* path , char* const argv[] , char* const envp[] ) { ORIG(execvpe) ; LCK ; _search(path,true /*search*/,true/*exec*/,"PATH","execvpe") ; return orig(path,argv,envp) ; }
 	//
 	int execveat( int dirfd , const char* path , char* const argv[] , char *const envp[] , int flags ) noexcept {
 		ORIG(execveat) ;

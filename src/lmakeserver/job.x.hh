@@ -5,10 +5,6 @@
 
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
-#include <pthread.h>
-
-#include "pycxx.hh"
-
 #ifdef STRUCT_DECL
 namespace Engine {
 
@@ -50,7 +46,7 @@ namespace Engine {
 		using ReqInfo = JobReqInfo ;
 
 		// statics
-		static ::string s_reason_str(JobReason) ;
+		static ::pair_s<Node> s_reason_str(JobReason) ;
 		// static data
 	private :
 		static ::shared_mutex    _s_target_dirs_mutex ;
@@ -61,9 +57,9 @@ namespace Engine {
 		using JobBase::JobBase ;
 		Job( RuleTgt , ::string const& target , DepDepth lvl=0 ) ;             // plain Job, match on target
 		//
-		Job( Special ,               ::vector<Node>   const& deps ) ;          // Job used to represent a Req
-		Job( Special , Node target , ::vector<Node>   const& deps ) ;          // special job
-		Job( Special , Node target , ::vector<JobTgt> const&      ) ;          // multi
+		Job( Special ,               ::vmap<Node,DFlags> const& deps ) ;       // Job used to represent a Req
+		Job( Special , Node target , ::vmap<Node,DFlags> const& deps ) ;       // special job
+		Job( Special , Node target , ::vector<JobTgt>    const&      ) ;       // multi
 
 		// accesses
 		::string name     () const ;
@@ -108,16 +104,16 @@ namespace Engine {
 		void started( bool report , ::vector<Node> const& report_unlink ) ;    // called in engine thread after start
 		//
 		bool/*modified*/ end     ( ProcessDate start , JobDigest const& ) ;
-		JobRpcReply      job_info( JobProc , ::vmap_s<DepDigest> const& ) const ; // answer to requests from job execution
+		JobRpcReply      job_info( JobProc , ::vector<Node> const& deps ) const ; // answer to requests from job execution
 		void             live_out( ::string const&                      ) const ;
 		//
 		bool/*ok*/ forget() ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Node                                                                                                                   ) const ;
-		void audit_end_special( Req , SpecialStep                                                                                                                          ) const ;
-		void audit_end        ( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_ss> const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end_special( Req , SpecialStep , Node                                                                                                                        ) const ;
+		void audit_end_special( Req , SpecialStep                                                                                                                               ) const ;
+		void audit_end        ( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( Req&                                                                                                    ) ;
@@ -262,11 +258,10 @@ namespace Engine {
 			}
 		}
 		// data
-		NodeIdx      dep_lvl        = 0                ;   // 31<=32 bits
-		RunAction    done_          = RunAction::None  ;   //  3<= 8 bits , action for which we are done
-		Lvl          lvl            = Lvl::None        ;   //  3<= 8 bits
-		MissingAudit missing_audit  = MissingAudit::No ;   //  2<= 8 bits , if !No  <=> last run has not been properly reported to user (it was rerun)
-		bool         start_reported = false            ;   //  1<= 8 bits , if true <=> start message has been reported to user
+		NodeIdx   dep_lvl        = 0                ;      // 31<=32 bits
+		RunAction done_          = RunAction::None  ;      //  3<= 8 bits , action for which we are done
+		Lvl       lvl            = Lvl::None        ;      //  3<= 8 bits
+		bool      start_reported = false            ;      //  1<= 8 bits , if true <=> start message has been reported to user
 	} ;
 	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
 
@@ -279,8 +274,8 @@ namespace Engine {
 	// Job
 	//
 
-	inline Job::Job( Special sp ,          ::vector<Node> const& deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req) ; }
-	inline Job::Job( Special sp , Node t , ::vector<Node> const& deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } {}
+	inline Job::Job( Special sp ,          ::vmap<Node,DFlags> const& deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req) ; }
+	inline Job::Job( Special sp , Node t , ::vmap<Node,DFlags> const& deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } {}
 
 	inline ::string Job::name() const {
 		return full_name(

@@ -10,16 +10,6 @@
 
 using namespace Hash ;
 
-const umap<JobExecRpcProc,Cmd> g_proc_tab = {
-//	  proc                                sync   has_args   has_ok   has_crcs
-	{ JobExecRpcProc::Deps            , { true , true     , false  , false    } }
-,	{ JobExecRpcProc::Unlinks         , { true , true     , false  , false    } }
-,	{ JobExecRpcProc::Targets         , { true , true     , false  , false    } }
-,	{ JobExecRpcProc::CriticalBarrier , { true , false    , false  , false    } }
-,	{ JobExecRpcProc::ChkDeps         , { true , false    , true   , false    } }
-,	{ JobExecRpcProc::DepCrcs         , { true , true     , false  , true     } }
-} ;
-
 JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 
 	// try backdoor
@@ -29,7 +19,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	//
 	size_t reply_sz = MsgBuf::s_sz(reply.data()) ;
 	if (reply_sz) {
-		if (jerr.sync) SWEAR(reply_sz<=reply.size()) ;                         // check there was no overflow
+		SWEAR(reply_sz<=reply.size()) ;                                        // check there was no overflow
 		return IMsgBuf::s_receive<JobExecRpcReply>(reply.data()) ;
 	}
 
@@ -40,7 +30,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	}
 
 	// nothing worked, try to mimic server as much as possible, but of course no crc is available
-	if (jerr.proc==JobExecRpcProc::DepCrcs) return { jerr.proc , ::vector<Crc>(jerr.files.size()) } ;
-	else                                    return {                                              } ;
+	if ( jerr.sync && jerr.proc==JobExecRpcProc::Deps ) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;
+	else                                                return {                                                                         } ;
 
 }

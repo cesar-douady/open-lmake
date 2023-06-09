@@ -216,7 +216,7 @@ namespace Engine {
 		EngineClosure( JP p , Job_ j                                     ) : kind{K::Job} , job{.proc=p,.job=j                            } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
 		//
 		EngineClosure( JP p , Job_ j , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.job=j,.digest={.deps{::move(dds)}},.reply_fd=rfd} {
-			SWEAR( p==JP::DepCrcs || p==JP::ChkDeps ) ;
+			SWEAR( p==JP::DepInfos || p==JP::ChkDeps ) ;
 		}
 		//
 		EngineClosure(EngineClosure&& ec) : kind(ec.kind) {

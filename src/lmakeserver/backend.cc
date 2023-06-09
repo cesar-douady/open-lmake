@@ -68,12 +68,12 @@ namespace Backends {
 	bool/*keep_fd*/ Backend::_s_handle_job_req( Fd fd , JobRpcReq && jrr ) {
 		Date start ;
 		switch (jrr.proc) {
-			case JobProc::None    : return false ;                             // if connection is lost, ignore it
-			case JobProc::Start   :
-			case JobProc::LiveOut :
-			case JobProc::End     :
-			case JobProc::ChkDeps :
-			case JobProc::DepCrcs : break        ;
+			case JobProc::None     : return false ;                            // if connection is lost, ignore it
+			case JobProc::Start    :
+			case JobProc::LiveOut  :
+			case JobProc::End      :
+			case JobProc::ChkDeps  :
+			case JobProc::DepInfos : break        ;
 			default : FAIL(jrr.proc) ;
 		}
 		Job            job           { jrr.job        } ;
@@ -180,10 +180,10 @@ namespace Backends {
 				trace("started",reply) ;
 			} break ;
 			//                                                                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobProc::LiveOut :                                                 g_engine_queue.emplace( jrr.proc , job , ::move(jrr.txt)              ) ;                  break ;
-			case JobProc::End     : job.end_exec() ;                                g_engine_queue.emplace( jrr.proc , job , start , ::move(jrr.digest)   ) ;                  break ;
-			case JobProc::ChkDeps :
-			case JobProc::DepCrcs : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , job , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
+			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , job , ::move(jrr.txt)              ) ;                  break ;
+			case JobProc::End      : job.end_exec() ;                                g_engine_queue.emplace( jrr.proc , job , start , ::move(jrr.digest)   ) ;                  break ;
+			case JobProc::ChkDeps  :
+			case JobProc::DepInfos : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , job , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
 			//                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			default : FAIL(jrr.proc) ;
 		}

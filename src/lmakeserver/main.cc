@@ -329,9 +329,14 @@ bool/*interrupted*/ engine_loop() {
 					case JobProc::End         : job.job.end          (job.start,job.digest        ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
 					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
 					case JobProc::ChkDeps     :
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::DepCrcs     : OMsgBuf().send( job.reply_fd , job.job.job_info(job.proc,job.digest.deps) ) ; ::close(job.reply_fd) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					case JobProc::DepInfos    : {
+						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;
+						for( auto [dn,_] : job.digest.deps ) deps.emplace_back(dn) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						OMsgBuf().send( job.reply_fd , job.job.job_info(job.proc,deps) ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						::close(job.reply_fd) ;
+					} break ;
 					default : FAIL(job.proc) ;
 				}
 			} break ;

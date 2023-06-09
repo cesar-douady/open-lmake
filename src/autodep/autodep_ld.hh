@@ -76,7 +76,6 @@ public :
 	static void solve( int at , ::string const& file , bool no_follow=false , ::string const& c={}     ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().solve(at,file,no_follow,c) ; }
 	static void read ( int at , ::string const& file , bool no_follow=false , ::string const& c="read" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().read (at,file,no_follow,c) ; }
 	static void exec ( int at , ::string const& file , bool no_follow=false , ::string const& c="exec" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().exec (at,file,no_follow,c) ; }
-	static void exec ( int at , ::string const& file ,                        ::string const& c        ) { exec(at,file,false,c) ;                                                                  }
 	//
 	static void hide      ( int fd                ) ;                          // note that fd           is  closed or about to be closed
 	static void hide_range( int min , int max=~0u ) ;                          // note that min<=fd<=max are closed or about to be closed

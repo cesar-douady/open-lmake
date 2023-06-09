@@ -48,15 +48,17 @@ namespace Engine {
 			break ;
 		}
 		//
-		data.idx_by_start = s_n_reqs()                ;
-		data.idx_by_eta   = s_n_reqs()                ;                        // initially, eta is far future
-		data.jobs .dflt   = Job ::ReqInfo(*this)      ;
-		data.nodes.dflt   = Node::ReqInfo(*this)      ;
-		data.start        = DiskDate   ::s_now()      ;
-		data.job          = Job(Special::Req,targets) ;
-		data.options      = options                   ;
-		data.audit_fd     = fd                        ;
-		data.stats.start  = ProcessDate::s_now()      ;
+		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags) ;
+		//
+		data.idx_by_start = s_n_reqs()           ;
+		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
+		data.jobs .dflt   = Job ::ReqInfo(*this) ;
+		data.nodes.dflt   = Node::ReqInfo(*this) ;
+		data.start        = DiskDate   ::s_now() ;
+		data.job          = Job(Special::Req,ts) ;
+		data.options      = options              ;
+		data.audit_fd     = fd                   ;
+		data.stats.start  = ProcessDate::s_now() ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		s_reqs_by_eta  .push_back(*this) ;
@@ -175,19 +177,24 @@ namespace Engine {
 		for( RuleTgt rt : mrts ) {                                             // second pass to do report
 			JobTgt         jt          { rt , name } ;
 			::string       reason      ;
-			::vector<Node> static_deps ;
 			Node           missing_dep ;
-			::string       missing_key ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                        ;  goto Report ; }
-			try                                            { static_deps = mk_vector<Node>(Rule::Match(rt,name).deps()) ;                }
-			catch (::string const&)                        { reason      = "cannot compute its deps"                    ;  goto Report ; }
-			// first search a non-buildable, if not found, deps have been made and we search for non makable
-			for( VarIdx d=0 ; d<rt->n_deps() ; d++ ) if ( static_deps[d]->buildable==No) { missing_dep = static_deps[d] ; missing_key = rt->deps.dct[d].first ; goto Missing ; }
-			for( VarIdx d=0 ; d<rt->n_deps() ; d++ ) if (!static_deps[d]->makable()    ) { missing_dep = static_deps[d] ; missing_key = rt->deps.dct[d].first ; goto Missing ; }
-		Missing :
-			SWEAR(+missing_dep) ;                                                                                    // else why wouldn't it apply ?!?
-			{	FileInfo fi{missing_dep.name()} ;
-				reason = to_string( "misses dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
+			::vector<Node> static_deps ;
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                        ; goto Report ; }
+			try                                            { static_deps = mk_vector<Node>(Rule::Match(rt,name).deps()) ;               }
+			catch (::string const&)                        { reason      = "cannot compute its deps"                    ; goto Report ; }
+			{	::string missing_key ;
+				// first search a non-buildable, if not found, deps have been made and we search for non makable
+				for( VarIdx di=0 ; di<rt->n_deps() ; di++ ) {
+					Node d = static_deps[di] ;
+					if ( !rt->deps.dct[di].second.flags[DFlag::Required] ) continue ;
+					if ( d->buildable!=No && d->makable()                ) continue ;
+					missing_key = rt->deps.dct[di].first ;
+					missing_dep = d                      ;
+					break ;
+				}
+				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
+				FileInfo fi{missing_dep.name()} ;
+				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
 			if ( !missing_dep                             ) req->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
@@ -238,21 +245,22 @@ namespace Engine {
 		else       req->audit_info( Color::Warning                            , "..."                                                                                ) ;
 		return !n_err/*overflow*/ ;
 	}
-	static bool/*overflow*/ _report_err( Req req , Node node , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) {
-		if (seen_nodes.contains(node)) return false ;
-		seen_nodes.insert(node) ;
-		Node::ReqInfo const& cri = node.c_req_info(req) ;
-		if ( !node->makable() && node.err(cri) ) {
-			return _send_err( req , false/*intermediate*/ , "dangling" , node , n_err , lvl ) ;
+	static bool/*overflow*/ _report_err( Req req , Dep const& dep , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) {
+		if (seen_nodes.contains(dep)) return false ;
+		seen_nodes.insert(dep) ;
+		Node::ReqInfo const& cri = dep.c_req_info(req) ;
+		if (!dep->makable()) {
+			if      (dep.err(cri)              ) return _send_err( req , false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
+			else if (dep.flags[DFlag::Required]) return _send_err( req , false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
 		}
-		for( Job job : node.conform_job_tgts(cri) ) {
+		for( Job job : dep.conform_job_tgts(cri) ) {
 			if (seen_jobs.contains(job)) return false ;
 			seen_jobs.insert(job) ;
 			Job::ReqInfo const& jri = job.c_req_info(req) ;
 			if (!jri.done()) return false ;
 			if (!job->err()) return false ;
 			bool intermediate = job->run_status==RunStatus::DepErr ;
-			bool overflow = _send_err( req , intermediate , job->rule->name , node , n_err , lvl ) ;
+			bool overflow = _send_err( req , intermediate , job->rule->name , dep , n_err , lvl ) ;
 			if (overflow) {
 				return true ;
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
@@ -270,8 +278,8 @@ namespace Engine {
 				}
 			}
 			if (intermediate)
-				for( Node d : job->deps )
-					if ( _report_err(req,d,n_err,seen_stderr,seen_jobs,seen_nodes,lvl+1) ) return true ;
+				for( Dep const& d : job->deps )
+					if ( _report_err( req , d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
 		}
 		return false ;
 	}
@@ -305,7 +313,7 @@ namespace Engine {
 				bool         seen_stderr = false ;
 				::uset<Job > seen_jobs   ;
 				::uset<Node> seen_nodes  ;
-				for( Node d : job->deps ) {
+				for( Dep const& d : job->deps ) {
 					Node::ReqInfo const& cdri = d.c_req_info(*this) ;
 					if      (!d.done(cdri)) _report_cycle  ( *this , d                                                ) ;
 					else if (d->makable() ) _report_err    ( *this , d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
