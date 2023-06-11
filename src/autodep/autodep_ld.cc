@@ -43,9 +43,13 @@ static inline void* get_libc_handle_cooked() {
 	return res ;
 }
 void* get_orig(const char* syscall) {
-	static void* s_libc_handle = get_libc_handle_cooked() ;
-	Save  save { g_force_orig , true } ;                                       // avoid loop during dlsym execution
-	void* res  = ::dlsym(s_libc_handle,syscall) ;
+	static void* s_libc_handle [[maybe_unused]] = get_libc_handle_cooked() ;
+	Save save { g_force_orig , true } ;                                       // avoid loop during dlsym execution
+	#ifdef LD_PRELOAD
+		void* res = ::dlsym(RTLD_NEXT,syscall) ;                              // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
+	#else
+		void* res = ::dlsym(s_libc_handle,syscall) ;
+	#endif
 	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
 	return res ;
 }
@@ -179,10 +183,8 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 	void closefrom  (int          fd1                          ) noexcept { ORIG(closefrom  ) ; LCK ;                                  Audit::hide_range(fd1    ) ; return orig(fd1         ) ; }
 
 	// dlopen
-	#ifndef LD_PRELOAD // XXX : fix dlopen with centOS-7
 	void* dlopen (             const char* p , int fs ) { ORIG(dlopen ) ; LCK ; _search(p,true/*search*/,false/*exec*/,"LD_LIBRARY_PATH","dlopen" ) ; return orig(   p,fs) ; }
 	void* dlmopen( Lmid_t lm , const char* p , int fs ) { ORIG(dlmopen) ; LCK ; _search(p,true/*search*/,false/*exec*/,"LD_LIBRARY_PATH","dlmopen") ; return orig(lm,p,fs) ; }
-	#endif
 
 	// dup2
 	// in case dup2/3 is called with one our fd's, we must hide somewhere else
