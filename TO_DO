@@ -7,6 +7,9 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* fix dlopen for ld_audit
+	- re-enable in src/autodep/autodep_ld_audit.cc
+	- autodep -m ld_audit -s full /bin/python -c 'import numpy' blocks
 * rust code seems to manage to do file accesses without ld_preload/ld_audit catching them.
 
 ****************************************************************************************************
@@ -45,6 +48,9 @@
 
 * autodep=ptrace reports launched exe as dep while other methods do not
 	- reduce discrepency
+	- move Record::exec to Disk::RealPath
+	- call it when ld_preload/ld_audit
+	- suppress call in job_exec
 * add a warning when ids reach 15/16 of their limits
 * find a use case to ensure dates are correctly handled with NFS
 
@@ -53,6 +59,11 @@
 ****************************************************************************************************
 
 * lshow must show dep & target flags
+* add scheduling info (pressure, ETA, resources) to lshow -i
+* implement star optional :
+	- walk through nodes from best root (which means implementing "find")
+	- match against regexpr
+	- operate as for star in star_targets
 * add result cache v1 (copy only) :
 	- add config.cache service (host+port)
 	- meta-data = target crcs + stderr + stdout
@@ -84,11 +95,6 @@
 	- warning : links change cdate
 		- and cdates are used as dates
 		- because exec bit is part of crc
-* add scheduling info (pressure, ETA, resources) to lshow -i
-* implement star optional :
-	- walk through nodes from best root (which means implementing "find")
-	- match against regexpr
-	- operate as for star in star_targets
 * ldebug
 	- low priority (wait for user experience)
 * implement slurm interface

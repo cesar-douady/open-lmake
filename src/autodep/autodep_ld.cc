@@ -123,6 +123,7 @@ void Audit::hide_range( int min , int max ) {
 
 // search file in PATH if asked to do so
 static void _search( const char* file , bool do_search , bool do_exec , const char* env_var , ::string const& comment="search" ) {
+	if (!file) return ;
 	const char* path = nullptr ;
 	if ( do_search && !::strchr(file,'/') ) path = getenv(env_var) ;            // file contains a /, do not search
 	if (!path) path = "" ;

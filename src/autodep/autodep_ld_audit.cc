@@ -49,6 +49,8 @@ struct SymEntry {
 ,	{ "__close"          , { reinterpret_cast<uintptr_t>(Audited::__close          ) , true } }
 ,	{ "creat"            , { reinterpret_cast<uintptr_t>(Audited::creat            ) , true } }
 ,	{ "creat64"          , { reinterpret_cast<uintptr_t>(Audited::creat64          ) , true } }
+//,	{ "dlmopen"          , { reinterpret_cast<uintptr_t>(Audited::dlmopen          ) , true } } // XXX : re-enable and fix (import numpy blocks)
+//,	{ "dlopen"           , { reinterpret_cast<uintptr_t>(Audited::dlopen           ) , true } } // XXX : .
 ,	{ "dup2"             , { reinterpret_cast<uintptr_t>(Audited::dup2             ) , true } }
 ,	{ "dup3"             , { reinterpret_cast<uintptr_t>(Audited::dup3             ) , true } }
 ,	{ "execl"            , { reinterpret_cast<uintptr_t>(Audited::execl            ) , true } }
