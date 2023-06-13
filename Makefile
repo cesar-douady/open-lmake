@@ -13,6 +13,8 @@ CC := gcc
 #CC := gcc --coverage
 #CC := clang                                                                   # for some unknown reason, clang is incompatible with -fsanitize
 
+PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
+
 # -fsanitize=address and -fsanitize=thread are exclusive of one another
 #ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
 #ASAN_FLAGS := -fsanitize=address
@@ -31,7 +33,6 @@ WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2
 endif
 
 # python configuration
-PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
 ifeq ($(PYTHON),)
 $(error cannot find python3)
 else

@@ -43,6 +43,57 @@
 	- and more...
 
 ****************
+* installation *
+****************
+
+* lmake requires :
+	- c++20
+	- python 3.6 or later with developer support (i.e. access to the Python.so file)
+* it has been tested with :
+	- ubuntu 22, gcc-12 or clang-15, python 3.10
+	- CentOS7 with the following packages :
+		- yum install centos-release-scl
+		- yum install devtoolset-11
+		- yum install texinfo
+		- yum install git
+		- yum install python36
+		- yum install python36-devel
+* to compile lmake :
+	- ensure an adequate gcc (>=11) or clang (>=15) is in the PATH
+		- if using clang, modify the first lines of Makefile to have CC := clang instead of CC := gcc
+		- instead of putting the right compiler in the path, you can set the CC variable to an absolute path to the compiler
+	- ensure an adequate python is in the PATH
+		- accessible as python3
+		- alternatively, you can set the PYTHON variable to an absolute path to the python interpreter
+	- type make
+		- this builds all necessary files and some unit tests
+		- you can type make LMAKE to just build all necessary files
+		- you can type make lmake.tar.gz (built by default) to make a tar ball of the compiled files that you can easily deploy
+	- install
+		- untar lmake.tar.gz wherever you want and have your PATH point to the bin directory.
+			- the bin sub-dir contains the executables meant to be executed by the user
+			- the _bin sub-dir contains the executables necessary for lmake to run, but not meant to be directly invoked by the user
+				- it also contains some executables to help debugging lmake itself.
+			- the lib sub-dir contains binary and python files for use by the user
+			- the _lib sub-dir contains the binary and python files necessary for lmake to run, but not meant for direct use by the user
+			- the relative positions of these 4 dirs must remain the same, i.e. they must stay in the same directory with the same names.
+	- specialization
+		- you can specialize the build process to better suit your needs :
+		- this is done by modifying the first lines of Makefile, between the vvvvvvvvvvvvv line and the ^^^^^^^^^^^^^^^^ line
+		- if you modify these variables, you should execute git clean as make will not detect this modification automatically
+		- reasonable specializations are :
+			- modify the -j option in the MAKEFLAGS variable to tailer the degree of parallelism of the build process
+			- modify the compiler you want to use through the CC variable
+			- modify the python you want to use through the PYTHON variable
+			- modify the -fsanitize options through the ASAN_FLAGS and TSAN_FLAGS (which are exclusive of each other)  to produce a code with numerous checks, but rather slow
+			- modify the compilation optimization level
+				- if you want to debug, -O0 -g is recommanded as debugging with optimizations is significantly more challenging
+				- if you want to do some performance measurement, you should use -O3 -DNDEBUG, not -O3 alone as this will suppress an enormous quantity of superfluous checks
+				  (essential and cheap ones are kept, though). This will become the production flags when lmake is reliable enough.
+				- as long as lmake is in beta state, default flag is -O3, so that there are numerous checks through out execution.
+				  Adding -g multiplies the executable sizes by about 10x.
+
+****************
 * coding rules *
 ****************
 
