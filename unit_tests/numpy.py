@@ -7,9 +7,10 @@ import sys
 
 if getattr(sys,'reading_makefiles',False) :
 
-	import numpy                                                               # check we can import numpy
-
 	import lmake
+
+	try                        : import numpy                                  # check we can import numpy
+	except ModuleNotFoundError : numpy = None                                  # but ignore test if module does not exist
 
 	lmake.sources = ('Lmakefile.py',)
 else :

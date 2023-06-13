@@ -13,7 +13,6 @@
 
 extern bool g_force_orig ;                                                     // for use with LD_AUDIT : when true, dlsym will return the real orig function, not the autodep one
 
-bool  is_libc (const char*) ;
 void* get_orig(const char*) ;
 
 struct Audit : RecordSock {                                                    // singleton

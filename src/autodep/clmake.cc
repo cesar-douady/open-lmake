@@ -20,10 +20,6 @@ using Proc = JobExecRpcProc ;
 
 static AutodepSupport _g_autodep_support ;
 
-const char* _to_c_str(PyObject* u) {
-	return reinterpret_cast<const char*>(PyUnicode_1BYTE_DATA(u)) ;
-}
-
 static PyObject* critical_barrier( PyObject* /*null*/ , PyObject* /*null*/ ) {
 	JobExecRpcReply reply = _g_autodep_support.req(JobExecRpcReq(Proc::CriticalBarrier,true/*sync*/)) ; // we must be sync to be sure that subsequent deps are after this call
 	Py_RETURN_NONE ;
@@ -54,7 +50,7 @@ static void _push_str( ::vector_s& v , PyObject* o) {
 	if (!PyObject_IsTrue(o)) return ;
 	PyObject* s = PyObject_Str(o) ;
 	if (!s) throw "cannot convert argument to str"s ;
-	v.emplace_back(_to_c_str(s)) ;
+	v.emplace_back(reinterpret_cast<const char*>(PyUnicode_1BYTE_DATA(s))) ;
 	Py_DECREF(s) ;
 }
 static ::vector_s _get_files( PyObject* args ) {
@@ -168,7 +164,7 @@ static PyMethodDef funcs[] = {
 	,	"critical_barrier(). Mark following deps as less critical than previous ones"
 	}
 ,	{	"check_deps"
-	,	(PyCFunction)chk_deps
+	,	reinterpret_cast<PyCFunction>(chk_deps)
 	,	METH_VARARGS|METH_KEYWORDS
 	,	"check_deps(verbose=False). Ensure that all previously seen deps are up-to-date"
 	}

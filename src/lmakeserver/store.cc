@@ -253,7 +253,6 @@ namespace Engine {
 						if (a_psfx_sz!=b_psfx_sz) return a_psfx_sz > b_psfx_sz ;
 						// finally any stable sort is fine, just to avoid random order
 						return a->name < b->name ;
-
 					}
 				) ;
 				pfxs.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;

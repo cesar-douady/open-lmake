@@ -27,18 +27,10 @@ struct Lock {
 ::mutex              Lock::s_mutex ;
 thread_local uint8_t Lock::t_loop  ;
 
-#include "autodep_ld.hh"
-
-static void* _s_libc_handle = nullptr ;
-static int _dl_cb( struct dl_phdr_info* info , size_t /*size*/ , void* ) {
-	if (!is_libc(info->dlpi_name)) return 0 ;
-	void* orig_dlopen = ::dlsym(RTLD_NEXT,"dlopen") ;                                                               // cant call dlopen directly to avoid recursion
-	_s_libc_handle = reinterpret_cast<decltype(::dlopen)*>(orig_dlopen)( info->dlpi_name , RTLD_NOW|RTLD_NOLOAD ) ;
-	return 1 ;
-}
-void* get_libc_handle() {
-	dl_iterate_phdr(_dl_cb,nullptr) ;                                           // /!\ we cannot simply use RTLD_NEXT because when there are several versions of the symbol in libc
-	return _s_libc_handle ;                                                     // (which is the case for realpath), RTLD_NEXT would return the oldest version instead of the default one
+void* get_orig(const char* syscall) {
+	void* res = ::dlsym(RTLD_NEXT,syscall) ;                              // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
+	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
+	return res ;
 }
 
 #define LD_PRELOAD 1

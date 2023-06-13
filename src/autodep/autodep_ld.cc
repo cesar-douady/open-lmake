@@ -23,37 +23,6 @@
 
 using namespace Disk ;
 
-bool g_force_orig = false ;
-
-bool is_libc(const char* c_name) {
-	// search for string (.*/)?libc.so(.<number>)*
-	static const char LibC[] = "libc.so" ;
-	//
-	::string_view name { c_name } ;
-	size_t        pos  = name.rfind(LibC) ;
-	/**/                                            if ( pos==NPos                  ) return false ;
-	/**/                                            if ( pos!=0 && name[pos-1]!='/' ) return false ;
-	for( char c : name.substr(pos+sizeof(LibC)-1) ) if ( (c<'0'||c>'9') && c!='.'   ) return false ;
-	/**/                                                                              return true  ;
-}
-
-static inline void* get_libc_handle_cooked() {
-	void* res = get_libc_handle() ;
-	if (!res) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
-	return res ;
-}
-void* get_orig(const char* syscall) {
-	static void* s_libc_handle [[maybe_unused]] = get_libc_handle_cooked() ;
-	Save save { g_force_orig , true } ;                                       // avoid loop during dlsym execution
-	#ifdef LD_PRELOAD
-		void* res = ::dlsym(RTLD_NEXT,syscall) ;                              // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
-	#else
-		void* res = ::dlsym(s_libc_handle,syscall) ;
-	#endif
-	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
-	return res ;
-}
-
 extern "C" {
 	// the following functions are defined in libc not in #include's, so they may be called by application code
 	extern int     __close          ( int fd                                                        ) ;

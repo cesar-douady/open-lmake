@@ -203,7 +203,7 @@ struct RecordSock : Record {
 			if (_s_service_is_file) _t_report_fd = Disk::open_write( *_s_service , true/*append*/ ) ;
 			else                    _t_report_fd = ClientSockFd    ( *_s_service                  ) ;
 			_t_report_fd.no_std() ;                                                                   // avoid poluting standard descriptors
-			swear_prod(+_t_report_fd,"cannot connect to job_exec") ;
+			swear_prod(+_t_report_fd,"cannot connect to job_exec through ",*_s_service) ;
 		}
 		return _t_report_fd ;
 	}

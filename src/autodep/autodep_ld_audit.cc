@@ -5,10 +5,28 @@
 
 #include <link.h>   // all dynamic link related
 
-#include "utils.hh"
+#include "lib.hh"
+
+bool        g_force_orig = false   ;
+Lmid_t      g_libc_lmid  = 0       ;                                           // acquired during initial audit
+const char* g_libc_name  = nullptr ;                                           // .
+
 
 struct Ctx {
-	int get_errno() const ;
+private :
+	static void* _s_get_orig_errno() {
+		void* s_libc_handle = ::dlmopen( g_libc_lmid , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
+		swear_prod(s_libc_handle,"cannot find libc") ;
+		Save  save { g_force_orig , true }                     ;               // avoid loop during dlsym execution
+		void* res  = ::dlsym(s_libc_handle,"__errno_location") ;               // gather errno from app space // XXX : find a way to stick to documented interfaces
+		swear_prod(res,"cannot find __errno_location in libc") ;
+		return res ;
+	}
+public :
+	int get_errno() const {
+		static int* (*orig)() = reinterpret_cast<int* (*)()>(_s_get_orig_errno()) ;
+		return *orig() ;
+	}
 	void save_errno   () {}
 	void restore_errno() {}
 } ;
@@ -21,137 +39,148 @@ struct Lock {
 } ;
 ::mutex Lock::s_mutex ;
 
-#include "autodep_ld.hh"
+struct SymEntry {
+	SymEntry(void* f,LnkSupport ls=LnkSupport::None) : func{f},lnk_support{ls} {}
+	void*         func        = nullptr ;
+	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this syscall
+	mutable void* orig        = nullptr ;
+} ;
+extern ::umap_s<SymEntry> const g_syscall_tab ;
 
-inline int Ctx::get_errno() const {
-	static int* (*orig)() = reinterpret_cast<int* (*)()>(get_orig("__errno_location")) ; // gather errno from app space // XXX : find a way to stick to documented interfaces
-	return *orig() ;
-}
-
-Lmid_t      g_libc_lmid = 0       ;                                            // acquired during initial audit
-const char* g_libc_name = nullptr ;                                            // .
-
-void* get_libc_handle() {
-	if (!g_libc_name) return nullptr                                                       ;
-	else              return ::dlmopen( g_libc_lmid , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
+void* get_orig(const char* syscall) {
+	if (!g_libc_name) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
+	return g_syscall_tab.at(syscall).orig ;
 }
 
 #define LD_AUDIT 1
 #include "autodep_ld.cc"
 
-struct SymEntry {
-	uintptr_t func        = 0     ;
-	bool      data_access = false ;
-} ;
 ::umap_s<SymEntry> const g_syscall_tab = {
-	{ "chdir"            , { reinterpret_cast<uintptr_t>(Audited::chdir            ) , true } }
-,	{ "close"            , { reinterpret_cast<uintptr_t>(Audited::close            ) , true } }
-,	{ "__close"          , { reinterpret_cast<uintptr_t>(Audited::__close          ) , true } }
-,	{ "creat"            , { reinterpret_cast<uintptr_t>(Audited::creat            ) , true } }
-,	{ "creat64"          , { reinterpret_cast<uintptr_t>(Audited::creat64          ) , true } }
-//,	{ "dlmopen"          , { reinterpret_cast<uintptr_t>(Audited::dlmopen          ) , true } } // XXX : re-enable and fix (import numpy blocks)
-//,	{ "dlopen"           , { reinterpret_cast<uintptr_t>(Audited::dlopen           ) , true } } // XXX : .
-,	{ "dup2"             , { reinterpret_cast<uintptr_t>(Audited::dup2             ) , true } }
-,	{ "dup3"             , { reinterpret_cast<uintptr_t>(Audited::dup3             ) , true } }
-,	{ "execl"            , { reinterpret_cast<uintptr_t>(Audited::execl            ) , true } }
-,	{ "execle"           , { reinterpret_cast<uintptr_t>(Audited::execle           ) , true } }
-,	{ "execlp"           , { reinterpret_cast<uintptr_t>(Audited::execlp           ) , true } }
-,	{ "execv"            , { reinterpret_cast<uintptr_t>(Audited::execv            ) , true } }
-,	{ "execve"           , { reinterpret_cast<uintptr_t>(Audited::execve           ) , true } }
-,	{ "execveat"         , { reinterpret_cast<uintptr_t>(Audited::execveat         ) , true } }
-,	{ "execvp"           , { reinterpret_cast<uintptr_t>(Audited::execvp           ) , true } }
-,	{ "execvpe"          , { reinterpret_cast<uintptr_t>(Audited::execvpe          ) , true } }
-,	{ "fchdir"           , { reinterpret_cast<uintptr_t>(Audited::fchdir           ) , true } }
-,	{ "fopen"            , { reinterpret_cast<uintptr_t>(Audited::fopen            ) , true } }
-,	{ "fopen64"          , { reinterpret_cast<uintptr_t>(Audited::fopen64          ) , true } }
-,	{ "freopen"          , { reinterpret_cast<uintptr_t>(Audited::freopen          ) , true } }
-,	{ "freopen64"        , { reinterpret_cast<uintptr_t>(Audited::freopen64        ) , true } }
-,	{ "link"             , { reinterpret_cast<uintptr_t>(Audited::link             ) , true } }
-,	{ "linkat"           , { reinterpret_cast<uintptr_t>(Audited::linkat           ) , true } }
-//,	{ "mkostemp"         , { reinterpret_cast<uintptr_t>(Audited::mkostemp         ) , true } } // normally only access $TMPDIR which is not tracked for deps (and difficult to implement)
-//,	{ "mkostemp64"       , { reinterpret_cast<uintptr_t>(Audited::mkostemp64       ) , true } } // .
-//,	{ "mkostemps"        , { reinterpret_cast<uintptr_t>(Audited::mkostemps        ) , true } } // .
-//,	{ "mkostemps64"      , { reinterpret_cast<uintptr_t>(Audited::mkostemps64      ) , true } } // .
-//,	{ "mkstemp"          , { reinterpret_cast<uintptr_t>(Audited::mkstemp          ) , true } } // .
-//,	{ "mkstemp64"        , { reinterpret_cast<uintptr_t>(Audited::mkstemp64        ) , true } } // .
-//,	{ "mkstemps"         , { reinterpret_cast<uintptr_t>(Audited::mkstemps         ) , true } } // .
-//,	{ "mkstemps64"       , { reinterpret_cast<uintptr_t>(Audited::mkstemps64       ) , true } } // .
-,	{ "open"             , { reinterpret_cast<uintptr_t>(Audited::open             ) , true } }
-,	{ "__open"           , { reinterpret_cast<uintptr_t>(Audited::__open           ) , true } }
-,	{ "__open_nocancel"  , { reinterpret_cast<uintptr_t>(Audited::__open_nocancel  ) , true } }
-,	{ "__open_2"         , { reinterpret_cast<uintptr_t>(Audited::__open_2         ) , true } }
-,	{ "open64"           , { reinterpret_cast<uintptr_t>(Audited::open64           ) , true } }
-,	{ "__open64"         , { reinterpret_cast<uintptr_t>(Audited::__open64         ) , true } }
-,	{ "__open64_nocancel", { reinterpret_cast<uintptr_t>(Audited::__open64_nocancel) , true } }
-,	{ "__open64_2"       , { reinterpret_cast<uintptr_t>(Audited::__open64_2       ) , true } }
-,	{ "openat"           , { reinterpret_cast<uintptr_t>(Audited::openat           ) , true } }
-,	{ "__openat_2"       , { reinterpret_cast<uintptr_t>(Audited::__openat_2       ) , true } }
-,	{ "openat64"         , { reinterpret_cast<uintptr_t>(Audited::openat64         ) , true } }
-,	{ "__openat64_2"     , { reinterpret_cast<uintptr_t>(Audited::__openat64_2     ) , true } }
-,	{ "readlink"         , { reinterpret_cast<uintptr_t>(Audited::readlink         ) , true } }
-,	{ "readlinkat"       , { reinterpret_cast<uintptr_t>(Audited::readlinkat       ) , true } }
-,	{ "__readlinkat_chk" , { reinterpret_cast<uintptr_t>(Audited::__readlinkat_chk ) , true } }
-,	{ "__readlink_chk"   , { reinterpret_cast<uintptr_t>(Audited::__readlink_chk   ) , true } }
-,	{ "rename"           , { reinterpret_cast<uintptr_t>(Audited::rename           ) , true } }
-,	{ "renameat"         , { reinterpret_cast<uintptr_t>(Audited::renameat         ) , true } }
-,	{ "renameat2"        , { reinterpret_cast<uintptr_t>(Audited::renameat2        ) , true } }
-,	{ "symlink"          , { reinterpret_cast<uintptr_t>(Audited::symlink          ) , true } }
-,	{ "symlinkat"        , { reinterpret_cast<uintptr_t>(Audited::symlinkat        ) , true } }
-,	{ "truncate"         , { reinterpret_cast<uintptr_t>(Audited::truncate         ) , true } }
-,	{ "truncate64"       , { reinterpret_cast<uintptr_t>(Audited::truncate64       ) , true } }
-,	{ "unlink"           , { reinterpret_cast<uintptr_t>(Audited::unlink           ) , true } }
-,	{ "unlinkat"         , { reinterpret_cast<uintptr_t>(Audited::unlinkat         ) , true } }
-,	{ "vfork"            , { reinterpret_cast<uintptr_t>(Audited::vfork            ) , true } }
-,	{ "__vfork"          , { reinterpret_cast<uintptr_t>(Audited::__vfork          ) , true } }
+	{ "chdir"            , { reinterpret_cast<void*>(Audited::chdir            ) } }
+,	{ "close"            , { reinterpret_cast<void*>(Audited::close            ) } }
+,	{ "__close"          , { reinterpret_cast<void*>(Audited::__close          ) } }
+,	{ "creat"            , { reinterpret_cast<void*>(Audited::creat            ) } }
+,	{ "creat64"          , { reinterpret_cast<void*>(Audited::creat64          ) } }
+//,	{ "dlmopen"          , { reinterpret_cast<void*>(Audited::dlmopen          ) } } // handled by la_objopen (calling Audited::dlmopen does not work for a mysterious reason)
+//,	{ "dlopen"           , { reinterpret_cast<void*>(Audited::dlopen           ) } } // .
+,	{ "dup2"             , { reinterpret_cast<void*>(Audited::dup2             ) } }
+,	{ "dup3"             , { reinterpret_cast<void*>(Audited::dup3             ) } }
+,	{ "execl"            , { reinterpret_cast<void*>(Audited::execl            ) } }
+,	{ "execle"           , { reinterpret_cast<void*>(Audited::execle           ) } }
+,	{ "execlp"           , { reinterpret_cast<void*>(Audited::execlp           ) } }
+,	{ "execv"            , { reinterpret_cast<void*>(Audited::execv            ) } }
+,	{ "execve"           , { reinterpret_cast<void*>(Audited::execve           ) } }
+,	{ "execveat"         , { reinterpret_cast<void*>(Audited::execveat         ) } }
+,	{ "execvp"           , { reinterpret_cast<void*>(Audited::execvp           ) } }
+,	{ "execvpe"          , { reinterpret_cast<void*>(Audited::execvpe          ) } }
+,	{ "fchdir"           , { reinterpret_cast<void*>(Audited::fchdir           ) } }
+,	{ "fopen"            , { reinterpret_cast<void*>(Audited::fopen            ) } }
+,	{ "fopen64"          , { reinterpret_cast<void*>(Audited::fopen64          ) } }
+,	{ "freopen"          , { reinterpret_cast<void*>(Audited::freopen          ) } }
+,	{ "freopen64"        , { reinterpret_cast<void*>(Audited::freopen64        ) } }
+,	{ "link"             , { reinterpret_cast<void*>(Audited::link             ) } }
+,	{ "linkat"           , { reinterpret_cast<void*>(Audited::linkat           ) } }
+//,	{ "mkostemp"         , { reinterpret_cast<void*>(Audited::mkostemp         ) } } // normally only accesses $TMPDIR which is not tracked for deps (and difficult to implement)
+//,	{ "mkostemp64"       , { reinterpret_cast<void*>(Audited::mkostemp64       ) } } // .
+//,	{ "mkostemps"        , { reinterpret_cast<void*>(Audited::mkostemps        ) } } // .
+//,	{ "mkostemps64"      , { reinterpret_cast<void*>(Audited::mkostemps64      ) } } // .
+//,	{ "mkstemp"          , { reinterpret_cast<void*>(Audited::mkstemp          ) } } // .
+//,	{ "mkstemp64"        , { reinterpret_cast<void*>(Audited::mkstemp64        ) } } // .
+//,	{ "mkstemps"         , { reinterpret_cast<void*>(Audited::mkstemps         ) } } // .
+//,	{ "mkstemps64"       , { reinterpret_cast<void*>(Audited::mkstemps64       ) } } // .
+,	{ "open"             , { reinterpret_cast<void*>(Audited::open             ) } }
+,	{ "__open"           , { reinterpret_cast<void*>(Audited::__open           ) } }
+,	{ "__open_nocancel"  , { reinterpret_cast<void*>(Audited::__open_nocancel  ) } }
+,	{ "__open_2"         , { reinterpret_cast<void*>(Audited::__open_2         ) } }
+,	{ "open64"           , { reinterpret_cast<void*>(Audited::open64           ) } }
+,	{ "__open64"         , { reinterpret_cast<void*>(Audited::__open64         ) } }
+,	{ "__open64_nocancel", { reinterpret_cast<void*>(Audited::__open64_nocancel) } }
+,	{ "__open64_2"       , { reinterpret_cast<void*>(Audited::__open64_2       ) } }
+,	{ "openat"           , { reinterpret_cast<void*>(Audited::openat           ) } }
+,	{ "__openat_2"       , { reinterpret_cast<void*>(Audited::__openat_2       ) } }
+,	{ "openat64"         , { reinterpret_cast<void*>(Audited::openat64         ) } }
+,	{ "__openat64_2"     , { reinterpret_cast<void*>(Audited::__openat64_2     ) } }
+,	{ "readlink"         , { reinterpret_cast<void*>(Audited::readlink         ) } }
+,	{ "readlinkat"       , { reinterpret_cast<void*>(Audited::readlinkat       ) } }
+,	{ "__readlinkat_chk" , { reinterpret_cast<void*>(Audited::__readlinkat_chk ) } }
+,	{ "__readlink_chk"   , { reinterpret_cast<void*>(Audited::__readlink_chk   ) } }
+,	{ "rename"           , { reinterpret_cast<void*>(Audited::rename           ) } }
+,	{ "renameat"         , { reinterpret_cast<void*>(Audited::renameat         ) } }
+,	{ "renameat2"        , { reinterpret_cast<void*>(Audited::renameat2        ) } }
+,	{ "symlink"          , { reinterpret_cast<void*>(Audited::symlink          ) } }
+,	{ "symlinkat"        , { reinterpret_cast<void*>(Audited::symlinkat        ) } }
+,	{ "truncate"         , { reinterpret_cast<void*>(Audited::truncate         ) } }
+,	{ "truncate64"       , { reinterpret_cast<void*>(Audited::truncate64       ) } }
+,	{ "unlink"           , { reinterpret_cast<void*>(Audited::unlink           ) } }
+,	{ "unlinkat"         , { reinterpret_cast<void*>(Audited::unlinkat         ) } }
+,	{ "vfork"            , { reinterpret_cast<void*>(Audited::vfork            ) } }
+,	{ "__vfork"          , { reinterpret_cast<void*>(Audited::__vfork          ) } }
 //
 // mere path accesses, no actual accesses to file data
 //
-,	{ "access"    , { reinterpret_cast<uintptr_t>(Audited::access   ) , false } }
-,	{ "faccessat" , { reinterpret_cast<uintptr_t>(Audited::faccessat) , false } }
-,	{ "opendir"   , { reinterpret_cast<uintptr_t>(Audited::opendir  ) , false } }
-,	{ "rmdir"     , { reinterpret_cast<uintptr_t>(Audited::rmdir    ) , false } }
-,	{ "mkdir"     , { reinterpret_cast<uintptr_t>(Audited::mkdir    ) , false } }
-,	{ "mkdirat"   , { reinterpret_cast<uintptr_t>(Audited::mkdirat  ) , false } }
-,	{ "statx"     , { reinterpret_cast<uintptr_t>(Audited::statx    ) , false } }
+,	{ "access"    , { reinterpret_cast<void*>(Audited::access   ) , LnkSupport::File } }
+,	{ "faccessat" , { reinterpret_cast<void*>(Audited::faccessat) , LnkSupport::File } }
+,	{ "opendir"   , { reinterpret_cast<void*>(Audited::opendir  ) , LnkSupport::File } }
+,	{ "rmdir"     , { reinterpret_cast<void*>(Audited::rmdir    ) , LnkSupport::File } }
+,	{ "mkdir"     , { reinterpret_cast<void*>(Audited::mkdir    ) , LnkSupport::File } }
+,	{ "mkdirat"   , { reinterpret_cast<void*>(Audited::mkdirat  ) , LnkSupport::File } }
+,	{ "statx"     , { reinterpret_cast<void*>(Audited::statx    ) , LnkSupport::File } }
 //
-,	{ "__xstat"      , { reinterpret_cast<uintptr_t>(Audited::__xstat     ) , false } }
-,	{ "__xstat64"    , { reinterpret_cast<uintptr_t>(Audited::__xstat64   ) , false } }
-,	{ "__lxstat"     , { reinterpret_cast<uintptr_t>(Audited::__lxstat    ) , false } }
-,	{ "__lxstat64"   , { reinterpret_cast<uintptr_t>(Audited::__lxstat64  ) , false } }
-,	{ "__fxstatat"   , { reinterpret_cast<uintptr_t>(Audited::__fxstatat  ) , false } }
-,	{ "__fxstatat64" , { reinterpret_cast<uintptr_t>(Audited::__fxstatat64) , false } }
+,	{ "__xstat"      , { reinterpret_cast<void*>(Audited::__xstat     ) , LnkSupport::File } }
+,	{ "__xstat64"    , { reinterpret_cast<void*>(Audited::__xstat64   ) , LnkSupport::File } }
+,	{ "__lxstat"     , { reinterpret_cast<void*>(Audited::__lxstat    ) , LnkSupport::Full } }
+,	{ "__lxstat64"   , { reinterpret_cast<void*>(Audited::__lxstat64  ) , LnkSupport::Full } }
+,	{ "__fxstatat"   , { reinterpret_cast<void*>(Audited::__fxstatat  ) , LnkSupport::File } }
+,	{ "__fxstatat64" , { reinterpret_cast<void*>(Audited::__fxstatat64) , LnkSupport::File } }
 #if !NEED_STAT_WRAPPERS
-	,	{ "stat"      , { reinterpret_cast<uintptr_t>(Audited::stat     ) , false } }
-	,	{ "stat64"    , { reinterpret_cast<uintptr_t>(Audited::stat64   ) , false } }
-	,	{ "lstat"     , { reinterpret_cast<uintptr_t>(Audited::lstat    ) , false } }
-	,	{ "lstat64"   , { reinterpret_cast<uintptr_t>(Audited::lstat64  ) , false } }
-	,	{ "fstatat"   , { reinterpret_cast<uintptr_t>(Audited::fstatat  ) , false } }
-	,	{ "fstatat64" , { reinterpret_cast<uintptr_t>(Audited::fstatat64) , false } }
+	,	{ "stat"      , { reinterpret_cast<void*>(Audited::stat     ) , LnkSupport::File } }
+	,	{ "stat64"    , { reinterpret_cast<void*>(Audited::stat64   ) , LnkSupport::File } }
+	,	{ "lstat"     , { reinterpret_cast<void*>(Audited::lstat    ) , LnkSupport::Full } }
+	,	{ "lstat64"   , { reinterpret_cast<void*>(Audited::lstat64  ) , LnkSupport::Full } }
+	,	{ "fstatat"   , { reinterpret_cast<void*>(Audited::fstatat  ) , LnkSupport::File } }
+	,	{ "fstatat64" , { reinterpret_cast<void*>(Audited::fstatat64) , LnkSupport::File } }
 #endif
-,	{ "realpath"               , { reinterpret_cast<uintptr_t>(Audited::realpath              ) , false } }
-,	{ "__realpath_chk"         , { reinterpret_cast<uintptr_t>(Audited::__realpath_chk        ) , false } }
-,	{ "canonicalize_file_name" , { reinterpret_cast<uintptr_t>(Audited::canonicalize_file_name) , false } }
-,	{ "scandir"                , { reinterpret_cast<uintptr_t>(Audited::scandir               ) , false } }
-,	{ "scandir64"              , { reinterpret_cast<uintptr_t>(Audited::scandir64             ) , false } }
-,	{ "scandirat"              , { reinterpret_cast<uintptr_t>(Audited::scandirat             ) , false } }
-,	{ "scandirat64"            , { reinterpret_cast<uintptr_t>(Audited::scandirat64           ) , false } }
+,	{ "realpath"               , { reinterpret_cast<void*>(Audited::realpath              ) , LnkSupport::File } }
+,	{ "__realpath_chk"         , { reinterpret_cast<void*>(Audited::__realpath_chk        ) , LnkSupport::File } }
+,	{ "canonicalize_file_name" , { reinterpret_cast<void*>(Audited::canonicalize_file_name) , LnkSupport::File } }
+,	{ "scandir"                , { reinterpret_cast<void*>(Audited::scandir               ) , LnkSupport::File } }
+,	{ "scandir64"              , { reinterpret_cast<void*>(Audited::scandir64             ) , LnkSupport::File } }
+,	{ "scandirat"              , { reinterpret_cast<void*>(Audited::scandirat             ) , LnkSupport::File } }
+,	{ "scandirat64"            , { reinterpret_cast<void*>(Audited::scandirat64           ) , LnkSupport::File } }
 } ;
+
+static bool _is_libc(const char* c_name) {
+	// search for string (.*/)?libc.so(.<number>)*
+	static const char LibC[] = "libc.so" ;
+	//
+	::string_view name { c_name } ;
+	size_t        pos  = name.rfind(LibC) ;
+	/**/                                            if ( pos==NPos                  ) return false ;
+	/**/                                            if ( pos!=0 && name[pos-1]!='/' ) return false ;
+	for( char c : name.substr(pos+sizeof(LibC)-1) ) if ( (c<'0'||c>'9') && c!='.'   ) return false ;
+	/**/                                                                              return true  ;
+}
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	Audit::t_audit() ;                                                         // force Audit static init
 	//
-	if (g_force_orig) return sym->st_value ;                                   // avoid recursion loop
-	if (!*def_cook  ) return sym->st_value ;                                   // cookie is used to identify libc
+	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
+	if (!*def_cook  ) goto Ignore ;                                            // cookie is used to identify libc
 	//
-	auto it = g_syscall_tab.find(sym_name) ;
-	if (it==g_syscall_tab.end()) return sym->st_value ;
-	//
-	SymEntry const& entry = it->second ;
-	SWEAR(Audit::s_lnk_support!=LnkSupport::Unknown) ;
-	if (entry.data_access                     ) return entry.func    ;         // if not a stat-like syscall, we need to spy it
-	if (Audit::s_lnk_support==LnkSupport::Full) return entry.func    ;         // we need to analyze uphill dirs
-	if (!Audit::s_ignore_stat                 ) return entry.func    ;         // we need to generate deps for stat-like accesses
-	/**/                                        return sym->st_value ;         // nothing to do, do not spy
+	{	auto it = g_syscall_tab.find(sym_name) ;
+		if (it==g_syscall_tab.end()) goto Ignore ;
+		//
+		SymEntry const& entry = it->second ;
+		SWEAR(Audit::s_lnk_support!=LnkSupport::Unknown) ;
+		if (Audit::s_lnk_support>=entry.lnk_support) goto Catch ;
+		if (!Audit::s_ignore_stat                  ) goto Catch ;// we need to generate deps for stat-like accesses
+		goto Ignore ;
+	Catch :
+		entry.orig = reinterpret_cast<void*>(sym->st_value) ;
+		return reinterpret_cast<uintptr_t>(entry.func) ;
+	}
+Ignore :
+	return sym->st_value ;
 }
 
 #pragma GCC visibility push(default)
@@ -160,7 +189,9 @@ extern "C" {
 	unsigned int la_version(unsigned int /*version*/) { return LAV_CURRENT ; }
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		bool is_libc_ = is_libc(map->l_name) ;
+		Audit::t_audit() ;                                                         // force Audit static init
+		Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
+		bool is_libc_ = _is_libc(map->l_name) ;
 		*cookie = is_libc_ ;
 		if (is_libc_) {
 			g_libc_lmid = lmid        ;                                        // seems more robust to avoid directly calling dlmopen while in a call-back due to opening a dl
