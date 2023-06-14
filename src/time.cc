@@ -55,7 +55,7 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , DiskDate    const d ) { return os <<"DiskDate("    << d.str(9) << ')' ; }
 	::ostream& operator<<( ::ostream& os , ProcessDate const d ) { return os <<"ProcessDate(" << d.str(9) << ')' ; }
 
-	::string Date::str(uint8_t prec) const {
+	::string Date::str(uint8_t prec,bool in_day) const {
 		switch (+*this) {
 			case +None   : return "None"   ;
 			case +Future : return "Future" ;
@@ -65,7 +65,7 @@ namespace Time {
 				OStringStream out ;
 				struct tm     t   ;
 				localtime_r(&s,&t) ;
-				out << put_time(&t,"%F %T") ;
+				out << put_time( &t , in_day?"%T":"%F %T" ) ;
 				if (prec) {
 					for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
 					out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;

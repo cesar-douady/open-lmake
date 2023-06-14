@@ -96,24 +96,14 @@ namespace Engine {
 		//
 		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
 		//
-		void premature_end( Req      , bool report=true ) ;                    // Req is killed but job is necessary for some other req
-		void not_started  (                             ) ;                    // Req was killed before it started
-		void report_start ( ReqInfo& , bool force=false ) const ;
-		void report_start (                             ) const ;              // called in engine thread after start if started called with false
-		//
-		void started( bool report , ::vector<Node> const& report_unlink ) ;    // called in engine thread after start
-		//
-		bool/*modified*/ end     ( ProcessDate start , JobDigest const& ) ;
-		JobRpcReply      job_info( JobProc , ::vector<Node> const& deps ) const ; // answer to requests from job execution
-		void             live_out( ::string const&                      ) const ;
-		//
 		bool/*ok*/ forget() ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Node                                                                                                                        ) const ;
-		void audit_end_special( Req , SpecialStep                                                                                                                               ) const ;
-		void audit_end        ( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end_special( Req , SpecialStep , Node ) const ;
+		void audit_end_special( Req , SpecialStep        ) const ;
+		//
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( Req&                                                                                                    ) ;
@@ -154,6 +144,28 @@ namespace Engine {
 		using JobTgtsBase::JobTgtsBase ;
 	} ;
 
+	struct JobExec : Job {
+		friend ::ostream& operator<<( ::ostream& , JobExec const ) ;
+		// cxtors & casts
+		JobExec(                                      ) = default ;
+		JobExec( Job j , ::string&& h , ProcessDate d ) : Job{j} , host{::move(h)} , date{d} {}
+		JobExec( Job j ,                ProcessDate d ) : Job{j} ,                   date{d} {}
+		// services
+		void             report_start ( ReqInfo& , bool force=false                       ) const ;
+		void             report_start (                                                   ) const ; // called in engine thread after start if started called with false
+		void             started      ( bool report , ::vector<Node> const& report_unlink ) ;       // called in engine thread after start
+		void             live_out     ( ::string const&                                   ) const ;
+		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps              ) const ; // answer to requests from job execution
+		bool/*modified*/ end          ( ProcessDate start , JobDigest const&              ) ;
+		void             premature_end( Req , bool report=true                            ) ;       // Req is killed but job is necessary for some other req
+		void             not_started  (                                                   ) ;       // Req was killed before it started
+		//
+		//
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		// data
+		::string    host ;             // host executing the job
+		ProcessDate date ;             // date at which action has been created (may be reported later to user, but with this date)
+	} ;
 }
 #endif
 #ifdef DATA_DEF
@@ -340,6 +352,10 @@ namespace Engine {
 	inline bool/*maybe_new_deps*/ Job::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
 		if ( (*this)->rule.is_special()|| (*this)->frozen()) return _submit_special(ri.req            ) ;
 		else                                                 return _submit_plain  (ri,reason,pressure) ;
+	}
+
+	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time ) const {
+		JobExec(*this,{},ProcessDate::s_now()).audit_end(pfx,cri,stderr,analysis_err,modified,exec_time) ;
 	}
 
 	//

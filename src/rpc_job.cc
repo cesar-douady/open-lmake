@@ -32,11 +32,11 @@
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::LiveOut  : os <<','<< jrr.txt         ; break ;
-		case JobProc::ChkDeps  :                              break ;
-		case JobProc::DepInfos : os <<','<< jrr.digest.deps ; break ;
-		case JobProc::End      : os <<','<< jrr.digest      ; break ;
-		default : ;
+		case JobProc::Start    : os <<','<< jrr.host                    ; break ;
+		case JobProc::LiveOut  : os <<','<< jrr.txt                     ; break ;
+		case JobProc::DepInfos : os <<','<< jrr.digest.deps             ; break ;
+		case JobProc::End      : os <<','<< jrr.host <<','<< jrr.digest ; break ;
+		default                :                                          break ;
 	}
 	return os << ')' ;
 }

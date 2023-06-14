@@ -49,10 +49,10 @@ void report_server( Fd fd , bool running ) {
 }
 
 bool/*crashed*/ start_server() {
-	bool crashed       = false      ;
-	int  pid           = getpid()   ;
-	::string hostname_ = hostname() ;
-	Trace trace("start_server",_g_server_mrkr,hostname_,pid) ;
+	bool crashed   = false    ;
+	int  pid       = getpid() ;
+	::string host_ = host()   ;
+	Trace trace("start_server",_g_server_mrkr,host_,pid) ;
 	Disk::dir_guard(_g_server_mrkr) ;
 	if ( int mrkr_pid = _get_mrkr_pid() ) {
 		if (::kill(mrkr_pid,0)==0) {                                           // another server exists
@@ -64,7 +64,7 @@ bool/*crashed*/ start_server() {
 		trace("vanished",mrkr_pid) ;
 	}
 	_g_server_fd.listen() ;
-	::string tmp = ::to_string(_g_server_mrkr,'.',hostname_,'.',pid) ;
+	::string tmp = ::to_string(_g_server_mrkr,'.',host_,'.',pid) ;
 	OFStream(tmp)
 		<< _g_server_fd.service() << '\n'
 		<< getpid()               << '\n'
@@ -318,23 +318,24 @@ bool/*interrupted*/ engine_loop() {
 			} break ;
 			case EngineClosureKind::Job : {
 				EngineClosure::Job& job = closure.job ;
-				trace("job",job.proc,job.job) ;
+				JobExec           & je  = job.exec    ;
+				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : job.job.started      (job.report,job.report_unlink) ;                       break ;
-					case JobProc::ReportStart : job.job.report_start (                            ) ;                       break ;
-					case JobProc::LiveOut     : job.job.live_out     (job.txt                     ) ;                       break ;
-					case JobProc::Continue    : job.job.premature_end(job.req                     ) ;                       break ;
-					case JobProc::NotStarted  : job.job.not_started  (                            ) ;          /*vvvvvv*/   break ;
-					case JobProc::End         : job.job.end          (job.start,job.digest        ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started      (job.report,job.report_unlink) ;                       break ;
+					case JobProc::ReportStart : je.report_start (                            ) ;                       break ;
+					case JobProc::LiveOut     : je.live_out     (job.txt                     ) ;                       break ;
+					case JobProc::Continue    : je.premature_end(job.req                     ) ;                       break ;
+					case JobProc::NotStarted  : je.not_started  (                            ) ;          /*vvvvvv*/   break ;
+					case JobProc::End         : je.end          (job.start,job.digest        ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;
 						for( auto [dn,_] : job.digest.deps ) deps.emplace_back(dn) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						OMsgBuf().send( job.reply_fd , job.job.job_info(job.proc,deps) ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						OMsgBuf().send( job.reply_fd , je.job_info(job.proc,deps) ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						::close(job.reply_fd) ;
 					} break ;
 					default : FAIL(job.proc) ;
@@ -366,17 +367,10 @@ int main( int argc , char** argv ) {
 	//             ^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) report_server(Fd::Stdout,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
-	if (crashed) {
-		::cerr<<"previous crash detected, checking & rescueing"<<endl ;
-		//           vvvvvvvvvv
-		EngineStore::s_rescue() ;
-		//           ^^^^^^^^^^
-		::cerr<<"seems ok"<<endl ;
-	}
-	//                                     vvvvvvvvvvvvvvvvvvvvv
-	try                       { Makefiles::s_refresh_makefiles() ; }
-	//                                     ^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(2,e) ;                        }
+	//                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { Makefiles::s_refresh_makefiles(crashed) ; }
+	//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { exit(2,e) ;                               }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                        // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_sz = g_config.trace_sz ;

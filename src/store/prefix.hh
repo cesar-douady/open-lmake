@@ -893,9 +893,9 @@ namespace Store {
 		template<bool BuPrev2_,bool BuPrev_,bool BuI_> ChunkIdx _add_prefix( Idx idx , ChunkIdx chunk_sz , ChunkIdx max_chunk_sz ) {
 			if (chunk_sz<=max_chunk_sz) return 0 ;                             // if root, chunk_sz==0 and we stop here
 			ChunkIdx prefix_chunk_sz = chunk_sz-max_chunk_sz ;
-			Item&    item            = _at(idx      )   ;
-			Item&    prev_item       = _at(item.prev)   ;
-			if ( !prev_item.used && prev_item.kind()==Kind::Prefix && prev_item.chunk_sz+prefix_chunk_sz<=prev_item.max_chunk_sz() ) {
+			Item&    item            = _at(idx      )        ;
+			Item&    prev_item       = _at(item.prev)        ;
+			if ( !prev_item.used && +prev_item.prev && prev_item.kind()==Kind::Prefix && prev_item.chunk_sz+prefix_chunk_sz<=prev_item.max_chunk_sz() ) {
 				// directly copy data from item to prev_item
 				_backup<BuPrev_>(item.prev) ;
 				_backup<BuI_   >(idx      ) ;

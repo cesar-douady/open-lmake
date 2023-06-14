@@ -194,38 +194,44 @@ struct JobDigest {
 } ;
 
 struct JobRpcReq {
-	using Proc = JobProc ;
+	using P   = JobProc             ;
+	using S   = Status              ;
+	using SI  = SeqId               ;
+	using JI  = JobIdx              ;
+	using MDD = ::vmap_s<DepDigest> ;
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( Proc p , SeqId ui , JobIdx j , in_port_t pt                  ) : proc{p} , seq_id{ui} , job{j} , port{pt}                     { SWEAR( p==Proc::Start                        ) ; }
-	JobRpcReq( Proc p , SeqId ui , JobIdx j , Status s                      ) : proc{p} , seq_id{ui} , job{j} , digest{.status=s           } { SWEAR( p==Proc::End && s<=Status::Garbage    ) ; }
-	JobRpcReq( Proc p ,            JobIdx j , Status s , ::string const& e  ) : proc{p} ,              job{j} , digest{.status=s,.stderr{e}} { SWEAR( p==Proc::End && s==Status::Err        ) ; }
-	JobRpcReq( Proc p , SeqId ui , JobIdx j , ::string_view const& t        ) : proc{p} , seq_id{ui} , job{j} , txt   {t                   } { SWEAR( p==Proc::LiveOut                      ) ; }
-	JobRpcReq( Proc p , SeqId ui , JobIdx j , JobDigest const& d            ) : proc{p} , seq_id{ui} , job{j} , digest{d                   } { SWEAR( p==Proc::End                          ) ; }
-	JobRpcReq( Proc p , SeqId ui , JobIdx j , ::vmap_s<DepDigest> const& ds ) : proc{p} , seq_id{ui} , job{j} , digest{.deps=ds            } { SWEAR( p==Proc::ChkDeps || p==Proc::DepInfos ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt                  } { SWEAR( p==P::Start                     ) ; }
+	JobRpcReq( P p , SI ui , JI j ,                     S s                    ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s           } { SWEAR( p==P::End && s<=S::Garbage      ) ; }
+	JobRpcReq( P p ,         JI j ,                     S s , ::string&& e     ) : proc{p} ,              job{j} ,           digest{.status=s,.stderr{e}} { SWEAR( p==P::End && s==S::Err          ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d                   } { SWEAR( p==P::End                       ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t                   } { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds            } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
+		::serdes(s,host  ) ;
 		switch (proc) {
-			case Proc::Start    : ::serdes(s,port  ) ; break ;
-			case Proc::LiveOut  : ::serdes(s,txt   ) ; break ;
-			case Proc::ChkDeps  :
-			case Proc::DepInfos :
-			case Proc::End      : ::serdes(s,digest) ; break ;
-			default             : ;
+			case P::Start    : ::serdes(s,port  ) ; break ;
+			case P::LiveOut  : ::serdes(s,txt   ) ; break ;
+			case P::ChkDeps  :
+			case P::DepInfos :
+			case P::End      : ::serdes(s,digest) ; break ;
+			default          : ;
 		}
 	}
 	// data
-	Proc      proc   = Proc::None ;
-	SeqId     seq_id = 0          ;
-	JobIdx    job    = 0          ;
-	in_port_t port   = 0          ; // if proc==Start
-	JobDigest digest ;              // if proc==ChkDeps || DepInfos || End
-	::string  txt    ;              // if proc==LiveOut
+	P         proc   = P::None ;
+	SI        seq_id = 0       ;
+	JI        job    = 0       ;
+	::string  host   ;                 // if proc==Start
+	in_port_t port   = 0       ;       // if proc==Start
+	JobDigest digest ;                 // if proc==ChkDeps || DepInfos || End
+	::string  txt    ;                 // if proc==LiveOut
 } ;
 
 struct JobReason {
@@ -312,11 +318,9 @@ struct JobRpcReply {
 				::serdes(s,env             ) ;
 				::serdes(s,force_deps      ) ;
 				::serdes(s,hash_algo       ) ;
-				::serdes(s,host            ) ;
 				::serdes(s,ignore_stat     ) ;
 				::serdes(s,interpreter     ) ;
 				::serdes(s,is_python       ) ;
-				::serdes(s,job_id          ) ;
 				::serdes(s,job_tmp_dir     ) ;
 				::serdes(s,keep_tmp        ) ;
 				::serdes(s,kill_sigs       ) ;
@@ -327,7 +331,6 @@ struct JobRpcReply {
 				::serdes(s,root_dir        ) ;
 				::serdes(s,rsrcs           ) ;
 				::serdes(s,script          ) ;
-				::serdes(s,seq_id          ) ;
 				::serdes(s,small_id        ) ;
 				::serdes(s,stdin           ) ;
 				::serdes(s,stdout          ) ;
@@ -348,11 +351,9 @@ struct JobRpcReply {
 	::vmap_ss                 env              ;                               // proc == Start
 	::vector_s                force_deps       ;                               // proc == Start   , deps that may clash with targets
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
-	::string                  host             ;                               // proc == Start   , filled in job_exec
 	bool                      ignore_stat      = false               ;         // proc == Start   , if true <=> stat-like syscalls do not trigger dependencies
 	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute script
 	bool                      is_python        = false               ;         // proc == Start   , if true <=> script is a Python script
-	JobIdx                    job_id           = 0                   ;         // proc == Start   , filled in job_exec
 	::string                  job_tmp_dir      ;                               // proc == Start
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<int>               kill_sigs        ;                               // proc == Start
@@ -363,7 +364,6 @@ struct JobRpcReply {
 	::string                  root_dir         ;                               // proc == Start
 	::vmap_ss                 rsrcs            ;                               // proc == Start
 	::string                  script           ;                               // proc == Start
-	SeqId                     seq_id           = 0                   ;         // proc == Start   , filled in job_exec
 	SmallId                   small_id         = 0                   ;         // proc == Start
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start

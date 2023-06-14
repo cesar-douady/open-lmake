@@ -798,7 +798,7 @@ static inline Bool3  common     ( bool   b1 , bool  b2 ) {                return
 // sockets
 //
 
-::string hostname() ;
+::string host() ;
 
 struct Fd {
 	friend ::ostream& operator<<( ::ostream& , Fd const& ) ;
@@ -922,7 +922,7 @@ struct ServerSockFd : SockFd {
 	}
 	::string service(in_addr_t addr) { return to_string(s_addr_str(addr),':',port()) ; }
 	::string service() const {
-		return to_string(hostname(),':',port()) ;
+		return to_string(host(),':',port()) ;
 	}
 	SlaveSockFd accept() {
 		SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;

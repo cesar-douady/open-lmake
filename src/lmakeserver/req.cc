@@ -267,8 +267,9 @@ namespace Engine {
 				try {
 					// show first stderr
 					IFStream    job_stream   { job.ancillary_file(AdminDir+"/job_data"s) } ;
-					JobRpcReply report_start = deserialize<JobRpcReply>(job_stream) ;
-					JobRpcReq   report_end   = deserialize<JobRpcReq  >(job_stream) ;
+					JobRpcReq   report_req   = deserialize<JobRpcReq  >(job_stream)        ;
+					JobRpcReply report_start = deserialize<JobRpcReply>(job_stream)        ;
+					JobRpcReq   report_end   = deserialize<JobRpcReq  >(job_stream)        ;
 					if (!report_end.digest.stderr.empty()) {
 						req->audit_stderr( report_end.digest.stderr , job->rule->stderr_len , lvl ) ;
 						seen_stderr = true ;

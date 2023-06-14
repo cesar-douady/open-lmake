@@ -240,17 +240,21 @@ namespace Engine {
 		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t           ) ; }
 		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p,n.name()  ) ; }
 		//
-		void audit_job( Color c , ::string const& step ,          Job             j  , Delay exec_time={} ) const { audit_job( c , step , j->rule , j.user_name() , exec_time ) ; }
-		void audit_job( Color c , ::string const& step , Rule r , ::string const& jn , Delay exec_time={} ) const {
-			audit( audit_fd , trace_stream , options , c , 0
-			,	to_string(
-					/**/  ::setw(StepSz             ) , step
-				,	' ' , ::setw(RuleData::s_name_sz) , r->name
-				,	' ' , ::setw(6                  ) , +exec_time ? exec_time.short_str() : ""
-				)
-			,	jn
-			) ;
+		void audit_job( Color c , ProcessDate date , ::string const& step , Rule r , ::string const& jn , ::string const& host={} , Delay exec_time={} ) const {
+			::OStringStream msg ;
+			if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
+			if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<host                                  <<' ' ;
+			/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
+			/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<r->name                                     ;
+			if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
+			audit( audit_fd , trace_stream , options , c , 0 , msg.str() , jn ) ;
 		}
+		void audit_job( Color c , ProcessDate d , ::string const& s , Job j , ::string const& h={} , Delay et={} ) const { audit_job( c , d , s , j->rule , j.user_name() , h , et ) ; }
+		//
+		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , r,jn , h       , et ) ; }
+		void audit_job( Color c , ::string const& s , Job     j                   , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , j    , h       , et ) ; }
+		void audit_job( Color c , ::string const& s , JobExec je                  ,                        Delay et={} ) const { audit_job( c , je.date              , s , je   , je.host , et ) ; }
+		//
 		void audit_status(bool ok) const {
 			try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
 			catch (::string const&) {                                                } // if client has disappeared, well, we cannot do much

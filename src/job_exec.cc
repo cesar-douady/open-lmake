@@ -31,18 +31,21 @@ int main( int argc , char* argv[] ) {
 	Date start_overhead = Date::s_now() ;
 	//
 	block_sig(SIGCHLD) ;
-	swear_prod(argc==4,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx
-	::string service =      argv[1]  ;
-	SeqId    seq_id  = atol(argv[2]) ;
-	JobIdx   job     = atol(argv[3]) ;
+	swear_prod(argc==5,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
+	::string service   =      argv[1]         ;
+	SeqId    seq_id    = atol(argv[2])        ;
+	JobIdx   job       = atol(argv[3])        ;
+	bool     is_remote = atol(argv[4])        ;
+	::string host_     = is_remote?host():""s ;
 	//
-	GatherDeps gather_deps{New} ;
+	GatherDeps gather_deps{ New }                                                                    ;
+	JobRpcReq req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
 	try {
 		ClientSockFd fd{service} ;
-		//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		/**/         OMsgBuf().send                ( fd , JobRpcReq( JobProc::Start , seq_id , job , gather_deps.master_sock.port() ) ) ;
-		start_info = IMsgBuf().receive<JobRpcReply>( fd                                                                               ) ;
-		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		/**/         OMsgBuf().send                ( fd , req_info ) ;
+		start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ;
+		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch(...) { return 2 ; }                                                // if server is dead, give up
 
 	if (::chdir(start_info.root_dir.c_str())!=0) {
@@ -50,6 +53,7 @@ int main( int argc , char* argv[] ) {
 			JobProc::End
 		,	seq_id
 		,	job
+		,	host_
 		,	{ .status =Status::Err , .stderr {to_string("cannot chdir to root : ",start_info.root_dir)} }
 		) ;
 		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
@@ -66,10 +70,6 @@ int main( int argc , char* argv[] ) {
 	//
 	app_init() ;                                                               // safer to call app_init once we are in repo
 
-	start_info.job_id = job        ;
-	start_info.host   = hostname() ;
-	start_info.seq_id = seq_id     ;
-	//
 	Trace trace("main",service,seq_id,job) ;
 	trace("start_overhead",start_overhead) ;
 	trace(start_info) ;
@@ -80,6 +80,7 @@ int main( int argc , char* argv[] ) {
 	::string ancillary_file = to_string(AdminDir ,'/',start_info.ancillary_file) ;
 	dir_guard(ancillary_file) ;
 	OFStream ancillary_stream{ ancillary_file , ::ios_base::binary } ;
+	serialize(ancillary_stream,req_info  ) ;
 	serialize(ancillary_stream,start_info) ;
 	//
 	//
@@ -165,13 +166,13 @@ int main( int argc , char* argv[] ) {
 		switch (jerr.proc) {
 			case JobExecRpcProc::ChkDeps :
 				analyze(false/*at_end*/) ;
-				jrr = JobRpcReq( JobProc::ChkDeps , seq_id , job , ::move(deps) ) ;
+				jrr = JobRpcReq( JobProc::ChkDeps , seq_id , job , host_ , ::move(deps) ) ;
 				deps.clear() ;
 			break ;
 			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
 				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(date) ) ;
-				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , ::move(ds) ) ;
+				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , host_ , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;
 		}
@@ -190,9 +191,9 @@ int main( int argc , char* argv[] ) {
 		size_t pos = live_out_buf.rfind('\n') ;
 		if (pos==NPos) return ;
 		pos++ ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send( ClientSockFd(service) , JobRpcReq( JobProc::LiveOut , seq_id , job , live_out_buf.substr(0,pos) ) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		OMsgBuf().send( ClientSockFd(service) , JobRpcReq( JobProc::LiveOut , seq_id , job , host_ , live_out_buf.substr(0,pos) ) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		live_out_buf = live_out_buf.substr(pos) ;
 	} ;
 	/**/                     gather_deps.create_group            = true                      ;
@@ -252,11 +253,12 @@ int main( int argc , char* argv[] ) {
 		JobProc::End
 	,	seq_id
 	,	job
+	,	host_
 	,	{
 			.status  = status
-		,	.targets { targets            }
-		,	.deps    { deps               }
-		,	.stderr  { gather_deps.stderr }
+		,	.targets { targets                    }
+		,	.deps    { deps                       }
+		,	.stderr  { ::move(gather_deps.stderr) }
 		,	.stats{
 				.cpu  { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
 			,	.job  { end_job      - start_job                      }

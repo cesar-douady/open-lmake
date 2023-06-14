@@ -76,6 +76,11 @@ if getattr(_sys,'reading_makefiles',False) :
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
+	,	console = pdict(                                   # tailor output lines
+			date_precision = None                          # number of second decimals in the timestamp field
+		,	host_length    = None                          # length of the host field (lines will be misaligned if a host is longer)
+		,	has_exec_time  = True                          # if True, output the exec_time field
+		)
 	,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
 			local = pdict(                                 # besides margin, other entries mention the total availability of resources
 				margin  = 0                                # compulsery in all backends, the margin to take (in seconds) to consider a newly discovered dep as reliable
@@ -212,7 +217,7 @@ if getattr(_sys,'reading_makefiles',False) :
 
 	class GitRule(Rule) :
 		'base rule that ignores read accesses (and forbid writes) to git administrative files'
-		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Write' ) }
+		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Match','-Write' ) }
 
 	class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
 		virtual = True

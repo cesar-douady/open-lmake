@@ -269,10 +269,10 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 ::ostream& operator<<( ::ostream& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }
 ::ostream& operator<<( ::ostream& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; }
 
-::string hostname() {
+::string host() {
 	char buf[HOST_NAME_MAX+1] ;
 	int rc = ::gethostname(buf,sizeof(buf)) ;
-	swear_prod(rc==0,"cannot get hostname") ;
+	swear_prod(rc==0,"cannot get host name") ;
 	return buf ;
 }
 

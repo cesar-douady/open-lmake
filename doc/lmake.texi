@@ -1010,6 +1010,18 @@ Any file with name longer than the value of this attribute is deemed not buildab
 @tab @code{1}
 @tab Increment to add to rules defined in sub-repository to boost local rules.
 It is multiplied by the directory depth of the sub-repository.
+@item @code{console.date_precision}
+@tab @code{None}
+@tab This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
+If @code{None}, no timestamp is generated.
+@item @code{console.host_length}
+@tab @code{None}
+@tab This attribute specifies the width of the field showing the host that executed or is about to execute the job.
+If @code{None}, the host is not shown.
+Note that no host is shown for local execution.
+@item @code{console.has_exec_time}
+@tab @code{True}
+@tab If this attribute is true, execution time is reported each time a job is completed.
 @item @code{colors}
 @tab
 @tab @lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (@pxref{video-mode}).

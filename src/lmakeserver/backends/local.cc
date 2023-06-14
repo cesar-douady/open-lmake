@@ -189,7 +189,7 @@ namespace Backends::Local {
 		static void _s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
 			LocalBackend& self = *new LocalBackend ;
-			s_register(MyTag,self) ;
+			s_register(MyTag,self,false/*is_remote*/) ;
 			static ::jthread wait_jt{_s_wait_thread_func,&self} ;
 		}
 

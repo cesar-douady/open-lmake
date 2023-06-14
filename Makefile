@@ -177,7 +177,7 @@ $(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx
 $(SECCOMP).install.stamp : $(SECCOMP).stamp
 	cd $(SECCOMP_ROOT) ; \
 	./configure ; \
-	MAKEFLAGS= make -j8
+	MAKEFLAGS= make
 	touch $@
 
 #

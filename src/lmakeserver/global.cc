@@ -65,7 +65,7 @@ namespace Engine {
 				else                         { dct.emplace_back(field,v.str()) ;                                  }
 			}
 			field = "interface" ;
-			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(hostname()) ;
+			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(host()) ;
 		} catch(::string const& e) {
 			throw to_string("while processing ",field,e) ;
 		}
@@ -88,6 +88,24 @@ namespace Engine {
 				else if (py_lnk_support==Py::True()) lnk_support = LnkSupport::Full                                          ;
 				else                                 lnk_support = mk_enum<LnkSupport>(::string(Py::String(py_lnk_support))) ;
 			}
+			//
+			field = "console" ;
+			if (!py_map.hasKey(field)) throw "not found"s ;
+			Py::Mapping py_console = py_map[field] ;
+			field = "console.date_precision" ;
+			if (py_console.hasKey("date_precision")) {
+				Py::Object py_date_prec = py_console["date_precision"] ;
+				if (py_date_prec==Py::None()) console.date_prec = uint8_t(-1)                                        ;
+				else                          console.date_prec = static_cast<unsigned long>(Py::Long(py_date_prec)) ;
+			}
+			field = "console.host_length" ;
+			if (py_console.hasKey("host_length")) {
+				Py::Object py_host_len  = py_console["host_length"] ;
+				if (py_host_len==Py::None()) console.host_len = uint8_t(-1)                                       ;
+				else                         console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
+			}
+			field = "console.has_exec_time" ;
+			if (py_console.hasKey("has_exec_time")) console.has_exec_time = Py::Object(py_console["has_exec_time"]).as_bool() ;
 			//
 			field = "backends" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
@@ -136,6 +154,12 @@ namespace Engine {
 		if (path_max) res << "path_max      : " << size_t  (path_max     )                   << '\n' ;
 		else          res << "path_max      : " << "unlimited"                               << '\n' ;
 		/**/          res << "heartbeat     : " << heartbeat .short_str()                    << '\n' ;
+		res << "console :\n" ;
+		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
+		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;
+		if (console.host_len ==         0 ) res << "\thost_length    : <no host>\n"                      ;
+		else                                res << "\thost_length    : " << console.host_len      <<'\n' ;
+		/**/                                res << "\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		res << "backends :\n" ;
 		for( Tag t : Tag::N ) {
 			Backend const& be = backends[+t] ;
@@ -168,7 +192,7 @@ namespace Engine {
 	}
 
 	::ostream& operator<<( ::ostream& os , EngineClosure::Job const& ecj ) {
-		os << "Job(" << ecj.proc <<','<< ecj.job ;
+		os << "Job(" << ecj.proc <<','<< ecj.exec ;
 		switch (ecj.proc) {
 			case JobProc::Start       : if (ecj.report) os <<",report" ; break ;
 			case JobProc::LiveOut     : os <<','<< ecj.txt.size()      ; break ;

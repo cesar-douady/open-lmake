@@ -509,16 +509,15 @@ namespace Engine {
 
 		// statics
 	public :
-		static void s_new_makefiles( ::string const& local_admin_dir , ::string const& remote_admin_dir , ServerConfig&& , ::umap<Crc,RuleData>&& , ::vector_s&& srcs ) ;
+		static void s_new_makefiles( ::string const& local_admin_dir , ::string const& remote_admin_dir , ServerConfig&& , ::umap<Crc,RuleData>&& , ::vector_s&& srcs , bool rescue=false ) ;
 		//
-		static void s_keep_makefiles  () ;
-		static void s_rescue          () ;
-		static void s_invalidate_match() ;
+		static void s_keep_makefiles  (bool rescue=false) ;
+		static void s_invalidate_match(                 ) ;
 	private :
 		static void                       _s_init_config      (                                                                              ) ;
 		static ServerConfig/*old_config*/ _s_set_config       ( ServerConfig     && new_config                                               ) ;
 		static void                       _s_diff_config      ( ServerConfig const& old_config                                               ) ;
-		static void                       _s_init_srcs_rules  (                                                                              ) ;
+		static void                       _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
 		static void                       _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
 		static void                       _s_collect_old_rules(                                                                              ) ;
 		static void                       _s_invalidate_exec  ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
@@ -870,14 +869,6 @@ namespace Engine {
 	inline RuleStr         RuleBase::_str          () const { SWEAR(!is_special()) ; return g_store.rule_file.c_at(Rule(*this))     ;               }
 	// services
 	inline void            RuleBase::stamp         () const { g_store.rule_file.at(*this) = g_store.rule_str_file.assign(_str(),::string(**this)) ; }
-
-	//
-	// EngineStore
-	//
-	inline void EngineStore::s_rescue() {
-		g_store.chk()        ;                                                 // first verify we have a coherent store
-		s_invalidate_match() ;                                                 // then rely only on essential data that should be crash-safe
-	}
 
 }
 #endif

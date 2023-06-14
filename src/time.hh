@@ -158,7 +158,7 @@ namespace Time {
 		constexpr Date& operator+=(Delay other)       { *this = *this + other ; return *this                 ; }
 		constexpr Date& operator-=(Delay other)       { *this = *this - other ; return *this                 ; }
 		//
-		::string str(uint8_t prec=0) const ;
+		::string str( uint8_t prec=0 , bool in_day=false ) const ;
 	} ;
 
 	//

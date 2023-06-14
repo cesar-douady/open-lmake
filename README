@@ -67,6 +67,11 @@
 		- alternatively, you can set the PYTHON variable to an absolute path to the python interpreter
 	- type make
 		- this builds all necessary files and some unit tests
+		- you must invoke 'git clean -fdx' if you modified the Makefile
+		- you may have to invoke 'git clean -fdx lmake_env' or even 'git clean -fdx' after a 'git pull'
+			- lmake_env is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting lmake is funtional for now
+			- it is not cleaned on purpose before running as this creates variability for testing lmake, but may fail
+			- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary
 		- you can type make LMAKE to just build all necessary files
 		- you can type make lmake.tar.gz (built by default) to make a tar ball of the compiled files that you can easily deploy
 	- install

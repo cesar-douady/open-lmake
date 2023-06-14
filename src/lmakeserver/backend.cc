@@ -17,7 +17,7 @@ namespace Backends {
 
 	::latch                               Backend::s_service_ready   { 1 } ;
 	::string                              Backend::s_executable      ;
-	Backend*                              Backend::s_tab[+Tag::N]    = {}  ;
+	Backend::BackendDescr                 Backend::s_tab[+Tag::N]    ;
 	ServerSockFd                          Backend::s_server_fd       ;
 	::mutex                               Backend::_s_mutex          ;
 	::umap<JobIdx,Backend::StartTabEntry> Backend::_s_start_tab      ;
@@ -31,8 +31,6 @@ namespace Backends {
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry::Conn const& c ) {
 		return os << "Conn(" << hex<<c.job_addr<<dec <<':'<< c.job_port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
-
-
 
 	void Backend::_s_wakeup_remote( JobIdx job , StartTabEntry::Conn const& conn , JobExecRpcProc proc ) {
 		Trace trace("_s_wakeup_remote",job,proc) ;
@@ -51,16 +49,16 @@ namespace Backends {
 		Trace trace("_s_deferred_thread_func") ;
 		for(;;) {
 			auto [popped,info] = _s_deferred_queue.pop(stop) ;
-			if (!popped                     ) break ;
-			if (!info.date.sleep_until(stop)) break ;
+			if (!popped                             ) break ;
+			if (!info.publish_date.sleep_until(stop)) break ;
 			DiskDate::s_refresh_now() ;                                        // we have waited, refresh now
 			//
-			{	::unique_lock lock{_s_mutex} ;                                 // lock _s_start_tab for minimal time to avoid dead-locks
-				auto it = _s_start_tab.find(info.job) ;
+			{	::unique_lock lock { _s_mutex }                        ;       // lock _s_start_tab for minimal time to avoid dead-locks
+				auto          it   = _s_start_tab.find(+info.job_exec) ;
 				if (it==_s_start_tab.end()             ) continue ;
 				if (it->second.conn.seq_id!=info.seq_id) continue ;
 			}
-			g_engine_queue.emplace( JobProc::ReportStart , Job(info.job) ) ;
+			g_engine_queue.emplace( JobProc::ReportStart , ::move(info.job_exec) ) ;
 		}
 		trace("done") ;
 	}
@@ -76,9 +74,10 @@ namespace Backends {
 			case JobProc::DepInfos : break        ;
 			default : FAIL(jrr.proc) ;
 		}
-		Job            job           { jrr.job        } ;
-		Rule           rule          = job->rule        ;
-		JobRpcReply    reply         { JobProc::Start } ;
+		Job            job           { jrr.job                                } ;
+		JobExec        job_exec      { job , ::move(jrr.host) , Date::s_now() } ;
+		Rule           rule          = job->rule                                ;
+		JobRpcReply    reply         { JobProc::Start                         } ;
 		::vector<Node> report_unlink ;
 		Trace trace("jrr",jrr) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
@@ -87,10 +86,9 @@ namespace Backends {
 			trace("entry",entry) ;
 			switch (jrr.proc) {
 				case JobProc::Start :
-					start = ProcessDate::s_now() ;
 					//            vvvvvvvvvvvvvvvvvvvvvvvvvvv
 					entry.reqs  = s_start(rule->backend,+job) ;
-					entry.start = start                       ;
+					entry.start = job_exec.date               ;
 					//            ^^^^^
 					try {
 						Rule::SimpleMatch match    = job.simple_match()      ;
@@ -145,11 +143,12 @@ namespace Backends {
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,e) ;
 						_s_start_tab.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Start , job , report_unlink , false/*report*/                  ) ;
-						s_end(rule->backend,+job)                                                                         ;
-						g_engine_queue.emplace( JobProc::End   , job , start , JobDigest{.status=Status::Err,.stderr=e} ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						job_exec.host.clear() ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , false/*report*/                  ) ;
+						s_end(rule->backend,+job)                                                                                      ;
+						g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , start , JobDigest{.status=Status::Err,.stderr=e} ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						return false ;
 					}
 				break ;
@@ -173,18 +172,18 @@ namespace Backends {
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
 				bool deferred_start_report = Delay(job->exec_time)<rule->start_delay && report_unlink.empty() ; // if we report activity at start, deferring is meaningless
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , job , report_unlink , !deferred_start_report ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (deferred_start_report) _s_deferred_queue.emplace( start+rule->start_delay , +job , jrr.seq_id ) ;
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , !deferred_start_report ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (deferred_start_report) _s_deferred_queue.emplace( start+rule->start_delay , ::move(job_exec) , jrr.seq_id ) ;
 				trace("started",reply) ;
 			} break ;
-			//                                                                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , job , ::move(jrr.txt)              ) ;                  break ;
-			case JobProc::End      : job.end_exec() ;                                g_engine_queue.emplace( jrr.proc , job , start , ::move(jrr.digest)   ) ;                  break ;
+			//                                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.txt)              ) ;                  break ;
+			case JobProc::End      : job.end_exec() ;                                g_engine_queue.emplace( jrr.proc , ::move(job_exec) , start , ::move(jrr.digest)   ) ;                  break ;
 			case JobProc::ChkDeps  :
-			case JobProc::DepInfos : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , job , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
-			//                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case JobProc::DepInfos : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
+			//                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			default : FAIL(jrr.proc) ;
 		}
 		return keep_fd ;
@@ -255,16 +254,18 @@ namespace Backends {
 			trace("slept") ;
 			::umap<JobIdx,StartTabEntry::Conn> to_wakeup ;
 			::vector<JobIdx>                   missings  = s_heartbeat() ;     // check jobs that have been submitted but have not started yet
-			{	::unique_lock lock{_s_mutex} ;                                 // lock _s_start_tab for minimal time to avoid dead-locks
+			{	::unique_lock lock { _s_mutex }    ;                           // lock _s_start_tab for minimal time to avoid dead-locks
+				Date          now  = Date::s_now() ;
 				for( JobIdx j : missings ) {
 					auto it = _s_start_tab.find(j) ;
 					if (it==_s_start_tab.end()) continue ;
 					trace("erase_start_tab",j,it->second) ;
 					_s_start_tab.erase(it) ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , j , ::vector<Node>() , false ) ;
-					g_engine_queue.emplace( JobProc::End   , j , Status::Lost             ) ; // signal jobs that have disappeared so they can be relaunched
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					JobExec je{j,now} ;
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::Start , ::move(je) , ::vector<Node>() , false ) ;
+					g_engine_queue.emplace( JobProc::End   , ::move(je) , Status::Lost             ) ; // signal jobs that have disappeared so they can be relaunched
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				for( auto& [j,e] : _s_start_tab )
 					if (e.old) to_wakeup[j] = e.conn ;                         // make a shadow to avoid too long a lock
@@ -284,7 +285,7 @@ namespace Backends {
 		static ::jthread deferred_thread {_s_deferred_thread_func } ;
 		//
 		::unique_lock lock{_s_mutex} ;
-		for( Tag t : Tag::N ) if (s_tab[+t]) s_tab[+t]->config(config[+t]) ;
+		for( Tag t : Tag::N ) if (s_tab[+t].be) s_tab[+t].be->config(config[+t]) ;
 		s_service_ready.wait() ;
 	}
 
@@ -297,19 +298,20 @@ namespace Backends {
 		entry.rsrcs  = ::move(rsrcs) ;
 		entry.reason = reason        ;
 		trace("create_start_tab",job,entry) ;
-		return { s_executable , s_server_fd.service(g_config.backends[+tag].addr) , ::to_string(entry.conn.seq_id) , ::to_string(job) } ;
+		return { s_executable , s_server_fd.service(g_config.backends[+tag].addr) , ::to_string(entry.conn.seq_id) , ::to_string(job) , ::to_string(s_tab[+tag].is_remote) } ;
 	}
 
 	// kill all if req==0
 	void Backend::_s_kill_req(ReqIdx req) {
 		Trace trace("s_kill_req",req) ;
 		::vmap<JobIdx,StartTabEntry::Conn> to_kill ;
-		{	::unique_lock lock{_s_mutex} ;                                     // lock for minimal time
+		{	::unique_lock lock { _s_mutex }    ;                               // lock for minimal time
+			Date          now  = Date::s_now() ;
 			for( Tag t : Tag::N )
-				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::NotStarted , Job(j) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				for( JobIdx j : s_tab[+t].be->kill_req(req) ) {
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,now) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					_s_start_tab.erase(j) ;
 				}
 			for( auto& [j,e] : _s_start_tab ) {
@@ -318,9 +320,9 @@ namespace Backends {
 					if (it==e.reqs.end()) continue ;
 					if (e.reqs.size()>1) {
 						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Continue , Job(j) , Req(req) ) ; // job is necessary for some other req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::Continue , JobExec(j,now) , Req(req) ) ; // job is necessary for some other req
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						continue ;
 					}
 				}

@@ -103,13 +103,13 @@ namespace Engine {
 		return { deps , content } ;
 	}
 
-	void Makefiles::s_refresh_makefiles() {
+	void Makefiles::s_refresh_makefiles(bool chk) {
 		Trace trace("s_refresh_makefiles") ;
 		DiskDate latest_makefile ;
 		if (_s_chk_makefiles(latest_makefile)) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_keep_makefiles() ;
+			EngineStore::s_keep_makefiles(chk) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			//                     vvvvvvvvvvvvvvvvv
@@ -153,9 +153,9 @@ namespace Engine {
 				PyErr_Print() ;
 				throw ""s ;
 			}
-			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_new_makefiles( local_admin_dir , remote_admin_dir , ::move(config) , ::move(rules) , ::move(srcs) ) ;
-			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			EngineStore::s_new_makefiles( local_admin_dir , remote_admin_dir , ::move(config) , ::move(rules) , ::move(srcs) , chk ) ;
+			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			unlink(s_no_makefiles) ;                                                                                           // now that everything is ok, we can suppress marker file
 		}
 		Backend::s_config(g_config.backends) ;

@@ -204,7 +204,7 @@ namespace Engine {
 			DepOrder   cdo = d  >0                ? dep           .order : DepOrder::Seq ;
 			DepOrder   ndo = d+1<job->deps.size() ? job->deps[d+1].order : DepOrder::Seq ;
 			if (cdo==DepOrder::Critical) critical_lvl++ ;
-			::string pfx = to_string( ::setw(w) , d<rule->n_deps()?rule->deps.dct[d].first:""s ) ;
+			::string pfx = to_string( ::setw(w) , d<rule->n_deps()?rule->deps.dct[d].first:""s , ' ' ) ;
 			if      ( cdo!=DepOrder::Parallel && ndo!=DepOrder::Parallel ) pfx.push_back(' ' ) ;
 			else if ( cdo!=DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('/' ) ;
 			else if ( cdo==DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('|' ) ;
@@ -260,9 +260,11 @@ namespace Engine {
 					} else {
 						::ifstream job_stream{ jt.ancillary_file(AdminDir+"/job_data"s) } ;
 						//
+						JobRpcReq   report_req   ; bool has_req   = false ;
 						JobRpcReply report_start ; bool has_start = false ;
 						JobRpcReq   report_end   ; bool has_end   = false ;
 						JobInfo     report_info  ; bool has_info  = false ;
+						try { deserialize(job_stream,report_req  ) ; has_req   = true ; } catch (...) { goto Go ; }
 						try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
 						try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
 						try { deserialize(job_stream,report_info ) ; has_info  = true ; } catch (...) { goto Go ; }
@@ -279,10 +281,10 @@ namespace Engine {
 								::string script = "exec env -i\\\n" ;
 								for( auto const& [k,v] : report_start.env ) append_to_string(script,'\t',k,'=',mk_shell_str(v),"\\\n") ;
 								//
-								append_to_string( script , "\tTMPDIR="      , mk_shell_str(          report_start.job_tmp_dir                            ) , "\\\n" ) ;
-								append_to_string( script , "\tROOT_DIR="    , mk_shell_str(          *g_root_dir                                         ) , "\\\n" ) ;
-								append_to_string( script , "\tSEQUENCE_ID=" ,              to_string(report_start.seq_id                                 ) , "\\\n" ) ;
-								append_to_string( script , "\tSMALL_ID="    ,              to_string(report_start.small_id                               ) , "\\\n" ) ;
+								append_to_string( script , "\tTMPDIR="      , mk_shell_str(report_start.job_tmp_dir) , "\\\n" ) ;
+								append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir             ) , "\\\n" ) ;
+								append_to_string( script , "\tSEQUENCE_ID=" , to_string   (report_req  .seq_id     ) , "\\\n" ) ;
+								append_to_string( script , "\tSMALL_ID="    , to_string   (report_start.small_id   ) , "\\\n" ) ;
 								//
 								for( ::string const& c : report_start.interpreter ) append_to_string(script,      mk_shell_str(c                  ),' ') ;
 								/**/                                                append_to_string(script,"-c ",mk_shell_str(report_start.script)    ) ;
@@ -309,8 +311,9 @@ namespace Engine {
 							case ReqKey::Info : {
 								int      ws  = report_info.wstatus                                                                                                               ;
 								::string rc  = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s ;
-								::string ids = to_string("small=",report_start.small_id," , job=",report_start.job_id," , seq=",report_start.seq_id)                             ;
-								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl                                                                                            ) ;
+								::string ids = to_string( "job=",report_req.job , " , seq=",report_req.seq_id )                                                               ;
+								if (has_start) append_to_string(ids," , small=",report_start.small_id);
+								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl ) ;
 								bool wn =  has_start && +report_start.reason.node ;
 								if (wn) {
 									::pair_s<Node> reason = Job::s_reason_str(report_start.reason) ;
@@ -318,8 +321,8 @@ namespace Engine {
 									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason         : ",reason.first," :") , reason.second.name() , lvl+1 ) ;
 								}
 								if (!wn) audit( fd , ro , Color::None , lvl+1 , "reason         : "+( has_start ? Job::s_reason_str(report_start.reason).first                        : "N/A" ) ) ;
-								/**/     audit( fd , ro , Color::None , lvl+1 , "host           : "+( has_start ?                   report_start.host                                 : "N/A" ) ) ;
-								/**/     audit( fd , ro , Color::None , lvl+1 , "id's           : "+( has_start ? ids                                                                 : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "host           : "+( has_req   ?                   report_req  .host                                 : "N/A" ) ) ;
+								/**/     audit( fd , ro , Color::None , lvl+1 , "id's           : "+( has_req   ? ids                                                                 : "N/A" ) ) ;
 								/**/     audit( fd , ro , Color::None , lvl+1 , "tmp dir        : "+( has_start ? report_start.job_tmp_dir                                            : "N/A" ) ) ;
 								/**/     audit( fd , ro , Color::None , lvl+1 , "end date       : "+( has_info  ? report_info.end_date.str()                                          : "N/A" ) ) ;
 								/**/     audit( fd , ro , Color::None , lvl+1 , "rc             : "+( has_info  ? rc                                                                  : "N/A" ) ) ;

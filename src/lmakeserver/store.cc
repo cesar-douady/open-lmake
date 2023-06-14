@@ -55,7 +55,7 @@ namespace Engine {
 			throw to_string( "data base version mismatch : expected : " , DbVersion.major,'.',DbVersion.minor , " found : " , g_config.db_version.major,'.',g_config.db_version.minor , '\n' ) ;
 	}
 
-	void EngineStore::_s_init_srcs_rules() {
+	void EngineStore::_s_init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",ProcessDate::s_now()) ;
 		::string dir      = *g_local_admin_dir+"/store" ;
 		bool     writable = g_store.writable             ;
@@ -95,6 +95,13 @@ namespace Engine {
 			}
 		}
 		trace("done",ProcessDate::s_now()) ;
+		//
+		if (rescue) {
+			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
+			g_store.chk()        ;                                             // first verify we have a coherent store
+			s_invalidate_match() ;                                             // then rely only on essential data that should be crash-safe
+			::cerr<<"seems ok"<<endl ;
+		}
 	}
 
 	static bool _has_new_server_addr( ServerConfig const& old_config , ServerConfig const& new_config ) {
@@ -167,20 +174,20 @@ namespace Engine {
 		make_dir(AdminDir+"/job_keep_tmp"s) ;
 	}
 
-	void EngineStore::s_keep_makefiles() {
-		_keep_dirs        () ;
-		_s_init_config    () ;
-		_s_init_srcs_rules() ;
+	void EngineStore::s_keep_makefiles(bool rescue) {
+		_keep_dirs        (      ) ;
+		_s_init_config    (      ) ;
+		_s_init_srcs_rules(rescue) ;
 	}
 
-	void EngineStore::s_new_makefiles( ::string const& local_admin_dir , ::string const& remote_admin_dir , ServerConfig&& config , ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs ) {
+	void EngineStore::s_new_makefiles( ::string const& local_admin_dir , ::string const& remote_admin_dir , ServerConfig&& config , ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs , bool rescue ) {
 		Trace trace("s_new_makefiles",ProcessDate::s_now()) ;
 		_new_dirs( local_admin_dir , remote_admin_dir ) ;
 		//
 		/**/                      _s_init_config(              ) ;
 		ServerConfig old_config = _s_set_config (::move(config)) ;
 		//
-		/**/                  _s_init_srcs_rules(                                 ) ;
+		/**/                  _s_init_srcs_rules( rescue                          ) ;
 		/**/                  _s_diff_config    ( old_config                      ) ;
 		bool invalidate_src = _s_new_srcs       ( mk_vector<Node>(srcs)           ) ;
 		/**/                  _s_new_rules      ( ::move(rules ) , invalidate_src ) ;

@@ -81,20 +81,25 @@ template<StdEnum Key,StdEnum Flag> [[noreturn]] void Syntax<Key,Flag>::usage(::s
 	//
 	::cerr << left ;
 	if (!msg.empty()) ::cerr << msg <<'\n' ;
+	::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
 	::cerr <<"-h or --help : print this help\n" ;
 	//
-	if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
-	else              ::cerr << "keys (exactly 1) :\n" ;
-	if (has_dflt_key)                              ::cerr << "<no key>"                            << setw(key_sz)<<""          <<" : "<< keys[0 ].doc <<'\n' ;
-	for( Key k : Key::N ) if (keys[+k].short_name) ::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<mk_snake(k) <<" : "<< keys[+k].doc <<'\n' ;
+	if (key_sz) {
+		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
+		else              ::cerr << "keys (exactly 1) :\n" ;
+		if (has_dflt_key)                              ::cerr << "<no key>"                            << setw(key_sz)<<""          <<" : "<< keys[0 ].doc <<'\n' ;
+		for( Key k : Key::N ) if (keys[+k].short_name) ::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<mk_snake(k) <<" : "<< keys[+k].doc <<'\n' ;
+	}
 	//
-	::cerr << "flags (0 or more) :\n"  ;
-	for( Flag f : Flag::N ) {
-		if (!flags[+f].short_name) continue ;
-		/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<mk_snake(f) ;
-		if      (flags[+f].has_arg) ::cerr << " <arg>"                                                        ;
-		else if (has_arg          ) ::cerr << "      "                                                        ;
-		/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                      ;
+	if (flag_sz) {
+		::cerr << "flags (0 or more) :\n"  ;
+		for( Flag f : Flag::N ) {
+			if (!flags[+f].short_name) continue ;
+			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<mk_snake(f) ;
+			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                        ;
+			else if (has_arg          ) ::cerr << "      "                                                        ;
+			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                      ;
+		}
 	}
 	exit(2) ;
 }
@@ -106,14 +111,18 @@ template<StdEnum Key,StdEnum Flag> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag> 
 	::umap<char,Key > key_map  ; for( Key  k : Key ::N ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
 	::umap<char,Flag> flag_map ; for( Flag f : Flag::N ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
-		bool has_key = false ;
+		bool has_key    = false ;
+		bool force_args = false ;
 		for( a=1 ; a<argc ; a++ ) {
 			const char* arg = argv[a] ;
-			if (arg[0]!='-') break ;                                           // does not start with -, not an option
-			if (!arg[1]    ) break ;                                           // a lonely -           , not an option
+			if ( arg[0]!='-' || force_args ) {
+				args.emplace_back(arg) ;
+				continue ;
+			}
+			if (!arg[1]) throw "unexpected lonely -"s ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { a++ ; break ; }                               // a lonely --          , swallowed but terminates options
+				if (arg[2]==0) { force_args = true ; continue ; }              // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
 				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ;                     // make snake case to use mk_enum while usual convention for options is to use '-'

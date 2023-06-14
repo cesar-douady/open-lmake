@@ -7,16 +7,13 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* fix dlopen for ld_audit
-	- re-enable in src/autodep/autodep_ld_audit.cc
-	- autodep -m ld_audit -s full /bin/python -c 'import numpy' blocks
 * rust code seems to manage to do file accesses without ld_preload/ld_audit catching them.
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* in autodep dlopen (cf man 3 dlopen)
+* in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
 * before erasing a dir, check for phony targets, not only files on disk
@@ -29,15 +26,9 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* consider a package for option passing
-	- gnu argp
-	- https://www.google.com/url?sa=t&source=web&rct=j&url=http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf&ved=2ahUKEwiu_qn_7bH_AhUKVqQEHSc4AtwQFnoECA4QAQ&usg=AOvVaw0BH-4w3AQP6qFg-iZO7QaP
-	- or simply allow options to be anywhere (unless after --)
-* add a config to tailor start/done lines
-	- message date : yes/no
-	- host         : size
-	- exec_time    : yes/no
-	- fields order (file always last)
+? consider a package for option passing
+	? gnu argp
+	? https://www.google.com/url?sa=t&source=web&rct=j&url=http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf&ved=2ahUKEwiu_qn_7bH_AhUKVqQEHSc4AtwQFnoECA4QAQ&usg=AOvVaw0BH-4w3AQP6qFg-iZO7QaP
 ? if actual_job!=conform_job, show both with warning in lshow
 ? consider using a single command check_deps/critical_barrier
 	? a priori they serve the same purpose
