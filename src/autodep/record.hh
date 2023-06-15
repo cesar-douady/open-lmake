@@ -57,36 +57,13 @@ struct Record {
 	static Fd         s_root_fd     ;
 	// services
 private :
-	void _report( JobExecRpcReq const& jerr ) const {
-		if ( jerr.proc>=JobExecRpcProc::Cached && !jerr.sync ) {
-			bool           miss = false     ;
-			JobExecRpcProc proc = jerr.proc ; if (proc==JobExecRpcProc::Updates) proc = JobExecRpcProc::Targets ; // Updates are like Deps then Targets, and only most important is retained
-			DFlags         dfs  = jerr.dfs  ;
-			for( auto const& [f,dd] : jerr.files ) {
-				auto it = access_cache.find(f) ;
-				if (it==access_cache.end()) {
-					miss            = true       ;
-					access_cache[f] = {dfs,proc} ;                             // create entry
-				} else {
-					DFlags new_dfs  = dfs | it->second.first                                ;
-					bool   proc_hit = proc==JobExecRpcProc::Deps || proc==it->second.second ;
-					bool   dfs_hit  = new_dfs==it->second.first                             ;
-					if (!( proc_hit && dfs_hit )) {
-						miss       = true               ;
-						it->second = { new_dfs , proc } ;                      // update entry
-					}
-				}
-			}
-			if (!miss) return ;
-		}
-		report_cb(jerr) ;
-	}
+	void _report( JobExecRpcReq const& jerr ) const ;
 	void _report( Proc proc , bool sync=false , ::string const& comment={} ) const {
 		if (proc==JobExecRpcProc::Tmp) {
 			if      (!tmp_cache) tmp_cache = true ;
 			else if (!sync     ) return ;
 		}
-		report_cb(JobExecRpcReq(proc,sync,comment)) ;
+		_report(JobExecRpcReq(proc,sync,comment)) ;
 	}
 	void _report_dep ( Proc proc , ::string&& f , DD d , DFs dfs , ::string const& c={} ) const {
 		swear(!f.empty(),f) ;
@@ -109,18 +86,18 @@ private :
 	void _report_targets( Proc proc , ::vector_s const& fs , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       fs,c) ) ; }
 	//
 	//
-	::pair_s<bool/*in_tmp*/> _solve( int at , ::string const& file  , bool no_follow , ::string const& comment={} ) ;
+	::pair_s<bool/*in_tmp*/> _solve( int at , const char* file  , bool no_follow , ::string const& comment={} ) ;
 	//
 public :
 	struct Chdir {
 		Chdir() = default ;
-		Chdir( bool /*active*/ , Record& , int /*at*/                       ) {}
-		Chdir( bool   active   , Record& , int   at   , ::string const& dir ) ;
+		Chdir( bool /*active*/ , Record& , int /*at*/                   ) {}
+		Chdir( bool   active   , Record& , int   at   , const char* dir ) ;
 		int operator()( Record& , int rc , int pid=0 ) ;
 	} ;
 	struct Lnk {
 		Lnk() = default ;
-		Lnk( bool active , Record& , int oat , ::string const& ofile , int nat , ::string const& nfile , int flags=0 , ::string const& comment="lnk" ) ;
+		Lnk( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , int flags=0 , ::string const& comment="lnk" ) ;
 		int operator()( Record& , int rc , int errno_ ) ;
 		::string old_real  ;
 		::string new_real  ;
@@ -130,7 +107,7 @@ public :
 	} ;
 	struct Open {
 		Open() = default ;
-		Open( bool active , Record& , int at , ::string const& file , int flags , ::string const& comment="open" ) ;
+		Open( bool active , Record& , int at , const char* file , int flags , ::string const& comment="open" ) ;
 		int operator()( Record& , bool has_fd , int fd_rc , int errno_ ) ;
 		::string real     ;
 		bool     in_tmp   = false ;
@@ -149,7 +126,7 @@ public :
 	} ;
 	struct Rename {
 		Rename() = default ;
-		Rename( bool active , Record& , int oat , ::string const& ofile , int nat , ::string const& nfile , unsigned int flags=0 , ::string const& comment="rename" ) ;
+		Rename( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , unsigned int flags=0 , ::string const& comment="rename" ) ;
 		int operator()( Record& , int rc , int errno_ ) ;
 		int      old_at   ;
 		int      new_at   ;
@@ -163,23 +140,23 @@ public :
 	} ;
 	struct SymLnk {
 		SymLnk() = default ;
-		SymLnk( bool active , Record& , int at , ::string const& file , ::string const& comment="sym_lnk" ) ;
+		SymLnk( bool active , Record& , int at , const char* file , ::string const& comment="sym_lnk" ) ;
 		int operator()( Record& , int rc ) ;
 		::string real    ;
 		::string comment ;
 	} ;
 	struct Unlink {
 		Unlink() = default ;
-		Unlink( bool active , Record& , int at , ::string const& file , bool remove_dir=false , ::string const& comment="unlink" ) ;
+		Unlink( bool active , Record& , int at , const char* file , bool remove_dir=false , ::string const& comment="unlink" ) ;
 		int operator()( Record& , int rc ) ;
 		::string real    ;
 		::string comment ;
 	} ;
 	//
-	void chdir(          ::string const& dir                         ) { swear(dir[0]=='/',dir) ; real_path.cwd_ = dir ; }
-	void read ( int at , ::string const& file , bool no_follow=false , ::string const& comment="read" ) ;
-	void exec ( int at , ::string const& file , bool no_follow=false , ::string const& comment="exec" ) ;
-	void solve( int at , ::string const& file , bool no_follow=false , ::string const& comment={} ) {
+	void chdir(          const char* dir                                                          ) { swear(dir[0]=='/',dir) ; real_path.cwd_ = dir ; }
+	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read" ) ;
+	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec" ) ;
+	void solve( int at , const char* file , bool no_follow=false , ::string const& comment={} ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
 		if ( !s_ignore_stat && !real.empty() ) _report_dep( Proc::Deps , ::move(real) , DFlag::Stat , comment ) ;
 	}

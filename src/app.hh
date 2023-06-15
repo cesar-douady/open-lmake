@@ -29,7 +29,7 @@ struct FlagSpec {
 	::string doc        ;
 } ;
 
-template<StdEnum Key,StdEnum Flag> struct Syntax {
+template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 	// cxtors & casts
 	Syntax() = default ;
 	Syntax(                                 ::umap<Flag,FlagSpec> const& fs    ) : Syntax{{},fs} {}
@@ -51,7 +51,7 @@ template<StdEnum Key,StdEnum Flag> struct Syntax {
 
 template<StdEnum Key,StdEnum Flag> struct CmdLine {
 	// cxtors & casts
-	CmdLine( Syntax<Key,Flag> const& , int argc , const char* const* argv ) ;
+	template<bool OAW> CmdLine( Syntax<Key,Flag,OAW> const& , int argc , const char* const* argv ) ;
 	// services
 	::vector_s files() const {
 		Trace trace("files") ;
@@ -74,15 +74,16 @@ bool at_init( int pass , void(*)() ) ;                                         /
 
 void app_init( bool search_root=false , bool cd_root=false ) ;
 
-template<StdEnum Key,StdEnum Flag> [[noreturn]] void Syntax<Key,Flag>::usage(::string const& msg) const {
+template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
 	size_t key_sz  = 0     ; for( Key  k : Key ::N ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , mk_snake(k).size() ) ;
 	size_t flag_sz = 0     ; for( Flag f : Flag::N ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , mk_snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : Flag::N )                           has_arg |= flags[+e].has_arg                     ;
 	//
 	::cerr << left ;
 	if (!msg.empty()) ::cerr << msg <<'\n' ;
-	::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	::cerr <<"-h or --help : print this help\n" ;
+	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	if (OptionsAnywhere) ::cerr << "options may be interleaved with args\n"                                                                                                               ;
+	/**/                 ::cerr << "-h or --help : print this help\n"                                                                                                                     ;
 	//
 	if (key_sz) {
 		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
@@ -104,7 +105,7 @@ template<StdEnum Key,StdEnum Flag> [[noreturn]] void Syntax<Key,Flag>::usage(::s
 	exit(2) ;
 }
 
-template<StdEnum Key,StdEnum Flag> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag> const& syntax , int argc , const char* const* argv ) {
+template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
@@ -117,6 +118,7 @@ template<StdEnum Key,StdEnum Flag> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag> 
 			const char* arg = argv[a] ;
 			if ( arg[0]!='-' || force_args ) {
 				args.emplace_back(arg) ;
+				if (!OptionsAnywhere) force_args = true ;
 				continue ;
 			}
 			if (!arg[1]) throw "unexpected lonely -"s ;

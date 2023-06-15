@@ -29,22 +29,49 @@ bool       Record::s_ignore_stat = false               ;
 LnkSupport Record::s_lnk_support = LnkSupport::Unknown ;
 Fd         Record::s_root_fd     ;
 
-::pair_s<bool/*in_tmp*/> Record::_solve( int at , ::string const& file , bool no_follow , ::string const& comment ) {
+void Record::_report( JobExecRpcReq const& jerr ) const {
+	if ( jerr.proc>=JobExecRpcProc::Cached && !jerr.sync ) {
+		bool           miss = false     ;
+		JobExecRpcProc proc = jerr.proc ; if (proc==JobExecRpcProc::Updates) proc = JobExecRpcProc::Targets ; // Updates are like Deps then Targets, and only most important is retained
+		DFlags         dfs  = jerr.dfs  ;
+		for( auto const& [f,dd] : jerr.files ) {
+			auto it = access_cache.find(f) ;
+			if (it==access_cache.end()) {
+				miss            = true       ;
+				access_cache[f] = {dfs,proc} ;                             // create entry
+			} else {
+				DFlags new_dfs  = dfs | it->second.first                                ;
+				bool   proc_hit = proc==JobExecRpcProc::Deps || proc==it->second.second ;
+				bool   dfs_hit  = new_dfs==it->second.first                             ;
+				if (!( proc_hit && dfs_hit )) {
+					miss       = true               ;
+					it->second = { new_dfs , proc } ;                      // update entry
+				}
+			}
+		}
+		if (!miss) return ;
+	}
+	report_cb(jerr) ;
+}
+
+::pair_s<bool/*in_tmp*/> Record::_solve( int at , const char* file , bool no_follow , ::string const& comment ) {
+	if (!file) return {{},false/*in_tmp*/} ;
 	RealPath::SolveReport rp = real_path.solve(at,file,no_follow) ;
 	for( ::string& real : rp.lnks ) _report_dep( Proc::Deps , ::move(real) , file_date(s_get_root_fd(),real) , DFlag::Lnk , comment+".lnk"  ) ;
 	return {rp.real,rp.in_tmp} ;
 }
 
-void Record::read( int at , ::string const& file , bool no_follow , ::string const& comment ) {
+void Record::read( int at , const char* file , bool no_follow , ::string const& comment ) {
 	::string real = _solve(at,file,no_follow,comment).first ;
 	if (!real.empty()) _report_dep( Proc::Deps , ::move(real) , DFlag::Reg , comment ) ;
 }
 
-void Record::exec( int at , ::string const& file , bool no_follow , ::string const& comment ) {
-	::string        interpreter ;
-	::string const* cur_file    = &file ;
+void Record::exec( int at , const char* file , bool no_follow , ::string const& comment ) {
+	if (!file) return ;
+	::string    interpreter ;
+	const char* cur_file    = file ;
 	for( int i=0 ; i<=4 ; i++ ) {                                              // interpret #!<interpreter> recursively (4 levels as per man execve)
-		::string real = _solve(at,*cur_file,no_follow,comment).first ;
+		::string real = _solve(at,cur_file,no_follow,comment).first ;
 		if (real.empty()) return ;
 		::ifstream real_stream{to_string(*g_root_dir,'/',real)} ;
 		_report_dep( Proc::Deps , ::move(real) , DFlag::Reg , comment ) ;
@@ -58,9 +85,9 @@ void Record::exec( int at , ::string const& file , bool no_follow , ::string con
 		if (pos!=NPos) interpreter.resize(pos                   ) ;            // interpreter is the first word
 		else           interpreter.resize(real_stream.gcount()-1) ;            // or the entire line if it is composed of a single word
 		// recurse
-		at        = AT_FDCWD     ;
-		cur_file  = &interpreter ;
-		no_follow = false        ;
+		at        = AT_FDCWD            ;
+		cur_file  = interpreter.c_str() ;
+		no_follow = false               ;
 	}
 }
 
@@ -70,9 +97,9 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		::string c = jerr.comment+".lnk" ;
 		for( auto& [f,dd] : jerr.files ) {
 			bool in_tmp ;
-			::tie(f,in_tmp)  = _solve(AT_FDCWD,f,false/*no_follow*/,c) ;
-			dd               = file_date(s_get_root_fd(),f)               ;
-			some_in_tmp     |= in_tmp                                     ;
+			::tie(f,in_tmp)  = _solve(AT_FDCWD,f.c_str(),false/*no_follow*/,c) ;
+			dd               = file_date(s_get_root_fd(),f)                    ;
+			some_in_tmp     |= in_tmp                                          ;
 		}
 		if ( some_in_tmp && jerr.has_targets() ) _report(JobExecRpcProc::Tmp) ;
 	}
@@ -82,19 +109,20 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 	else           return {}             ;
 }
 
-Record::Chdir::Chdir( bool active , Record& r , int at , ::string const& dir ) {
+Record::Chdir::Chdir( bool active , Record& r , int at , const char* dir ) {
 	if (!active             ) return ;
+	if (!dir                ) return ;
 	if (Record::s_auto_mkdir) Disk::make_dir(at,dir,false/*unlink_ok*/) ;
 	r._solve( at , dir , true/*no_follow*/ , "chdir" ) ;
 }
 int Record::Chdir::operator()( Record& r , int rc , int pid ) {
 	if (rc!=0) return rc ;
-	if (pid  ) r.chdir(Disk::read_lnk("/proc/"+::to_string(pid)+"/cwd")) ;
-	else       r.chdir(Disk::cwd()                                     ) ;
+	if (pid  ) r.chdir(Disk::read_lnk("/proc/"+::to_string(pid)+"/cwd").c_str()) ;
+	else       r.chdir(Disk::cwd()                                     .c_str()) ;
 	return rc ;
 }
 
-Record::Lnk::Lnk( bool active , Record& r , int old_at , ::string const& old_file , int new_at , ::string const& new_file , int flags , ::string const& c ) : comment{c} {
+Record::Lnk::Lnk( bool active , Record& r , int old_at , const char* old_file , int new_at , const char* new_file , int flags , ::string const& c ) : comment{c} {
 	if (!active) return ;
 	no_follow = !(flags&AT_SYMLINK_FOLLOW) ;
 	//
@@ -115,7 +143,7 @@ int Record::Lnk::operator()( Record& r , int rc , int errno_ ) {
 	return rc ;
 }
 
-Record::Open::Open( bool active , Record& r , int at , ::string const& file , int flags , ::string const& c ) : comment{c} {
+Record::Open::Open( bool active , Record& r , int at , const char* file , int flags , ::string const& c ) : comment{c} {
 	if (!active) return ;
 	bool no_follow = flags &  O_NOFOLLOW          ;
 	bool anon      = flags &  O_TMPFILE           ;
@@ -181,22 +209,23 @@ ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len , int errno_ ) {
 }
 
 // flags is not used if echange is not supported
-Record::Rename::Rename( bool active , Record& r , int old_at_ , ::string const& old_file_ , int new_at_ , ::string const& new_file_ , u_int flags [[maybe_unused]] , ::string const& c ) : comment{c} {
-	if (!active) return ;
+Record::Rename::Rename( bool active , Record& r , int old_at_ , const char* old_file_ , int new_at_ , const char* new_file_ , u_int flags [[maybe_unused]] , ::string const& c ) : comment{c} {
+	if ( !active                  ) return ;
+	if ( !old_file_ || !new_file_ ) return ;
 	bool old_in_tmp ;
 	bool new_in_tmp ;
 	#ifdef RENAME_EXCHANGE
 		exchange = flags & RENAME_EXCHANGE ;
 	#endif
 	//
-	old_at                      = old_at_                                                     ;
-	new_at                      = new_at_                                                     ;
-	old_file                    = old_file_                                                   ;
-	new_file                    = new_file_                                                   ;
-	::tie(old_real,old_in_tmp)  = r._solve( old_at,old_file , true/*no_follow*/ , c+".old" ) ;
-	::tie(new_real,new_in_tmp)  = r._solve( new_at,new_file , true/*no_follow*/ , c+".new" ) ;
-	in_tmp                      = old_in_tmp || new_in_tmp                                    ;
-	comment                    += to_string(::hex,'.',flags)                                  ;
+	old_at                      = old_at_                                                            ;
+	new_at                      = new_at_                                                            ;
+	old_file                    = old_file_                                                          ;
+	new_file                    = new_file_                                                          ;
+	::tie(old_real,old_in_tmp)  = r._solve( old_at,old_file.c_str() , true/*no_follow*/ , c+".old" ) ;
+	::tie(new_real,new_in_tmp)  = r._solve( new_at,new_file.c_str() , true/*no_follow*/ , c+".new" ) ;
+	in_tmp                      = old_in_tmp || new_in_tmp                                           ;
+	comment                    += to_string(::hex,'.',flags)                                         ;
 }
 int Record::Rename::operator()( Record& r , int rc , int errno_ ) {
 	constexpr DFlags DFlagsData = DFlag::Lnk|DFlag::Reg ;                      // rename may move regular files or links
@@ -232,7 +261,7 @@ int Record::Rename::operator()( Record& r , int rc , int errno_ ) {
 	return rc ;
 }
 
-Record::SymLnk::SymLnk( bool active , Record& r , int at , ::string const& file , ::string const& c ) : comment{c} {
+Record::SymLnk::SymLnk( bool active , Record& r , int at , const char* file , ::string const& c ) : comment{c} {
 	if (!active) return ;
 	bool _ ;
 	::tie(real,_) = r._solve( at , file , true/*no_follow*/ , c ) ;
@@ -242,7 +271,7 @@ int Record::SymLnk::operator()( Record& r , int rc ) {
 	return rc ;
 }
 
-Record::Unlink::Unlink( bool active , Record& r , int at , ::string const& file , bool remove_dir , ::string const& c ) : comment{c} {
+Record::Unlink::Unlink( bool active , Record& r , int at , const char* file , bool remove_dir , ::string const& c ) : comment{c} {
 	if (!active) return ;
 	bool _ ;
 	if (remove_dir)                 r._solve( at , file , true/*no_follow*/ , c+".dir" ) ; // if removing a dir, prevent unlink record generation

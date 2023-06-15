@@ -20,8 +20,8 @@ PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
 #ASAN_FLAGS := -fsanitize=address
 #TSAN_FLAGS := -fsanitize=thread
 
-#OPT_FLAGS := -O0 -g
-OPT_FLAGS := -O3
+OPT_FLAGS := -O0 -g
+#OPT_FLAGS := -O3
 #OPT_FLAGS := -O3 -DNDEBUG
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -15,22 +15,23 @@ __all__ = ('get_src','get_code_ctx')                                           #
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 
-def get_src(*args,no_imports=(),ctx=()) :
+def get_src(*args,no_imports=(),ctx=(),force=False) :
 	'''
 		get a source text that reproduce args :
-		- args must be composed of named objects such as functions or classes or dict mapping names to values
-		- no_imports is a list of modules or module names that must not be imported in the resulting source
-		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
-		the return value is (source,names) where :
+		- args must be composed of named objects such as functions or classes or dicts mapping names to values.
+		- no_imports is a list of modules or module names that must not be imported in the resulting source.
+		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
+		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
+		The return value is (source,names) where :
 			- source is the source text that reproduces args
 			- names is the list of names found in sets in ctx
 	'''
 	s = Serialize(no_imports,ctx)
 	for a in args :
 		if isinstance(a,dict) :
-			for k,v in a.items() : s.val_src(k,v)
+			for k,v in a.items() : s.val_src(k,v,force)
 		else :
-			s.val_src(None,a)
+			s.val_src(None,a,force)
 	return s.get_src()
 
 def get_code_ctx(*args,no_imports=(),ctx=()) :
@@ -133,7 +134,7 @@ class Serialize :
 				if i.opname in Serialize.have_name : glb_names[i.argval] = None
 		return glb_names
 
-	def val_src(self,name,val) :
+	def val_src(self,name,val,force=False) :
 		if not name :
 			try                   : name = val.__name__
 			except AttributeError : pass
@@ -145,7 +146,7 @@ class Serialize :
 		if isinstance(val,types.ModuleType) :
 			if name==val.__name__ : self.src_lst.append(f'import {val.__name__}'          )
 			else                  : self.src_lst.append(f'import {val.__name__} as {name}')
-		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values :
+		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
 			if '.' in val.__qualname__ :
 				# use {name} to temporarily hold the module as it is guaranteed to be an available name
 				self.src_lst.append(f'import {val.__module__} as {name} ; {name} = {name}.{val.__qualname__}')

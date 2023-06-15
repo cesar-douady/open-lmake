@@ -235,7 +235,7 @@ template<bool At> int _at(uint64_t val) { if (At) return val ; else return AT_FD
 
 // chdir
 template<bool At> void entry_chdir( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
-	try { info.action.chdir = RecordSock::Chdir( true/*active*/ , info.record , _at<At>(entry.args[0]) , At?""s:get_str(pid,entry.args[0]) ) ; }
+	try { info.action.chdir = RecordSock::Chdir( true/*active*/ , info.record , _at<At>(entry.args[0]) , At?nullptr:get_str(pid,entry.args[0]).c_str() ) ; }
 	catch (int) {}
 }
 void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {

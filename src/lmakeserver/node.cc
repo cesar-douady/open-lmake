@@ -46,7 +46,9 @@ namespace Engine {
 		Bool3   buildable = Yes               ;
 		if ( !jts.empty() && jts.back()->rule.is_special() ) SWEAR(jts.back()->rule.special()==special) ;
 		else                                                 un->job_tgts.append(::vector<JobTgt>({Job(special,*this,deps)})) ;
-		for( Dep const& d : (*this)->job_tgts.back()->static_deps() ) buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
+		for( Dep const& d : (*this)->job_tgts.back()->static_deps() )
+			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
+			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
 		SWEAR(buildable!=No) ;
 		if (buildable==Yes) un->rule_tgts.clear() ;
 		_set_buildable(buildable) ;

@@ -152,8 +152,8 @@ namespace Engine {
 		}
 		jrr.script += r->script ;
 		if (r->is_python) {
-			if (r->script.back()!='\n') jrr.script += '\n'                                                                ;
-			/**/                        jrr.script += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() return rc={rc}')\n" ;
+			if (r->script.back()!='\n') jrr.script += '\n'                                                                  ;
+			/**/                        jrr.script += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
 		}
 		jrr.targets.reserve(targets.size()) ;
 		for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) jrr.targets.emplace_back( targets[t] , false/*is_native_star:dont_care*/ , r->flags(t) ) ;
@@ -1062,8 +1062,8 @@ namespace Engine {
 					req->audit_node(
 						Color::Note
 					,	t->crc==Crc::None ?
-							to_string( "rm `: touched " , td.str(0    ) , " not generated"                   , " `" )
-						:	to_string( "rm `: touched " , td.str(n_dec) , " generated " , t->date.str(n_dec) , " `" )
+							to_string( ": touched " , td.str(0    ) , " not generated"                   , " ; rm" )
+						:	to_string( ": touched " , td.str(n_dec) , " generated " , t->date.str(n_dec) , " ; rm" )
 					,	t
 					,	2
 					) ;

@@ -324,6 +324,7 @@ def handle_cmd(rule_rep,serialize_ctx) :
 			*rule_rep.cmd
 		,	ctx        = serialize_ctx[0]
 		,	no_imports = serialize_ctx[1]
+		,	force      = True
 		)
 		if multi :
 			rule_rep.script += 'def cmd() :\n'
@@ -371,7 +372,7 @@ def fmt_rule(rule) :
 	#
 	# handle cases with no execution
 	if rule.__anti__ :
-		return pdict({ k:v for k,v in rule_rep.items() if k in StdAntiAttrs })
+		return pdict({ k:v for k,v in rule_rep.items() if k in StdAntiAttrs },__anti__=True)
 	if not getattr(rule_rep,'cmd',None) :                                                                # Rule must have a cmd, or it is a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return

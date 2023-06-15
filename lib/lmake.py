@@ -215,14 +215,21 @@ if getattr(_sys,'reading_makefiles',False) :
 		# ignore pyc files, Python takes care of them
 		post_targets = { '__PYC__' : ( r'{__dir__*}__pycache__/{__base__*}.{__cache_tag__*:\w+-\d+}.pyc' , '-Dep','Incremental','-Match','-Crc' ) }
 
-	class GitRule(Rule) :
-		'base rule that ignores read accesses (and forbid writes) to git administrative files'
-		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Match','-Write' ) }
-
 	class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
 		virtual = True
 		def cmd() :                                                            # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 			fix_imports()
+
+	class GitRule(Rule) :
+		'base rule that ignores read accesses (and forbid writes) to git administrative files'
+		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Match','-Write' ) }
+
+	class HomelessRule(Rule) :
+		'base rule to redirect the HOME environment variable to TMPDIR'
+		def cmd() :
+			import os
+			os.environ['HOME'] = os.environ['TMPDIR']
+		cmd.shell = 'export HOME=$TMPDIR'                                      # defining a function with a shell attribute is the way to have both python & shell pre-commands
 
 	class DirtyRule(Rule) :
 		post_targets = { '__NO_MATCH__' : ('{*:.*}','-crc','-essential','incremental','-match','-warning') }

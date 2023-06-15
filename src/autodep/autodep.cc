@@ -25,7 +25,7 @@ int main( int argc , char* argv[] ) {
 	block_sig(SIGCHLD) ;
 	SWEAR(::chdir(g_startup_dir_s->c_str())) ;
 	//
-	Syntax<CmdKey,CmdFlag> syntax{{
+	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
 		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ptrace)" } }
 	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                             } }
 	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                  } }
@@ -58,7 +58,7 @@ int main( int argc , char* argv[] ) {
 	else                              {                                                    ds = &::cerr   ; }
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
-	for( auto [target,ai] : gather_deps.accesses )
+	for( auto const& [target,ai] : gather_deps.accesses )
 		switch (ai.write) {
 			case Maybe : deps_stream << "! " << target << '\n' ; break ;
 			case Yes   : deps_stream << "> " << target << '\n' ; break ;

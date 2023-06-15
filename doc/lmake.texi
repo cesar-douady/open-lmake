@@ -887,6 +887,11 @@ This @code{class} may be used to ignore all git management files. This files can
 By itself, it is a dangerous @code{class} and must be used with care.
 User must ensure that all modifications to such git management files are reflected to the actual visible files outside these @file{.git} directories.
 
+@subsection @code{class HomelessRule}
+This @code{class} opies the @code{TMPDIR} environment variable the @code{HOME} one.
+This is a way to ensure that various tools behave the same way as if they were run for the first time.
+By default  the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
+
 @subsection @code{class DirtyRule}
 This @code{class} may be used to ignore all writes that are not an official target.
 

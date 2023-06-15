@@ -165,7 +165,7 @@ template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int
 	Audit::t_audit() ;                                                         // force Audit static init
 	//
 	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
-	if (!*def_cook  ) goto Ignore ;                                            // cookie is used to identify libc
+	if (*def_cook   ) goto Ignore ;                                            // cookie is used to identify libc (when cookie==0)
 	//
 	{	auto it = g_syscall_tab.find(sym_name) ;
 		if (it==g_syscall_tab.end()) goto Ignore ;
@@ -192,7 +192,7 @@ extern "C" {
 		Audit::t_audit() ;                                                         // force Audit static init
 		Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
 		bool is_libc_ = _is_libc(map->l_name) ;
-		*cookie = is_libc_ ;
+		*cookie = !is_libc_ ;
 		if (is_libc_) {
 			g_libc_lmid = lmid        ;                                        // seems more robust to avoid directly calling dlmopen while in a call-back due to opening a dl
 			g_libc_name = map->l_name ;
