@@ -66,28 +66,13 @@ void Record::read( int at , const char* file , bool no_follow , ::string const& 
 	if (!real.empty()) _report_dep( Proc::Deps , ::move(real) , DFlag::Reg , comment ) ;
 }
 
-void Record::exec( int at , const char* file , bool no_follow , ::string const& comment ) {
-	if (!file) return ;
-	::string    interpreter ;
-	const char* cur_file    = file ;
-	for( int i=0 ; i<=4 ; i++ ) {                                              // interpret #!<interpreter> recursively (4 levels as per man execve)
-		::string real = _solve(at,cur_file,no_follow,comment).first ;
-		if (real.empty()) return ;
-		::ifstream real_stream{to_string(*g_root_dir,'/',real)} ;
-		_report_dep( Proc::Deps , ::move(real) , DFlag::Reg , comment ) ;
-		char hdr[2] ;
-		if (!real_stream.read(hdr,sizeof(hdr))) return ;
-		if (strncmp(hdr,"#!",2)!=0            ) return ;
-		interpreter.resize(256) ;
-		real_stream.getline(interpreter.data(),interpreter.size()) ;           // man execve specifies that data beyond 255 chars are ignored
-		if (!real_stream.gcount()) return ;
-		size_t pos = interpreter.find(' ') ;
-		if (pos!=NPos) interpreter.resize(pos                   ) ;            // interpreter is the first word
-		else           interpreter.resize(real_stream.gcount()-1) ;            // or the entire line if it is composed of a single word
-		// recurse
-		at        = AT_FDCWD            ;
-		cur_file  = interpreter.c_str() ;
-		no_follow = false               ;
+void Record::exec( int at , const char* exe , bool no_follow , ::string const& comment ) {
+	if (!exe) return ;
+	for( auto&& [file,a] : real_path.exec(at,exe,no_follow) ) {
+		DFlags fs ;
+		if (a.as_lnk) fs |= DFlag::Lnk ;
+		if (a.as_reg) fs |= DFlag::Reg ;
+		_report_dep( Proc::Deps , ::move(file) , fs , comment ) ;
 	}
 }
 

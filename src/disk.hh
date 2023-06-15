@@ -152,6 +152,11 @@ namespace Disk {
 			bool       in_repo = false ;
 			bool       in_tmp  = false ;
 		} ;
+		struct ExecAccess {
+			ExecAccess( bool al , bool ar ) : as_lnk{al} , as_reg{ar} {}
+			bool as_lnk = false ;
+			bool as_reg = false ;
+		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
@@ -198,10 +203,10 @@ namespace Disk {
 			_lnk_support = ls                                                 ;
 		}
 		// services
-	public :
-		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
-		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,file,no_follow) ; }
-		SolveReport solve( Fd at                        , bool no_follow=false ) { return solve(at     ,{}  ,no_follow) ; }
+		SolveReport          solve( Fd at , ::string const&      , bool no_follow=false ) ;
+		SolveReport          solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,file,no_follow) ; }
+		SolveReport          solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,{}  ,no_follow) ; }
+		::vmap_s<ExecAccess> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
 
 		// data
 		::string cwd_      ;

@@ -226,30 +226,29 @@ namespace Disk {
 		else        return _POSIX_SYMLOOP_MAX ;
 	}
 	RealPath::SolveReport RealPath::solve( Fd at , ::string const& file , bool no_follow ) {
-		if (file.empty()) return {} ;                                                        // fast path
+		static ::string const* const proc         = new ::string("/proc") ;
+		static int             const s_n_max_lnks = _get_symloop_max()    ;
+		if (file.empty()) return {} ;
 
-		static int const s_n_max_lnks = _get_symloop_max() ;
 		::vector_s lnks ;
 
-		::string const& proc = "/proc" ;
-
 		::string        local_file[2] ;                                        // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as often, it is not necessary)
-		bool            ping          = 0                             ;        // index indicating which local_file is used
-		bool            exists        = true                          ;        // if false, we have seen a non-existent component and there cannot be symlinks within it
-		::string const* file_p        = &file                         ;        // points to the current file : input file or local copy local_file
-		size_t          pos           = !file.empty() && file[0]=='/' ;
-		::string        real          ; real.reserve(file.size()) ;                       // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
-		if (!pos) {                                                                       // file is relative, meaning relative to at
-			if      (at==Fd::Cwd) real = cwd_                                           ;
-			else if (pid        ) real = read_lnk(to_string("/proc/",pid,"/fd/",at.fd)) ;
-			else                  real = read_lnk(to_string("/proc/self/fd/"   ,at.fd)) ;
-			if (!is_abs_path(real)) return {} ;                                           // user code might use the strangest at, it will be an error but we must support it
+		bool            ping          = 0                         ;            // index indicating which local_file is used
+		bool            exists        = true                      ;            // if false, we have seen a non-existent component and there cannot be symlinks within it
+		::string const* file_p        = &file                     ;            // points to the current file : input file or local copy local_file
+		size_t          pos           = file[0]=='/'              ;
+		::string        real          ; real.reserve(file.size()) ;                        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
+		if (!pos) {                                                                        // file is relative, meaning relative to at
+			if      (at==Fd::Cwd) real = cwd_                                            ;
+			else if (pid        ) real = read_lnk(to_string(*proc,'/',pid,"/fd/",at.fd)) ;
+			else                  real = read_lnk(to_string(*proc,"/self/fd/"   ,at.fd)) ;
+			if (!is_abs_path(real)) return {} ;                                            // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
 		}
 		_Dvg in_repo ( *g_root_dir                         , real ) ;          // keep track of where we are w.r.t. repo       , track symlinks according to _lnk_support policy
 		_Dvg in_tmp  ( *g_tmp_dir                          , real ) ;          // keep track of where we are w.r.t. tmp        , always track symlinks
 		_Dvg in_admin( to_string(*g_root_dir,'/',AdminDir) , real ) ;          // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc ( "/proc"                             , real ) ;          // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_proc ( *proc                               , real ) ;          // keep track of where we are w.r.t. /proc      , always track symlinks
 
 		// loop INVARIANT : accessed file is real+'/'+file_p->substr(pos)
 		// when file is empty, we are done
@@ -260,7 +259,7 @@ namespace Disk {
 		;		pos = end+1
 			,	in_repo.update(*g_root_dir,real)                               // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
 			,	in_tmp .update(*g_tmp_dir ,real)                               // .
-			,	in_proc.update("/proc"    ,real)                               // .
+			,	in_proc.update(*proc      ,real)                               // .
 		) {
 			end = file_p->find( '/', pos ) ;
 			bool last = end==NPos ;
@@ -315,6 +314,34 @@ namespace Disk {
 		if ( !in_repo || in_tmp || in_admin || real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , false , in_tmp } ;
 		else                                                                     return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true  , false  } ;
 
+	}
+
+	::vmap_s<RealPath::ExecAccess> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {
+		::vmap_s<ExecAccess> res         ;
+		::string             interpreter ;
+		const char*          cur_file    = exe.c_str() ;
+		for( int i=0 ; i<=4 ; i++ ) {                                              // interpret #!<interpreter> recursively (4 levels as per man execve)
+			SolveReport real = solve(at,cur_file,no_follow) ;
+			for( ::string& l : real.lnks ) res.emplace_back(::move(l),ExecAccess(true/*as_lnk*/,false/*as_reg*/)) ;
+			if (real.real.empty()) break ;
+			::ifstream real_stream{to_string(*g_root_dir,'/',real.real)} ;
+			res.emplace_back(::move(real.real),ExecAccess(!no_follow/*as_lnk*/,true/*as_reg*/)) ;
+			char hdr[2] ;
+			if (!real_stream.read(hdr,sizeof(hdr))) break ;
+			if (strncmp(hdr,"#!",2)!=0            ) break ;
+			interpreter.resize(256) ;
+			real_stream.getline(interpreter.data(),interpreter.size()) ;           // man execve specifies that data beyond 255 chars are ignored
+			if (!real_stream.gcount()) break ;
+			size_t pos = interpreter.find(' ') ;
+			if      (pos!=NPos               ) interpreter.resize(pos                   ) ; // interpreter is the first word
+			else if (interpreter.back()=='\n') interpreter.resize(real_stream.gcount()-1) ; // or the entire line if it is composed of a single word
+			else                               interpreter.resize(real_stream.gcount()  ) ; // .
+			// recurse
+			at        = Fd::Cwd             ;
+			cur_file  = interpreter.c_str() ;
+			no_follow = false               ;
+		}
+		return res ;
 	}
 
 }

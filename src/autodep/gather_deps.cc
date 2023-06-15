@@ -52,21 +52,21 @@ using namespace Hash ;
 	return { accesses.back().second , true } ;
 }
 
-void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , Fd fd , ::string const& comment ) {
+void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , ::string const& comment ) {
 	SWEAR(!target.empty()) ;
 	auto [info,created] = _info(target)                  ;
 	bool stamp          = created || pd<info.access_date ;
 	if (
 		stamp
 	||	info.write!=(Maybe|!unlink)
-	) Trace trace("_new_target",STR(unlink),fd,STR(created),pd,STR(stamp),pd,target,comment) ;
+	) Trace trace("_new_target",STR(unlink),STR(created),pd,STR(stamp),pd,target,comment) ;
 	info.write = Maybe|!unlink ;                                               // for the write side, last action is the significant one
 	if (!stamp) return ;                                                       // existing file has already been accessed (if file did not exist, it is not an update)
 	info.access_date = pd ;
 	info.file_date   = {} ;                                                    // if first access is a write, no file_date is attached
 }
 
-void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , DFs dfs , Fd fd , ::string const& comment ) {
+void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , DFs dfs , ::string const& comment ) {
 	SWEAR(!dep.empty()) ;
 	auto [info,created] = _info(dep)                     ;
 	bool stamp          = created || pd<info.access_date ;
@@ -75,7 +75,7 @@ void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , D
 		( stamp                                    )
 	||	( info.write==No && +(dfs&~info.dep_flags) )
 	||	( update         && info.write!=Yes        )
-	) Trace trace("_new_dep",STR(update),fd,STR(created),pd,STR(stamp),dep,dfs,dd,comment) ;
+	) Trace trace("_new_dep",STR(update),STR(created),pd,STR(stamp),dep,dfs,dd,comment) ;
 	//
 	if (info.write==No) info.dep_flags |= dfs ;
 	if (update        ) info.write      = Yes ;
@@ -146,6 +146,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }
 		}
+		new_exec( PD::s_now() , args[0] ) ;
 		try {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			child.spawn(
@@ -262,16 +263,16 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 						case Proc::Heartbeat       :                                                            goto Close ; //           accept & read is enough to report liveness
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill            : kill_job(Status::Killed) ;                                 goto Close ; // no reply, accept & read is enough to ack
-						//                   vvvvvvvv------------------------vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ ,            fd , jerr.comment ) ; break ; // file dates are only for deps
-						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ ,            fd , jerr.comment ) ; break ; // .
-						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs , fd , jerr.comment ) ; break ; // .
-						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs , fd , jerr.comment ) ; break ;
-						//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//                   vvvvvvvv------------------------vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ ,            jerr.comment ) ; break ; // file dates are only for deps
+						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ ,            jerr.comment ) ; break ; // .
+						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs , jerr.comment ) ; break ; // .
+						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs , jerr.comment ) ; break ;
+						//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						case Proc::DepInfos :
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							_new_deps( jerr.date , jerr.files , false/*update*/ , jerr.dfs , fd , jerr.comment ) ; // getting the crc is a dependence on a file
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							_new_deps( jerr.date , jerr.files , false/*update*/ , jerr.dfs , jerr.comment ) ; // getting the crc is a dependence on a file
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb

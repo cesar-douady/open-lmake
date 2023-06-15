@@ -7,7 +7,8 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* rust code seems to manage to do file accesses without ld_preload/ld_audit catching them.
+* rust code seems to manage to do file accesses without ld_audit catching them.
+	- ld_preload works, though
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
@@ -37,11 +38,6 @@
 * ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* autodep=ptrace reports launched exe as dep while other methods do not
-	- reduce discrepency
-	- move Record::exec to Disk::RealPath
-	- call it when ld_preload/ld_audit
-	- suppress call in job_exec
 * add a warning when ids reach 15/16 of their limits
 * find a use case to ensure dates are correctly handled with NFS
 

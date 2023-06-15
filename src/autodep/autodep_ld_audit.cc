@@ -189,8 +189,9 @@ extern "C" {
 	unsigned int la_version(unsigned int /*version*/) { return LAV_CURRENT ; }
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		Audit::t_audit() ;                                                         // force Audit static init
-		Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
+		Audit::t_audit() ;                                                              // force Audit static init
+		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
+			Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
 		bool is_libc_ = _is_libc(map->l_name) ;
 		*cookie = !is_libc_ ;
 		if (is_libc_) {

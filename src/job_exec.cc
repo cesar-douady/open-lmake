@@ -92,16 +92,12 @@ int main( int argc , char* argv[] ) {
 	//
 	Fd child_stdin  = Child::None ;
 	Fd child_stdout = Child::Pipe ;
-	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg,{},"<stdin>" ) ; }
-	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,           {},"<stdout>") ; }
+	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg,"<stdin>" ) ; }
+	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,           "<stdout>") ; }
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
 	args.emplace_back("-c"             ) ;
 	args.push_back   (start_info.script) ;
-	RealPath              real_path        { start_info.lnk_support }                   ;
-	RealPath::SolveReport interpreter_deps = real_path.solve(start_info.interpreter[0]) ;
-	for( ::string const& lnk : interpreter_deps.lnks ) gather_deps.new_dep(start_overhead,lnk                  ,DFlag::Lnk,{},"<interpreter> lnks") ;
-	if (!interpreter_deps.real.empty())                gather_deps.new_dep(start_overhead,interpreter_deps.real,DFlag::Reg,{},"<interpreter>"     ) ;
 	//
 	::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 	for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {

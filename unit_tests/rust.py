@@ -62,3 +62,6 @@ else :
 	print('hello world',file=open('hello.ref','w'))
 
 	ut.lmake( 'hello.ok' , done=3 , new=3 )
+
+	print('hello world2',file=open('hello.in','w'))
+	ut.lmake( 'hello.out' , steady=1 , new=1 )                                 # check we have acquired hello.in as a dep

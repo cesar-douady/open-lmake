@@ -89,20 +89,32 @@ struct GatherDeps {
 private :
 	::pair<AccessInfo&,bool/*created*/> _info(::string const& name) ;
 	//
-	void _new_target( PD , ::string const& target ,      bool unlink ,       Fd={} , ::string const& comment={} ) ;
-	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs , Fd={} , ::string const& comment={} ) ;
+	void _new_target( PD , ::string const& target ,      bool unlink ,       ::string const& comment={} ) ;
+	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs , ::string const& comment={} ) ;
 	//
-	void _new_targets( PD d , ::vector_s const& targets , bool unlink , Fd fd={} , ::string const& comment={} ) {
-		for( auto const& f : targets ) _new_target(d,f,unlink,fd,comment) ;
+	void _new_targets( PD d , ::vector_s const& targets , bool unlink , ::string const& comment={} ) {
+		for( auto const& f : targets ) _new_target(d,f,unlink,comment) ;
 	}
-	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DFs dfs , Fd fd={} , ::string const& comment={} ) {
-		if (deps.empty()) return ;                                                                                       // do not update nxt_order if deps is empty
-		for( auto const& [f,dd] : deps ) _new_dep(pd,f,dd,update,dfs,fd,comment) ;
+	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DFs dfs , ::string const& comment={} ) {
+		if (deps.empty()) return ;                                                                            // do not update nxt_order if deps is empty
+		for( auto const& [f,dd] : deps ) _new_dep(pd,f,dd,update,dfs,comment) ;
 		_nxt_order = DepOrder::Seq ;
 	}
 public :
-	void new_target( PD pd , ::string const& tgt ,           Fd fd={} , ::string const& c={} ) { _new_target(pd,tgt                     ,false/*unlink*/,    fd,c) ;                              }
-	void new_dep   ( PD pd , ::string const& dep , DFs dfs , Fd fd={} , ::string const& c={} ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs,fd,c) ; _nxt_order = DepOrder::Seq ; }
+	void new_target( PD pd , ::string const& tgt ,            ::string const& c="target" ) { _new_target(pd,tgt                     ,false/*unlink*/,    c) ;                              }
+	void new_dep   ( PD pd , ::string const& dep , DFs  dfs , ::string const& c="dep"    ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs,c) ; _nxt_order = DepOrder::Seq ; }
+	//
+	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
+		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
+			DD     d  = Disk::file_date(file) ;                                          // get file date while we have file, before moving it with _new_dep
+			DFlags fs ;
+			if (a.as_lnk) fs |= DFlag::Lnk ;
+			if (a.as_reg) fs |= DFlag::Reg ;
+			_new_dep( pd , ::move(file) , d , false/*update*/ , fs , c ) ;
+			_nxt_order = DepOrder::Seq ;
+		}
+	}
+
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
 		OMsgBuf().send(sock,jerr) ;
