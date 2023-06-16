@@ -881,6 +881,12 @@ This @code{class} may be used as a base @code{class} for Python code doing impor
 In addition to @code{PyRule} features, it patches Python import machinery to prevent optimizations that suppress accesses to inexisting modules.
 Accessing inexisting modules is the way to inform Python that this module is needed and must be generated.
 
+@subsection @code{class RustRule}
+This @code{class} may be used as a base @code{class} to execute executable written in rust.
+
+Rust uses a special link mechanis which defeats the default @code{ld_audit} autodep mechanism.
+This base @code{class} merely sets the  autodep method to @code{ld_audit} which works around this problem.
+
 @subsection @code{class GitRule}
 This @code{class} may be used to ignore all git management files. This files can be  recognized as they lie in a directory named @file{.git}.
 

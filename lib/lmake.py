@@ -206,20 +206,6 @@ if getattr(_sys,'reading_makefiles',False) :
 		__anti__ = True                                    # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected
 		prio     = float('inf')                            # default to high prio as the goal of AntiRule's is to hide other rules
 
-	class PyRule(Rule) :
-		'base rule that handle pyc creation when importing modules in Python'
-		def __init_subclass__(cls) :
-			super().__init_subclass__()
-			if cls.ignore_stat and '-B' not in cls.python[1:] :
-				raise AttributeError('if the ignore_stat attribute is set on one rule, python must run with the -B flag set on all rules')
-		# ignore pyc files, Python takes care of them
-		post_targets = { '__PYC__' : ( r'{__dir__*}__pycache__/{__base__*}.{__cache_tag__*:\w+-\d+}.pyc' , '-Dep','Incremental','-Match','-Crc' ) }
-
-	class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
-		virtual = True
-		def cmd() :                                                            # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-			fix_imports()
-
 	class GitRule(Rule) :
 		'base rule that ignores read accesses (and forbid writes) to git administrative files'
 		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Match','-Write' ) }
@@ -233,6 +219,24 @@ if getattr(_sys,'reading_makefiles',False) :
 
 	class DirtyRule(Rule) :
 		post_targets = { '__NO_MATCH__' : ('{*:.*}','-crc','-essential','incremental','-match','-warning') }
+
+	class PyRule(Rule) :
+		'base rule that handle pyc creation when importing modules in Python'
+		def __init_subclass__(cls) :
+			super().__init_subclass__()
+			if cls.ignore_stat and '-B' not in cls.python[1:] :
+				raise AttributeError('if the ignore_stat attribute is set on one rule, python must run with the -B flag set on all rules')
+		# ignore pyc files, Python takes care of them
+		post_targets = { '__PYC__' : ( r'{__dir__*}__pycache__/{__base__*}.{__cache_tag__*:\w+-\d+}.pyc' , '-Dep','Incremental','ManualOk','-Match','-Crc' ) }
+
+	class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
+		virtual = True
+		def cmd() :                                                            # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+			fix_imports()
+
+	class RustRule(Rule) :
+		'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'
+		autodep = 'ld_preload'
 
 	#
 	# sources

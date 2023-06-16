@@ -107,6 +107,7 @@ unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
 unit_tests/base/src1
 unit_tests/base/src2
+unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/depend.py
 unit_tests/hello_world.py

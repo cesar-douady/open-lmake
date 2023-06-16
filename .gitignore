@@ -11,7 +11,7 @@ __pycache__
 /doc/lmake.html
 
 #auto-configuration
-/trial
+/trial/
 /sys_config.h
 
 # compiled files
@@ -28,7 +28,7 @@ __pycache__
 /_bin/ldump_job
 /_bin/lmakeserver
 /_bin/read_makefiles
-/bin
+/bin/
 
 # tests
 *.tok
@@ -36,25 +36,26 @@ __pycache__
 /src/store/unit_test
 
 # IDE files
-/.idea
-/.vscode
+/.idea/
+/.vscode/
 
 # Lmake env
+/lmake_env/_bin/
+/lmake_env/bin/
+/lmake_env/doc/
+/lmake_env/ext/
+/lmake_env/_lib/
+/lmake_env/lib/
+/lmake_env/LMAKE/
+/lmake_env/LMAKE_LOCAL/
+/lmake_env/LMAKE_REMOTE/
+/lmake_env/lmake.tar.gz
+/lmake_env/Manifest
+/lmake_env/mrkr
+/lmake_env/src/
 /lmake_env/sys_config
 /lmake_env/sys_config.h
-/lmake_env/trial
-/lmake_env/LMAKE
-/lmake_env/LMAKE_LOCAL
-/lmake_env/LMAKE_REMOTE
-/lmake_env/Manifest
-/lmake_env/_bin/
-/lmake_env/_lib/
-/lmake_env/bin
-/lmake_env/doc
-/lmake_env/ext
-/lmake_env/lib
-/lmake_env/lmake.tar.gz
-/lmake_env/src/
+/lmake_env/trial/
 
 # tarball
 /lmake.tar.gz

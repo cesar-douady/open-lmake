@@ -1049,12 +1049,11 @@ namespace Engine {
 			if (job_ok) continue ;
 			// generate a message that is simultaneously consise, informative and executable (with a copy/paste) with sh & csh syntaxes
 			req->audit_info( Color::Note , "consider :" , 1 ) ;
-			if (chk_src) {
-				// to reach this job, we must make a target which is *not* a source
-				for( auto const& [t,ti] : static_target_map     ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -s " , t , 2 ) ; goto Advised ; }
-				for( Node         t     : (*this)->star_targets ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -s " , t , 2 ) ; goto Advised ; }
-			Advised : ;
-			} else {
+			// to reach this job, we must make a target which is *not* a source
+			for( auto const& [t,ti] : static_target_map     ) if (!t->is_src()) { req->audit_node( Color::Note , to_string("lmake ",chk_src?"-s ":"-m ") , t , 2 ) ; goto Advised ; }
+			for( Node         t     : (*this)->star_targets ) if (!t->is_src()) { req->audit_node( Color::Note , to_string("lmake ",chk_src?"-s ":"-m ") , t , 2 ) ; goto Advised ; }
+		Advised :
+			if (!chk_src) {
 				for( auto const& [t,ok] : chk_targets ) {
 					if (ok) continue ;
 					DiskDate td    = file_date(t.name()) ;

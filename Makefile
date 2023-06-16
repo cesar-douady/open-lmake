@@ -45,8 +45,8 @@ SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                := $(if $(SAN_FLAGS),.san,)
 ASAN               := $(if $(findstring address,$(SAN_FLAGS)),.san,)
 TSAN               := $(if $(findstring thread,$(SAN_FLAGS)),.san,)
-PREPROCESS         := $(CC) -E
-COMPILE            := $(CC) -c -fvisibility=hidden
+PREPROCESS         := $(CC) -E                     -ftabstop=4
+COMPILE            := $(CC) -c -fvisibility=hidden -ftabstop=4
 LINK_O             := $(CC) -r
 LINK_SO            := $(CC) -shared-libgcc -shared -pthread
 LINK_BIN           := $(CC) -pthread
