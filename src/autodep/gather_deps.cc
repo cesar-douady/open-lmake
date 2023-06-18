@@ -38,7 +38,7 @@ using namespace Hash ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" << '@'<<ai.access_date <<','<<ai.dep_flags ;
+	os << "AccessInfo(" << '@'<<ai.access_date <<','<<ai.dfs<<'-'<<ai.neg_tfs<<'+'<<ai.pos_tfs ;
 	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date              ;
 	if (ai.write!=No ) os <<','<< (ai.write==Maybe?"Unlink":"Write") ;
 	return os <<','<< ai.dep_order << ')' ;
@@ -52,15 +52,18 @@ using namespace Hash ;
 	return { accesses.back().second , true } ;
 }
 
-void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , ::string const& comment ) {
-	SWEAR(!target.empty()) ;
+void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment ) {
+	SWEAR(!target.empty()   ) ;
+	SWEAR(!(neg_tfs&pos_tfs)) ;                                                // cannot suppress and add a flag simultaneously
 	auto [info,created] = _info(target)                  ;
 	bool stamp          = created || pd<info.access_date ;
 	if (
 		stamp
 	||	info.write!=(Maybe|!unlink)
 	) Trace trace("_new_target",STR(unlink),STR(created),pd,STR(stamp),pd,target,comment) ;
-	info.write = Maybe|!unlink ;                                               // for the write side, last action is the significant one
+	info.write   = Maybe|!unlink                   ;                           // for the write side, last action is the significant one
+	info.neg_tfs = (info.neg_tfs&~pos_tfs)|neg_tfs ;                           // flags are accumulated in order
+	info.pos_tfs = (info.pos_tfs&~neg_tfs)|pos_tfs ;                           // .
 	if (!stamp) return ;                                                       // existing file has already been accessed (if file did not exist, it is not an update)
 	info.access_date = pd ;
 	info.file_date   = {} ;                                                    // if first access is a write, no file_date is attached
@@ -72,13 +75,13 @@ void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , D
 	bool stamp          = created || pd<info.access_date ;
 	//
 	if (
-		( stamp                                    )
-	||	( info.write==No && +(dfs&~info.dep_flags) )
-	||	( update         && info.write!=Yes        )
+		( stamp                              )
+	||	( info.write==No && +(dfs&~info.dfs) )
+	||	( update         && info.write!=Yes  )
 	) Trace trace("_new_dep",STR(update),STR(created),pd,STR(stamp),dep,dfs,dd,comment) ;
 	//
-	if (info.write==No) info.dep_flags |= dfs ;
-	if (update        ) info.write      = Yes ;
+	if (info.write==No) info.dfs   |= dfs ;
+	if (update        ) info.write  = Yes ;
 	if (!stamp        ) return ;                                               // file has already been accessed, ignore read
 	info.access_date = pd                 ;
 	info.dep_order   = _nxt_order         ;
@@ -264,10 +267,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill            : kill_job(Status::Killed) ;                                 goto Close ; // no reply, accept & read is enough to ack
 						//                   vvvvvvvv------------------------vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ ,            jerr.comment ) ; break ; // file dates are only for deps
-						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ ,            jerr.comment ) ; break ; // .
-						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs , jerr.comment ) ; break ; // .
-						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs , jerr.comment ) ; break ;
+						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ , jerr.neg_tfs , jerr.pos_tfs , jerr.comment ) ; break ; // file dates are only...
+						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ , jerr.neg_tfs , jerr.pos_tfs , jerr.comment ) ; break ; // for deps
+						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs                    , jerr.comment ) ; break ;
+						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs                    , jerr.comment ) ; break ;
 						//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						case Proc::DepInfos :
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

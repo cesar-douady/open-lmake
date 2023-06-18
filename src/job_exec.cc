@@ -92,8 +92,8 @@ int main( int argc , char* argv[] ) {
 	//
 	Fd child_stdin  = Child::None ;
 	Fd child_stdout = Child::Pipe ;
-	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg,"<stdin>" ) ; }
-	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,           "<stdout>") ; }
+	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg       ,"<stdin>" ) ; }
+	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,TFlags(),TFlags(),"<stdout>") ; }
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
 	args.emplace_back("-c"             ) ;
@@ -110,48 +110,56 @@ int main( int argc , char* argv[] ) {
 	::vmap_s<DepDigest   >              deps       ;
 	ThreadQueue<::pair<NodeIdx,string>> crc_queue  ;
 	::uset_s                            force_deps = mk_uset(start_info.force_deps) ;
+	::string                            err_str    ;
 	//
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
-			TFlags flags   = UnexpectedTFlags ;
-			VarIdx tgt_idx = -1               ;
-			Bool3  write   = info.write       ;
+			TFlags tfs   = UnexpectedTFlags ;
+			Bool3  write = info.write       ;
 			if (!force_deps.contains(file)) {
 				for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 					TargetSpec const& spec = start_info.targets[t] ;
-					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tgt_idx = t ; flags = spec.flags ; break ; } }
-					else                         { if (file==spec.pattern             ) { tgt_idx = t ; flags = spec.flags ; break ; } }
+					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tfs = spec.flags ; break ; } }
+					else                         { if (file==spec.pattern             ) { tfs = spec.flags ; break ; } }
+				}
+				tfs = (tfs&~info.neg_tfs)|info.pos_tfs ;
+				try {
+					TFlags tfs_cooked = (tfs&~info.neg_tfs)|info.pos_tfs ;
+					chk(tfs_cooked) ;
+					tfs = tfs_cooked ;
+				} catch(::string const& e) {
+					append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ;
 				}
 			}
 			//
-			DFlags dfs  = info.dep_flags ; if (!flags[TFlag::Stat]) dfs &= ~DFlag::Stat ;
-			bool   read = +( dfs & AccessDFlags ) ;                                       // access represents what we have seen different w.r.t. non-existent file
-			if ( write==No && flags[TFlag::Dep] ) {
+			DFlags dfs  = info.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
+			bool   read = +( dfs & AccessDFlags ) ;                                 // access represents what we have seen different w.r.t. non-existent file
+			if ( write==No && tfs[TFlag::Dep] ) {
 				if (read) {
 					// only generate an access date if it was coherent all the way from first access to end of job (as we have no end of access date)
 					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,dfs,info.dep_order)) ;
 					else                                 deps.emplace_back(file,DepDigest(               dfs,info.dep_order)) ;
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("    ","dep   ",setw(3),tgt_idx,deps.back(),dfs) ;
+					trace("    ","dep   ",setw(3),tfs,deps.back(),dfs) ;
 				} else {
-					trace("    ","!dep  ",setw(3),tgt_idx,file,dfs) ;
+					trace("    ","!dep  ",setw(3),tfs,file,dfs) ;
 				}
 			} else if (at_end) {                                               // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                 ) dfs = DFlags::None ;
-				if ( write==Yes && flags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				if ( write==Yes && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
 				const char* str ;
 				switch (write) {
 					// if file is unlinked, ignore it unless it has been read or we declared it as phony, so that tmp files are ignored
-					//                                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case No    : str = "idle  " ;                                targets.emplace_back(file,TargetDigest( tgt_idx , dfs , false/*write*/             ) ) ; break ;
-					case Maybe : str = "unlink" ; if (read||flags[TFlag::Phony]) targets.emplace_back(file,TargetDigest( tgt_idx , dfs , true /*write*/ , Crc::None ) ) ; break ;
-					case Yes   : str = "write " ;                                targets.emplace_back(file,TargetDigest( tgt_idx , dfs , true /*write*/             ) ) ; break ;
-					//                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case No    : str = "idle  " ;                              targets.emplace_back(file,TargetDigest( dfs , tfs , false/*write*/             ) ) ; break ;
+					case Maybe : str = "unlink" ; if (read||tfs[TFlag::Phony]) targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/ , Crc::None ) ) ; break ;
+					case Yes   : str = "write " ;                              targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/             ) ) ; break ;
+					//                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(write) ;
 				}
-				trace(dfs,str,setw(3),tgt_idx,targets.back(),info.file_date) ;
+				trace(dfs,str,setw(3),tfs,targets.back(),info.file_date) ;
 			}
 		}
 	} ;
@@ -245,6 +253,10 @@ int main( int argc , char* argv[] ) {
 	Date end_overhead = Date::s_now() ;
 	trace("end_overhead",end_overhead) ;
 	//
+	if (!err_str.empty()) {
+		status             |= Status::Err                          ;
+		gather_deps.stderr  = err_str + ::move(gather_deps.stderr) ;
+	}
 	JobRpcReq end_report{
 		JobProc::End
 	,	seq_id

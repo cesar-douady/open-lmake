@@ -272,7 +272,8 @@ namespace Engine {
 		}
 		bool conform() const {
 			SWEAR(makable()) ;
-			return has_actual_job_tgt(conform_job_tgt()) ;
+			JobTgt cjt = conform_job_tgt() ;
+			return cjt->is_special() || has_actual_job_tgt(cjt) ;
 		}
 		bool err() const {
 			if (multi     ) return true                     ;
@@ -280,7 +281,7 @@ namespace Engine {
 			if (!conform()) return true                     ;
 			else            return conform_job_tgt()->err() ;
 		}
-		bool is_special() const { return makable(true/*uphill_ok*/) && conform_job_tgt()->rule.is_special() ; }
+		bool is_special() const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
 		Date db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Date() ; }
 		//

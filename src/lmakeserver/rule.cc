@@ -432,8 +432,6 @@ namespace Engine {
 					}
 					if (flags[TFlag::Match]) {
 						if (!missing_stems.empty()   ) throw to_string("missing stems ",missing_stems," in target") ;
-						if ( flags[TFlag::Dep]       ) throw "cannot match on target and be a potential dep"s       ;
-						if (!flags[TFlag::Crc]       ) throw "cannot match on target without computing checksum"s   ;
 						found_matching = true ;
 					} else {
 						if (anti                     ) throw "non-matching targets are meaningless for anti-rules"s ;
@@ -443,9 +441,7 @@ namespace Engine {
 						if (flags[TFlag::Phony      ]) throw "stdout cannot be directed to a phony target"s       ;
 						if (flags[TFlag::Incremental]) throw "stdout cannot be directed to a incremental target"s ;
 					}
-					if (flags[TFlag::Star]) {
-						if (flags[TFlag::Phony]      ) throw "phony star targets not yet supported"s ;
-					}
+					chk(flags) ;
 					// record
 					(flags[TFlag::Star]?star_targets:targets).emplace_back( field , TargetSpec(target,is_native_star,flags) ) ;
 				}

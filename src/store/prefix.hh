@@ -935,7 +935,7 @@ namespace Store {
 			::tie(compressed,idx) = _compress_after<false,false,BuNxt_>(idx) ; // idx already backed up
 			if (!compressed) _minimize_sz<false>(idx) ;                        // idx already backed up, minimize if it has not been merged
 			_insert_before<false,false>(dvg,true/*is_eq*/,idx) ;
-			_compress_before<false,false,false>(dvg) ;                         // all are already backed up
+			_compress_before<false,false,false>(dvg) ;                         // all already backed up
 			return dvg ;
 		}
 
@@ -998,6 +998,7 @@ namespace Store {
 				Idx new_idx = _emplace( kind , true/*used*/ , idx , 0/*start*/ , chunk_sz ) ;
 				_mv<true,false,true,true>( idx , new_idx ) ;                                  // root cannot be here as with empty chunk it would be caught by previous case
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				_compress_before<true,false,false>(idx) ; // idx & prev already backed up
 				_commit() ;
 				return new_idx ;
 			}

@@ -399,17 +399,17 @@ namespace Engine {
 			FileInfo fi{tn} ;
 			analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , tn ) ;
 		} ;
-		::uset<VarIdx> seen_static_targets ;
+		::uset<Node> seen_static_targets ;
 
 		for( UNode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
 
 		::vector<Target> star_targets ; if (rule->has_stars) star_targets.reserve(digest.targets.size()) ; // typically, there is either no star targets or most of them are stars
 		for( auto const& [tn,td] : digest.targets ) {
-			TFlags flags  = td.tgt_idx!=Rule::NoVar ? rule->flags(td.tgt_idx) : UnexpectedTFlags ;
-			UNode  target { tn }                                                                 ;
-			Crc    crc    = td.write ? td.crc : target->crc                                      ;
+			TFlags flags  = td.tfs                          ;
+			UNode  target { tn }                            ;
+			Crc    crc    = td.write ? td.crc : target->crc ;
 			//
-			if ( !flags[TFlag::ManualOk] && td.write && target->is_src() ) {
+			if ( !flags[TFlag::SourceOk] && td.write && target->is_src() ) {
 				err = true ;
 				if (td.crc==Crc::None) analysis_err.emplace_back("unexpected unlink of source",target) ;
 				else                   analysis_err.emplace_back("unexpected write to source" ,target) ;
@@ -444,10 +444,10 @@ namespace Engine {
 			}
 			//
 			if (flags[TFlag::Star]) star_targets.emplace_back( target , flags[TFlag::Incremental] ) ;
-			else                    seen_static_targets.insert(td.tgt_idx)                          ;
+			else                    seen_static_targets.insert(target)                              ;
 			//
-			bool modified = false ;
-			FileInfoDate fid{tn} ;
+			bool         modified = false ;
+			FileInfoDate fid      { tn }  ;
 			if (!td.write) {
 				if ( flags[TFlag::ManualOk] && flags[TFlag::Incremental] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
 				else                                                                                     goto NoRefresh ;
@@ -466,16 +466,17 @@ namespace Engine {
 			Rule::Match       match_         = simple_match()          ;       // match_ must stay alive as long as we use static_targets
 			::vector_view_c_s static_targets = match_.static_targets() ;
 			for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
-				if (seen_static_targets.contains(t)) continue ;
+				::string const&  tn = static_targets[t] ;
+				UNode            tu { tn }              ;
+				if (seen_static_targets.contains(tu)) continue ;
 				TFlags flags = rule->flags(t) ;
-				UNode  tu    { static_targets[t] }   ;
 				tu->actual_job_tgt = { *this , true/*is_sure*/ } ;
 				//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				if (!flags[TFlag::Incremental]) tu.refresh( false/*is_lnk*/ , Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
 				//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (!flags[TFlag::Phony]) {
 					err = true ;
-					if (status==Status::Ok) report_missing_target(static_targets[t]) ; // only report if job was ok, else it is quite normal
+					if (status==Status::Ok) report_missing_target(tn) ;        // only report if job was ok, else it is quite normal
 				}
 			}
 		}
@@ -551,6 +552,7 @@ namespace Engine {
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = req_info(req) ;
 			trace("req_before",local_reason,status,ri) ;
+			req->missing_audits.erase(*this) ;                                 // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason reason = make( ri , RunAction::Status , local_reason , MakeAction::End , &old_exec_time , false/*wakeup_watchers*/ ) ;
@@ -850,7 +852,6 @@ namespace Engine {
 			//
 			if (ri.action          !=RunAction::Run     ) break ;              // we are done with the analysis and we do not need to run : we're done
 			if ((*this)->run_status!=RunStatus::Complete) break ;              // we cant run the job, error is set and we're done
-			req->missing_audits.erase(*this) ;                                 // old missing audit is obsolete as soon as we re-submit the job
 			//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			bool maybe_new_deps = submit(ri,reason,dep_pressure) ;
 			//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -947,7 +948,7 @@ namespace Engine {
 		//
 		switch ((*this)->rule.special()) {
 			case Special::Plain : {
-				SWEAR((*this)->frozen()) ;                                     // only case where we are here without being special
+				SWEAR((*this)->frozen()) ;                                     // only case where we are here without special rule
 				Rule::SimpleMatch match_         = simple_match()          ;   // match_ lifetime must be at least as long as static_targets lifetime
 				::vector_view_c_s static_targets = match_.static_targets() ;
 				SpecialStep       special_step   = SpecialStep::Idle       ;
@@ -1002,7 +1003,7 @@ namespace Engine {
 		using Lvl = ReqInfo::Lvl ;
 		Req  req  = ri.req        ;
 		Rule rule = (*this)->rule ;
-		Trace trace("submit_plain",*this,ri,STR((*this)->rule.is_special()),reason,pressure) ;
+		Trace trace("submit_plain",*this,ri,reason,pressure) ;
 		SWEAR(!ri.waiting()) ;
 		for( Req r : running_reqs() ) if (r!=req) {
 			ri.n_wait++ ;

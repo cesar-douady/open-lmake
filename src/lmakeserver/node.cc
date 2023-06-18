@@ -45,7 +45,7 @@ namespace Engine {
 		UNode   un        { *this }           ;
 		Bool3   buildable = Yes               ;
 		if ( !jts.empty() && jts.back()->rule.is_special() ) SWEAR(jts.back()->rule.special()==special) ;
-		else                                                 un->job_tgts.append(::vector<JobTgt>({Job(special,*this,deps)})) ;
+		else                                                 un->job_tgts.append(::vector<JobTgt>({{Job(special,*this,deps),true/*is_sure*/}})) ;
 		for( Dep const& d : (*this)->job_tgts.back()->static_deps() )
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
 			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
@@ -399,7 +399,7 @@ namespace Engine {
 	}
 
 	bool/*modified*/ UNode::refresh( bool is_lnk , Crc crc , DiskDate date ) {
-		if (is_lnk) SWEAR( +crc && crc!=Crc::None ) ;
+		if (is_lnk) SWEAR(crc!=Crc::None) ;                                    // cannot be a link without existing
 		bool steady = (*this)->crc.match(crc) ;
 		Trace trace("refresh",*this,STR(steady),STR((*this)->is_lnk),"->",STR(is_lnk),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
 		if (steady) {                               SWEAR((*this)->is_lnk==is_lnk) ; (*this)->date = date ;                                } // regulars and links cannot have the same crc

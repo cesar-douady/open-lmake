@@ -66,14 +66,18 @@ struct AutodepEnv {
 struct GatherDeps {
 	friend ::ostream& operator<<( ::ostream& os , GatherDeps const& ad ) ;
 	using Proc = JobExecRpcProc    ;
+	using DO   = DepOrder          ;
 	using DD   = Time::DiskDate    ;
 	using PD   = Time::ProcessDate ;
 	using FI   = Disk::FileInfo    ;
 	using DFs  = DFlags            ;
+	using TFs  = TFlags            ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		DFs      dep_flags   ;
+		DFs      dfs         ;
+		TFs      neg_tfs     ;
+		TFs      pos_tfs     ;
 		Bool3    write       = No ;    // if No => file was not written, if Maybe => file was unlinked, if Yes => file was written
 		DepOrder dep_order   ;         // if read and not written
 		PD       access_date ;         // first access date
@@ -89,11 +93,11 @@ struct GatherDeps {
 private :
 	::pair<AccessInfo&,bool/*created*/> _info(::string const& name) ;
 	//
-	void _new_target( PD , ::string const& target ,      bool unlink ,       ::string const& comment={} ) ;
-	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs , ::string const& comment={} ) ;
+	void _new_target( PD , ::string const& target ,      bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment={} ) ;
+	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs                       , ::string const& comment={} ) ;
 	//
-	void _new_targets( PD d , ::vector_s const& targets , bool unlink , ::string const& comment={} ) {
-		for( auto const& f : targets ) _new_target(d,f,unlink,comment) ;
+	void _new_targets( PD d , ::vector_s const& targets , bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment={} ) {
+		for( auto const& f : targets ) _new_target(d,f,unlink,neg_tfs,pos_tfs,comment) ;
 	}
 	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DFs dfs , ::string const& comment={} ) {
 		if (deps.empty()) return ;                                                                            // do not update nxt_order if deps is empty
@@ -101,12 +105,12 @@ private :
 		_nxt_order = DepOrder::Seq ;
 	}
 public :
-	void new_target( PD pd , ::string const& tgt ,            ::string const& c="target" ) { _new_target(pd,tgt                     ,false/*unlink*/,    c) ;                              }
-	void new_dep   ( PD pd , ::string const& dep , DFs  dfs , ::string const& c="dep"    ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs,c) ; _nxt_order = DepOrder::Seq ; }
+	void new_target( PD pd , ::string const& tgt , TFs ntfs , TFs ptfs , ::string const& c="target" ) { _new_target(pd,tgt                     ,false/*unlink*/,ntfs,ptfs,c) ;                        }
+	void new_dep   ( PD pd , ::string const& dep , DFs dfs             , ::string const& c="dep"    ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs      ,c) ; _nxt_order = DO::Seq ; }
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
 		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
-			DD     d  = Disk::file_date(file) ;                                          // get file date while we have file, before moving it with _new_dep
+			DD     d  = Disk::file_date(file) ;                                              // get file date while we have file, before moving it with _new_dep
 			DFlags fs ;
 			if (a.as_lnk) fs |= DFlag::Lnk ;
 			if (a.as_reg) fs |= DFlag::Reg ;

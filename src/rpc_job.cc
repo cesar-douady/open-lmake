@@ -18,10 +18,11 @@
 }
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
-	os << "TargetDigest(" << int(td.tgt_idx) ;
-	if (+td.dfs ) os <<','<<td.dfs ;
-	if (td.write) os << ",write"   ;
-	if (+td.crc ) os <<','<< td.crc ;
+	os << "TargetDigest(" ;
+	if (+td.dfs ) os      <<td.dfs <<',' ;
+	/**/          os      <<td.tfs       ;
+	if (td.write) os << ",write"         ;
+	if (+td.crc ) os <<','<< td.crc      ;
 	return os <<')' ;
 }
 

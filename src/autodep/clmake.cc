@@ -68,9 +68,9 @@ static ::vector_s _get_files( PyObject* args ) {
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
-	bool    verbose    = false                    ;
-	DFlags  flags      = StaticDFlags             ;
+	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool    verbose   = false                    ;
+	DFlags  flags     = StaticDFlags             ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose") ) {
 			n_kw_args-- ;
@@ -113,20 +113,30 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
-	bool    unlink     = false                    ;
+	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool    unlink    = false                    ;
+	TFlags  neg_flags ;
+	TFlags  pos_flags ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink") ) {
 			n_kw_args-- ;
 			unlink = PyObject_IsTrue(py_v) ;
+		}
+		for( TFlag tf : TFlag::N) {
+			if (tf>=TFlag::RuleOnly) break ;
+			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
+				n_kw_args-- ;
+				if (PyObject_IsTrue(py_v)) pos_flags |= tf ;
+				else                       neg_flags |= tf ;
+			}
 		}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq  jerr   = JobExecRpcReq( unlink?Proc::Unlinks:Proc::Targets , files , false/*sync*/ ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                     ;
+	JobExecRpcReq  jerr   = JobExecRpcReq( unlink?Proc::Unlinks:Proc::Targets , files , neg_flags , pos_flags , false/*sync*/ ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                          ;
 	//
 	Py_RETURN_NONE ;
 }

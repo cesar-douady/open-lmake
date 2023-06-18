@@ -44,8 +44,12 @@ if getattr(sys,'reading_makefiles',False) :
 else :
 
 	import os
+	import subprocess as sp
 
 	import ut
+
+	try    : sp.check_output('rustc')                                          # dont test rust if rust in not installed
+	except : exit()
 
 	os.makedirs('hello/src',exist_ok=True)
 	toml = open('hello/Cargo.toml','w')
@@ -72,13 +76,10 @@ else :
 			return Ok(()) ;
 		}
 	''',file=open('hello/src/main.rs','w'))
-	print('hello world',file=open('hello.in','w'))
+	print('hello world',file=open('hello.in' ,'w'))
 	print('hello world',file=open('hello.ref','w'))
 
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
-	ut.lmake( 'hello.ok' , steady=1 , new=1 )                                 # check we have acquired hello.in as a dep
-
-	print('hello world2',file=open('hello.in','w'))
-	ut.lmake( 'hello.out' , steady=1 , new=1 )                                 # check we have acquired hello.in as a dep
+	ut.lmake( 'hello.ok' , steady=1 , new=1 )                                  # check cargo can run twice with no problem

@@ -688,7 +688,7 @@ The commands listed hereafter are meant to be executed from within a job, not as
 
 @section @code{ldepend}
 
-Usage : @code{ldepend files ...}
+Usage : @code{ldepend [--no-error|-e] [--no-required|-r] [--no-essential|-s] [--verbose|-v] files ...}
 
 @code{ldepend} may be used to inform @lmake that some files must be deemed as read as if you called the @code{open} system call on each of them.
 To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faste since @code{files} are not really accessed).
@@ -706,17 +706,13 @@ If you do @code{ldepend a b} and @file{a} is modified and @file{b} is in error, 
 
 Also, if for some reasons you run with autodep method @code{none}, this is the way to report dependencies.
 
-@section @code{ldep_crcs}
-
-Usage : @code{ldep_crcs files ...}
-
-@code{ldep_crcs} generates on its output a line for each file mentioned in @code{files} containing its checksum (much like @code{xxhsum}).
-However, nothing is computed, rather, an access to @lmake is done as @lmake already compute checksums on all files it manages.
-
-@code{ldep_crcs} generates parallel dependencies, like @code{ldepend}, so that @lmake will have already computed the checksum when the job is successfully run.
-
-@code{ldep_crcs} is faster than @code{xxhsum} as no checksum is actually computed (@lmake will compute them anyway and the job would be done twice if you actually call @code{xxxhsum})
-but it slower than @code{ldepend} as it must wait the answer of @lmake.
+The following options are supported :
+@itemize @bullet
+@item @code{-e}|@code{--no-error}    : ignore the error status of the passed dependencies.
+@item @code{-r}|@code{--no-required} : if passed dependencies are not buildable, this does not prevent this job from being run (as it is for dependencies automatically generated after accesses).
+@item @code{-s}|@code{--no-esential} : passed dependencies will not appear in the flow shown with a graphical tool.
+@item @code{-v}|@code{--verbose}     : write lines composed of the crc and the name separated by a space for each required dependency.
+@end itemize
 
 @section @code{lcheck_deps}
 
@@ -811,17 +807,33 @@ And the succession of job would be :
 
 @section @code{ltarget}
 
-Usage : @code{ltarget files ...}
+Usage : @code{ltarget [-<short-option>|<--<long-option>]... files ...}
 
 @code{ltarget} may be used to inform @lmake that some files must be deemed as written as if you called the @code{open} system call on each of them.
 If for some reasons you run with autodep method @code{none}, this is the way to report targets.
 
-@section @code{lunlink}
+It is possible to alter the target flags for these targets which, by default, have the flags mentioned in the rule.
 
-Usage : @code{lunlink files ...}
-
-@code{lunlink} may be used to inform @lmake that some files must be deemed as unlinked as if you called the @code{unlink} system call on each of them.
-If for some reasons you run with autodep method @code{none}, this is the way to report unlinked files.
+The following options are supported :
+@itemize @bullet
+@item @code{-u} or @code{--unlink}       : report an unlink rather than writing
+@item @code{-c} or @code{--crc}          : generate a crc for this target (compulsery if Match)
+@item @code{-d} or @code{--dep}          : reads not followed by writes trigger dependencies
+@item @code{-e} or @code{--essential}    : show when generating user oriented graphs
+@item @code{-m} or @code{--manual-ok}    : ok to overwrite manual files
+@item @code{-p} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
+@item @code{-s} or @code{--source-ok}    : ok to overwrite source files
+@item @code{-t} or @code{--stat}         : inode accesses (stat-like) are not ignored
+@item @code{-w} or @code{--write}        : writes are allowed (possibly followed by reads which are ignored)
+@item @code{-C} or @code{--no-crc}       : do not generate a crc for this target (compulsery if Match)
+@item @code{-D} or @code{--no-dep}       : reads not followed by writes do not trigger dependencies
+@item @code{-E} or @code{--no-essential} : do not show when generating user oriented graphs
+@item @code{-M} or @code{--no-manual-ok} : not ok to overwrite manual files
+@item @code{-P} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
+@item @code{-S} or @code{--no-source-ok} : not ok to overwrite source files
+@item @code{-T} or @code{--no-stat}      : inode accesses (stat-like) are ignored
+@item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
+@end itemize
 
 
 @chapter The Python @lmake module
@@ -947,14 +959,11 @@ The correspondance is :
 @code{lcheck_deps}
 @item @code{def critical_barrier()}
 @code{lcritical_barrier}
-@item @code{def dep_crcs(file,...)} or @code{def dep_crcs(files)}
-@code{ldep_crcs}
-@item @code{def depend(file,...)} or @code{def depend(files)}
+@item @code{def depend(*files,error=True,required=True,essential=True)} or @code{def depend(files,error=True,required=True,essential=True)}
 @code{ldepend}
-@item @code{def target(file,...)} or @code{def target(files)}
-@code{ltarget}
-@item @code{def unlink(file,...)} or @code{def unlink(files)}
-@code{lunlink}
+@item @code{def target(*files,unlink=False,crc,dep,essential,manul_ok,phony,source_ok,stat,write)} or @code{def target(files,unlink=False,crc,dep,essential,manul_ok,phony,source_ok,stat,write)}
+@code{ltarget}.
+When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
 @end table
 
 @chapter Directories

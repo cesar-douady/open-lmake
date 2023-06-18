@@ -81,9 +81,9 @@ private :
 		_report_deps( proc , ::move(fds) , dfs , c ) ;
 	}
 	//
-	void _report_target ( Proc proc , ::string   const& f  , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       f ,c) ) ; }
-	void _report_target ( Proc proc , ::string       && f  , ::string const& c={} ) const { _report( JobExecRpcReq(proc,::move(f),c) ) ; }
-	void _report_targets( Proc proc , ::vector_s const& fs , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       fs,c) ) ; }
+	void _report_target ( Proc proc , ::string   const& f  , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       f ,TFlags(),TFlags(),c) ) ; }
+	void _report_target ( Proc proc , ::string       && f  , ::string const& c={} ) const { _report( JobExecRpcReq(proc,::move(f),TFlags(),TFlags(),c) ) ; }
+	void _report_targets( Proc proc , ::vector_s const& fs , ::string const& c={} ) const { _report( JobExecRpcReq(proc,       fs,TFlags(),TFlags(),c) ) ; }
 	//
 	//
 	::pair_s<bool/*in_tmp*/> _solve( int at , const char* file  , bool no_follow , ::string const& comment={} ) ;

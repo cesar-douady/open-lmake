@@ -27,7 +27,7 @@ if getattr(sys,'reading_makefiles',False) :
 	class RunRust(lmake.RustRule) :
 		targets = { 'OUT' : '{File:.*}.out' }
 		deps    = { 'EXE' : '{File}'        }
-		cmd     = './$EXE'
+		cmd     = './$EXE $File.in $OUT'
 
 	class Cmp(lmake.Rule) :
 		target = '{File:.*}.ok'
@@ -35,31 +35,40 @@ if getattr(sys,'reading_makefiles',False) :
 			'OUT' : '{File}.out'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff $REF $OUT'
+		cmd = 'diff $REF $OUT>&2'
 
 else :
 
+	import subprocess as sp
+
 	import ut
 
+	try    : sp.check_output('rustc')                                          # dont test rust if rust in not installed
+	except : exit()
+
 	print('''
+
+		use std::env            ;
 		use std::fs::File       ;
 		use std::io::prelude::* ;
 
 		fn main() -> std::io::Result<()> {
-			let mut file     = File::open("hello.in")? ;
-			let mut contents = String::new()           ;
-			file.read_to_string(&mut contents)?        ;
+			let     args     : Vec<_> = env::args().collect() ;
+			let mut file              = File::open(&args[1])? ;
+			let mut contents          = String::new()         ;
+			file.read_to_string(&mut contents)? ;
 
-			let mut file = File::create("hello.out")? ;
-			file.write_all(b"hello world\n")?         ;
+			let mut file = File::create(&args[2])? ;
+			file.write(contents.as_bytes())? ;
 
 			return Ok(()) ;
 		}
 	''',file=open('hello.rs','w'))
-	print('hello world',file=open('hello.in','w'))
+	print('hello world',file=open('hello.in' ,'w'))
 	print('hello world',file=open('hello.ref','w'))
 
 	ut.lmake( 'hello.ok' , done=3 , new=3 )
 
-	print('hello world2',file=open('hello.in','w'))
-	ut.lmake( 'hello.out' , steady=1 , new=1 )                                 # check we have acquired hello.in as a dep
+	print('hello world2',file=open('hello.in' ,'w'))
+	print('hello world2',file=open('hello.ref','w'))
+	ut.lmake( 'hello.ok' , done=1 , steady=1 , new=2 )                         # check we have acquired hello.in as a dep

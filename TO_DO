@@ -7,8 +7,7 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* rust code seems to manage to do file accesses without ld_audit catching them.
-	- ld_preload works, though
+* replace swear src/store/prefix.hh:1456 by a warning+optional repair
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
@@ -45,6 +44,9 @@
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add flags as argument to target/ltarget
+	- apply on top of rule provided flags
+	- report flags rather than idx from job_exec to server
 * lshow must show dep & target flags
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * implement star optional :

@@ -201,9 +201,10 @@ namespace Engine {
 		::vector_view  <Dep> static_deps  ()       { return deps.view().subvec(0,n_static_deps())                ; }
 		::vector_view_c<Dep> static_deps  () const { return deps.view().subvec(0,n_static_deps())                ; }
 		//
-		bool cmd_ok () const { return exec_gen >=                     rule->cmd_gen                  ; }
-		bool exec_ok() const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
-		bool frozen () const { return s_frozen(status)                                               ; }
+		bool cmd_ok    () const { return exec_gen >=                     rule->cmd_gen                  ; }
+		bool exec_ok   () const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
+		bool frozen    () const { return s_frozen(status)                                               ; }
+		bool is_special() const { return rule.is_special() || frozen()                                  ; }
 		//
 		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
 		//
@@ -350,8 +351,8 @@ namespace Engine {
 	}
 
 	inline bool/*maybe_new_deps*/ Job::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		if ( (*this)->rule.is_special()|| (*this)->frozen()) return _submit_special(ri.req            ) ;
-		else                                                 return _submit_plain  (ri,reason,pressure) ;
+		if ((*this)->is_special()) return _submit_special(ri.req            ) ;
+		else                       return _submit_plain  (ri,reason,pressure) ;
 	}
 
 	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time ) const {
