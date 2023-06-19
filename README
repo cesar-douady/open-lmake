@@ -289,7 +289,12 @@
 		- and git add it
 	- use src/lmakeserver/backends/local.cc as a template
 	- run 'git grep PER_BACKEND' to see all parts that must be modified
-		- do whatever admin is decribed there, such as adding an enumerated value, an init of something...
+
+* to add a cache :
+	- make files src/lmakeserver/caches/<your_cache>.hh & .cc
+		- and git add them
+	- use src/lmakeserver/caches/dir_cache.hh & .cc as a template
+	- run 'git grep PER_CACHE' to see all parts that must be modified
 
 * to add a command handled by the server :
 	- make a file src/<your command>.cc

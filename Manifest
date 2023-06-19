@@ -56,6 +56,10 @@ src/lmake.cc
 src/lmakeserver/backend.cc
 src/lmakeserver/backend.x.hh
 src/lmakeserver/backends/local.cc
+src/lmakeserver/cache.cc
+src/lmakeserver/cache.x.hh
+src/lmakeserver/caches/dir_cache.cc
+src/lmakeserver/caches/dir_cache.hh
 src/lmakeserver/cmd.cc
 src/lmakeserver/cmd.x.hh
 src/lmakeserver/core.hh
@@ -107,10 +111,12 @@ unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
 unit_tests/base/src1
 unit_tests/base/src2
+unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/depend.py
 unit_tests/hello_world.py
+unit_tests/hide.py
 unit_tests/numpy.py
 unit_tests/py_rule.py
 unit_tests/rust.py

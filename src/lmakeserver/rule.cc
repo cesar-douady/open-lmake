@@ -513,6 +513,12 @@ namespace Engine {
 				default : throw to_string("unexpected value : ",autodep_method) ;
 			}
 			//
+			field = "cache" ;
+			if (dct.hasKey(field)) {
+				cache_key = Py::String(dct[field]) ;
+				if (!Cache::s_tab.contains(cache_key)) throw to_string("unexpected value ",cache_key," not found in config") ;
+			}
+			//
 			field = "timeout" ;
 			if (dct.hasKey(field)) {
 				timeout = Delay(Py::Float (dct[field])) ;
@@ -691,6 +697,10 @@ namespace Engine {
 			_mk_deps( "deps"      , deps  , false/*need_code*/ ) ;
 			_mk_deps( "resources" , rsrcs , job_tokens.is_code ) ;             // rsrcs context is used by tokens
 			_compile_dep_code("job_tokens",job_tokens) ;
+			// crcs
+			_set_crcs() ;
+			// cache
+			if (!cache_key.empty()) cache = Cache::s_tab.at(cache_key) ;
 		}
 		catch(::string const& e) { throw to_string("while processing ",user_name()," :\n"  ,indent(e)     ) ; }
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name()," :\n\t",e.errorValue()) ; }
@@ -891,35 +901,38 @@ namespace Engine {
 		if (anti) res << "\tAntiRule\n" ;
 		for( pass=1 ; pass<=2 ; pass++ ) {                                     // on 1st pass we compute key size, on 2nd pass we do the job
 			//
-			/**/                        do_field( "prio"              , ' '  ,  to_string       (        prio              )              ) ;
-			if (!stems.empty()        ) do_field( "stems"             , '\n' ,  _pretty_stems   (      2,stems             )              ) ;
-			/**/                        do_field( "job_name"          , ' '  ,  _pretty_job_name(*this                     )              ) ;
-			/**/                        do_field( "targets"           , '\n' ,  _pretty_targets (*this,2,targets           )              ) ;
+			/**/                        do_field( "prio"              , ' '  ,  to_string       (        prio              )            ) ;
+			if (!stems        .empty()) do_field( "stems"             , '\n' ,  _pretty_stems   (      2,stems             )            ) ;
+			/**/                        do_field( "job_name"          , ' '  ,  _pretty_job_name(*this                     )            ) ;
+			/**/                        do_field( "targets"           , '\n' ,  _pretty_targets (*this,2,targets           )            ) ;
 			if (anti) continue ;
-			if (!deps.prelude.empty() ) do_field( "deps_prelude"      , '\n' ,  _pretty_txt     (      2,deps.prelude      )              ) ;
-			if (!deps.ctx    .empty() ) do_field( "deps_context"      , ' '  ,  _pretty_ctx     (*this,  deps.ctx          )              ) ;
-			if (!deps.dct    .empty() ) do_field( "deps"              , '\n' ,  _pretty_deps    (*this,2,deps.dct          )              ) ;
-			if (force                 ) do_field( "force"             , ' '  ,                           "True"                           ) ;
-			/**/                        do_field( "backend"           , ' '  ,  mk_snake        (        backend           )              ) ;
-			if (!chroot      .empty() ) do_field( "chroot"            , ' '  ,                           chroot                           ) ;
-			if (!cwd         .empty() ) do_field( "cwd"               , ' '  ,                           cwd                              ) ;
-			if (!rsrcs.prelude.empty()) do_field( "resources_prelude" , '\n' ,  _pretty_txt     (      2,rsrcs.prelude     )              ) ;
-			if (!rsrcs.ctx    .empty()) do_field( "resources_context" , ' '  ,  _pretty_ctx     (*this,  rsrcs.ctx         )              ) ;
-			if (!rsrcs.dct    .empty()) do_field( "resources"         , '\n' ,  _pretty_deps    (*this,2,rsrcs.dct         )              ) ;
-			if (!env         .empty() ) do_field( "environ"           , '\n' ,  _pretty_env     (      2,env               )              ) ;
-			if (auto_mkdir            ) do_field( "auto_mkdir"        , ' '  ,                           "True"                           ) ;
-			/**/                        do_field( "autodep"           , ' '  ,  mk_snake        (        autodep_method    )              ) ;
-			if (keep_tmp              ) do_field( "keep_tmp"          , ' '  ,                           "True"                           ) ;
-			if (ignore_stat           ) do_field( "ignore_stat"       , ' '  ,                           "True"                           ) ;
-			if (+start_delay          ) do_field( "start_delay"       , ' '  ,                           start_delay.short_str()          ) ;
-			if (!cmd_ctx     .empty() ) do_field( "cmd_context"       , ' '  ,  _pretty_ctx     (*this,  cmd_ctx           )              ) ;
-			/**/                        do_field( "cmd"               , '\n' ,  _pretty_cmd     (      2,interpreter,script)              ) ;
-			/**/                        do_field( "kill_sigs"         , ' '  ,  _pretty_sigs    (        kill_sigs         )              ) ;
-			if (allow_stderr          ) do_field( "allow_stderr"      , ' '  ,                           "True"                           ) ;
-			/**/                        do_field( "stderr_len"        , ' '  ,  stderr_len==size_t(-1)?"unlimited"s:to_string(stderr_len) ) ;
-			if (+timeout              ) do_field( "timeout"           , ' '  ,                           timeout.short_str()              ) ;
-			/**/                        do_field( "job_tokens"        , ' '  ,                           job_tokens.pattern               ) ;
-			/**/                        do_field( "n_tokens"          , ' '  ,  to_string       (        n_tokens          )              ) ;
+			// essential attributes in chronological order
+			if (!deps.prelude .empty()) do_field( "deps_prelude"      , '\n' ,  _pretty_txt     (      2,deps.prelude      )            ) ;
+			if (!deps.ctx     .empty()) do_field( "deps_context"      , ' '  ,  _pretty_ctx     (*this,  deps.ctx          )            ) ;
+			if (!deps.dct     .empty()) do_field( "deps"              , '\n' ,  _pretty_deps    (*this,2,deps.dct          )            ) ;
+			/**/                        do_field( "backend"           , ' '  ,  mk_snake        (        backend           )            ) ;
+			if (!rsrcs.prelude.empty()) do_field( "resources_prelude" , '\n' ,  _pretty_txt     (      2,rsrcs.prelude     )            ) ;
+			if (!rsrcs.ctx    .empty()) do_field( "resources_context" , ' '  ,  _pretty_ctx     (*this,  rsrcs.ctx         )            ) ;
+			if (!rsrcs.dct    .empty()) do_field( "resources"         , '\n' ,  _pretty_deps    (*this,2,rsrcs.dct         )            ) ;
+			if (!env          .empty()) do_field( "environ"           , '\n' ,  _pretty_env     (      2,env               )            ) ;
+			if (!cmd_ctx      .empty()) do_field( "cmd_context"       , ' '  ,  _pretty_ctx     (*this,  cmd_ctx           )            ) ;
+			/**/                        do_field( "cmd"               , '\n' ,  _pretty_cmd     (      2,interpreter,script)            ) ;
+			if (!cache_key    .empty()) do_field( "cache"             , ' '  ,                           cache_key                      ) ;
+			// other attributes in alphabetical order
+			if (allow_stderr          ) do_field( "allow_stderr"      , ' '  ,                           "True"                         ) ;
+			if (auto_mkdir            ) do_field( "auto_mkdir"        , ' '  ,                           "True"                         ) ;
+			/**/                        do_field( "autodep"           , ' '  ,  mk_snake        (        autodep_method    )            ) ;
+			if (!chroot       .empty()) do_field( "chroot"            , ' '  ,                           chroot                         ) ;
+			if (!cwd          .empty()) do_field( "cwd"               , ' '  ,                           cwd                            ) ;
+			if (force                 ) do_field( "force"             , ' '  ,                           "True"                         ) ;
+			if (ignore_stat           ) do_field( "ignore_stat"       , ' '  ,                           "True"                         ) ;
+			/**/                        do_field( "job_tokens"        , ' '  ,                           job_tokens.pattern             ) ;
+			if (keep_tmp              ) do_field( "keep_tmp"          , ' '  ,                           "True"                         ) ;
+			/**/                        do_field( "kill_sigs"         , ' '  ,  _pretty_sigs    (        kill_sigs         )            ) ;
+			/**/                        do_field( "n_tokens"          , ' '  ,  to_string       (        n_tokens          )            ) ;
+			if (+start_delay          ) do_field( "start_delay"       , ' '  ,                           start_delay       .short_str() ) ;
+			if (stderr_len!=size_t(-1)) do_field( "stderr_len"        , ' '  ,  to_string       (        stderr_len        )            ) ;
+			if (+timeout              ) do_field( "timeout"           , ' '  ,                           timeout           .short_str() ) ;
 		}
 		//
 		return res.str() ;
@@ -930,55 +943,58 @@ namespace Engine {
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a
 	// although awkward & useless (as both rules could be merged), this can be meaningful
 	// if the need arises, we will add an "id" artificial field entering in match_crc to distinguish them
-	Crc RuleData::match_crc() const {
-		::vector<TargetSpec> targets_ ;
-		static constexpr TFlags MatchFlags{ TFlag::Star , TFlag::Match , TFlag::Dep } ;
-		for( auto const& [k,t] : targets ) {
-			if (!t.flags[TFlag::Match]) continue ;                             // no influence on matching if not matching, only on execution
-			TargetSpec t_ = t ;
-			t_.flags &= MatchFlags ;                                           // only these flags are important for matching, others are for execution only
-			targets_.push_back(t_) ;                                           // keys have no influence on matching, only on execution
+	void RuleData::_set_crcs() {
+		{	::vector<TargetSpec> targets_ ;
+			static constexpr TFlags MatchFlags{ TFlag::Star , TFlag::Match , TFlag::Dep } ;
+			for( auto const& [k,t] : targets ) {
+				if (!t.flags[TFlag::Match]) continue ;                         // no influence on matching if not matching, only on execution
+				TargetSpec t_ = t ;
+				t_.flags &= MatchFlags ;                                       // only these flags are important for matching, others are for execution only
+				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
+			}
+			::vector<DepSpec> deps_ ;
+			for( auto const& [k,d] : deps.dct ) {
+				DepSpec d_ = d ;
+				d_.code = nullptr ;
+				deps_.push_back(d_) ;                                          // keys have no influence on matching, only on execution
+			}
+			Hash::Xxh h ;
+			/**/       h.update(anti    ) ;
+			if (!anti) h.update(deps_   ) ;
+			if (!anti) h.update(name    ) ;                                    // name has no effect for anti as it is only used to store jobs and there is no anti-jobs
+			/**/       h.update(stems   ) ;
+			/**/       h.update(targets_) ;
+			match_crc = h.digest() ;
 		}
-		::vector<DepSpec> deps_ ;
-		for( auto const& [k,d] : deps.dct ) {
-			DepSpec d_ = d ;
-			d_.code = nullptr ;
-			deps_.push_back(d_) ;                                              // keys have no influence on matching, only on execution
+		if (anti) return ;                                                     // anti-rules are only capable of matching
+		{	::vmap_ss env_ ;
+			for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Cmd) env_.emplace_back(k,ef.val) ; // env variables marked as Cmd have an influence on cmd
+			Hash::Xxh h ;                                                                            // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
+			h.update(auto_mkdir ) ;
+			h.update(chroot     ) ;
+			h.update(cmd_ctx    ) ;
+			h.update(cwd        ) ;
+			h.update(deps       ) ;                                            // info was only partially captured by match_crc
+			h.update(env_       ) ;
+			h.update(ignore_stat) ;
+			h.update(interpreter) ;
+			h.update(is_python  ) ;
+			h.update(name       ) ;
+			h.update(script     ) ;
+			h.update(stems      ) ;
+			h.update(targets    ) ;                                            // .
+			cmd_crc = h.digest() ;
 		}
-		Hash::Xxh h ;
-		/**/       h.update(anti   ) ;
-		if (!anti) h.update(deps_  ) ;
-		/**/       h.update(stems  ) ;
-		/**/       h.update(targets) ;
-		return h.digest() ;
-	}
-	Crc RuleData::cmd_crc() const {                                            // distinguish execution result within a given match_crc
-		::vmap_ss env_ ;
-		for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Cmd) env_.emplace_back(k,ef.val) ; // env variables marked as Cmd have an influence on cmd
-		Hash::Xxh h ;
-		h.update(auto_mkdir  ) ;
-		h.update(chroot      ) ;
-		h.update(cmd_ctx     ) ;
-		h.update(cwd         ) ;
-		h.update(deps        ) ;                                               // info was only partially captured by match_crc
-		h.update(env_        ) ;
-		h.update(ignore_stat ) ;
-		h.update(interpreter ) ;
-		h.update(is_python   ) ;
-		h.update(script      ) ;
-		h.update(targets     ) ;                                               // .
-		return h.digest() ;
-	}
-	Crc RuleData::rsrcs_crc() const {                                          // distinguish if errors are recoverable within a given match_crc & cmd_crc
-		::vmap_ss env_ ;
-		for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Rsrc) env_.emplace_back(k,ef.val) ; // env variables marked as Rsrc have an influence on resources
-		Hash::Xxh h ;
-		h.update(allow_stderr) ;                                               // this only changes errors, not result, so it behaves like a resource
-		h.update(backend     ) ;
-		h.update(env_        ) ;
-		h.update(rsrcs       ) ;
-		h.update(targets     ) ;                                               // all is not necessary, but simpler to code
-		return h.digest() ;
+		{	::vmap_ss env_ ;
+			for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Rsrc) env_.emplace_back(k,ef.val) ; // env variables marked as Rsrc have an influence on resources
+			Hash::Xxh h ;
+			h.update(allow_stderr) ;                                           // this only changes errors, not result, so it behaves like a resource
+			h.update(backend     ) ;
+			h.update(env_        ) ;
+			h.update(rsrcs       ) ;
+			h.update(targets     ) ;                                           // all is not necessary, but simpler to code
+			rsrcs_crc = h.digest() ;
+		}
 	}
 
 	//
@@ -992,10 +1008,8 @@ namespace Engine {
 		//
 		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
-			FileNameIdx pos = 0 ;
-			FileNameIdx sz  = 0 ;
-			pos = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
-			sz  = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx pos = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx sz  = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			stems.push_back(name_.substr(pos,sz)) ;
 		}
 	}

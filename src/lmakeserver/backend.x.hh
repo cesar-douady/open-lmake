@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "pycxx.hh"
+//#include "pycxx.hh"
 
 #ifdef STRUCT_DECL
 namespace Backends {
@@ -12,7 +12,7 @@ namespace Backends {
 
 	using namespace Engine ;
 
-	using Tag = ServerConfigTag ;
+	using Tag = BackendTag ;
 
 }
 using Backends::Backend ;
@@ -67,15 +67,15 @@ namespace Backends {
 		} ;
 
 		// statics
-		static void s_config(ServerConfig::Backend const config[]) ;
+		static void s_config(Config::Backend const config[]) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void s_open_req    (                    ReqIdx                                                     ) ;
-		static void s_close_req   (                    ReqIdx                                                     ) ;
-		static void s_submit      ( Tag t , JobIdx j , ReqIdx r , CoarseDelay p , ::vmap_ss const& rs , JobReason ) ;
-		static void s_add_pressure( Tag t , JobIdx j , ReqIdx r , CoarseDelay p                                   ) ;
-		static void s_set_pressure( Tag t , JobIdx j , ReqIdx r , CoarseDelay p                                   ) ;
+		static void s_open_req    (                ReqIdx                                                   ) ;
+		static void s_close_req   (                ReqIdx                                                   ) ;
+		static void s_submit      ( Tag , JobIdx , ReqIdx , CoarseDelay p , ::vmap_ss const& rs , JobReason ) ;
+		static void s_add_pressure( Tag , JobIdx , ReqIdx , CoarseDelay p                                   ) ;
+		static void s_set_pressure( Tag , JobIdx , ReqIdx , CoarseDelay p                                   ) ;
 		//
 		static void s_kill_all   (          ) {              _s_kill_req(   ) ; }
 		static void s_kill_req   (ReqIdx req) { SWEAR(req) ; _s_kill_req(req) ; }
@@ -113,7 +113,7 @@ namespace Backends {
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
 	public :
-		virtual void config(ServerConfig::Backend const&) {}
+		virtual void config(Config::Backend const&) {}
 		//
 		virtual void             open_req    (          ReqIdx                                                                       ) {}
 		virtual void             close_req   (          ReqIdx                                                                       ) {}

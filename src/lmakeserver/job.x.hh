@@ -21,6 +21,11 @@ namespace Engine {
 #ifdef STRUCT_DEF
 namespace Engine {
 
+	ENUM( AncillaryTag
+	,	Data
+	,	KeepTmp
+	)
+
 	ENUM_1( JobMakeAction
 	,	Dec = Wakeup                   // if >=Dec => n_wait must be decremented
 	,	None                           //                                         trigger analysis from dependent
@@ -79,10 +84,10 @@ namespace Engine {
 		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vmap_ss const& rsrcs ) const ; // thread-safe
 		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                         ) const ; // thread-safe
 		//
-		void     end_exec      (                   ) const ;                   // thread-safe
-		::string ancillary_file(::string const& pfx) const ;
-		::string special_stderr(Node               ) const ;
-		::string special_stderr(                   ) const ;                   // cannot declare a default value for incomplete type Node
+		void     end_exec      (                               ) const ;       // thread-safe
+		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
+		::string special_stderr(Node                           ) const ;
+		::string special_stderr(                               ) const ;       // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
@@ -106,7 +111,8 @@ namespace Engine {
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
-		bool/*maybe_new_deps*/ _submit_special  ( Req&                                                                                                    ) ;
+		bool/*maybe_new_deps*/ _submit_special  ( Req                                                                                                     ) ;
+		bool                   _targets_ok      ( Req      , Rule::Match const&                                                                           ) ;
 		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
 		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
 		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
@@ -156,7 +162,7 @@ namespace Engine {
 		void             started      ( bool report , ::vector<Node> const& report_unlink ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                   ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps              ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ProcessDate start , JobDigest const&              ) ;
+		bool/*modified*/ end          ( ProcessDate start , JobDigest const&              ) ;       // hit indicates that result comes from a cache hit
 		void             premature_end( Req , bool report=true                            ) ;       // Req is killed but job is necessary for some other req
 		void             not_started  (                                                   ) ;       // Req was killed before it started
 		//
@@ -291,11 +297,7 @@ namespace Engine {
 	inline Job::Job( Special sp , Node t , ::vmap<Node,DFlags> const& deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } {}
 
 	inline ::string Job::name() const {
-		return full_name(
-				sizeof(RuleIdx)                                                // Rule index
-			+	(*this)->rule->n_static_stems * sizeof(FileNameIdx)*2          // pos+len for each stem
-			+	1                                                              // null to disambiguate w/ Node names
-		) ;
+		return full_name((*this)->rule->job_sfx_len()) ;
 	}
 	inline ::string Job::user_name() const {
 		::string res = name() ;

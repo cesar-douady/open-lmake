@@ -194,7 +194,7 @@ namespace Backends::Local {
 		}
 
 		// services
-		virtual void config(ServerConfig::Backend const& config) {
+		virtual void config(Config::Backend const& config) {
 			int i = 0 ;
 			for( auto const& [k,v] : config.dct ) rsrc_idxs[k] = i++ ;
 			capacity = RsrcsData( *this , config.dct ) ;

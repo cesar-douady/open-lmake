@@ -40,8 +40,8 @@ namespace Engine {
 			//
 			data.trace_stream.open(fast_trace_file) ;
 			try {
-				unlink(           last) ;
-				lnk   (trace_file,last) ;
+				unlink(last           ) ;
+				lnk   (last,trace_file) ;
 			} catch (...) {
 				exit(2,"cannot create symlink ",last," to ",trace_file) ;
 			}
@@ -143,7 +143,7 @@ namespace Engine {
 			if (changed) Backend::s_new_req_eta(+*this) ;                      // tell backends that req priority order has changed
 	}
 
-	static void _report_no_rule( Req req , Node node , DepDepth lvl=0 ) {
+	void Req::_report_no_rule( Node node , DepDepth lvl ) {
 		::string          name      = node.name()          ;
 		::vector<RuleTgt> rrts      = node.raw_rule_tgts() ;
 		::vector<RuleTgt> mrts      ;                                        // matching rules
@@ -152,8 +152,8 @@ namespace Engine {
 		//
 		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
 		if ( dir!=node && dir->makable() ) {
-			req->audit_node(Color::Err    ,"no rule for"       ,name,lvl  ) ;
-			req->audit_node(Color::Warning,"dir is buildable :",dir ,lvl+1) ;
+			(*this)->audit_node(Color::Err    ,"no rule for"       ,name,lvl  ) ;
+			(*this)->audit_node(Color::Warning,"dir is buildable :",dir ,lvl+1) ;
 			return ;
 		}
 		//
@@ -170,9 +170,9 @@ namespace Engine {
 			n_missing++ ;
 		}
 		//
-		if (mrts.empty()   ) req->audit_node(Color::Err ,"no rule match"     ,name,lvl  ) ;
-		else                 req->audit_node(Color::Err ,"no rule for"       ,name,lvl  ) ;
-		if (is_target(name)) req->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
+		if (mrts.empty()   ) (*this)->audit_node(Color::Err ,"no rule match"     ,name,lvl  ) ;
+		else                 (*this)->audit_node(Color::Err ,"no rule for"       ,name,lvl  ) ;
+		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
 		//
 		for( RuleTgt rt : mrts ) {                                             // second pass to do report
 			JobTgt         jt          { rt , name } ;
@@ -197,23 +197,23 @@ namespace Engine {
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
-			if ( !missing_dep                             ) req->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
-			else                                            req->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;
-			if ( +missing_dep && n_missing==1 && lvl<NErr ) _report_no_rule( req , missing_dep , lvl+2 ) ;
+			if ( !missing_dep                             ) (*this)->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
+			else                                            (*this)->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;
+			if ( +missing_dep && n_missing==1 && lvl<NErr ) _report_no_rule( missing_dep , lvl+2 ) ;
 		}
 		//
-		if (+art) req->audit_info( Color::Note , to_string("anti-rule ",art->user_name()," matches") , lvl+1 ) ;
+		if (+art) (*this)->audit_info( Color::Note , to_string("anti-rule ",art->user_name()," matches") , lvl+1 ) ;
 	}
 
-	static void _report_cycle( Req req , Node node ) {
+	void Req::_report_cycle(Node node) {
 		::uset  <Node> seen  ;
 		::vector<Node> cycle ;
 		for( Node d=node ; !seen.contains(d) ;) {
 			seen.insert(d) ;
-			for( Job j : d.conform_job_tgts(d.c_req_info(req)) ) {
-				if (j.c_req_info(req).done()) continue ;
+			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) ) {
+				if (j.c_req_info(*this).done()) continue ;
 				for( Node dd : j->deps ) {
-					if (dd.done(dd.c_req_info(req))) continue ;
+					if (dd.done(*this)) continue ;
 					d = dd ;
 					goto Next ;
 				}
@@ -223,7 +223,7 @@ namespace Engine {
 		Next :
 			cycle.push_back(d) ;
 		}
-		req->audit_node( Color::Err , "cycle detected for",node ) ;
+		(*this)->audit_node( Color::Err , "cycle detected for",node ) ;
 		Node deepest = cycle.back() ;
 		bool seen_loop = deepest==node ;
 		for( size_t i=0 ; i<cycle.size() ; i++ ) {
@@ -234,53 +234,48 @@ namespace Engine {
 			else if ( seen_loop && i!=0                      ) { prefix = "|   " ;                    }
 			else if ( cycle[i]==deepest                      ) { prefix = "+-> " ; seen_loop = true ; }
 			else                                               { prefix = "    " ;                    }
-			req->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
+			(*this)->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
 		}
 	}
 
-	static bool/*overflow*/ _send_err( Req req , bool intermediate , ::string const& pfx , Node node , JobNodeIdx& n_err , DepDepth lvl ) {
-		if (!n_err) return true/*overflow*/ ;
-		n_err-- ;
-		if (n_err) req->audit_node( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , node , lvl ) ;
-		else       req->audit_info( Color::Warning                            , "..."                                                                                ) ;
-		return !n_err/*overflow*/ ;
-	}
-	static bool/*overflow*/ _report_err( Req req , Dep const& dep , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) {
+	bool/*overflow*/ Req::_report_err( Dep const& dep , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri = dep.c_req_info(req) ;
+		Node::ReqInfo const& cri = dep.c_req_info(*this) ;
 		if (!dep->makable()) {
-			if      (dep.err(cri)              ) return _send_err( req , false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
-			else if (dep.flags[DFlag::Required]) return _send_err( req , false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
+			if      (dep.err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
+			else if (dep.flags[DFlag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
+		} else if (dep->multi) {
+			/**/                                 return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
 		}
 		for( Job job : dep.conform_job_tgts(cri) ) {
 			if (seen_jobs.contains(job)) return false ;
 			seen_jobs.insert(job) ;
-			Job::ReqInfo const& jri = job.c_req_info(req) ;
+			Job::ReqInfo const& jri = job.c_req_info(*this) ;
 			if (!jri.done()) return false ;
 			if (!job->err()) return false ;
 			bool intermediate = job->run_status==RunStatus::DepErr ;
-			bool overflow = _send_err( req , intermediate , job->rule->name , dep , n_err , lvl ) ;
+			bool overflow = (*this)->_send_err( intermediate , job->rule->name , dep , n_err , lvl ) ;
 			if (overflow) {
 				return true ;
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
 				try {
 					// show first stderr
-					IFStream    job_stream   { job.ancillary_file(AdminDir+"/job_data"s) } ;
-					JobRpcReq   report_req   = deserialize<JobRpcReq  >(job_stream)        ;
-					JobRpcReply report_start = deserialize<JobRpcReply>(job_stream)        ;
-					JobRpcReq   report_end   = deserialize<JobRpcReq  >(job_stream)        ;
+					IFStream    job_stream   { job.ancillary_file() }               ;
+					JobRpcReq   report_req   = deserialize<JobRpcReq  >(job_stream) ;
+					JobRpcReply report_start = deserialize<JobRpcReply>(job_stream) ;
+					JobRpcReq   report_end   = deserialize<JobRpcReq  >(job_stream) ;
 					if (!report_end.digest.stderr.empty()) {
-						req->audit_stderr( report_end.digest.stderr , job->rule->stderr_len , lvl ) ;
+						(*this)->audit_stderr( report_end.digest.stderr , job->rule->stderr_len , lvl ) ;
 						seen_stderr = true ;
 					}
 				} catch(...) {
-					req->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				}
 			}
 			if (intermediate)
 				for( Dep const& d : job->deps )
-					if ( _report_err( req , d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
+					if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
 		}
 		return false ;
 	}
@@ -298,11 +293,12 @@ namespace Engine {
 				"| SUMMARY |\n"
 				"+---------+\n"
 			) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  jobs : " , (*this)->stats.ended()-(*this)->stats.ended(JobReport::Rerun) ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   jobs : " , (*this)->stats.ended(JobReport::Rerun)                        ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str()         ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str()         ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (ProcessDate::s_now()-(*this)->stats.start)   .short_str()    ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "useful  jobs : " , (*this)->stats.useful()                                    ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "hit     jobs : " , (*this)->stats.ended(JobReport::Hit  )                     ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "rerun   jobs : " , (*this)->stats.ended(JobReport::Rerun)                     ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str()      ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str()      ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (ProcessDate::s_now()-(*this)->stats.start)   .short_str() ) ) ;
 			for( Job j : (*this)->frozens ) (*this)->audit_job( j->err()?Color::Err:Color::Warning , "frozen" , j ) ;
 			if (!(*this)->clash_nodes.empty()) {
 				(*this)->audit_info( Color::Warning , "These files have been written by several simultaneous jobs" ) ;
@@ -315,10 +311,9 @@ namespace Engine {
 				::uset<Job > seen_jobs   ;
 				::uset<Node> seen_nodes  ;
 				for( Dep const& d : job->deps ) {
-					Node::ReqInfo const& cdri = d.c_req_info(*this) ;
-					if      (!d.done(cdri)) _report_cycle  ( *this , d                                                ) ;
-					else if (d->makable() ) _report_err    ( *this , d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
-					else                    _report_no_rule( *this , d                                                ) ;
+					if      (!d.done(*this)) _report_cycle  ( d                                                ) ;
+					else if (d->makable()  ) _report_err    ( d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
+					else                     _report_no_rule( d                                                ) ;
 				}
 			}
 		}
@@ -337,6 +332,27 @@ namespace Engine {
 	void ReqData::clear() {
 		SWEAR(!n_running()) ;
 		*this = ReqData() ;
+	}
+
+	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , JobNodeIdx& n_err , DepDepth lvl ) {
+		if (!n_err) return true/*overflow*/ ;
+		n_err-- ;
+		if (n_err) audit_node( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , node , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                                ) ;
+		return !n_err/*overflow*/ ;
+	}
+
+	//
+	// JobAudit
+	//
+
+	::ostream& operator<<( ::ostream& os , JobAudit const& ja ) {
+		os << "JobAudit(" ;
+		/**/                          os << (ja.hit?"hit":"rerun") ;
+		if (ja.modified             ) os << ",modified"            ;
+		if (!ja.analysis_err.empty()) os <<','<< ja.analysis_err   ;
+		return os <<')' ;
+
 	}
 
 }

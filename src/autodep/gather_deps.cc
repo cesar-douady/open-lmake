@@ -57,13 +57,20 @@ void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , TFs
 	SWEAR(!(neg_tfs&pos_tfs)) ;                                                // cannot suppress and add a flag simultaneously
 	auto [info,created] = _info(target)                  ;
 	bool stamp          = created || pd<info.access_date ;
-	if (
-		stamp
-	||	info.write!=(Maybe|!unlink)
-	) Trace trace("_new_target",STR(unlink),STR(created),pd,STR(stamp),pd,target,comment) ;
+	//
+	Bool3  old_write   = info.write   ;
+	TFlags old_neg_tfs = info.neg_tfs ;
+	TFlags old_pos_tfs = info.pos_tfs ;
+	//
 	info.write   = Maybe|!unlink                   ;                           // for the write side, last action is the significant one
 	info.neg_tfs = (info.neg_tfs&~pos_tfs)|neg_tfs ;                           // flags are accumulated in order
 	info.pos_tfs = (info.pos_tfs&~neg_tfs)|pos_tfs ;                           // .
+	//
+	if (
+		stamp
+	||	info.write!=old_write || info.neg_tfs!=old_neg_tfs || info.pos_tfs!=old_pos_tfs
+	) Trace trace("_new_target",STR(unlink),STR(created),pd,STR(stamp),info.write,info.neg_tfs,info.pos_tfs,pd,target,comment) ;
+	//
 	if (!stamp) return ;                                                       // existing file has already been accessed (if file did not exist, it is not an update)
 	info.access_date = pd ;
 	info.file_date   = {} ;                                                    // if first access is a write, no file_date is attached

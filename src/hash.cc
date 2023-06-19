@@ -24,29 +24,27 @@ namespace Hash {
 		FileInfo fi{file_name} ;
 		switch (fi.tag) {
 			case FileTag::Reg :
-			case FileTag::Exe :
-				{	FileMap map{file_name} ;
-					if (!map) return ;
-					switch (algo) {
-						//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
-						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.size) ; *this = ctx.digest() ; } break ;
-						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.size) ; *this = ctx.digest() ; } break ;
-						//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
-						default : FAIL(algo) ;
-					}
+			case FileTag::Exe : {
+				FileMap map{file_name} ;
+				if (!map) return ;
+				switch (algo) {
+					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
+					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ctx.digest() ; } break ;
+					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ctx.digest() ; } break ;
+					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
+					default : FAIL(algo) ;
 				}
-			break ;
-			case FileTag::Lnk :
-				{	::string lnk_target = read_lnk(file_name) ;
-					switch (algo) {
-						//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
-						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
-						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // .
-						//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
-						default : FAIL(algo) ;
-					}
+			} break ;
+			case FileTag::Lnk : {
+				::string lnk_target = read_lnk(file_name) ;
+				switch (algo) {
+					//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
+					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
+					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // .
+					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
+					default : FAIL(algo) ;
 				}
-			break ;
+			} break ;
 			case FileTag::None :
 				*this = Crc::None ;
 			break ;

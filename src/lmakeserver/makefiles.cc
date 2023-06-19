@@ -26,7 +26,7 @@ namespace Engine {
 		::uset_s             names ;
 		for( Py::Object py_obj : py_rules ) {
 			RuleData rule = Py::Dict(py_obj) ;
-			Crc      crc  = rule.match_crc() ;
+			Crc      crc  = rule.match_crc   ;
 			if (names.contains(rule.name)) {
 				if ( rules.contains(crc) && rules.at(crc).name==rule.name ) throw to_string("rule " , rule.name , " appears twice"     ) ;
 				else                                                        throw to_string("two rules have the same name " , rule.name ) ;
@@ -38,9 +38,8 @@ namespace Engine {
 		return rules ;
 	}
 
-	static ::vector_s _gather_srcs( Py::Sequence const& py_srcs , ServerConfig const& config ) {
-		RealPath   real_path { config.lnk_support                  } ;
-		Save       save      { g_config.path_max , config.path_max } ;  // need g_config.path_max to create nodes, so set it temporarily
+	static ::vector_s _gather_srcs( Py::Sequence const& py_srcs ) {
+		RealPath   real_path { g_config.lnk_support } ;
 		::vector_s srcs      ;
 		for( Py::Object py_obj : py_srcs ) {
 			::string src ;
@@ -51,8 +50,8 @@ namespace Engine {
 			//
 			if (!rp.lnks.empty()) throw to_string("source ",src," : found a link in its path : ",rp.lnks[0]) ;
 			if (rp.real!=src    ) throw to_string("source ",src," : canonical form is "         ,rp.real   ) ;
-			if (config.lnk_support==LnkSupport::None) { if (!is_reg   (src)) throw to_string("source ",src," is not a regular file"           ) ; }
-			else                                      { if (!is_target(src)) throw to_string("source ",src," is not a regular file nor a link") ; }
+			if (g_config.lnk_support==LnkSupport::None) { if (!is_reg   (src)) throw to_string("source ",src," is not a regular file"           ) ; }
+			else                                        { if (!is_target(src)) throw to_string("source ",src," is not a regular file nor a link") ; }
 			srcs.emplace_back(src) ;
 		}
 		return srcs ;
@@ -108,9 +107,10 @@ namespace Engine {
 		DiskDate latest_makefile ;
 		if (_s_chk_makefiles(latest_makefile)) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_keep_makefiles(chk) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			EngineStore::s_keep_config   (chk) ;
+			EngineStore::s_keep_makefiles(   ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			//                     vvvvvvvvvvvvvvvvv
 			auto [deps,info_str] = _read_makefiles() ;
@@ -119,14 +119,14 @@ namespace Engine {
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
 			// so we create a no_makefiles file that we unlink once everything is ok.
 			do {
-				OFStream no_makefiles_stream{s_no_makefiles} ;                        // create marker
+				OFStream no_makefiles_stream{s_no_makefiles} ;                 // create marker
 				OFStream makefiles_stream   {s_makefiles   } ;
 				for( ::string const& f : deps ) makefiles_stream << (+FileInfo(f)?'+':'!') << f <<'\n' ;
 			} while (file_date(s_makefiles)<=latest_makefile) ;                                          // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
 			::string             local_admin_dir  ;
 			::string             remote_admin_dir ;
-			ServerConfig         config           ;
+			Config               config           ;
 			::umap<Crc,RuleData> rules            ;
 			::vector_s           srcs             ;
 			::string             step             ;
@@ -137,11 +137,14 @@ namespace Engine {
 				PyDict_SetItemString( eval_env , "__builtins__" , PyEval_GetBuiltins() ) ;                                       // Python3.6 does not provide it for us
 				Py::Dict info = Py::Object( PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) , true/*clobber*/ ) ;
 				Py_DECREF(eval_env) ;
-				step = "local_admin_dir"  ; local_admin_dir  =                Py::String  (info[step  ])            ;
-				step = "remote_admin_dir" ; remote_admin_dir =                Py::String  (info[step  ])            ;
-				step = "config"           ; config           =                Py::Mapping (info[step  ])            ;
-				step = "rules"            ; rules            = _gather_rules( Py::Sequence(info[step  ])          ) ;
-				step = "sources"          ; srcs             = _gather_srcs ( Py::Sequence(info["srcs"]) , config ) ;
+				step = "local_admin_dir"  ; local_admin_dir  = Py::String (info[step]) ;
+				step = "remote_admin_dir" ; remote_admin_dir = Py::String (info[step]) ;
+				step = "config"           ; config           = Py::Mapping(info[step]) ;
+				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				EngineStore::s_new_config( local_admin_dir , remote_admin_dir , ::move(config) , chk ) ;
+				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				step = "rules"   ; rules = _gather_rules( Py::Sequence(info[step  ]) ) ;
+				step = "sources" ; srcs  = _gather_srcs ( Py::Sequence(info["srcs"]) ) ;
 				{	::uset_s src_set = mk_uset(srcs) ;
 					for( ::string const& f : deps ) if ( !src_set.contains(f) && +FileInfo(f) ) throw to_string("dangling makefile : ",f) ;
 				}
@@ -153,12 +156,11 @@ namespace Engine {
 				PyErr_Print() ;
 				throw ""s ;
 			}
-			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_new_makefiles( local_admin_dir , remote_admin_dir , ::move(config) , ::move(rules) , ::move(srcs) , chk ) ;
-			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			unlink(s_no_makefiles) ;                                                                                           // now that everything is ok, we can suppress marker file
+			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			EngineStore::s_new_makefiles( ::move(rules) , ::move(srcs) ) ;
+			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			unlink(s_no_makefiles) ;                                           // now that everything is ok, we can suppress marker file
 		}
-		Backend::s_config(g_config.backends) ;
 	}
 
 }

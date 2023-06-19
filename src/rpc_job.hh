@@ -481,13 +481,14 @@ struct JobExecRpcReq {
 public :
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobExecRpcReq() ;
-		/**/             ::serdes(s,proc     ) ;
-		/**/             ::serdes(s,date     ) ;
-		/**/             ::serdes(s,sync     ) ;
-		if (has_files()) ::serdes(s,auto_date) ;
-		if (has_files()) ::serdes(s,files    ) ;
-		if (has_deps() ) ::serdes(s,dfs      ) ;
-		/**/             ::serdes(s,comment  ) ;
+		/**/               { ::serdes(s,proc     ) ;                       }
+		/**/               { ::serdes(s,date     ) ;                       }
+		/**/               { ::serdes(s,sync     ) ;                       }
+		if (has_files  ()) { ::serdes(s,auto_date) ;                       }
+		if (has_files  ()) { ::serdes(s,files    ) ;                       }
+		if (has_deps   ()) { ::serdes(s,dfs      ) ;                       }
+		if (has_targets()) { ::serdes(s,neg_tfs  ) ; ::serdes(s,pos_tfs) ; }
+		/**/               { ::serdes(s,comment  ) ;                       }
 	}
 	// data
 	P    proc      = P::None     ;

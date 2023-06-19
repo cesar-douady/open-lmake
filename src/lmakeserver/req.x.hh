@@ -31,11 +31,13 @@ namespace Engine {
 	,	End                            // job execution just ended (not in stats)
 	)
 
-	ENUM( JobReport
+	ENUM_1( JobReport
+	,	Useful = Failed                // <=Useful means job was usefully run
 	,	Steady
 	,	Done
 	,	Failed
 	,	Rerun
+	,	Hit
 	)
 
 }
@@ -88,6 +90,10 @@ namespace Engine {
 		template<class... A> ::string _title    (A&&...) const ;
 		/**/                 ::string _color_pfx(Color ) const ;
 		/**/                 ::string _color_sfx(Color ) const ;
+		//
+		bool/*overflow*/ _report_err    ( Dep const& , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
+		void             _report_cycle  ( Node                                                                                                                    ) ;
+		void             _report_no_rule( Node                                                                                                   , DepDepth lvl=0 ) ;
 	} ;
 
 	struct ReqStats {
@@ -101,8 +107,8 @@ namespace Engine {
 		JobIdx const& ended(JobReport i) const {                           return _ended[+i         ] ; }
 		JobIdx      & ended(JobReport i)       {                           return _ended[+i         ] ; }
 		//
-		JobIdx cur  () const { JobIdx res = 0 ; for( JobLvl    i : JobLvl::N    ) if (s_valid_cur(i)) res+=cur  (i) ; return res ; }
-		JobIdx ended() const { JobIdx res = 0 ; for( JobReport i : JobReport::N )                     res+=ended(i) ; return res ; }
+		JobIdx cur   () const { JobIdx res = 0 ; for( JobLvl    i : JobLvl::N    ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
+		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
 		Time::ProcessDate start                  ;
 		Time::ProcessDate eta                    ;
@@ -218,7 +224,10 @@ namespace Engine {
 namespace Engine {
 
 	struct JobAudit {
-		bool                   modified     ;
+		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
+		// data
+		bool                   hit          = false/*garbage*/ ;               // else it is a rerun
+		bool                   modified     = false/*garbage*/ ;
 		::vector<pair_s<Node>> analysis_err ;
 	} ;
 	struct ReqData {
@@ -264,7 +273,8 @@ namespace Engine {
 			try {
 				OMsgBuf().send( audit_fd , ReqRpcReply( title(
 					options
-				,	"useful : "     , stats.ended()-stats.ended(JobReport::Rerun)
+				,	"useful : "     , stats.useful()
+				,	" / hit : "     , stats.ended(JobReport::Hit  )
 				,	" / rerun : "   , stats.ended(JobReport::Rerun)
 				,	" / running : " , stats.cur  (JobLvl::Exec    )
 				,	" / queued : "  , stats.cur  (JobLvl::Queued  )
@@ -288,7 +298,10 @@ namespace Engine {
 		::string localize(::string const& file) const {
 			return Disk::localize(file,options.startup_dir_s) ;
 		}
+	private :
+		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , JobNodeIdx& n_err , DepDepth lvl ) ;
 		// data
+	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
 		Owned<Job>           job            ;

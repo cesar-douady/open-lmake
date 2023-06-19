@@ -103,37 +103,37 @@ namespace Backends {
 						}
 						job.fill_rpc_reply( reply , match , entry.rsrcs ) ;
 						//
-						reply.addr             = job_addr                       ;
-						reply.ancillary_file   = job.ancillary_file("job_data") ;
-						reply.autodep_method   = rule->autodep_method           ;
-						reply.auto_mkdir       = rule->auto_mkdir               ;
-						reply.chroot           = rule->chroot                   ;
-						reply.cwd              = rule->cwd                      ;
-					//	reply.env                                                 // from job.fill_rpc_reply above
-					//	reply.force_deps                                          // from job.fill_rpc_reply above
-						reply.hash_algo        = g_config.hash_algo             ;
-					//	reply.host                                                // directly filled in job_exec
-						reply.ignore_stat      = rule->ignore_stat              ;
-						reply.interpreter      = rule->interpreter              ;
-						reply.is_python        = rule->is_python                ;
-					//	reply.job_id                                              // directly filled in job_exec
-						reply.keep_tmp         = keep_tmp                       ;
-						reply.kill_sigs        = rule->kill_sigs                ;
-						reply.live_out         = live_out                       ;
-						reply.lnk_support      = g_config.lnk_support           ;
-						reply.reason           = entry.reason                   ;
-						reply.root_dir         = *g_root_dir                    ;
-						reply.rsrcs            = ::move(entry.rsrcs)            ;
-					//	reply.script                                              // from job.fill_rpc_reply above
-					//	reply.seq_id                                              // directly filled in job_exec
-						reply.small_id         = small_id                       ;
-					//	reply.stdin                                               // from job.fill_rpc_reply above
-					//	reply.stdout                                              // from job.fill_rpc_reply above
-					//	reply.targets                                             // from job.fill_rpc_reply above
-						reply.timeout          = rule->timeout                  ;
-						reply.remote_admin_dir = *g_remote_admin_dir            ;
+						reply.addr             = job_addr             ;
+						reply.ancillary_file   = job.ancillary_file() ;
+						reply.autodep_method   = rule->autodep_method ;
+						reply.auto_mkdir       = rule->auto_mkdir     ;
+						reply.chroot           = rule->chroot         ;
+						reply.cwd              = rule->cwd            ;
+					//	reply.env                                              // from job.fill_rpc_reply above
+					//	reply.force_deps                                       // from job.fill_rpc_reply above
+						reply.hash_algo        = g_config.hash_algo   ;
+					//	reply.host                                             // directly filled in job_exec
+						reply.ignore_stat      = rule->ignore_stat    ;
+						reply.interpreter      = rule->interpreter    ;
+						reply.is_python        = rule->is_python      ;
+					//	reply.job_id                                           // directly filled in job_exec
+						reply.keep_tmp         = keep_tmp             ;
+						reply.kill_sigs        = rule->kill_sigs      ;
+						reply.live_out         = live_out             ;
+						reply.lnk_support      = g_config.lnk_support ;
+						reply.reason           = entry.reason         ;
+						reply.root_dir         = *g_root_dir          ;
+						reply.rsrcs            = ::move(entry.rsrcs)  ;
+					//	reply.script                                           // from job.fill_rpc_reply above
+					//	reply.seq_id                                           // directly filled in job_exec
+						reply.small_id         = small_id             ;
+					//	reply.stdin                                            // from job.fill_rpc_reply above
+					//	reply.stdout                                           // from job.fill_rpc_reply above
+					//	reply.targets                                          // from job.fill_rpc_reply above
+						reply.timeout          = rule->timeout        ;
+						reply.remote_admin_dir = *g_remote_admin_dir  ;
 						//
-						reply.job_tmp_dir      = keep_tmp ? to_string(*g_root_dir,'/',AdminDir,job.ancillary_file("/job_keep_tmp")) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
+						reply.job_tmp_dir      = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
 						//
 						report_unlink = job.wash(match) ;
 						entry.conn.job_addr = job_addr ;
@@ -278,7 +278,7 @@ namespace Backends {
 		}
 	}
 
-	void Backend::s_config(ServerConfig::Backend const config[]) {
+	void Backend::s_config(Config::Backend const config[]) {
 		s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		static ::jthread job_exec_thread {_s_job_exec_thread_func } ;
 		static ::jthread heartbeat_thread{_s_heartbeat_thread_func} ;

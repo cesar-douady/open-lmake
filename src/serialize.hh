@@ -66,13 +66,13 @@ template<class T> struct Serdeser<::uset<T>> {
 } ;
 
 template<class K,class V> struct Serdeser<::map<K,V>> {
-	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) {             serdes(os,m.size()) ;             for( ::pair<K,V> const& p : m )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++  ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) {             serdes(os,m.size()) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
+	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
 } ;
 
 template<class K,class V> struct Serdeser<::umap<K,V>> {
-	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) {             serdes(os,m.size()) ;             for( ::pair<K,V> const& p : m )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++  ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) {             serdes(os,m.size()) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
+	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
 } ;
 
 template<class T,class U> struct Serdeser<::pair<T,U>> {

@@ -11,17 +11,16 @@
 #ifdef STRUCT_DECL
 namespace Engine {
 
-	struct ServerConfig  ;
+	struct Config        ;
 	struct EngineClosure ;
 
-	ENUM( Color
+	ENUM( BackendTag
+	,	Local                                                                  // PER_BACKEND : add a tag for each backend
+	)
+
+	ENUM( CacheTag                                                             // PER_CACHE : add a tag for each cache method
 	,	None
-	,	HiddenNote
-	,	HiddenOk
-	,	Note
-	,	Ok
-	,	Warning
-	,	Err
+	,	Dir
 	)
 
 	ENUM( CmdVar
@@ -36,6 +35,16 @@ namespace Engine {
 	,	Deps
 	,	Rsrcs
 	,	Tokens
+	)
+
+	ENUM( Color
+	,	None
+	,	HiddenNote
+	,	HiddenOk
+	,	Note
+	,	Ok
+	,	Warning
+	,	Err
 	)
 
 	ENUM( EngineClosureKind
@@ -74,10 +83,6 @@ namespace Engine {
 	,	Reported
 	)
 
-	ENUM( ServerConfigTag
-	,	Local                                                                  // PER_BACKEND : add a tag for each backend
-	)
-
 }
 #endif
 #ifdef STRUCT_DEF
@@ -88,13 +93,12 @@ namespace Engine {
 		size_t minor ;
 	} ;
 
-	struct ServerConfig {
-		friend ::ostream& operator<<( ::ostream& , ServerConfig const& ) ;
-
-		using Tag = ServerConfigTag ;
+	struct Config {
+		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 
 		struct Backend {
 			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
+			using Tag = BackendTag ;
 			// cxtors & casts
 			Backend() = default ;
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
@@ -110,9 +114,25 @@ namespace Engine {
 			::vmap_ss   dct    ;
 		} ;
 
+		struct Cache {
+			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
+			using Tag = CacheTag ;
+			// cxtors & casts
+			Cache() = default ;
+			Cache( Py::Mapping const& py_map ) ;
+			// services
+			template<IsStream T> void serdes(T& s) {
+				::serdes(s,tag) ;
+				::serdes(s,dct) ;
+			}
+			// data
+			Caches::Tag tag ;
+			::vmap_ss   dct ;
+		} ;
+
 		// cxtors & casts
-		ServerConfig() = default ;
-		ServerConfig(Py::Mapping const& py_map) ;
+		Config() = default ;
+		Config(Py::Mapping const& py_map) ;
 		// services
 		template<IsStream T> void serdes(T& s) {
 			::serdes(s,db_version) ;                                           // must always stay first field to ensure it is always understood
@@ -125,24 +145,27 @@ namespace Engine {
 			::serdes(s,path_max             ) ;
 			::serdes(s,sub_prio_boost       ) ;
 			::serdes(s,backends             ) ;
+			::serdes(s,caches               ) ;
 			::serdes(s,colors               ) ;
 			::serdes(s,console.date_prec    ) ;
 			::serdes(s,console.host_len     ) ;
 			::serdes(s,console.has_exec_time) ;
 		}
 		::string pretty_str() const ;
+		void open() const ;
 		// data
-		Version     db_version                                      = {}               ; // by default, db cannot be understood
+		Version        db_version                                      = {}               ; // by default, db cannot be understood
 		//
-		Hash::Algo  hash_algo                                       = Hash::Algo::Xxh  ;
-		Time::Delay heartbeat                                       ;
-		LnkSupport  lnk_support                                     = LnkSupport::Full ;
-		DepDepth    max_dep_depth                                   = 0                ; // uninitialized
-		size_t      trace_sz                                        = 0                ;
-		size_t      path_max                                        = 0                ; // if 0 <=> unlimited
-		Prio        sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
-		Backend     backends[+Tag::N]                               ;
-		uint8_t     colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
+		Hash::Algo     hash_algo                                       = Hash::Algo::Xxh  ;
+		Time::Delay    heartbeat                                       ;
+		LnkSupport     lnk_support                                     = LnkSupport::Full ;
+		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
+		size_t         trace_sz                                        = 0                ;
+		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
+		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
+		Backend        backends[+BackendTag::N]                        ;
+		::map_s<Cache> caches                                          ;
+		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
 		struct {
 			uint8_t date_prec     = -1    ;                // -1 means no date at all in console output
 			uint8_t host_len      = 0     ;                //  0 means no host at all in console output

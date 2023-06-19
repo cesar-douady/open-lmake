@@ -258,7 +258,7 @@ namespace Engine {
 							default : FAIL(ro.key) ;
 						}
 					} else {
-						::ifstream job_stream{ jt.ancillary_file(AdminDir+"/job_data"s) } ;
+						::ifstream job_stream{ jt.ancillary_file() } ;
 						//
 						JobRpcReq   report_req   ; bool has_req   = false ;
 						JobRpcReply report_start ; bool has_start = false ;

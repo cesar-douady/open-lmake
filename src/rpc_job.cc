@@ -88,13 +88,23 @@
 	os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
 	switch (jerr.proc) {
 		case JobExecRpcProc::Targets :
-		case JobExecRpcProc::Unlinks : { ::vector_s fs ; for( auto [f,d] : jerr.files ) fs.push_back(f) ; os <<','<< fs         ; } break ;
-		case JobExecRpcProc::Trace   :
-		case JobExecRpcProc::Deps    : {                                                                  os <<','<< jerr.files ; } break ;
+		case JobExecRpcProc::Unlinks : {
+			::vector_s fs ;
+			for( auto [f,d] : jerr.files ) fs.push_back(f) ;
+			os <<','<< fs ;
+		} break ;
+		case JobExecRpcProc::Trace :
+		case JobExecRpcProc::Deps  :
+			os <<','<< jerr.files ;
+		break ;
 		default : ;
 	}
-	if (jerr.sync) os << ",sync" ;
-	return os <<','<< jerr.comment <<')' ;
+	if (+jerr.dfs            ) os <<',' << jerr.dfs     ;
+	if (+jerr.neg_tfs        ) os <<",-"<< jerr.neg_tfs ;
+	if (+jerr.pos_tfs        ) os <<",+"<< jerr.pos_tfs ;
+	if (jerr.sync            ) os << ",sync" ;
+	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
+	return os <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {

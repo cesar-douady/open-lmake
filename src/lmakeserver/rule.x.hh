@@ -142,17 +142,22 @@ namespace Engine {
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
-		::string user_name() const { return is_identifier(name) ? name : to_string('"',name,'"') ; }
-		Delay    margin   () const ;
-		VarIdx   n_deps   () const { return no_deps ? 0 : deps.dct.size()                        ; }
-		VarIdx   n_rsrcs  () const { return rsrcs.dct.size()                                     ; }
+		::string    user_name  () const { return is_identifier(name) ? name : to_string('"',name,'"') ; }
+		Delay       margin     () const ;
+		VarIdx      n_deps     () const { return no_deps ? 0 : deps.dct.size()                        ; }
+		VarIdx      n_rsrcs    () const { return rsrcs.dct.size()                                     ; }
+		FileNameIdx job_sfx_len() const {
+			return
+				1                                                              // null to disambiguate w/ Node names
+			+	n_static_stems * sizeof(FileNameIdx)*2                         // pos+len for each stem
+			+	sizeof(RuleIdx)                                                // Rule index
+			;
+		}
 
-		// services
-		Crc match_crc() const ;
-		Crc cmd_crc  () const ;
-		Crc rsrcs_crc() const ;
-		//
 	private :
+		// services
+		void _set_crcs() ;
+		//
 		void _compile_dep_code( ::string const& key , RuleData::DepSpec &                  ) ;
 		void _mk_deps         ( ::string const& key , RuleData::DepsSpec& , bool need_code ) ;
 
@@ -168,6 +173,7 @@ namespace Engine {
 		AutodepMethod                 autodep_method = AutodepMethod::Unknown ;
 		bool                          auto_mkdir     = false                  ; // auto make dir in case of chdir
 		Backends::Tag                 backend        = Backends::Tag::Local   ; // backend to use to launch jobs
+		::string                      cache_key      ;                          // key that identify the cache to use (listed in config)
 		::string                      chroot         ;                          // chroot in which to execute cmd
 		::vector<pair<CmdVar,VarIdx>> cmd_ctx        ;                          // a list of stems, targets, deps, rsrcs & tokens accessed by cmd
 		::string                      cwd            ;                          // cwd in which to execute cmd
@@ -188,9 +194,12 @@ namespace Engine {
 		size_t                        stderr_len     = -1                     ; // stderr output is truncated to that many lines (unlimited if -1)
 		Time::Delay                   timeout        ;                          // if 0 <=> no timeout, maximum time allocated to job execution in s
 		// derived data
-		bool    has_stars        = false ;
-		VarIdx  n_static_stems   = 0     ;
-		VarIdx  n_static_targets = 0     ;
+		bool    has_stars        = false     ;
+		VarIdx  n_static_stems   = 0         ;
+		VarIdx  n_static_targets = 0         ;
+		Crc     match_crc        = Crc::None ;
+		Crc     cmd_crc          = Crc::None ;
+		Crc     rsrcs_crc        = Crc::None ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                                                // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                                // for a given cmd, resources generation, must be >=cmd_gen
@@ -198,9 +207,10 @@ namespace Engine {
 		mutable Delay  exec_time    = {} ;                                     // average exec_time
 		mutable JobIdx stats_weight = 0  ;                                     // number of jobs used to compute average
 		// not stored on disk
-		bool                  all_deps_static = false ;                        // all deps are deemed static, for special rules only
-		bool                  no_deps         = false ;                        // deps are not analyszed    , for special rules only
+		bool                  all_deps_static = false   ;                      // all deps are deemed static, for special rules only
+		bool                  no_deps         = false   ;                      // deps are not analyszed    , for special rules only
 		::vector<Py::Pattern> target_patterns ;
+		Cache*                cache           = nullptr ;
 	} ;
 
 	struct Rule : RuleBase {
@@ -350,6 +360,7 @@ namespace Engine {
 			::serdes(s,autodep_method) ;
 			::serdes(s,auto_mkdir    ) ;
 			::serdes(s,backend       ) ;
+			::serdes(s,cache_key     ) ;
 			::serdes(s,chroot        ) ;
 			::serdes(s,cmd_ctx       ) ;
 			::serdes(s,cmd_gen       ) ;

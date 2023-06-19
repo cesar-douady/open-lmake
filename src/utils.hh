@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <sys/file.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -261,7 +262,7 @@ static constexpr size_t NPos = ::string::npos ;
 
 template<class... A> ::string to_string(A const&... args) {
 	OStringStream res ;
-	[[maybe_unused]] bool _[] ={ false , (res<<args,false)... } ;
+	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
 	return res.str() ;
 }
 static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
@@ -862,13 +863,29 @@ struct AutoCloseFd : Fd {
 	friend ::ostream& operator<<( ::ostream& , AutoCloseFd const& ) ;
 	// cxtors & casts
 	using Fd::Fd ;
-	AutoCloseFd(AutoCloseFd&&   ) = default ;
-	AutoCloseFd(Fd         && fd) : Fd{fd} {}
+	AutoCloseFd(AutoCloseFd&& acfd) : Fd{::move(acfd)} { acfd.detach() ; }
+	AutoCloseFd(Fd         && fd_ ) : Fd{::move(fd_ )} {                 }
+	//
 	~AutoCloseFd() { close() ; }
 	//
 	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
 	AutoCloseFd& operator=(AutoCloseFd&& acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
-	AutoCloseFd& operator=(Fd         && fd  ) { *this = fd  .fd ;                 return *this ; }
+	AutoCloseFd& operator=(Fd         && fd_ ) { *this = fd_ .fd ;                 return *this ; }
+} ;
+
+struct LockedFd : Fd {
+	friend ::ostream& operator<<( ::ostream& , LockedFd const& ) ;
+	// cxtors & casts
+	LockedFd(                         ) = default ;
+	LockedFd( Fd fd_ , bool exclusive ) : Fd{fd_}         { lock(exclusive) ; }
+	LockedFd(LockedFd&& lfd           ) : Fd{::move(lfd)} { lfd.detach() ;    }
+	//
+	~LockedFd() { unlock() ; }
+	//
+	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return *this ; }
+	//
+	void lock  (bool e) { if (fd>=0) flock(fd,e?LOCK_EX:LOCK_SH) ; }
+	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
 } ;
 
 struct SockFd : AutoCloseFd {

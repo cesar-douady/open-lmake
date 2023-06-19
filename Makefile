@@ -10,8 +10,10 @@
 MAKEFLAGS = -j8 -r -R -k
 
 CC := gcc
-#CC := gcc --coverage
 #CC := clang                                                                   # for some unknown reason, clang is incompatible with -fsanitize
+
+COVERAGE :=
+#COVERAGE := --coverage
 
 PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
 
@@ -32,6 +34,11 @@ ifeq ($(strip $(CC)),clang)
 WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
 endif
 
+LANG := c++20
+ifeq ($(strip $(CC))-$(shell $(CC) -dumpversion),gcc-10)
+LANG := c++2a
+endif
+
 # python configuration
 ifeq ($(PYTHON),)
 $(error cannot find python3)
@@ -45,18 +52,18 @@ SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                := $(if $(SAN_FLAGS),.san,)
 ASAN               := $(if $(findstring address,$(SAN_FLAGS)),.san,)
 TSAN               := $(if $(findstring thread,$(SAN_FLAGS)),.san,)
-PREPROCESS         := $(CC) -E                     -ftabstop=4
-COMPILE            := $(CC) -c -fvisibility=hidden -ftabstop=4
-LINK_O             := $(CC) -r
-LINK_SO            := $(CC) -shared-libgcc -shared -pthread
-LINK_BIN           := $(CC) -pthread
+PREPROCESS         := $(CC)             -E                     -ftabstop=4
+COMPILE            := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
+LINK_O             := $(CC) $(COVERAGE) -r
+LINK_SO            := $(CC) $(COVERAGE) -shared-libgcc -shared -pthread
+LINK_BIN           := $(CC) $(COVERAGE) -pthread
 LINK_LIB           := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
 PYTHON_LIB_BASE    := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
 PYTHON_LIB_DIR     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
 PYTHON_VERSION     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
 CFLAGS             := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
-CXXFLAGS           := $(CFLAGS) -std=c++20
+CXXFLAGS           := $(CFLAGS) -std=$(LANG)
 ROOT               := $(shell pwd)
 LIB                := lib
 SLIB               := _lib
@@ -210,10 +217,10 @@ $(STORE_LIB)/unit_test.tok : $(STORE_LIB)/unit_test
 INCLUDE_SECCOMP := -I $(SECCOMP_INCLUDE_DIR)
 INSTALL_SECCOMP := $(SECCOMP).install.stamp
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                             )
-STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                               )
-ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x                 )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils          )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                                      )
+STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                        )
+ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x )
 
 ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp $(INSTALL_SECCOMP) ext/xxhash.patched.h
 ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
@@ -231,57 +238,61 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 LIB_SECCOMP := -L $(SECCOMP_LIB_DIR) -lseccomp
 
 $(SBIN)/lmakeserver : \
-	$(PYCXX_LIB)/pycxx$(SAN).o                \
-	$(SRC)/app$(SAN).o                        \
-	$(SRC)/disk$(SAN).o                       \
-	$(SRC)/hash$(SAN).o                       \
-	$(SRC)/lib$(SAN).o                        \
-	$(SRC)/non_portable.o                     \
-	$(SRC)/pycxx$(SAN).o                      \
-	$(SRC)/rpc_client$(SAN).o                 \
-	$(SRC)/rpc_job$(SAN).o                    \
-	$(SRC)/time$(SAN).o                       \
-	$(SRC)/trace$(SAN).o                      \
-	$(SRC)/utils$(SAN).o                      \
-	$(SRC)/store/file$(SAN).o                 \
-	$(SRC)/autodep/gather_deps$(SAN).o        \
-	$(SRC)/autodep/ptrace$(SAN).o             \
-	$(SRC)/autodep/record$(SAN).o             \
-	$(SRC)/lmakeserver/backend$(SAN).o        \
-	$(SRC)/lmakeserver/backends/local$(SAN).o \
-	$(SRC)/lmakeserver/cmd$(SAN).o            \
-	$(SRC)/lmakeserver/global$(SAN).o         \
-	$(SRC)/lmakeserver/job$(SAN).o            \
-	$(SRC)/lmakeserver/makefiles$(SAN).o      \
-	$(SRC)/lmakeserver/node$(SAN).o           \
-	$(SRC)/lmakeserver/req$(SAN).o            \
-	$(SRC)/lmakeserver/rule$(SAN).o           \
-	$(SRC)/lmakeserver/store$(SAN).o          \
+	$(PYCXX_LIB)/pycxx$(SAN).o                  \
+	$(SRC)/app$(SAN).o                          \
+	$(SRC)/disk$(SAN).o                         \
+	$(SRC)/hash$(SAN).o                         \
+	$(SRC)/lib$(SAN).o                          \
+	$(SRC)/non_portable.o                       \
+	$(SRC)/pycxx$(SAN).o                        \
+	$(SRC)/rpc_client$(SAN).o                   \
+	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/time$(SAN).o                         \
+	$(SRC)/trace$(SAN).o                        \
+	$(SRC)/utils$(SAN).o                        \
+	$(SRC)/store/file$(SAN).o                   \
+	$(SRC)/autodep/gather_deps$(SAN).o          \
+	$(SRC)/autodep/ptrace$(SAN).o               \
+	$(SRC)/autodep/record$(SAN).o               \
+	$(SRC)/lmakeserver/backend$(SAN).o          \
+	$(SRC)/lmakeserver/backends/local$(SAN).o   \
+	$(SRC)/lmakeserver/cache$(SAN).o            \
+	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
+	$(SRC)/lmakeserver/cmd$(SAN).o              \
+	$(SRC)/lmakeserver/global$(SAN).o           \
+	$(SRC)/lmakeserver/job$(SAN).o              \
+	$(SRC)/lmakeserver/makefiles$(SAN).o        \
+	$(SRC)/lmakeserver/node$(SAN).o             \
+	$(SRC)/lmakeserver/req$(SAN).o              \
+	$(SRC)/lmakeserver/rule$(SAN).o             \
+	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
-	$(PYCXX_LIB)/pycxx$(SAN).o         \
-	$(SRC)/app$(SAN).o                 \
-	$(SRC)/disk$(SAN).o                \
-	$(SRC)/hash$(SAN).o                \
-	$(SRC)/lib$(SAN).o                 \
-	$(SRC)/non_portable.o              \
-	$(SRC)/pycxx$(SAN).o               \
-	$(SRC)/rpc_client$(SAN).o          \
-	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/time$(SAN).o                \
-	$(SRC)/trace$(SAN).o               \
-	$(SRC)/utils$(SAN).o               \
-	$(SRC)/store/file$(SAN).o          \
-	$(SRC)/lmakeserver/backend$(SAN).o \
-	$(SRC)/lmakeserver/global$(SAN).o  \
-	$(SRC)/lmakeserver/job$(SAN).o     \
-	$(SRC)/lmakeserver/node$(SAN).o    \
-	$(SRC)/lmakeserver/req$(SAN).o     \
-	$(SRC)/lmakeserver/rule$(SAN).o    \
-	$(SRC)/lmakeserver/store$(SAN).o   \
+	$(PYCXX_LIB)/pycxx$(SAN).o                  \
+	$(SRC)/app$(SAN).o                          \
+	$(SRC)/disk$(SAN).o                         \
+	$(SRC)/hash$(SAN).o                         \
+	$(SRC)/lib$(SAN).o                          \
+	$(SRC)/non_portable.o                       \
+	$(SRC)/pycxx$(SAN).o                        \
+	$(SRC)/rpc_client$(SAN).o                   \
+	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/time$(SAN).o                         \
+	$(SRC)/trace$(SAN).o                        \
+	$(SRC)/utils$(SAN).o                        \
+	$(SRC)/store/file$(SAN).o                   \
+	$(SRC)/lmakeserver/backend$(SAN).o          \
+	$(SRC)/lmakeserver/cache$(SAN).o            \
+	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
+	$(SRC)/lmakeserver/global$(SAN).o           \
+	$(SRC)/lmakeserver/job$(SAN).o              \
+	$(SRC)/lmakeserver/node$(SAN).o             \
+	$(SRC)/lmakeserver/req$(SAN).o              \
+	$(SRC)/lmakeserver/rule$(SAN).o             \
+	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/ldump$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LINK_LIB)

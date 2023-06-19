@@ -14,6 +14,8 @@ if getattr(sys,'reading_makefiles',False) :
 	lmake.sources = (
 		'Lmakefile.py'
 	,	'hello'
+	,	'side.py'
+	,	'side.sh'
 	)
 
 	class Base(lmake.Rule) :
@@ -26,18 +28,26 @@ if getattr(sys,'reading_makefiles',False) :
 
 	class ShCpy(Base) :
 		targets = { 'DST' : '{File}.sh.{YesNo}.cpy' }
-		cmd     = '[ $YesNo = y ] && ltarget $DST ; cat>$DST'
+		cmd     = '[ $YesNo = y ] && ltarget $DST ; cat>$DST ; ltarget -w -s side.sh ; echo side > side.sh'
 
 	class PyCpy(Base) :
 		targets = { 'DST' : '{File}.py.{YesNo}.cpy' }
 		def cmd() :
 			if YesNo=='y' : lmake.target(DST)
 			open(DST,'w').write(sys.stdin.read())
+			lmake.target('side.py',write=True,source_ok=True)
+			print('side',file=open('side.py','w'))
 
 else :
 
 	import ut
 
-	print(f'hello',file=open('hello','w'))
+	print(f'hello'   ,file=open('hello'  ,'w'))
+	print(f'not side',file=open('side.py','w'))
+	print(f'not side',file=open('side.sh','w'))
+
 	ut.lmake( 'hello.sh.y.cpy' , 'hello.py.y.cpy' , done  =2 , new=1        )
 	ut.lmake( 'hello.sh.n.cpy' , 'hello.py.n.cpy' , failed=2 , new=0 , rc=1 )
+
+	assert open('side.py').read()=='side\n'
+	assert open('side.sh').read()=='side\n'

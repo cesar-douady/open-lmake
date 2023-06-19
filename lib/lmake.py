@@ -90,9 +90,18 @@ if getattr(_sys,'reading_makefiles',False) :
 				#                                            - network interface name : the address of the host on this interface (as shown by ifconfig)
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
-			,	cpu     = _os.cpu_count()                  # total number of cpus
+			,	cpu     = len(_os.sched_getaffinity(0))    # total number of cpus available for the process, and hence for all jobs launched locally
 			,	mem     = _physical_mem//Mega              # total available memory (in MB)
 			)
+		)
+	,	caches = pdict(                                    # PER_CACHE : provide an explanation for each cache method
+	#		dir = pdict(                                   # when rule specifies cache = 'dir' , this cache is selected
+	#			tag      'dir'                             # specify the caching method, must be one of the supported method
+	#		,	repo   = root_dir                          # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
+	#		,	dir    = '/cache_dir'                      # the directory in which cached results are stored
+	#		,	size   = 10*Giga                           # the overall size of this cache
+	#		,	group  = os.getgroups()[0]                 # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
+	#		)
 		)
 	,	colors = pdict(
 			#               normal video    reverse video
@@ -158,9 +167,10 @@ if getattr(_sys,'reading_makefiles',False) :
 		auto_mkdir   = False                               # auto mkdir directory in case of chdir
 		backend      = 'local'                             # may be set anywhere in the inheritance hierarchy if execution must be remote
 		chroot       = ''                                  # chroot directory to execute cmd (if empty, chroot cmd is not done)
-	#	cwd                                                # cwd in which to run cmd . targets/deps are relative to it unless they start with /, in which case it means top root dir
-	#                                                      # defaults to the nearest root dir of the module in which the rule is defined
+		cache        = None                                # cache used to store results for this rule. None means no caching
 		cmd          = []                                  # must be set anywhere in the inheritance hierarchy for the rule to be runable, if several definitions, they are chained
+	#	cwd                                                # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
+	#                                                      # defaults to the nearest root dir of the module in which the rule is defined
 		deps         = {}                                  # patterns used to express explicit depencies, refers to stems through f-string notation, e.g. {'SRC':'{File}.c'}
 		#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','-Essential')}, flags may be :
 		#                                                  #   flag         | default | description

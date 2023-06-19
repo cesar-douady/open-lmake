@@ -32,32 +32,36 @@ namespace Engine {
 	}
 
 	//
-	// ServerConfig
+	// Config
 	//
 
-	::ostream& operator<<( ::ostream& os , ServerConfig::Backend const& be ) {
+	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
 		return os << "Backend(" << be.margin <<','<< ::hex<<be.addr<<::dec <<','<< be.dct << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , ServerConfig const& sc ) {
-		using Tag = ServerConfigTag ;
-		os << "ServerConfig("
+	::ostream& operator<<( ::ostream& os , Config::Cache const& c ) {
+		return os << "Cache(" << c.tag <<','<< c.dct << ')' ;
+	}
+
+	::ostream& operator<<( ::ostream& os , Config const& sc ) {
+		using Tag = BackendTag ;
+		os << "Config("
 			/**/ << sc.db_version.major <<'.'<< sc.db_version.minor
 			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
-		if (sc.max_dep_depth ) os <<','<< sc.max_dep_depth  ;
-		if (sc.path_max      ) os <<','<< sc.path_max       ;
-		if (sc.sub_prio_boost) os <<','<< sc.sub_prio_boost ;
-		;
+		if (sc.max_dep_depth  ) os <<','<< sc.max_dep_depth  ;
+		if (sc.path_max       ) os <<','<< sc.path_max       ;
+		if (sc.sub_prio_boost ) os <<','<< sc.sub_prio_boost ;
+		if (!sc.caches.empty()) os <<','<< sc.caches         ;
 		for( Tag t : Tag::N ) os <<','<< t <<':'<< sc.backends[+t] ;
 		return os<<')' ;
 	}
 
-	ServerConfig::Backend::Backend( Py::Mapping const& py_map , bool is_local ) {
-		bool found_addr = false ;
+	Config::Backend::Backend( Py::Mapping const& py_map , bool is_local ) {
 		::string field ;
 		try {
+			bool found_addr = false ;
 			for( auto const& [k,v] : Py::Mapping(py_map) ) {
 				field = Py::String(k) ;
 				if      (field=="margin"   ) { margin = Time::Delay         (Py::Float (v)) ;                     }
@@ -71,7 +75,18 @@ namespace Engine {
 		}
 	}
 
-	ServerConfig::ServerConfig(Py::Mapping const& py_map) {
+	Config::Cache::Cache(Py::Mapping const& py_map) {
+		::string field     ;
+		bool     found_tag = false ;
+		for( auto const& [k,v] : Py::Mapping(py_map) ) {
+			field = Py::String(k) ;
+			if (field=="tag") { tag = mk_enum<Tag>(Py::String(v)) ; found_tag = true ; }
+			else              { dct.emplace_back(field,v.str())   ;                    }
+		}
+		if (!found_tag) throw "tag not found"s ;
+	}
+
+	Config::Config(Py::Mapping const& py_map) {
 		::string field ;
 		try {
 			field = "hash_algo"      ; if (py_map.hasKey(field)) hash_algo      = mk_enum<Hash::Algo>(Py::String(py_map[field])) ; else throw "not found"s ;
@@ -110,11 +125,20 @@ namespace Engine {
 			field = "backends" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
 			Py::Mapping py_backends = py_map[field] ;
-			for( Tag t : Tag::N ) {
+			for( BackendTag t : BackendTag::N ) {
 				::string ts = mk_snake(t) ;
 				field = "backends."+ts ;
 				if (!py_backends.hasKey(ts)) throw "not found"s ;
-				backends[+t] = Backend( Py::Mapping(py_backends[ts]) , t!=Tag::Local ) ;
+				backends[+t] = Backend( Py::Mapping(py_backends[ts]) , t!=BackendTag::Local ) ;
+			}
+			//
+			field = "caches" ;
+			if (py_map.hasKey(field)) {
+				for( auto const& [py_key,py_val] : Py::Mapping(py_map[field]) ) {
+					::string key = Py::String(py_key) ;
+					field = "caches."+key ;
+					caches[key] = Cache(Py::Mapping(py_val)) ;
+				}
 			}
 			field = "colors" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
@@ -145,15 +169,15 @@ namespace Engine {
 		}
 	}
 
-	::string ServerConfig::pretty_str() const {
+	::string Config::pretty_str() const {
 		OStringStream res ;
-		/**/          res << "db_version    : " << db_version.major <<'.'<< db_version.minor << '\n' ;
-		/**/          res << "hash_algo     : " << mk_snake(hash_algo    )                   << '\n' ;
-		/**/          res << "link_support  : " << mk_snake(lnk_support  )                   << '\n' ;
-		/**/          res << "max_dep_depth : " << size_t  (max_dep_depth)                   << '\n' ;
-		if (path_max) res << "path_max      : " << size_t  (path_max     )                   << '\n' ;
-		else          res << "path_max      : " << "unlimited"                               << '\n' ;
-		/**/          res << "heartbeat     : " << heartbeat .short_str()                    << '\n' ;
+		/**/          res << "db_version    : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
+		/**/          res << "hash_algo     : " << mk_snake(hash_algo    )                 <<'\n' ;
+		/**/          res << "link_support  : " << mk_snake(lnk_support  )                 <<'\n' ;
+		/**/          res << "max_dep_depth : " << size_t  (max_dep_depth)                 <<'\n' ;
+		if (path_max) res << "path_max      : " << size_t  (path_max     )                 <<'\n' ;
+		else          res << "path_max      : " << "unlimited"                             <<'\n' ;
+		/**/          res << "heartbeat     : " << heartbeat.short_str()                   <<'\n' ;
 		res << "console :\n" ;
 		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
 		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -161,16 +185,31 @@ namespace Engine {
 		else                                res << "\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		res << "backends :\n" ;
-		for( Tag t : Tag::N ) {
+		for( BackendTag t : BackendTag::N ) {
 			Backend const& be = backends[+t] ;
 			size_t         w  = 7            ;                                 // room for margin/address
-			for( auto [k,v] : be.dct ) w = ::max(w,k.size()) ;
+			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			/**/                       res <<"\t\t"<< ::setw(w)<<"margin"  <<" : "<< be.margin.short_str()             <<'\n' ;
-			/**/                       res <<"\t\t"<< ::setw(w)<<"address" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			for( auto [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k         <<" : "<< v                                 <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"margin"  <<" : "<< be.margin.short_str()             <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"address" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k         <<" : "<< v                                 <<'\n' ;
+		}
+		if (!caches.empty()) {
+			res << "caches :\n" ;
+			for( auto const& [key,cache] : caches ) {
+				size_t w = 3 ;                                                     // room for tag
+				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
+				res <<'\t'<< key <<" :\n" ;
+				/**/                                 res <<"\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
+				for( auto const& [k,v] : cache.dct ) res <<"\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
+			}
 		}
 		return res.str() ;
+	}
+
+	void Config::open() const {
+		Backends::Backend::s_config(backends) ;
+		Caches  ::Cache  ::s_config(caches  ) ;
 	}
 
 	//

@@ -42,15 +42,15 @@ namespace Engine {
 	// Store
 	//
 
-	EngineStore   g_store            { true/*writable*/ } ;
-	ServerConfig& g_config           = g_store.config     ;
-	::string    * g_local_admin_dir  = nullptr            ; bool g_has_local_admin_dir  = false ;
-	::string    * g_remote_admin_dir = nullptr            ; bool g_has_remote_admin_dir = false ;
-	SeqId       * g_seq_id           = nullptr            ;
+	EngineStore g_store            { true/*writable*/ } ;
+	Config    & g_config           = g_store.config     ;
+	::string  * g_local_admin_dir  = nullptr            ; bool g_has_local_admin_dir  = false ;
+	::string  * g_remote_admin_dir = nullptr            ; bool g_has_remote_admin_dir = false ;
+	SeqId     * g_seq_id           = nullptr            ;
 
 	void EngineStore::_s_init_config() {
-		try         { g_config = deserialize<ServerConfig>(IFStream(*g_local_admin_dir+"/store/config"s)) ; }
-		catch (...) { return ;                                                                  }
+		try         { g_config = deserialize<Config>(IFStream(*g_local_admin_dir+"/store/config"s)) ; }
+		catch (...) { return ;                                                                        }
 		if (!( g_config.db_version.major==DbVersion.major && g_config.db_version.minor<=DbVersion.minor ))
 			throw to_string( "data base version mismatch : expected : " , DbVersion.major,'.',DbVersion.minor , " found : " , g_config.db_version.major,'.',g_config.db_version.minor , '\n' ) ;
 	}
@@ -104,13 +104,13 @@ namespace Engine {
 		}
 	}
 
-	static bool _has_new_server_addr( ServerConfig const& old_config , ServerConfig const& new_config ) {
-		for( ServerConfigTag t : ServerConfigTag::N ) if (new_config.backends[+t].addr!=old_config.backends[+t].addr) return true  ;
-		/**/                                                                                                          return false ;
+	static bool _has_new_server_addr( Config const& old_config , Config const& new_config ) {
+		for( BackendTag t : BackendTag::N ) if (new_config.backends[+t].addr!=old_config.backends[+t].addr) return true  ;
+		/**/                                                                                                return false ;
 	}
-	ServerConfig/*old_config*/ EngineStore::_s_set_config(ServerConfig&& new_config) {
-		ServerConfig old_config  = g_config ;
-		::string     config_file = *g_local_admin_dir+"/store/config" ;
+	Config/*old_config*/ EngineStore::_s_set_config(Config&& new_config) {
+		Config   old_config  = g_config                           ;
+		::string config_file = *g_local_admin_dir+"/store/config" ;
 		g_config            = ::move(new_config) ;
 		g_config.db_version = DbVersion          ;
 		dir_guard(config_file) ;
@@ -121,7 +121,7 @@ namespace Engine {
 		return old_config ;
 	}
 
-	void EngineStore::_s_diff_config(ServerConfig const& old_config) {
+	void EngineStore::_s_diff_config(Config const& old_config) {
 		Trace trace("_diff_config",old_config) ;
 		if      ( g_config.lnk_support   >  old_config.lnk_support   ) g_store.invalidate_exec(false/*cmd_ok*/) ; // we could discover new deps            , do as if we have new commands
 		else if ( _has_new_server_addr(old_config,g_config)          ) g_store.invalidate_exec(true /*cmd_ok*/) ; // remote hosts may have been unreachable, do as if we have new resources
@@ -144,9 +144,9 @@ namespace Engine {
 	void _new_sub_dir( const char* name , const char* sub_name , ::string const& g_dir , bool g_has_dir ) {
 		::string admin_dir = to_string(AdminDir,'/',sub_name) ;
 		if (g_has_dir) {
-			unlink  (                                 admin_dir ) ;
-			lnk     ( to_string(name ,'/',sub_name) , admin_dir ) ;
-			make_dir( to_string(g_dir,'/',sub_name)             ) ;
+			unlink  ( admin_dir                                 ) ;
+			lnk     ( admin_dir , to_string(name ,'/',sub_name) ) ;
+			make_dir(             to_string(g_dir,'/',sub_name) ) ;
 		} else if (!is_dir(admin_dir)) {
 			make_dir( admin_dir , true/*unlink_ok*/ ) ;
 		}
@@ -157,8 +157,8 @@ namespace Engine {
 		g_has_dir = !dir.empty() ;
 		if (g_has_dir) {
 			g_dir = new ::string{dir} ;
-			if (dir[0]=='/') lnk(        dir  , admin_dir ) ;
-			else             lnk( ("../"+dir) , admin_dir ) ;
+			if (dir[0]=='/') lnk( admin_dir ,       dir ) ;
+			else             lnk( admin_dir , "../"+dir ) ;
 			make_dir(dir) ;
 		} else {
 			g_dir = new ::string{AdminDir} ;
@@ -174,23 +174,30 @@ namespace Engine {
 		make_dir(AdminDir+"/job_keep_tmp"s) ;
 	}
 
-	void EngineStore::s_keep_makefiles(bool rescue) {
+	void EngineStore::s_keep_config(bool rescue) {
 		_keep_dirs        (      ) ;
 		_s_init_config    (      ) ;
+		g_config.open     (      ) ;
 		_s_init_srcs_rules(rescue) ;
 	}
 
-	void EngineStore::s_new_makefiles( ::string const& local_admin_dir , ::string const& remote_admin_dir , ServerConfig&& config , ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs , bool rescue ) {
+	void EngineStore::s_keep_makefiles() {}
+
+	void EngineStore::s_new_config( ::string const& local_admin_dir , ::string const& remote_admin_dir , Config&& config , bool rescue ) {
+		Trace trace("s_new_config",ProcessDate::s_now()) ;
+		/**/                _new_dirs         ( local_admin_dir , remote_admin_dir ) ;
+		/**/                _s_init_config    (                                    ) ;
+		Config old_config = _s_set_config     ( ::move(config)                     ) ;
+		g_config.open() ;
+		/**/                _s_init_srcs_rules( rescue                             ) ;
+		/**/                _s_diff_config    ( old_config                         ) ;
+		trace("done",ProcessDate::s_now()) ;
+	}
+
+	void EngineStore::s_new_makefiles( ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs ) {
 		Trace trace("s_new_makefiles",ProcessDate::s_now()) ;
-		_new_dirs( local_admin_dir , remote_admin_dir ) ;
-		//
-		/**/                      _s_init_config(              ) ;
-		ServerConfig old_config = _s_set_config (::move(config)) ;
-		//
-		/**/                  _s_init_srcs_rules( rescue                          ) ;
-		/**/                  _s_diff_config    ( old_config                      ) ;
-		bool invalidate_src = _s_new_srcs       ( mk_vector<Node>(srcs)           ) ;
-		/**/                  _s_new_rules      ( ::move(rules ) , invalidate_src ) ;
+		bool invalidate_src = _s_new_srcs ( mk_vector<Node>(srcs)           ) ;
+		/**/                  _s_new_rules( ::move(rules ) , invalidate_src ) ;
 		trace("done",ProcessDate::s_now()) ;
 	}
 
@@ -295,7 +302,7 @@ namespace Engine {
 	void EngineStore::_s_new_rules( ::umap<Crc,RuleData>&& new_rules , bool force_invalidate ) {
 		Trace trace("_new_rules",new_rules.size()) ;
 		//
-		::umap <Crc,Rule> old_rules ; for( Rule r : g_store.rule_lst() ) old_rules[r->match_crc()] = r ;
+		::umap <Crc,Rule> old_rules ; for( Rule r : g_store.rule_lst() ) old_rules[r->match_crc] = r ;
 		//
 		RuleIdx n_new_rules      = 0 ; for( auto& [match_crc,new_rd] : new_rules ) n_new_rules += !old_rules.contains(match_crc) ;
 		RuleIdx n_modified_cmd   = 0 ;
@@ -314,8 +321,8 @@ namespace Engine {
 			if (old_rules.contains(match_crc)) {
 				old_r = old_rules[match_crc] ;
 				old_rules.erase(match_crc) ;
-				bool cmd_ok   = new_rd.cmd_crc  ()==old_r->cmd_crc  () ;
-				bool rsrcs_ok = new_rd.rsrcs_crc()==old_r->rsrcs_crc() ;
+				bool cmd_ok   = new_rd.cmd_crc  ==old_r->cmd_crc   ;
+				bool rsrcs_ok = new_rd.rsrcs_crc==old_r->rsrcs_crc ;
 				new_rd.cmd_gen      = old_r->cmd_gen      ;
 				new_rd.rsrcs_gen    = old_r->rsrcs_gen    ;
 				new_rd.exec_time    = old_r->exec_time    ;

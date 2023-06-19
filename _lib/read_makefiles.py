@@ -40,6 +40,7 @@ StdExecAttrs = {
 ,	'auto_mkdir'   : bool
 ,	'backend'      : str
 ,	'chroot'       : str
+,	'cache'        : str
 ,	'cmd'          : None
 ,	'deps'         : dict
 ,	'environ'      : dict

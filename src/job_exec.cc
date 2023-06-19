@@ -77,9 +77,8 @@ int main( int argc , char* argv[] ) {
 	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
-	::string ancillary_file = to_string(AdminDir ,'/',start_info.ancillary_file) ;
-	dir_guard(ancillary_file) ;
-	OFStream ancillary_stream{ ancillary_file , ::ios_base::binary } ;
+	dir_guard(start_info.ancillary_file) ;
+	OFStream ancillary_stream{ start_info.ancillary_file , ::ios_base::binary } ;
 	serialize(ancillary_stream,req_info  ) ;
 	serialize(ancillary_stream,start_info) ;
 	//

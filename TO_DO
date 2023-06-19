@@ -37,13 +37,22 @@
 * ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* make Dep field a DepDigest
+	- make the union of needs for Dep and dep reporting
+	- in end, if DepDigest is already a crc, no need to go through date analysis
+	- cache directly report deps rather than go through dates
+		- do that in upload as dates are meaningless in cache
 * add a warning when ids reach 15/16 of their limits
+* use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
 * find a use case to ensure dates are correctly handled with NFS
 
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add a -j option to lmake
+	- to limit the number of jobs
+	- consider a more general approach to limit resource occupation and keep reactivity
 * add flags as argument to target/ltarget
 	- apply on top of rule provided flags
 	- report flags rather than idx from job_exec to server
@@ -54,30 +63,8 @@
 	- match against regexpr
 	- operate as for star in star_targets
 * add result cache v1 (copy only) :
-	- add config.cache service (host+port)
-	- meta-data = target crcs + stderr + stdout
-	- send rule (match+cmd) + job-name + static deps (crc)
-	- receive list of hits : hidden_deps (name+crc)
-	- if out of date :
-		- rebuild deps
-		- stop at critical barriers
-	- if hit :
-		- send hit idx
-		- receive data + meta-data
-	- if not hit :
-		- compute
-		- once qualified as done, send root_dir + data + meta-data
-	- on cache side
-		- maintain doubly linked list of LRU
-		- upon req
-			- reply with list of available hits
-			- if hit, reply with data and update LRU
-		- upon update
-			- if hit, check coherence
-			- replace if same root_dir
-			- record root_dir + data + meta-data
-			- if size overflow, erase LRU's until enough space
-			- put as MRU
+	- add versionning (in the form of a top level dir) to ensure no confusion
+	- stop deps at critical barriers
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy

@@ -8,6 +8,8 @@
 @macro XXX{txt}
 @end macro
 
+@XXX{document cache mechanism}
+
 @macro lmake
 @code{lmake}
 @end macro

@@ -61,6 +61,7 @@ namespace Engine {
 		bool           waiting   (              ) const ;
 		bool           err       (ReqInfo const&) const ;
 		bool           done      (ReqInfo const&) const ;
+		bool           done      (Req           ) const ;
 		// services
 		::vector<RuleTgt> raw_rule_tgts() const ;
 		void              mk_old       () ;
@@ -175,7 +176,7 @@ namespace Engine {
 				default : FAIL(d.is_date) ;
 			}
 		}
-		Dep& operator=( Dep const& d ) {
+		Dep& operator=(Dep const& d) {
 			Node::operator=(d) ;
 			if (  is_date==Yes) _date.~Date()             ; else _crc.~Crc()            ;
 			if (d.is_date==Yes) new(&_date) Date{d._date} ; else new(&_crc) Crc{d._crc} ;
@@ -262,7 +263,7 @@ namespace Engine {
 			;
 		}
 		bool makable(bool uphill_ok=false) const {
-			if (conform_idx==Node::NoIdx) return false   ;
+			if (conform_idx==Node::NoIdx) return multi   ;                     // multi is an error case, but is makable
 			if (uphill_ok               ) return true    ;
 			/**/                          return !uphill ;
 		}
@@ -348,6 +349,7 @@ namespace Engine {
 
 	inline bool Node::err (ReqInfo const& cri) const { return cri.err!=No || (*this)->err() ;      }
 	inline bool Node::done(ReqInfo const& cri) const { return cri.done || (*this)->buildable==No ; }
+	inline bool Node::done(Req            r  ) const { return done(c_req_info(r)) ;                }
 
 	inline ::vector_view_c<JobTgt> Node::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
 	inline ::vector_view_c<JobTgt> Node::conform_job_tgts() const {
