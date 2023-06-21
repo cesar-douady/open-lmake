@@ -3,6 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os
 import sys
 
 if getattr(sys,'reading_makefiles',False) :
@@ -15,11 +16,10 @@ if getattr(sys,'reading_makefiles',False) :
 	)
 
 	lmake.config.caches.dir = {
-		'tag'   : 'dir'
-	,	'repo'  : lmake.root_dir
-	,	'dir'   : lmake.root_dir+'/CACHE'
-	,	'size'  : 1_000_000_000
-	,	'group' : 'cdy'
+		'tag'  : 'dir'
+	,	'repo' : lmake.root_dir
+	,	'dir'  : lmake.root_dir+'/CACHE'
+	,	'size' : 1_000_000_000
 	}
 
 	class Auto(lmake.Rule) :
@@ -49,8 +49,6 @@ if getattr(sys,'reading_makefiles',False) :
 
 else :
 
-	import os
-
 	import ut
 
 	print('hello',file=open('hello','w'))
@@ -60,3 +58,8 @@ else :
 	# XXX when cache is operational, add tests for cached accesses
 	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 )              # check target is out of date
 	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 )              # check target is up to date
+
+	os.system('rm -rf LMAKE *auto*')
+
+	print('hello2',file=open('hello','w'))
+	ut.lmake( 'hello+auto1.hide' , done=1 , hit_done=2 , new=1 )              # check cache hit on common part, and miss when we depend on hello

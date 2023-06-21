@@ -26,8 +26,6 @@ namespace Caches {
 		::string dir    ;
 		Fd       dir_fd ;
 		Sz       sz     = 0 ;
-		gid_t    group  = 0 ;
-
 	} ;
 
 }

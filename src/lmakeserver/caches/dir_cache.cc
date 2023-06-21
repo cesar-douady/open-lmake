@@ -49,19 +49,8 @@ namespace Caches {
 		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))         ; else throw "repo not found"s ;
 		if (dct.contains("dir" )) dir       =      dct.at("dir" )          ; else throw "dir not found"s  ;
 		if (dct.contains("size")) sz        = atol(dct.at("size").c_str()) ; else throw "size not found"s ;
-		//
-		if (dct.contains("group")) {
-			char*           end = nullptr         ;
-			::string const& g   = dct.at("group") ;
-			group = strtol( g.c_str() , &end , 0 ) ;
-			if (*end!=0) {
-				struct group* gs = getgrnam(g.c_str()) ;
-				if (!gs) throw to_string("cannot find group ",g) ;
-				group = gs->gr_gid ;
-			}
-		}
 		repo   = ::string(repo_hash.digest()) ;
-		dir_fd = open_read(dir)     ;
+		dir_fd = open_read(dir)               ;
 		dir_fd.no_std() ;                                                      // avoid poluting standard descriptors
 	}
 
@@ -224,16 +213,27 @@ namespace Caches {
 
 	JobDigest DirCache::download( Job job , Id const& id ) {
 		Trace trace("download",job,id) ;
-		::string    jn     = _unique_name(job,id)            ;
-		LockedFd    lock   { dir_fd , true/*exclusive*/ }    ;             // because we manipulate LRU, lock must be exclusive
-		AutoCloseFd dfd    = open_read(dir_fd,jn)            ;
-		IFStream    stream { to_string(dir,'/',jn,"/data") } ;
+		::string    jn   = _unique_name(job,id)         ;
+		LockedFd    lock { dir_fd , true/*exclusive*/ } ;                      // because we manipulate LRU, lock must be exclusive
+		AutoCloseFd dfd  = open_read(dir_fd,jn)         ;
 		//
-		/**/               deserialize<JobRpcReq  >(stream) ;              // unused
-		/**/               deserialize<JobRpcReply>(stream) ;              // .
-		JobDigest digest = deserialize<JobRpcReq  >(stream).digest ;
+		IFStream ifs{to_string(dir,'/',jn,"/data")} ;
+		JobRpcReq   report_req   = deserialize<JobRpcReq  >(ifs) ;
+		JobRpcReply report_start = deserialize<JobRpcReply>(ifs) ;
+		JobRpcReq   report_end   = deserialize<JobRpcReq  >(ifs) ;
+		JobInfo     report_info  = deserialize<JobInfo    >(ifs) ;
 		//
-		/**/                                                  _copy( dfd , "data"        , job.ancillary_file()     , true/*unlink_dst*/ ) ; // XXX : record job is a hit and do not copy reason
+		JobDigest& digest = report_end.digest ;
+		for( auto& [dn,dd] : digest.deps ) dd.date = file_date(dn) ;           // XXX : temporary code waiting for crc to be directly reported
+		//
+		::string jaf = job.ancillary_file() ;
+		dir_guard(jaf) ;
+		OFStream ofs{jaf} ;
+		serialize(ofs,report_req  ) ;
+		serialize(ofs,report_start) ;
+		serialize(ofs,report_end  ) ;
+		serialize(ofs,report_info ) ;
+		//
 		for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) _copy( dfd , to_string(ti) , digest.targets[ti].first , true/*unlink_dst*/ ) ;
 		//
 		_lru_first(jn,_lru_remove(jn)) ;

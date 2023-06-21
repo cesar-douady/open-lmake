@@ -83,7 +83,7 @@ so there is never any reason to have any kind of recursive invocation, @lmake ca
 By robust, we mean that @lmake guarantees that if a job is not rerun, then rerunning it would lead to the same content (or a content that is equally legal).
 This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitely stated in the rules, e.g. include files).
 
-We also mean that @lmake that as any software, it may have bug.
+We also mean that @lmake, as any software, it may have bug.
 Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while it was not necessary).
 But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
 In case of any adverse event (lmake crashes or spurious system reboot),
@@ -96,6 +96,9 @@ or SGE/SLURM spuriously disappearing.
 By efficient, we mean that jobs are run in parallel, optionally using a batcher such as slurm, managing limited resources as declared in @Lmakefile.
 We also mean that @lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
 Such effort includes checksum based modification detection rather than date based, so that if a job is rerun and produces an identical content, subsequent jobs are not rerun.
+Also, @lmake embed a build cache whereby jobs can record their results in a cache so that if the same run needs to be carried out by another user,
+it may barely fetch the result from the cache rather than run the - potentially lengthy - job.
+
 
 @section Preparing and running @lmake.
 
@@ -1053,8 +1056,20 @@ The first 3-tuple provides the color in normal video mode (black/white) and the 
 Each color is a triplet RGB of values between 0 and 255.
 @item @code{backends}
 @tab
-@tab This attribute is a @code{pdict} with one entry for each backend (@pxref{backends}).
+@tab This attribute is a @code{pdict} with one entry for each backend
+(@pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
+@item @code{caches}
+@tab
+@tab This attribute is a @code{pdict} with one entry for each cache.
+Caches are named with an arbitrary @code{str} and are referenced in rules using this name.
+The attributes are described in the caches section below.
+@end multitable
+
+@section backends
+
+@multitable @columnfractions 0.1 0.07 0.83
+@headitem Attribute @tab Default @tab Description
 @item @code{backends.*.margin}
 @tab @code{0}
 @tab Special case of backends attribute is the @code{margin} entry, that must be present for all backends, that provide the minimum age (i.e. the difference between its ctime and the access time)
@@ -1081,6 +1096,35 @@ By default, loop-back is used for the local backend and the hostname (as given b
 @tab size of physical memory in MB
 @tab This is a normal resource rules can require (which is the case if resources are defaulted)
 @end multitable
+
+@section caches
+
+By default, no cache is configured, but an example can be found in @file{lib/lmake.py}, commented out.
+
+@multitable @columnfractions 0.1 0.07 0.83
+@headitem Attribute @tab Default @tab Description
+@item @code{caches.*.tag}
+@tab -
+@tab This attribute specifies the method used by @lmake to cache values.
+In the current version, only 2 tags may be used :
+@itemize @minus
+@item @code{'none'} is a cache that caches nothing. No further configuration is required for such a cache.
+@item @code{'dir'} is a cache working without daemon. The data are stored in a directory.
+@end itemize
+@item @code{caches.<dir>.repo}
+@tab -
+@tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies a key identifying the repository.
+In order to avoid poluting the cache during typical edit-run-debug loops with data that will never be reused, the cache restrict its data to at most one entry for each job in each repo.
+This attribute is used to identiy a repository. If 2 repositories use the same key, then results produced in one will replace those produced in the other one.
+Besides this restriction, a classical LRU algorithm is used.
+@item @code{caches.<dir>.dir}
+@tab -
+@tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies the directory in which the cache puts its data.
+@item @code{caches.<dir>.size}
+@tab -
+@tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies the maximum size the cache can occupy.
+@end multitable
+
 
 @chapter Sources
 
@@ -1598,6 +1642,24 @@ During evaluation, when the job runs, its environment is augmented with :
 Such variables must appear in the core of one of the definitions as a whole word.
 
 The job is deemed to be successful if the return code of the overall process is @code{0}.
+
+@section @code{cache}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{str}
+@item Constraint
+@tab One of the caches listed in config.
+@item Default
+@tab <not cached>
+@end multitable
+
+This attribute specifies the cache to use for jobs executed by this rule.
+When a job is executed, its results are stored in the cache.
+If space is needed (all caches are constrained in size), any other entry can be replaced.
+The cache policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
 
 @section @code{backend}
 
@@ -2159,6 +2221,8 @@ This feature is a central point that makes Python multiple inheritance easy to u
 Estimated Time of Arrival. This is the date at which a given event (such as a job being completed) is estimated to occur.
 @item ETE
 Estimated Time En route. This is the remaining time necessary to complete a task.
+@item LRU
+Least Recently Used. A classical cache replacement policy where the entry that was least recently used is discarded when a new one is allocated.
 @end table
 
 @bye

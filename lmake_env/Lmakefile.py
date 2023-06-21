@@ -15,6 +15,13 @@ from subprocess import run,DEVNULL,STDOUT
 import lmake
 from lmake import AntiRule,Rule,config
 
+lmake.config.caches.dir = {
+	'tag'  : 'dir'
+,	'repo' : lmake.root_dir
+,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
+,	'size' : 1_000_000_000
+}
+
 lmake.version = (1,0)
 
 lmake.local_admin_dir  = 'LMAKE_LOCAL'
@@ -49,6 +56,7 @@ class BaseRule(Rule) :
 
 class Centos7Rule(BaseRule) :
 	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
+	cache   = 'dir'
 
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
