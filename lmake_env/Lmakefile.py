@@ -12,6 +12,8 @@ import tarfile
 import zipfile
 from subprocess import run,DEVNULL,STDOUT
 
+gcc = os.environ.get('CC','gcc')
+
 import lmake
 from lmake import AntiRule,Rule,config
 
@@ -30,7 +32,7 @@ lmake.remote_admin_dir = 'LMAKE_REMOTE'
 config.link_support = 'full'
 
 config.backends.local.cpu = int(os.cpu_count()*1.5)
-config.backends.local.gcc = os.cpu_count()
+config.backends.local.cc  = os.cpu_count()
 
 red_hat_release = None
 
@@ -56,11 +58,12 @@ class BaseRule(Rule) :
 
 class Centos7Rule(BaseRule) :
 	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
-	cache   = 'dir'
+	#cache   = 'dir'
 
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
+	autodep = 'ld_preload'                                                     # on some systems, texi2any does not work with ld_audit
 	cmd     = 'texi2any --html --no-split -o $HTML $TEXI'
 
 class Unpack(BaseRule) :
@@ -160,7 +163,7 @@ class SysConfigH(Centos7Rule) :
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
     deps = { 'EXE' : 'sys_config' }
-    cmd  = f'CC=gcc PYTHON={sys.executable} ./$EXE 2>&1  >$H'
+    cmd  = f'CC={gcc} PYTHON={sys.executable} ./$EXE 2>&1  >$H'
 
 opt_tab = {}
 class GenOpts(BaseRule) :
@@ -185,9 +188,9 @@ class Marker(BaseRule) :
 		open(MRKR,'w')
 
 basic_opts_tab = {
-	'c'   : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-std=c99'  )
-,	'cc'  : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-std=c++20')
-,	'cxx' : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-std=c++20')
+	'c'   : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing',                   '-std=c99'  )
+,	'cc'  : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # on some systems, we there is a warning type-limits
+,	'cxx' : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # .
 }
 for ext,basic_opts in basic_opts_tab.items() :
 	class Compile(Centos7Rule) :                                               # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
@@ -211,7 +214,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
 			cmd_line = (
-				'gcc' , '-fdiagnostics-color=always' , '-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
+				gcc , '-fdiagnostics-color=always' , '-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	f'-DHAS_PTRACE={int(lmake.has_ptrace)}' ,  f'-DHAS_LD_AUDIT={int(lmake.has_ld_audit)}'
 			,	*basic_opts
 			,	*add_flags
@@ -220,10 +223,10 @@ for ext,basic_opts in basic_opts_tab.items() :
 			for k,v in os.environ.items() : print(f'{k}={v}')
 			print(' '.join(cmd_line))
 			run( cmd_line , check=True )
-		n_tokens = config.backends.local.gcc
+		n_tokens = config.backends.local.cc
 		resources = {
 			'mem' : 500                                                        # in MB
-		,	'gcc' : 1
+		,	'cc'  : 1
 		}
 
 class GccRule(Centos7Rule) :
@@ -232,7 +235,7 @@ class GccRule(Centos7Rule) :
 	rev_post_opts = []                                                         # options after  inputs & outputs, combine appends at each level, but here we want to prepend
 	def cmd() :
 		cmd_line = (
-			'gcc' , '-fdiagnostics-color=always'
+			gcc , '-fdiagnostics-color=always'
 		,	*pre_opts
 		,	'-o',TARGET
 		,	*deps.values()
@@ -261,7 +264,7 @@ class InstallSeccomp(BaseRule) :
 	stems       = { 'Version' : r'[0-9]+(\.[0-9]+)*' }
 	install_dir = 'ext/libseccomp-{Version}.dir/libseccomp-{Version}'
 	targets = {
-		'SO'         : ( f'{install_dir}/src/libseccomp.so.{{Version}}' )      # gcc reads output to check if it is a link before compilation
+		'SO'         : ( f'{install_dir}/src/libseccomp.so.{{Version}}' )
 	,	'A'          : ( f'{install_dir}/src/libseccomp.a'              )
 	,	'INCLUDE'    : ( f'{install_dir}/include/seccomp.h'             )
 	,	'I386'       : ( f'{install_dir}/{{*:.*-i386.*}}.o'             , '-Match' , 'Incremental' , '-Write' ) # i386 info is delivered as binary

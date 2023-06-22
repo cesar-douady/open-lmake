@@ -410,9 +410,10 @@ namespace Engine {
 
 		::vector<Target> star_targets ; if (rule->has_stars) star_targets.reserve(digest.targets.size()) ; // typically, there is either no star targets or most of them are stars
 		for( auto const& [tn,td] : digest.targets ) {
-			TFlags flags  = td.tfs                          ;
-			UNode  target { tn }                            ;
-			Crc    crc    = td.write ? td.crc : target->crc ;
+			TFlags flags       = td.tfs                          ;
+			UNode  target      { tn }                            ;
+			Crc    crc         = td.write ? td.crc : target->crc ;
+			bool   incremental = flags[TFlag::Incremental]       ;
 			//
 			if ( !flags[TFlag::SourceOk] && td.write && target->is_src() ) {
 				err = true ;
@@ -435,7 +436,10 @@ namespace Engine {
 				if (flags   [TFlag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
 				if (aj_flags[TFlag::Crc]) for( Req r : reqs() ) r->clash_nodes.insert(target) ; // if actual job cares about content, we have the annoying case mentioned above
 			}
-			if ( !flags[TFlag::Incremental] && target->read(td.dfs) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
+			if ( !incremental && target->read(td.dfs) ) {
+				local_reason |= {JobReasonTag::PrevTarget,+target} ;
+				incremental = true ;                                           // this was not allowed but fact is that we behaved incrementally
+			}
 			if (crc==Crc::None) {
 				if (!RuleData::s_sure(flags)) continue ;                       // if we are not sure, a target is not generated if it does not exist
 				if ( !flags[TFlag::Star] && !flags[TFlag::Phony] ) {
@@ -448,14 +452,14 @@ namespace Engine {
 				analysis_err.emplace_back("unexpected write to",target) ;
 			}
 			//
-			if (flags[TFlag::Star]) star_targets.emplace_back( target , flags[TFlag::Incremental] ) ;
-			else                    seen_static_targets.insert(target)                              ;
+			if (flags[TFlag::Star]) star_targets.emplace_back( target , incremental ) ;
+			else                    seen_static_targets.insert(target)                ;
 			//
 			bool         modified = false ;
 			FileInfoDate fid      { tn }  ;
 			if (!td.write) {
-				if ( flags[TFlag::ManualOk] && flags[TFlag::Incremental] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
-				else                                                                                     goto NoRefresh ;
+				if ( flags[TFlag::ManualOk] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
+				else                                                        goto NoRefresh ;
 			}
 			//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			modified = target.refresh( fid.tag==FileTag::Lnk , crc , fid.date_or_now() ) ;
@@ -1034,51 +1038,42 @@ namespace Engine {
 		}
 		// check targets
 		::vmap<Node,bool/*ok*/> manual_targets ;
-		::vmap<Node,bool/*ok*/> src_targets    ;
 		auto chk_target = [&]( Node t , VarIdx ti , ::string const& tn )->void {
 			TFlags flags = rule->flags(ti) ;
 			if (t.manual_ok(FileInfoDate(tn))==No) manual_targets.emplace_back(t,flags[TFlag::ManualOk]) ;
-			if (t->is_src()                      ) src_targets   .emplace_back(t,flags[TFlag::SourceOk]) ;
 		} ;
 		for( auto const& [t,ti] : static_target_map     ) {                          chk_target( t , ti             , static_targets[ti] ) ; }
 		for( Node         t     : (*this)->star_targets ) { ::string tn = t.name() ; chk_target( t , match_.idx(tn) , tn                 ) ; }
 		//
-		for( bool chk_src : { true , false } ) {
-			bool                           job_ok      = true                                   ;
-			::vmap<Node,bool/*ok*/> const& chk_targets = chk_src ? src_targets : manual_targets ;
-			for( auto const& [t,ok] : chk_targets ) {
-				trace((chk_src?"source":"manual"),t,STR(ok)) ;
-				bool target_ok = ok || req->options.flags[ chk_src ? ReqFlag::SourceOk : ReqFlag::ManualOk ] ;
-				req->audit_job( target_ok?Color::Note:Color::Err , (chk_src?"source":"manual") , rule , t.name() ) ;
-				job_ok &= target_ok ;
-			}
-			if (job_ok) continue ;
-			// generate a message that is simultaneously consise, informative and executable (with a copy/paste) with sh & csh syntaxes
-			req->audit_info( Color::Note , "consider :" , 1 ) ;
-			// to reach this job, we must make a target which is *not* a source
-			for( auto const& [t,ti] : static_target_map     ) if (!t->is_src()) { req->audit_node( Color::Note , to_string("lmake ",chk_src?"-s":"-m") , t , 2 ) ; goto Advised ; }
-			for( Node         t     : (*this)->star_targets ) if (!t->is_src()) { req->audit_node( Color::Note , to_string("lmake ",chk_src?"-s":"-m") , t , 2 ) ; goto Advised ; }
-		Advised :
-			if (!chk_src) {
-				for( auto const& [t,ok] : chk_targets ) {
-					if (ok) continue ;
-					DiskDate td    = file_date(t.name()) ;
-					uint8_t  n_dec = (td-t->date)>Delay(2.) ? 0 : 9 ;          // if dates are far apart, probably a human action and short date is more comfortable, else be precise
-					req->audit_node(
-						Color::Note
-					,	t->crc==Crc::None ?
-							to_string( ": touched " , td.str(0    ) , " not generated"                   , " ; rm" )
-						:	to_string( ": touched " , td.str(n_dec) , " generated " , t->date.str(n_dec) , " ; rm" )
-					,	t
-					,	2
-					) ;
-				}
-			}
-			(*this)->run_status = RunStatus::TargetErr ;
-			trace(chk_src?"target_is_src":"target_is_manual") ;
-			return false ;
+		bool job_ok = true ;
+		for( auto const& [t,ok] : manual_targets ) {
+			trace("manual",t,STR(ok)) ;
+			bool target_ok = ok || req->options.flags[ReqFlag::ManualOk] ;
+			req->audit_job( target_ok?Color::Note:Color::Err , "manual" , rule , t.name() ) ;
+			job_ok &= target_ok ;
 		}
-		return true ;
+		if (job_ok) return true ;
+		// generate a message that is simultaneously consise, informative and executable (with a copy/paste) with sh & csh syntaxes
+		req->audit_info( Color::Note , "consider :" , 1 ) ;
+		for( auto const& [t,ti] : static_target_map     ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; }
+		for( Node         t     : (*this)->star_targets ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; }
+	Advised :
+		for( auto const& [t,ok] : manual_targets ) {
+			if (ok) continue ;
+			DiskDate td    = file_date(t.name()) ;
+			uint8_t  n_dec = (td-t->date)>Delay(2.) ? 0 : 3 ;                  // if dates are far apart, probably a human action and short date is more comfortable, else be precise
+			req->audit_node(
+				Color::Note
+			,	t->crc==Crc::None ?
+					to_string( ": touched " , td.str(0    ) , " not generated"                   , " ; rm" )
+				:	to_string( ": touched " , td.str(n_dec) , " generated " , t->date.str(n_dec) , " ; rm" )
+			,	t
+			,	2
+			) ;
+		}
+		(*this)->run_status = RunStatus::TargetErr ;
+		trace("target_is_manual") ;
+		return false ;
 	}
 
 	bool/*maybe_new_deps*/ Job::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {

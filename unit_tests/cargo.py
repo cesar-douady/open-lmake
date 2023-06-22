@@ -48,7 +48,7 @@ else :
 
 	import ut
 
-	try    : sp.check_output('rustc')                                          # dont test rust if rust in not installed
+	try    : sp.check_output('cargo')                                          # dont test rust if rust is not installed
 	except : exit()
 
 	os.makedirs('hello/src',exist_ok=True)

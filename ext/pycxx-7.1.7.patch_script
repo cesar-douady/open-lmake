@@ -1,14 +1,13 @@
-#!/bin/bash
+#!/bin/bash -ex
 
 # This file is part of the lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-set -x
 TOP=pycxx-7.1.7
 
-ex $TOP/CXX/Python2/Objects.hxx <<"EOF"
+ed $TOP/CXX/Python2/Objects.hxx <<"EOF"
 2925s:MapBase<T>:MapBase:
 2919s:MapBase<T>:MapBase:
 2902s:MapBase<T>:MapBase:
@@ -21,7 +20,7 @@ ex $TOP/CXX/Python2/Objects.hxx <<"EOF"
 w
 EOF
 
-ex $TOP/CXX/Python3/Objects.hxx <<"EOF"
+ed $TOP/CXX/Python3/Objects.hxx <<"EOF"
 2760s:MapBase<T>:MapBase:
 2753s:MapBase<T>:MapBase:
 2736s:MapBase<T>:MapBase:
@@ -52,29 +51,29 @@ ex $TOP/CXX/Python3/Objects.hxx <<"EOF"
 w
 EOF
 
-ex $TOP/Demo/Python3/test_assert.hxx <<"EOF"
+ed $TOP/Demo/Python3/test_assert.hxx <<"EOF"
 47,$s:static void:static inline void:
 w
 EOF
 
-ex $TOP/CXX/Python2/Exception.hxx <<"EOF"
+ed $TOP/CXX/Python2/Exception.hxx <<"EOF"
 115s:<\(.*\)>:"\1":
 w
 EOF
 
-ex $TOP/CXX/Python3/Exception.hxx <<"EOF"
+ed $TOP/CXX/Python3/Exception.hxx <<"EOF"
 118s:<\(.*\)>:"\1":
 w
 EOF
 
-ex $TOP/Src/Python2/cxx_exceptions.cxx <<"EOF"
+ed $TOP/Src/Python2/cxx_exceptions.cxx <<"EOF"
 4s:<\(.*\)>:"\1":
 5s:<\(.*\)>:"\1":
 64s:<\(.*\)>:"\1":
 w
 EOF
 
-ex $TOP/Src/Python3/cxx_exceptions.cxx <<"EOF"
+ed $TOP/Src/Python3/cxx_exceptions.cxx <<"EOF"
 4s:<\(.*\)>:"\1":
 5s:<\(.*\)>:"\1":
 64s:<\(.*\)>:"\1":

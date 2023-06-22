@@ -92,12 +92,12 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 			reply.push_back(c) ;
 		}
 		size_t pos = reply.find(';') ;
-		if (reply.substr(0    ,pos+1)!=reqs[fg].substr(0,pos+1)) goto Restore ;   // reply has same format with ? substituted by actual values
-		if (reply.substr(pos+1,4)!="rgb:"                  ) goto Restore ;   // then rgb:
+		if (reply.substr(0    ,pos+1)!=reqs[fg].substr(0,pos+1)) goto Restore ; // reply has same format with ? substituted by actual values
+		if (reply.substr(pos+1,4)!="rgb:"                      ) goto Restore ; // then rgb:
 		//
 		::vector_s t = split(reply.substr(pos+5),'/') ;
 		if (t.size()!=3) goto Restore ;
-		for( size_t i=0 ; i<3 ; i++ ) lum[fg] += strtol(t[i].c_str(),nullptr,16) ;          // add all 3 components as a rough approximation of the luminance
+		for( size_t i=0 ; i<3 ; i++ ) lum[fg] += strtol(t[i].c_str(),nullptr,16) ; // add all 3 components as a rough approximation of the luminance
 	}
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
 	return lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;

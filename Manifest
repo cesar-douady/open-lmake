@@ -124,6 +124,7 @@ unit_tests/src.py
 unit_tests/star.py
 unit_tests/tar.py
 unit_tests/target.py
+unit_tests/target2.py
 unit_tests/test04.script
 unit_tests/test05.script
 unit_tests/test06.script

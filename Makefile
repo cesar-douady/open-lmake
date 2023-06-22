@@ -35,9 +35,6 @@ WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2
 endif
 
 LANG := c++20
-ifeq ($(strip $(CC))-$(shell $(CC) -dumpversion),gcc-10)
-LANG := c++2a
-endif
 
 # python configuration
 ifeq ($(PYTHON),)
@@ -582,4 +579,4 @@ $(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_E
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	mkdir -p lmake_env-cache
-	set -e ; cd $(LMAKE_ENV) ; $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)

@@ -966,7 +966,7 @@ The correspondance is :
 @code{lcritical_barrier}
 @item @code{def depend(*files,error=True,required=True,essential=True)} or @code{def depend(files,error=True,required=True,essential=True)}
 @code{ldepend}
-@item @code{def target(*files,unlink=False,crc,dep,essential,manul_ok,phony,source_ok,stat,write)} or @code{def target(files,unlink=False,crc,dep,essential,manul_ok,phony,source_ok,stat,write)}
+@item @code{def target(*files,unlink=False,crc,dep,essential,phony,source_ok,stat,write)} or @code{def target(files,unlink=False,crc,dep,essential,phony,source_ok,stat,write)}
 @code{ltarget}.
 When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
 @end table
