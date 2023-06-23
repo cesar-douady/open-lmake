@@ -1,0 +1,16 @@
+FROM centos:7
+
+RUN yum install -y centos-release-scl
+RUN yum install -y devtoolset-11
+RUN yum install -y ed
+RUN yum install -y texinfo
+RUN yum install -y git
+RUN yum install -y python36
+RUN yum install -y python36-devel
+
+RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+USER    1001:1001
+WORKDIR /home/cdy
+ENV     USER=cdy
+ENV     HOME=/home/cdy
+CMD     scl enable devtoolset-11 bash

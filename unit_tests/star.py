@@ -16,11 +16,11 @@ if getattr(sys,'reading_makefiles',False) :
 	,	'hello'
 	)
 
-	if   step==1 : optional = (           )
-	elif step==2 : optional = ('optional',)
+	if   step==1 : phony = (        )
+	elif step==2 : phony = ('phony',)
 
 	class Star(lmake.Rule) :
-		targets = { 'DST' : ('{File:.*}.star{Digit*:\\d+}',*optional) }
+		targets = { 'DST' : ('{File:.*}.star{*:\\d+}',*phony) }
 		dep     = '{File}'
 		def cmd() :
 			text = sys.stdin.read()

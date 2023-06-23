@@ -61,7 +61,7 @@ static constexpr NodeIdx RuleWeight = 100 ;
 static constexpr uint32_t NErr = 30 ;
 
 // number of job traces to keep (indexed by unique id)
-static constexpr SeqId JobHistorySz = 100 ;
+static constexpr SeqId JobHistorySz = 1000 ;
 
 //
 // derived info

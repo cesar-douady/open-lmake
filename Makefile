@@ -7,15 +7,15 @@
 # build configuration
 #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-MAKEFLAGS = -j8 -r -R -k
+MAKEFLAGS = -j$(shell nproc||echo 1) -r -R -k
 
-CC := gcc
-#CC := clang                                                                   # for some unknown reason, clang is incompatible with -fsanitize
+PYTHON := $(shell bash -c 'type -p python3')
+
+CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc')
+#CC := $(shell type -p clang)                                                  # for some unknown reason, clang is incompatible with -fsanitize
 
 COVERAGE :=
-#COVERAGE := --coverage
-
-PYTHON := $(shell python3 -c 'import sys ; print(sys.executable)' 2>/dev/null )
+#COVERAGE := --coverage                                                        # not operational yet
 
 # -fsanitize=address and -fsanitize=thread are exclusive of one another
 #ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
@@ -29,9 +29,8 @@ OPT_FLAGS := -O3
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 
-WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type
+WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
 ifeq ($(strip $(CC)),clang)
-WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
 endif
 
 LANG := c++20
@@ -39,10 +38,28 @@ LANG := c++20
 # python configuration
 ifeq ($(PYTHON),)
 $(error cannot find python3)
-else
-ifeq ($(shell $(PYTHON) -c 'import sys ; print(sys.version_info.major==3 and sys.version_info.minor>=6)'),False)
-$(error python3 must be at least 3.6)
+else ifeq ($(shell $(PYTHON) -c 'import sys ; print(sys.version_info.major==3 and sys.version_info.minor>=6)'),False)
+$(error python3 version must be at least 3.6)
 endif
+
+# CC configuration
+ifeq ($(CC),)
+
+$(error cannot find c compiler)
+
+else ifeq ($(findstring gcc,$(CC)),gcc)
+
+ifeq ($(intcmp $(shell $(CC) -dumpversion),11,lt,eq,gt),lt)
+$(error gcc version must be at least 11)
+endif
+
+else ifeq ($(findstring clang,$(CC)),clang)
+
+ifeq ($(intcmp $(shell $(CC) -dumpversion),15,lt,eq,gt),lt)
+$(error clang version must be at least 15)
+endif
+WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
+
 endif
 
 SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))

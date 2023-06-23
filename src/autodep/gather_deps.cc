@@ -38,7 +38,10 @@ using namespace Hash ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" << '@'<<ai.access_date <<','<<ai.dfs<<'-'<<ai.neg_tfs<<'+'<<ai.pos_tfs ;
+	os << "AccessInfo(" << '@'<<ai.access_date ;
+	if (+ai.dfs      ) os <<','<< ai.dfs                             ;
+	if (+ai.neg_tfs  ) os <<'-'<< ai.neg_tfs                         ;
+	if (+ai.pos_tfs  ) os <<'+'<< ai.pos_tfs                         ;
 	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date              ;
 	if (ai.write!=No ) os <<','<< (ai.write==Maybe?"Unlink":"Write") ;
 	return os <<','<< ai.dep_order << ')' ;

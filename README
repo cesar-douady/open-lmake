@@ -49,22 +49,9 @@
 * lmake requires :
 	- c++20
 	- python 3.6 or later with developer support (i.e. access to the Python.so file)
-* it has been tested with :
-	- ubuntu 22, gcc-12 or clang-15, python 3.10
-	- CentOS7 with the following packages :
-		- yum install centos-release-scl
-		- yum install devtoolset-11
-		- yum install texinfo
-		- yum install git
-		- yum install python36
-		- yum install python36-devel
+* it has been tested with the dockers listed in the docker directory
 * to compile lmake :
-	- ensure an adequate gcc (>=11) or clang (>=15) is in the PATH
-		- if using clang, modify the first lines of Makefile to have CC := clang instead of CC := gcc
-		- instead of putting the right compiler in the path, you can set the CC variable to an absolute path to the compiler
-	- ensure an adequate python is in the PATH
-		- accessible as python3
-		- alternatively, you can set the PYTHON variable to an absolute path to the python interpreter
+	- modify the first few lines of Makefile under "build configuration" to suit your needs if required
 	- type make
 		- this builds all necessary files and some unit tests
 		- you must invoke 'git clean -fdx' if you modified the Makefile

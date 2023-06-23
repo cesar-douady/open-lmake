@@ -1,0 +1,11 @@
+FROM ubuntu:22.04
+
+RUN apt update
+RUN apt install -y build-essential ed g++-12 git python3-dev texinfo
+
+RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+USER    1001:1001
+WORKDIR /home/cdy
+ENV     USER=cdy
+ENV     HOME=/home/cdy
+CMD     bash

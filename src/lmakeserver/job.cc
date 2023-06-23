@@ -373,13 +373,14 @@ namespace Engine {
 	}
 
 	bool/*modified*/ JobExec::end( ProcessDate start , JobDigest const& digest ) {
-		Status                 status       = digest.status                                      ; // status will be modified, need to make a copy
-		bool                   err          = status>=Status::Err                                ;
-		bool                   killed       = status<=Status::Killed                             ;
-		JobReason              local_reason = killed ? JobReasonTag::Killed : JobReasonTag::None ;
-		bool                   any_modified = false                                              ;
-		Rule                   rule         = (*this)->rule                                      ;
-		::vector<pair_s<Node>> analysis_err ;
+		Status                 status        = digest.status                                      ; // status will be modified, need to make a copy
+		bool                   err           = status>=Status::Err                                ;
+		bool                   killed        = status<=Status::Killed                             ;
+		JobReason              local_reason  = killed ? JobReasonTag::Killed : JobReasonTag::None ;
+		bool                   any_modified  = false                                              ;
+		Rule                   rule          = (*this)->rule                                      ;
+		::vector<Req>          running_reqs_ = running_reqs()                                     ;
+		::vector<pair_s<Node>> analysis_err  ;
 		//
 		SWEAR( status!=Status::New && !JobData::s_frozen(status) ) ;           // we just executed the job, it can be neither new nor frozen
 		SWEAR(!rule.is_special()) ;
@@ -434,14 +435,29 @@ namespace Engine {
 				//     Putting target in clash_nodes will generate a frightening message to user asking to relaunch all concurrent commands, even past ones.
 				//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
 				if (flags   [TFlag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
-				if (aj_flags[TFlag::Crc]) for( Req r : reqs() ) r->clash_nodes.insert(target) ; // if actual job cares about content, we have the annoying case mentioned above
+				if (aj_flags[TFlag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
+					Rule::Match aj_match = aj.simple_match() ;
+					for( Req r : reqs() ) {
+						aj.req_info(r).done_ &= RunAction::Status ;                               // whether there is clash or not, this job must be rerun if we need the actual files
+						for( Node ajt : aj_match.static_targets() ) if (ajt.done(r)) goto Clash ;
+						for( Node ajt : aj->star_targets          ) if (ajt.done(r)) goto Clash ;
+						continue ;
+					Clash :                                                    // one of the targets is done, this is the annoying case
+						trace("critical_clash") ;
+						r->clash_nodes.insert(target) ;
+					}
+				}
 			}
 			if ( !incremental && target->read(td.dfs) ) {
 				local_reason |= {JobReasonTag::PrevTarget,+target} ;
-				incremental = true ;                                           // this was not allowed but fact is that we behaved incrementally
+				incremental   = true                               ;           // this was not allowed but fact is that we behaved incrementally
 			}
 			if (crc==Crc::None) {
-				if (!RuleData::s_sure(flags)) continue ;                       // if we are not sure, a target is not generated if it does not exist
+				if (!RuleData::s_sure(flags)) {
+					target->unlinked = target->crc!=Crc::None ;                // if target was actually unlinked, note it as it is not considered a target of the job
+					trace("unlink",target,STR(target->unlinked)) ;
+					continue ;                                                 // if we are not sure, a target is not generated if it does not exist
+				}
 				if ( !flags[TFlag::Star] && !flags[TFlag::Phony] ) {
 					err = true ;
 					report_missing_target(tn) ;
@@ -549,10 +565,9 @@ namespace Engine {
 		else if (err          ) (*this)->status = ::max(status,Status::Err    ) ; // .
 		else                    (*this)->status =       status                  ; // .
 		//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		bool          report_stats  = status==Status::Ok              ;
-		::vector<Req> running_reqs_ = running_reqs()                  ;
-		CoarseDelay   old_exec_time = (*this)->best_exec_time().first ;
-		bool          cached        = false                           ;
+		bool        report_stats  = status==Status::Ok              ;
+		CoarseDelay old_exec_time = (*this)->best_exec_time().first ;
+		bool        cached        = false                           ;
 		if (report_stats) {
 			SWEAR(+digest.stats.total) ;
 			(*this)->exec_time = digest.stats.total ;

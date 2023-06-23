@@ -23,9 +23,9 @@ if getattr(sys,'reading_makefiles',False) :
 	}
 
 	class Auto(lmake.Rule) :
-		target = r'auto{Digit:\d}'
+		target = r'auto{:\d}'
 		cache  = 'dir'
-		cmd    = "echo '#auto'$Digit"
+		cmd    = "echo '#auto'"
 
 	class Hide(lmake.Rule) :
 		target       = r'{File:.*}.hide'

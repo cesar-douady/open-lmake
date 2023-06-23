@@ -58,7 +58,7 @@ class BaseRule(Rule) :
 
 class Centos7Rule(BaseRule) :
 	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
-	#cache   = 'dir'
+	cache   = 'dir'
 
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }

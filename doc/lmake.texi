@@ -2200,6 +2200,28 @@ This is the major goal of this target.
 In the later case, not computing a checksum will prevent @lmake from detecting a steady file and this may trigger the spurious execution of a depending job.
 @end itemize
 
+@section @code{gcc} does not generate dependencies on some generated @file{.h} files, how to handle this ?
+When @code{gcc} starts, it looks at all its include directories listed through options such as @code{-I} (@code{-iquote}, @code{-isystem} and @code{-idirafter}).
+If a directory does not exist, it is removed from its internal list and when a file is included with @code{#include}, such directories are not tried.
+As a consequence, no dep to files within these directories are generated.
+To circumvent this adverse optimization done by @code{gcc}, all directories that lie in the repository must exist before @code{gcc} is started.
+An easy way to ensure that by creating a dependency to a marker file within each such directory and to create a very simple rule that generates such marker file.
+
+An exemple is shown here :
+
+@example
+@group
+class Mrkr(lmake.Rule) :
+	prio   = -lmake.inf         # in case of clash with another rule teh other rule is perfect, as long as mrkr is not a directory
+	target = '@{__dir__@}mrkr'
+	cmd    = ''                 # target is open as its stdout, this is enough, we have nothing to put in the target
+class Gcc(lmake.Rule) :
+	targets = @{ 'OBJ' : '@{File:.+@}.o' @}
+	deps    = @{ 'SRC' : '@{File:.+@}.c' @}
+	cmd     = 'ldepend a/mrkr b/mrkr c/mrkr ; gcc -Ia -Ib -Ic -c -o $OBJ $SRC'
+@end group
+@end example
+
 @XXX{to be completed}
 
 @chapter Glossary

@@ -22,7 +22,7 @@ if getattr(sys,'reading_makefiles',False) :
 		cmd     = 'rustc -g -o $EXE $SRC'
 
 	class AntiRustRust(lmake.AntiRule) :
-		target = '{File:.*}.rs.rs'
+		target = '{:.*}.rs.rs'
 
 	class RunRust(lmake.RustRule) :
 		targets = { 'OUT' : '{File:.*}.out' }

@@ -71,8 +71,8 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	//
 	new_attrs              = old_attrs       ;
 	new_attrs.c_lflag     &= ~ECHO & ~ICANON ;                                 // no echo (as they would appear on the terminal) & do not wait for \n that will never come
-	new_attrs.c_cc[VMIN ]  = 1               ;                                 // do not pack chars so they are available when they arrive
-	new_attrs.c_cc[VTIME]  = 1               ;                                 // time-out = 1/10s, ensure we do not stay stuck if terminal is not ansi compatible
+	new_attrs.c_cc[VMIN ]  = 0               ;                                 // polling mode, blocking and timeout is managed with epoll as timeout here is notalways enforced
+	new_attrs.c_cc[VTIME]  = 0               ;                                 // .
 	//
 	::tcsetattr( in_fd , TCSANOW , &new_attrs ) ;
 	//
@@ -81,15 +81,22 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	//                   background      foreground
 	::string reqs[2] = { "\x1b]11;?\a" , "\x1b]10;?\a" } ;                     // sequence to ask for color
 	uint32_t lum [2] = { 0             , 0             } ;
+	Epoll    epoll   { New }                             ;                     // timeout set with ::tcsetattr does not always work, so use epoll for that, in case tty does not answer
+	epoll.add_read( in_fd , 0/*unused*/ ) ;
 	for( bool fg : {false,true}) {
 		::string reply ;
 		for( const char c : reqs[fg] )
 			if (::write(out_fd,&c,1)!=1) goto Restore ;
 		for(;;) {
 			char c ;
-			if (::read(in_fd,&c,1)!=1) goto Restore ;
+			::vector<Epoll::Event> events = epoll.wait(100'000'000) ;          // 100ms
+			SWEAR(events.size()<=1) ;                                          // there is a single fd, there may not be more than 1 event
+			if (!events.size()) goto Restore ;                                 // timeout
+			SWEAR(events[0].fd()==in_fd) ;                                     // this is the only possible fd
+			if (::read(in_fd,&c,1)!=1) goto Restore ;                          // eof or err ? awkward, but give up in that case
 			if (c=='\a') break ;
 			reply.push_back(c) ;
+			if (reply.size()>40) goto Restore ;                                // this is not an ansi terminal, whose answer is around 22 bytes
 		}
 		size_t pos = reply.find(';') ;
 		if (reply.substr(0    ,pos+1)!=reqs[fg].substr(0,pos+1)) goto Restore ; // reply has same format with ? substituted by actual values

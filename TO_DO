@@ -26,6 +26,11 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
+* be more consise in console output
+	- and more precise in recorded log
+	- dates, justifications go to log while essential info is shown on screen
+	- e.g. 'dep changed' on screen and actual dates (before, after) in log
+	- same for manual, etc.
 ? consider a package for option passing
 	? gnu argp
 	? https://www.google.com/url?sa=t&source=web&rct=j&url=http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf&ved=2ahUKEwiu_qn_7bH_AhUKVqQEHSc4AtwQFnoECA4QAQ&usg=AOvVaw0BH-4w3AQP6qFg-iZO7QaP
@@ -40,7 +45,7 @@
 * make Dep field a DepDigest
 	- make the union of needs for Dep and dep reporting
 	- in end, if DepDigest is already a crc, no need to go through date analysis
-	- cache directly report deps rather than go through dates
+	- cache directly report dep crcs rather than go through dates
 		- do that in upload as dates are meaningless in cache
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
@@ -53,9 +58,6 @@
 * add a -j option to lmake
 	- to limit the number of jobs
 	- consider a more general approach to limit resource occupation and keep reactivity
-* add flags as argument to target/ltarget
-	- apply on top of rule provided flags
-	- report flags rather than idx from job_exec to server
 * lshow must show dep & target flags
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * implement star optional :

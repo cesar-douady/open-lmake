@@ -335,29 +335,27 @@ namespace Engine {
 				}
 				if (!cwd.empty()) {
 					prio += g_config.sub_prio_boost * ::count(cwd.begin(),cwd.end(),'/') ;
-					cwd.pop_back() ;                                                            // cwd could have been emptied by previous line
+					cwd.pop_back() ;                                                       // cwd could have been emptied by previous line
 				}
 			}
 			//
 			Trace trace("_acquire_py",name,prio) ;
 			//
-			::umap_ss stem_map     ;
-			::set_s   static_stems ;                                           // ordered so that stems is ordered
-			::set_s   star_stems   ;                                           // .
+			::map_s<::pair<string,Bool3/*star*/>> stem_map ;                   // ordered so that stems is ordered
 			field = "stems" ;
 			if (dct.hasKey(field))
-				for( auto const& [k,v] : Py::Dict(dct[field]) ) stem_map[Py::String(k)] = Py::String(v) ; // the real stems are restricted to what is necessary for job_name & targets
+				for( auto const& [k,v] : Py::Dict(dct[field]) ) stem_map[Py::String(k)] = {Py::String(v),Maybe} ; // the real stems are restricted to what is necessary for job_name & targets
 			//
 			// augment stems with definitions found in job_name and targets
 			size_t unnamed_star_idx = 1 ;                                      // free running while walking over job_name + targets
 			auto augment_stems = [&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> ::string {
-				if ( star && k.empty() ) {
-					if (!re) throw "unnamed star stems must be defined"s ;
-					return {} ;
-				}
-				if (re) {
-					if (stem_map.contains(k)) { if (stem_map.at(k)!=*re) throw to_string("2 different definitions for stem ",k," : ",stem_map.at(k)," and ",*re) ; }
-					else                      { stem_map[k] = *re ;                                                                                                }
+				Bool3 star3 = No|star ;
+				if (stem_map.contains(k)) {
+					::pair<string,Bool3/*star*/>& e = stem_map.at(k) ;
+					if ( re && e.first!=*re       ) throw to_string("2 different definitions for stem ",k," : ",e.first," and ",*re) ;
+					if ( e.second==Maybe || !star ) e.second = star3 ;         // record stem is used, and is static as soone as one use is static
+				} else {
+					if (re) stem_map[k] = {*re,star3} ;
 				}
 				return {} ;
 			} ;
@@ -383,12 +381,14 @@ namespace Engine {
 			field            = "job_name" ;
 			unnamed_star_idx = 1          ;                                    // reset free running at each pass over job_name+targets
 			bool job_name_is_star = false ;
+			auto stem_words = [&]( ::string const& k , bool star , bool unnamed ) -> ::string {
+				const char* stem = star ? "star stem" : "stem" ;
+				return unnamed ? to_string("unnamed ",stem) : to_string(stem,' ',k) ;
+			} ;
 			_parse_py( job_name , true/*allow_re*/ , &unnamed_star_idx ,
-				[&]( ::string const& k , bool star , bool unnamed , ::string const* re ) -> ::string {
-					if      ( star && unnamed     ) stem_map[k] = *re ;
-					else if (!stem_map.contains(k)) throw to_string("found undefined stem ",k," in ",job_name_or_key) ;
-					if      (star                 ) { star_stems  .insert(k) ; job_name_is_star = true ; }
-					else                            { static_stems.insert(k) ;                           }
+				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> ::string {
+					if (!stem_map.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",job_name_or_key) ;
+					if (star                 ) job_name_is_star = true ;
 					return {} ;
 				}
 			) ;
@@ -407,14 +407,13 @@ namespace Engine {
 					if (target==job_name) {
 						if (job_name_is_star) is_native_star = true ;
 					} else {
-						missing_stems = static_stems ;
+						for( auto const& [k,s] : stem_map ) if (s.second==No) missing_stems.insert(k) ;
 						_parse_py( target , true/*allow_re*/ , &unnamed_star_idx ,
-							[&]( ::string const& k , bool star , bool unnamed , ::string const* re ) -> ::string {
-								if      ( star && unnamed           ) { stem_map[k] = *re ;                                                           }
-								else if ( !stem_map.contains(k)     ) { throw to_string("found undefined stem ",k," in target") ;                     }
-								if      ( star                      ) { star_stems.insert(k) ; is_native_star = true ;                                }
-								else if ( !static_stems.contains(k) ) { throw to_string("stem ",k," appears in target but not in ",job_name_or_key) ; }
-								else                                  { missing_stems.erase(k) ;                                                      }
+							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> ::string {
+								if      (!stem_map.contains(k)    ) throw to_string("found undefined ",stem_words(k,star,unnamed)," in target") ;
+								if      (star                     ) is_native_star = true ;
+								else if (stem_map.at(k).second!=No) throw to_string(stem_words(k,star,unnamed)," appears in target but not in ",job_name_or_key) ;
+								else                                missing_stems.erase(k) ;
 								return {} ;
 							}
 						) ;
@@ -431,15 +430,15 @@ namespace Engine {
 						if ( !flags[TFlag::Star]     ) throw to_string("flag ",mk_snake(TFlag::Star)," cannot be reset because target contains star stems") ;
 					}
 					if (flags[TFlag::Match]) {
-						if (!missing_stems.empty()   ) throw to_string("missing stems ",missing_stems," in target") ;
+						if (!missing_stems.empty()   ) throw to_string("missing stems ",missing_stems," in target")                                         ;
 						found_matching = true ;
 					} else {
-						if (anti                     ) throw "non-matching targets are meaningless for anti-rules"s ;
+						if (anti                     ) throw           "non-matching targets are meaningless for anti-rules"s                               ;
 					}
 					if (field=="<stdout>") {
-						if (flags[TFlag::Star       ]) throw "stdout cannot be directed to a star target"s        ;
-						if (flags[TFlag::Phony      ]) throw "stdout cannot be directed to a phony target"s       ;
-						if (flags[TFlag::Incremental]) throw "stdout cannot be directed to a incremental target"s ;
+						if (flags[TFlag::Star       ]) throw           "stdout cannot be directed to a star target"s                                        ;
+						if (flags[TFlag::Phony      ]) throw           "stdout cannot be directed to a phony target"s                                       ;
+						if (flags[TFlag::Incremental]) throw           "stdout cannot be directed to a incremental target"s                                 ;
 					}
 					chk(flags) ;
 					// record
@@ -452,11 +451,15 @@ namespace Engine {
 			SWEAR(found_matching) ;                                                       // we should not have come until here without a clean target
 			field = "" ;
 			if (targets.size()>NoVar) throw to_string("too many targets : ",targets.size()," > ",NoVar) ;
-			// keep only useful stems and order them : static first, then star
 			::umap_s<VarIdx> stem_idxs ;
-			for( ::string const& k : static_stems ) { stem_idxs[k] = VarIdx(stems.size()) ; stems.emplace_back(k,stem_map.at(k)) ; }
-			for( ::string const& k : star_stems   ) { stem_idxs[k] = VarIdx(stems.size()) ; stems.emplace_back(k,stem_map.at(k)) ; }
-			n_static_stems = static_stems.size() ;
+			for( Bool3 star : {No,Yes} ) { // keep only useful stems and order them : static first, then star
+				for( auto const& [k,v] : stem_map )
+					if (v.second==star) {
+						stem_idxs[k] = VarIdx(stems.size()) ;
+						stems.emplace_back(k,v.first) ;
+					}
+				if (star==No) n_static_stems = stems.size() ;
+			}
 			if (stems.size()>NoVar) throw to_string("too many stems : ",stems.size()," > ",NoVar) ;
 			//
 			// reformat job_name & targets to improve matching efficiency
@@ -563,7 +566,7 @@ namespace Engine {
 					try {
 						df.pattern = _parse_py( df.pattern , false/*allow_re*/ , nullptr/*unnamed_star_idx*/ ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* )->::string {
-								if ( star || unnamed || !static_stems.contains(k) ) throw 0 ;
+								if ( star || unnamed || !stem_map.contains(k) || stem_map.at(k).second!=No ) throw 0 ;
 								return mk_stem_(k) ;
 							}
 						) ;
@@ -684,9 +687,9 @@ namespace Engine {
 				::string pattern = _subst_target(
 					tf.pattern
 				,	[&](VarIdx s)->::string {
-						if      ( seen.contains(s)                           ) {                  return to_string("(?P=",stems[s].first,                    ')') ; }
-						else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",stems[s].first,'>',stems[s].second,')') ; }
-						else                                                   {                  return to_string('('   ,                   stems[s].second,')') ; }
+						if      ( seen.contains(s)                           ) {                  return to_string("(?P=",to_string('_',s),                    ')') ; }
+						else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",to_string('_',s),'>',stems[s].second,')') ; }
+						else                                                   {                  return to_string('('   ,                     stems[s].second,')') ; }
 					}
 				,	true/*escape*/
 				) ;
@@ -1085,7 +1088,7 @@ namespace Engine {
 		Py::Match m = rt.pattern().match(target) ;
 		if (!m) { trace("no_match") ; return ; }
 		rule = rt ;
-		for( auto const& [k,v] : rt->static_stems() ) stems.push_back(m[k]) ;
+		for( VarIdx s=0 ; s<rt->n_static_stems ; s++ ) stems.push_back(m[to_string('_',s)]) ;
 		::vector<VarIdx> const& conflicts = rt->targets[rt.tgt_idx].second.conflicts ;
 		if (conflicts.empty()) { trace("stems",stems) ; return ; }                     // fast path : avoid computing targets()
 		targets() ;                                                                    // _match needs targets but do not compute them as targets computing needs _match

@@ -194,10 +194,11 @@ namespace Engine {
 	}
 
 	Node::ReqInfo const& Node::_make_raw( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
-		bool    multi    = false   ;
-		RuleIdx prod_idx = NoIdx   ;
-		Req     req      = cri.req ;
-		Bool3   clean    = Maybe   ;                                           // lazy evaluate manual_ok()==Yes
+		bool    multi          = false   ;
+		RuleIdx prod_idx       = NoIdx   ;
+		Req     req            = cri.req ;
+		Bool3   clean          = Maybe   ;                                     // lazy evaluate manual_ok()==Yes
+		Job     regenerate_job ;
 		Trace trace("Nmake",*this,cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
 		//                                     vvvvvvvvvvvvvvv
@@ -212,8 +213,13 @@ namespace Engine {
 		}
 		ReqInfo& ri = req_info(cri) ;                                          // past this point, cri must not be used as it may be obsolete, use ri instead
 		ri.update( run_action , make_action , *this ) ;
-		if (ri.waiting()) goto Wait   ;
-		if (done(ri)    ) goto Wakeup ;
+		if (ri.waiting()) goto Wait ;
+		if (ri.done) {
+			if ( run_action<=RunAction::Status || !(*this)->unlinked ) goto Wakeup ;
+			if ( !(*this)->makable()                                 ) goto Wakeup ; // no hope to regenerate, proceed as a done target
+			ri.done        = false                      ;
+			regenerate_job = (*this)->conform_job_tgt() ;                      // we must regenerate target, only run the conform job
+		}
 		//
 		if (ri.prio_idx==NoIdx) {
 			ri.prio_idx = 0 ;                                                  // initially skip the check of jobs we were waiting for
@@ -266,19 +272,22 @@ namespace Engine {
 			ri.n_wait++ ;                                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
 			for( it.reset(ri.prio_idx) ; it ; it++ ) {
 				RunAction action = RunAction::None ;
-				switch (ri.action) {
-					case RunAction::Makable : action = it->is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
-					case RunAction::Status  : action =                 RunAction::Status                      ; break ;
-					case RunAction::Dsk     :
-						if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) {
-							action = RunAction::Run ;
-						} else {
-							if      ( clean==Maybe                                       ) clean  = No | (manual_ok()==Yes) ; // solve lazy evaluation
-							if      ( clean==Yes                                         ) action = RunAction::Status       ;
-							else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run          ; // else, we know job does not produce us, no reason to run it
-						}
-					break ;
-					default : FAIL(ri.action) ;
+				if (+regenerate_job) {
+					if (*it==regenerate_job) action = RunAction::Run ;
+				} else {
+					switch (ri.action) {
+						case RunAction::Makable : action = it->is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
+						case RunAction::Status  : action =                 RunAction::Status                      ; break ;
+						case RunAction::Dsk     :
+							if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
+							else {
+								if      ( clean==Maybe                                       ) clean  = No | (manual_ok()==Yes) ; // solve lazy evaluation
+								if      ( clean==Yes                                         ) action = RunAction::Status       ;
+								else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run          ; // else, we know job does not produce us, no reason to run it
+							}
+						break ;
+						default : FAIL(ri.action) ;
+					}
 				}
 				trace("make_job",ri,clean,action,*it) ;
 				Job::ReqInfo& jri = it->req_info(req) ;
@@ -404,6 +413,9 @@ namespace Engine {
 		Trace trace("refresh",*this,STR(steady),STR((*this)->is_lnk),"->",STR(is_lnk),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
 		if (steady) {                               SWEAR((*this)->is_lnk==is_lnk) ; (*this)->date = date ;                                } // regulars and links cannot have the same crc
 		else        { (*this)->crc = {} ; fence() ;       (*this)->is_lnk = is_lnk ; (*this)->date = date ; fence() ; (*this)->crc = crc ; } // ensure crc is never associated with a wrong date
+		//
+		if ((*this)->unlinked) trace("!unlinked") ;
+		(*this)->unlinked = false ;                                            // dont care whether file exists, it have been generated according to its job
 		return !steady ;
 	}
 

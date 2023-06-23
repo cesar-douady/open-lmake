@@ -306,6 +306,7 @@ namespace Engine {
 		bool     uphill        :1 = false          ;       //       1 bit ,         if true <=> node is produced by uphill
 		bool     is_lnk        :1 = false          ;       //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
 		bool     multi         :1 = false          ;       //       1 bit ,         if true <=> several jobs generate this node
+		bool     unlinked      :1 = false          ;       //       1 bit ,         if true <=> node as been unlinked by another rule
 	} ;
 	static_assert(sizeof(NodeData)==32) ;                                      // check expected size
 
@@ -317,7 +318,7 @@ namespace Engine {
 	,	Plain                          // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
 	)
 
-	struct NodeReqInfo : ReqInfo<Job> {                                        // watchers of Node's are Job's
+	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
 		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
 		//
 		using Base       = ReqInfo<Job>   ;
@@ -325,7 +326,7 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
-		static const     ReqInfo Src ;
+		static const     ReqInfo Src   ;
 		// cxtors & casts
 		using Base::Base ;
 		// services
@@ -424,13 +425,14 @@ namespace Engine {
 	}
 
 	inline void Node::set_pressure( ReqInfo& ri , CoarseDelay pressure ) const {
-		if (!ri.set_pressure(pressure)) return ;                               // pressure is not significantly higher than already existing, nothing to propagate
+		if (!ri.set_pressure(pressure)) return ;                                 // pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
 		_set_pressure_raw(ri) ;
 	}
 
 	inline Node::ReqInfo const& Node::make( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
-		if (cri.done) return cri ;                                             // /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
+		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
+		if ( cri.done && ( run_action<=RunAction::Status || !(*this)->unlinked ) ) return cri ;
 		return _make_raw(cri,run_action,make_action) ;
 	}
 

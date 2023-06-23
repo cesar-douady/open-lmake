@@ -141,9 +141,9 @@ int main( int argc , char* argv[] ) {
 					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,dfs,info.dep_order)) ;
 					else                                 deps.emplace_back(file,DepDigest(               dfs,info.dep_order)) ;
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("    ","dep   ",setw(3),tfs,deps.back(),dfs) ;
+					trace("dep   ",dfs,tfs,deps.back()) ;
 				} else {
-					trace("    ","!dep  ",setw(3),tfs,file,dfs) ;
+					trace("!dep  ",dfs,tfs,file) ;
 				}
 			} else if (at_end) {                                               // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                 ) dfs = DFlags::None ;
@@ -151,14 +151,14 @@ int main( int argc , char* argv[] ) {
 				const char* str ;
 				switch (write) {
 					// if file is unlinked, ignore it unless it has been read or we declared it as phony, so that tmp files are ignored
-					//                                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case No    : str = "idle  " ;                              targets.emplace_back(file,TargetDigest( dfs , tfs , false/*write*/             ) ) ; break ;
-					case Maybe : str = "unlink" ; if (read||tfs[TFlag::Phony]) targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/ , Crc::None ) ) ; break ;
-					case Yes   : str = "write " ;                              targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/             ) ) ; break ;
-					//                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case No    : str = "idle  " ; targets.emplace_back(file,TargetDigest( dfs , tfs , false/*write*/             ) ) ; break ;
+					case Maybe : str = "unlink" ; targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/ , Crc::None ) ) ; break ;
+					case Yes   : str = "write " ; targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/             ) ) ; break ;
+					//                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(write) ;
 				}
-				trace(dfs,str,setw(3),tfs,targets.back(),info.file_date) ;
+				trace(str,dfs,tfs,info.file_date,file) ;
 			}
 		}
 	} ;
