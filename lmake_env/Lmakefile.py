@@ -63,7 +63,6 @@ class Centos7Rule(BaseRule) :
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
-	autodep = 'ld_preload'                                                     # on some systems, texi2any does not work with ld_audit
 	cmd     = 'texi2any --html --no-split -o $HTML $TEXI'
 
 class Unpack(BaseRule) :

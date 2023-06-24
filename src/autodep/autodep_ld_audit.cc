@@ -149,16 +149,20 @@ void* get_orig(const char* syscall) {
 ,	{ "scandirat64"            , { reinterpret_cast<void*>(Audited::scandirat64           ) , LnkSupport::File } }
 } ;
 
-static bool _is_libc(const char* c_name) {
+static bool _catch(const char* c_name) {
 	// search for string (.*/)?libc.so(.<number>)*
-	static const char LibC[] = "libc.so" ;
+	static const char LibC      [] = "libc.so"       ;
+	static const char LibPthread[] = "libpthread.so" ;                         // some systems redefine entries such as open in libpthread
 	//
-	::string_view name { c_name } ;
-	size_t        pos  = name.rfind(LibC) ;
-	/**/                                            if ( pos==NPos                  ) return false ;
-	/**/                                            if ( pos!=0 && name[pos-1]!='/' ) return false ;
-	for( char c : name.substr(pos+sizeof(LibC)-1) ) if ( (c<'0'||c>'9') && c!='.'   ) return false ;
-	/**/                                                                              return true  ;
+	::string_view name { c_name }               ;
+	size_t        end  = 0/*garbage*/           ;
+	size_t        pos  = name.rfind(LibC      ) ; if (pos!=NPos) { end = pos+sizeof(LibC      )-1 ; goto Qualify ; }
+	/**/          pos  = name.rfind(LibPthread) ; if (pos!=NPos) { end = pos+sizeof(LibPthread)-1 ; goto Qualify ; }
+	return false ;
+Qualify :
+	/**/                             if ( pos!=0 && name[pos-1]!='/' ) return false ;
+	for( char c : name.substr(end) ) if ( (c<'0'||c>'9') && c!='.'   ) return false ;
+	/**/                                                               return true  ;
 }
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
@@ -192,13 +196,13 @@ extern "C" {
 		Audit::t_audit() ;                                                              // force Audit static init
 		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
 			Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
-		bool is_libc_ = _is_libc(map->l_name) ;
-		*cookie = !is_libc_ ;
-		if (is_libc_) {
+		bool catch_ = _catch(map->l_name) ;
+		*cookie = !catch_ ;
+		if (catch_) {
 			g_libc_lmid = lmid        ;                                        // seems more robust to avoid directly calling dlmopen while in a call-back due to opening a dl
 			g_libc_name = map->l_name ;
 		}
-		return LA_FLG_BINDFROM | (is_libc_?LA_FLG_BINDTO:0) ;
+		return LA_FLG_BINDFROM | (catch_?LA_FLG_BINDTO:0) ;
 	}
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
