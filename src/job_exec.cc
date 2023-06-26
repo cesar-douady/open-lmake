@@ -114,28 +114,25 @@ int main( int argc , char* argv[] ) {
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
-			TFlags tfs   = UnexpectedTFlags ;
-			Bool3  write = info.write       ;
+			TFlags                           tfs = UnexpectedTFlags ;
+			JobExecRpcReq::AccessInfo const& ai  = info.info        ;
 			if (!force_deps.contains(file)) {
 				for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 					TargetSpec const& spec = start_info.targets[t] ;
 					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tfs = spec.flags ; break ; } }
 					else                         { if (file==spec.pattern             ) { tfs = spec.flags ; break ; } }
 				}
-				tfs = (tfs&~info.neg_tfs)|info.pos_tfs ;
 				try {
-					TFlags tfs_cooked = (tfs&~info.neg_tfs)|info.pos_tfs ;
+					TFlags tfs_cooked = (tfs&~ai.neg_tfs)|ai.pos_tfs ;
 					chk(tfs_cooked) ;
 					tfs = tfs_cooked ;
 				} catch(::string const& e) {
 					append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ;
 				}
 			}
-			//
-			DFlags dfs  = info.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
-			bool   read = +( dfs & AccessDFlags ) ;                                 // access represents what we have seen different w.r.t. non-existent file
-			if ( write==No && tfs[TFlag::Dep] ) {
-				if (read) {
+			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
+			if ( ai.idle() && tfs[TFlag::Dep] ) {
+				if (+( dfs & AccessDFlags )) {
 					// only generate an access date if it was coherent all the way from first access to end of job (as we have no end of access date)
 					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,dfs,info.dep_order)) ;
@@ -145,20 +142,12 @@ int main( int argc , char* argv[] ) {
 				} else {
 					trace("!dep  ",dfs,tfs,file) ;
 				}
-			} else if (at_end) {                                               // else we are handling chk_deps and we only care about deps
-				if ( !info.file_date                 ) dfs = DFlags::None ;
-				if ( write==Yes && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
-				const char* str ;
-				switch (write) {
-					// if file is unlinked, ignore it unless it has been read or we declared it as phony, so that tmp files are ignored
-					//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case No    : str = "idle  " ; targets.emplace_back(file,TargetDigest( dfs , tfs , false/*write*/             ) ) ; break ;
-					case Maybe : str = "unlink" ; targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/ , Crc::None ) ) ; break ;
-					case Yes   : str = "write " ; targets.emplace_back(file,TargetDigest( dfs , tfs , true /*write*/             ) ) ; break ;
-					//                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					default : FAIL(write) ;
-				}
-				trace(str,dfs,tfs,info.file_date,file) ;
+			} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
+				if ( !info.file_date                           ) dfs = DFlags::None ;
+				if ( ai.write && !ai.unlink && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				TargetDigest td{dfs,ai.write,tfs,ai.unlink} ;
+				targets.emplace_back( file , td ) ;
+				trace("target",td,info.file_date,file) ;
 			}
 		}
 	} ;
@@ -223,6 +212,7 @@ int main( int argc , char* argv[] ) {
 	//
 	analyze(true/*at_end*/) ;
 	//
+	ThreadQueue<::string> spurious_unlink_queue  ;
 	auto crc_thread_func = [&](size_t id) -> void {
 		Trace::t_key =
 			id<10 ? '0'+id    :
@@ -234,6 +224,7 @@ int main( int argc , char* argv[] ) {
 			auto [popped,crc_spec] = crc_queue.try_pop() ;
 			if (!popped) return ;
 			Crc crc{ crc_spec.second , start_info.hash_algo } ;
+			if (crc==Crc::None) spurious_unlink_queue.push(crc_spec.second) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			targets[crc_spec.first].second.crc = crc ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -243,6 +234,10 @@ int main( int argc , char* argv[] ) {
 	{	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , crc_queue.size() ) ;
 		::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 		for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i) ; // just constructing a destructing the threads will execute & join them, resulting in computed crc's
+	}
+	if (!spurious_unlink_queue.empty()) {
+		append_to_string(err_str,"some targets were spuriously unlinked :\n") ;
+		while (!spurious_unlink_queue.empty()) append_to_string(err_str,'\t',spurious_unlink_queue.pop(),'\n') ;
 	}
 	//
 	if ( gather_deps.seen_tmp && !start_info.keep_tmp ) {

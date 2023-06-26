@@ -8,6 +8,10 @@
 ****************************************************************************************************
 
 * replace swear src/store/prefix.hh:1456 by a warning+optional repair
+* improve cache reliability
+	- in case of error when download, clean up and report
+	- wash old targets as for regular execution
+	- in case of error when upload, clean up and give up
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)

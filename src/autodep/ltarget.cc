@@ -48,12 +48,12 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::NoStat      , { .short_name='T' , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                 } }
 	,	{ Flag::NoWrite     , { .short_name='W' , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)"  } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv }      ;
-	JobExecRpcProc    proc      = JobExecRpcProc::Targets ;
+	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv } ;
+	bool              unlink    = false              ;
 	TFlags            neg_flags ;
 	TFlags            pos_flags ;
 	//
-	if (cmd_line.flags[Flag::Unlink]) proc = JobExecRpcProc::Unlinks ;
+	if (cmd_line.flags[Flag::Unlink]) unlink = true ;
 	//
 	if (cmd_line.flags[Flag::Crc        ]) pos_flags |= TFlag::Crc       ;
 	if (cmd_line.flags[Flag::Dep        ]) pos_flags |= TFlag::Dep       ;
@@ -73,9 +73,10 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoStat     ]) neg_flags |= TFlag::Stat      ;
 	if (cmd_line.flags[Flag::NoWrite    ]) neg_flags |= TFlag::Write     ;
 	//
-	if (+(neg_flags&pos_flags)) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_flags&pos_flags)) ;
+	if ( +(neg_flags&pos_flags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_flags&pos_flags)) ;
+	if ( unlink && (+neg_flags||+pos_flags) ) syntax.usage(          "cannot unlink and set/reset flags"s                               ) ;
 	//
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( proc , cmd_line.args , neg_flags , pos_flags ,false/*sync*/ ) ) ;
+	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( ::move(cmd_line.args) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} ) ) ;
 	//
 	return 0 ;
 }

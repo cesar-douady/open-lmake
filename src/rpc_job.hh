@@ -171,20 +171,13 @@ struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
 	using Crc  = Hash::Crc  ;
 	// cxtors & casts
-	TargetDigest( DFlags d={} , TFlags t={} , bool w=false , Crc c={} ) : dfs{d} , tfs{t} , write{w} , crc{c} {}
-	// services
-	template<IsStream S> void serdes(S& s) {
-		if (::is_base_of_v<istream,S>) crc = Crc::Unknown ;
-		/**/       ::serdes(s,dfs  ) ;
-		/**/       ::serdes(s,tfs  ) ;
-		/**/       ::serdes(s,write) ;
-		if (write) ::serdes(s,crc  ) ;
-	}
+	TargetDigest(                                       ) = default ;
+	TargetDigest( DFlags d , bool w , TFlags t , bool u ) : dfs{d} , write{w} , tfs{t} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
-	DFlags dfs   ;                     // how target was accessed before it was written
-	TFlags tfs   ;
-	bool   write = false ;
-	Crc    crc   ;                     // if write
+	DFlags dfs    ;                    // how target was accessed before it was written
+	bool   write  = false ;            // if true <=> file was written (and possibly further unlinked)
+	TFlags tfs    ;
+	Crc    crc    ;                    // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
 struct JobDigest {
@@ -399,8 +392,7 @@ struct JobInfo {
 	int      wstatus  = 0 ;
 } ;
 
-ENUM_1( JobExecRpcProc
-,	Cached = Deps                      // >=Cached means that report may be cached and in that case, proc's are ordered by importance (report is sent if more important)
+ENUM( JobExecRpcProc
 ,	None
 ,	ChkDeps
 ,	CriticalBarrier
@@ -409,10 +401,7 @@ ENUM_1( JobExecRpcProc
 ,	Kill
 ,	Tmp                                // write activity in tmp has been detected (hence clean up is required)
 ,	Trace                              // no algorithmic info, just for tracing purpose
-,	Deps
-,	Updates                            // Deps then Targets
-,	Unlinks
-,	Targets
+,	Access
 )
 
 struct JobExecRpcReq {
@@ -426,80 +415,78 @@ struct JobExecRpcReq {
 	using VS  = ::vector_s        ;
 	using DFs = DFlags            ;
 	using TFs = TFlags            ;
+	//
+	struct AccessInfo {                                                        // order is read, then write, then unlink
+		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
+		// accesses
+		bool idle() const { return !write && !unlink ; }
+		// services
+		bool operator==(AccessInfo const& other) const = default ;             // XXX : why is this necessary at all ?!?
+		AccessInfo operator|(AccessInfo const& other) const {                  // *this, then other
+			return  {
+				dfs                           |  (idle()?other.dfs:DFlags())   // if we have already written or unlinked, new reads are not recorded any more
+			,	write                         || other.write
+			,	( neg_tfs &  ~other.pos_tfs ) |  other.neg_tfs
+			,	( pos_tfs &  ~other.neg_tfs ) |  other.pos_tfs
+			,	( unlink  && !other.write   ) || other.unlink                  // if we write, we are not unlink any more
+			} ;
+		}
+		AccessInfo& operator|=(AccessInfo const& other) { *this = *this | other ; return *this ; }
+		// data
+		DFs  dfs     = {}    ;         // if +dfs <=> files are read
+		bool write   = false ;         // if true <=> files are written
+		TFs  neg_tfs = {}    ;         // if write, removed TFlags
+		TFs  pos_tfs = {}    ;         // if write, added   TFlags
+		bool unlink  = false ;         // if true <=> files are unlinked
+	} ;
+	// statics
+private :
+	static MDD _s_mk_mdd(::vector_s const& fs) { MDD res ; for( ::string const& f : fs ) res.emplace_back(       f ,DD()) ; return res ; }
+	static MDD _s_mk_mdd(::vector_s     && fs) { MDD res ; for( ::string      & f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
 	// cxtors & casts
+public :
 	JobExecRpcReq(                S const& c={} ) :                     comment{c} {                       }
 	JobExecRpcReq( P p , bool s , S const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(!has_files()) ; }
 	JobExecRpcReq( P p ,          S const& c={} ) : proc{p}           , comment{c} { SWEAR(!has_files()) ; }
 	//
-	JobExecRpcReq( P p , S const& f , DD d , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , dfs{a} , files{{{       f ,d}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S     && f , DD d , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , dfs{a} , files{{{::move(f),d}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , MDD const& fs     , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , dfs{a} , files{       fs      } , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , MDD     && fs     , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , dfs{a} , files{::move(fs)     } , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S const& f , DD d , DFs a ,          S const& c={} ) : proc{p} ,           dfs{a} , files{{{       f ,d}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S     && f , DD d , DFs a ,          S const& c={} ) : proc{p} ,           dfs{a} , files{{{::move(f),d}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , MDD const& fs     , DFs a ,          S const& c={} ) : proc{p} ,           dfs{a} , files{       fs      } , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , MDD     && fs     , DFs a ,          S const& c={} ) : proc{p} ,           dfs{a} , files{::move(fs)     } , comment{c} { SWEAR(has_deps()) ; }
+	JobExecRpcReq( P p , MDD&& fs , DFs dfs , S const& c={} ) : proc{p} , sync{true} ,                   files{          ::forward<MDD>(fs) } , info{.dfs=dfs} , comment{c} { SWEAR(p==P::DepInfos) ; }
+	JobExecRpcReq( P p , VS && fs , DFs dfs , S const& c={} ) : proc{p} , sync{true} , auto_date{true} , files{_s_mk_mdd(::forward<VS >(fs))} , info{.dfs=dfs} , comment{c} { SWEAR(p==P::DepInfos) ; }
 	//
-	JobExecRpcReq( P p , S const& f    , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , auto_date{true} , dfs{a} , files{{{       f ,{}}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S     && f    , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , auto_date{true} , dfs{a} , files{{{::move(f),{}}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , VS  const& fs , DFs a , bool s , S const& c={} ) : proc{p} , sync{s} , auto_date{true} , dfs{a} , files{_mk_files(fs)   } , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S const& f    , DFs a ,          S const& c={} ) : proc{p} ,           auto_date{true} , dfs{a} , files{{{       f ,{}}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , S     && f    , DFs a ,          S const& c={} ) : proc{p} ,           auto_date{true} , dfs{a} , files{{{::move(f),{}}}} , comment{c} { SWEAR(has_deps()) ; }
-	JobExecRpcReq( P p , VS  const& fs , DFs a ,          S const& c={} ) : proc{p} ,           auto_date{true} , dfs{a} , files{_mk_files(fs)   } , comment{c} { SWEAR(has_deps()) ; }
+	JobExecRpcReq( MDD&& fs , bool ad , AccessInfo const& ai , bool s , S const& c={} ) :
+		proc     {P::Access         }
+	,	sync     {s                 }
+	,	auto_date{ad                }
+	,	files    {::forward<MDD>(fs)}
+	,	info     {ai                }
+	,	comment  {c                 }
+	{}
+	JobExecRpcReq( MDD&& fs , AccessInfo const& ai , bool s , S const& c={} ) : JobExecRpcReq{          ::forward<MDD>(fs) ,false/*audo_date*/,ai,s            ,c} {}
+	JobExecRpcReq( MDD&& fs , AccessInfo const& ai ,          S const& c={} ) : JobExecRpcReq{          ::forward<MDD>(fs) ,false/*audo_date*/,ai,false/*sync*/,c} {}
+	JobExecRpcReq( VS && fs , AccessInfo const& ai , bool s , S const& c={} ) : JobExecRpcReq{_s_mk_mdd(::forward<VS >(fs)),true /*audo_date*/,ai,s            ,c} {}
+	JobExecRpcReq( VS && fs , AccessInfo const& ai ,          S const& c={} ) : JobExecRpcReq{_s_mk_mdd(::forward<VS >(fs)),true /*audo_date*/,ai,false/*sync*/,c} {}
 	//
-	JobExecRpcReq( P pr , S const& f    , TFs n , TFs p , bool s , S const& c={} ) : proc{pr} , sync{s} , neg_tfs{n} , pos_tfs{p} , files{{{       f ,{}}}} , comment{c} { SWEAR(has_targets_only()) ; }
-	JobExecRpcReq( P pr , S     && f    , TFs n , TFs p , bool s , S const& c={} ) : proc{pr} , sync{s} , neg_tfs{n} , pos_tfs{p} , files{{{::move(f),{}}}} , comment{c} { SWEAR(has_targets_only()) ; }
-	JobExecRpcReq( P pr , VS  const& fs , TFs n , TFs p , bool s , S const& c={} ) : proc{pr} , sync{s} , neg_tfs{n} , pos_tfs{p} , files{_mk_files(fs)   } , comment{c} { SWEAR(has_targets_only()) ; }
-	JobExecRpcReq( P pr , S const& f    , TFs n , TFs p ,          S const& c={} ) : proc{pr} ,           neg_tfs{n} , pos_tfs{p} , files{{{       f ,{}}}} , comment{c} { SWEAR(has_targets_only()) ; }
-	JobExecRpcReq( P pr , S     && f    , TFs n , TFs p ,          S const& c={} ) : proc{pr} ,           neg_tfs{n} , pos_tfs{p} , files{{{::move(f),{}}}} , comment{c} { SWEAR(has_targets_only()) ; }
-	JobExecRpcReq( P pr , VS  const& fs , TFs n , TFs p ,          S const& c={} ) : proc{pr} ,           neg_tfs{n} , pos_tfs{p} , files{_mk_files(fs)   } , comment{c} { SWEAR(has_targets_only()) ; }
-	//
-	MDD _mk_files(::vector_s const& fs) {
-		MDD res ;
-		for( ::string const& f : fs ) res.emplace_back(f,DD()) ;
-		return res ;
-	}
-	bool has_files       () const { return has_targets() ||  has_deps() ; }
-	bool has_targets_only() const { return has_targets() && !has_deps() ; }
-	bool has_deps() const {
-		switch (proc) {
-			case P::DepInfos :
-			case P::Deps     :
-			case P::Updates  : return true  ;
-			default          : return false ;
-		}
-	}
-	bool has_targets() const {
-		switch (proc) {
-			case P::Updates :
-			case P::Targets :
-			case P::Unlinks : return true  ;
-			default         : return false ;
-		}
-	}
+	bool has_files() const { return proc==P::DepInfos || proc==P::Access ; }
 	// services
 public :
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobExecRpcReq() ;
-		/**/               { ::serdes(s,proc     ) ;                       }
-		/**/               { ::serdes(s,date     ) ;                       }
-		/**/               { ::serdes(s,sync     ) ;                       }
-		if (has_files  ()) { ::serdes(s,auto_date) ;                       }
-		if (has_files  ()) { ::serdes(s,files    ) ;                       }
-		if (has_deps   ()) { ::serdes(s,dfs      ) ;                       }
-		if (has_targets()) { ::serdes(s,neg_tfs  ) ; ::serdes(s,pos_tfs) ; }
-		/**/               { ::serdes(s,comment  ) ;                       }
+		/**/              ::serdes(s,proc     ) ;
+		/**/              ::serdes(s,date     ) ;
+		/**/              ::serdes(s,sync     ) ;
+		if (!has_files()) return ;
+		/**/              ::serdes(s,auto_date) ;
+		/**/              ::serdes(s,files    ) ;
+		/**/              ::serdes(s,info     ) ;
+		/**/              ::serdes(s,comment  ) ;
 	}
 	// data
-	P    proc      = P::None     ;
-	PD   date      = PD::s_now() ;     // access date to reorder accesses during analysis
-	bool sync      = false       ;
-	bool auto_date = false       ;     // if true <=> files are not dated and dates must be added by probing disk (for internal job purpose, not to be sent to job_exec)
-	DFs  dfs       ;                   // DFlags
-	TFs  neg_tfs   ;                   // removed TFlags
-	TFs  pos_tfs   ;                   // added   TFlags
-	MDD  files     ;                   // file date when accessed for Deps to identify content
-	S    comment   ;
+	P          proc      = P::None     ;
+	PD         date      = PD::s_now() ;                   // access date to reorder accesses during analysis
+	bool       sync      = false       ;
+	bool       auto_date = false       ;                   // if has_files(), if true <=> files must be solved and dates added by probing disk (for autodep internal use, not to be sent to job_exec)
+	MDD        files     ;                                 // file date when accessed with +dfs and !auto_date to identify content
+	AccessInfo info      ;
+	S          comment   ;
 } ;
 
 struct JobExecRpcReply {

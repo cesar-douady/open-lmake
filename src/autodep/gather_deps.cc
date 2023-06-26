@@ -38,65 +38,36 @@ using namespace Hash ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" << '@'<<ai.access_date ;
-	if (+ai.dfs      ) os <<','<< ai.dfs                             ;
-	if (+ai.neg_tfs  ) os <<'-'<< ai.neg_tfs                         ;
-	if (+ai.pos_tfs  ) os <<'+'<< ai.pos_tfs                         ;
-	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date              ;
-	if (ai.write!=No ) os <<','<< (ai.write==Maybe?"Unlink":"Write") ;
+	os << "AccessInfo(" << '@'<<ai.access_date <<','<< ai.info ;
+	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date ;
 	return os <<','<< ai.dep_order << ')' ;
 }
 
-::pair<GatherDeps::AccessInfo&,bool/*created*/> GatherDeps::_info(::string const& name) {
+GatherDeps::AccessInfo& GatherDeps::_info(::string const& name) {
 	auto it = access_map.find(name) ;
-	if (it!=access_map.end()) return { accesses[it->second].second , false } ;
+	if (it!=access_map.end()) return accesses[it->second].second ;
+	//
 	access_map[name] = accesses.size() ;
 	accesses.emplace_back(name,AccessInfo()) ;
-	return { accesses.back().second , true } ;
+	return accesses.back().second ;
 }
 
-void GatherDeps::_new_target( PD pd , ::string const& target , bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment ) {
-	SWEAR(!target.empty()   ) ;
-	SWEAR(!(neg_tfs&pos_tfs)) ;                                                // cannot suppress and add a flag simultaneously
-	auto [info,created] = _info(target)                  ;
-	bool stamp          = created || pd<info.access_date ;
+void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& info , ::string const& comment ) {
+	SWEAR(!file.empty()) ;
+	AccessInfo&               info_    = _info(file)          ;
+	bool                      stamp    = !info_.access_date || pd<info_.access_date ;
+	JobExecRpcReq::AccessInfo old_info = info_.info           ;                // for trace only
 	//
-	Bool3  old_write   = info.write   ;
-	TFlags old_neg_tfs = info.neg_tfs ;
-	TFlags old_pos_tfs = info.pos_tfs ;
+	info_.info = stamp ? info|info_.info : info_.info|info ;                   // execute actions in actual order as provided by pd
 	//
-	info.write   = Maybe|!unlink                   ;                           // for the write side, last action is the significant one
-	info.neg_tfs = (info.neg_tfs&~pos_tfs)|neg_tfs ;                           // flags are accumulated in order
-	info.pos_tfs = (info.pos_tfs&~neg_tfs)|pos_tfs ;                           // .
-	//
-	if (
-		stamp
-	||	info.write!=old_write || info.neg_tfs!=old_neg_tfs || info.pos_tfs!=old_pos_tfs
-	) Trace trace("_new_target",STR(unlink),STR(created),pd,STR(stamp),info.write,info.neg_tfs,info.pos_tfs,pd,target,comment) ;
-	//
-	if (!stamp) return ;                                                       // existing file has already been accessed (if file did not exist, it is not an update)
-	info.access_date = pd ;
-	info.file_date   = {} ;                                                    // if first access is a write, no file_date is attached
-}
-
-void GatherDeps::_new_dep( PD pd , ::string const& dep , DD dd , bool update , DFs dfs , ::string const& comment ) {
-	SWEAR(!dep.empty()) ;
-	auto [info,created] = _info(dep)                     ;
-	bool stamp          = created || pd<info.access_date ;
-	//
-	if (
-		( stamp                              )
-	||	( info.write==No && +(dfs&~info.dfs) )
-	||	( update         && info.write!=Yes  )
-	) Trace trace("_new_dep",STR(update),STR(created),pd,STR(stamp),dep,dfs,dd,comment) ;
-	//
-	if (info.write==No) info.dfs   |= dfs ;
-	if (update        ) info.write  = Yes ;
-	if (!stamp        ) return ;                                               // file has already been accessed, ignore read
-	info.access_date = pd                 ;
-	info.dep_order   = _nxt_order         ;
-	_nxt_order       = DepOrder::Parallel ;
-	info.file_date   = dd ;
+	if (stamp) {                                                               // only record dates for the first access
+		info_.access_date = pd                 ;
+		info_.file_date   = dd                 ;
+		info_.dep_order   = _nxt_order         ;
+		_nxt_order        = DepOrder::Parallel ;
+	}
+	if ( stamp || info_.info!=old_info )
+		Trace("_new_access", pd , STR(stamp) , info , file , dd , comment ) ;  // only trace if something changes
 }
 
 ENUM( Kind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
@@ -145,7 +116,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			int           wstatus        = autodep_ptrace.process() ;
 			grand_child.waited() ;                                             // grand_child has already been waited
 			if      (WIFEXITED  (wstatus)) ::_exit  (WEXITSTATUS(wstatus)) ;
-			else if (WIFSIGNALED(wstatus)) kill_self(WTERMSIG   (wstatus)) ;
+			else if (WIFSIGNALED(wstatus)) ::_exit(2) ;
 			fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
 		}
 	} else {
@@ -269,6 +240,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					bool            sync_      = jerr.sync ;                             // capture essential info so as to be able to move jerr
 					Proc            proc       = jerr.proc ;                             // .
 					JobExecRpcReply sync_reply ;
+					sync_reply.proc = proc ;                                   // this may be incomplete and will be completed or sync_ will be made false
 					switch (proc) {
 						case Proc::None            :                                                            goto Close ;
 						case Proc::Tmp             : seen_tmp   = true               ; trace("slave",fd,jerr) ; break      ;
@@ -276,26 +248,19 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 						case Proc::Heartbeat       :                                                            goto Close ; //           accept & read is enough to report liveness
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill            : kill_job(Status::Killed) ;                                 goto Close ; // no reply, accept & read is enough to ack
-						//                   vvvvvvvv------------------------vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Targets : _new_targets( jerr.date , mk_key_vector(jerr.files) , false/*unlink*/ , jerr.neg_tfs , jerr.pos_tfs , jerr.comment ) ; break ; // file dates are only...
-						case Proc::Unlinks : _new_targets( jerr.date , mk_key_vector(jerr.files) , true /*unlink*/ , jerr.neg_tfs , jerr.pos_tfs , jerr.comment ) ; break ; // for deps
-						case Proc::Updates : _new_deps   ( jerr.date ,               jerr.files  , true /*update*/ , jerr.dfs                    , jerr.comment ) ; break ;
-						case Proc::Deps    : _new_deps   ( jerr.date ,               jerr.files  , false/*update*/ , jerr.dfs                    , jerr.comment ) ; break ;
-						//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						case Proc::DepInfos :
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							_new_deps( jerr.date , jerr.files , false/*update*/ , jerr.dfs , jerr.comment ) ; // getting the crc is a dependence on a file
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							/*fall through*/
+						//                           ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access          : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; break ;
+						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; // getting the crc is a dependence on a file
+						//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
 							trace("slave",fd,jerr) ;
 							Fd reply_fd = server_cb(::move(jerr)) ;
 							trace("reply",reply_fd) ;
 							if (!reply_fd) {
-								sync_reply.proc  = proc                                                   ; // try to mimic server as much as possible when none is available
-								sync_reply.ok    = Yes                                                    ; // .
-								sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,Crc::Unknown}) ; // .
+								sync_reply.ok    = Yes                                          ; // try to mimic server as much as possible when none is available
+								sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
 							} else {
 								epoll.add_read(reply_fd,Kind::ServerReply) ;
 								server_replies[reply_fd].fd = sync_ ? fd : Fd() ;

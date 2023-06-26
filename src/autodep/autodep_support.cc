@@ -30,7 +30,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	}
 
 	// nothing worked, try to mimic server as much as possible, but of course no crc is available
-	if ( jerr.sync && jerr.proc==JobExecRpcProc::Deps ) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;
-	else                                                return {                                                                         } ;
+	if ( jerr.sync && jerr.proc==JobExecRpcProc::DepInfos ) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;
+	else                                                    return {                                                                         } ;
 
 }

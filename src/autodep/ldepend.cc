@@ -29,21 +29,26 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoRequired ]) flags &= ~DFlag::Required  ;
 	if (cmd_line.flags[Flag::NoEssential]) flags &= ~DFlag::Essential ;
 	//
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( verbose?JobExecRpcProc::DepInfos:JobExecRpcProc::Deps , cmd_line.args , flags , verbose/*sync*/ ) ) ;
-	//
-	if (!verbose) return 0 ;
-	SWEAR(reply.infos.size()==cmd_line.args.size()) ;
-	//
-	bool err = false ;
-	for( size_t i=0 ; i<cmd_line.args.size() ; i++ ) {
-		switch (reply.infos[i].first) {
-			case Yes   : ::cout << "ok  " ;              break ;
-			case Maybe : ::cout << "??? " ; err = true ; break ;
-			case No    : ::cout << "err " ; err = true ; break ;
-			default : FAIL(reply.infos[i].first) ;
+	if (verbose) {
+		JobExecRpcReq jerr = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags ) ;
+		JobExecRpcReply reply = AutodepSupport(New).req(jerr) ;
+		//
+		SWEAR(reply.infos.size()==jerr.files.size()) ;
+		//
+		bool err = false ;
+		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
+			switch (reply.infos[i].first) {
+				case Yes   : ::cout << "ok  " ;              break ;
+				case Maybe : ::cout << "??? " ; err = true ; break ;
+				case No    : ::cout << "err " ; err = true ; break ;
+				default : FAIL(reply.infos[i].first) ;
+			}
+			::cout << ::string(reply.infos[i].second) <<' '<< jerr.files[i].first <<'\n' ;
 		}
-		::cout << ::string(reply.infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
+		//
+		return err ? 1 : 0 ;
+	} else {
+		AutodepSupport(New).req( JobExecRpcReq( ::move(cmd_line.args) , {.dfs=flags} ) ) ;
+		return 0 ;
 	}
-	//
-	return err ? 1 : 0 ;
 }

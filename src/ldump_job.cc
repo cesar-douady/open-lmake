@@ -6,6 +6,22 @@
 #include "app.hh"
 #include "rpc_job.hh"
 
+void _print_map(::vmap_ss const& m) {
+	size_t w = 0 ;
+	for( auto const& [k,v] : m ) w = ::max(w,k.size()) ;
+	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<k <<" : "<< v <<'\n' ;
+}
+
+template<class A> void _print_attrs(::vmap_s<A> const& m) {
+	size_t w = 0 ;
+	for( auto const& [k,v] : m ) w = ::max(w,to_string(v).size()) ;
+	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<to_string(v) <<" : "<< k <<'\n' ;
+}
+
+void _print_vector(::vector_s const& v) {
+	for( ::string const& x : v ) ::cout <<'\t'<< x <<'\n' ;
+}
+
 void print_req(::istream & s) {
 	JobRpcReq jrr ; deserialize(s,jrr) ;
 	SWEAR(jrr.proc==JobProc::Start) ;
@@ -25,8 +41,6 @@ void print_start(::istream & s) {
 	::cout << "auto_mkdir     : "  <<        jrr.auto_mkdir          <<'\n' ;
 	::cout << "ignore_stat    : "  <<        jrr.ignore_stat         <<'\n' ;
 	::cout << "chroot         : "  <<        jrr.chroot              <<'\n' ;
-	::cout << "env            : "  <<        jrr.env                 <<'\n' ;
-	::cout << "force_deps     : "  <<        jrr.force_deps          <<'\n' ;
 	::cout << "hash_algo      : "  <<        jrr.hash_algo           <<'\n' ;
 	::cout << "interpreter    : "  <<        jrr.interpreter         <<'\n' ;
 	::cout << "is_python      : "  <<        jrr.is_python           <<'\n' ;
@@ -35,33 +49,37 @@ void print_start(::istream & s) {
 	::cout << "lnk_support    : "  <<        jrr.lnk_support         <<'\n' ;
 	::cout << "reason         : "  <<        jrr.reason              <<'\n' ;
 	::cout << "root_dir       : "  <<        jrr.root_dir            <<'\n' ;
-	::cout << "rsrcs          : "  <<        jrr.rsrcs               <<'\n' ;
 	::cout << "small_id       : "  <<        jrr.small_id            <<'\n' ;
 	::cout << "stdin          : "  <<        jrr.stdin               <<'\n' ;
 	::cout << "stdout         : "  <<        jrr.stdout              <<'\n' ;
 	::cout << "targets        : "  <<        jrr.targets             <<'\n' ;
 	::cout << "timeout        : "  <<        jrr.timeout             <<'\n' ;
-	::cout << "script         :\n" << indent(jrr.script        )     <<'\n' ;
+	//
+	::cout << "rsrcs :\n"      ; _print_map   (jrr.rsrcs     )       ;
+	::cout << "force_deps :\n" ; _print_vector(jrr.force_deps)       ;
+	::cout << "env :\n"        ; _print_map   (jrr.env       )       ;
+	::cout << "script :\n"     ; ::cout << indent(jrr.script) <<'\n' ;
 }
 
 void print_end(::istream & s) {
 	JobRpcReq jrr ; deserialize(s,jrr) ;
 	SWEAR(jrr.proc==JobProc::End) ;
 	::cout << "--end--\n" ;
-	::cout << "seq_id : "<< jrr.seq_id <<'\n' ;
-	::cout << "job    : "<< jrr.job    <<'\n' ;
+	::cout << "seq_id             : " << jrr.seq_id <<'\n' ;
+	::cout << "job                : " << jrr.job    <<'\n' ;
 	//
 	JobDigest const & jd = jrr.digest ;
-	::cout << "digest.status  : "  <<        jd.status   <<'\n' ;
-	::cout << "digest.targets : "  <<        jd.targets  <<'\n' ;
-	::cout << "digest.deps    : "  <<        jd.deps     <<'\n' ;
-	::cout << "digest.stderr  :\n" << indent(jd.stderr ) <<'\n' ;
+	::cout << "digest.status      : " << jd.status  <<'\n' ;
 	//
 	JobStats const& st = jd.stats ;
 	::cout << "digest.stats.cpu   : " << st.cpu   <<'\n' ;
 	::cout << "digest.stats.job   : " << st.job   <<'\n' ;
 	::cout << "digest.stats.total : " << st.total <<'\n' ;
 	::cout << "digest.stats.mem   : " << st.mem   <<'\n' ;
+	//
+	::cout << "digest.targets :\n" ; _print_attrs(jd.targets)            ;
+	::cout << "digest.deps :\n"    ; _print_attrs(jd.deps   )            ;
+	::cout << "digest.stderr :\n"  ; ::cout << indent(jd.stderr ) <<'\n' ;
 }
 
 void print_info(::istream & s) {
@@ -76,6 +94,7 @@ int main( int argc , char* argv[] ) {
 	//
 	if (argc!=2) exit(2,"usage : ldump_job file") ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
+	::cout << ::left ;
 	//
 	IFStream job_stream{ argv[1] } ;
 	print_req  (job_stream) ;

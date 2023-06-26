@@ -58,12 +58,13 @@ int main( int argc , char* argv[] ) {
 	else                              {                                                    ds = &::cerr   ; }
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
-	for( auto const& [target,ai] : gather_deps.accesses )
-		switch (ai.write) {
-			case Maybe : deps_stream << "! " << target << '\n' ; break ;
-			case Yes   : deps_stream << "> " << target << '\n' ; break ;
-			default : ;
-		}
+	for( auto const& [target,ai] : gather_deps.accesses ) {
+		if (ai.info.idle()) continue ;
+		deps_stream << (+ai.info.dfs  ?'<':' ') ;
+		deps_stream << (ai.info.write ?'>':' ') ;
+		deps_stream << (ai.info.unlink?'!':' ') ;
+		deps_stream << target << '\n' ;
+	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep      ;
 	bool     prev_parallel = false ;
@@ -81,7 +82,7 @@ int main( int argc , char* argv[] ) {
 		critical_lvl += order==DepOrder::Critical ;
 		prev_dep      = dep                       ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.write==No) send(dep,ai.dep_order ) ;
-	/**/                                                                 send({} ,DepOrder::Seq) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.dep_order ) ;
+	/**/                                                                   send({} ,DepOrder::Seq) ; // send last
 	return status!=Status::Ok ;
 }

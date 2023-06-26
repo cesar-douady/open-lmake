@@ -89,27 +89,30 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq   jerr  = JobExecRpcReq( verbose?Proc::DepInfos:Proc::Deps , files , flags , verbose/*sync*/ ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                        ;
 	//
-	if (!verbose) Py_RETURN_NONE ;
-	//
-	SWEAR(reply.infos.size()==files.size()) ;
-	PyObject* res = PyDict_New() ;
-	for( size_t i=0 ; i<files.size() ; i++ ) {
-		PyObject* v = PyTuple_New(2) ;
-		switch (reply.infos[i].first) {
-			case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
-			case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
-			case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
-			default : FAIL(reply.infos[i].first) ;
+	if (verbose) {
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , flags ) ;
+		JobExecRpcReply reply = _g_autodep_support.req(jerr)                            ;
+		SWEAR(reply.infos.size()==jerr.files.size()) ;
+		PyObject* res = PyDict_New() ;
+		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
+			PyObject* v = PyTuple_New(2) ;
+			switch (reply.infos[i].first) {
+				case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
+				case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
+				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
+				default : FAIL(reply.infos[i].first) ;
+			}
+			if (reply.ok==Maybe) { PyErr_SetString(PyExc_RuntimeError,"some deps are out-of-date") ; return nullptr ; }
+			PyTuple_SET_ITEM(v,1,PyLong_FromLong(+reply.infos[i].second)) ;
+			PyDict_SetItemString( res , jerr.files[i].first.c_str() , v ) ;
+			Py_DECREF(v) ;
 		}
-		if (reply.ok==Maybe) { PyErr_SetString(PyExc_RuntimeError,"some deps are out-of-date") ; return nullptr ; }
-		PyTuple_SET_ITEM(v,1,PyLong_FromLong(+reply.infos[i].second)) ;
-		PyDict_SetItemString( res , files[i].c_str() , v ) ;
-		Py_DECREF(v) ;
+		return res ;
+	} else {
+		_g_autodep_support.req( JobExecRpcReq( ::move(files) , {.dfs=flags} , "depend" ) ) ;
+		Py_RETURN_NONE ;
 	}
-	return res ;
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
@@ -132,10 +135,11 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
+	if ( unlink && (+neg_flags||+pos_flags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq  jerr   = JobExecRpcReq( unlink?Proc::Unlinks:Proc::Targets , files , neg_flags , pos_flags , false/*sync*/ ) ;
+	JobExecRpcReq  jerr   = JobExecRpcReq( ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} ) ;
 	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                          ;
 	//
 	Py_RETURN_NONE ;

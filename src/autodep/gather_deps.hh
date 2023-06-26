@@ -72,16 +72,14 @@ struct GatherDeps {
 	using FI   = Disk::FileInfo    ;
 	using DFs  = DFlags            ;
 	using TFs  = TFlags            ;
+	using S    = ::string          ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		DFs      dfs         ;
-		TFs      neg_tfs     ;
-		TFs      pos_tfs     ;
-		Bool3    write       = No ;    // if No => file was not written, if Maybe => file was unlinked, if Yes => file was written
-		DepOrder dep_order   ;         // if read and not written
-		PD       access_date ;         // first access date
-		DD       file_date   ;         // date of file when first accessed if it was a read
+		JobExecRpcReq::AccessInfo info        ;
+		DepOrder                  dep_order   ;            // if read and not written
+		PD                        access_date ;            // first access date
+		DD                        file_date   ;            // date of file when first accessed if it was a read
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -91,31 +89,34 @@ struct GatherDeps {
 	}
 	// services
 private :
-	::pair<AccessInfo&,bool/*created*/> _info(::string const& name) ;
+	AccessInfo& _info(::string const& name) ;
 	//
-	void _new_target( PD , ::string const& target ,      bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment={} ) ;
-	void _new_dep   ( PD , ::string const& dep    , DD , bool update , DFs                       , ::string const& comment={} ) ;
+	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , ::string const& comment={} ) ;
 	//
-	void _new_targets( PD d , ::vector_s const& targets , bool unlink , TFs neg_tfs , TFs pos_tfs , ::string const& comment={} ) {
-		for( auto const& f : targets ) _new_target(d,f,unlink,neg_tfs,pos_tfs,comment) ;
+	void _new_accesses( PD d , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+		//
+		if (files.empty()) return ;                                            // do not update nxt_order if deps is empty
+		for( ::string const& f : files ) _new_access(d,f,{},info,comment) ;
+		_nxt_order = DO::Seq ;
 	}
-	void _new_deps( PD pd , ::vmap_s<DD> const& deps , bool update , DFs dfs , ::string const& comment={} ) {
-		if (deps.empty()) return ;                                                                            // do not update nxt_order if deps is empty
-		for( auto const& [f,dd] : deps ) _new_dep(pd,f,dd,update,dfs,comment) ;
-		_nxt_order = DepOrder::Seq ;
+	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+		//
+		if (dds.empty()) return ;                                              // do not update nxt_order if deps is empty
+		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,comment) ;
+		_nxt_order = DO::Seq ;
 	}
 public :
-	void new_target( PD pd , ::string const& tgt , TFs ntfs , TFs ptfs , ::string const& c="target" ) { _new_target(pd,tgt                     ,false/*unlink*/,ntfs,ptfs,c) ;                        }
-	void new_dep   ( PD pd , ::string const& dep , DFs dfs             , ::string const& c="dep"    ) { _new_dep   (pd,dep,Disk::file_date(dep),false/*update*/,dfs      ,c) ; _nxt_order = DO::Seq ; }
+	void new_target( PD pd , S     && t , TFs n , TFs p , S const& c="target" ) { _new_access( pd , ::move(t) , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , c ) ; }
+	void new_target( PD pd , S const& t , TFs n , TFs p , S const& c="target" ) { _new_access( pd ,        t  , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , c ) ; }
+	void new_dep   ( PD pd , S     && d , DFs dfs       , S const& c="dep"    ) { _new_access( pd , ::move(d) , Disk::file_date(d) , {.dfs=dfs}          , c ) ; _nxt_order = DO::Seq ; }
+	void new_dep   ( PD pd , S const& d , DFs dfs       , S const& c="dep"    ) { _new_access( pd ,        d  , Disk::file_date(d) , {.dfs=dfs}          , c ) ; _nxt_order = DO::Seq ; }
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
 		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
-			DD     d  = Disk::file_date(file) ;                                              // get file date while we have file, before moving it with _new_dep
 			DFlags fs ;
 			if (a.as_lnk) fs |= DFlag::Lnk ;
 			if (a.as_reg) fs |= DFlag::Reg ;
-			_new_dep( pd , ::move(file) , d , false/*update*/ , fs , c ) ;
-			_nxt_order = DepOrder::Seq ;
+			new_dep( pd , ::move(file) , fs , c ) ;
 		}
 	}
 

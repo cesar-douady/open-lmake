@@ -411,15 +411,16 @@ namespace Engine {
 
 		::vector<Target> star_targets ; if (rule->has_stars) star_targets.reserve(digest.targets.size()) ; // typically, there is either no star targets or most of them are stars
 		for( auto const& [tn,td] : digest.targets ) {
-			TFlags flags       = td.tfs                          ;
-			UNode  target      { tn }                            ;
-			Crc    crc         = td.write ? td.crc : target->crc ;
-			bool   incremental = flags[TFlag::Incremental]       ;
+			TFlags flags       = td.tfs                                    ;
+			UNode  target      { tn }                                      ;
+			bool   unlink      = td.crc==Crc::None                         ;
+			Crc    crc         = td.write || unlink ? td.crc : target->crc ;
+			bool   incremental = flags[TFlag::Incremental]                 ;
 			//
 			if ( !flags[TFlag::SourceOk] && td.write && target->is_src() ) {
 				err = true ;
-				if (td.crc==Crc::None) analysis_err.emplace_back("unexpected unlink of source",target) ;
-				else                   analysis_err.emplace_back("unexpected write to source" ,target) ;
+				if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",target) ;
+				else if (td.write) analysis_err.emplace_back("unexpected write to source" ,target) ;
 			}
 			if (
 				td.write                                                       // we actually wrote
@@ -453,7 +454,10 @@ namespace Engine {
 				incremental   = true                               ;           // this was not allowed but fact is that we behaved incrementally
 			}
 			if (crc==Crc::None) {
-				if (!RuleData::s_sure(flags)) {
+				// if we have written then unlinked, then there has been a transcient state where the file existed
+				// we must consider this is a real target with full clash detection.
+				// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
+				if ( !RuleData::s_sure(flags) && !td.write ) {
 					target->unlinked = target->crc!=Crc::None ;                // if target was actually unlinked, note it as it is not considered a target of the job
 					trace("unlink",target,STR(target->unlinked)) ;
 					continue ;                                                 // if we are not sure, a target is not generated if it does not exist
@@ -463,7 +467,7 @@ namespace Engine {
 					report_missing_target(tn) ;
 				}
 			}
-			if ( td.write && crc!=Crc::None && !flags[TFlag::Write] ) {
+			if ( td.write && !unlink && !flags[TFlag::Write] ) {
 				err = true ;
 				analysis_err.emplace_back("unexpected write to",target) ;
 			}
@@ -485,7 +489,7 @@ namespace Engine {
 			target->actual_job_tgt = { *this , RuleData::s_sure(flags) } ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			any_modified |= modified && flags[TFlag::Match] ;
-			trace("target",tn,flags,td,STR(modified),status) ;
+			trace("target",tn,td,STR(modified),status) ;
 		}
 		if (seen_static_targets.size()<rule->n_static_targets) {               // some static targets have not been seen
 			Rule::Match       match_         = simple_match()          ;       // match_ must stay alive as long as we use static_targets
@@ -841,6 +845,7 @@ namespace Engine {
 								trace("manual",d) ;
 								mark = Yes ; goto MarkDep ;
 							Overwriting :
+								trace("overwriting",d,STR(d->is_src())) ;
 								req->audit_node(Color::Err,"overwriting",d) ;
 								mark = Maybe ; goto MarkDep ;
 							} else {

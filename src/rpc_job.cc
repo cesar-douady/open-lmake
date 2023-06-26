@@ -13,16 +13,19 @@
 
 ::ostream& operator<<( ::ostream& os , DepDigest const& dd ) {
 	os << "DepDigest(" ;
-	if (!dd.garbage) os << dd.date <<',' ;
-	return os << dd.order <<')' ;
+	if (dd.garbage) os << "garbage,"    ;
+	else            os << dd.date <<',' ;
+	os << dd.flags ;
+	return os <<','<< dd.order <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	os << "TargetDigest(" ;
-	if (+td.dfs ) os      <<td.dfs <<',' ;
-	/**/          os      <<td.tfs       ;
-	if (td.write) os << ",write"         ;
-	if (+td.crc ) os <<','<< td.crc      ;
+	const char* sep = "" ;
+	if (+td.dfs  ) { os <<sep<< td.dfs  ; sep = "," ; }
+	if ( td.write) { os <<sep<< "write" ; sep = "," ; }
+	if (+td.tfs  ) { os <<sep<< td.tfs  ; sep = "," ; }
+	if (+td.crc  ) { os <<sep<< td.crc  ; sep = "," ; }
 	return os <<')' ;
 }
 
@@ -84,31 +87,41 @@
 	return os << "JobInfo(" << ji.end_date <<','<< ji.stdout.size() <<','<< ji.wstatus <<')' ;
 }
 
+::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessInfo const& ai ) {
+	os << "AccessInfo(" ;
+	const char* sep = "" ;
+	if (+ai.dfs            ) { os <<sep     << ai.dfs     ; sep = "," ; }
+	if ( ai.write          ) { os <<sep     << ai.write   ; sep = "," ; }
+	if (+ai.neg_tfs        ) { os <<sep<<'-'<< ai.neg_tfs ; sep = "," ; }
+	if (+ai.pos_tfs        ) { os <<sep<<'+'<< ai.pos_tfs ; sep = "," ; }
+	if ( ai.unlink         ) { os <<sep     << ai.unlink  ; sep = "," ; }
+	return os <<')' ;
+}
+
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
 	os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	switch (jerr.proc) {
-		case JobExecRpcProc::Targets :
-		case JobExecRpcProc::Unlinks : {
+	if (jerr.sync            ) os << ",sync"            ;
+	if (jerr.auto_date       ) os << ",auto_date"       ;
+	/**/                       os <<',' << jerr.info    ;
+	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
+	if (jerr.has_files()) {
+		if ( +jerr.info.dfs && !jerr.auto_date ) {
+			os <<','<< jerr.files ;
+		} else {
 			::vector_s fs ;
 			for( auto [f,d] : jerr.files ) fs.push_back(f) ;
 			os <<','<< fs ;
-		} break ;
-		case JobExecRpcProc::Trace :
-		case JobExecRpcProc::Deps  :
-			os <<','<< jerr.files ;
-		break ;
-		default : ;
+		}
 	}
-	if (+jerr.dfs            ) os <<',' << jerr.dfs     ;
-	if (+jerr.neg_tfs        ) os <<",-"<< jerr.neg_tfs ;
-	if (+jerr.pos_tfs        ) os <<",+"<< jerr.pos_tfs ;
-	if (jerr.sync            ) os << ",sync" ;
-	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
 	return os <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
-	if (jerr.proc==JobExecRpcProc::DepInfos) os <<','<< jerr.infos ;
+	switch (jerr.proc) {
+		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok    ; break ;
+		case JobExecRpcProc::DepInfos : os <<','<< jerr.infos ; break ;
+		default : ;
+	}
 	return os << ')' ;
 }

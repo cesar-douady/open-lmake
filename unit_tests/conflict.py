@@ -46,5 +46,5 @@ else :
 
 	import ut
 
-	ut.lmake( 'res1' , done=2 , may_rerun=1 , rerun=1 , steady=2 )
+	ut.lmake( 'res1' , done=3 , may_rerun=1 , steady=1 )
 	ut.lmake( 'res2' , done=3 , may_rerun=1 )

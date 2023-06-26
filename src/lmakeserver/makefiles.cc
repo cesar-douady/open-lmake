@@ -93,7 +93,7 @@ namespace Engine {
 		::string content = read_content(makefile_data) ;
 		::vector_s deps ; deps.reserve(gather_deps.accesses.size()) ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
-			if (ai.write!=No) continue ;
+			if (!ai.info.idle()) continue ;
 			Py::Match m = pyc_re.match(d) ;
 			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
 			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }

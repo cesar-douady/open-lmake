@@ -213,9 +213,8 @@ namespace Caches {
 
 	JobDigest DirCache::download( Job job , Id const& id ) {
 		Trace trace("download",job,id) ;
-		::string    jn   = _unique_name(job,id)         ;
-		LockedFd    lock { dir_fd , true/*exclusive*/ } ;                      // because we manipulate LRU, lock must be exclusive
-		AutoCloseFd dfd  = open_read(dir_fd,jn)         ;
+		::string jn   = _unique_name(job,id)         ;
+		LockedFd lock { dir_fd , true/*exclusive*/ } ;                         // because we manipulate LRU, lock must be exclusive
 		//
 		IFStream ifs{to_string(dir,'/',jn,"/data")} ;
 		JobRpcReq   report_req   = deserialize<JobRpcReq  >(ifs) ;
@@ -234,6 +233,7 @@ namespace Caches {
 		serialize(ofs,report_end  ) ;
 		serialize(ofs,report_info ) ;
 		//
+		AutoCloseFd dfd = open_read(dir_fd,jn) ;
 		for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) _copy( dfd , to_string(ti) , digest.targets[ti].first , true/*unlink_dst*/ ) ;
 		//
 		_lru_first(jn,_lru_remove(jn)) ;
