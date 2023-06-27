@@ -171,6 +171,7 @@ namespace Backends {
 				//vvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
+				serialize( OFStream(dir_guard(job.ancillary_file())) , ::pair(jrr,reply) ) ;
 				bool deferred_start_report = Delay(job->exec_time)<rule->start_delay && report_unlink.empty() ; // if we report activity at start, deferring is meaningless
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , !deferred_start_report ) ;
@@ -178,12 +179,17 @@ namespace Backends {
 				if (deferred_start_report) _s_deferred_queue.emplace( start+rule->start_delay , ::move(job_exec) , jrr.seq_id ) ;
 				trace("started",reply) ;
 			} break ;
-			//                                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.txt)              ) ;                  break ;
-			case JobProc::End      : job.end_exec() ;                                g_engine_queue.emplace( jrr.proc , ::move(job_exec) , start , ::move(jrr.digest)   ) ;                  break ;
-			case JobProc::ChkDeps  :
+			case JobProc::ChkDeps  : //                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			case JobProc::DepInfos : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
+			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.txt)              ) ;                  break ;
 			//                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case JobProc::End :
+				serialize( OFStream(job.ancillary_file(),::ios::app) , jrr ) ;
+				job.end_exec() ;
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( jrr.proc , ::move(job_exec) , start , ::move(jrr.digest) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			break ;
 			default : FAIL(jrr.proc) ;
 		}
 		return keep_fd ;

@@ -51,7 +51,7 @@ namespace Engine {
 		using ReqInfo = JobReqInfo ;
 
 		// statics
-		static ::pair_s<Node> s_reason_str(JobReason) ;
+		static ::pair_s<NodeIdx> s_reason_str(JobReason) ;
 		// static data
 	private :
 		static ::shared_mutex    _s_target_dirs_mutex ;
@@ -108,7 +108,7 @@ namespace Engine {
 		void audit_end_special( Req , SpecialStep , Node ) const ;
 		void audit_end_special( Req , SpecialStep        ) const ;
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( Req                                                                                                     ) ;
@@ -157,7 +157,7 @@ namespace Engine {
 		JobExec( Job j , ::string&& h , ProcessDate d ) : Job{j} , host{::move(h)} , date{d} {}
 		JobExec( Job j ,                ProcessDate d ) : Job{j} ,                   date{d} {}
 		// services
-		void             report_start ( ReqInfo& , bool force=false                       ) const ;
+		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} ) const ;
 		void             report_start (                                                   ) const ; // called in engine thread after start if started called with false
 		void             started      ( bool report , ::vector<Node> const& report_unlink ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                   ) const ;
@@ -167,7 +167,7 @@ namespace Engine {
 		void             not_started  (                                                   ) ;       // Req was killed before it started
 		//
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time={} ) const ;
 		// data
 		::string    host ;             // host executing the job
 		ProcessDate date ;             // date at which action has been created (may be reported later to user, but with this date)
@@ -261,8 +261,14 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
-		bool running(                              ) const { bool res = lvl==Lvl::Queued || lvl==Lvl::Exec ; if (res) SWEAR( n_wait) ; return res ; }
-		bool done   (RunAction ra=RunAction::Status) const { return done_>=ra ;                                                                     }
+		bool running() const {
+			switch (lvl) {
+				case Lvl::Queued :
+				case Lvl::Exec   : return true  ;
+				default          : return false ;
+			}
+		}
+		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
 		// services
 		void update( RunAction , MakeAction , Job ) ;
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { Base::add_watcher(watcher,watcher_req_info) ; }
@@ -357,7 +363,7 @@ namespace Engine {
 		else                       return _submit_plain  (ri,reason,pressure) ;
 	}
 
-	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , ::vector<pair_s<Node>> const& analysis_err , bool modified , Delay exec_time ) const {
+	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time ) const {
 		JobExec(*this,{},ProcessDate::s_now()).audit_end(pfx,cri,stderr,analysis_err,modified,exec_time) ;
 	}
 

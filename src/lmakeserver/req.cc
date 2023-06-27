@@ -184,14 +184,16 @@ namespace Engine {
 			catch (::string const&)                        { reason      = "cannot compute its deps"                    ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
-				for( VarIdx di=0 ; di<rt->n_deps() ; di++ ) {
-					Node d = static_deps[di] ;
-					if ( !rt->deps.dct[di].second.flags[DFlag::Required] ) continue ;
-					if ( d->buildable!=No && d->makable()                ) continue ;
-					missing_key = rt->deps.dct[di].first ;
-					missing_dep = d                      ;
-					break ;
-				}
+				for( bool search_non_buildable : {true,false} )
+					for( VarIdx di=0 ; di<rt->n_deps() ; di++ ) {
+						Node d = static_deps[di] ;
+						if ( !rt->deps.dct[di].second.flags[DFlag::Required]        ) continue ;
+						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
+						missing_key = rt->deps.dct[di].first ;
+						missing_dep = d                      ;
+						goto Found ;
+					}
+			Found :
 				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
 				FileInfo fi{missing_dep.name()} ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
@@ -261,10 +263,10 @@ namespace Engine {
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
 				try {
 					// show first stderr
-					IFStream    job_stream   { job.ancillary_file() }               ;
-					JobRpcReq   report_req   = deserialize<JobRpcReq  >(job_stream) ;
-					JobRpcReply report_start = deserialize<JobRpcReply>(job_stream) ;
-					JobRpcReq   report_end   = deserialize<JobRpcReq  >(job_stream) ;
+					IFStream job_stream   { job.ancillary_file() }               ;
+					auto     report_req   = deserialize<JobRpcReq  >(job_stream) ;
+					auto     report_start = deserialize<JobRpcReply>(job_stream) ;
+					auto     report_end   = deserialize<JobRpcReq  >(job_stream) ;
 					if (!report_end.digest.stderr.empty()) {
 						(*this)->audit_stderr( report_end.digest.stderr , job->rule->stderr_len , lvl ) ;
 						seen_stderr = true ;

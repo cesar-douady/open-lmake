@@ -75,14 +75,14 @@ namespace Disk {
 	void       write_content( ::string const& file , ::string   const& ) ;
 
 	// list files within dir with prefix in front of each entry
-	::vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix={} ) ;
+	::vector_s lst_dir( Fd at , ::string const& dir={} , ::string const& prefix={} ) ;
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	void make_dir     ( Fd at , ::string const& dir  , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
-	void dir_guard    ( Fd at , ::string const& file                        ) ;
-	void unlink_inside( Fd at , ::string const& dir                         ) ;
-	void unlink       ( Fd at , ::string const& file                        ) ; // unlink whole dir if it is one
+	void            make_dir     ( Fd at , ::string const& dir  , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
+	::string const& dir_guard    ( Fd at , ::string const& file                        ) ; // return file
+	void            unlink_inside( Fd at , ::string const& dir ={}                     ) ;
+	void            unlink       ( Fd at , ::string const& file                        ) ; // unlink whole dir if it is one
 	//
 	static inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -95,9 +95,9 @@ namespace Disk {
 		return ::openat( at , file_name.c_str() , O_RDONLY|O_CLOEXEC , 0666 ) ;
 	}
 
-	static inline Fd open_write( Fd at , ::string const& file_name , bool append=false , bool exe=false ) {
+	static inline Fd open_write( Fd at , ::string const& file_name , bool append=false , bool exe=false , bool read_only=false ) {
 		dir_guard(at,file_name) ;
-		return ::openat( at , file_name.c_str() , O_WRONLY|O_CREAT|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , exe?0777:0666 ) ;
+		return ::openat( at , file_name.c_str() , O_WRONLY|O_CREAT|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , 0777 & ~(exe?0000:0111) & ~(read_only?0222:0000) ) ;
 	}
 
 	static inline ::string read_lnk( Fd at , ::string const& file ) {
@@ -114,22 +114,22 @@ namespace Disk {
 	static inline bool is_none  ( Fd at , ::string const& file={} ) { return !FileInfo    (at,file).tag               ; }
 	static inline Date file_date( Fd at , ::string const& file={} ) { return  FileInfoDate(at,file).date              ; }
 
-	static inline ::vector_s lst_dir      ( ::string const& dir  , ::string const& prefix={}          ) { return lst_dir      (Fd::Cwd,dir ,prefix    ) ; }
-	static inline ::vector_s walk         ( ::string const& file , ::string const& prefix={}          ) { return walk         (Fd::Cwd,file,prefix    ) ; }
-	static inline void       make_dir     ( ::string const& dir  , bool unlink_ok=false               ) { return make_dir     (Fd::Cwd,dir ,unlink_ok ) ; }
-	static inline void       dir_guard    ( ::string const& file                                      ) { return dir_guard    (Fd::Cwd,file           ) ; }
-	static inline void       unlink_inside( ::string const& dir                                       ) {        unlink_inside(Fd::Cwd,dir            ) ; }
-	static inline void       unlink       ( ::string const& file                                      ) {        unlink       (Fd::Cwd,file           ) ; }
-	static inline void       lnk          ( ::string const& file , ::string const& target             ) {        lnk          (Fd::Cwd,file,target    ) ; }
-	static inline Fd         open_read    ( ::string const& file                                      ) { return open_read    (Fd::Cwd,file           ) ; }
-	static inline Fd         open_write   ( ::string const& file , bool append=false , bool exe=false ) { return open_write   (Fd::Cwd,file,append,exe) ; }
-	static inline ::string   read_lnk     ( ::string const& file                                      ) { return read_lnk     (Fd::Cwd,file           ) ; }
-	static inline bool       is_reg       ( ::string const& file                                      ) { return is_reg       (Fd::Cwd,file           ) ; }
-	static inline bool       is_lnk       ( ::string const& file                                      ) { return is_lnk       (Fd::Cwd,file           ) ; }
-	static inline bool       is_dir       ( ::string const& file                                      ) { return is_dir       (Fd::Cwd,file           ) ; }
-	static inline bool       is_target    ( ::string const& file                                      ) { return is_target    (Fd::Cwd,file           ) ; }
-	static inline bool       is_none      ( ::string const& file                                      ) { return is_none      (Fd::Cwd,file           ) ; }
-	static inline Date       file_date    ( ::string const& file                                      ) { return file_date    (Fd::Cwd,file           ) ; }
+	static inline ::vector_s      lst_dir      ( ::string const& dir  , ::string const& prefix={}          ) { return lst_dir      (Fd::Cwd,dir ,prefix    ) ; }
+	static inline ::vector_s      walk         ( ::string const& file , ::string const& prefix={}          ) { return walk         (Fd::Cwd,file,prefix    ) ; }
+	static inline void            make_dir     ( ::string const& dir  , bool unlink_ok=false               ) { return make_dir     (Fd::Cwd,dir ,unlink_ok ) ; }
+	static inline ::string const& dir_guard    ( ::string const& file                                      ) { return dir_guard    (Fd::Cwd,file           ) ; } // return file
+	static inline void            unlink_inside( ::string const& dir                                       ) {        unlink_inside(Fd::Cwd,dir            ) ; }
+	static inline void            unlink       ( ::string const& file                                      ) {        unlink       (Fd::Cwd,file           ) ; }
+	static inline void            lnk          ( ::string const& file , ::string const& target             ) {        lnk          (Fd::Cwd,file,target    ) ; }
+	static inline Fd              open_read    ( ::string const& file                                      ) { return open_read    (Fd::Cwd,file           ) ; }
+	static inline Fd              open_write   ( ::string const& file , bool append=false , bool exe=false ) { return open_write   (Fd::Cwd,file,append,exe) ; }
+	static inline ::string        read_lnk     ( ::string const& file                                      ) { return read_lnk     (Fd::Cwd,file           ) ; }
+	static inline bool            is_reg       ( ::string const& file                                      ) { return is_reg       (Fd::Cwd,file           ) ; }
+	static inline bool            is_lnk       ( ::string const& file                                      ) { return is_lnk       (Fd::Cwd,file           ) ; }
+	static inline bool            is_dir       ( ::string const& file                                      ) { return is_dir       (Fd::Cwd,file           ) ; }
+	static inline bool            is_target    ( ::string const& file                                      ) { return is_target    (Fd::Cwd,file           ) ; }
+	static inline bool            is_none      ( ::string const& file                                      ) { return is_none      (Fd::Cwd,file           ) ; }
+	static inline Date            file_date    ( ::string const& file                                      ) { return file_date    (Fd::Cwd,file           ) ; }
 
 	static inline ::string cwd() {
 		char* buf = ::getcwd(nullptr,0) ;

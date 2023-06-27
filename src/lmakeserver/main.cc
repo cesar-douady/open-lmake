@@ -53,7 +53,7 @@ bool/*crashed*/ start_server() {
 	int  pid       = getpid() ;
 	::string host_ = host()   ;
 	Trace trace("start_server",_g_server_mrkr,host_,pid) ;
-	Disk::dir_guard(_g_server_mrkr) ;
+	dir_guard(_g_server_mrkr) ;
 	if ( int mrkr_pid = _get_mrkr_pid() ) {
 		if (::kill(mrkr_pid,0)==0) {                                           // another server exists
 			trace("already_existing",mrkr_pid) ;
@@ -96,8 +96,7 @@ void record_targets( ::vector<Node> const& targets ) {
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
-	dir_guard(targets_file) ;
-	{	::ofstream targets_stream { targets_file } ;
+	{	::ofstream targets_stream { dir_guard(targets_file) } ;
 		for( ::string tn : known_targets ) if (!tn.empty()) targets_stream << tn << '\n' ;
 	}
 }

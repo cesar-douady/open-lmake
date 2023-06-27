@@ -41,21 +41,21 @@ struct Lock {
 
 struct SymEntry {
 	SymEntry(void* f,LnkSupport ls=LnkSupport::None) : func{f},lnk_support{ls} {}
-	void*         func        = nullptr ;
+	void*         func        = nullptr          ;
 	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this syscall
-	mutable void* orig        = nullptr ;
+	mutable void* orig        = nullptr          ;
 } ;
-extern ::umap_s<SymEntry> const g_syscall_tab ;
+extern ::umap_s<SymEntry> const* const g_syscall_tab ;
 
 void* get_orig(const char* syscall) {
 	if (!g_libc_name) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
-	return g_syscall_tab.at(syscall).orig ;
+	return g_syscall_tab->at(syscall).orig ;
 }
 
 #define LD_AUDIT 1
 #include "autodep_ld.cc"
 
-::umap_s<SymEntry> const g_syscall_tab = {
+::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{
 	{ "chdir"            , { reinterpret_cast<void*>(Audited::chdir            ) } }
 ,	{ "close"            , { reinterpret_cast<void*>(Audited::close            ) } }
 ,	{ "__close"          , { reinterpret_cast<void*>(Audited::__close          ) } }
@@ -171,8 +171,8 @@ template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int
 	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
 	if (*def_cook   ) goto Ignore ;                                            // cookie is used to identify libc (when cookie==0)
 	//
-	{	auto it = g_syscall_tab.find(sym_name) ;
-		if (it==g_syscall_tab.end()) goto Ignore ;
+	{	auto it = g_syscall_tab->find(sym_name) ;
+		if (it==g_syscall_tab->end()) goto Ignore ;
 		//
 		SymEntry const& entry = it->second ;
 		SWEAR(Audit::s_lnk_support!=LnkSupport::Unknown) ;

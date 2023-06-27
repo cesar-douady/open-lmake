@@ -42,11 +42,11 @@ namespace Engine {
 	// Store
 	//
 
+	SeqId     * g_seq_id           = nullptr            ;
 	EngineStore g_store            { true/*writable*/ } ;
 	Config    & g_config           = g_store.config     ;
 	::string  * g_local_admin_dir  = nullptr            ; bool g_has_local_admin_dir  = false ;
 	::string  * g_remote_admin_dir = nullptr            ; bool g_has_remote_admin_dir = false ;
-	SeqId     * g_seq_id           = nullptr            ;
 
 	void EngineStore::_s_init_config() {
 		try         { g_config = deserialize<Config>(IFStream(*g_local_admin_dir+"/store/config"s)) ; }
@@ -58,7 +58,7 @@ namespace Engine {
 	void EngineStore::_s_init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",ProcessDate::s_now()) ;
 		::string dir      = *g_local_admin_dir+"/store" ;
-		bool     writable = g_store.writable             ;
+		bool     writable = g_store.writable            ;
 		//
 		make_dir(dir) ;
 		// jobs
@@ -113,8 +113,7 @@ namespace Engine {
 		::string config_file = *g_local_admin_dir+"/store/config" ;
 		g_config            = ::move(new_config) ;
 		g_config.db_version = DbVersion          ;
-		dir_guard(config_file) ;
-		serialize(OFStream(config_file),g_config) ;
+		serialize( OFStream(dir_guard(config_file)) , g_config ) ;
 		{	OFStream config_stream{AdminDir+"/config"s} ;
 			config_stream << g_config.pretty_str() ;
 		}

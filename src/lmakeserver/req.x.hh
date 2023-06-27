@@ -25,6 +25,7 @@ namespace Engine {
 	ENUM( JobLvl                       // must be in chronological order
 	,	None                           // no analysis done yet (not in stats)
 	,	Dep                            // analyzing deps
+	,	Hit                            // cache hit
 	,	Queued                         // waiting for execution
 	,	Exec                           // executing
 	,	Done                           // done execution
@@ -226,9 +227,9 @@ namespace Engine {
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		bool                   hit          = false/*garbage*/ ;               // else it is a rerun
-		bool                   modified     = false/*garbage*/ ;
-		::vector<pair_s<Node>> analysis_err ;
+		bool        hit          = false/*garbage*/ ;      // else it is a rerun
+		bool        modified     = false/*garbage*/ ;
+		AnalysisErr analysis_err ;
 	} ;
 	struct ReqData {
 		friend struct Req ;

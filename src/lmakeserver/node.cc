@@ -448,15 +448,6 @@ namespace Engine {
 	// Dep
 	//
 
-	::ostream& operator<<( ::ostream& os , Dep const& d ) {
-		os << "D(" << +d <<','<< d.order ;
-		switch (d.is_date) {
-			case No    : os <<','<< d.crc () ; break ;
-			case Yes   : os <<','<< d.date() ; break ;
-			case Maybe :                       break ;
-			default : FAIL(d.is_date) ;
-		}
-		return os <<')' ;
-	}
+	::ostream& operator<<( ::ostream& os , Dep const& d ) { return os << static_cast<DepDigestBase<Node> const&>(d) ; }
 
 }

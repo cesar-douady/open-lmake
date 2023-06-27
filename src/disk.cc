@@ -78,9 +78,9 @@ namespace Disk {
 	}
 
 	vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix ) {
-		::vector_s  res    ;
-		AutoCloseFd dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ; if (!dir_fd) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
-		DIR*        dir_fp = ::fdopendir(dir_fd)                                 ; if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		::vector_s res    ;
+		Fd         dir_fd = dir.empty() ? at : Fd(::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY )) ; if (!dir_fd) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		DIR*       dir_fp = ::fdopendir(dir_fd)                                                        ; if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
 			if (entry->d_name[0]!='.') goto Ok  ;
 			if (entry->d_name[1]==0  ) continue ;                               // ignore .
@@ -89,15 +89,16 @@ namespace Disk {
 		Ok :
 			res.emplace_back(prefix+entry->d_name) ;
 		}
-		::closedir(dir_fp) ;
+		if (dir_fd!=at) ::closedir(dir_fp) ;
 		return res ;
 	}
 
-	void unlink_inside( Fd at , ::string const& dir) {
-		for( ::string const& f : lst_dir(at,dir,dir+'/') ) unlink(at,f) ;
+	void unlink_inside( Fd at , ::string const& dir ) {
+		::string dir_s = dir.empty() ? ""s : dir+'/' ;
+		for( ::string const& f : lst_dir(at,dir,dir_s) ) unlink(at,f) ;
 	}
 
-	void unlink( Fd at , ::string const& file) {
+	void unlink( Fd at , ::string const& file ) {
 		if (::unlinkat(at,file.c_str(),0)==0            ) return ;
 		if (errno==ENOENT                               ) return ;
 		if (errno!=EISDIR                               ) throw to_string("cannot unlink file ",file) ;
@@ -162,13 +163,14 @@ namespace Disk {
 			if (::mkdirat(at,d.c_str(),0777)==0) {
 				to_mk.pop_back() ;                                             // created, ok
 			} else if (errno==EEXIST) {
-				if      (is_dir(d)) to_mk.pop_back()                  ;        // already exists, ok
-				else if (unlink_ok) ::unlink(d.c_str())               ;
-				else                throw to_string("must unlink ",d) ;
+				if      (is_dir(at,d)) to_mk.pop_back()                                                    ; // already exists, ok
+				else if (unlink_ok) ::unlinkat(at,d.c_str(),0)                                             ;
+				else                throw to_string("must unlink ",at==Fd::Cwd?"":to_string('@',at,':'),d) ;
 			} else {
 				::string dd = dir_name(d) ;
-				if (!( (errno==ENOENT||errno==ENOTDIR) && !dd.empty() )) throw to_string("cannot create dir ",d) ; // if ENOTDIR, a parent is not a dir, it will be fixed up
-				to_mk.push_back(::move(dd)) ;                                                                      // retry after parent is created
+				if ( (errno!=ENOENT&&errno!=ENOTDIR) || dd.empty() )
+					throw to_string("cannot create dir ",at==Fd::Cwd?"":to_string('@',at,':'),d) ; // if ENOTDIR, a parent is not a dir, it will be fixed up
+				to_mk.push_back(::move(dd)) ;                                                      // retry after parent is created
 			}
 		}
 	}
@@ -185,9 +187,10 @@ namespace Disk {
 		else           return file               ;
 	}
 
-	void dir_guard( Fd at , ::string const& file ) {
+	::string const& dir_guard( Fd at , ::string const& file ) {
 		::string dir = dir_name(file) ;
 		if (!dir.empty()) make_dir(at,dir,true/*unlink_ok*/) ;
+		return file ;
 	}
 
 	::string localize( ::string const& file , ::string const& dir_s ) {

@@ -5,19 +5,9 @@
 
 #include "rpc_job.hh"
 
-::ostream& operator<<( ::ostream& os , JobReason const& jr ) {
-	os << "JobReason(" << jr.tag ;
-	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
-	return os << ')' ;
-}
-
-::ostream& operator<<( ::ostream& os , DepDigest const& dd ) {
-	os << "DepDigest(" ;
-	if (dd.garbage) os << "garbage,"    ;
-	else            os << dd.date <<',' ;
-	os << dd.flags ;
-	return os <<','<< dd.order <<')' ;
-}
+//
+// JobRpcReq
+//
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	os << "TargetDigest(" ;
@@ -30,7 +20,7 @@
 }
 
 ::ostream& operator<<( ::ostream& os , JobDigest const& jd ) {
-	return os << "JobDigest(" << jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
+	return os << "JobDigest(" << jd.wstatus<<':'<<jd.status <<','<< jd.targets <<','<< jd.deps << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
@@ -42,6 +32,16 @@
 		case JobProc::End      : os <<','<< jrr.host <<','<< jrr.digest ; break ;
 		default                :                                          break ;
 	}
+	return os << ')' ;
+}
+
+//
+// JobRpcReply
+//
+
+::ostream& operator<<( ::ostream& os , JobReason const& jr ) {
+	os << "JobReason(" << jr.tag ;
+	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
 	return os << ')' ;
 }
 
@@ -83,19 +83,45 @@
 	return os << ')' ;
 }
 
-::ostream& operator<<( ::ostream& os , JobInfo const& ji ) {
-	return os << "JobInfo(" << ji.end_date <<','<< ji.stdout.size() <<','<< ji.wstatus <<')' ;
-}
+//
+// JobExecRpcReq
+//
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessInfo const& ai ) {
 	os << "AccessInfo(" ;
 	const char* sep = "" ;
-	if (+ai.dfs            ) { os <<sep     << ai.dfs     ; sep = "," ; }
-	if ( ai.write          ) { os <<sep     << ai.write   ; sep = "," ; }
-	if (+ai.neg_tfs        ) { os <<sep<<'-'<< ai.neg_tfs ; sep = "," ; }
-	if (+ai.pos_tfs        ) { os <<sep<<'+'<< ai.pos_tfs ; sep = "," ; }
-	if ( ai.unlink         ) { os <<sep     << ai.unlink  ; sep = "," ; }
+	if (+ai.dfs    ) { os <<sep     << ai.dfs     ; sep = "," ; }
+	if ( ai.write  ) { os <<sep     << "write"    ; sep = "," ; }
+	if (+ai.neg_tfs) { os <<sep<<'-'<< ai.neg_tfs ; sep = "," ; }
+	if (+ai.pos_tfs) { os <<sep<<'+'<< ai.pos_tfs ; sep = "," ; }
+	if ( ai.unlink ) { os <<sep     << "unlink"   ; sep = "," ; }
 	return os <<')' ;
+}
+
+void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
+	switch (after) {
+		case Yes :                                                     // order is : this.read - this.write - ai.read - ai.write
+			if (idle()) dfs |= ai.dfs ;                                // if this.idle(), ai.read is a real read
+			unlink  &= !ai.write   ; unlink  |= ai.unlink  ;           // if ai writes, it cancels previous this.unlink
+			neg_tfs &= ~ai.pos_tfs ; neg_tfs |= ai.neg_tfs ;           // ai flags have priority over this flags
+			pos_tfs &= ~ai.neg_tfs ; pos_tfs |= ai.pos_tfs ;           // .
+		break ;
+		case Maybe :                                                   // order is : this.read - ai.read - ai.write - this.write
+			dfs     |= ai.dfs                 ;                        // ai.read is always a real read
+			unlink  |= ai.unlink  && !write   ;                        // if this writes, it cancels previous ai.unlink
+			neg_tfs |= ai.neg_tfs &  ~pos_tfs ;                        // this flags have priority over ai flags
+			pos_tfs |= ai.pos_tfs &  ~neg_tfs ;                        // .
+		break ;
+		case No :                                                      // order is : ai.read - ai.write - this.read - this.write
+			if (ai.idle()) dfs |= ai.dfs ;                             // if ai.idle(), this.read is a real read
+			else           dfs  = ai.dfs ;                             // else, this.read is canceled
+			unlink  |= ai.unlink  && !write   ;                        // if this writes, it cancels previous ai.unlink
+			neg_tfs |= ai.neg_tfs &  ~pos_tfs ;                        // this flags have priority over ai flags
+			pos_tfs |= ai.pos_tfs &  ~neg_tfs ;                        // .
+		break ;
+		default : FAIL(after) ;
+	}
+	write |= ai.write ;                                                // in all cases, there is a write if either write
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -115,6 +141,10 @@
 	}
 	return os <<')' ;
 }
+
+//
+// JobExecRpcReply
+//
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;

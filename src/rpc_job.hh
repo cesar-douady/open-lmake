@@ -25,10 +25,11 @@ ENUM_1( DFlag      // flags for deps
 using DFlags = BitMap<DFlag> ;
 constexpr DFlags StaticDFlags = DFlags::All                             ;
 constexpr DFlags HiddenDFlags = DFlag::Error                            ;
+constexpr DFlags DataDFlags   { DFlag::Lnk , DFlag::Reg               } ;
 constexpr DFlags AccessDFlags { DFlag::Lnk , DFlag::Reg , DFlag::Stat } ;
 
 ENUM( DepOrder
-,	Parallel       // dep is parallel with prev ont
+,	Parallel       // dep is parallel with prev one
 ,	Seq            // dep is sequential
 ,	Critical       // dep starts a new critical section
 )
@@ -152,20 +153,110 @@ struct JobStats {
 	size_t mem   = 0 ;                 // in bytes
 } ;
 
-struct DepDigest {
-	friend ::ostream& operator<<( ::ostream& , DepDigest const& ) ;
+// for Dep recording in book-keeping, we want to derive from Node
+// but if we derive from Node and have a field DepDigest, it is impossible to have a compact layout because of alignment constraints
+// hence this solution : derive from a template argument
+template<class B> struct DepDigestBase ;
+template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) ;
+template<class B> struct DepDigestBase : NoVoid<B> {
+	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
+	using Base = NoVoid<B>      ;
 	using Date = Time::DiskDate ;
-	// cxtors & casts
-	DepDigest(                                  ) = default ;
-	DepDigest( Date d                           ) : date{d} , garbage{false}                         {}
-	DepDigest( Date d , DFlags dfs , DepOrder o ) : date{d} , garbage{false} , flags{dfs} , order{o} {}
-	DepDigest(          DFlags dfs , DepOrder o ) :           garbage{true } , flags{dfs} , order{o} {}
+	using Crc  = Hash::Crc      ;
+	//cxtors & casts
+	DepDigestBase(                                           )                                                             {}
+	DepDigestBase(          DFlags dfs , DepOrder o          ) :           flags(dfs) , order{o}                           {}
+	DepDigestBase(          DFlags dfs , DepOrder o , Crc  c ) :           flags(dfs) , order{o} , is_date{No } , _crc {c} {}
+	DepDigestBase(          DFlags dfs , DepOrder o , Date d ) :           flags(dfs) , order{o} , is_date{Yes} , _date{d} {}
+	DepDigestBase( Base b , DFlags dfs , DepOrder o          ) : Base{b} , flags(dfs) , order{o}                           {}
+	DepDigestBase( Base b , DFlags dfs , DepOrder o , Crc  c ) : Base{b} , flags(dfs) , order{o} , is_date{No } , _crc {c} {}
+	DepDigestBase( Base b , DFlags dfs , DepOrder o , Date d ) : Base{b} , flags(dfs) , order{o} , is_date{Yes} , _date{d} {}
+	//
+	DepDigestBase(DepDigestBase const& dd) : DepDigestBase{dd,dd.flags,dd.order} {
+		crc_date(dd) ;
+		known   = dd.known   ;
+		garbage = dd.garbage ;
+	}
+	~DepDigestBase() { clear_crc_date() ; }
+	DepDigestBase& operator=(DepDigestBase const& dd) {
+		(*this).~DepDigestBase() ;
+		new(this) DepDigestBase{dd} ;
+		return *this ;
+	}
+	// accesses
+	bool has_crc       (      ) const {                       return is_date==No && +_crc ; }
+	Crc  crc           (      ) const { SWEAR(is_date==No ) ; return _crc                 ; }
+	Date date          (      ) const { SWEAR(is_date==Yes) ; return _date                ; }
+	void crc           (Crc  c)       { if (is_date==Yes) _date.~Date() ; if (is_date!=No ) new(&_crc ) Crc {c} ; else _crc  = c ; is_date = No  ; }
+	void date          (Date d)       { if (is_date==No ) _crc .~Crc () ; if (is_date!=Yes) new(&_date) Date{d} ; else _date = d ; is_date = Yes ; }
+	void clear_crc_date(      )       {
+		switch (is_date) {
+			case No    : _crc .~Crc () ; break ;
+			case Yes   : _date.~Date() ; break ;
+			case Maybe :                 break ;
+			default : FAIL(is_date) ;
+		}
+		is_date = Maybe ;
+	}
+	template<class X> void crc_date(DepDigestBase<X> const& dd) {
+		switch (dd.is_date) {
+			case No    : crc (dd.crc ()) ; break ;
+			case Yes   : date(dd.date()) ; break ;
+			case Maybe :                   break ;
+			default : FAIL(dd.is_date) ;
+		}
+	}
+	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,flags  ) ;
+		::serdes(s,order  ) ;
+		if (::is_base_of_v<::istream,T>) {
+			clear_crc_date() ;
+			bool  kn ; ::serdes(s,kn) ; known   = kn ;
+			bool  g  ; ::serdes(s,g ) ; garbage = g  ;
+			Bool3 id ; ::serdes(s,id) ; is_date = id ;
+		} else {
+			bool  kn = known   ; ::serdes(s,kn) ;
+			bool  g  = garbage ; ::serdes(s,g ) ;
+			Bool3 id = is_date ; ::serdes(s,id) ;
+		}
+		switch (is_date) {
+			case No    : ::serdes(s,_crc ) ; break ;
+			case Yes   : ::serdes(s,_date) ; break ;
+			case Maybe :                     break ;
+			default : FAIL(is_date) ;
+		}
+	}
 	// data
-	Date     date    ;                                     // if !garbage
-	bool     garbage = true              ;
-	DFlags   flags   ;
-	DepOrder order   = DepOrder::Unknown ;
+	DFlags   flags     ;                                   //   5< 8 bits
+	DepOrder order     = DepOrder::Unknown ;               //   2< 8 bits
+	bool     known  :1 = false             ;               //      1 bits, dep was known (and thus done) before starting execution
+	bool     garbage:1 = false             ;               //      1 bits, if true <= file was not the same between the first and last access
+	Bool3    is_date:2 = Maybe             ;               //      2 bits, Maybe means no access : no date, no crc
+private :
+	union {
+		Crc  _crc  ;                                       // ~45<64 bits
+		Date _date ;                                       // ~45<64 bits
+	} ;
 } ;
+template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
+	const char* sep = "" ;
+	os << "D(" ;
+	if constexpr (!::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
+	if           (+dd.flags                  ) { os <<sep<< dd.flags                  ; sep = "," ; }
+	if           (dd.order!=DepOrder::Unknown) { os <<sep<< dd.order                  ; sep = "," ; }
+	if           (dd.known                   ) { os <<sep<< "known"                   ; sep = "," ; }
+	if           (dd.garbage                 ) { os <<sep<< "garbage"                 ; sep = "," ; }
+	switch (dd.is_date) {
+		case No    : os <<sep<< dd._crc  ; sep = "," ; break ;
+		case Yes   : os <<sep<< dd._date ; sep = "," ; break ;
+		case Maybe :                                   break ;
+		default : FAIL(dd.is_date) ;
+	}
+	return os <<')' ;
+}
+
+using DepDigest = DepDigestBase<void> ;
 
 struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
@@ -180,22 +271,32 @@ struct TargetDigest {
 	Crc    crc    ;                    // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
+using AnalysisErr = ::vector<pair_s<NodeIdx>> ;
+
 struct JobDigest {
 	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,status ) ;
-		::serdes(s,targets) ;
-		::serdes(s,deps   ) ;
-		::serdes(s,stderr ) ;
-		::serdes(s,stats  ) ;
+		::serdes(s,status      ) ;
+		::serdes(s,targets     ) ;
+		::serdes(s,deps        ) ;
+		::serdes(s,analysis_err) ;
+		::serdes(s,stderr      ) ;
+		::serdes(s,stdout      ) ;
+		::serdes(s,wstatus     ) ;
+		::serdes(s,end_date    ) ;
+		::serdes(s,stats       ) ;
 	}
 	// data
-	Status                 status  = Status::New ;
-	::vmap_s<TargetDigest> targets = {}          ;
-	::vmap_s<DepDigest   > deps    = {}          ;
-	::string               stderr  = {}          ;
-	JobStats               stats   = {}          ;
+	Status                 status       = Status::New ;
+	::vmap_s<TargetDigest> targets      = {}          ;
+	::vmap_s<DepDigest   > deps         = {}          ;
+	AnalysisErr            analysis_err = {}          ;
+	::string               stderr       = {}          ;
+	::string               stdout       = {}          ;
+	int                    wstatus      = 0           ;
+	Time::ProcessDate      end_date     = {}          ;
+	JobStats               stats        = {}          ;
 } ;
 
 struct JobRpcReq {
@@ -219,13 +320,12 @@ struct JobRpcReq {
 		::serdes(s,proc  ) ;
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
-		::serdes(s,host  ) ;
 		switch (proc) {
-			case P::Start    : ::serdes(s,port  ) ; break ;
-			case P::LiveOut  : ::serdes(s,txt   ) ; break ;
+			case P::Start    : ::serdes(s,host) ; ::serdes(s,port) ; break ;
+			case P::LiveOut  : ::serdes(s,txt) ;                     break ;
 			case P::ChkDeps  :
 			case P::DepInfos :
-			case P::End      : ::serdes(s,digest) ; break ;
+			case P::End      : ::serdes(s,digest) ;                  break ;
 			default          : ;
 		}
 	}
@@ -378,20 +478,6 @@ struct JobRpcReply {
 	::vector<pair<Bool3,Crc>> infos            ;                               // proc == DepInfos
 } ;
 
-struct JobInfo {
-	friend ::ostream& operator<<( ::ostream& , JobInfo const& ) ;
-	using Date = Time::ProcessDate ;
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,end_date) ;
-		::serdes(s,stdout  ) ;
-		::serdes(s,wstatus ) ;
-	}
-	// data
-	Date     end_date ;
-	::string stdout   ;
-	int      wstatus  = 0 ;
-} ;
-
 ENUM( JobExecRpcProc
 ,	None
 ,	ChkDeps
@@ -421,17 +507,18 @@ struct JobExecRpcReq {
 		// accesses
 		bool idle() const { return !write && !unlink ; }
 		// services
-		bool operator==(AccessInfo const& other) const = default ;             // XXX : why is this necessary at all ?!?
-		AccessInfo operator|(AccessInfo const& other) const {                  // *this, then other
-			return  {
-				dfs                           |  (idle()?other.dfs:DFlags())   // if we have already written or unlinked, new reads are not recorded any more
-			,	write                         || other.write
-			,	( neg_tfs &  ~other.pos_tfs ) |  other.neg_tfs
-			,	( pos_tfs &  ~other.neg_tfs ) |  other.pos_tfs
-			,	( unlink  && !other.write   ) || other.unlink                  // if we write, we are not unlink any more
-			} ;
+		bool operator==(AccessInfo const& ai) const = default ;                // XXX : why is this necessary at all ?!?
+		AccessInfo operator|(AccessInfo const& ai) const {                     // *this, then other
+			AccessInfo res = *this ;
+			res |= ai ;
+			return res ;
 		}
-		AccessInfo& operator|=(AccessInfo const& other) { *this = *this | other ; return *this ; }
+		AccessInfo& operator|=(AccessInfo const& ai) {
+			update(ai,Yes) ;
+			return *this ;
+		}
+		// update this with access from ai, which may be before or after this (or between the read part and the write part is after==Maybe)
+		void update( AccessInfo const& , Bool3 after ) ;
 		// data
 		DFs  dfs     = {}    ;         // if +dfs <=> files are read
 		bool write   = false ;         // if true <=> files are written

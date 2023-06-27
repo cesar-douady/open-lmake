@@ -8,7 +8,6 @@
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
-	::cout << ::string(Crc(0xff0001L))<<endl ;
 	for( int i=1 ; i<argc ; i++ ) {
 		::cout << ::string(Crc(argv[i],Algo::Xxh)) ;
 		if (argc>2) ::cout <<' '<< argv[i] ;

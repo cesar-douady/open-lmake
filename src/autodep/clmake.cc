@@ -103,8 +103,8 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
 				default : FAIL(reply.infos[i].first) ;
 			}
-			if (reply.ok==Maybe) { PyErr_SetString(PyExc_RuntimeError,"some deps are out-of-date") ; return nullptr ; }
-			PyTuple_SET_ITEM(v,1,PyLong_FromLong(+reply.infos[i].second)) ;
+			// answer returned value, even if dep is out-of-date, as if crc turns out to be correct, the job will not be rerun
+			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.infos[i].second).c_str()) ) ;
 			PyDict_SetItemString( res , jerr.files[i].first.c_str() , v ) ;
 			Py_DECREF(v) ;
 		}

@@ -303,9 +303,7 @@ class TarLmake(BaseRule) :
 	,	'CLMAKE'             : 'lib/clmake.so'
 	,	'LCRITICAL_BARRIER'  : 'bin/lcritical_barrier'
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
-	,	'LDEP_CRCS'          : 'bin/ldep_crcs'
 	,	'LDEPEND'            : 'bin/ldepend'
-	,	'LUNLINK'            : 'bin/lunlink'
 	,	'LTARGET'            : 'bin/ltarget'
 	,	'LFREEZE'            : 'bin/lfreeze'
 	,	'LFORGET'            : 'bin/lforget'
@@ -448,28 +446,28 @@ class LinkLforget(LinkClientAppExe) :
 	targets = { 'TARGET' : 'bin/lforget'   }
 	deps    = { 'MAIN'   : 'src/lforget.o' }
 
-class LinkLcriticalBarrier(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lcritical_barrier'   }
-	deps    = { 'MAIN'   : 'src/lcritical_barrier.o' }
-
-class LinkLdepend(LinkClientAppExe) :
-	targets = {
-		'TARGET'  : 'bin/ldepend'
-	,	'TARGET2' : 'bin/lunlink'
-	,	'TARGET3' : 'bin/ltarget'
-	,	'TARGET4' : 'bin/lcritical_barrier'
-	,	'TARGET5' : 'bin/lcheck_deps'
-	,	'TARGET6' : 'bin/ldep_crcs'
-	}
+class LinkJobSupport(LinkClientAppExe) :
 	deps = {
 		'SUPPORT' : 'src/autodep/autodep_support.o'
 	,	'RECORD'  : 'src/autodep/record.o'
-	,	'MAIN'    : 'src/autodep/ldepend.o'
+	,	'RPC_JOB' : 'src/rpc_job.o'
 	}
-	def cmd() :
-		# TARGET is computed by base class, just add necessary links
-		for key,target in targets.items() :
-			if key!='TARGET' : os.link(TARGET,target)
+
+class LinkLdepend(LinkJobSupport) :
+	targets = { 'TARGET' : 'bin/ldepend'           }
+	deps    = { 'MAIN'   : 'src/autodep/ldepend.o' }
+
+class LinkLtarget(LinkJobSupport) :
+	targets = { 'TARGET' : 'bin/ltarget'           }
+	deps    = { 'MAIN'   : 'src/autodep/ltarget.o' }
+
+class LinkLcriticalBarrier(LinkJobSupport) :
+	targets = { 'TARGET' : 'bin/lcritical_barrier'           }
+	deps    = { 'MAIN'   : 'src/autodep/lcritical_barrier.o' }
+
+class LinkLChkDeps(LinkJobSupport) :
+	targets = { 'TARGET' : 'bin/lcheck_deps'           }
+	deps    = { 'MAIN'   : 'src/autodep/lcheck_deps.o' }
 
 class LinkLfreeze(LinkClientAppExe) :
 	targets = { 'TARGET' : 'bin/lfreeze'   }

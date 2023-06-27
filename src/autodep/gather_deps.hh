@@ -76,10 +76,11 @@ struct GatherDeps {
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		JobExecRpcReq::AccessInfo info        ;
-		DepOrder                  dep_order   ;            // if read and not written
-		PD                        access_date ;            // first access date
-		DD                        file_date   ;            // date of file when first accessed if it was a read
+		JobExecRpcReq::AccessInfo info         ;
+		NodeIdx                   critical_lvl = 0 ;       // if +info.dfs                , incremented at each critical barrier
+		PD                        read_date    ;           // if +info.dfs                , first read date
+		PD                        write_date   ;           // if              !info.idle(), first write date
+		DD                        file_date    ;           // if +info.dfs                , date of file when read as first access
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -91,25 +92,27 @@ struct GatherDeps {
 private :
 	AccessInfo& _info(::string const& name) ;
 	//
-	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , ::string const& comment={} ) ;
+	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , ::string const& comment={} ) ;
 	//
-	void _new_accesses( PD d , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
-		//
-		if (files.empty()) return ;                                            // do not update nxt_order if deps is empty
-		for( ::string const& f : files ) _new_access(d,f,{},info,comment) ;
-		_nxt_order = DO::Seq ;
+	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+		bool parallel = false ;
+		for( auto const& f : files ) {
+			_new_access(pd,f,{},info,parallel,comment) ;
+			parallel = true ;
+		}
 	}
 	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
-		//
-		if (dds.empty()) return ;                                              // do not update nxt_order if deps is empty
-		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,comment) ;
-		_nxt_order = DO::Seq ;
+		bool parallel = false ;
+		for( auto const& [f,dd] : dds ) {
+			_new_access(pd,f,dd,info,parallel,comment) ;
+			parallel = true ;
+		}
 	}
 public :
-	void new_target( PD pd , S     && t , TFs n , TFs p , S const& c="target" ) { _new_access( pd , ::move(t) , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , c ) ; }
-	void new_target( PD pd , S const& t , TFs n , TFs p , S const& c="target" ) { _new_access( pd ,        t  , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , c ) ; }
-	void new_dep   ( PD pd , S     && d , DFs dfs       , S const& c="dep"    ) { _new_access( pd , ::move(d) , Disk::file_date(d) , {.dfs=dfs}          , c ) ; _nxt_order = DO::Seq ; }
-	void new_dep   ( PD pd , S const& d , DFs dfs       , S const& c="dep"    ) { _new_access( pd ,        d  , Disk::file_date(d) , {.dfs=dfs}          , c ) ; _nxt_order = DO::Seq ; }
+	void new_target( PD pd , S     && t , TFs n , TFs p , S const& c="target" ) { _new_access( pd , ::move(t) , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , false/*parallel*/ , c ) ; }
+	void new_target( PD pd , S const& t , TFs n , TFs p , S const& c="target" ) { _new_access( pd ,        t  , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , false/*parallel*/ , c ) ; }
+	void new_dep   ( PD pd , S     && d , DFs dfs       , S const& c="dep"    ) { _new_access( pd , ::move(d) , Disk::file_date(d) , {.dfs=dfs}          , false/*parallel*/ , c ) ; }
+	void new_dep   ( PD pd , S const& d , DFs dfs       , S const& c="dep"    ) { _new_access( pd ,        d  , Disk::file_date(d) , {.dfs=dfs}          , false/*parallel*/ , c ) ; }
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
 		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
@@ -145,6 +148,5 @@ public :
 	int                                           wstatus        = 0                                              ;
 	::string                                      stdout         ;                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr         ;                                                  // contains child stderr if child_stderr==Pipe
-private :
-	DepOrder _nxt_order = DepOrder::Seq ;
+	NodeIdx                                       critical_lvl   = 1                                              ; // incremented upon critical barrier
 } ;

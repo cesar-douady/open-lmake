@@ -147,8 +147,7 @@ namespace Time {
 		using Base = TimeBase<uint64_t> ;
 		friend ::ostream& operator<<( ::ostream& , Date const ) ;
 		friend Delay ;
-		static const Date None   ;
-		static const Date Future ;
+		static const Date None ;
 		// cxtors & casts
 		using Base::Base ;
 		// services
@@ -259,7 +258,6 @@ namespace Time {
 	// Date
 	//
 	constexpr Date Date::None  {uint64_t( 0)} ;
-	constexpr Date Date::Future{uint64_t(-1)} ;
 	inline ProcessDate ProcessDate::s_now() {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;

@@ -56,22 +56,18 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , ProcessDate const d ) { return os <<"ProcessDate(" << d.str(9) << ')' ; }
 
 	::string Date::str(uint8_t prec,bool in_day) const {
-		switch (+*this) {
-			case +None   : return "None"   ;
-			case +Future : return "Future" ;
-			default :
-				time_t        s   = sec      () ;
-				uint32_t      ns  = nsec_in_s() ;
-				OStringStream out ;
-				struct tm     t   ;
-				localtime_r(&s,&t) ;
-				out << put_time( &t , in_day?"%T":"%F %T" ) ;
-				if (prec) {
-					for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
-					out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
-				}
-				return out.str() ;
+		if (!*this) return "None" ;
+		time_t        s   = sec      () ;
+		uint32_t      ns  = nsec_in_s() ;
+		OStringStream out ;
+		struct tm     t   ;
+		localtime_r(&s,&t) ;
+		out << put_time( &t , in_day?"%T":"%F %T" ) ;
+		if (prec) {
+			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
+			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
+		return out.str() ;
 	}
 
 	//

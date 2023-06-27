@@ -77,12 +77,6 @@ int main( int argc , char* argv[] ) {
 	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
-	dir_guard(start_info.ancillary_file) ;
-	OFStream ancillary_stream{ start_info.ancillary_file , ::ios_base::binary } ;
-	serialize(ancillary_stream,req_info  ) ;
-	serialize(ancillary_stream,start_info) ;
-	//
-	//
 	::map_ss cmd_env = mk_map(start_info.env) ;
 	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ; // TMPDIR is the standard environment variable to specify the temporary area
 	cmd_env.try_emplace( "ROOT_DIR"    ,           *g_root_dir          ) ;
@@ -113,6 +107,7 @@ int main( int argc , char* argv[] ) {
 	//
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
+		NodeIdx critical_lvl = 1 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
 			TFlags                           tfs = UnexpectedTFlags ;
 			JobExecRpcReq::AccessInfo const& ai  = info.info        ;
@@ -133,12 +128,17 @@ int main( int argc , char* argv[] ) {
 			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
 			if ( ai.idle() && tfs[TFlag::Dep] ) {
 				if (+( dfs & AccessDFlags )) {
-					// only generate an access date if it was coherent all the way from first access to end of job (as we have no end of access date)
-					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (file_date(file)==info.file_date) deps.emplace_back(file,DepDigest(info.file_date,dfs,info.dep_order)) ;
-					else                                 deps.emplace_back(file,DepDigest(               dfs,info.dep_order)) ;
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("dep   ",dfs,tfs,deps.back()) ;
+					DepOrder order =
+						info.critical_lvl==0            ? (                                  DepOrder::Parallel )
+					:	info.critical_lvl<=critical_lvl ? (                                  DepOrder::Seq      )
+					:	                                  ( critical_lvl=info.critical_lvl , DepOrder::Critical )
+					;
+					DepDigest dd{dfs,order,info.file_date} ;
+					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
+					//vvvvvvvvvvvvvvvvvvvvvvvv
+					deps.emplace_back(file,dd) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^
+					trace("dep   ",dfs,tfs,file,dd) ;
 				} else {
 					trace("!dep  ",dfs,tfs,file) ;
 				}
@@ -163,7 +163,7 @@ int main( int argc , char* argv[] ) {
 			break ;
 			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(date) ) ;
+				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.dfs,DepOrder::Parallel,date) ) ;
 				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , host_ , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;
@@ -257,10 +257,13 @@ int main( int argc , char* argv[] ) {
 	,	job
 	,	host_
 	,	{
-			.status  = status
-		,	.targets { targets                    }
-		,	.deps    { deps                       }
-		,	.stderr  { ::move(gather_deps.stderr) }
+			.status   = status
+		,	.targets  { targets                    }
+		,	.deps     { deps                       }
+		,	.stderr   { ::move(gather_deps.stderr) }
+		,	.stdout   { ::move(gather_deps.stdout) }
+		,	.wstatus  = gather_deps.wstatus
+		,	.end_date = end_job
 		,	.stats{
 				.cpu  { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
 			,	.job  { end_job      - start_job                      }
@@ -273,13 +276,6 @@ int main( int argc , char* argv[] ) {
 	try { OMsgBuf().send(ClientSockFd(service),end_report) ; }
 	//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	catch (...) { return 2 ; }                                                 // if server is dead, we cant do much about it
-	serialize(ancillary_stream,end_report) ;
-	JobInfo info{
-		.end_date = end_job
-	,	.stdout   = gather_deps.stdout
-	,	.wstatus  = gather_deps.wstatus
-	} ;
-	serialize(ancillary_stream,info) ;
 	//
 	trace("end",status) ;
 	return 0 ;

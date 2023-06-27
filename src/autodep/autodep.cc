@@ -68,21 +68,24 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "deps :\n" ;
 	::string prev_dep      ;
 	bool     prev_parallel = false ;
-	NodeIdx  critical_lvl  = 0     ;
-	auto send = [&]( ::string const& dep , DepOrder order ) {                  // process deps with a delay of 1 because we need next order for ascii art
+	NodeIdx  critical_lvl  = 1     ;
+	NodeIdx  indent_lvl    = 0     ;
+	auto send = [&]( ::string const& dep={} , NodeIdx cl=-1 ) {                   // process deps with a delay of 1 because we need next order for ascii art
+		bool parallel = cl==0           ;
+		bool critical = cl>critical_lvl ;
 		if (!prev_dep.empty()) {
-			deps_stream << setw(critical_lvl*2)<<"" ;
-			if      ( !prev_parallel && order!=DepOrder::Parallel ) deps_stream << "  "  ;
-			else if ( !prev_parallel && order==DepOrder::Parallel ) deps_stream << "/ "  ;
-			else if (  prev_parallel && order==DepOrder::Parallel ) deps_stream << "| "  ;
-			else                                                    deps_stream << "\\ " ;
+			deps_stream << setw(indent_lvl*2)<<"" ;
+			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
+			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
+			else if (  prev_parallel &&  parallel ) deps_stream << "| "  ;
+			else                                    deps_stream << "\\ " ;
 			deps_stream << prev_dep << '\n' ;
 		}
-		prev_parallel = order==DepOrder::Parallel ;
-		critical_lvl += order==DepOrder::Critical ;
-		prev_dep      = dep                       ;
+		prev_parallel  = parallel ;
+		indent_lvl    += critical ;
+		prev_dep       = dep      ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.dep_order ) ;
-	/**/                                                                   send({} ,DepOrder::Seq) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.critical_lvl) ;
+	/**/                                                                   send(                   ) ; // send last
 	return status!=Status::Ok ;
 }

@@ -294,9 +294,9 @@ template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry 
 			::string buf  ( entry.args[2+At] , char(0) ) ;
 			RecordSock::ReadLnk( true/*active*/ , info.record , data.data() , buf.data() , buf.size() ) ;
 			Len len = MsgBuf::s_sz(buf.data()) ;
-			if (sizeof(Len)+len<=buf.size()) buf.resize(sizeof(Len)+len) ;
-			if (sizeof(Len)    <=buf.size()) buf.resize(sizeof(Len)    ) ;
-			else                             buf.resize(0              ) ;
+			if      (sizeof(Len)+len<=buf.size()) buf.resize(sizeof(Len)+len) ;
+			else if (sizeof(Len)    <=buf.size()) buf.resize(sizeof(Len)    ) ;
+			else                                  buf.resize(0              ) ;
 			put_str( pid , entry.args[1+At] , buf ) ;
 			clear_syscall(pid) ;
 		} else {

@@ -160,61 +160,15 @@ namespace Engine {
 	// Dep
 	//
 
-	struct Dep : Node {
+	struct Dep : DepDigestBase<Node> {
 		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
-		//cxtors & casts
-		Dep(                                                             ) = default ;
-		Dep( Node n , DFlags dfs , DepOrder o ,          bool kn=false ) : Node{n} , flags(dfs) , order{o}                , known{kn}            {}
-		Dep( Node n , DFlags dfs , DepOrder o , Crc  c , bool kn=false ) : Node{n} , flags(dfs) , order{o} , is_date{No } , known{kn} , _crc {c} {}
-		Dep( Node n , DFlags dfs , DepOrder o , Date d , bool kn=false ) : Node{n} , flags(dfs) , order{o} , is_date{Yes} , known{kn} , _date{d} {}
-		//
-		Dep(Dep const& d) : Dep{d,d.flags,d.order,d.known} {
-			switch (d.is_date) {
-				case No    : crc (d._crc ) ; break ;
-				case Yes   : date(d._date) ; break ;
-				case Maybe :                 break ;
-				default : FAIL(d.is_date) ;
-			}
-		}
-		Dep& operator=(Dep const& d) {
-			Node::operator=(d) ;
-			if (  is_date==Yes) _date.~Date()             ; else _crc.~Crc()            ;
-			if (d.is_date==Yes) new(&_date) Date{d._date} ; else new(&_crc) Crc{d._crc} ;
-			flags   = d.flags   ;
-			order   = d.order   ;
-			is_date = d.is_date ;
-			known   = d.known   ;
-			return *this ;
-		}
-		// accesses
-		bool has_crc() const {
-			switch (is_date) {
-				case No    : return +_crc ;
-				case Maybe : return true  ;
-				case Yes   : return false ;
-				default : FAIL(is_date) ;
-			}
-		}
-		Crc  crc           (      ) const { SWEAR(is_date==No ) ; return _crc  ; }
-		Date date          (      ) const { SWEAR(is_date==Yes) ; return _date ; }
-		void crc           (Crc  c)       { if (is_date==Yes) _date.~Date() ; else _crc.~Crc() ; is_date = No    ; new(&_crc ) Crc {c} ; }
-		void date          (Date d)       { if (is_date!=Yes) _date.~Date() ; else _crc.~Crc() ; is_date = Yes   ; new(&_date) Date{d} ; }
-		void clear_crc_date(      )       { if (is_date!=Yes) _date.~Date() ; else _crc.~Crc() ; is_date = Maybe ; new(&_crc ) Crc     ; }
+		using Base = DepDigestBase<Node> ;
+		// cxtors & casts
+		using Base::Base ;
 		// services
 		bool crc_ok     () const ;
 		void acquire_crc() ;
-		// data
-		DFlags   flags   ;                                 //   5< 8 bits
-		DepOrder order   = DepOrder::Unknown ;             //   2< 8 bits
-		Bool3    is_date = Maybe             ;             //   2< 8 bits, Maybe means no access : no date, no crc (for C++, _crc is constructed but is meaningless)
-		bool     known   = false             ;             //   1< 8 bits, dep was known (and thus done) before starting last execution
-	private :
-		union {
-			Crc  _crc  ;                                   // ~45<64 bits
-			Date _date ;                                   // ~45<64 bits
-		} ;
 	} ;
-	static_assert(sizeof(Dep)==16) ;                                           // check expected size
 
 }
 #endif
@@ -492,11 +446,11 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if (is_date!=Yes       ) {                  return ; }                 // no need
-		if (!_date             ) { crc(Crc::None) ; return ; }                 // no date means access did not find a file, crc is None, easy
-		if (_date>(*this)->date) {                  return ; }                 // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
-		if (_date<(*this)->date) { crc({}       ) ; return ; }                 // too late, file has changed
-		if (!(*this)->crc      ) {                  return ; }                 // too early, no crc available yet
+		if (is_date!=Yes        ) {                  return ; }                // no need
+		if (!date()             ) { crc(Crc::None) ; return ; }                // no date means access did not find a file, crc is None, easy
+		if (date()>(*this)->date) {                  return ; }                // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
+		if (date()<(*this)->date) { crc({}       ) ; return ; }                // too late, file has changed
+		if (!(*this)->crc       ) {                  return ; }                // too early, no crc available yet
 		crc((*this)->crc) ;                                                    // got it !
 	}
 

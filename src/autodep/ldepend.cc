@@ -30,8 +30,8 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoEssential]) flags &= ~DFlag::Essential ;
 	//
 	if (verbose) {
-		JobExecRpcReq jerr = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags ) ;
-		JobExecRpcReply reply = AutodepSupport(New).req(jerr) ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags ) ;
+		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                             ;
 		//
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
 		//

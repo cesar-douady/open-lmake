@@ -465,9 +465,9 @@ namespace Engine {
 
 #ifdef DATA_DEF
 namespace Engine {
-	extern Config& g_config                 ;
-	extern ::string    * g_local_admin_dir  ; extern bool g_has_local_admin_dir ;
-	extern ::string    * g_remote_admin_dir ; extern bool g_has_local_admin_dir ;
+	extern Config&    g_config           ;
+	extern ::string * g_local_admin_dir  ; extern bool g_has_local_admin_dir ;
+	extern ::string * g_remote_admin_dir ; extern bool g_has_local_admin_dir ;
 }
 #endif
 

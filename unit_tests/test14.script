@@ -5,9 +5,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-ut_launch -dep_err 1 -done 0 -new 1 -overwriting 1 -rc 1 lmake src1.2r.wait &
-sleep 1
+ut_launch -dep_err 1 -done 0 -new 1 -overwriting 1 -rc 1 lmake src1.3r.wait &
+sleep 2
 touch src1
 wait %1
 
-ut_launch -done 0 -steady 2 -overwritten 0 -rc 0 lmake src1.2r.wait
+ut_launch -done 0 -steady 2 -overwritten 0 -rc 0 lmake src1.3r.wait

@@ -31,16 +31,19 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
-	os << "GatherDeps(" << gd.accesses ;
-	if (gd._nxt_order!=DepOrder::Seq) os <<','<< gd._nxt_order ;
+	os << "GatherDeps(" << gd.accesses <<','<< gd.critical_lvl ;
 	if (gd.seen_tmp                 ) os <<",seen_tmp"         ;
 	return os << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" << '@'<<ai.access_date <<','<< ai.info ;
-	if (+ai.file_date) os <<','<< "Read:"<<ai.file_date ;
-	return os <<','<< ai.dep_order << ')' ;
+	os << "AccessInfo(" ;
+	if (+ai.info.dfs   ) os << "R:"<<ai.read_date  <<',' ;
+	if (!ai.info.idle()) os << "W:"<<ai.write_date <<',' ;
+	os << ai.info ;
+	if (+ai.file_date    ) os <<','<< "F:"<<ai.file_date    ;
+	if (ai.critical_lvl>1) os <<','<< "C:"<<ai.critical_lvl ;
+	return os <<')' ;
 }
 
 GatherDeps::AccessInfo& GatherDeps::_info(::string const& name) {
@@ -52,22 +55,26 @@ GatherDeps::AccessInfo& GatherDeps::_info(::string const& name) {
 	return accesses.back().second ;
 }
 
-void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& info , ::string const& comment ) {
+void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , ::string const& comment ) {
 	SWEAR(!file.empty()) ;
-	AccessInfo&               info_    = _info(file)          ;
-	bool                      stamp    = !info_.access_date || pd<info_.access_date ;
-	JobExecRpcReq::AccessInfo old_info = info_.info           ;                // for trace only
+	AccessInfo& info_  = _info(file) ;
 	//
-	info_.info = stamp ? info|info_.info : info_.info|info ;                   // execute actions in actual order as provided by pd
+	Bool3 after =
+		!info_.info.idle() && pd>info_.write_date ? Yes
+	:	+info_.info.dfs    && pd>info_.read_date  ? Maybe
+	:	                                            No
+	;
 	//
-	if (stamp) {                                                               // only record dates for the first access
-		info_.access_date = pd                 ;
-		info_.file_date   = dd                 ;
-		info_.dep_order   = _nxt_order         ;
-		_nxt_order        = DepOrder::Parallel ;
+	if ( +ai.dfs && after==No ) {
+		info_.read_date    = pd                          ;
+		info_.file_date    = dd                          ;
+		info_.critical_lvl = parallel ? 0 : critical_lvl ;
 	}
-	if ( stamp || info_.info!=old_info )
-		Trace("_new_access", pd , STR(stamp) , info , file , dd , comment ) ;  // only trace if something changes
+	if ( !ai.idle() && after!=Yes ) info_.write_date = pd ;
+	//
+	JobExecRpcReq::AccessInfo old_ai = info_.info  ;                                                       // for trace only
+	info_.info.update(ai,after) ;                                                                          // execute actions in actual order as provided by dates
+	if ( after!=Yes || info_.info!=old_ai ) Trace("_new_access", pd , after , ai , file , dd , comment ) ; // only trace if something changes
 }
 
 ENUM( Kind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
@@ -242,15 +249,15 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					JobExecRpcReply sync_reply ;
 					sync_reply.proc = proc ;                                   // this may be incomplete and will be completed or sync_ will be made false
 					switch (proc) {
-						case Proc::None            :                                                            goto Close ;
-						case Proc::Tmp             : seen_tmp   = true               ; trace("slave",fd,jerr) ; break      ;
-						case Proc::CriticalBarrier : _nxt_order = DepOrder::Critical ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat       :                                                            goto Close ; //           accept & read is enough to report liveness
+						case Proc::None            :                                            goto Close ;
+						case Proc::Tmp             : seen_tmp = true ; trace("slave",fd,jerr) ; break      ;
+						case Proc::CriticalBarrier : critical_lvl++  ; trace("slave",fd,jerr) ; break      ;
+						case Proc::Heartbeat       :                                            goto Close ; // no reply, accept & read is enough to acknowledge
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill            : kill_job(Status::Killed) ;                                 goto Close ; // no reply, accept & read is enough to ack
+						case Proc::Kill            : kill_job(Status::Killed) ;                 goto Close ; // .
 						//                           ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Access          : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; break ;
-						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; // getting the crc is a dependence on a file
+						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ;         // getting the crc is a dependence on a file
 						//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						/*fall through*/
 						case Proc::ChkDeps : {
