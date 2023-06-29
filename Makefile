@@ -7,27 +7,28 @@
 # build configuration
 #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-MAKEFLAGS = -j$(shell nproc||echo 1) -r -R -k
+MAKEFLAGS := -j$(shell nproc||echo 1) -k
 
 PYTHON := $(shell bash -c 'type -p python3')
 
 CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc')
-#CC := $(shell type -p clang)                                                  # for some unknown reason, clang is incompatible with -fsanitize
+#CC := $(shell bash -c 'type -p clang')
 
-COVERAGE :=
-#COVERAGE := --coverage                                                        # not operational yet
-
-# -fsanitize=address and -fsanitize=thread are exclusive of one another
-#ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
-#ASAN_FLAGS := -fsanitize=address
-#TSAN_FLAGS := -fsanitize=thread
-
-#OPT_FLAGS := -O0 -g
 OPT_FLAGS := -O3
-#OPT_FLAGS := -O3 -DNDEBUG
+#OPT_FLAGS := -O3 -DNDEBUG                                                     # better, as there are numerous asserts that have a perf impact, but too early for now
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
+
+MAKEFLAGS += -r -R
+
+ifneq ($(LMAKE_DEBUG),)
+OPT_FLAGS := -O0 -g
+endif
+COVERAGE :=
+ifneq ($(LMAKE_COVERAGE),)
+COVERAGE := --coverage                                                         # XXX : not operational yet
+endif
 
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
 ifeq ($(strip $(CC)),clang)
@@ -52,6 +53,14 @@ else ifeq ($(findstring gcc,$(CC)),gcc)
 ifeq ($(intcmp $(shell $(CC) -dumpversion),11,lt,eq,gt),lt)
 $(error gcc version must be at least 11)
 endif
+# -fsanitize=address and -fsanitize=thread are exclusive of one another
+# for an unknown reason, clang is incompatible with -fsanitize
+ifeq ($(LMAKE_SAN),A)
+ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
+endif
+ifeq ($(LMAKE_SAN),T)
+TSAN_FLAGS := -fsanitize=thread
+endif
 
 else ifeq ($(findstring clang,$(CC)),clang)
 
@@ -64,8 +73,8 @@ endif
 
 SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                := $(if $(SAN_FLAGS),.san,)
-ASAN               := $(if $(findstring address,$(SAN_FLAGS)),.san,)
-TSAN               := $(if $(findstring thread,$(SAN_FLAGS)),.san,)
+ASAN               := $(if $(ASAN_FLAGS),.san,)
+TSAN               := $(if $(TSAN_FLAGS),.san,)
 PREPROCESS         := $(CC)             -E                     -ftabstop=4
 COMPILE            := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
 LINK_O             := $(CC) $(COVERAGE) -r

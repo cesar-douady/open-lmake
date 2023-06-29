@@ -234,7 +234,7 @@ namespace Engine {
 					multi    = false ;                                         // this situation is exceptional enough not to bother trying to avoid this analysis restart
 					goto Make ;
 				}
-				if (!it->produces(*this)) continue ;
+				if (it->produces(*this)==No) continue ;
 				if (prod_idx==NoIdx) prod_idx = it.idx ;
 				else                 multi    = true   ;
 			}
@@ -262,7 +262,7 @@ namespace Engine {
 			for(; it ; it++ ) {                                                // check if we obviously have several jobs, in which case make nothing
 				if      (it->sure()                 ) _set_buildable(Yes) ;    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 				else if (!it->c_req_info(req).done()) continue ;
-				else if (!it->produces(*this)       ) continue ;
+				else if (it->produces(*this)==No    ) continue ;
 				if      (prod_idx==NoIdx            ) prod_idx = it.idx ;
 				else                                  multi    = true   ;
 			}
@@ -281,9 +281,9 @@ namespace Engine {
 						case RunAction::Dsk     :
 							if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
 							else {
-								if      ( clean==Maybe                                       ) clean  = No | (manual_ok()==Yes) ; // solve lazy evaluation
-								if      ( clean==Yes                                         ) action = RunAction::Status       ;
-								else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run          ; // else, we know job does not produce us, no reason to run it
+								if      ( clean==Maybe                                           ) clean  = No | (manual_ok()==Yes) ; // solve lazy evaluation
+								if      ( clean==Yes                                             ) action = RunAction::Status       ;
+								else if ( !it->c_req_info(req).done() || it->produces(*this)!=No ) action = RunAction::Run          ; // else, we know job does not produce us, no reason to run it
 							}
 						break ;
 						default : FAIL(ri.action) ;
@@ -295,10 +295,10 @@ namespace Engine {
 				//                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				if (action!=RunAction::None) it->make(jri,action, {JobReasonTag::NoTarget,+*this} ) ;
 				//                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (jri.waiting()       ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
-				if (!it->produces(*this)) {                                             continue ; }
-				if (prod_idx==NoIdx     ) { prod_idx = it.idx ;                                    }
-				else                      { multi    = true   ;                                    }
+				if (jri.waiting()          ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
+				if (it->produces(*this)==No) {                                             continue ; }
+				if (prod_idx==NoIdx        ) { prod_idx = it.idx ;                                    }
+				else                         { multi    = true   ;                                    }
 			}
 			ri.n_wait-- ;                                                      // restore
 			if (ri.waiting()   ) goto Wait ;
@@ -309,7 +309,7 @@ namespace Engine {
 		if (multi) {
 			UNode            un  {*this} ;
 			::vector<JobTgt> jts ;
-			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(*this)) jts.push_back(jt) ;
+			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(*this)!=No) jts.push_back(jt) ;
 			trace("multi",ri,(*this)->job_tgts.size(),conform_job_tgts(ri),jts) ;
 			un->conform_idx = NoIdx ;
 			un->multi       = true  ;

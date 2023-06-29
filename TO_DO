@@ -48,9 +48,31 @@
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide a 128 bits option to xxhsum
 * allow the autodep attribute to be an f-string
 	- generally, maybe we should consider all attributes as potentially dynamic
+		- env         : dict of f-strings   (each with its flag) None->no variable
+		- backend     : f-string or a function -> str   (rsrc)
+		- autodep     : f-string or a function -> str   (cmd )
+		? auto_mkdir  : f-string or a function -> bool  (cmd )
+		- chroot      : f-string or a function -> str   (cmd )
+		- force       : f-string or a function -> bool  (cmd )
+		- ignore_stat : f-string or a function -> bool  (cmd )
+		- cache       : f-string or a function -> str   (    )
+		- keep_tmp    : f-string or a function -> bool  (    )
+		? start_delay : f-string or a function -> float (    )
+		? stderr_len  : f-string or a function -> int   (    )
+		- timeout     : f-string or a function -> float (    )
+	- define 4 preludes : deps, rsrcs, cmd and none
+		- deps  contains : stems, targets
+		- rsrcs contains : stems, targets, deps
+		- cmd   contains : stems, targets, deps, rsrcs
+		- none  contains : stems, targets, deps, rsrcs
+	- execute each function in its corresponding prelude
+	- dict of f-string can also be dict of str:function->str or function->dict of str:str or (str,flags)
+	- if functions return None, use default value
+	- each variable has :
+		- a value in case function returns None
+		- a is_code (bool), if false, do as if function always returns None
 * add a -j option to lmake
 	- to limit the number of jobs
 	- consider a more general approach to limit resource occupation and keep reactivity

@@ -356,8 +356,8 @@ namespace Engine {
 					if (!uphill_name.empty()) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts ) {
 						if (job_tgt->rule->prio<prio) break ;
-						if (job_tgt==jt ) { prio = rule->prio ; continue ; }                                                          // actual job is output last as this is what user views first
-						bool hide = !job_tgt.produces(target) ;
+						if (job_tgt==jt ) { prio = rule->prio ; continue ; }   // actual job is output last as this is what user views first
+						bool hide = job_tgt.produces(target)==No ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;
 					}

@@ -141,7 +141,7 @@ namespace Engine {
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const = delete ; // { return Job::side<W,LSB+1>(   ) ; }
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       = delete ; // {        Job::side<W,LSB+1>(val) ; }
 		// services
-		bool produces(Node) const ;
+		Bool3 produces(Node) const ;
 	} ;
 
 	struct JobTgts : JobTgtsBase {
@@ -375,13 +375,13 @@ namespace Engine {
 
 	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
 
-	inline bool JobTgt::produces(Node t) const {
-		if ( (*this)->run_status==RunStatus::NoDep ) return false ;
-		if ( is_sure()                             ) return true  ;
-		if ( (*this)->err()                        ) return true  ;            // if job is in error, we do not trust actual star targets, pretend all are generated to block further analysis
-		if ( t->has_actual_job_tgt(*this)          ) return true  ;            // fast path
+	inline Bool3 JobTgt::produces(Node t) const {
+		if ( (*this)->run_status==RunStatus::NoDep ) return No    ;
+		if ( is_sure()                             ) return Yes   ;
+		if ( (*this)->err()                        ) return Maybe ;            // if job is in error, we do not trust actual star targets
+		if ( t->has_actual_job_tgt(*this)          ) return Yes   ;            // fast path
 		//
-		return ::binary_search( (*this)->star_targets , t ) ;
+		return No | ::binary_search( (*this)->star_targets , t ) ;
 	}
 
 	//

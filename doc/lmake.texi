@@ -1489,7 +1489,7 @@ This attribute defines a directory in which jobs will @code{chdir} into before e
 
 This attribute is also prepended to targets and deps unless they start with a @code{/}.
 
-@section @code{env}
+@section @code{environ}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1574,6 +1574,21 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 @item Example2
 @tab @code{def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))}
 @end multitable
+
+Whether @code{cmd} is a @code{str} or a @code{function}, the following environment variable are automatically set, if not explicitly set by the @code{environ} attribute :
+@itemize @minus
+@item @code{LD_AUDIT}          : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_audit'} (@pxref{autodep}).
+@item @code{LD_PRELOAD}        : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_preload'} (@pxref{autodep}).
+@item @code{LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (@pxref{autodep}).
+@item @code{PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
+@item @code{ROOT_DIR}          : The root of the repository.
+@item @code{SEQUENCE_ID}       : A value which is unique for each run.
+It is  @code{1} initially and is incremented each time a job is run.
+@item @code{SMALL_ID}          : A value which is unique among running job at any given time.
+It is always at least @code{1} and efforts are made to maintain it as small as possible.
+@item @code{TMPDIR}            : The name of a directory which is empty at the start of the job.
+If the temporary directory is not kept through the use of the @code{keep_tmp} attribute or the @code{-t} option, this directory is cleaned up at the end of the job execution.
+@end itemize
 
 @subsection if it is a @code{function}
 
@@ -2030,7 +2045,9 @@ Autodep is a mechanism through which jobs are spied to automatically detect whic
 From this information @lmake can determine if accesses were within the constraints provided by the rule and the list of the hidden dependencies.
 
 Several methods are available to spy jobs.
-Not all methods are supported on all systems.
+Not all methods are supported on all systems, though.
+
+In all cases, the environment variable @code{LMAKE_AUTO_DEP_ENV} must remain in the environment untouched for the autodep mechanis to work correctly.
 
 @subsection @code{'None'} or @code{'none'}
 
@@ -2047,11 +2064,14 @@ This method is @strong{not} recommanded.
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 
 The job is run with a library loaded using the @code{LD_PRELOAD} environment variable that catches some calls @file{libc.so} (such as @code{open}) to track activity.
+This environment variable can be modified as long as the librairy introduced by @lmake stays present.
+
 This requires @file{libc.so} to be dynamically linked.
+
 This method is very performant.
 
 The main advantage is that this method is available even on rather old versions of Linux.
-The main inconvenient is that it is somewhat invasive and there are cases of incompatibilities (e.g. the rust compiler).
+The main inconvenient is that it is somewhat invasive and there are cases of incompatibilities (e.g. the use of the @code{jemalloc} package).
 Also, it will not run correctly if some commands have the @file{libc} statically linked and this will go undetected.
 
 This method is recommanded on systems that lack the rtld-audit capability.
@@ -2060,10 +2080,13 @@ This method is recommanded on systems that lack the rtld-audit capability.
 
 This method is similar to @code{ld_preload} except that the rtld-audit (through the @code{LD_AUDIT} environment variable) mechanism is used instead of @code{LD_PRELOAD},
 which is less invasive (cases where it is not transparent are very awkward).
+This environment variable can be modified as long as the librairy introduced by @lmake stays present.
+
 This also requires @file{libc.so} to be dynamically linked but failure to do so can be detected and an error is generated, mandating the use of another method (except @code{ld_preload}).
 
 The main advantage is that is is both performant, very little invasive and static linkage of @code{libc} is exceptional (and can be detected).
-The main inconvenient is that it requires a rather recent version of Linux.
+The main inconvenient is that it requires a rather recent version of Linux and there are cases of incompatibilites
+(e.g. code written in @code{rust}, including the rust compilers @code{cargo} and @code{rustc}).
 
 This method is recommanded on systems that support it.
 

@@ -2,7 +2,7 @@
 LICENSE
 Makefile
 Manifest
-README
+README.md
 TO_DO
 _bin/ut_launch
 _lib/read_makefiles.py

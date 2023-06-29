@@ -640,19 +640,19 @@ namespace Engine {
 	}
 
 	void JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time ) const {
-		Req       req    = cri.req            ;
-		::string  step   ;
-		Color     color  = Color::Ok          ;
-		JobReport jr     = JobReport::Unknown ;
-		if      ((*this)->status==Status::Killed) { step = mk_snake((*this)->status) ; color = Color::Err  ; }
-		else if (req->zombie                    ) { step = "completed"               ; color = Color::Note ; }
+		Req            req  = cri.req            ;
+		::string       step ;
+		Color          c    = Color::Ok          ;
+		JobReport      jr   = JobReport::Unknown ;
+		JobData const& jd   = **this             ;
+		if      (jd.status==Status::Killed) { step = mk_snake(jd.status) ; c = Color::Err  ; }
+		else if (req->zombie              ) { step = "completed"         ; c = Color::Note ; }
 		else {
-			if      (!cri.done()                             ) { jr = JobReport::Rerun  ; step = mk_snake(jr                 ) ;                      color = Color::Note    ; }
-			else if ((*this)->run_status!=RunStatus::Complete) { jr = JobReport::Failed ; step = mk_snake((*this)->run_status) ;                      color = Color::Err     ; }
-			else if ((*this)->status    ==Status   ::Timeout ) { jr = JobReport::Failed ; step = mk_snake((*this)->status    ) ;                      color = Color::Err     ; }
-			else if ((*this)->err()                          ) { jr = JobReport::Failed ; step = mk_snake(jr                 ) ;                      color = Color::Err     ; }
-			else if (modified                                ) { jr = JobReport::Done   ; step = mk_snake(jr                 ) ; if (!stderr.empty()) color = Color::Warning ; }
-			else                                               { jr = JobReport::Steady ; step = mk_snake(jr                 ) ;                                               }
+			if      (!cri.done()                       ) { jr = JobReport::Rerun                           ; step = mk_snake(jr           ) ;                      c = Color::Note    ; }
+			else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed                          ; step = mk_snake(jd.run_status) ;                      c = Color::Err     ; }
+			else if (jd.status    ==Status   ::Timeout ) { jr = JobReport::Failed                          ; step = mk_snake(jd.status    ) ;                      c = Color::Err     ; }
+			else if (jd.err()                          ) { jr = JobReport::Failed                          ; step = mk_snake(jr           ) ;                      c = Color::Err     ; }
+			else                                         { jr = modified?JobReport::Done:JobReport::Steady ; step = mk_snake(jr           ) ; if (!stderr.empty()) c = Color::Warning ; }
 			//
 			if (+exec_time) {                                                  // if no exec time, no job was actually run
 				req->stats.ended(jr)++ ;
@@ -660,10 +660,10 @@ namespace Engine {
 			}
 		}
 		if (!pfx.empty()) step = pfx+step ;
-		Trace trace("audit_end",color,step,*this,cri,STR(modified)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job(color,step,*this,exec_time) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		Trace trace("audit_end",c,step,*this,cri,STR(modified)) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		req->audit_job(c,step,*this,exec_time) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (jr==JobReport::Unknown) return ;
 		::string err ;
 		for( auto const& [pfx,ni] : analysis_err ) {
@@ -672,7 +672,7 @@ namespace Engine {
 			else    req->audit_info(Color::Note,pfx,   1) ;
 			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		req->audit_stderr(stderr,(*this)->rule->stderr_len) ;
+		req->audit_stderr(stderr,jd.rule->stderr_len) ;
 	}
 
 	void Job::_set_pressure_raw(ReqInfo& ri , CoarseDelay pressure ) const {

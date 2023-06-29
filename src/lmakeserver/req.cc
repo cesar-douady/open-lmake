@@ -152,8 +152,9 @@ namespace Engine {
 		//
 		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
 		if ( dir!=node && dir->makable() ) {
-			(*this)->audit_node(Color::Err    ,"no rule for"       ,name,lvl  ) ;
-			(*this)->audit_node(Color::Warning,"dir is buildable :",dir ,lvl+1) ;
+			/**/                                            (*this)->audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
+			if (dir->conform_job_tgt().produces(dir)==Yes ) (*this)->audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
+			else                                            (*this)->audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
 			return ;
 		}
 		//
@@ -162,7 +163,7 @@ namespace Engine {
 			if (rt->anti             ) { art = rt ; break    ; }
 			mrts.push_back(rt) ;
 			if ( JobTgt jt{rt,name} ; +jt ) {
-				swear_prod(!jt.produces(node),"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
+				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
 			try                     { mk_vector<Node>(Rule::Match(rt,name).deps()) ; }
