@@ -116,53 +116,39 @@ namespace Engine {
 		return report_unlink ;
 	}
 
-	void Job::fill_rpc_reply( JobRpcReply& jrr , Rule::SimpleMatch const& match_ , ::vmap_ss const& rsrcs ) const {
-		Rule                 r       = (*this)->rule          ;
-		::vector_s const&    targets = match_.targets()       ;
-		::vector_view_c<Dep> deps    = (*this)->static_deps() ;
+	void Job::fill_rpc_reply( JobRpcReply& jrr , Rule::SimpleMatch const& match_ , ::vector_s const& rsrcs ) const {
+		Rule        r       = (*this)->rule    ;
+		::vector_s  targets = match_.targets() ;
+		auto const& deps    = (*this)->deps    ;
 		//
-		for( auto const& [k,ef] : r->env ) jrr.env.emplace_back(k,ef.val) ;
-		for( auto const& [k,i] : r->cmd_ctx ) {
-			::string  var ;
-			::string  str ;
-			::vmap_ss dct ;
-			switch (k) {
-				case CmdVar::Stem    : var = r->stems    [i].first ; str        = match_.stems[i]        ;                                                                goto Str ;
-				case CmdVar::Target  : var = r->targets  [i].first ; str        = targets     [i]        ;                                                                goto Str ;
-				case CmdVar::Dep     : var = r->deps .dct[i].first ; str        = deps        [i].name() ;                                                                goto Str ;
-				case CmdVar::Rsrc    : var = r->rsrcs.dct[i].first ; str        = rsrcs       [i].second ;                                                                goto Str ;
-				case CmdVar::Stdout  :                               jrr.stdout = targets     [i]        ; if (jrr.stdout.empty()) jrr.stdout = "/dev/null" ;             continue ;
-				case CmdVar::Stdin   :                               jrr.stdin  = deps        [i].name() ;                                                                continue ;
-				case CmdVar::Tokens  : var = "job_tokens"          ; str        = to_string((*this)->tokens) ;                                                            goto Str ;
-				case CmdVar::Stems   : var = "stems"     ; for( VarIdx j=0 ; j<r->n_static_stems ; j++ ) dct.emplace_back(r->stems    [j].first,match_.stems[j]       ) ; goto Dct ;
-				case CmdVar::Targets : var = "targets"   ; for( VarIdx j=0 ; j<r->targets.size() ; j++ ) dct.emplace_back(r->targets  [j].first,targets     [j]       ) ; goto Dct ;
-				case CmdVar::Deps    : var = "deps"      ; for( VarIdx j=0 ; j<r->n_deps ()      ; j++ ) dct.emplace_back(r->deps .dct[j].first,deps        [j].name()) ; goto Dct ;
-				case CmdVar::Rsrcs   : var = "resources" ; for( VarIdx j=0 ; j<r->n_rsrcs()      ; j++ ) dct.emplace_back(r->rsrcs.dct[j].first,rsrcs       [j].second) ; goto Dct ;
-				default : FAIL(k) ;
-			}
-		Str :
-			if (r->is_python) append_to_string( jrr.script , var ," = ", mk_py_str(str) ,'\n') ;
-			else              jrr.env.emplace_back(var,str) ;
-			continue ;
-		Dct :
-			// XXX : dont know how to pass a dict in environment
-			if (r->is_python) {
+		if (r->stdout_idx!=Rule::NoVar) jrr.stdout =                       targets[r->stdout_idx]                       ;
+		if (r->stdin_idx !=Rule::NoVar) jrr.stdin  = +deps[r->stdin_idx] ? deps   [r->stdin_idx ].name() : "/dev/null"s ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> ctx = r->eval_ctx( r->cmd_ctx , match_.stems , targets , deps , rsrcs ) ;
+		if (r->is_python) {
+			for( auto const& [var,str] : ctx.first ) append_to_string( jrr.script , var ," = ", mk_py_str(str) ,'\n') ;
+			for( auto const& [var,dct] : ctx.second ) {
 				const char* sep = "" ;
 				/**/                             append_to_string( jrr.script , var ," = {"                                      ) ;
 				for( auto const& [k,v] : dct ) { append_to_string( jrr.script , '\n',sep,'\t', mk_py_str(k) ," : ", mk_py_str(v) ) ; sep = "," ; }
 				/**/                             append_to_string( jrr.script ,"\n}\n"                                           ) ;
 			}
-			continue ;
+		} else {
+			for( auto const& [var,str] : ctx.first ) jrr.env.emplace_back(var,str) ;
+			// XXX : dont know how to pass a dict in environment
 		}
-		jrr.script += r->script ;
+		jrr.script += r->cmd ;
 		if (r->is_python) {
-			if (r->script.back()!='\n') jrr.script += '\n'                                                                  ;
-			/**/                        jrr.script += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
+			if (r->cmd.back()!='\n') jrr.script += '\n'                                                                  ;
+			/**/                     jrr.script += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
 		}
 		jrr.targets.reserve(targets.size()) ;
 		for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) jrr.targets.emplace_back( targets[t] , false/*is_native_star:dont_care*/ , r->flags(t) ) ;
 		//
-		if (r->has_stars) for( Dep d : deps ) jrr.force_deps.push_back(d.name()) ; // to ensure static deps will not match star targets
+		for( Dep d : deps ) {
+			if (!d.flags[DFlag::Static]) break    ;
+			if (!d                     ) continue ;
+			jrr.static_deps.push_back(d.name()) ;
+		}
 	}
 
 	void Job::end_exec() const {
@@ -224,11 +210,10 @@ namespace Engine {
 		Trace trace("Job",rule_tgt,target,lvl) ;
 		Rule::Match match_{rule_tgt,target} ;
 		if (!match_) { trace("no_match") ; return ; }
-		vmap<Node,DFlags> deps ;
+		::vmap<Node,DFlags> deps ;
 		try {
-			::vector_s dep_names = match_.deps() ;
-			for( size_t id=0 ; id<dep_names.size() ; id++ ) deps.emplace_back(dep_names[id],rule_tgt->deps.dct[id].second.flags) ;
-		} catch (::string const&) {
+			deps = rule_tgt->x_match.eval(rule_tgt,match_.stems) ;
+		} catch (::string const&) {                                            // XXX : generate error message
 			trace("no_dep_subst") ;
 			return ;
 		}
@@ -239,15 +224,23 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^
 			if (d->buildable==No) { trace("no_dep",d) ; return ; }
 		}
-		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		*this = Job( match_.name(),Dflt , rule_tgt,deps,match_.tokens() ) ;
-		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		*this = Job( match_.name(),Dflt , rule_tgt,deps ) ;
+		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		try {
+			if (rule_tgt->x_match_cmd.eval(*this).force) (*this)->mk_force() ;
+			(*this)->tokens = rule_tgt->x_match_none.eval(*this).tokens ;
+		} catch (::string const&) {                                            // XXX : generate error message
+			clear() ;
+			trace("no_match_info") ;
+			return ;
+		}
 		trace("found",*this) ;
 	}
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
-		::string str        = to_string('0',+*this) ;                                                             // ensure size is even as we group by 100
-		bool     skip_first = str.size()&0x1        ;                                                             // need initial 0 if required to have an even size
+		::string str        = to_string('0',+*this) ;                          // ensure size is even as we group by 100
+		bool     skip_first = str.size()&0x1        ;                          // need initial 0 if required to have an even size
 		size_t   i          ;
 		::string res        ;
 		switch (tag) {
@@ -255,7 +248,7 @@ namespace Engine {
 			case AncillaryTag::KeepTmp : res = ::string(AdminDir) + "/job_keep_tmp" ; break ;
 			default : FAIL(tag) ;
 		}
-		res.reserve( res.size() + str.size() + str.size()/2 + 1 ) ; // 1.5*str.size() as there is a / for 2 digits + final _
+		res.reserve( res.size() + str.size() + str.size()/2 + 1 ) ;                                // 1.5*str.size() as there is a / for 2 digits + final _
 		for( i=skip_first ; i<str.size()-1 ; i+=2 ) { res.push_back('/') ; res.append(str,i,2) ; } // create a dir hierarchy with 100 files at each level
 		res.push_back('_') ;                                                                       // avoid name clashes with directories
 		return res ;
@@ -393,9 +386,15 @@ namespace Engine {
 		Rule          rule          = (*this)->rule                                      ;
 		::vector<Req> running_reqs_ = running_reqs()                                     ;
 		AnalysisErr   analysis_err  ;
+		CacheNoneSpec x_cache_none  ;
+		EndCmdSpec    x_end_cmd     ;
+		EndNoneSpec   x_end_none    ;
 		//
 		SWEAR( status!=Status::New && !JobData::s_frozen(status) ) ;           // we just executed the job, it can be neither new nor frozen
 		SWEAR(!rule.is_special()) ;
+		try { x_cache_none  = rule->x_cache_none.eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute cache info"        , 0 ) ; } // XXX : improve error message
+		try { x_end_cmd     = rule->x_end_cmd   .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error message
+		try { x_end_none    = rule->x_end_none  .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error message
 		//
 		switch (status) {
 			case Status::Lost    : local_reason = JobReasonTag::Lost    ; break ;
@@ -451,7 +450,8 @@ namespace Engine {
 				if (aj_flags[TFlag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
 					Rule::Match aj_match = aj.simple_match() ;
 					for( Req r : reqs() ) {
-						aj.req_info(r).done_ &= RunAction::Status ;                               // whether there is clash or not, this job must be rerun if we need the actual files
+						ReqInfo& ajri = aj.req_info(r) ;
+						ajri.done_ = ajri.done_ & RunAction::Status ;                             // whether there is clash or not, this job must be rerun if we need the actual files
 						for( Node ajt : aj_match.static_targets() ) if (ajt.done(r)) goto Clash ;
 						for( Node ajt : aj->star_targets          ) if (ajt.done(r)) goto Clash ;
 						continue ;
@@ -501,7 +501,7 @@ namespace Engine {
 			target->actual_job_tgt = { *this , RuleData::s_sure(flags) } ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			any_modified |= modified && flags[TFlag::Match] ;
-			trace("target",tn,td,STR(modified),status) ;
+			trace("target",target,td,STR(modified),status) ;
 		}
 		if (seen_static_targets.size()<rule->n_static_targets) {               // some static targets have not been seen
 			Rule::Match       match_         = simple_match()          ;       // match_ must stay alive as long as we use static_targets
@@ -529,50 +529,31 @@ namespace Engine {
 		// handle deps
 		//
 		if (!killed) {                                                         // if killed, old deps are better than new ones, keep them
-			DiskDate             db_date        ;
-			::vector_view<Dep>   static_dep_vec = (*this)->static_deps()       ;
-			::umap<Node,NodeIdx> static_deps_   ;
-			::vector<Dep>        dep_vector     ;                                dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
-			::uset<Node>         old_deps       = mk_uset<Node>((*this)->deps) ;
+			DiskDate      db_date    ;
+			::vector<Dep> dep_vector ;                                dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
+			::uset<Node>  old_deps   = mk_uset<Node>((*this)->deps) ;
 			//
-
-			auto update_dep = [&]( const char* tag , Dep& dep , DepDigest const& dd ) -> void {
-				//                vvvvvvvvvvvvvvvv
-				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ; } // garbage : force unknown crc
-				else            { dep.crc_date(dd) ;                                                    } // date will be transformed into crc in make if possible
-				//                ^^^^^^^^^^^^^^^^
-				trace(tag,dep,dd,dep->db_date()) ;
-			} ;
-			auto process_dep = [&]( const char* tag , bool access , Node d , DepDigest const& dd , DepOrder skipped=DepOrder::Parallel ) -> void {
-				Dep dep{ d , dd.flags , dd.order|skipped } ;
-				dep.known = old_deps.contains(d) ;
-				if (access) update_dep(tag,dep,dd) ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvv
-				dep_vector.emplace_back(dep) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^
-				db_date = ::max(db_date,d->db_date()) ;
-			} ;
-			// generate deps by putting static deps first, but actual access info is from digest.deps
-			for( NodeIdx d=0 ; d<static_dep_vec.size() ; d++ ) {
-				process_dep( "static_dep" , false/*access*/ , static_dep_vec[d] , {rule->deps.dct[d].second.flags,DepOrder::Parallel} ) ; // no access (fix during deps analysis right below)
-				static_deps_.emplace(static_dep_vec[d],d) ;
-			}
-			DepOrder skipped_dep_order = DepOrder::Parallel ;
-			for( auto const& [dn,dd] : digest.deps ) {
+			for( auto const& [dn,dd] : digest.deps ) { // static deps are guaranteed to appear first
 				Node d{dn} ;
-				auto it = static_deps_.find(d) ;
-				if (it!=static_deps_.end()) { update_dep ( "static_dep_update" , dep_vector[it->second] , dd                     ) ; skipped_dep_order |= dd.order           ; }
-				else                        { process_dep( "hidden_dep"        , true/*access*/ , d     , dd , skipped_dep_order ) ; skipped_dep_order  = DepOrder::Parallel ; }
+				Dep dep{ d , dd.flags , dd.order } ;
+				dep.known = old_deps.contains(d) ;
+				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ;       } // garbage : force unknown crc
+				else            { dep.crc_date(dd) ; SWEAR( !(dd.flags&AccessDFlags) || dd.is_date!=Maybe ) ; } // date will be transformed into crc in make if possible
+				trace("dep",dep,dd,dep->db_date()) ;
+				dep_vector.emplace_back(dep) ;
+				if ( +(dd.flags&AccessDFlags) && !dd.garbage ) db_date = ::max(db_date,d->db_date()) ;
 			}
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			(*this)->deps.assign(dep_vector) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (any_modified) (*this)->db_date = db_date ;
 		}
 		//
 		// wrap up
 		//
 		switch (status) {
-			case Status::Ok      : if ( !digest.stderr.empty() && !rule->allow_stderr ) { analysis_err.emplace_back("non-empty stderr",0) ; err = true ; } break ;
-			case Status::Timeout :                                                      { analysis_err.emplace_back("timeout"         ,0) ;              } break ;
+			case Status::Ok      : if ( !digest.stderr.empty() && !x_end_cmd.allow_stderr ) { analysis_err.emplace_back("non-empty stderr",0) ; err = true ; } break ;
+			case Status::Timeout :                                                          { analysis_err.emplace_back("timeout"         ,0) ;              } break ;
 			default : ;
 		}
 		//
@@ -605,7 +586,7 @@ namespace Engine {
 			AnalysisErr        ae_reason ;                                                                                                 // we need a variable to own the data
 			AnalysisErr const& ae        = reason.has_err() ? (ae_reason={s_reason_str(reason)}) : analysis_err ;
 			if (ri.done()) {
-				audit_end( {} , ri , reason.has_err()?"":digest.stderr , ae , any_modified , digest.stats.total ) ; // report exec time even if not recording it
+				audit_end( {} , ri , reason.has_err()?"":digest.stderr , ae , x_end_none.stderr_len , any_modified , digest.stats.total ) ; // report exec time even if not recording it
 				trace("wakeup_watchers",ri) ;
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
 				if ( !ae.empty() && !analysis_stamped ) {                      // this is code is done in such a way as to be fast in the common case (ae empty)
@@ -623,13 +604,13 @@ namespace Engine {
 					analysis_stamped = true ;
 				}
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need to ensure job is done
-				if ( rule->cache && !cached && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) { // cache only successful results
-					rule->cache->upload( *this , digest ) ;
+				if ( !x_cache_none.key.empty() && !cached && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) { // cache only successful results
+					Cache::s_tab.at(x_cache_none.key)->upload( *this , digest ) ;
 					cached = true ;
 				}
 				ri.wakeup_watchers() ;
 			} else {
-				audit_end( +local_reason?"":"may_" , ri , {} , {s_reason_str(reason)} , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
+				audit_end( +local_reason?"":"may_" , ri , {} , {s_reason_str(reason)} , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				req->missing_audits[*this] = { false/*hit*/ , any_modified , ae } ;
 			}
 			trace("req_after",ri) ;
@@ -639,7 +620,7 @@ namespace Engine {
 		return any_modified ;
 	}
 
-	void JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time ) const {
+	void JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
 		Req            req  = cri.req            ;
 		::string       step ;
 		Color          c    = Color::Ok          ;
@@ -665,7 +646,7 @@ namespace Engine {
 		req->audit_job(c,step,*this,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (jr==JobReport::Unknown) return ;
-		req->audit_stderr(analysis_err,stderr,jd.rule->stderr_len,1) ;
+		req->audit_stderr(analysis_err,stderr,stderr_len,1) ;
 	}
 
 	void Job::_set_pressure_raw(ReqInfo& ri , CoarseDelay pressure ) const {
@@ -676,8 +657,8 @@ namespace Engine {
 		switch (ri.lvl) {
 			//                                                                                                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			case Lvl::Dep    : for( Dep const& d : (*this)->deps.subvec(ri.dep_lvl) ) { if (d.order==DepOrder::Critical) break ; d.set_pressure(d.req_info(req),dep_pressure) ; } break ;
-			case Lvl::Queued :                                                          Backend::s_set_pressure( (*this)->rule->backend , +*this , +req , dep_pressure ) ;        break ;
-			//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case Lvl::Queued :                                                          Backend::s_set_pressure( ri.backend , +*this , +req , dep_pressure ) ;                    break ;
+			//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			default : ;
 		}
 	}
@@ -710,12 +691,11 @@ namespace Engine {
 		//
 		Trace trace("Jmake",*this,ri,before_lvl,run_action,reason,make_action,old_exec_time,STR(wakeup_watchers)) ;
 		if (ri.done(ri.action)) goto Wakeup ;
-		for (;;) {                                                                      // loop in case analysis must be restarted (only in case of flash execution)
-			DepState    dep_state     = DepState::Ok                                  ;
-			bool        sure          = true                                          ;
-			CoarseDelay dep_pressure  = ri.pressure + (*this)->best_exec_time().first ;
-			Idx         n_deps        = rule->no_deps ? 0 : (*this)->deps.size()      ;
-			Idx         n_static_deps = (*this)->n_static_deps()                      ;
+		for (;;) {                                                                                    // loop in case analysis must be restarted (only in case of flash execution)
+			DepState    dep_state    = DepState::Ok                                                 ;
+			bool        sure         = true                                                         ;
+			CoarseDelay dep_pressure = ri.pressure + (*this)->best_exec_time().first                ;
+			Idx         n_deps       = rule.special()==Special::Infinite ? 0 : (*this)->deps.size() ; // special case : Infinite actually has no dep, just a list of node showing infinity
 			//
 			RunAction dep_action = req->options.flags[ReqFlag::Archive] ? RunAction::Dsk : RunAction::Status ;
 			//
@@ -727,35 +707,37 @@ namespace Engine {
 			//
 			switch (ri.lvl) {
 				case Lvl::None :
-					if ( rule->force && ri.action>=RunAction::Status ) {       // only once, not in case of analysis restart
-						reason     |= JobReasonTag::Force ;
-						ri.action   = RunAction::Run      ;
-						dep_action  = RunAction::Dsk      ;
-					}
-					// process command like a dep in parallel with static_deps
-					if ( !(*this)->exec_ok() || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
-						dep_state   = DepState::DanglingModif                                     ; // a new command is like a modif, new rsrcs may transform error into ok
-						reason     |=
-							!(*this)->cmd_ok () ? JobReasonTag::Cmd
-						:	!(*this)->exec_ok() ? JobReasonTag::Rsrcs
-						:	                      JobReasonTag::OldError
-						;
-						ri.action   = RunAction::Run                                              ; // ensure analysis is done at the right level
-						dep_action  = RunAction::Dsk                                              ;
+					if (ri.action>=RunAction::Status) {                        // only once, not in case of analysis restart
+						if ((*this)->forced()) {
+							ri.action   = RunAction::Run      ;
+							dep_action  = RunAction::Dsk      ;
+							reason     |= JobReasonTag::Force ;
+						} else if ( !(*this)->exec_ok() || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
+							// process command like a dep in parallel with static_deps
+							dep_state   = DepState::DanglingModif ;            // a new command is like a modif, new rsrcs may transform error into ok
+							ri.action   = RunAction::Run          ;            // ensure analysis is done at the right level
+							dep_action  = RunAction::Dsk          ;
+							reason     |=
+								!(*this)->cmd_ok () ? JobReasonTag::Cmd
+							:	!(*this)->exec_ok() ? JobReasonTag::Rsrcs
+							:	                      JobReasonTag::OldError
+							;
+						} else if (JobData::s_frozen(status)) {
+							ri.action = RunAction::Run ;                       // ensure crc are updated, like for sources
+						}
 					}
 					ri.lvl = Lvl::Dep ;
-					if (JobData::s_frozen(status)) {
-						ri.action = RunAction::Run ;                           // ensure crc are updated, like for sources
-						break ;
-					}
+					if (JobData::s_frozen(status)) break ;
 				/*fall through*/
 				case Lvl::Dep : {
 					bool restarted = false ;
+					bool is_static = true  ;
 					Dep  sentinel  { Node() , {} , DepOrder::Critical } ;
 					for ( NodeIdx i_dep=ri.dep_lvl ;;) {
 						SWEAR(i_dep<=n_deps) ;
-						bool is_static = i_dep<n_static_deps                            ;
 						Dep& d         = i_dep<n_deps ? (*this)->deps[i_dep] : sentinel ;
+						if ( is_static && ! d.flags[DFlag::Static] && sure ) (*this)->mk_sure() ; // improve sure on last static dep (sure is pessimistic)
+						is_static = d.flags[DFlag::Static] ;
 						//
 						if ( DepOrder cdo=d.order ; cdo!=DepOrder::Parallel ) {
 							if (dep_state==DepState::DanglingModif) dep_state = DepState::Modif ;
@@ -804,11 +786,8 @@ namespace Engine {
 						//      vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						cdri = &d.make( *cdri , dep_action ) ;                 // refresh cdri if make changed it
 						//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						ri.n_wait-- ;                                          // restore
-						if (is_static) {
-							if ( d.flags[DFlag::Required] && d->buildable!=Yes ) sure = false ;       // buildable is better after make()
-							if ( sure && i_dep==n_static_deps                  ) (*this)->mk_sure() ; // improve sure on last static dep (sure is pessimistic)
-						}
+						ri.n_wait-- ;                                                                    // restore
+						if ( is_static && d.flags[DFlag::Required] && d->buildable!=Yes ) sure = false ; // buildable is better after make()
 						//
 						if (cdri->waiting()) {
 							reason |= {JobReasonTag::DepOutOfDate,+d} ;
@@ -853,7 +832,7 @@ namespace Engine {
 								}
 							}
 						}
-						if ( d.flags[DFlag::Error] && d->err() ) {
+						if ( !d.flags[DFlag::IgnoreError] && d->err() ) {
 							trace("dep_err",d) ;
 							mark = Yes ; goto Err ;
 						}
@@ -898,7 +877,8 @@ namespace Engine {
 					Continue :
 						trace("dep",d,STR(is_static),STR(d.done(*cdri)),STR(d.err(*cdri)),ri,d.is_date,d.is_date==No?d.crc():Crc(),"<=>",d->crc,dep_state,reason) ;
 					}
-					if (ri.waiting()) goto Wait ;
+					if ( is_static && sure ) (*this)->mk_sure() ;              // in case no hidden dep, improve sure on last static dep (sure is pessimistic)
+					if ( ri.waiting()      ) goto Wait ;
 				} break ;
 				default : FAIL(ri.lvl) ;
 			}
@@ -924,8 +904,8 @@ namespace Engine {
 			ri.lvl      = Lvl       ::Dep    ;                                 // .
 			trace("restart_analysis",ri) ;
 		}
-		ri.lvl    = Lvl::Done ;
-		ri.done_ |= ri.action ;
+		ri.lvl   = Lvl::Done            ;
+		ri.done_ = ri.done_ | ri.action ;
 	Wakeup :
 		if ( auto it = req->missing_audits.find(*this) ; it!=req->missing_audits.end() && !req->zombie ) {
 			JobAudit const& ja = it->second ;
@@ -942,8 +922,14 @@ namespace Engine {
 				req->stats.jobs_time[true /*useful*/] += (*this)->exec_time ;  // .
 			}
 			//
-			if (reason.has_err()) audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , {s_reason_str(reason)} , ja.modified ) ;
-			else                  audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , ja.analysis_err        , ja.modified ) ;
+			EndNoneSpec x_end_none   ;
+			AnalysisErr analysis_err ;
+			bool        no_info      = false ;
+			try                     { x_end_none = rule->x_end_none.eval(*this) ;                                        }
+			catch (::string const&) { analysis_err.emplace_back("cannot compute job analysis info",0) ; no_info = true ; } // XXX : improve error message
+			analysis_err.push_back(s_reason_str(reason)) ;
+			if ( reason.has_err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , analysis_err    , x_end_none.stderr_len , ja.modified ) ;
+			else                               audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , ja.analysis_err , x_end_none.stderr_len , ja.modified ) ;
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
@@ -1072,9 +1058,11 @@ namespace Engine {
 		::umap<Node,VarIdx> static_target_map ; for( VarIdx ti=0 ; ti<static_targets.size() ; ti++ ) static_target_map[static_targets[ti]] = ti ;
 		// check clashes
 		NodeIdx d = 0 ;
-		for( Dep const& dep : (*this)->static_deps() ) {
+		for( Dep const& dep : (*this)->deps ) {
+			if (!dep.flags[DFlag::Static]       ) {       break    ; }
 			if (!static_target_map.contains(dep)) { d++ ; continue ; }
-			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",rule->deps.dct[d].first," : ") ;
+			::string dep_key = rule->x_match.spec.full_dynamic ? ""s : rule->x_match.spec.deps[d].first ;
+			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",dep_key," : ") ;
 			req->audit_job ( Color::Err  , "clash" , *this     ) ;
 			req->audit_node( Color::Note , err_msg , dep   , 1 ) ;
 			(*this)->run_status = RunStatus::DepErr ;
@@ -1123,15 +1111,30 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ Job::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
 		using Lvl = ReqInfo::Lvl ;
-		Req  req  = ri.req        ;
-		Rule rule = (*this)->rule ;
+		Req             req            = ri.req                           ;
+		Rule            rule           = (*this)->rule                    ;
+		SubmitRsrcsSpec x_submit_rsrcs ;
+		CacheNoneSpec   x_cache_none   ;
 		Trace trace("submit_plain",*this,ri,reason,pressure) ;
 		SWEAR(!ri.waiting()) ;
+		try {
+			x_submit_rsrcs = rule->x_submit_rsrcs.eval(*this) ;
+			x_cache_none   = rule->x_cache_none  .eval(*this) ;
+		} catch (::string const& e) {
+			req->audit_job ( Color::Err  , "resources" , *this     ) ;
+			req->audit_info( Color::Note , e           ,         1 ) ;
+			(*this)->run_status = RunStatus::RsrcsErr ;
+			trace("no_rsrcs",ri) ;
+			return false/*may_new_deps*/ ;
+		}
+		ri.backend = x_submit_rsrcs.backend ;
 		for( Req r : running_reqs() ) if (r!=req) {
+			ReqInfo const& cri = c_req_info(r) ;
+			SWEAR( cri.backend == ri.backend ) ;
 			ri.n_wait++ ;
-			ri.lvl = c_req_info(r).lvl ;                                         // Exec or Queued, same as other reqs
+			ri.lvl = cri.lvl ;                                                   // Exec or Queued, same as other reqs
 			if (ri.lvl==Lvl::Exec) req->audit_job(Color::Note,"started",*this) ;
-			Backend::s_add_pressure( rule->backend , +*this , +req , pressure ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			Backend::s_add_pressure( ri.backend , +*this , +req , pressure , ri.live_out ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
 			trace("other_req",r,ri) ;
 			return false/*may_new_deps*/ ;
 		}
@@ -1139,18 +1142,19 @@ namespace Engine {
 		Rule::Match match_ = match() ;
 		if (!_targets_ok(req,match_)) return false /*may_new_deps*/ ;
 		//
-		if (rule->cache) {
-			ProcessDate  start = ProcessDate::s_now()          ;
-			Cache::Match cache = rule->cache->match(*this,req) ;
-			if (!cache.completed) {
+		if (!x_cache_none.key.empty()) {
+			Cache*       cache       = Cache::s_tab.at(x_cache_none.key) ;
+			ProcessDate  start       = ProcessDate::s_now()              ;
+			Cache::Match cache_match = cache->match(*this,req)           ;
+			if (!cache_match.completed) {
 				FAIL("delayed cache not yet implemented") ;
 			}
-			switch (cache.hit) {
+			switch (cache_match.hit) {
 				case Yes :
 					try {
 						JobExec        je            { *this , ProcessDate::s_now() }        ;
 						::vector<Node> report_unlink = wash(match_)                          ;
-						JobDigest      digest        = rule->cache->download(*this,cache.id) ;
+						JobDigest      digest        = cache->download(*this,cache_match.id) ;
 						ri.lvl = Lvl::Hit ;
 						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
@@ -1161,7 +1165,7 @@ namespace Engine {
 					} catch (::string const&) {}                                 // if we cant download result, it is like a miss
 				break ;
 				case Maybe :
-					for( Node d : cache.new_deps ) {
+					for( Node d : cache_match.new_deps ) {
 						Node::ReqInfo const& cdri = d.make( d.c_req_info(req) , RunAction::Status ) ;
 						if (cdri.waiting()) d.add_watcher(d.req_info(cdri),*this,ri,pressure) ;
 					}
@@ -1169,28 +1173,15 @@ namespace Engine {
 					return true/*maybe_new_deps*/ ;
 				case No :
 				break ;
-				default : FAIL(cache.hit) ;
+				default : FAIL(cache_match.hit) ;
 			}
-		}
-		//
-		::vmap_ss rsrc_map ;
-		try {
-			::vector_s rsrcs = match_.rsrcs() ;
-			rsrc_map.reserve(rsrcs.size()) ;
-			for( VarIdx r=0 ; r<rsrcs.size() ; r++ ) rsrc_map.emplace_back(rule->rsrcs.dct[r].first,rsrcs[r]) ;
-		} catch (::string const& e) {
-			req->audit_job ( Color::Err  , "resources" , *this     ) ;
-			req->audit_info( Color::Note , e           ,         1 ) ;
-			(*this)->run_status = RunStatus::RsrcsErr ;
-			trace("no_rsrcs",ri) ;
-			return false/*may_new_deps*/ ;
 		}
 		ri.n_wait++ ;                                                          // set before calling submit call back as in case of flash execution, we must be clean
 		ri.lvl = Lvl::Queued ;
 		try {
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( rule->backend , +*this , +req , pressure , rsrc_map , reason ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( ri.backend , +*this , +req , pressure , ri.live_out , x_submit_rsrcs.rsrcs , reason ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			ri.n_wait-- ;                                                      // restore n_wait as we prepared to wait
 			(*this)->status = Status::Err ;
@@ -1228,12 +1219,17 @@ namespace Engine {
 	}
 
 	bool/*ok*/ Job::forget() {
-		Trace trace("Jforget",*this,(*this)->deps,(*this)->deps.size(),(*this)->rule->n_deps()) ;
-		for( Req r : running_reqs() ) { (void)r ; return false ; }                                // ensure job is not running
+		Trace trace("Jforget",*this,(*this)->deps,(*this)->deps.size()) ;
+		for( Req r : running_reqs() ) { (void)r ; return false ; }             // ensure job is not running
 		(*this)->status = Status::New ;
 		fence() ;                                                              // once status is New, we are sure target is not up to date, we can safely modify it
 		(*this)->run_status = RunStatus::Complete ;
-		(*this)->deps.shorten_by( (*this)->deps.size() - (*this)->rule->n_deps() ) ; // forget hidden deps
+		NodeIdx n_static_deps = 0 ;
+		for ( Dep const& d : (*this)->deps ) {
+			if (!d.flags[DFlag::Static]) break ;
+			n_static_deps++ ;
+		}
+		(*this)->deps.shorten_by( (*this)->deps.size() - n_static_deps ) ;     // forget hidden deps
 		if (!(*this)->rule.is_special()) {
 			(*this)->exec_gen = 0 ;
 			(*this)->star_targets.clear() ;

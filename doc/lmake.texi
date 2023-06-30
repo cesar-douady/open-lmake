@@ -202,7 +202,7 @@ As its name suggests, @Lmakefile is actually a Python file.
 @lmake embeds a Python interpreter (version 3.6+) to interpret @Lmakefile.
 Because Python is among the most powerful and widely used programming language, this choice allows @lmake users to have access to a very powerful language to express complicated workflows
 without the need to learn a new language.
-As a side effect, it also allows the developpers to provide such a powerful mean without having to design and implement it.
+As a side effect, it also allows the developpers to provide such a powerful means without having to design and implement it.
 Among the features of Python that come handy when describing workflows, one can list variables, functions, f-strings, conditionals, loops and inheritance.
 
 The goal of @Lmakefile is to describe 3 aspects of your workflow :
@@ -475,7 +475,10 @@ Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [-m|--manual-ok] [-o
 @itemize @bullet
 @item When a job starts if it is long (duration that qualifies a job as long is configurable). This start line is deemed of secondary importance.
 @item When a job terminates.  Such lines are followed by the content of stderr if any and status is known.
-@item When the job status is finally known if it was not known when it terminated. such lines are followed by the content of stderr if any. (Typically the job status is not known when it terminated if lmake has to check if a dependency is up to date or not)
+@item When the job status is finally known, if it was not known when it terminated.
+Such lines are followed by the content of stderr if any.
+Typically the job status is not known at the end of execution when a new dep was discovered that turned out to be out-of-date.
+In that case, the dependency is rebuilt, and if the new content is identical to the old one, @lmake can then decide that the job was run with up-to-date deps.
 @end itemize
 
 At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
@@ -1174,10 +1177,25 @@ Rules are described as Python @code{class}'es inheriting from @code{lmake.Rule} 
 Inheriting from @code{lmake.Rule} is used to define production rules that allows deriving targets from dependencies.
 
 Inheriting from @code{lmake.AntiRule} is (rarely) used to define rules that specify that matching targets @strong{cannot} be built.
-Antirules only require the @code{targets} attribute (or those that translate into it, @code{target}, @code{post_targets} and @code{post_target}) and may usefully have a @code{prio} attribute.
+Anti-rules only require the @code{targets} attribute (or those that translate into it, @code{target}, @code{post_targets} and @code{post_target}) and may usefully have a @code{prio} attribute.
 Other ones are useless and ignored.
 
 Rules are described by a series of attribute as follows.
+
+Most attributes can either be data of the described type or a function taking no argument returning the desired value.
+This allows the value to be dynamically selected depending on the job.
+
+Such functions are evaluated in an environment in which the stems (as well as the @code{stems} variable which is a @code{dict} containing the stems
+and the targets (as well as the @code{targets} variable) are defined and usable to derive the return value.
+Also, depending on the attribute, the deps (as well as the @code{deps} variable) and the resources (as well as the @code{resources} variable) may also be defined.
+Whether or not these are available depend on when a given attribute is needed.
+For example, when defining the @code{deps}, the deps are obviously not available,
+but also, when defining the @code{force} attribute, which is used to decide whether a job must be run or not, the resources, which are computing when running the job, are not available.
+
+for composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+For dictionaries, if the value function returns @code{None}, there will be no corresponding entry in the resulting dictionary.
+
+Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.
 
 @section @code{combine}
 
@@ -1188,6 +1206,8 @@ Rules are described by a series of attribute as follows.
 @tab @code{set}
 @item Default
 @tab The list of attributes hereinafter described as having combined inheritance
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{@{'my_dict_attribute'@}}
 @end multitable
@@ -1206,6 +1226,8 @@ Combined attributes may only be @code{dict}, @code{set} and @code{list}.
 @tab @code{str}
 @item Default
 @tab @code{cls.__name__}
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{'compile and link'}
 @end multitable
@@ -1226,6 +1248,8 @@ then you have several definitions with the same @code{__name__} and you must dis
 @tab @code{bool}
 @item Default
 @tab @code{True} if @code{cls} lacks the essential attributes to make it a rule (@code{targets} and, if not anti, @code{deps} and @code{cmd}).
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{True}
 @end multitable
@@ -1241,6 +1265,8 @@ When this attribute exists and has a @code{True} value, this @code{class} is not
 @tab @code{float}
 @item Default
 @tab @code{0} if inheriting from @code{lmake.Rule}, @code{float('+inf')} if deriving from @code{lmake.AntiRule}.
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{1}
 @end multitable
@@ -1257,6 +1283,8 @@ Rules with higher priorities are tried first and if none of them are applicable,
 @tab @code{dict}
 @item Default
 @tab @code{@{@}}
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{@{'File':r'.*'@}}
 @end multitable
@@ -1272,6 +1300,8 @@ Each entry <key>:<value> define a stem named <key> whose associated regular expr
 @tab Python
 @item Type
 @tab @code{str}
+@item Dynamic
+@tab No.
 @item Default
 @tab The first matching target of the most derived @code{class} in the inheritance hierarchy (i.e. the MRO) having a matching target.
 @end multitable
@@ -1293,6 +1323,8 @@ If defined, this attribute must have the same set of static stems (i.e. stems th
 @tab @code{dict}
 @item Default
 @tab @code{@{@}}
+@item Dynamic
+@tab No.
 @item Example
 @tab @code{@{ 'OBJ' : '@{File@}.o' @}}
 @end multitable
@@ -1359,6 +1391,8 @@ In order to support hierarchical repository (@pxref{hierarchical-repositories}) 
 @tab @code{str} or @code{list} or @code{tuple}
 @item Default
 @tab -
+@item Dynamic
+@tab No.
 @end multitable
 
 This attribute defines an unnamed target as the last target.
@@ -1377,6 +1411,8 @@ It is exclusive with the @code{post_target} attribute.
 @tab @code{dict}
 @item Default
 @tab @code{@{@}}
+@item Dynamic
+@tab No.
 @end multitable
 
 This attribute is identical to @code{targets} except that :
@@ -1394,6 +1430,8 @@ This attribute is identical to @code{targets} except that :
 @tab @code{str} or @code{list} or @code{tuple}
 @item Default
 @tab -
+@item Dynamic
+@tab No.
 @end multitable
 
 This attribute is identical to @code{target} except that :
@@ -1412,6 +1450,8 @@ This attribute is identical to @code{target} except that :
 @tab @code{dict}
 @item Default
 @tab @code{@{@}}
+@item Dynamic
+@tab Yes. Environment includes stems and targets.
 @item Example
 @tab @code{@{ 'SRC' : '@{File@}.c' @}}
 @end multitable
@@ -1453,6 +1493,8 @@ In order to support hierarchical repository (@pxref{hierarchical-repositories}) 
 @tab @code{str}
 @item Default
 @tab -
+@item Dynamic
+@tab Yes. Environment includes stems and targets.
 @end multitable
 
 This attribute defines an unnamed static dependency.
@@ -1468,6 +1510,8 @@ During execution, @code{cmd} stdin will be redirected to this dependency.
 @tab @code{str}
 @item Default
 @tab -
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines a directory in which jobs will @code{chroot} into before execution begins.
@@ -1483,13 +1527,15 @@ The job wrapper itself stays in the original file system in which it is launched
 @tab @code{str}
 @item Default
 @tab The nearest root dir as seen from the module defining the rule.
+@item Dynamic
+@tab No.
 @end multitable
 
 This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
 
 This attribute is also prepended to targets and deps unless they start with a @code{/}.
 
-@section @code{environ}
+@section @code{environ_cmd}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1498,22 +1544,15 @@ This attribute is also prepended to targets and deps unless they start with a @c
 @tab @code{dict}
 @item Default
 @tab See description
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @item Example
 @tab @code{@{ 'MY_TOOL_ROOT' : '/install/my_tool' @}}
 @end multitable
 
-This attributes defines the environment in which the jobs will execute, much the same way as Python's @code{os.environ}.
+This attribute defines environment variables set during job execution.
 
-The syntax of the values can be :
-@itemize @minus
-@item a @code{str}, in which case it is used as the value of the environment variable with the tag @code{'cmd'}.
-@item a 2-@code{tuple}, in which case the first entry is used as the value of the environment variable and the second value is a tag that may be :
-@itemize @minus
-@item @code{'Cmd'} or @code{'cmd'} : @lmake will interpret the value as part of the @code{cmd}, i.e. jobs will be rerun upon modification.
-@item @code{'Resources'} or @code{'resources'} : @lmake will interpret the value as part of the @code{resources}, i.e. jobs will be rerun upon modification if they are in error.
-@item @code{'None'} or @code{'none'} : @lmake will interpret the value as part of nothing, i.e. jobs will not be rerun upon modification.
-@end itemize
-@end itemize
+The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
 
 The environment in which the @lmake command is run is ignored so as to favor reproducibility.
 
@@ -1532,6 +1571,62 @@ The @lmake lib directory.
 Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
 although this practice is discouraged and should be used with much care.
 
+@section @code{environ_resources}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{dict}
+@item Default
+@tab @code{@{@}}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@item Example
+@tab @code{@{ 'MY_TOOL_LICENCE' : '12345' @}}
+@end multitable
+
+This attribute defines environment variables set during job execution.
+
+The content of this attribute is managed as resources, meaning that jobs in error are rerun upon modification, but not jobs that were successfully built.
+
+The environment in which the @lmake command is run is ignored so as to favor reproducibility.
+
+Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
+although this practice is discouraged and should be used with much care.
+
+@section @code{environ_ancillary}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{dict}
+@item Default
+@tab See description
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@item Example
+@tab @code{@{ 'DISPLAY' : ':10' @}}
+@end multitable
+
+This attribute defines environment variables set during job execution.
+
+The content of this attribute is not managed, meaning that jobs are not rerun upon modification.
+
+The environment in which the @lmake command is run is ignored so as to favor reproducibility.
+
+By default the following environment variables are defined :
+@table @code
+@item UID
+The user id.
+@item USER
+The user login name.
+@end table
+
+Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
+although this practice is discouraged and should be used with much care.
+
 @section @code{python}
 
 @multitable @columnfractions 0.1 0.9
@@ -1541,6 +1636,8 @@ although this practice is discouraged and should be used with much care.
 @tab @code{list} or @code{tuple}
 @item Default
 @tab system Python
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{function}.
@@ -1555,6 +1652,8 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 @tab @code{list} or @code{tuple}
 @item Default
 @tab @code{/bin/bash}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{str}.
@@ -1569,6 +1668,8 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 @tab @code{function} or @code{str}
 @item Default
 @tab -
+@item Dynamic
+@tab No.
 @item Example1
 @tab @code{'gcc -c -o $OBJ $SRC'}
 @item Example2
@@ -1669,6 +1770,8 @@ The job is deemed to be successful if the return code of the overall process is 
 @tab One of the caches listed in config.
 @item Default
 @tab <not cached>
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute specifies the cache to use for jobs executed by this rule.
@@ -1687,6 +1790,8 @@ The cache policy (described in its own section, in the config chapter) tries to 
 @tab One of the supported backends.
 @item Default
 @tab @code{'local'}
+@item Dynamic
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 This attribute specifies the backend to use to launch jobs (@pxref{backends}).
@@ -1702,6 +1807,8 @@ This attribute specifies the backend to use to launch jobs (@pxref{backends}).
 @tab One of @code{'none'}, @code{'ld_preload'}, @code{'ld_audit'} or @code{'ptrace'}
 @item Default
 @tab @code{'ld_audit'} if supported else @code{'ld_preload'}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute specifies the method used by autodep (@pxref{autodep}) to discover hidden dependencies.
@@ -1715,6 +1822,8 @@ This attribute specifies the method used by autodep (@pxref{autodep}) to discove
 @tab @code{dict}
 @item Default
 @tab @code{@{@}}
+@item Dynamic
+@tab Yes. Environment includes stems, targets and deps.
 @item Example
 @tab @code{@{ 'MY_RESOURCE' : '1' @}}
 @end multitable
@@ -1735,6 +1844,8 @@ After interpretation, the @code{dict} is passed to the @code{backend} to be used
 @tab @code{int}
 @item Default
 @tab -
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attribute defines the maximum number of lines of stderr that will be displayed in the output of @lmake.
@@ -1763,6 +1874,8 @@ If it is @code{True}, writing to stderr is allowed and does not produce an error
 @tab @code{bool}
 @item Default
 @tab @code{False}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute has a @code{True} value, executing a @code{chdir} syscall (e.g. executing @code{cd} in bash) will create the target directory if it does not exist.
@@ -1786,6 +1899,8 @@ This is useful for scripts in situations such as :
 @tab @code{bool}
 @item Default
 @tab @code{False}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute is set to a @code{True} value, stat-like syscalls (i.e. syscalls that access the i-node only) are ignored.
@@ -1801,6 +1916,8 @@ The only advantage of this attribute is that precisely because it is rather crud
 @tab @code{bool}
 @item Default
 @tab @code{False}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute is set to a true value, the temporary directory is kept after job execution.
@@ -1817,6 +1934,8 @@ When this attribute has a @code{False} value, the temporary directory is washed 
 @tab @code{bool}
 @item Default
 @tab @code{False}
+@item Dynamic
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
@@ -1833,6 +1952,8 @@ It is rarely necessary.
 @tab >=0
 @item Default
 @tab no timeout
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
@@ -1848,6 +1969,8 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 @tab >=0 and <256
 @item Default
 @tab @code{1}
+@item Dynamic
+@tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
 This attribute has the same syntax as a resource, except that a @code{float} is accepted.
@@ -1866,6 +1989,8 @@ It is only used to estimate the ETA (@pxref{eta-estimation}).
 @tab >0
 @item Default
 @tab @code{1}
+@item Dynamic
+@tab No.
 @end multitable
 
 This attribute indicates to @lmake a quantity of abstract resources used to estimate the expected parallelism of jobs within this rule.
@@ -1881,6 +2006,8 @@ It is only used to estimate the ETA (@pxref{eta-estimation}).
 @tab @code{float}
 @item Default
 @tab @code{0}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
@@ -1895,6 +2022,8 @@ The consequence is only cosmetic, it has no other impact.
 @tab @code{list} or @code{tuple}
 @item Default
 @tab @code{()}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 This attributes provide a list of signals to send the job when @lmake decides to kill it.
@@ -1908,7 +2037,7 @@ A job is killed when :
 The signals listed in this list are sent in turn, once every second. If the list is exhausted and the job is still alive, @code{KILLSIG}'s are sent, once per second.
 Longer interval can be obtained by inserting @code{0}'s. @code{0} signals are not sent and anyway, these would have no impact if they were.
 
-Note:this attribute is only relevant for @code{local} backend. Otherwise Slurm/SGE API is used to kill jobs.
+Note: some backends, such as Slurm when it is available, may have other means to manage timeouts. Both mechanisms will be usable.
 
 @chapter The @file{LMAKE} directory
 

@@ -268,9 +268,10 @@ namespace Caches {
 			for( auto& [dn,dd] : report_end.digest.deps ) {
 				Node d{dn} ;
 				switch (dd.is_date) {
-					case No  : SWEAR(dd.crc ()==d->crc ) ;                  break ; // when we upload, deps are done & ok, everything should be coherent
-					case Yes : SWEAR(dd.date()==d->date) ; dd.crc(d->crc) ; break ; // .
-					default  : FAIL(dd.is_date) ;
+					case No    : SWEAR(dd.crc ()==d->crc       ) ;                  break ; // when we upload, deps are done & ok, everything should be coherent
+					case Yes   : SWEAR(dd.date()==d->date      ) ; dd.crc(d->crc) ; break ; // .
+					case Maybe : SWEAR(!(dd.flags&AccessDFlags)) ;                  break ; // ., and if we have accessed the dep, we must have a date or a crc
+					default    : FAIL(dd.is_date) ;
 				}
 				deps.emplace_back( dn , ::pair(dd.order==DepOrder::Critical,d->crc) ) ;
 			}

@@ -128,10 +128,10 @@ if getattr(_sys,'reading_makefiles',False) :
 		# for list & tuple, entries are concatenated    , sequences are mapped to list/tuple           and non sequence is like a singleton
 		combine = {
 			'stems'
-		,	'targets' , 'post_targets'
+		,	'targets'     , 'post_targets'
 		,	'deps'
-		,	'environ'
-		,	'cmd'     , 'resources'
+		,	'environ_cmd' , 'environ_rsrcs' , 'environ_ancillary'
+		,	'cmd'         , 'resources'
 		}
 	#	name                                               # must be specific for each rule, defaults to class name
 	#	job_name                                           # defaults to first target
@@ -197,19 +197,15 @@ if getattr(_sys,'reading_makefiles',False) :
 			'cpu' : 1                                      # number of cpu's to allocate to jobs
 		,	'mem' : config.backends.local.mem//config.backends.local.cpu # memory to allocate to jobs
 		}                                                  # follow the same syntax as deps
-	#	resource                                           # syntactic sugar, a short hand for resources = {'resource':<value>}
-		environ = pdict(                                   # job execution environment, default is to favor repeatability by filtering as many user specific config as possible
-		#                                                  # syntax for value is either a mere str carrying the value
-		#                                                  # or a tuple (value,flag) where flag specifies how lmake must handle value modification
-		#                                                  # flag may be :
-		#                                                  # - 'none'     :           ignore
-		#                                                  # - 'resource' :           as a resource, i.e. rerun job if it was in error
-		#                                                  # - 'cmd'      : (default) as a cmd     , i.e. rerun job upon any modification
+		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 			HOME       = root_dir                                    # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
 		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' ,           ))
-		,	UID        = ( str(_os.getuid())                  ,'none') # this may be necessary by some tools and usually does not lead to user specific configuration
-		,	USER       = ( _pwd.getpwuid(_os.getuid()).pw_name,'none') # .
+		)
+		environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
+		environ_ancillary = pdict(                         # job execution environment, does not trigger rebuild upon modification
+			UID  = str(_os.getuid())                       # this may be necessary by some tools and usually does not lead to user specific configuration
+		,	USER = _pwd.getpwuid(_os.getuid()).pw_name     # .
 		)
 
 	class AntiRule(_RuleBase) :

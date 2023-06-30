@@ -46,9 +46,10 @@ namespace Engine {
 		Bool3   buildable = Yes               ;
 		if ( !jts.empty() && jts.back()->rule.is_special() ) SWEAR(jts.back()->rule.special()==special) ;
 		else                                                 un->job_tgts.append(::vector<JobTgt>({{Job(special,*this,deps),true/*is_sure*/}})) ;
-		for( Dep const& d : (*this)->job_tgts.back()->static_deps() )
+		for( Dep const& d : (*this)->job_tgts.back()->deps ) {
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
 			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
+		}
 		SWEAR(buildable!=No) ;
 		if (buildable==Yes) un->rule_tgts.clear() ;
 		_set_buildable(buildable) ;
@@ -135,7 +136,7 @@ namespace Engine {
 
 	void Node::_set_buildable_raw(DepDepth lvl) {
 		Trace trace("set_buildable",*this,lvl) ;
-		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,SpecialDFlags}}) ; // infinite dep path
+		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,{}}}) ; // infinite dep path
 		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
 		if (!shared()) {
 			UNode un{*this} ;

@@ -76,11 +76,11 @@ struct GatherDeps {
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		JobExecRpcReq::AccessInfo info         ;
-		NodeIdx                   critical_lvl = 0 ;       // if +info.dfs                , incremented at each critical barrier
-		PD                        read_date    ;           // if +info.dfs                , first read date
-		PD                        write_date   ;           // if              !info.idle(), first write date
-		DD                        file_date    ;           // if +info.dfs                , date of file when read as first access
+		PD                        read_date  = {}                ;             // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
+		PD                        write_date = {}                ;             // if !info.idle(), first write date
+		JobExecRpcReq::AccessInfo info       = {}                ;
+		DD                        file_date  = {}                ;             // if +info.dfs   , date of file when read as first access
+		DepOrder                  order      = DepOrder::Unknown ;
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -90,36 +90,40 @@ struct GatherDeps {
 	}
 	// services
 private :
-	AccessInfo& _info(::string const& name) ;
+	AccessInfo& _info( ::string const& name , bool force_new=false ) ;
 	//
-	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , ::string const& comment={} ) ;
+	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , bool force_new=false , ::string const& comment={} ) ;
 	//
-	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
 		bool parallel = false ;
 		for( auto const& f : files ) {
-			_new_access(pd,f,{},info,parallel,comment) ;
+			_new_access(pd,f,{},info,parallel,force_new,comment) ;
 			parallel = true ;
 		}
 	}
-	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
 		bool parallel = false ;
 		for( auto const& [f,dd] : dds ) {
-			_new_access(pd,f,dd,info,parallel,comment) ;
+			_new_access(pd,f,dd,info,parallel,force_new,comment) ;
 			parallel = true ;
 		}
 	}
 public :
-	void new_target( PD pd , S     && t , TFs n , TFs p , S const& c="target" ) { _new_access( pd , ::move(t) , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , false/*parallel*/ , c ) ; }
-	void new_target( PD pd , S const& t , TFs n , TFs p , S const& c="target" ) { _new_access( pd ,        t  , {} , {.write=true,.neg_tfs=n,.pos_tfs=p} , false/*parallel*/ , c ) ; }
-	void new_dep   ( PD pd , S     && d , DFs dfs       , S const& c="dep"    ) { _new_access( pd , ::move(d) , Disk::file_date(d) , {.dfs=dfs}          , false/*parallel*/ , c ) ; }
-	void new_dep   ( PD pd , S const& d , DFs dfs       , S const& c="dep"    ) { _new_access( pd ,        d  , Disk::file_date(d) , {.dfs=dfs}          , false/*parallel*/ , c ) ; }
+	void new_target( PD pd , S const& t         , TFs n , TFs p , S const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tfs=n,.pos_tfs=p},false/*parallel*/,false/*force_new*/,c) ; }
+	void new_dep   ( PD pd , S const& d , DD dd , DFs dfs       , S const& c="dep"    ) { _new_access(pd,d,dd,{.dfs=dfs}                         ,false/*parallel*/,false/*force_new*/,c) ; }
+	void new_static_deps( PD pd , vector_s const& ds , S const& c="static_deps" ) {
+		SWEAR(accesses.empty()) ;                                                               // ensure we do not insert static deps after hidden ones
+		_new_accesses( pd , ds  , {.dfs=StaticDFlags&~AccessDFlags} , true/*force_new*/ , c ) ; // ensure there is one entry for each static dep
+		n_statics = accesses.size() ;                                                           // ensure static deps are kept in original order
+	}
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
 		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
+			DD     dd = Disk::file_date(file) ;
 			DFlags fs ;
 			if (a.as_lnk) fs |= DFlag::Lnk ;
 			if (a.as_reg) fs |= DFlag::Reg ;
-			new_dep( pd , ::move(file) , fs , c ) ;
+			new_dep( pd , ::move(file) , dd , fs , c ) ;
 		}
 	}
 
@@ -129,24 +133,27 @@ public :
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
+	//
+	void reorder() ;                                                           // reorder accesses by first read access and manage Critical in AccessInfo.order
 	// data
-	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb      = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function used to contact server when necessary, by default, return error
-	::function<void       (::string_view const&)> live_out_cb    = [](::string_view const&)->void {             } ; // function used to report live output, by default dont report
-	ServerSockFd                                  master_sock    ;
-	in_addr_t                                     addr           = 0x7f000001                                     ; // local addr to which we can be contacted by running job
-	bool                                          create_group   = false                                          ; // if true <=> process is launched in its own group
-	AutodepMethod                                 autodep_method = AutodepMethod::Dflt                            ;
-	AutodepEnv                                    autodep_env    ;
-	Time::Delay                                   timeout        ;
-	::vector<int>                                 kill_sigs      ;                                                  // signals used to kill job
-	::string                                      chroot         ;
-	::string                                      cwd            ;
-	 ::map_ss const*                              env            = nullptr                                        ;
-	vmap_s<AccessInfo>                            accesses       ;
-	umap_s<NodeIdx   >                            access_map     ;
-	bool                                          seen_tmp       = false                                          ;
-	int                                           wstatus        = 0                                              ;
-	::string                                      stdout         ;                                                  // contains child stdout if child_stdout==Pipe
-	::string                                      stderr         ;                                                  // contains child stderr if child_stderr==Pipe
-	NodeIdx                                       critical_lvl   = 1                                              ; // incremented upon critical barrier
+	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb         = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function used to contact server when necessary, by default, return error
+	::function<void       (::string_view const&)> live_out_cb       = [](::string_view const&)->void {             } ; // function used to report live output, by default dont report
+	ServerSockFd                                  master_sock       ;
+	in_addr_t                                     addr              = 0x7f000001                                     ; // local addr to which we can be contacted by running job
+	bool                                          create_group      = false                                          ; // if true <=> process is launched in its own group
+	AutodepMethod                                 method            = AutodepMethod::Dflt                            ;
+	AutodepEnv                                    autodep_env       ;
+	Time::Delay                                   timeout           ;
+	::vector<uint8_t>                             kill_sigs         ;                                                  // signals used to kill job
+	::string                                      chroot            ;
+	::string                                      cwd               ;
+	 ::map_ss const*                              env               = nullptr                                        ;
+	vmap_s<AccessInfo>                            accesses          ;
+	umap_s<NodeIdx   >                            access_map        ;
+	bool                                          seen_tmp          = false                                          ;
+	int                                           wstatus           = 0                                              ;
+	::string                                      stdout            ;                                                  // contains child stdout if child_stdout==Pipe
+	::string                                      stderr            ;                                                  // contains child stderr if child_stderr==Pipe
+	::vector<PD>                                  critical_barriers ;                                                  // dates of critical barriers
+	NodeIdx                                       n_statics         = 0                                              ; // the first n_static entries are kept in original order
 } ;

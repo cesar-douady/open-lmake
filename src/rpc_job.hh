@@ -13,18 +13,20 @@
 #include "serialize.hh"
 #include "time.hh"
 
-ENUM_1( DFlag      // flags for deps
-,	Private = Lnk  // >=Private means flag cannot be seen in Lmakefile.py
-,	Essential      // show when generating user oriented graphs
-,	Error          // propagate error if dep is in error
-,	Required       // accept if dep cannot be built
-,	Lnk            // syscall sees link    content if dep is a link
-,	Reg            // syscall sees regular content if dep is regular
-,	Stat           // syscall sees inode   content (implied by other accesses)
+ENUM_1( DFlag                          // flags for deps
+,	Private = Static                   // >=Private means flag cannot be seen in Lmakefile.py
+,	Essential                          // show when generating user oriented graphs
+,	IgnoreError                        // propagate error if dep is in error
+,	Required                           // do not accept if dep cannot be built
+,	Static                             // dep is static
+,	Lnk                                // syscall sees link    content if dep is a link
+,	Reg                                // syscall sees regular content if dep is regular
+,	Stat                               // syscall sees inode   content (implied by other accesses)
 )
 using DFlags = BitMap<DFlag> ;
-constexpr DFlags StaticDFlags = DFlags::All                             ;
-constexpr DFlags HiddenDFlags = DFlag::Error                            ;
+constexpr DFlags StaticDFlags = DFlags::All & ~DFlag::IgnoreError       ;      // used for static deps
+constexpr DFlags DfltDFlags   = StaticDFlags & ~DFlag::Static           ;      // used with ldepend
+constexpr DFlags HiddenDFlags = DFlags::None                            ;      // used when file is accessed
 constexpr DFlags DataDFlags   { DFlag::Lnk , DFlag::Reg               } ;
 constexpr DFlags AccessDFlags { DFlag::Lnk , DFlag::Reg , DFlag::Stat } ;
 
@@ -290,7 +292,7 @@ struct JobDigest {
 	// data
 	Status                 status       = Status::New ;
 	::vmap_s<TargetDigest> targets      = {}          ;
-	::vmap_s<DepDigest   > deps         = {}          ;
+	::vmap_s<DepDigest   > deps         = {}          ;    // INVARIANT : sorted in first access order
 	AnalysisErr            analysis_err = {}          ;
 	::string               stderr       = {}          ;
 	::string               stdout       = {}          ;
@@ -416,12 +418,11 @@ struct JobRpcReply {
 			case Proc::Start :
 				::serdes(s,addr            ) ;
 				::serdes(s,ancillary_file  ) ;
-				::serdes(s,autodep_method  ) ;
 				::serdes(s,auto_mkdir      ) ;
 				::serdes(s,chroot          ) ;
-				::serdes(s,cwd             ) ;
+				::serdes(s,cwd_s           ) ;
 				::serdes(s,env             ) ;
-				::serdes(s,force_deps      ) ;
+				::serdes(s,static_deps     ) ;
 				::serdes(s,hash_algo       ) ;
 				::serdes(s,ignore_stat     ) ;
 				::serdes(s,interpreter     ) ;
@@ -431,6 +432,7 @@ struct JobRpcReply {
 				::serdes(s,kill_sigs       ) ;
 				::serdes(s,live_out        ) ;
 				::serdes(s,lnk_support     ) ;
+				::serdes(s,method          ) ;
 				::serdes(s,reason          ) ;
 				::serdes(s,remote_admin_dir) ;
 				::serdes(s,root_dir        ) ;
@@ -449,25 +451,25 @@ struct JobRpcReply {
 	Proc                      proc             = Proc::None          ;
 	in_addr_t                 addr             = 0                   ;         // proc == Start   , the address at which server can contact job, it is assumed that it can be used by subprocesses
 	::string                  ancillary_file   ;                               // proc == Start
-	AutodepMethod             autodep_method   = AutodepMethod::None ;         // proc == Start
 	bool                      auto_mkdir       = false               ;         // proc == Start   , if true <=> auto mkdir in case of chdir
 	::string                  chroot           ;                               // proc == Start
-	::string                  cwd              ;                               // proc == Start
+	::string                  cwd_s            ;                               // proc == Start
 	::vmap_ss                 env              ;                               // proc == Start
-	::vector_s                force_deps       ;                               // proc == Start   , deps that may clash with targets
+	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
 	bool                      ignore_stat      = false               ;         // proc == Start   , if true <=> stat-like syscalls do not trigger dependencies
 	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute script
 	bool                      is_python        = false               ;         // proc == Start   , if true <=> script is a Python script
 	::string                  job_tmp_dir      ;                               // proc == Start
 	bool                      keep_tmp         = false               ;         // proc == Start
-	vector<int>               kill_sigs        ;                               // proc == Start
+	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
-	LnkSupport                lnk_support      = LnkSupport  ::None  ;         // proc == Start
-	JobReason                 reason           = JobReasonTag::None  ;         // proc == Start
+	LnkSupport                lnk_support      = LnkSupport   ::None ;         // proc == Start
+	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
+	JobReason                 reason           = JobReasonTag ::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	::string                  root_dir         ;                               // proc == Start
-	::vmap_ss                 rsrcs            ;                               // proc == Start
+	::vector_s                rsrcs            ;                               // proc == Start   , for recording only, not used in job_exec, values only, keys can be gathered from rule
 	::string                  script           ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
 	::string                  stdin            ;                               // proc == Start

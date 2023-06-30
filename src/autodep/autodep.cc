@@ -39,7 +39,7 @@ int main( int argc , char* argv[] ) {
 	GatherDeps gather_deps { New } ;
 	//
 	try {
-		gather_deps.autodep_method          = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		gather_deps.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		gather_deps.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
 		gather_deps.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
 		gather_deps.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
@@ -68,11 +68,10 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "deps :\n" ;
 	::string prev_dep      ;
 	bool     prev_parallel = false ;
-	NodeIdx  critical_lvl  = 1     ;
 	NodeIdx  indent_lvl    = 0     ;
-	auto send = [&]( ::string const& dep={} , NodeIdx cl=-1 ) {                   // process deps with a delay of 1 because we need next order for ascii art
-		bool parallel = cl==0           ;
-		bool critical = cl>critical_lvl ;
+	auto send = [&]( ::string const& dep={} , DepOrder order=DepOrder::Critical ) {                   // process deps with a delay of 1 because we need next order for ascii art
+		bool parallel = order==DepOrder::Parallel ;
+		bool critical = order==DepOrder::Critical ;
 		if (!prev_dep.empty()) {
 			deps_stream << setw(indent_lvl*2)<<"" ;
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
@@ -85,7 +84,7 @@ int main( int argc , char* argv[] ) {
 		indent_lvl    += critical ;
 		prev_dep       = dep      ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.critical_lvl) ;
-	/**/                                                                   send(                   ) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.order) ;
+	/**/                                                                   send(            ) ; // send last
 	return status!=Status::Ok ;
 }

@@ -127,12 +127,12 @@ class CircularDeps(BaseRule) :
 	target = '{File}.circ'
 	dep    = '{File}.circ.cpy'
 	def cmd() :
-		print(sys.stdin.read(),f'circ')
+		print(sys.stdin.read(),'circ')
 
 class CircularHiddenDeps(BaseRule) :
 	target = '{File}.hcirc'
 	def cmd() :
-		print( open(f'{File}.hcirc.cpy').read() , f'hcirc' )
+		print( open(f'{File}.hcirc.cpy').read() , 'hcirc' )
 
 class Force(lmake.Rule) :
 	target = 'force'
@@ -159,7 +159,6 @@ def dec(x) :
 	x = int(x)
 	if x==1 : return ''
 	else    : return x-1
-	return int(x)-1
 class Fstring(Cpy) :
 	target = '{File}.cpy{Digit}'
 	dep    = '{File}.cpy{dec(Digit)}'

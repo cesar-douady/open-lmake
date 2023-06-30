@@ -22,10 +22,19 @@ namespace Py {
 		obj.increment_reference_count() ;
 		return obj ;
 	}
+	static inline PyObject* mk_static(PyObject* obj) {
+		Py_INCREF(obj) ;
+		return obj ;
+	}
+
+	extern PyObject* Ellipsis ;
 
 	static inline Module import_module(::string const& name) {
 		return Module(PyImport_ImportModule(name.c_str()),true/*clobber*/) ;
 	}
+
+	// like PyErr_Print, but return text instead of printing it (Python API does not provide any means to do this !)
+	::string err_str() ;
 
 	struct Match ;
 
@@ -68,7 +77,17 @@ namespace Py {
 		}
 	} ;
 
+	struct Gil {
+		Gil() : state{PyGILState_Ensure()} {}
+		~Gil() { PyGILState_Release(state) ; }
+		// data
+		PyGILState_STATE state ;
+	} ;
+
+	//
 	// implementation
+	//
+
 	inline Match Pattern::match(::string const& target) const {
 		// find py_mach by executing "re.compile('').__class__.fullmatch"
 		static Callable py_match = mk_static(

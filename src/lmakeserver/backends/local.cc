@@ -142,9 +142,13 @@ namespace Backends::Local {
 	struct LocalBackend : Backend {
 
 		struct WaitingEntry {
-			ReqIdx    n_reqs ;                                                 // number of reqs waiting for this job
-			Rsrcs2    rsrcs2 ;
-			JobReason reason ;
+            WaitingEntry() = default ;
+            WaitingEntry( Rsrcs2 const& rs2 , bool lo , JobReason const& r ) : rsrcs2{rs2} , reason{r} , n_reqs{1} , live_out{lo} {}
+            // data
+			Rsrcs2    rsrcs2   ;
+			JobReason reason   ;
+			ReqIdx    n_reqs   = 0     ;                                       // number of reqs waiting for this job
+            bool      live_out = false ;
 		} ;
 
 		struct RunningEntry {
@@ -228,9 +232,9 @@ namespace Backends::Local {
 			return CoarseDelay(val) ;
 		}
 	public :
-		// do not launch immediately to have a better view of what job should be launched first
-		virtual void submit( JobIdx job , ReqIdx req , CoarseDelay pressure , ::vmap_ss const& rsrcs , JobReason reason ) {
-			Rsrcs2    rs2   { *this , rsrcs } ;                                // compile rsrcs
+		// do not launch immediately to have a better view of which job should be launched first
+		virtual void submit( JobIdx job , ReqIdx req , CoarseDelay pressure , bool live_out , ::vmap_ss const& rsrcs , JobReason reason ) {
+			Rsrcs2 rs2 { *this , rsrcs } ;                                                                                  // compile rsrcs
 			if (!rs2->fit_in(capacity)) throw to_string("not enough resources to launch job ",Job(job).name()) ;
 			ReqEntry& entry = req_map.at(req) ;
 			SWEAR(!waiting_map       .contains(job)) ;                         // job must be a new one
@@ -238,11 +242,11 @@ namespace Backends::Local {
 			pressure = _adjust_pressure(pressure,rs2) ;
 			Trace trace("submit","rsrs",rs2,"adjusted_pressure",pressure) ;
 			//
-			waiting_map       [job] = { 1 , rs2 , reason } ;
+			waiting_map.emplace( job , WaitingEntry(rs2,live_out,reason) ) ;
 			entry.waiting_jobs[job] = pressure             ;
 			entry.waiting_queues[rs2].insert({pressure,job}) ;
 		}
-		virtual void add_pressure( JobIdx job , ReqIdx req , CoarseDelay pressure ) {
+		virtual void add_pressure( JobIdx job , ReqIdx req , CoarseDelay pressure , bool live_out ) {
 			ReqEntry    & entry = req_map.at(req)       ;
 			auto          it    = waiting_map.find(job) ;
 			if (it==waiting_map.end()) return ;                                // job is not waiting anymore, ignore
@@ -253,6 +257,7 @@ namespace Backends::Local {
 			//
 			entry.waiting_jobs[job] = pressure ;
 			entry.waiting_queues[we.rsrcs2].insert({pressure,job}) ;           // job must be known
+            we.live_out |= live_out ;
 			we.n_reqs++ ;
 		}
 		virtual void set_pressure( JobIdx job , ReqIdx req , CoarseDelay pressure ) {
@@ -364,17 +369,19 @@ namespace Backends::Local {
 					}
 					if (candidate==queues.end()) break ;                       // nothing for this req, process next req
 					//
-					::set<PressureEntry>& pressure_set   = candidate->second                                                 ;
-					auto                  pressure_first = pressure_set.begin()                                              ;
-					JobIdx                job            = pressure_first->job                                               ;
-					Rsrcs2 const&         rsrcs2         = candidate->first                                                  ;
-					Rsrcs                 rsrcs          = rsrcs2->within(avail)                                             ;
-					RsrcsData const&      rsrcs_data     = *rsrcs                                                            ;
-					::vmap_ss             rsrcs_map      ; for( auto const& [k,_] : Job(job)->rule->rsrcs.dct ) rsrcs_map.emplace_back(k,to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
-					::vector_s            cmd_line       = acquire_cmd_line( MyTag , job , ::move(rsrcs_map) , waiting_map.at(job).reason ) ;
-					//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					Child                 child          { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
-					//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					::set<PressureEntry>& pressure_set   = candidate->second     ;
+					auto                  pressure_first = pressure_set.begin()  ;
+					JobIdx                job            = pressure_first->job   ;
+					auto                  wit            = waiting_map.find(job) ;
+					Rsrcs2 const&         rsrcs2         = candidate->first      ;
+					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
+					RsrcsData const&      rsrcs_data     = *rsrcs                ;
+                    //
+					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->x_submit_rsrcs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
+					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , ::move(rsrcs_vec) , wit->second.reason ) ;
+					//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					Child                 child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
+					//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("child",req,job,pressure_first->pressure,child.pid,cmd_line) ;
 					child.mk_daemon() ;                                        // we have recorded the pid to wait and there is no fd to close
 					avail -= *rsrcs ;

@@ -31,8 +31,9 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
-	os << "GatherDeps(" << gd.accesses <<','<< gd.critical_lvl ;
-	if (gd.seen_tmp                 ) os <<",seen_tmp"         ;
+	os << "GatherDeps(" << gd.accesses ;
+	if (!gd.critical_barriers.empty()) os <<','<< gd.critical_barriers ;
+	if (gd.seen_tmp                  ) os <<",seen_tmp"                ;
 	return os << ')' ;
 }
 
@@ -41,34 +42,39 @@ using namespace Hash ;
 	if (+ai.info.dfs   ) os << "R:"<<ai.read_date  <<',' ;
 	if (!ai.info.idle()) os << "W:"<<ai.write_date <<',' ;
 	os << ai.info ;
-	if (+ai.file_date    ) os <<','<< "F:"<<ai.file_date    ;
-	if (ai.critical_lvl>1) os <<','<< "C:"<<ai.critical_lvl ;
-	return os <<')' ;
+	if (+ai.file_date) os <<','<< "F:"<<ai.file_date ;
+	return os <<','<< ai.order <<')' ;
 }
 
-GatherDeps::AccessInfo& GatherDeps::_info(::string const& name) {
-	auto it = access_map.find(name) ;
-	if (it!=access_map.end()) return accesses[it->second].second ;
+GatherDeps::AccessInfo& GatherDeps::_info( ::string const& name , bool force_new ) {
+	if (!force_new) {
+		auto it = access_map.find(name) ;
+		if (it!=access_map.end()) return accesses[it->second].second ;
+	}
 	//
 	access_map[name] = accesses.size() ;
 	accesses.emplace_back(name,AccessInfo()) ;
 	return accesses.back().second ;
 }
 
-void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , ::string const& comment ) {
+void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , bool force_new , ::string const& comment ) {
 	SWEAR(!file.empty()) ;
-	AccessInfo& info_  = _info(file) ;
+	AccessInfo& info_  = _info(file,force_new) ;
 	//
-	Bool3 after =
+	Bool3 after =                                                              // new entries have after==No
 		!info_.info.idle() && pd>info_.write_date ? Yes
 	:	+info_.info.dfs    && pd>info_.read_date  ? Maybe
 	:	                                            No
 	;
 	//
-	if ( +ai.dfs && after==No ) {
-		info_.read_date    = pd                          ;
-		info_.file_date    = dd                          ;
-		info_.critical_lvl = parallel ? 0 : critical_lvl ;
+	if ( +ai.dfs || ai.idle() ) {                                              // if we do not write, do book-keeping as read, even if we do not access the file
+		if (after==No) {
+			info_.read_date = pd                                        ;
+			info_.file_date = dd                                        ;
+			info_.order     = parallel?DepOrder::Parallel:DepOrder::Seq ;      // Critical is managed at the end, by comparing dates with critical_barriers
+		} else if (!(info_.info.dfs&AccessDFlags)) {
+			info_.file_date = dd ;                                             // if previous accesses did not actually access the file, record our date
+		}
 	}
 	if ( !ai.idle() && after!=Yes ) info_.write_date = pd ;
 	//
@@ -85,7 +91,7 @@ struct ServerReply {
 
 Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd child_stdout , Fd child_stderr ) {
 	using Proc = JobExecRpcProc ;
-	Trace trace("exec_child",STR(create_group),autodep_method,autodep_env,args) ;
+	Trace trace("exec_child",STR(create_group),method,autodep_env,args) ;
 	if (env) trace("env",*env) ;
 	Child child ;
 	//
@@ -94,8 +100,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	autodep_env.service  = master_sock.service(addr) ;
 	autodep_env.root_dir = *g_root_dir               ;
 	//
-	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with autodep_method==None or ptrace to allow support (ldepend, lmake module, ...) to work
-	if (autodep_method==AutodepMethod::Ptrace) {
+	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	if (method==AutodepMethod::Ptrace) {
 		// cannot simultaneously watch for data & child events using ptrace as SIGCHLD is not delivered for sub-processes of tracee
 		// so we split the responsability into 2 processes :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
@@ -127,8 +133,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
 		}
 	} else {
-		if (autodep_method>=AutodepMethod::Ld) {
-			bool     is_audit = autodep_method==AutodepMethod::LdAudit ;
+		if (method>=AutodepMethod::Ld) {
+			bool     is_audit = method==AutodepMethod::LdAudit ;
 			::string env_var  ;
 			//
 			if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/autodep_ld_audit.so"   ; }
@@ -249,20 +255,21 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					JobExecRpcReply sync_reply ;
 					sync_reply.proc = proc ;                                   // this may be incomplete and will be completed or sync_ will be made false
 					switch (proc) {
-						case Proc::None            :                                            goto Close ;
-						case Proc::Tmp             : seen_tmp = true ; trace("slave",fd,jerr) ; break      ;
-						case Proc::CriticalBarrier : critical_lvl++  ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat       :                                            goto Close ; // no reply, accept & read is enough to acknowledge
+						case Proc::None            :                                                                   goto Close ;
+						case Proc::Tmp             : seen_tmp = true                        ; trace("slave",fd,jerr) ; break      ;
+						case Proc::CriticalBarrier : critical_barriers.push_back(jerr.date) ; trace("slave",fd,jerr) ; break      ;
+						case Proc::Heartbeat       :                                                                   goto Close ; // no reply, accept & read is enough to acknowledge
 						//                           vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill            : kill_job(Status::Killed) ;                 goto Close ; // .
-						//                           ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access          : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; break ;
-						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ;         // getting the crc is a dependence on a file
-						//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						case Proc::Kill            : kill_job(Status::Killed) ;                                        goto Close ; // .
+						//                           ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access          : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ; break ;
+						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ;
+						//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
 							trace("slave",fd,jerr) ;
+							reorder() ;                                        // ensure server sees a coherent view
 							Fd reply_fd = server_cb(::move(jerr)) ;
 							trace("reply",reply_fd) ;
 							if (!reply_fd) {
@@ -290,5 +297,21 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			}
 		}
 	}
+	reorder() ;                                                                // ensure server sees a coherent view
 	return status ;
+}
+
+void GatherDeps::reorder() {
+	// keep the first n_statics entries in original order
+	::sort( accesses.begin()+n_statics , accesses.end() , []( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool { return a.second.read_date < b.second.read_date ; } ) ;
+	sort( critical_barriers ) ;
+	// ensure critical barrier crossing are reported as Critical
+	auto it = critical_barriers.cbegin() ;
+	for( auto& [_,ai] : accesses )
+		switch (ai.order) {
+			case DepOrder::Parallel : SWEAR(!( it!=critical_barriers.cend() && ai.read_date>*it )) ;                                    break ; // parallel accesses cannot cross critical barriers
+			case DepOrder::Seq      :                                                                                                           // report critical barrier crossing
+			case DepOrder::Critical : for ( ; it!=critical_barriers.cend() && ai.read_date>*it ; it++ ) ai.order = DepOrder::Critical ; break ; // just update it if already critical
+			default                 : SWEAR(!ai.info.idle()) ;                                                                                  // if only reading, we must have an order
+		}
 }

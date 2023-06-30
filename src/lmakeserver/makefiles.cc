@@ -115,7 +115,7 @@ namespace Engine {
 			//                     vvvvvvvvvvvvvvvvv
 			auto [deps,info_str] = _read_makefiles() ;
 			//                     ^^^^^^^^^^^^^^^^^
-			// we should write deps once makefiles info is correctly store as this implies that makefiles will not be read again unless they are modified
+			// we should write deps once makefiles info is correctly stored as this implies that makefiles will not be read again unless they are modified
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
 			// so we create a no_makefiles file that we unlink once everything is ok.
 			do {

@@ -81,8 +81,8 @@ namespace Engine {
 		bool active() const ;
 		//
 		//services
-		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vmap_ss const& rsrcs ) const ; // thread-safe
-		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                         ) const ; // thread-safe
+		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vector_s const& rsrcs ) const ; // thread-safe
+		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                          ) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -108,7 +108,7 @@ namespace Engine {
 		void audit_end_special( Req , SpecialStep , Node ) const ;
 		void audit_end_special( Req , SpecialStep        ) const ;
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( Req                                                                                                     ) ;
@@ -167,7 +167,7 @@ namespace Engine {
 		void             not_started  (                                                   ) ;       // Req was killed before it started
 		//
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		// data
 		::string    host ;             // host executing the job
 		ProcessDate date ;             // date at which action has been created (may be reported later to user, but with this date)
@@ -191,9 +191,14 @@ namespace Engine {
 		// statics
 		static bool s_frozen(Status status) { return status==Status::Frozen || status==Status::ErrFrozen ; }
 		// cxtors & casts
-		constexpr JobData(                                    )                                             { SWEAR(!rule.is_special()  ) ; }
-		constexpr JobData( Rule    r  , Deps sds , Tokens tks ) : deps{sds} , rule{r } , tokens{tks}        { SWEAR(!rule.is_special()  ) ; } // plain Job, static deps
-		/**/      JobData( Special sp , Deps ds={}            ) : deps{ds } , rule{sp} , exec_gen{NExecGen} { SWEAR(sp!=Special::Unknown) ; }
+		JobData() = default ;
+		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
+			SWEAR(sp!=Special::Unknown) ;
+			exec_gen = rule->x_match_cmd.spec.force ? ExecGenForce : NExecGen ; // unless forced, special jobs are always exec_ok
+		}
+		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
+			SWEAR(!rule.is_special()) ;
+		}
 		//
 		JobData           (JobData&& jd) : JobData(jd) {                                 jd.star_targets.forget() ; jd.deps.forget() ;                }
 		~JobData          (            ) {                                                  star_targets.pop   () ;    deps.pop   () ;                }
@@ -203,26 +208,25 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		// accesses
 	public :
-		NodeIdx              n_static_deps() const { return rule->all_deps_static ? deps.size() : rule->n_deps() ; }
-		::vector_view  <Dep> static_deps  ()       { return deps.view().subvec(0,n_static_deps())                ; }
-		::vector_view_c<Dep> static_deps  () const { return deps.view().subvec(0,n_static_deps())                ; }
-		//
 		bool cmd_ok    () const { return exec_gen >=                     rule->cmd_gen                  ; }
 		bool exec_ok   () const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
+		bool forced    () const { return exec_gen == ExecGenForce                                       ; }
 		bool frozen    () const { return s_frozen(status)                                               ; }
 		bool is_special() const { return rule.is_special() || frozen()                                  ; }
 		//
-		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
+		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; if (!forced()) exec_gen = ok ? rule->rsrcs_gen : 0 ; } // forced jobs stay forced
 		//
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
-			if (rule.is_special()) return { {}                , false } ;
-			if (+exec_time       ) return {       exec_time   , false } ;
-			else                   return { rule->exec_time   , true  } ;
+			if (rule.is_special()) return { {}              , false } ;
+			if (+exec_time       ) return {       exec_time , false } ;
+			else                   return { rule->exec_time , true  } ;
 		}
 		//
-		bool sure   () const ;
-		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
+		bool sure    () const ;
+		bool force   () const { return exec_gen==ExecGenForce ;                }
+		void mk_sure ()       { match_gen = Rule::s_match_gen ; _sure = true ; }
+		void mk_force()       { exec_gen  = ExecGenForce      ;                }
 		//
 		bool err() const {
 			if (run_status>=RunStatus::Err     ) return true                ;
@@ -283,10 +287,11 @@ namespace Engine {
 			}
 		}
 		// data
-		NodeIdx   dep_lvl        = 0                ;      // 31<=32 bits
-		RunAction done_          = RunAction::None  ;      //  3<= 8 bits , action for which we are done
-		Lvl       lvl            = Lvl::None        ;      //  3<= 8 bits
-		bool      start_reported = false            ;      //  1<= 8 bits , if true <=> start message has been reported to user
+		NodeIdx    dep_lvl          = 0                   ;                                   // 31<=32 bits
+		RunAction  done_         :3 = RunAction ::None    ; static_assert(+RunAction ::N<8) ; //      3 bits , action for which we are done
+		Lvl        lvl           :3 = Lvl       ::None    ; static_assert(+Lvl       ::N<8) ; //      3 bits
+		BackendTag backend       :2 = BackendTag::Unknown ; static_assert(+BackendTag::N<4) ; //      2 bits
+		bool       start_reported:1 = false               ;                                   //      1 bits , if true <=> start message has been reported to user
 	} ;
 	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
 
@@ -347,7 +352,6 @@ namespace Engine {
 	inline void Job::set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
 		if (!ri.set_pressure(pressure)) return ;                              // pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
-		if ((*this)->rule->no_deps    ) return ;
 		_set_pressure_raw(ri,pressure) ;
 	}
 
@@ -363,8 +367,8 @@ namespace Engine {
 		else                       return _submit_plain  (ri,reason,pressure) ;
 	}
 
-	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , bool modified , Delay exec_time ) const {
-		JobExec(*this,{},ProcessDate::s_now()).audit_end(pfx,cri,stderr,analysis_err,modified,exec_time) ;
+	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
+		JobExec(*this,{},ProcessDate::s_now()).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
 	}
 
 	//
@@ -392,7 +396,10 @@ namespace Engine {
 		if (match_gen>=Rule::s_match_gen) return _sure ;
 		_sure     = false             ;
 		match_gen = Rule::s_match_gen ;
-		for( Node d : static_deps() ) if (d->buildable!=Yes) return false ;
+		for( Dep const& d : deps ) {
+			if (!d.flags[DFlag::Static]) break ;
+			if (d->buildable!=Yes      ) return false ;
+		}
 		_sure = true ;
 		return true ;
 	}
@@ -408,9 +415,9 @@ namespace Engine {
 			n_wait-- ;
 		}
 		if (run_action>action) {                                               // increasing action requires to reset checks
-			lvl     &= Lvl::Dep   ;
-			dep_lvl  = 0          ;
-			action   = run_action ;
+			lvl     = lvl & Lvl::Dep ;
+			dep_lvl = 0              ;
+			action  = run_action     ;
 		}
 		if (n_wait) {
 			SWEAR(make_action<MakeAction::End) ;
@@ -419,12 +426,12 @@ namespace Engine {
 		||	make_action==MakeAction::PrematureEnd                              // if not started, no further analysis
 		||	( action==RunAction::Makable && job->sure() )                      // no need to check deps, they are guaranteed ok if sure
 		) {
-			lvl    = Lvl::Done ;
-			done_ |= action    ;
+			lvl   = Lvl::Done      ;
+			done_ = done_ | action ;
 		} else if (make_action==MakeAction::End) {
-			lvl     &= Lvl::Dep   ;                                            // we just ran, reset analysis
-			dep_lvl  = 0          ;
-			action   = run_action ;                                            // we just ran, we are allowed to decrease action
+			lvl     = lvl & Lvl::Dep ;                                         // we just ran, reset analysis
+			dep_lvl = 0              ;
+			action  = run_action     ;                                         // we just ran, we are allowed to decrease action
 		}
 		SWEAR(lvl!=Lvl::End) ;
 	}

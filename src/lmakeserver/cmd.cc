@@ -198,13 +198,14 @@ namespace Engine {
 		if (show_deps==No) return ;
 		NodeIdx critical_lvl = 0 ;
 		size_t  w            = 0 ;
-		for( VarIdx d=0 ; d<rule->n_deps() ; d++ ) w = ::max( w , rule->deps.dct[d].first.size() ) ;
+		for( auto const& [k,_] : rule->x_match.spec.deps ) w = ::max( w , k.size() ) ;
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
 			Dep const& dep = job->deps[d] ;
 			DepOrder   cdo = d  >0                ? dep           .order : DepOrder::Seq ;
 			DepOrder   ndo = d+1<job->deps.size() ? job->deps[d+1].order : DepOrder::Seq ;
 			if (cdo==DepOrder::Critical) critical_lvl++ ;
-			::string pfx = to_string( ::setw(w) , d<rule->n_deps()?rule->deps.dct[d].first:""s , ' ' ) ;
+			::string dep_key = dep.flags[DFlag::Static] && !rule->x_match.spec.full_dynamic ? rule->x_match.spec.deps[d].first : ""s ;
+			::string pfx     = to_string( ::setw(w) , dep_key , ' ' )                                                                ;
 			if      ( cdo!=DepOrder::Parallel && ndo!=DepOrder::Parallel ) pfx.push_back(' ' ) ;
 			else if ( cdo!=DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('/' ) ;
 			else if ( cdo==DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('|' ) ;
@@ -333,14 +334,22 @@ namespace Engine {
 								if (has_end  ) audit( fd , ro , Color::None , lvl+1 , "elapsed in job : "+to_string(float(digest.stats.job  )         ,'s' )  ) ;
 								if (has_end  ) audit( fd , ro , Color::None , lvl+1 , "elapsed total  : "+to_string(float(digest.stats.total)         ,'s' )  ) ;
 								if (has_end  ) audit( fd , ro , Color::None , lvl+1 , "memory         : "+to_string(      digest.stats.mem  /1'000'000,"MB")  ) ;
-								if (has_start) {
-									audit( fd , ro , Color::None , lvl+1 , "resources      :" ) ;
-									if (!report_start.second.rsrcs.empty()) {
+								if ( has_start && !report_start.second.rsrcs.empty() ) {
+									SubmitRsrcsSpec rsrcs_spec ;
+									bool no_rsrcs = false ;
+									try {
+										rsrcs_spec = rule->x_submit_rsrcs.eval(jt) ;
+									} catch(::string const& e) {
+										audit( fd , ro , Color::Err , lvl+1 , "resources : cannot compute" ) ;
+										audit( fd , ro , Color::Err , lvl+2 , e                            ) ;
+										no_rsrcs = true ;
+									}
+									if (!no_rsrcs) {
+										audit( fd , ro , Color::None , lvl+1 , "resources :" ) ;
 										size_t kw = 0 ;
-										for( auto const& [k,_] : report_start.second.rsrcs ) kw = ::max(kw,k.size()) ;
-										for( auto const& [k,v] : report_start.second.rsrcs ) audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k," : ",v) ) ;
-									} else {
-										audit( fd , ro , Color::None , lvl+2 , "<none>" ) ;
+										for( auto const& [k,_] : rsrcs_spec.rsrcs ) kw = ::max(kw,k.size()) ;
+										for( size_t r=0 ; r<rsrcs_spec.rsrcs.size() ; r++ )
+											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_spec.rsrcs[r].first," : ",report_start.second.rsrcs[r]) ) ;
 									}
 								}
 							} break ;

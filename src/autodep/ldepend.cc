@@ -24,10 +24,10 @@ int main( int argc , char* argv[]) {
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv }            ;
 	bool              verbose  = cmd_line.flags[Flag::Verbose] ;
-	DFlags            flags    = StaticDFlags                  ;
-	if (cmd_line.flags[Flag::NoError    ]) flags &= ~DFlag::Error     ;
-	if (cmd_line.flags[Flag::NoRequired ]) flags &= ~DFlag::Required  ;
-	if (cmd_line.flags[Flag::NoEssential]) flags &= ~DFlag::Essential ;
+	DFlags            flags    = DfltDFlags                    ;
+	if (cmd_line.flags[Flag::NoError    ]) flags |=  DFlag::IgnoreError ;
+	if (cmd_line.flags[Flag::NoRequired ]) flags &= ~DFlag::Required    ;
+	if (cmd_line.flags[Flag::NoEssential]) flags &= ~DFlag::Essential   ;
 	//
 	if (verbose) {
 		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags ) ;

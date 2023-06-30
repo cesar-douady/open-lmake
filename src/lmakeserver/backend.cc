@@ -25,7 +25,7 @@ namespace Backends {
 	ThreadQueue<Backend::DeferredEntry>   Backend::_s_deferred_queue ;
 
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry const& ste ) {
-		return os << "StartTabEntry(" << ste.conn <<','<< ste.reqs << ')' ;
+		return os << "StartTabEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry::Conn const& c ) {
@@ -79,6 +79,9 @@ namespace Backends {
 		Rule           rule          = job->rule                                ;
 		JobRpcReply    reply         { JobProc::Start                         } ;
 		::vector<Node> report_unlink ;
+		StartCmdSpec   x_start_cmd   ;
+		StartRsrcsSpec x_start_rsrcs ;
+		StartNoneSpec  x_start_none  ;
 		Trace trace("jrr",jrr) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab") ; return false ; }
@@ -86,52 +89,54 @@ namespace Backends {
 			trace("entry",entry) ;
 			switch (jrr.proc) {
 				case JobProc::Start :
-					//            vvvvvvvvvvvvvvvvvvvvvvvvvvv
-					entry.reqs  = s_start(rule->backend,+job) ;
-					entry.start = job_exec.date               ;
-					//            ^^^^^
+					//            vvvvvvvvvvvvvvvvvvvvvvv
+					entry.reqs  = s_start(entry.tag,+job) ;
+					entry.start = job_exec.date           ;
+					//            ^^^^^^^^^^^^^
 					try {
-						Rule::SimpleMatch match    = job.simple_match()      ;
-						in_addr_t         job_addr = fd.peer_addr()          ;
-						SmallId           small_id = _s_small_ids.acquire()  ;
-						bool              live_out = false                   ;
-						bool              keep_tmp = rule->keep_tmp          ;
-						for( ReqIdx r : entry.reqs ) {
-							Req req{r} ;
-							if (job.c_req_info(req).live_out        ) live_out = true ;
-							if (req->options.flags[ReqFlag::KeepTmp]) keep_tmp = true ;
-						}
-						job.fill_rpc_reply( reply , match , entry.rsrcs ) ;
+						x_start_cmd   = rule->x_start_cmd  .eval(job) ;
+						x_start_rsrcs = rule->x_start_rsrcs.eval(job) ;
+						x_start_none  = rule->x_start_none .eval(job) ;
 						//
-						reply.addr             = job_addr             ;
-						reply.ancillary_file   = job.ancillary_file() ;
-						reply.autodep_method   = rule->autodep_method ;
-						reply.auto_mkdir       = rule->auto_mkdir     ;
-						reply.chroot           = rule->chroot         ;
-						reply.cwd              = rule->cwd            ;
-					//	reply.env                                              // from job.fill_rpc_reply above
-					//	reply.force_deps                                       // from job.fill_rpc_reply above
-						reply.hash_algo        = g_config.hash_algo   ;
-					//	reply.host                                             // directly filled in job_exec
-						reply.ignore_stat      = rule->ignore_stat    ;
-						reply.interpreter      = rule->interpreter    ;
-						reply.is_python        = rule->is_python      ;
-					//	reply.job_id                                           // directly filled in job_exec
-						reply.keep_tmp         = keep_tmp             ;
-						reply.kill_sigs        = rule->kill_sigs      ;
-						reply.live_out         = live_out             ;
-						reply.lnk_support      = g_config.lnk_support ;
-						reply.reason           = entry.reason         ;
-						reply.root_dir         = *g_root_dir          ;
-						reply.rsrcs            = ::move(entry.rsrcs)  ;
-					//	reply.script                                           // from job.fill_rpc_reply above
-					//	reply.seq_id                                           // directly filled in job_exec
-						reply.small_id         = small_id             ;
-					//	reply.stdin                                            // from job.fill_rpc_reply above
-					//	reply.stdout                                           // from job.fill_rpc_reply above
-					//	reply.targets                                          // from job.fill_rpc_reply above
-						reply.timeout          = rule->timeout        ;
-						reply.remote_admin_dir = *g_remote_admin_dir  ;
+						Rule::SimpleMatch match    = job.simple_match()     ;
+						in_addr_t         job_addr = fd.peer_addr()         ;
+						SmallId           small_id = _s_small_ids.acquire() ;
+						bool              keep_tmp = x_start_none.keep_tmp  ; for( ReqIdx r : entry.reqs ) if (Req(r)->options.flags[ReqFlag::KeepTmp]) keep_tmp = true ;
+						//
+						job.fill_rpc_reply( reply , match , entry.rsrcs ) ;
+						for( ::pair_ss const& kv : x_start_cmd  .env ) reply.env.push_back(kv) ;
+						for( ::pair_ss const& kv : x_start_rsrcs.env ) reply.env.push_back(kv) ;
+						for( ::pair_ss const& kv : x_start_none .env ) reply.env.push_back(kv) ;
+						//
+						reply.addr             = job_addr                ;
+						reply.ancillary_file   = job.ancillary_file()    ;
+						reply.method           = x_start_cmd.method      ;
+						reply.auto_mkdir       = x_start_cmd.auto_mkdir  ;
+						reply.chroot           = x_start_cmd.chroot      ;
+						reply.cwd_s            = rule->cwd_s             ;
+					//	reply.env                                               // done above
+						reply.hash_algo        = g_config.hash_algo      ;
+					//	reply.host                                              // directly filled in job_exec
+						reply.ignore_stat      = x_start_cmd.ignore_stat ;
+						reply.interpreter      = x_start_cmd.interpreter ;
+						reply.is_python        = rule->is_python         ;
+					//	reply.job_id                                            // directly filled in job_exec
+						reply.keep_tmp         = keep_tmp                ;
+						reply.kill_sigs        = x_start_none.kill_sigs  ;
+						reply.live_out         = entry.live_out          ;
+						reply.lnk_support      = g_config.lnk_support    ;
+						reply.reason           = entry.reason            ;
+						reply.root_dir         = *g_root_dir             ;
+						reply.rsrcs            = ::move(entry.rsrcs)     ;
+					//	reply.script                                            // from job.fill_rpc_reply above
+					//	reply.seq_id                                            // directly filled in job_exec
+						reply.small_id         = small_id                ;
+					//	reply.static_deps                                       // from job.fill_rpc_reply above
+					//	reply.stdin                                             // from job.fill_rpc_reply above
+					//	reply.stdout                                            // from job.fill_rpc_reply above
+					//	reply.targets                                           // from job.fill_rpc_reply above
+						reply.timeout          = x_start_rsrcs.timeout   ;
+						reply.remote_admin_dir = *g_remote_admin_dir     ;
 						//
 						reply.job_tmp_dir      = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
 						//
@@ -142,25 +147,27 @@ namespace Backends {
 					} catch (::string const& e) {
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,e) ;
+						Tag tag = entry.tag ;
 						_s_start_tab.erase(it) ;
 						job_exec.host.clear() ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , false/*report*/                  ) ;
-						s_end(rule->backend,+job)                                                                                      ;
+						s_end(tag,+job)                                                                                                ;
 						g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , start , JobDigest{.status=Status::Err,.stderr=e} ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						return false ;
 					}
 				break ;
-				case JobProc::End :
+				case JobProc::End : {
 					start = entry.start ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
+					Tag tag = entry.tag ;
 					_s_start_tab.erase(it) ;
-					//vvvvvvvvvvvvvvvvvvvvvvv
-					s_end(rule->backend,+job) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^
-				break ;
+					//vvvvvvvvvvvvv
+					s_end(tag,+job) ;
+					//^^^^^^^^^^^^^
+				} break ;
 				default : ;
 			}
 		}
@@ -172,11 +179,11 @@ namespace Backends {
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
 				serialize( OFStream(dir_guard(job.ancillary_file())) , ::pair(jrr,reply) ) ;
-				bool deferred_start_report = Delay(job->exec_time)<rule->start_delay && report_unlink.empty() ; // if we report activity at start, deferring is meaningless
+				bool deferred_start_report = Delay(job->exec_time)<x_start_none.start_delay && report_unlink.empty() ; // if we report activity at start, deferring is meaningless
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , !deferred_start_report ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (deferred_start_report) _s_deferred_queue.emplace( start+rule->start_delay , ::move(job_exec) , jrr.seq_id ) ;
+				if (deferred_start_report) _s_deferred_queue.emplace( start+x_start_none.start_delay , ::move(job_exec) , jrr.seq_id ) ;
 				trace("started",reply) ;
 			} break ;
 			case JobProc::ChkDeps  : //                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -295,14 +302,19 @@ namespace Backends {
 		s_service_ready.wait() ;
 	}
 
-	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , ::vmap_ss&& rsrcs , JobReason reason ) {
-		Trace trace("acquire_cmd_line",job,reason) ;
+	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , bool live_out , ::vector_s&& rsrcs , JobReason reason ) {
+		::vmap_ss const& rsrcs_spec = Job(job)->rule->x_submit_rsrcs.spec.rsrcs ;
+		SWEAR( rsrcs_spec.empty() || rsrcs_spec.size()==rsrcs.size() ) ;
+		//
+		Trace trace("acquire_cmd_line",tag,job,reason) ;
 		SWEAR(!_s_mutex.try_lock()       ) ;
 		SWEAR(!_s_start_tab.contains(job)) ;
 		StartTabEntry& entry = _s_start_tab[job] ;
 		entry.open() ;
-		entry.rsrcs  = ::move(rsrcs) ;
-		entry.reason = reason        ;
+		entry.tag      = tag           ;
+		entry.rsrcs    = ::move(rsrcs) ;
+		entry.live_out = live_out      ;
+		entry.reason   = reason        ;
 		trace("create_start_tab",job,entry) ;
 		return { s_executable , s_server_fd.service(g_config.backends[+tag].addr) , ::to_string(entry.conn.seq_id) , ::to_string(job) , ::to_string(s_tab[+tag].is_remote) } ;
 	}

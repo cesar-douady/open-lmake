@@ -57,8 +57,8 @@ class BaseRule(Rule) :
 	n_tokens    = config.backends.local.cpu
 
 class Centos7Rule(BaseRule) :
-	environ = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ.PATH }
-	cache   = 'dir'
+	environ_cmd = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ_cmd.PATH }
+	cache       = 'dir'
 
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }

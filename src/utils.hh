@@ -832,8 +832,9 @@ struct Fd {
 			cnt += c ;
 		}
 	}
-	constexpr void close () { if (fd!=-1) ::close(fd) ; fd = -1 ; }
-	constexpr void detach() {                           fd = -1 ; }
+	Fd             dup   () const { return ::dup(fd) ;                  }
+	constexpr void close ()       { if (fd!=-1) ::close(fd) ; fd = -1 ; }
+	constexpr void detach()       {                           fd = -1 ; }
 	void no_std( int min_fd=Std.fd+1 ) {
 		if ( !*this || fd>=min_fd ) return ;
 		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , min_fd ) ;
@@ -1068,11 +1069,24 @@ private :
 // processes
 //
 
-static inline ::array<Fd,2> pipe() {
-	int fds[2] ;
-	swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
-	return {fds[0],fds[1]} ;
-}
+struct Pipe {
+	// cxtors & casts
+	Pipe(       ) = default ;
+	Pipe(NewType) { open() ; }
+	void open() {
+		int fds[2] ;
+		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
+		read  = fds[0] ;
+		write = fds[1] ;
+	}
+	void close() {
+		read .close() ;
+		write.close() ;
+	}
+	// data
+	Fd read  ;     // read  side of the pipe
+	Fd write ;     // write side of the pipe
+} ;
 
 static inline bool/*was_blocked*/ set_sig(int sig_num,Bool3 block) {
 	sigset_t mask ;
@@ -1222,7 +1236,7 @@ template<::unsigned_integral T> struct SmallIds {
 
 static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
 
-template<class T> static inline T dup(T const& x) { return x ; }               // simply duplicate a value
+template<class T> static inline T clone(T const& x) { return x ; }             // simply clone a value
 
 template<class T,bool Fence=false> struct Save {
 	 Save( T& ref , T const& val ) : saved(ref),_ref(ref) {                      ref  = val   ; if (Fence) fence() ; } // save and init, ensure sequentiality if asked to do so

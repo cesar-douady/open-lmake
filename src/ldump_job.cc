@@ -37,16 +37,17 @@ void print_start(::istream & s) {
 	::cout << "--start--\n" ;
 	::cout << "addr           : "  << hex<<jrr.addr          <<dec <<'\n' ;
 	::cout << "ancillary_file : "  <<      jrr.ancillary_file      <<'\n' ;
-	::cout << "autodep_method : "  <<      jrr.autodep_method      <<'\n' ;
 	::cout << "auto_mkdir     : "  <<      jrr.auto_mkdir          <<'\n' ;
 	::cout << "ignore_stat    : "  <<      jrr.ignore_stat         <<'\n' ;
 	::cout << "chroot         : "  <<      jrr.chroot              <<'\n' ;
+	::cout << "cwd_s          : "  <<      jrr.cwd_s               <<'\n' ;
 	::cout << "hash_algo      : "  <<      jrr.hash_algo           <<'\n' ;
 	::cout << "interpreter    : "  <<      jrr.interpreter         <<'\n' ;
 	::cout << "is_python      : "  <<      jrr.is_python           <<'\n' ;
 	::cout << "kill_sigs      : "  <<      jrr.kill_sigs           <<'\n' ;
 	::cout << "live_out       : "  <<      jrr.live_out            <<'\n' ;
 	::cout << "lnk_support    : "  <<      jrr.lnk_support         <<'\n' ;
+	::cout << "method         : "  <<      jrr.method              <<'\n' ;
 	::cout << "reason         : "  <<      jrr.reason              <<'\n' ;
 	::cout << "root_dir       : "  <<      jrr.root_dir            <<'\n' ;
 	::cout << "small_id       : "  <<      jrr.small_id            <<'\n' ;
@@ -55,10 +56,10 @@ void print_start(::istream & s) {
 	::cout << "targets        : "  <<      jrr.targets             <<'\n' ;
 	::cout << "timeout        : "  <<      jrr.timeout             <<'\n' ;
 	//
-	::cout << "rsrcs :\n"      ; _print_map   (jrr.rsrcs     )       ;
-	::cout << "force_deps :\n" ; _print_vector(jrr.force_deps)       ;
-	::cout << "env :\n"        ; _print_map   (jrr.env       )       ;
-	::cout << "script :\n"     ; ::cout << indent(jrr.script) <<'\n' ;
+	::cout << "rsrcs :\n"       ; _print_vector(jrr.rsrcs      )      ;
+	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)      ;
+	::cout << "env :\n"         ; _print_map   (jrr.env        )      ;
+	::cout << "script :\n"      ; ::cout << indent(jrr.script) <<'\n' ;
 }
 
 void print_end(::istream & s) {

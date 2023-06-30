@@ -147,30 +147,30 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 	uintptr_t        offset         = (uintptr_t)addr - map->l_addr    ;
 	//
 	char             hex_offset[20] ; ::snprintf(hex_offset,sizeof(hex_offset),"0x%lx",(unsigned long)offset) ;
-	::array<Fd,2>    c2p            = pipe() ;                                                                  // dont use Child as if called from signal handler, malloc is forbidden
+	Pipe             c2p            { New } ;                                                                   // dont use Child as if called from signal handler, malloc is forbidden
 	int pid = ::fork() ;
 	if (!pid) {                                                                // child
-		::close(c2p[0]) ;
-		if (c2p[1]!=Fd::Stdout) { ::dup2(c2p[1],Fd::Stdout) ; ::close(c2p[1]) ; }
+		::close(c2p.read) ;
+		if (c2p.write!=Fd::Stdout) { ::dup2(c2p.write,Fd::Stdout) ; ::close(c2p.write) ; }
 		::close(Fd::Stdin) ;                                                                                  // no input
 		const char* args[] = { "/bin/addr2line" , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 		::execv( args[0] , const_cast<char**>(args) ) ;
 		exit(2) ;                                                              // in case exec fails
 	}
-	::close(c2p[1]) ;
+	::close(c2p.write) ;
 	size_t n_sp ;
 	for( n_sp=0 ; n_sp<n_src_points ; n_sp++ ) {
 		SrcPoint& sp = src_points[n_sp] ;
 		for( size_t i=0 ;;) {                                                  // read first line to the end, even in case of sp.func overflows
 			char c ;
-			if (::read(c2p[0],&c,1)!=1) {                    goto Return ; }   // if we cannot read a line, we are done
-			if (c=='\n'               ) { sp.func[i] = 0   ; break       ; }
-			if (i<sizeof(sp.func)-1   ) { sp.func[i++] = c ;               }
+			if (::read(c2p.read,&c,1)!=1) {                    goto Return ; } // if we cannot read a line, we are done
+			if (c=='\n'                 ) { sp.func[i] = 0   ; break       ; }
+			if (i<sizeof(sp.func)-1     ) { sp.func[i++] = c ;               }
 		}
 		size_t col = -1 ;
 		for( size_t i=0 ;;) {                                                  // read first line to the end, even in case of sp.func overflows
 			char c ;
-			if (::read(c2p[0],&c,1)!=1) {                    goto Return ; }   // if we cannot read a line, we are done
+			if (::read(c2p.read,&c,1)!=1) {                    goto Return ; }   // if we cannot read a line, we are done
 			if (c==':'                ) { col = i          ;               }
 			if (c=='\n'               ) { sp.file[i] = 0   ; break       ; }
 			if (i<sizeof(sp.file)-1   ) { sp.file[i++] = c ;               }
@@ -182,7 +182,7 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 		_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names and alignment makes all lines very long
 	}
 Return :
-	::close(c2p[0]) ;
+	::close(c2p.read) ;
 	::waitpid(pid,nullptr,0) ;
 	return n_sp ;
 }
@@ -365,34 +365,31 @@ bool/*parent*/ Child::spawn(
 	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      ) ;        // .
 	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      ) ;        // .
 	SWEAR(!( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr        )) ;        // .
-	::array<Fd,2> p2c  ;
-	::array<Fd,2> c2po ;
-	::array<Fd,2> c2pe ;
-	if (stdin_fd ==Pipe) p2c  = pipe() ; else if (+stdin_fd ) p2c [0] = stdin_fd  ;
-	if (stdout_fd==Pipe) c2po = pipe() ; else if (+stdout_fd) c2po[1] = stdout_fd ;
-	if (stderr_fd==Pipe) c2pe = pipe() ; else if (+stderr_fd) c2pe[1] = stderr_fd ;
+	::Pipe p2c  ;
+	::Pipe c2po ;
+	::Pipe c2pe ;
+	if (stdin_fd ==Pipe) p2c .open() ; else if (+stdin_fd ) p2c .read  = stdin_fd  ;
+	if (stdout_fd==Pipe) c2po.open() ; else if (+stdout_fd) c2po.write = stdout_fd ;
+	if (stderr_fd==Pipe) c2pe.open() ; else if (+stderr_fd) c2pe.write = stderr_fd ;
 	as_group = as_group_ ;
 	pid      = fork()    ;
 	if (!pid) { // child
 		if (as_group) ::setpgid(0,0) ;
+		//
 		sigset_t full_mask ; ::sigfillset(&full_mask) ;
 		::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                        // restore default behavior
-		if (stdin_fd ==Pipe) { p2c [1].close() ; p2c [0].no_std() ; }          // could be optimized, but too complex to manage
-		if (stdout_fd==Pipe) { c2po[0].close() ; c2po[1].no_std() ; }          // .
-		if (stderr_fd==Pipe) { c2pe[0].close() ; c2pe[1].no_std() ; }          // .
+		//
+		if (stdin_fd ==Pipe) { p2c .write.close() ; p2c .read .no_std() ; }    // could be optimized, but too complex to manage
+		if (stdout_fd==Pipe) { c2po.read .close() ; c2po.write.no_std() ; }    // .
+		if (stderr_fd==Pipe) { c2pe.read .close() ; c2pe.write.no_std() ; }    // .
 		// set up std fd
-		if      (stdin_fd==None   ) ::close(Fd::Stdin)        ;
-		else if (p2c[0]!=Fd::Stdin) ::dup2(p2c[0],Fd::Stdin ) ;
+		if (stdin_fd ==None) ::close(Fd::Stdin ) ; else if (p2c .read !=Fd::Stdin ) ::dup2(p2c .read ,Fd::Stdin ) ;
+		if (stdout_fd==None) ::close(Fd::Stdout) ; else if (c2po.write!=Fd::Stdout) ::dup2(c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
+		if (stderr_fd==None) ::close(Fd::Stderr) ; else if (c2pe.write!=Fd::Stderr) ::dup2(c2pe.write,Fd::Stderr) ;
 		//
-		if      (stdout_fd==None    ) { ::close(Fd::Stdout)        ; } // save stdout in case it is modified and we want to redirect stderr to it
-		else if (c2po[1]!=Fd::Stdout) { ::dup2(c2po[1],Fd::Stdout) ; } // .
-		//
-		if      (stderr_fd==None    ) ::close(Fd::Stderr)        ;
-		else if (c2pe[1]!=Fd::Stderr) ::dup2(c2pe[1],Fd::Stderr) ;
-		//
-		if (p2c [0]>Fd::Std) p2c [0].close() ;                                 // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-		if (c2po[1]>Fd::Std) c2po[1].close() ;                                 // .
-		if (c2pe[1]>Fd::Std) c2pe[1].close() ;                                 // .
+		if (p2c .read >Fd::Std) p2c .read .close() ;                           // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+		if (c2po.write>Fd::Std) c2po.write.close() ;                           // .
+		if (c2pe.write>Fd::Std) c2pe.write.close() ;                           // .
 		//
 		const char** child_env  = const_cast<const char**>(environ) ;
 		::vector_s   env_vector ;                                              // ensure actual env strings lifetime last until execve call
@@ -427,8 +424,8 @@ bool/*parent*/ Child::spawn(
 		pid = -1 ;
 		throw to_string("cannot exec (",strerror(errno),") : ",args) ;         // in case exec fails
 	}
-	if (stdin_fd ==Pipe) { stdin  = p2c [1] ; p2c [0].close() ; }
-	if (stdout_fd==Pipe) { stdout = c2po[0] ; c2po[1].close() ; }
-	if (stderr_fd==Pipe) { stderr = c2pe[0] ; c2pe[1].close() ; }
+	if (stdin_fd ==Pipe) { stdin  = p2c .write ; p2c .read .close() ; }
+	if (stdout_fd==Pipe) { stdout = c2po.read  ; c2po.write.close() ; }
+	if (stderr_fd==Pipe) { stderr = c2pe.read  ; c2pe.write.close() ; }
 	return true ;
 }

@@ -235,7 +235,7 @@ namespace Disk {
 		if (res>=0) return res                ;
 		else        return _POSIX_SYMLOOP_MAX ;
 	}
-	RealPath::SolveReport RealPath::solve( Fd at , ::string const& file , bool no_follow ) {
+	RealPath::SolveReport RealPath::solve( Fd at , ::string const& file , bool no_follow , bool root_ok ) {
 		static ::string const* const proc         = new ::string("/proc") ;
 		static int             const s_n_max_lnks = _get_symloop_max()    ;
 		if (file.empty()) return {} ;
@@ -320,10 +320,10 @@ namespace Disk {
 			else                   { end = -1 ;                      }         // end must point to the /, invent a virtual one before the string
 			real.resize(prev_real_size) ;                                      // links are relative to containing dir, suppress last component
 		}
-		// admin is typically in repo, tmp might be, repo root is not actually in repo
-		if ( !in_repo || in_tmp || in_admin || real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , false , in_tmp } ;
-		else                                                                     return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true  , false  } ;
-
+		// admin is typically in repo, tmp might be, repo root is in_repo
+		if      ( !in_repo || in_tmp || in_admin  ) return { {}                                , ::move(lnks) , false   , in_tmp } ;
+		else if ( real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , root_ok , false  } ;
+		else                                        return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true    , false  } ;
 	}
 
 	::vmap_s<RealPath::ExecAccess> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {

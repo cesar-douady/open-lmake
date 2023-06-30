@@ -84,9 +84,10 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 			dd               = file_date(s_get_root_fd(),f)                    ;
 			some_in_tmp     |= in_tmp                                          ;
 		}
-		jerr.auto_date = false ;                                             // files are now physical and dated
+		jerr.auto_date = false ;                                               // files are now physical and dated
 		if ( some_in_tmp && jerr.info.write ) _report(JobExecRpcProc::Tmp) ;
 	}
+	jerr.date = ProcessDate::s_now() ;                                         // ensure date is posterior to links encountered while solving
 	jerr.comment += ".backdoor" ;
 	_report(jerr) ;
 	if (jerr.sync) return get_reply_cb() ;
@@ -133,8 +134,8 @@ Record::Open::Open( bool active , Record& r , int at , const char* file , int fl
 	bool anon      = flags &  O_TMPFILE           ;
 	bool no_access = flags & (O_PATH|O_DIRECTORY) ;
 	//
-	if (anon     ) {                                        return ; }
-	if (no_access) { r.solve( at , file , no_follow , c ) ; return ; }        // this actually behaves as a stat
+	if (anon     ) {                                       return ; }
+	if (no_access) { r.stat( at , file , no_follow , c ) ; return ; }          // this actually behaves as a stat
 	//
 	/**/                                        ::tie(real,in_tmp)  = r._solve( at , file , no_follow , c ) ;
 	/**/                                        do_read             = s_do_read (flags)                      ;
@@ -172,9 +173,7 @@ Record::ReadLnk::ReadLnk( bool active , Record& r , int at , const char* file , 
 Record::ReadLnk::ReadLnk( bool active , Record& r , const char* file , char* buf , size_t sz , ::string const& c ) : comment{c} {
 	SWEAR(active) ;
 	JobExecRpcReq   jerr  = IMsgBuf::s_receive<JobExecRpcReq>(file) ;
-	bool            sync  = jerr.sync                               ;
 	JobExecRpcReply reply = r.backdoor(::move(jerr))                ;
-	if (!sync) return ;
 	SWEAR(sz>sizeof(MsgBuf::Len)) ;                                            // we cant do much if we dont even have the necessary size to report the needed size
 	::string reply_str = OMsgBuf::s_send(reply) ;
 	if (sz>=reply_str.size()) ::memcpy( buf , reply_str.data() , reply_str.size()    ) ;

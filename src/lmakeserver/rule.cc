@@ -37,12 +37,13 @@ namespace Engine {
 	// - true if <identifier> is followed by a *
 	// - the regular expression that follows the : or nullptr for the first case
 	// /!\ : this function is also implemented in read_makefiles.py:add_stems, both must stay in sync
-	using ParsePyFunc = ::function<string( string const& key , bool star , bool unnamed , string const* re )> ;
-	static ::string _parse_py( ::string const& str , bool allow_re , size_t* unnamed_star_idx , ParsePyFunc const& cb ) {
+	using ParsePyFuncFixed = ::function<void( string const& fixed                                             )> ;
+	using ParsePyFuncStem  = ::function<void( string const& key , bool star , bool unnamed , string const* re )> ;
+	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncFixed const& cb_fixed , ParsePyFuncStem const& cb_stem ) {
 		enum { Literal , SeenStart , Key , Re , SeenStop } state = Literal ;
-		::string res ;
-		::string key ;
-		::string re  ;
+		::string fixed ;
+		::string key   ;
+		::string re    ;
 		size_t unnamed_idx = 1 ;
 		size_t depth = 0 ;
 		for( char c : str ) {
@@ -51,19 +52,21 @@ namespace Engine {
 				case Literal :
 					if      (c=='{') state = SeenStart ;
 					else if (c=='}') state = SeenStop  ;
-					else             res.push_back(c) ;
+					else             fixed.push_back(c) ;
 				break ;
 				case SeenStop :
 					if (c!='}') goto End ;
 					state = Literal ;
-					res.push_back(c) ;                                         // }} are transformed into }
+					fixed.push_back(c) ;                                       // }} are transformed into }
 				break ;
 				case SeenStart :
 					if (c=='{') {
 						state = Literal ;
-						res.push_back(c) ;                                     // {{ are transformed into {
+						fixed.push_back(c) ;                                   // {{ are transformed into {
 						break ;
 					}
+					cb_fixed(fixed) ;
+					fixed.clear() ;
 					state = Key ;
 				/*fall through*/
 				case Key :
@@ -75,7 +78,6 @@ namespace Engine {
 					goto Call ;
 				break ;
 				case Re :
-					if (!allow_re) throw to_string("no stem definition allowed in ",str) ;
 					if (!( c=='}' && depth==0 )) {
 						if      (c=='{') depth++ ;
 						else if (c=='}') depth-- ;
@@ -99,23 +101,28 @@ namespace Engine {
 					} else {
 						if (!is_identifier(key)) throw to_string("bad key ",key," must be empty or an identifier") ;
 					}
-					if (with_re) res += cb(key,star,unnamed,&re    ) ;
-					else         res += cb(key,star,unnamed,nullptr) ;
+					if (with_re) { cb_stem(key,star,unnamed,&re    ) ; re .clear() ; }
+					else         { cb_stem(key,star,unnamed,nullptr) ;               }
 					key.clear() ;
-					re .clear() ;
 					state = Literal ;
 				break ;
 			}
 		}
 	End :
 		switch (state) {
-			case Literal   : return res ;
+			case Literal   : cb_fixed(fixed) ; break ;                         // trailing fixed
 			case SeenStop  : throw to_string("spurious } in ",str) ;
 			case SeenStart :
 			case Key       :
 			case Re        : throw to_string("spurious { in ",str) ;
 			default : FAIL(state) ;
 		}
+	}
+	static inline void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
+		_parse_py( str , unnamed_star_idx , [](::string const&)->void{} , cb_stem ) ;
+	}
+	static inline void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncFixed const& cb_fixed ) {
+		_parse_py( str , unnamed_star_idx , cb_fixed , [](::string const&,bool,bool,::string const*)->void{} ) ;
 	}
 
 	// star stems are represented by a StemMrkr followed by the stem idx
@@ -126,7 +133,7 @@ namespace Engine {
 		::string res   ;
 		uint8_t  state = 0 ;                                                   // may never be above 72
 		VarIdx   stem  = 0 ;
-		for( char c : str ) {
+		for( char c : str ) {                                                  // XXX : change loop and use to_int to determine stems
 			if (state>0) {
 				stem |= VarIdx(uint8_t(c))<<((state-1)*8) ;
 				if (state<sizeof(VarIdx)) { state++ ; continue ; }
@@ -174,30 +181,6 @@ namespace Engine {
 	}
 
 	//
-	// DepSpec
-	//
-
-	::ostream& operator<<( ::ostream& os , RuleData::DepSpec const& ds ) {
-		return os << "DS(" << ds.pattern <<','<< ds.is_code << ')' ;
-	}
-
-	//
-	// DepsSpec
-	//
-
-	::ostream& operator<<( ::ostream& os , RuleData::DepsSpec const& ds ) {
-		return os << "DsS(" << ds.dct << ')' ;
-	}
-
-	//
-	// EnvSpec
-	//
-
-	::ostream& operator<<( ::ostream& os , RuleData::EnvSpec const& es ) {
-		return os << "ES(" << es.val <<','<< es.flag << ')' ;
-	}
-
-	//
 	// Rule
 	//
 
@@ -223,23 +206,159 @@ namespace Engine {
 	}
 
 	//
+	// Spec
+	//
+
+	void Spec::s_acquire( bool& dst , PyObject* py_src ) {
+		if (s_easy(dst,py_src,false)) return ;
+		//
+		int v = PyObject_IsTrue(py_src) ;
+		if (v==-1) throw "cannot determine truth value"s ;
+		dst = v ;
+	}
+
+	void Spec::s_acquire( Time::Delay& dst , PyObject* py_src ) {
+		if (s_easy(dst,py_src,{})) return ;
+		//
+		if (PyFloat_Check(py_src)) {
+			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
+		} else if (PyUnicode_Check(py_src)) {
+			PyObject* f = PyFloat_FromString(py_src) ;
+			if (!f) throw ""s ;
+			dst = Time::Delay(PyFloat_AsDouble(f)) ;
+			Py_DECREF(f) ;
+		}
+	}
+
+	void Spec::s_acquire( ::string& dst , PyObject* py_src ) {
+		if (s_easy(dst,py_src,{})) return ;
+		//
+		bool is_str = PyUnicode_Check(py_src) ;
+		if (!is_str) py_src = PyObject_Str(py_src) ;
+		if (!py_src) throw "cannot convert to str"s ;
+		dst = PyUnicode_AsUTF8(py_src) ;
+		if (!is_str) Py_DECREF(py_src) ;
+	}
+
+	//
+	// MatchSpec
+	//
+
+	::pair<string,DFlags> MatchSpec::s_split_dflags( ::string const& key , PyObject* py_dep ) {
+		DFlags flags = StaticDFlags ;
+		if ( PyUnicode_Check (py_dep)) return { PyUnicode_AsUTF8(py_dep) , flags } ;
+		if (!PySequence_Check(py_dep)) throw to_string("dep ",key," is neither a str nor a sequence") ;
+		PyObject* py_fast_dep = PySequence_Fast(py_dep,"") ;
+		SWEAR(py_fast_dep) ;
+		ssize_t    n = PySequence_Fast_GET_SIZE(py_fast_dep) ;
+		PyObject** p = PySequence_Fast_ITEMS   (py_fast_dep) ;
+		if (n<1                   ) throw to_string("dep ",key,"is empty"    ) ;
+		if (!PyUnicode_Check(p[0])) throw to_string("dep ",key,"is not a str") ;
+		for( ssize_t i=1 ; i<n ; i++ ) {
+			if (!PyUnicode_Check(p[i])) throw to_string("dep ",key,"has a flag which is not a str") ;
+			const char* flag_str = PyUnicode_AsUTF8(p[i]) ;
+			bool        neg      = flag_str[0]=='-'       ;
+			flag_str += neg ;
+			if (!can_mk_enum<DFlag>(flag_str)) throw to_string("unexpected flag ",flag_str," for dep ",key) ;
+			DFlag flag = mk_enum<DFlag>(flag_str) ;
+			if (flag>=DFlag::Private) throw to_string("unexpected flag ",flag_str," for dep ",key) ;
+			if (neg) flags &= ~flag ;
+			else     flags |=  flag ;
+		}
+		return { PyUnicode_AsUTF8(p[0]) , flags } ;
+	}
+
+	void MatchSpec::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
+		if (py_src==Py_None) {
+			full_dynamic = true ;
+			return ;
+		}
+		full_dynamic = false ;
+		SWEAR(PyDict_Check(py_src)) ;
+		PyObject*        py_key = nullptr/*garbage*/ ;
+		PyObject*        py_val = nullptr/*garbage*/ ;
+		Py_ssize_t       pos    = 0                  ;
+		::map_s<DepSpec> map    ;                                              // use a sorted map so deps are sorted, which makes them more stable
+		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
+			SWEAR(PyUnicode_Check(py_key)) ;
+			::string key = PyUnicode_AsUTF8(py_key) ;
+			if (py_val==Py_None) {
+				map[key] ;                                                     // create empty entry to allow dynamic deps to use key
+			} else {
+				auto     [dep,flags]  = s_split_dflags(key,py_val) ;
+				::string parsed_dep   ;
+				VarIdx   seen_unnamed = 0                      ;
+				_parse_py( dep , nullptr/*unnamed_star_idx*/ ,
+					[&]( ::string const& fixed )->void {
+						parsed_dep.append(fixed) ;
+					}
+				,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
+						SWEAR( static_stem_idxs.contains(k) && !star && !def ) ;
+						size_t res_sz = parsed_dep.size() ;
+						parsed_dep.resize(parsed_dep.size()+1+sizeof(VarIdx)) ;
+						char* p = parsed_dep.data()+res_sz ;
+						p[0] = Rule::StemMrkr ;
+						from_int( p+1 , static_stem_idxs.at(k) ) ;
+						seen_unnamed += unnamed ;
+					}
+				) ;
+				if ( seen_unnamed && seen_unnamed!=n_static_unnamed_stems ) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
+				map[key] = { rd.add_cwd(::move(parsed_dep)) , flags } ;
+			}
+		}
+		if (map.size()>Rule::NoVar) throw "too many static deps"s ;
+		deps = mk_vmap(map) ;
+	}
+
+	::vmap<Node,DFlags> MatchSpec::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
+		auto subst = [&](::string const& d)->::string {
+			return _subst_target( d , [&](VarIdx s)->::string { return stems[s] ; } ) ;
+		} ;
+		::vmap<Node,DFlags> res ;
+		for( auto const& [k,ds] : deps ) res.emplace_back( subst(ds.pattern) , ds.flags ) ;
+		if (!s_easy(res,py_src,{})) {
+			::map_s<pair<Node,DFlags>> map ;
+			for( size_t d=0 ; d<deps.size() ; d++ ) map[deps[d].first] = res[d] ;
+			PyObject*  py_key = nullptr/*garbage*/ ;
+			PyObject*  py_val = nullptr/*garbage*/ ;
+			Py_ssize_t pos    = 0                  ;
+			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
+				if (!PyUnicode_Check(py_key)) {
+					PyObject* py_key_str = PyObject_Str(py_key) ;
+					if (!py_key_str) throw "a dep has a non printable key"s ;
+					::string key_str = PyUnicode_AsUTF8(py_key_str) ;
+					Py_DECREF(py_key_str) ;
+					throw to_string("a dep has a non str key : ",key_str) ;
+				}
+				::string key = PyUnicode_AsUTF8(py_key) ;
+				if (py_val==Py_None) { map.erase(key) ; continue ; }
+				//
+				auto [dep,flags] = s_split_dflags(key,py_val) ;
+				if (!full_dynamic) SWEAR(map.contains(key)) ;
+				map[key] = { rule->add_cwd(::move(dep)) , flags } ;
+			}
+			if (full_dynamic) for( auto const& [k,v] : map          ) res.push_back(v) ;
+			else              for( size_t d=0 ; d<deps.size() ; d++ ) res[d] = map[deps[d].first]  ;
+		}
+		return res ;
+	}
+
+	//
 	// RuleData
 	//
 
 	size_t RuleData::s_name_sz = 0 ;
 
 	RuleData::RuleData(Special s) {
-		prio            = Infinity    ;                                        // by default, rule is alone and this value has no impact
-		name            = mk_snake(s) ;
-		all_deps_static = true        ;                                        // for those which have deps, they certainly need them
+		prio = Infinity    ;                                                   // by default, rule is alone and this value has no impact
+		name = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      :                    force   = true ;               break ; // Force so that source files are systematically inspected
-			case Special::Req      :                    force   = true ;               break ;
-			case Special::Uphill   : prio = +Infinity ;                  anti = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
-			case Special::Infinite : prio = -Infinity ; no_deps = true ;               break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
+			case Special::Src      :                    x_match_cmd.spec.force = true ; break ; // Force so that source files are systematically inspected
+			case Special::Req      :                    x_match_cmd.spec.force = true ; break ;
+			case Special::Uphill   : prio = +Infinity ; anti                   = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
+			case Special::Infinite : prio = -Infinity ;                                 break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
 			default : FAIL(s) ;
 		}
-		_update_sz() ;
 	}
 
 	::ostream& operator<<( ::ostream& os , RuleData const& rd ) {
@@ -316,27 +435,18 @@ namespace Engine {
 			//
 			// acquire essential (necessary for Anti)
 			//
-			auto add_cwd = [&](Py::Object const& py_txt) -> ::string {
-				::string txt = Py::String(py_txt) ;
-				if      (txt[0]=='/' ) return txt.substr(1)          ;
-				else if (!cwd.empty()) return to_string(cwd,'/',txt) ;
-				else                   return txt                    ;
-			} ;
 			//
-			field = "__anti__" ; if (dct.hasKey(field)) anti = Py::Object(dct[field]).as_bool() ;
-			field = "name"     ; if (dct.hasKey(field)) name = Py::String(dct[field])           ; else throw "not found"s ;
-			field = "prio"     ; if (dct.hasKey(field)) prio = Py::Float (dct[field])           ;
-			field = "cwd"      ; if (dct.hasKey(field)) cwd  = Py::String(dct[field])           ;
-			if (!cwd.empty()) {
-				if (cwd.back ()!='/') cwd += '/' ;
-				if (cwd.front()=='/') {
-					if (cwd.starts_with(*g_root_dir+'/')) cwd.erase(0,g_root_dir->size()+1) ;
-					else                                  throw "cwd must be relative to root dir"s ;
+			field = "__anti__" ; if (dct.hasKey(field)) anti  = Py::Object(dct[field]).as_bool() ;
+			field = "name"     ; if (dct.hasKey(field)) name  = Py::String(dct[field])           ; else throw "not found"s ;
+			field = "prio"     ; if (dct.hasKey(field)) prio  = Py::Float (dct[field])           ;
+			field = "cwd"      ; if (dct.hasKey(field)) cwd_s = Py::String(dct[field])           ;
+			if (!cwd_s.empty()) {
+				if (cwd_s.back ()!='/') cwd_s += '/' ;
+				if (cwd_s.front()=='/') {
+					if (cwd_s.starts_with(*g_root_dir+'/')) cwd_s.erase(0,g_root_dir->size()+1) ;
+					else                                    throw "cwd must be relative to root dir"s ;
 				}
-				if (!cwd.empty()) {
-					prio += g_config.sub_prio_boost * ::count(cwd.begin(),cwd.end(),'/') ;
-					cwd.pop_back() ;                                                       // cwd could have been emptied by previous line
-				}
+				prio += g_config.sub_prio_boost * ::count(cwd_s.begin(),cwd_s.end(),'/') ;
 			}
 			//
 			Trace trace("_acquire_py",name,prio) ;
@@ -348,7 +458,7 @@ namespace Engine {
 			//
 			// augment stems with definitions found in job_name and targets
 			size_t unnamed_star_idx = 1 ;                                      // free running while walking over job_name + targets
-			auto augment_stems = [&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> ::string {
+			auto augment_stems = [&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void {
 				Bool3 star3 = No|star ;
 				if (stem_map.contains(k)) {
 					::pair<string,Bool3/*star*/>& e = stem_map.at(k) ;
@@ -357,12 +467,11 @@ namespace Engine {
 				} else {
 					if (re) stem_map[k] = {*re,star3} ;
 				}
-				return {} ;
 			} ;
 			field = "job_name" ;
 			if (!dct.hasKey(field)) throw "not found"s ;
-			job_name = add_cwd(dct[field]) ;
-			_parse_py( job_name , true/*allow_re*/ , &unnamed_star_idx , augment_stems ) ;
+			job_name = add_cwd(Py::String(dct[field])) ;
+			_parse_py( job_name , &unnamed_star_idx , augment_stems ) ;
 			field = "targets" ;
 			if (!dct.hasKey(field)) throw "not found"s ;
 			Py::Dict py_targets{dct[field]} ;
@@ -370,26 +479,27 @@ namespace Engine {
 			for( auto const& [py_k,py_tfs] : py_targets ) {
 				field = Py::String(py_k) ;
 				Py::Sequence pyseq_tfs{ py_tfs } ;                             // targets are a tuple (target_pattern,flags...)
-				::string target = add_cwd(pyseq_tfs[0]) ;
+				::string target = add_cwd(Py::String(pyseq_tfs[0])) ;
 				// avoid processing target if it is identical to job_name
 				// this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target==job_name) job_name_or_key = field ;
-				else                  _parse_py( target , true/*allow_re*/ , &unnamed_star_idx , augment_stems ) ;
+				else                  _parse_py( target , &unnamed_star_idx , augment_stems ) ;
 			}
 			//
 			// gather job_name and targets
 			field            = "job_name" ;
 			unnamed_star_idx = 1          ;                                    // reset free running at each pass over job_name+targets
-			bool job_name_is_star = false ;
-			auto stem_words = [&]( ::string const& k , bool star , bool unnamed ) -> ::string {
+			VarIdx n_static_unnamed_stems = 0     ;
+			bool   job_name_is_star       = false ;
+			auto   stem_words             = [&]( ::string const& k , bool star , bool unnamed ) -> ::string {
 				const char* stem = star ? "star stem" : "stem" ;
 				return unnamed ? to_string("unnamed ",stem) : to_string(stem,' ',k) ;
 			} ;
-			_parse_py( job_name , true/*allow_re*/ , &unnamed_star_idx ,
-				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> ::string {
-					if (!stem_map.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",job_name_or_key) ;
-					if (star                 ) job_name_is_star = true ;
-					return {} ;
+			_parse_py( job_name , &unnamed_star_idx ,
+				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
+					if      (!stem_map.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",job_name_or_key) ;
+					if      (star                 ) job_name_is_star = true ;
+					else if (unnamed              ) n_static_unnamed_stems++ ;
 				}
 			) ;
 			//
@@ -398,9 +508,9 @@ namespace Engine {
 			{	::vmap_s<TargetSpec> star_targets ;                            // defer star targets so that static targets are put first
 				for( auto const& [py_k,py_tfs] : Py::Dict(dct[field]) ) {      // targets are a tuple (target_pattern,flags...)
 					field = Py::String(py_k) ;
-					Py::Sequence pyseq_tfs      { py_tfs }              ;
-					bool         is_native_star = false                 ;
-					::string     target         = add_cwd(pyseq_tfs[0]) ;
+					Py::Sequence pyseq_tfs      { py_tfs }                          ;
+					bool         is_native_star = false                             ;
+					::string     target         = add_cwd(Py::String(pyseq_tfs[0])) ;
 					::set_s      missing_stems  ;
 					// avoid processing target if it is identical to job_name
 					// this is not an optimization, it is to ensure unnamed_star_idx's match
@@ -408,13 +518,12 @@ namespace Engine {
 						if (job_name_is_star) is_native_star = true ;
 					} else {
 						for( auto const& [k,s] : stem_map ) if (s.second==No) missing_stems.insert(k) ;
-						_parse_py( target , true/*allow_re*/ , &unnamed_star_idx ,
-							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> ::string {
+						_parse_py( target , &unnamed_star_idx ,
+							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
 								if      (!stem_map.contains(k)    ) throw to_string("found undefined ",stem_words(k,star,unnamed)," in target") ;
 								if      (star                     ) is_native_star = true ;
 								else if (stem_map.at(k).second!=No) throw to_string(stem_words(k,star,unnamed)," appears in target but not in ",job_name_or_key) ;
 								else                                missing_stems.erase(k) ;
-								return {} ;
 							}
 						) ;
 					}
@@ -448,17 +557,22 @@ namespace Engine {
 				has_stars        = !star_targets.empty() ;
 				if (!anti) for( auto& ts : star_targets ) targets.push_back(::move(ts)) ; // star-targets are meaningless for an anti-rule
 			}
-			SWEAR(found_matching) ;                                                       // we should not have come until here without a clean target
+			SWEAR(found_matching) ;                                            // we should not have come until here without a clean target
 			field = "" ;
 			if (targets.size()>NoVar) throw to_string("too many targets : ",targets.size()," > ",NoVar) ;
-			::umap_s<VarIdx> stem_idxs ;
+			::umap_s<VarIdx>              stem_idxs ;
+			::umap_s<pair<CmdVar,VarIdx>> var_idxs  ;
 			for( Bool3 star : {No,Yes} ) { // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_map )
 					if (v.second==star) {
-						stem_idxs[k] = VarIdx(stems.size()) ;
+						/**/          stem_idxs[k] =               VarIdx(stems.size())  ;
 						stems.emplace_back(k,v.first) ;
 					}
-				if (star==No) n_static_stems = stems.size() ;
+				if (star==No) {
+					n_static_stems = stems.size() ;
+					/**/                                     var_idxs["stems"       ] = {CmdVar::Stems,0} ;
+					for( VarIdx s=0 ; s<stems.size() ; s++ ) var_idxs[stems[s].first] = {CmdVar::Stem ,s} ;
+				}
 			}
 			if (stems.size()>NoVar) throw to_string("too many stems : ",stems.size()," > ",NoVar) ;
 			//
@@ -466,205 +580,97 @@ namespace Engine {
 			// {Stem} is replaced by "StemMrkr<stem_idx>"
 			// StemMrkr is there to unambiguously announce a stem idx
 			//
-			auto mk_stem_ = [&]( ::string const& k , bool /*star*/=false , bool /*unnamed*/=false , ::string const* /*re*/=nullptr )->::string {
-				VarIdx   s   = stem_idxs.at(k)                     ;
+			::string mk_tgt ;
+			auto mk_stem = [&]( ::string const& key , bool /*star*/ , bool /*unnamed*/ , ::string const* /*re*/ )->void {
+				VarIdx   s   = stem_idxs.at(key)                   ;
 				::string res ( 1+sizeof(VarIdx) , Rule::StemMrkr ) ;
 				from_int( &res[1] , s ) ;
-				return res ;
+				mk_tgt += res ;
 			} ;
-			unnamed_star_idx = 1 ;                                                               // reset free running at each pass over job_name+targets
-			::string orig_job_name = ::move(job_name) ;
-			job_name = _parse_py( orig_job_name , true/*allow_re*/ , &unnamed_star_idx , mk_stem_ ) ;
+			auto mk_fixed = [&](::string const& fixed)->void { mk_tgt += fixed ; } ;
+			unnamed_star_idx = 1 ;                                                    // reset free running at each pass over job_name+targets
+			mk_tgt.clear() ;
+			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
+			::string new_job_name = ::move(mk_tgt) ;
 			// compile potential conflicts as there are rare and rather expensive to detect, we can avoid most of the verifications by statically analyzing targets
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
 				TargetSpec& tf = targets[t].second ;
 				// avoid processing target if it is identical to job_name
 				// this is not an optimization, it is to ensure unnamed_star_idx's match
-				if (tf.pattern==orig_job_name) tf.pattern = job_name                                                                  ;
-				else                           tf.pattern = _parse_py( tf.pattern , true/*allow_re*/ , &unnamed_star_idx , mk_stem_ ) ;
+				if (tf.pattern==job_name) tf.pattern = new_job_name ;
+				else {
+					mk_tgt.clear() ;
+					_parse_py( tf.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
+					tf.pattern = ::move(mk_tgt) ;
+				}
 				for( VarIdx t2=0 ; t2<t ; t2++ )
 					if ( _may_conflict( n_static_stems , tf.pattern , targets[t2].second.pattern ) ) { trace("conflict",t,t2) ; tf.conflicts.push_back(t2) ; }
 			}
+			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvv
-			if (anti) return ;                                            // if Anti, we only need essential info
+			if (anti) return ;                                                 // if Anti, we only need essential info
 			//^^^^^^^^^^^^^^
-			//
-			// now process fields linked to execution
-			//
-			field = "allow_stderr" ; if (dct.hasKey(field)) allow_stderr   =                            Py::Object(dct[field]).as_bool() ;
-			field = "auto_mkdir"   ; if (dct.hasKey(field)) auto_mkdir     =                            Py::Object(dct[field]).as_bool() ;
-			field = "backend"      ; if (dct.hasKey(field)) backend        = mk_enum<Backends::Tag>    (Py::String(dct[field]))          ;
-			field = "chroot"       ; if (dct.hasKey(field)) chroot         =                            Py::String(dct[field])           ;
-			field = "ete"          ; if (dct.hasKey(field)) exec_time      = Delay                     (Py::Float (dct[field]))          ;
-			field = "force"        ; if (dct.hasKey(field)) force          =                            Py::Object(dct[field]).as_bool() ;
-			field = "ignore_stat"  ; if (dct.hasKey(field)) ignore_stat    =                            Py::Object(dct[field]).as_bool() ;
-			field = "is_python"    ; if (dct.hasKey(field)) is_python      =                            Py::Object(dct[field]).as_bool() ; else throw "not found"s ;
-			field = "keep_tmp"     ; if (dct.hasKey(field)) keep_tmp       =                            Py::Object(dct[field]).as_bool() ;
-			field = "script"       ; if (dct.hasKey(field)) script         =                            Py::String(dct[field])           ; else throw "not found"s ;
-			field = "stderr_len"   ; if (dct.hasKey(field)) stderr_len     = static_cast<unsigned long>(Py::Long  (dct[field]))          ;
-			field = "start_delay"  ; if (dct.hasKey(field)) start_delay    = Delay                     (Py::Float (dct[field]))          ;
-			//
-			field = "autodep" ;
-			if (!dct.hasKey(field)) throw "not found"s ;
-			autodep_method = mk_enum<AutodepMethod>(Py::String(dct[field])) ;
-			switch (autodep_method) {
-				case AutodepMethod::None      :                                                                                         break ;
-				case AutodepMethod::Ptrace    : if (!HAS_PTRACE  ) throw to_string(autodep_method," is not supported on this system") ; break ;
-				case AutodepMethod::LdAudit   : if (!HAS_LD_AUDIT) throw to_string(autodep_method," is not supported on this system") ; break ;
-				case AutodepMethod::LdPreload :                                                                                         break ;
-				default : throw to_string("unexpected value : ",autodep_method) ;
-			}
-			//
-			field = "cache" ;
-			if (dct.hasKey(field)) {
-				cache_key = Py::String(dct[field]) ;
-				if (!Cache::s_tab.contains(cache_key)) throw to_string("unexpected value ",cache_key," not found in config") ;
-			}
-			//
-			field = "timeout" ;
-			if (dct.hasKey(field)) {
-				timeout = Delay(Py::Float (dct[field])) ;
-				if (timeout<Delay()) throw "value must be positive or null (no timeout)"s ;
-			}
 			//
 			field = "n_tokens" ;
 			if (dct.hasKey(field)) {
 				n_tokens = static_cast<unsigned long>(Py::Long(dct[field])) ;
 				if (n_tokens==0) throw "value must be positive"s ;
 			}
-			//
-			field = "env" ;
-			if (!dct.hasKey(field)) throw "not found"s ;
-			for( auto const& [py_k,py_ef] : Py::Dict(dct[field]) ) {
-				field = Py::String(py_k) ;
-				Py::Sequence pyseq_ef{py_ef} ;
-				if (pyseq_ef.size()!=2) throw to_string(pyseq_ef," is not a pair") ;
-				env.emplace_back( field , EnvSpec( pyseq_ef[0].str() , mk_enum<EnvFlag>(pyseq_ef[1].str()) ) ) ;
+
+			/**/                                       var_idxs["targets"       ] = {CmdVar::Targets,0} ;
+			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {CmdVar::Target ,t} ;
+			// new
+			{	::umap_s<VarIdx> static_stem_idxs ;
+				for( auto const& [k,i] : var_idxs ) if (i.first==CmdVar::Stem) static_stem_idxs[k] = i.second ;
+				if (dct.hasKey("x_match")) x_match = { Py::Object(dct["x_match"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
 			}
-			::sort( env , []( ::pair_s<EnvSpec> const& a , ::pair_s<EnvSpec> const& b ) { return a.first<b.first ; } ) ;
 			//
-			field = "interpreter" ;
-			if (dct.hasKey(field)) for( auto const& v : Py::Sequence(Py::Object(dct[field])) ) interpreter.emplace_back(Py::String(v)) ;
-			else                   throw "not found"s ;
-			field = "kill_sigs" ;
-			if (dct.hasKey(field)) for( auto const& v : Py::Sequence(Py::Object(dct[field])) ) kill_sigs.emplace_back(Py::Long(v)) ;
-			else                   throw "not found"s              ;
-			if (kill_sigs.empty()) throw "no signal to kill jobs"s ;
-			// set var_idxs w/o info about deps to compute deps
-			::map_s<pair<CmdVar,VarIdx>> var_idxs = {
-				{ "stems"   , {CmdVar::Stems  ,0} }
-			,	{ "targets" , {CmdVar::Targets,0} }
-			} ;
-			for( VarIdx s=0 ; s<stems  .size() ; s++ ) var_idxs[stems  [s].first] = {CmdVar::Stem  ,s} ;
-			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {CmdVar::Target,t} ;
+			/**/                                                 var_idxs["deps"                    ] = { CmdVar::Deps , 0 } ;
+			for( VarIdx d=0 ; d<x_match.spec.deps.size() ; d++ ) var_idxs[x_match.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
-			auto mk_dep = [&](Py::Sequence const& py_df)->DepSpec {
-				DFlags flags = _get_flags<DFlag>(2,py_df,StaticDFlags)                      ;
-				DepSpec df   { add_cwd(py_df[0]) , Py::Object(py_df[1]).as_bool() , flags } ;
-				if (!df.is_code) {
-					try {
-						df.pattern = _parse_py( df.pattern , false/*allow_re*/ , nullptr/*unnamed_star_idx*/ ,
-							[&]( ::string const& k , bool star , bool unnamed , ::string const* )->::string {
-								if ( star || unnamed || !stem_map.contains(k) || stem_map.at(k).second!=No ) throw 0 ;
-								return mk_stem_(k) ;
-							}
-						) ;
-					}
-					catch(int) { df.is_code = true ; }                         // if dep is too fancy to process ourselves, call Python
-				}
-				return df ;
-			} ;
-			auto mk_deps = [&](::string const& f)->DepsSpec {
-				DepsSpec res ;
-				field = f ;
-				if (!dct.hasKey(field)) throw "not found"s ;
-				Py::Dict deps{dct[field]} ;
-				//
-				if (deps.hasKey("prelude")) res.prelude = Py::String(deps["prelude"])  ;
-				//
-				for( auto const& [k,v] : Py::Dict(deps["dct"]) ) {
-					field = Py::String(k) ;
-					res.dct.emplace_back(field,mk_dep(Py::Sequence(v))) ;
-				}
-				field = f ;
-				::sort( res.dct.begin() , res.dct.end() ) ;                    // stabilize match crc
-				//
-				if (res.dct.size()>NoVar) throw to_string("too many ",f," : ",res.dct.size()," > ",NoVar) ;
-				if (deps.hasKey("ctx"))
-					for( Py::Object v : Py::Sequence(deps["ctx"]) )
-						res.ctx.push_back(var_idxs.at(Py::String(v))) ;
-				::sort( res.ctx.begin() , res.ctx.end() ) ;                    // stabilize match & rsrcs crc's
-				//
-				return res ;
-			} ;
-			// deps
-			deps = mk_deps("deps") ;
-			// complete var_idxs with info relative to deps to compute rsrcs & tokens env
-			var_idxs["deps"] = {CmdVar::Deps,0} ;
-			for( VarIdx d=0 ; d<n_deps() ; d++ ) var_idxs[deps.dct[d].first] = {CmdVar::Dep,d} ;
-			// rsrcs & tokens
-			rsrcs = mk_deps("resources") ;
-			field = "job_tokens"         ;
-			if (dct.hasKey(field)) job_tokens = mk_dep(dct[field])         ;
-			else                   job_tokens = { "1" , false/*is_code*/ } ;
-			// complete var_idxs with info relative to rsrcs & tokens to compute cmd context
-			var_idxs["job_tokens"] = {CmdVar::Tokens,0} ;
-			var_idxs["resources" ] = {CmdVar::Rsrcs ,0} ;
-			for( VarIdx r=0 ; r<n_rsrcs() ; r++ ) var_idxs[rsrcs.dct[r].first] = {CmdVar::Rsrc,r} ;
-			// cmd_ctx
+			if (dct.hasKey("x_match_cmd"   )) x_match_cmd    = { Py::Object(dct["x_match_cmd"   ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_match_none"  )) x_match_none   = { Py::Object(dct["x_match_none"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_cache_none"  )) x_cache_none   = { Py::Object(dct["x_cache_none"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_submit_rsrcs")) x_submit_rsrcs = { Py::Object(dct["x_submit_rsrcs"]).ptr() , var_idxs } ;
+			//
+			/**/                                                         var_idxs["resources"                       ] = { CmdVar::Rsrcs , 0 } ;
+			for( VarIdx r=0 ; r<x_submit_rsrcs.spec.rsrcs.size() ; r++ ) var_idxs[x_submit_rsrcs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
+			//
+			if (dct.hasKey("x_start_cmd"  )) x_start_cmd   = { Py::Object(dct["x_start_cmd"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_start_rsrcs")) x_start_rsrcs = { Py::Object(dct["x_start_rsrcs"]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_start_none" )) x_start_none  = { Py::Object(dct["x_start_none" ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_end_cmd"    )) x_end_cmd     = { Py::Object(dct["x_end_cmd"    ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_end_none"   )) x_end_none    = { Py::Object(dct["x_end_none"   ]).ptr() , var_idxs } ;
+
+			//
+			// now process fields linked to execution
+			//
+			field = "ete"       ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
+			field = "is_python" ; if (dct.hasKey(field)) is_python =       Py::Object(dct[field]).as_bool() ; else throw "not found"s ;
+			field = "cmd"       ; if (dct.hasKey(field)) cmd       =       Py::String(dct[field])           ; else throw "not found"s ;
+			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
+				if (targets[t].first!="<stdout>") continue ;
+				if (targets[t].second.flags[TFlag::Star]) throw "<stdout> must be a static target"s ;
+				stdout_idx = t ;
+				break ;
+			}
+			for( VarIdx d=0 ; d<x_match.spec.deps.size() ; d++ ) {
+				if (x_match.spec.deps[d].first!="<stdin>") continue ;
+				stdin_idx = d ;
+				break ;
+			}
 			field = "cmd_ctx" ;
-			for( VarIdx t=0 ; t<targets.size() ; t++ )
-				if (targets[t].first=="<stdout>") {
-					if (targets[t].second.flags[TFlag::Star]) throw "<stdout> must be a static target"s ;
-					cmd_ctx.emplace_back( CmdVar::Stdout , t ) ;                                                    // must be present although not visibly referenced in cmd
-				}
-			for( VarIdx d=0 ; d<n_deps() ; d++ )
-				if (deps.dct[d].first=="<stdin>")
-					cmd_ctx.emplace_back( CmdVar::Stdin , d ) ;                // must be present although not visibly referenced in cmd
 			if (dct.hasKey(field))
 				for( Py::Object v : Py::Sequence(dct[field]) )
 					cmd_ctx.push_back(var_idxs.at(Py::String(v))) ;
-			::sort( cmd_ctx.begin() , cmd_ctx.end() ) ;                        // stabilize cmd crc
+			::sort(cmd_ctx) ;                                                  // stabilize cmd crc
 		}
 		catch(::string const& e) { throw to_string("while processing ",user_name(),'.',field," :\n"  ,indent(e)     ) ; }
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name(),'.',field," :\n\t",e.errorValue()) ; }
 	}
 
-	void RuleData::_compile_dep_code( ::string const& key , RuleData::DepSpec& df ) {
-		if (!df.is_code) return ;
-		df.code = Py_CompileString(                                            // never decref'ed to prevent deallocation at end of execution that generates crashes
-			df.pattern.c_str()                                                 // df.pattern is actually a python expression such as fr'toto'
-		,	(user_name()+'.'+key).c_str()
-		,	Py_eval_input
-		) ;
-		if (!df.code) {
-			PyErr_Print() ;
-			PyErr_Clear() ;
-			throw to_string("cannot compile f-string for ",key) ;
-		}
-	}
-	void RuleData::_mk_deps( ::string const& key , DepsSpec& ds , bool need_code ) {
-		for( auto& [k,df] : ds.dct ) {
-			if (df.is_code) need_code = true ;
-			_compile_dep_code( k.empty()?"<stdin>"s:k , df ) ;
-		}
-		if (!need_code) return ;                                               // if a code is seen, we must prepare evaluation environment
-		ds.env = PyDict_New() ;                                                // never decref'ed to prevent deallocation at end of execution that generates crashes
-		PyDict_SetItemString(ds.env,"__builtins__",PyEval_GetBuiltins()) ;     // provide  builtins as Python 3.6 does not do it for us
-		PyObject* res = PyRun_String(
-			ds.prelude.c_str()
-		,	Py_file_input
-		,	ds.env , ds.env
-		) ;
-		if (!res) {
-			PyErr_Print() ;
-			PyErr_Clear() ;
-			throw to_string("cannot make env to compute ",key," f-strings") ;
-		}
-		Py_DECREF(res) ;
-	} ;
-	void RuleData::_compile_derived_info() {
+	void RuleData::_compile() {
 		try {
 			// targets
 			// Generate and compile Python pattern
@@ -696,20 +702,23 @@ namespace Engine {
 				target_patterns.emplace_back(pattern) ;
 				mk_static(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
 			}
-			// deps & rsrcs
-			_mk_deps( "deps"      , deps  , false/*need_code*/ ) ;
-			_mk_deps( "resources" , rsrcs , job_tokens.is_code ) ;             // rsrcs context is used by tokens
-			_compile_dep_code("job_tokens",job_tokens) ;
-			// crcs
 			_set_crcs() ;
-			// cache
-			if (!cache_key.empty()) cache = Cache::s_tab.at(cache_key) ;
+			x_match       .compile() ;
+			x_match_cmd   .compile() ;
+			x_match_none  .compile() ;
+			x_cache_none  .compile() ;
+			x_submit_rsrcs.compile() ;
+			x_start_cmd   .compile() ;
+			x_start_rsrcs .compile() ;
+			x_start_none  .compile() ;
+			x_end_cmd     .compile() ;
+			x_end_none    .compile() ;
 		}
 		catch(::string const& e) { throw to_string("while processing ",user_name()," :\n"  ,indent(e)     ) ; }
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name()," :\n\t",e.errorValue()) ; }
 	}
 
-	static ::string _pretty_stems( size_t i , ::vmap_ss const& m ) {
+	static ::string _pretty_vmap( size_t i , ::vmap_ss const& m ) {
 		OStringStream res ;
 		size_t        wk  = 0 ;
 		//
@@ -757,7 +766,7 @@ namespace Engine {
 				if (first_conflict) {
 					if (first) { flags <<" : " ; first = false ; }
 					else       { flags <<" , " ;                 }
-					flags << "conflicts[" ;
+					flags << "except[" ;
 					first_conflict = false ;
 				} else {
 					flags << ',' ;
@@ -773,75 +782,13 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	static ::string _pretty_deps( RuleData const& rd , size_t i , ::vmap_s<RuleData::DepSpec> const& deps ) {
-		OStringStream res      ;
-		size_t        wk       = 0 ;
-		size_t        wd       = 0 ;
-		::umap_ss     patterns ;
-		//
-		for( auto const& [k,df] : deps ) {
-			::string p = df.is_code ? df.pattern : _pretty_pattern( df.pattern , rd.stems , rd.n_static_stems ) ;
-			wk          = ::max(wk,k.size()) ;
-			wd          = ::max(wd,p.size()) ;
-			patterns[k] = ::move(p)          ;
-		}
-		for( auto const& [k,df] : deps ) {
-			OStringStream flags ;
-			bool          first = true ;
-			for( DFlag f : DFlag::N ) {
-				if (f>=DFlag::Private           ) continue ;
-				if (df.flags[f]==StaticDFlags[f]) continue ;
-				//
-				if (first) { flags <<" : " ; first = false ; }
-				else       { flags <<" , " ;                 }
-				//
-				if (!df.flags[f]) flags << '-'         ;
-				/**/              flags << mk_snake(f) ;
-			}
-			res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
-			::string flags_str = ::move(flags).str() ;
-			if (flags_str.empty()) res <<             patterns[k]              ;
-			else                   res << ::setw(wd)<<patterns[k] << flags_str ;
-			res <<'\n' ;
-		}
-		return res.str() ;
-	}
-	static ::string _pretty_env( size_t i , ::vmap_s<RuleData::EnvSpec> const& env ) {
-		OStringStream res ;
-		size_t        wk  = 0 ;
-		size_t        wv  = 0 ;
-		for( auto const& [k,ef] : env ) {
-			wk = ::max(wk,k     .size()) ;
-			wv = ::max(wv,ef.val.size()) ;
-		}
-		for( auto const& [k,ef] : env ) {
-			res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
-			if   (ef.flag==EnvFlag::Dflt) res <<             ef.val                   ;
-			else                          res << ::setw(wv)<<ef.val <<" : "<< ef.flag ;
-			res <<'\n' ;
-		}
-		return res.str() ;
-	}
-	static ::string _pretty_cmd( size_t i , ::vector_s const& interpreter , ::string const& cmd ) {
+	static ::string _pretty_cmd( size_t i , ::string const& cmd ) {
 		::string res ;
-		for( size_t j=0 ; j<i ; j++ ) res+='\t' ;
-		res += "#!" ;
-		bool first = true ;
-		for( ::string const& c : interpreter ) {
-			if (first) first  = false ;
-			else       res   += ' '   ;
-			res += c ;
-		}
-		res += '\n' ;
 		if (!cmd.empty()) {
 			res += indent(cmd,i) ;
 			if (cmd.back()!='\n') res += '\n' ;
 		}
 		return res ;
-	}
-	static ::string _pretty_txt( size_t i , ::string const& s ) {
-		if (s.back()=='\n') return '\n'+ indent(s,i) ;
-		else                return ' ' + s+'\n'      ;
 	}
 	static ::string _pretty_ctx( RuleData const& rd , ::vector<pair<CmdVar,VarIdx>> const& ctx ) {
 		::string    res ;
@@ -850,29 +797,24 @@ namespace Engine {
 			res += sep ;
 			sep = " , " ;
 			switch (cmd_var) {
-				case CmdVar::Stem    : res += rd.stems    .at(idx).first ; break ;
-				case CmdVar::Target  : res += rd.targets  .at(idx).first ; break ;
-				case CmdVar::Dep     : res += rd.deps .dct.at(idx).first ; break ;
-				case CmdVar::Rsrc    : res += rd.rsrcs.dct.at(idx).first ; break ;
-				case CmdVar::Stdout  : res += "<stdout>"                 ; break ;
-				case CmdVar::Stdin   : res += "<stdin>"                  ; break ;
-				case CmdVar::Stems   : res += "stems"                    ; break ;
-				case CmdVar::Targets : res += "targets"                  ; break ;
-				case CmdVar::Deps    : res += "deps"                     ; break ;
-				case CmdVar::Rsrcs   : res += "resources"                ; break ;
-				case CmdVar::Tokens  : res += "tokens"                   ; break ;
+				case CmdVar::Stem    : res += rd.stems    .at(idx).first         ; break ;
+				case CmdVar::Target  : res += rd.targets  .at(idx).first         ; break ;
+				case CmdVar::Dep     : res += rd.x_match.spec.deps.at(idx).first ; break ;
+				case CmdVar::Stems   : res += "stems"                            ; break ;
+				case CmdVar::Targets : res += "targets"                          ; break ;
+				case CmdVar::Deps    : res += "deps"                             ; break ;
 				default : FAIL(cmd_var) ;
 			}
 		}
 		return res ;
 	}
-	static ::string _pretty_sigs( ::vector<int> const& sigs ) {
-		::string    res  ;
-		::uset<int> seen ;
-		const char* sep  = "" ;
-		for( int sig : sigs ) {
+	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
+		::string        res  ;
+		::uset<uint8_t> seen ;
+		const char*     sep  = "" ;
+		for( uint8_t sig : sigs ) {
 			if (sig) {
-				res += to_string(sep,sig) ;
+				res += to_string(sep,int(sig)) ;
 				if (!seen.contains(sig)) {
 					seen.insert(sig) ;
 					res += to_string('(',::strsignal(sig),')') ;
@@ -887,61 +829,201 @@ namespace Engine {
 			if (rd.job_name==tf.pattern) return to_string("<targets.",k,'>') ;
 		return rd.job_name ;
 	}
-	::string RuleData::pretty_str() const {
+
+	::string _pretty( size_t i , MatchSpec const& ms , ::vmap_ss const& stems ) {
+		OStringStream res      ;
+		size_t        wk       = 0 ;
+		size_t        wd       = 0 ;
+		::umap_ss     patterns ;
+		//
+		for( auto const& [k,ds] : ms.deps ) {
+			if (ds.pattern.empty()) continue ;
+			::string p = _subst_target( ds.pattern , [&](VarIdx s)->::string { return to_string('{',stems[s].first,'}') ; } ) ;
+			wk          = ::max(wk,k.size()) ;
+			wd          = ::max(wd,p.size()) ;
+			patterns[k] = ::move(p)          ;
+		}
+		for( auto const& [k,ds] : ms.deps ) {
+			if (ds.pattern.empty()) continue ;
+			::string flags ;
+			bool     first = true ;
+			for( DFlag f : DFlag::N ) {
+				if (f>=DFlag::Private           ) continue ;
+				if (ds.flags[f]==StaticDFlags[f]) continue ;
+				//
+				if (first) { flags += " : " ; first = false ; }
+				else       { flags += " , " ;                 }
+				//
+				if (!ds.flags[f]) flags += '-'         ;
+				/**/              flags += mk_snake(f) ;
+			}
+			res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
+			if (flags.empty()) res <<             patterns[k]          ;
+			else               res << ::setw(wd)<<patterns[k] << flags ;
+			res <<'\n' ;
+		}
+		return res.str() ;
+	}
+	::string _pretty( size_t i , MatchCmdSpec const& mcs ) {
+		if (mcs.force) return to_string(::string(i,'\t'),"force : true\n") ;
+		else           return {}                                           ;
+	}
+	::string _pretty( size_t i , MatchNoneSpec const& sns ) {
+		::vmap_ss entries ;
+		if  (sns.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sns.tokens) ) ;
+		return _pretty_vmap(i,entries) ;
+	}
+	::string _pretty( size_t i , CacheNoneSpec const& cs ) {
+		if (!cs.key.empty()) return to_string(::string(i,'\t'),"key : ",cs.key,'\n') ;
+		else                 return {}                                               ;
+	}
+	::string _pretty( size_t i , SubmitRsrcsSpec const& srs ) {
+		::vmap_ss entries ;
+		if  (srs.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (srs.backend) ) ;
+		for (auto const& [k,v] : srs.rsrcs ) entries.emplace_back( k           , v                    ) ;
+		return _pretty_vmap(i,entries) ;
+	}
+	::string _pretty( size_t i , StartCmdSpec const& scs ) {
 		size_t        key_sz = 0 ;
 		OStringStream res    ;
 		int           pass   ;
 		//
-		//
-		auto do_field = [&](::string const& key , char sep , ::string const& val )->void {
-			if (pass==1) { key_sz = ::max(key_sz,key.size()) ; return ; }       // during 1st pass, compute max key size ;
-			//
-			/**/                                    res <<'\t'<< ::setw(key_sz)<<key <<" :"<<sep ;
-			/**/                                    res << val                                   ;
-			if (  val.empty() || val.back()!='\n' ) res << '\n'                                  ;
+		auto do_field = [&](::string const& key , ::string const& val )->void {
+			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                 // during 1st pass, compute max key size ;
+			else         res <<::string(i,'\t')<< ::setw(key_sz)<<key <<" : "<< val <<'\n' ;
 		} ;
-		res << name << " :\n" ;
-		if (anti) res << "\tAntiRule\n" ;
-		for( pass=1 ; pass<=2 ; pass++ ) {                                     // on 1st pass we compute key size, on 2nd pass we do the job
+		for( pass=1 ; pass<=2 ; pass++ ) {                                          // on 1st pass we compute key size, on 2nd pass we do the job
+			if ( scs.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(scs.auto_mkdir ) ) ;
+			if ( scs.ignore_stat        ) do_field( "ignore_stat" , to_string(scs.ignore_stat) ) ;
+			/**/                          do_field( "autodep"     , mk_snake (scs.method     ) ) ;
+			if (!scs.chroot     .empty()) do_field( "chroot"      ,           scs.chroot       ) ;
+			if (!scs.interpreter.empty()) {
+				OStringStream i ;
+				for( ::string const& c : scs.interpreter ) i <<' '<<c ;
+				do_field( "interpreter" , i.str().substr(1) ) ;
+			}
+		}
+		if (!scs.env.empty()) {
+			res << indent("environ :\n",i) << _pretty_vmap( i+1 , scs.env ) ;
+		}
+		return res.str() ;
+	}
+	::string _pretty( size_t i , StartRsrcsSpec const& srs ) {
+		OStringStream res     ;
+		::vmap_ss     entries ;
+		if (+srs.timeout) entries.emplace_back( "timeout" , srs.timeout.short_str() ) ;
+		/**/                  res << _pretty_vmap(i,entries) ;
+		if (!srs.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , srs.env ) ;
+		return res.str() ;
+	}
+	::string _pretty( size_t i , StartNoneSpec const& sns ) {
+		OStringStream res     ;
+		::vmap_ss     entries ;
+		if ( sns.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sns.keep_tmp   )            ) ;
+		if (+sns.start_delay      ) entries.emplace_back( "start_delay" ,              sns.start_delay.short_str() ) ;
+		if (!sns.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sns.kill_sigs  )            ) ;
+		/**/                  res << _pretty_vmap(i,entries) ;
+		if (!sns.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sns.env ) ;
+		return res.str() ;
+	}
+	::string _pretty( size_t i , EndCmdSpec const& ecs ) {
+		::vmap_ss entries ;
+		if  (ecs.allow_stderr) entries.emplace_back( "allow_stderr" , to_string(ecs.allow_stderr) ) ;
+		return _pretty_vmap(i,entries) ;
+	}
+	::string _pretty( size_t i , EndNoneSpec const& ens ) {
+		::vmap_ss entries ;
+		if  (ens.stderr_len!=size_t(-1)) entries.emplace_back( "stderr_len" , to_string(ens.stderr_len) ) ;
+		return _pretty_vmap(i,entries) ;
+	}
+
+	template<class T,class... A> ::string _pretty( size_t i , ::string const& key , Dynamic<T> const& d , A&&... args ) {
+		OStringStream res ;
+		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
+		if ( !s.empty() || d.is_dynamic ) res << indent(key+" :\n",i) << s ;
+		if (d.is_dynamic) {
+			if (!d.glbs_str.empty()) { res << indent("<context> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n') res << '\n' ; }
+			/**/                     { res << indent("<dynamic> :\n",i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n') res << '\n' ; }
+		}
+		return res.str() ;
+	}
+
+	::string RuleData::pretty_str() const {
+		OStringStream res     ;
+		::vmap_ss     entries ;
+		//
+		/**/      res << name << " :" ;
+		if (anti) res << " AntiRule"  ;
+		/**/      res << '\n'         ;
+		if (prio          ) entries.emplace_back( "prio"     , to_string(prio)                ) ;
+		/**/                entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
+		if (!cwd_s.empty()) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
+		if (!anti) {
+			/**/                  entries.emplace_back( "n_tokens"    , to_string(n_tokens)        ) ;
+			if (!cmd_ctx.empty()) entries.emplace_back( "cmd_context" , _pretty_ctx(*this,cmd_ctx) ) ;
+		}
+		res << _pretty_vmap(1,entries) ;
+		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;
+		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
+		if (!anti) {
+			// new
+			res << _pretty(1,"deps"              ,x_match       ,stems) ;
+			res << _pretty(1,"cmd (match)"       ,x_match_cmd         ) ;
+			res << _pretty(1,"cmd (start)"       ,x_start_cmd         ) ;
+			res << _pretty(1,"cmd (end)"         ,x_end_cmd           ) ;
+			res << _pretty(1,"resources (submit)",x_submit_rsrcs      ) ;
+			res << _pretty(1,"resources (start)" ,x_start_rsrcs       ) ;
+			res << _pretty(1,"ancillary (match)" ,x_match_none        ) ;
+			res << _pretty(1,"ancillary (start)" ,x_start_none        ) ;
+			res << _pretty(1,"ancillary (end)"   ,x_end_none          ) ;
+			res << _pretty(1,"ancillary (cache)" ,x_cache_none        ) ;
 			//
-			/**/                        do_field( "prio"              , ' '  ,  to_string       (        prio              )            ) ;
-			if (!stems        .empty()) do_field( "stems"             , '\n' ,  _pretty_stems   (      2,stems             )            ) ;
-			/**/                        do_field( "job_name"          , ' '  ,  _pretty_job_name(*this                     )            ) ;
-			/**/                        do_field( "targets"           , '\n' ,  _pretty_targets (*this,2,targets           )            ) ;
-			if (anti) continue ;
-			// essential attributes in chronological order
-			if (!deps.prelude .empty()) do_field( "deps_prelude"      , '\n' ,  _pretty_txt     (      2,deps.prelude      )            ) ;
-			if (!deps.ctx     .empty()) do_field( "deps_context"      , ' '  ,  _pretty_ctx     (*this,  deps.ctx          )            ) ;
-			if (!deps.dct     .empty()) do_field( "deps"              , '\n' ,  _pretty_deps    (*this,2,deps.dct          )            ) ;
-			/**/                        do_field( "backend"           , ' '  ,  mk_snake        (        backend           )            ) ;
-			if (!rsrcs.prelude.empty()) do_field( "resources_prelude" , '\n' ,  _pretty_txt     (      2,rsrcs.prelude     )            ) ;
-			if (!rsrcs.ctx    .empty()) do_field( "resources_context" , ' '  ,  _pretty_ctx     (*this,  rsrcs.ctx         )            ) ;
-			if (!rsrcs.dct    .empty()) do_field( "resources"         , '\n' ,  _pretty_deps    (*this,2,rsrcs.dct         )            ) ;
-			if (!env          .empty()) do_field( "environ"           , '\n' ,  _pretty_env     (      2,env               )            ) ;
-			if (!cmd_ctx      .empty()) do_field( "cmd_context"       , ' '  ,  _pretty_ctx     (*this,  cmd_ctx           )            ) ;
-			/**/                        do_field( "cmd"               , '\n' ,  _pretty_cmd     (      2,interpreter,script)            ) ;
-			if (!cache_key    .empty()) do_field( "cache"             , ' '  ,                           cache_key                      ) ;
-			// other attributes in alphabetical order
-			if (allow_stderr          ) do_field( "allow_stderr"      , ' '  ,                           "True"                         ) ;
-			if (auto_mkdir            ) do_field( "auto_mkdir"        , ' '  ,                           "True"                         ) ;
-			/**/                        do_field( "autodep"           , ' '  ,  mk_snake        (        autodep_method    )            ) ;
-			if (!chroot       .empty()) do_field( "chroot"            , ' '  ,                           chroot                         ) ;
-			if (!cwd          .empty()) do_field( "cwd"               , ' '  ,                           cwd                            ) ;
-			if (force                 ) do_field( "force"             , ' '  ,                           "True"                         ) ;
-			if (ignore_stat           ) do_field( "ignore_stat"       , ' '  ,                           "True"                         ) ;
-			/**/                        do_field( "job_tokens"        , ' '  ,                           job_tokens.pattern             ) ;
-			if (keep_tmp              ) do_field( "keep_tmp"          , ' '  ,                           "True"                         ) ;
-			/**/                        do_field( "kill_sigs"         , ' '  ,  _pretty_sigs    (        kill_sigs         )            ) ;
-			/**/                        do_field( "n_tokens"          , ' '  ,  to_string       (        n_tokens          )            ) ;
-			if (+start_delay          ) do_field( "start_delay"       , ' '  ,                           start_delay       .short_str() ) ;
-			if (stderr_len!=size_t(-1)) do_field( "stderr_len"        , ' '  ,  to_string       (        stderr_len        )            ) ;
-			if (+timeout              ) do_field( "timeout"           , ' '  ,                           timeout           .short_str() ) ;
+			res << indent("cmd :\n",1) << _pretty_cmd(2,cmd) ;
 		}
 		//
 		return res.str() ;
 	}
 
-	// this is an id of the rule : a new rule is a replacement of an old rule if it has the same match_crc
+	::pair<vmap_ss,vmap_s<vmap_ss>> RuleData::eval_ctx(
+		::vmap<CmdVar,VarIdx> const& ctx
+	,	::vector_s            const& stems_
+	,	::vector_s            const& targets_
+	,	::vector_view_c<Dep>  const& deps
+	,	::vector_s            const& rsrcs
+	) const {
+		auto const& stems_spec   = stems                     ;
+		auto const& targets_spec = targets                   ;
+		auto const& deps_spec    = x_match.spec.deps         ;
+		auto const& rsrcs_spec   = x_submit_rsrcs.spec.rsrcs ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> res ;
+		//
+		for( auto const& [k,i] : ctx ) {
+			::string  var ;
+			::string  str ;
+			::vmap_ss dct ;
+			switch (k) {
+				case CmdVar::Stem   : var = stems_spec  [i].first ; str =            stems_  [i]              ; goto Str ;
+				case CmdVar::Target : var = targets_spec[i].first ; str =            targets_[i]              ; goto Str ;
+				case CmdVar::Dep    : var = deps_spec   [i].first ; str = +deps[i] ? deps    [i].name() : ""s ; goto Str ;
+				case CmdVar::Rsrc   : var = rsrcs_spec  [i].first ; str =            rsrcs   [i]              ; goto Str ;
+				//
+				case CmdVar::Stems   : var = "stems"     ; for(VarIdx j=0;j<n_static_stems     ;j++)                           dct.emplace_back(stems_spec  [j].first,stems_  [j]       ) ; goto Dct ;
+				case CmdVar::Targets : var = "targets"   ; for(VarIdx j=0;j<targets_spec.size();j++) if (!targets_[j].empty()) dct.emplace_back(targets_spec[j].first,targets_[j]       ) ; goto Dct ;
+				case CmdVar::Deps    : var = "deps"      ; for(VarIdx j=0;j<deps_spec   .size();j++) if (+deps    [j]        ) dct.emplace_back(deps_spec   [j].first,deps    [j].name()) ; goto Dct ;
+				case CmdVar::Rsrcs   : var = "resources" ; for(VarIdx j=0;j<rsrcs_spec  .size();j++)                           dct.emplace_back(rsrcs_spec  [j].first,rsrcs   [j]       ) ; goto Dct ;
+				default : FAIL(k) ;
+			}
+		Str :
+			res.first.emplace_back( ::move(var) , ::move(str) ) ;
+			continue ;
+		Dct :
+			res.second.emplace_back( ::move(var) , ::move(dct) ) ;
+			continue ;
+		}
+		return res ;
+	}
+
+	// match_crc is an id of the rule : a new rule is a replacement of an old rule if it has the same match_crc
 	// also, 2 rules matching identically is forbidden : the idea is that one is useless
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a
 	// although awkward & useless (as both rules could be merged), this can be meaningful
@@ -955,47 +1037,33 @@ namespace Engine {
 				t_.flags &= MatchFlags ;                                       // only these flags are important for matching, others are for execution only
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
-			::vector<DepSpec> deps_ ;
-			for( auto const& [k,d] : deps.dct ) {
-				DepSpec d_ = d ;
-				d_.code = nullptr ;
-				deps_.push_back(d_) ;                                          // keys have no influence on matching, only on execution
-			}
 			Hash::Xxh h ;
 			/**/       h.update(anti    ) ;
-			if (!anti) h.update(deps_   ) ;
-			if (!anti) h.update(name    ) ;                                    // name has no effect for anti as it is only used to store jobs and there is no anti-jobs
 			/**/       h.update(stems   ) ;
+			if (!anti) h.update(job_name) ;                                    // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
+			/**/       h.update(cwd_s   ) ;
 			/**/       h.update(targets_) ;
+			if (!anti) h.update(x_match ) ;
 			match_crc = h.digest() ;
 		}
 		if (anti) return ;                                                     // anti-rules are only capable of matching
-		{	::vmap_ss env_ ;
-			for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Cmd) env_.emplace_back(k,ef.val) ; // env variables marked as Cmd have an influence on cmd
-			Hash::Xxh h ;                                                                            // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
-			h.update(auto_mkdir ) ;
-			h.update(chroot     ) ;
-			h.update(cmd_ctx    ) ;
-			h.update(cwd        ) ;
-			h.update(deps       ) ;                                            // info was only partially captured by match_crc
-			h.update(env_       ) ;
-			h.update(ignore_stat) ;
-			h.update(interpreter) ;
-			h.update(is_python  ) ;
-			h.update(name       ) ;
-			h.update(script     ) ;
+		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
 			h.update(stems      ) ;
-			h.update(targets    ) ;                                            // .
+			h.update(job_name   ) ;
+			h.update(targets    ) ;
+			h.update(is_python  ) ;
+			h.update(cmd_ctx    ) ;
+			h.update(cmd        ) ;
+			h.update(x_match    ) ;
+			h.update(x_match_cmd) ;
+			h.update(x_start_cmd) ;
+			h.update(x_end_cmd  ) ;
 			cmd_crc = h.digest() ;
 		}
-		{	::vmap_ss env_ ;
-			for( auto const& [k,ef] : env ) if (ef.flag==EnvFlag::Rsrc) env_.emplace_back(k,ef.val) ; // env variables marked as Rsrc have an influence on resources
-			Hash::Xxh h ;
-			h.update(allow_stderr) ;                                           // this only changes errors, not result, so it behaves like a resource
-			h.update(backend     ) ;
-			h.update(env_        ) ;
-			h.update(rsrcs       ) ;
-			h.update(targets     ) ;                                           // all is not necessary, but simpler to code
+		{	Hash::Xxh h ;
+			h.update(x_submit_rsrcs) ;
+			h.update(x_start_rsrcs ) ;
+			h.update(targets       ) ;                                         // all is not necessary, but simpler to code
 			rsrcs_crc = h.digest() ;
 		}
 	}
@@ -1118,77 +1186,6 @@ namespace Engine {
 		SWEAR(_targets.size()>t) ;                                                  // _targets must have been computed up to t at least
 		if (rule->flags(t)[TFlag::Star]) return +_target_pattern(t).match(target) ;
 		else                             return target==_targets[t]               ;
-	}
-
-	void Rule::Match::_compute_deps() const {
-		PyObject* ctx  = nullptr ;                                             // lazy evaluate if f-strings are seen
-		try {
-			for( auto const& [k,d] : rule->deps.dct ) _deps.push_back(_gather_dep( ctx , d , rule->deps , true/*for_deps*/ )) ;
-		} catch (...) { Py_XDECREF(ctx) ; throw ; }
-		Py_XDECREF(ctx) ;
-	}
-
-	void Rule::Match::_compute_rsrcs() const {
-		PyObject* ctx = nullptr ;                                              // lazy evaluate if f-strings are seen
-		try {
-			for( auto const& [k,r] : rule->rsrcs.dct ) _rsrcs.push_back(_gather_dep( ctx , r , rule->rsrcs , false/*for_deps*/ )) ;
-			long t = stol(_gather_dep( ctx , rule->job_tokens , rule->rsrcs , false/*for_deps*/ )) ;
-			_tokens = t<0 ? 0 : t>Tokens(-1) ? Tokens(-1) : t ;
-		} catch (...) { Py_XDECREF(ctx) ; throw ; }
-		Py_XDECREF(ctx) ;
-	}
-
-	::string Rule::Match::_gather_dep( PyObject*&ctx , RuleData::DepSpec const& dep , RuleData::DepsSpec const& spec , bool for_deps ) const {
-		if (!dep.is_code) {
-			return _subst_target( dep.pattern , [&](VarIdx s)->::string { SWEAR(s<rule->n_static_stems) ; return stems[s] ; } ) ;
-		}
-		if (!ctx) {                                                            // resolve lazy evaluation
-			ctx = PyDict_New() ;
-			for( auto const& [k,i] : spec.ctx ) {
-				if (for_deps) SWEAR( k!=CmdVar::Dep && k!=CmdVar::Deps ) ;     // deps are not available when expanding deps
-				const char* var ;
-				::string    str ;
-				::vmap_ss   dct ;
-				Rule        r   = rule ;                                       // to shorten lines
-				switch (k) {
-					case CmdVar::Stem    : var = r->stems   [i].first.c_str() ; str = stems    [i] ;                                                                                      goto Str ;
-					case CmdVar::Target  : var = r->targets [i].first.c_str() ; str = targets()[i] ;                                                                                      goto Str ;
-					case CmdVar::Dep     : var = r->deps.dct[i].first.c_str() ; str = deps   ()[i] ;                                                                                      goto Str ;
-					case CmdVar::Stems   : var="stems"   ; dct.reserve(r->n_static_stems) ; for(VarIdx s=0;s<r->n_static_stems;s++) dct.emplace_back(r->stems   [s].first,stems    [s]) ; goto Dct ;
-					case CmdVar::Targets : var="targets" ; dct.reserve(r->targets.size()) ; for(VarIdx t=0;t<r->targets.size();t++) dct.emplace_back(r->targets [t].first,targets()[t]) ; goto Dct ;
-					case CmdVar::Deps    : var="deps"    ; dct.reserve(deps().size()    ) ; for(VarIdx d=0;d<deps().size()    ;d++) dct.emplace_back(r->deps.dct[d].first,deps   ()[d]) ; goto Dct ;
-					default : FAIL(k) ;
-				}
-			Str :
-				{	PyObject* py_str = PyUnicode_FromString(str.c_str()) ;
-					PyDict_SetItemString( ctx , var , py_str ) ;
-					Py_DECREF(py_str) ;
-					continue ;
-				}
-			Dct :
-				{	PyObject* py_dct = PyDict_New() ;
-					for( auto const& [k,v] : dct ) {
-						PyObject* py_str = PyUnicode_FromString(v.c_str()) ;
-						PyDict_SetItemString( py_dct , k.c_str() , py_str ) ;
-						Py_DECREF(py_str) ;
-					}
-					PyDict_SetItemString( ctx , var , py_dct ) ;
-					Py_DECREF(py_dct) ;
-				}
-			}
-		}
-		PyObject* py_dep = PyEval_EvalCode(dep.code,spec.env,ctx) ;
-		if (!py_dep) {
-			PyErr_Print() ;
-			PyErr_Clear() ;
-			Py_DECREF(ctx) ;
-			throw to_string("cannot compute ",for_deps?"deps":"resources") ;
-		}
-		ssize_t      dep_sz    ;
-		const char*  dep_c_str = PyUnicode_AsUTF8AndSize( py_dep , &dep_sz ) ;
-		::string     res       { dep_c_str , size_t(dep_sz) }                ; // capture result before Py_DECREF'ing it
-		Py_DECREF(py_dep) ;
-		return res ;
 	}
 
 }

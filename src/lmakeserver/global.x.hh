@@ -14,7 +14,8 @@ namespace Engine {
 	struct Config        ;
 	struct EngineClosure ;
 
-	ENUM( BackendTag
+	ENUM_1( BackendTag
+	,	Dflt = Local
 	,	Local                                                                  // PER_BACKEND : add a tag for each backend
 	)
 
@@ -24,17 +25,10 @@ namespace Engine {
 	)
 
 	ENUM( CmdVar
-	,	Stem
-	,	Target
-	,	Dep
-	,	Rsrc
-	,	Stdout
-	,	Stdin
-	,	Stems
-	,	Targets
-	,	Deps
-	,	Rsrcs
-	,	Tokens
+	,	Stems   , Stem
+	,	Targets , Target
+	,	Deps    , Dep
+	,	Rsrcs   , Rsrc
 	)
 
 	ENUM( Color
@@ -82,6 +76,8 @@ namespace Engine {
 	,	Yes
 	,	Reported
 	)
+
+	static constexpr ExecGen ExecGenForce = 1 ;                                // marker to mark forced jobs
 
 }
 #endif

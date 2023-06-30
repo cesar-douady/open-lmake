@@ -11,6 +11,10 @@
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* find a way so that the HOME env variable does not contain abs path
+	- so as to allow cache to work properly
+	- apply to all env variables as well, such as PATH, PYTHONPATH, ...
+	- when computing crc, replace any occurence of \<root\> with a marker
 * in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -24,6 +28,7 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
+* explain why Lmakefile.py is re-read
 * consider using a single command check_deps/critical_barrier
 	* a priori they serve the same purpose
 * be more consise in console output
@@ -40,6 +45,7 @@
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* use memfd_create and a series of dup/dup2 to gather error message from PyErr_Print
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
 * find a use case to ensure dates are correctly handled with NFS
@@ -48,31 +54,10 @@
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* allow the autodep attribute to be an f-string
-	- generally, maybe we should consider all attributes as potentially dynamic
-		- env         : dict of f-strings   (each with its flag) None->no variable
-		- backend     : f-string or a function -> str   (rsrc)
-		- autodep     : f-string or a function -> str   (cmd )
-		? auto_mkdir  : f-string or a function -> bool  (cmd )
-		- chroot      : f-string or a function -> str   (cmd )
-		- force       : f-string or a function -> bool  (cmd )
-		- ignore_stat : f-string or a function -> bool  (cmd )
-		- cache       : f-string or a function -> str   (    )
-		- keep_tmp    : f-string or a function -> bool  (    )
-		? start_delay : f-string or a function -> float (    )
-		? stderr_len  : f-string or a function -> int   (    )
-		- timeout     : f-string or a function -> float (    )
-	- define 4 preludes : deps, rsrcs, cmd and none
-		- deps  contains : stems, targets
-		- rsrcs contains : stems, targets, deps
-		- cmd   contains : stems, targets, deps, rsrcs
-		- none  contains : stems, targets, deps, rsrcs
-	- execute each function in its corresponding prelude
-	- dict of f-string can also be dict of str:function->str or function->dict of str:str or (str,flags)
-	- if functions return None, use default value
-	- each variable has :
-		- a value in case function returns None
-		- a is_code (bool), if false, do as if function always returns None
+* implement a compilation rule py->pyc
+	- and user python -B
+* allow dynamic attributes
+	- allow functions to have inherited values (passing inherited value as argument)
 * add a -j option to lmake
 	- to limit the number of jobs
 	- consider a more general approach to limit resource occupation and keep reactivity
@@ -171,6 +156,8 @@
 * TESTS
 ****************************************************************************************************
 
+* add a unit test for sub-Lmakefile.py
+* improve unit_test/dynamic.py to include more dynamic features
 * ancillary commands to unit tests
 	- lcheck_deps, ...
 * lmake module

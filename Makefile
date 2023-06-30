@@ -73,8 +73,6 @@ endif
 
 SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                := $(if $(SAN_FLAGS),.san,)
-ASAN               := $(if $(ASAN_FLAGS),.san,)
-TSAN               := $(if $(TSAN_FLAGS),.san,)
 PREPROCESS         := $(CC)             -E                     -ftabstop=4
 COMPILE            := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
 LINK_LIB_PATH      := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH= | cut -d= -f2 | sed 's/:/ /g' | xargs realpath | uniq | sed s/^/-Wl,-rpath=/)
@@ -411,15 +409,15 @@ $(BIN)/lfreeze : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/xxhsum : \
-	$(SRC)/disk$(SAN).o   \
-	$(SRC)/hash$(SAN).o   \
-	$(SRC)/lib$(SAN).o    \
+	$(SRC)/disk.o         \
+	$(SRC)/hash.o         \
+	$(SRC)/lib.o          \
 	$(SRC)/non_portable.o \
-	$(SRC)/time$(SAN).o   \
-	$(SRC)/utils$(SAN).o  \
-	$(SRC)/xxhsum$(SAN).o
+	$(SRC)/time.o         \
+	$(SRC)/utils.o        \
+	$(SRC)/xxhsum.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 #
 # job_exec
@@ -427,68 +425,68 @@ $(BIN)/xxhsum : \
 
 # ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
 $(BIN)/lcritical_barrier : \
-	$(SRC)/app$(ASAN).o                     \
-	$(SRC)/disk$(ASAN).o                    \
-	$(SRC)/hash$(ASAN).o                    \
-	$(SRC)/lib$(ASAN).o                     \
-	$(SRC)/non_portable.o                   \
-	$(SRC)/rpc_job$(ASAN).o                 \
-	$(SRC)/time$(ASAN).o                    \
-	$(SRC)/trace$(ASAN).o                   \
-	$(SRC)/utils$(ASAN).o                   \
-	$(SRC)/autodep/autodep_support$(ASAN).o \
-	$(SRC)/autodep/record$(ASAN).o          \
-	$(SRC)/autodep/lcritical_barrier$(ASAN).o
+	$(SRC)/app.o                     \
+	$(SRC)/disk.o                    \
+	$(SRC)/hash.o                    \
+	$(SRC)/lib.o                     \
+	$(SRC)/non_portable.o            \
+	$(SRC)/rpc_job.o                 \
+	$(SRC)/time.o                    \
+	$(SRC)/trace.o                   \
+	$(SRC)/utils.o                   \
+	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/record.o          \
+	$(SRC)/autodep/lcritical_barrier.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ldepend : \
-	$(SRC)/app$(ASAN).o                     \
-	$(SRC)/disk$(ASAN).o                    \
-	$(SRC)/hash$(ASAN).o                    \
-	$(SRC)/lib$(ASAN).o                     \
-	$(SRC)/non_portable.o                   \
-	$(SRC)/rpc_job$(ASAN).o                 \
-	$(SRC)/time$(ASAN).o                    \
-	$(SRC)/trace$(ASAN).o                   \
-	$(SRC)/utils$(ASAN).o                   \
-	$(SRC)/autodep/autodep_support$(ASAN).o \
-	$(SRC)/autodep/record$(ASAN).o          \
-	$(SRC)/autodep/ldepend$(ASAN).o
+	$(SRC)/app.o                     \
+	$(SRC)/disk.o                    \
+	$(SRC)/hash.o                    \
+	$(SRC)/lib.o                     \
+	$(SRC)/non_portable.o            \
+	$(SRC)/rpc_job.o                 \
+	$(SRC)/time.o                    \
+	$(SRC)/trace.o                   \
+	$(SRC)/utils.o                   \
+	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/record.o          \
+	$(SRC)/autodep/ldepend.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ltarget : \
-	$(SRC)/app$(ASAN).o                     \
-	$(SRC)/disk$(ASAN).o                    \
-	$(SRC)/hash$(ASAN).o                    \
-	$(SRC)/lib$(ASAN).o                     \
-	$(SRC)/non_portable.o                   \
-	$(SRC)/rpc_job$(ASAN).o                 \
-	$(SRC)/time$(ASAN).o                    \
-	$(SRC)/trace$(ASAN).o                   \
-	$(SRC)/utils$(ASAN).o                   \
-	$(SRC)/autodep/autodep_support$(ASAN).o \
-	$(SRC)/autodep/record$(ASAN).o          \
-	$(SRC)/autodep/ltarget$(ASAN).o
+	$(SRC)/app.o                     \
+	$(SRC)/disk.o                    \
+	$(SRC)/hash.o                    \
+	$(SRC)/lib.o                     \
+	$(SRC)/non_portable.o            \
+	$(SRC)/rpc_job.o                 \
+	$(SRC)/time.o                    \
+	$(SRC)/trace.o                   \
+	$(SRC)/utils.o                   \
+	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/record.o          \
+	$(SRC)/autodep/ltarget.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lcheck_deps : \
-	$(SRC)/app$(ASAN).o                     \
-	$(SRC)/disk$(ASAN).o                    \
-	$(SRC)/hash$(ASAN).o                    \
-	$(SRC)/lib$(ASAN).o                     \
-	$(SRC)/non_portable.o                   \
-	$(SRC)/rpc_job$(ASAN).o                 \
-	$(SRC)/time$(ASAN).o                    \
-	$(SRC)/trace$(ASAN).o                   \
-	$(SRC)/utils$(ASAN).o                   \
-	$(SRC)/autodep/autodep_support$(ASAN).o \
-	$(SRC)/autodep/record$(ASAN).o          \
-	$(SRC)/autodep/lcheck_deps$(ASAN).o
+	$(SRC)/app.o                     \
+	$(SRC)/disk.o                    \
+	$(SRC)/hash.o                    \
+	$(SRC)/lib.o                     \
+	$(SRC)/non_portable.o            \
+	$(SRC)/rpc_job.o                 \
+	$(SRC)/time.o                    \
+	$(SRC)/trace.o                   \
+	$(SRC)/utils.o                   \
+	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/record.o          \
+	$(SRC)/autodep/lcheck_deps.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(ASAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/autodep : \
 	$(SRC)/app$(SAN).o                 \

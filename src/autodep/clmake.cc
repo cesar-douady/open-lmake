@@ -42,15 +42,13 @@ static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) 
 		case No    :                                                                   Py_RETURN_FALSE ;
 		default : FAIL(reply.ok) ;
 	}
-	if (reply.ok==Maybe) { PyErr_SetString(PyExc_RuntimeError,"some deps are out-of-date") ; return nullptr ; }
-	Py_RETURN_NONE ;
 }
 
 static void _push_str( ::vector_s& v , PyObject* o) {
 	if (!PyObject_IsTrue(o)) return ;
 	PyObject* s = PyObject_Str(o) ;
 	if (!s) throw "cannot convert argument to str"s ;
-	v.emplace_back(reinterpret_cast<const char*>(PyUnicode_1BYTE_DATA(s))) ;
+	v.emplace_back(PyUnicode_AsUTF8(s)) ;
 	Py_DECREF(s) ;
 }
 static ::vector_s _get_files( PyObject* args ) {
@@ -70,7 +68,7 @@ static ::vector_s _get_files( PyObject* args ) {
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
 	bool    verbose   = false                    ;
-	DFlags  flags     = StaticDFlags             ;
+	DFlags  flags     = DfltDFlags               ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose") ) {
 			n_kw_args-- ;
@@ -145,30 +143,33 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	Py_RETURN_NONE ;
 }
 
-static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args ) {
+static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	if (PyTuple_GET_SIZE(args)>1) {
 		PyErr_SetString(PyExc_TypeError,"expect at most a single argument") ;
 		return nullptr ;
+	}
+	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool    no_follow = false                    ;
+	if (n_kw_args) {
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"no_follow") ) { n_kw_args-- ; no_follow = PyObject_IsTrue(py_v) ;                            }
+		if ( n_kw_args                                             ) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
 	::vector_s views = _get_files(args) ;
 	if (views.size()==0) views.push_back(cwd()) ;
 	SWEAR(views.size()==1) ;
 	::string& view = views[0] ;
 	SWEAR(!view.empty()) ;
-	if (view[0]!='/'    ) view = to_string(cwd(),'/',view) ;
-	if (view.back()=='/') view.pop_back() ;
-	if (!(view+'/').starts_with(_g_autodep_support.root_dir+'/')) {
-		PyErr_SetString(PyExc_ValueError,"not in repository") ;
+	//
+	RealPath::SolveReport solve_report = RealPath(_g_autodep_support.lnk_support).solve(view,no_follow,true/*root_ok*/) ;
+	//
+	if (!solve_report.in_repo) {
+		PyErr_SetString(PyExc_ValueError,"cannot find sub root dir in repository") ;
 		return nullptr ;
 	}
-	::string sub_root_dir = search_root_dir(view).first ;
-	if (sub_root_dir.size()<_g_autodep_support.root_dir.size()) {
-		PyErr_SetString(PyExc_RuntimeError,"root dir not found") ;
-		return nullptr ;
-	}
-	sub_root_dir += '/'                                                       ;
-	sub_root_dir  = sub_root_dir.substr(_g_autodep_support.root_dir.size()+1) ;
-	return PyUnicode_FromString(sub_root_dir.c_str()) ;
+	::string abs_path         = solve_report.real.empty() ? *g_root_dir : to_string(*g_root_dir,'/',solve_report.real) ;
+	::string abs_sub_root_dir = search_root_dir(abs_path).first                                                        ;
+	abs_sub_root_dir.push_back('/') ;
+	return PyUnicode_FromString( abs_sub_root_dir.c_str()+g_root_dir->size()+1 ) ;
 }
 
 static PyMethodDef funcs[] = {
@@ -194,7 +195,7 @@ static PyMethodDef funcs[] = {
 	}
 ,	{	"search_sub_root_dir"
 	,	reinterpret_cast<PyCFunction>(search_sub_root_dir)
-	,	METH_VARARGS
+	,	METH_VARARGS|METH_KEYWORDS
 	,	"search_sub_root_dir(cwd=os.getcwd()). Return the nearest hierarchical root dir relative to the actual root dir"
 	}
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
@@ -217,14 +218,15 @@ PyMODINIT_FUNC PyInit_clmake() {
 	PyObject* mod = PyModule_Create(&lmake_module) ;
 	//
 	_g_autodep_support = New ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_support.root_dir.c_str() ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False   ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True              ) ;
-	PyObject_SetAttrString    ( mod , "has_ptrace"     , HAS_PTRACE   ? Py_True : Py_False   ) ;
-	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)      ) ;
-	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )      ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	lib_init(_g_autodep_support.root_dir) ;
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	PyModule_AddStringConstant( mod , "root_dir"       , g_root_dir->c_str()               ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True            ) ;
+	PyObject_SetAttrString    ( mod , "has_ptrace"     , HAS_PTRACE   ? Py_True : Py_False ) ;
+	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)    ) ;
+	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )    ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mod ;
 }
 #pragma GCC visibility pop

@@ -201,11 +201,15 @@ namespace Engine {
 	}
 
 	void EngineStore::_compile_rule_datas() {
-		::vector<Rule> rules   = rule_lst()      ;
+		::vector<Rule> rules   = rule_lst()                                        ;
 		RuleIdx        n_rules = ::max( +::max(rules) , RuleIdx(+Special::N) ) + 1 ;
-		rule_datas        .clear() ; rule_datas        .resize(n_rules) ;      // clearing before resize ensure all unused entries are clean
+		rule_datas.clear() ; rule_datas.resize(n_rules) ;                            // clearing before resize ensure all unused entries are clean
 		for( Special s : Special::N ) if (+s) rule_datas[+s] = RuleData(s) ;
-		for( Rule r : rules ) rule_datas[+r] = r.str() ;
+		RuleData::s_name_sz = 0 ;
+		for( Rule r : rules ) {
+			rule_datas[+r] = r.str() ;
+			RuleData::s_name_sz = ::max( RuleData::s_name_sz , rule_datas[+r].name.size() ) ;
+		}
 	}
 	template<bool IsSfx> static void _propagate_to_longer(::umap_s<uset<RuleTgt>>& psfx_map) {
 		::vector_s psfxs = ::mk_key_vector(psfx_map) ;
@@ -214,8 +218,8 @@ namespace Engine {
 			for( size_t l=1 ; l<=long_psfx.size() ; l++ ) {
 				::string short_psfx = long_psfx.substr( IsSfx?l:0 , long_psfx.size()-l ) ;
 				if (psfx_map.contains(short_psfx)) {
-					psfx_map.at(long_psfx).merge(::dup(psfx_map.at(short_psfx))) ; // copy arg as merge clobbers it
-					break ;                                                    // psfx's are sorted shortest to longest, so as soon as a short one is found, it is already merged with previous ones
+					psfx_map.at(long_psfx).merge(::clone(psfx_map.at(short_psfx))) ; // copy arg as merge clobbers it
+					break ;                                                          // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
 				}
 			}
 		}
@@ -436,8 +440,8 @@ namespace Engine {
 			/**/         rd.rsrcs_gen = rd.rsrcs_gen+1 ;
 			Trace trace("up gen",rd.cmd_gen,rd.rsrcs_gen) ;
 		} else {
-			rd.cmd_gen   = 1        ;
-			rd.rsrcs_gen = 1+cmd_ok ;                                          // if cmd_ok, we must distinguish between bad cmd and good cmd with bad rsrcs
+			rd.cmd_gen   = ExecGenForce+1    ;                                 // ExecGenForce is reserved for forced jobs
+			rd.rsrcs_gen = rd.cmd_gen+cmd_ok ;                                 // if cmd_ok, we must distinguish between bad cmd and good cmd with bad rsrcs
 			if (!cmd_ok) keep_cmd_gen = {true,0         } ;                    // all cmd_gen must be set to 0 as we have a new cmd but no room left for a new cmd_gen
 			else         keep_cmd_gen = {true,rd.cmd_gen} ;                    // all cmd_gen above this will be set to 1 to keep cmd, the others to 0
 			trace("reset gen",rd.cmd_gen,rd.rsrcs_gen) ;

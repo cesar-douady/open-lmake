@@ -77,17 +77,29 @@ int main( int argc , char* argv[] ) {
 	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
+	::string cwd = start_info.cwd_s ; if (!cwd.empty()) cwd.pop_back() ;
 	::map_ss cmd_env = mk_map(start_info.env) ;
-	cmd_env.try_emplace( "PWD"         ,           start_info.cwd       ) ;
+	cmd_env.try_emplace( "PWD"         ,           cwd                  ) ;
 	cmd_env.try_emplace( "ROOT_DIR"    ,           *g_root_dir          ) ;
 	cmd_env.try_emplace( "SEQUENCE_ID" , to_string(seq_id             ) ) ;
 	cmd_env.try_emplace( "SMALL_ID"    , to_string(start_info.small_id) ) ;
-	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ; // TMPDIR is the standard environment variable to specify the temporary area
+	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ;    // TMPDIR is the standard environment variable to specify the temporary area
 	//
-	Fd child_stdin  = Child::None ;
-	Fd child_stdout = Child::Pipe ;
-	if (!start_info.stdin .empty()) { child_stdin =open_read (start_info.stdin ) ; child_stdin .no_std() ; gather_deps.new_dep   (start_overhead,start_info.stdin ,DFlag::Reg       ,"<stdin>" ) ; }
-	if (!start_info.stdout.empty()) { child_stdout=open_write(start_info.stdout) ; child_stdout.no_std() ; gather_deps.new_target(start_overhead,start_info.stdout,TFlags(),TFlags(),"<stdout>") ; }
+	Fd       child_stdin  = Child::None                     ;
+	Fd       child_stdout = Child::Pipe                     ;
+	::uset_s static_deps  = mk_uset(start_info.static_deps) ;                               // copy to uset before moving with new_deps
+	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
+	if (!start_info.stdin .empty()) {
+		child_stdin = open_read(start_info.stdin ) ;
+		child_stdin.no_std() ;
+		DiskDate dd = file_date(start_info.stdin) ;
+		gather_deps.new_dep( start_overhead , start_info.stdin , dd , DFlag::Reg , "<stdin>" ) ;
+	}
+	if (!start_info.stdout.empty()) {
+		child_stdout = open_write(start_info.stdout) ;
+		child_stdout.no_std() ;
+		gather_deps.new_target( start_overhead , start_info.stdout , TFlags() , TFlags() , "<stdout>" ) ;
+	}
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
 	args.emplace_back("-c"             ) ;
@@ -100,19 +112,17 @@ int main( int argc , char* argv[] ) {
 		else                       target_patterns.emplace_back(          ) ;
 	}
 	//
-	::vmap_s<TargetDigest>              targets    ;
-	::vmap_s<DepDigest   >              deps       ;
-	ThreadQueue<::pair<NodeIdx,string>> crc_queue  ;
-	::uset_s                            force_deps = mk_uset(start_info.force_deps) ;
-	::string                            err_str    ;
+	::vmap_s<TargetDigest>              targets     ;
+	::vmap_s<DepDigest   >              deps        ;
+	ThreadQueue<::pair<NodeIdx,string>> crc_queue   ;
+	::string                            err_str     ;
 	//
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
-		NodeIdx critical_lvl = 1 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
 			TFlags                           tfs = UnexpectedTFlags ;
 			JobExecRpcReq::AccessInfo const& ai  = info.info        ;
-			if (!force_deps.contains(file)) {
+			if (!static_deps.contains(file)) {
 				for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 					TargetSpec const& spec = start_info.targets[t] ;
 					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tfs = spec.flags ; break ; } }
@@ -128,21 +138,15 @@ int main( int argc , char* argv[] ) {
 			}
 			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
 			if ( ai.idle() && tfs[TFlag::Dep] ) {
-				if (+( dfs & AccessDFlags )) {
-					DepOrder order =
-						info.critical_lvl==0            ? (                                  DepOrder::Parallel )
-					:	info.critical_lvl<=critical_lvl ? (                                  DepOrder::Seq      )
-					:	                                  ( critical_lvl=info.critical_lvl , DepOrder::Critical )
-					;
-					DepDigest dd{dfs,order,info.file_date} ;
+				DepDigest dd{dfs,info.order} ;
+				if (+(dfs&AccessDFlags)) {
+					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
-					//vvvvvvvvvvvvvvvvvvvvvvvv
-					deps.emplace_back(file,dd) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("dep   ",dfs,tfs,file,dd) ;
-				} else {
-					trace("!dep  ",dfs,tfs,file) ;
 				}
+				//vvvvvvvvvvvvvvvvvvvvvvvv
+				deps.emplace_back(file,dd) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^
+				trace("dep   ",dfs,tfs,file,dd) ;
 			} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                           ) dfs = DFlags::None ;
 				if ( ai.write && !ai.unlink && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
@@ -189,19 +193,19 @@ int main( int argc , char* argv[] ) {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		live_out_buf = live_out_buf.substr(pos) ;
 	} ;
-	/**/                     gather_deps.create_group            = true                      ;
-	/**/                     gather_deps.autodep_method          = start_info.autodep_method ;
-	/**/                     gather_deps.addr                    = start_info.addr           ;
-	/**/                     gather_deps.autodep_env.auto_mkdir  = start_info.auto_mkdir     ;
-	/**/                     gather_deps.autodep_env.ignore_stat = start_info.ignore_stat    ;
-	/**/                     gather_deps.autodep_env.lnk_support = start_info.lnk_support    ;
-	/**/                     gather_deps.server_cb               = server_cb                 ;
-	/**/                     gather_deps.timeout                 = start_info.timeout        ;
-	/**/                     gather_deps.kill_sigs               = start_info.kill_sigs      ;
-	/**/                     gather_deps.chroot                  = start_info.chroot         ;
-	/**/                     gather_deps.cwd                     = start_info.cwd            ;
-	/**/                     gather_deps.env                     = &cmd_env                  ;
-	if (start_info.live_out) gather_deps.live_out_cb             = live_out_cb               ;
+	/**/                     gather_deps.create_group            = true                   ;
+	/**/                     gather_deps.method                  = start_info.method      ;
+	/**/                     gather_deps.addr                    = start_info.addr        ;
+	/**/                     gather_deps.autodep_env.auto_mkdir  = start_info.auto_mkdir  ;
+	/**/                     gather_deps.autodep_env.ignore_stat = start_info.ignore_stat ;
+	/**/                     gather_deps.autodep_env.lnk_support = start_info.lnk_support ;
+	/**/                     gather_deps.server_cb               = server_cb              ;
+	/**/                     gather_deps.timeout                 = start_info.timeout     ;
+	/**/                     gather_deps.kill_sigs               = start_info.kill_sigs   ;
+	/**/                     gather_deps.chroot                  = start_info.chroot      ;
+	/**/                     gather_deps.cwd                     = cwd                    ;
+	/**/                     gather_deps.env                     = &cmd_env               ;
+	if (start_info.live_out) gather_deps.live_out_cb             = live_out_cb            ;
 	//
 	Date start_job = Date::s_now() ;                                                          // as late as possible before child starts
 	//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

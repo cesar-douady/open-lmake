@@ -144,11 +144,11 @@ namespace Engine {
 	}
 
 	void Req::_report_no_rule( Node node , DepDepth lvl ) {
-		::string          name      = node.name()          ;
-		::vector<RuleTgt> rrts      = node.raw_rule_tgts() ;
-		::vector<RuleTgt> mrts      ;                                        // matching rules
-		RuleTgt           art       ;                                        // set if an anti-rule matches
-		RuleIdx           n_missing = 0                    ;                 // number of rules missing deps
+		::string                    name      = node.name()          ;
+		::vector<RuleTgt>           rrts      = node.raw_rule_tgts() ;
+		::vmap<RuleTgt,Rule::Match> mrts      ;                                // matching rules
+		RuleTgt                     art       ;                                // set if an anti-rule matches
+		RuleIdx                     n_missing = 0                    ;         // number of rules missing deps
 		//
 		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
 		if ( dir!=node && dir->makable() ) {
@@ -159,15 +159,16 @@ namespace Engine {
 		}
 		//
 		for( RuleTgt rt : rrts ) {                                             // first pass to gather info : matching rules in mrts and number of them missing deps in n_missing
-			if (!Rule::Match(rt,name)) {            continue ; }
-			if (rt->anti             ) { art = rt ; break    ; }
-			mrts.push_back(rt) ;
+			Rule::Match match_{rt,name} ;
+			if (!match_ ) {            continue ; }
+			if (rt->anti) { art = rt ; break    ; }
+			mrts.emplace_back(rt,match_) ;
 			if ( JobTgt jt{rt,name} ; +jt ) {
 				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
-			try                     { mk_vector<Node>(Rule::Match(rt,name).deps()) ; }
-			catch (::string const&) { continue ;                                     }
+			try                     { rt->x_match.eval(rt,match_.stems) ; }
+			catch (::string const&) { continue ;                          }    // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -175,23 +176,23 @@ namespace Engine {
 		else                 (*this)->audit_node(Color::Err ,"no rule for"       ,name,lvl  ) ;
 		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
 		//
-		for( RuleTgt rt : mrts ) {                                             // second pass to do report
-			JobTgt         jt          { rt , name } ;
-			::string       reason      ;
-			Node           missing_dep ;
-			::vector<Node> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                        ; goto Report ; }
-			try                                            { static_deps = mk_vector<Node>(Rule::Match(rt,name).deps()) ;               }
-			catch (::string const&)                        { reason      = "cannot compute its deps"                    ; goto Report ; }
+		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
+			JobTgt              jt          { rt , name } ;
+			::string            reason      ;
+			Node                missing_dep ;
+			::vmap<Node,DFlags> static_deps ;
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"        ; goto Report ; }
+			try                                            { static_deps = rt->x_match.eval(rt,m.stems) ;               }
+			catch (::string const&)                        { reason      = "cannot compute its deps"    ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
-					for( VarIdx di=0 ; di<rt->n_deps() ; di++ ) {
-						Node d = static_deps[di] ;
-						if ( !rt->deps.dct[di].second.flags[DFlag::Required]        ) continue ;
+					for( VarIdx di=0 ; di<static_deps.size() ; di++ ) {
+						Node d = static_deps[di].first ;
+						if ( !static_deps[di].second[DFlag::Required]               ) continue ;
 						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
-						missing_key = rt->deps.dct[di].first ;
-						missing_dep = d                      ;
+						missing_key = rt->x_match.spec.full_dynamic ? ""s : rt->x_match.spec.deps[di].first ;
+						missing_dep = d                                                                     ;
 						goto Found ;
 					}
 			Found :
@@ -264,11 +265,12 @@ namespace Engine {
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
 				try {
 					// show first stderr
+					EndNoneSpec x_end_none = job->rule->x_end_none.eval(job) ;
 					IFStream job_stream   { job.ancillary_file() }               ;
 					auto     report_req   = deserialize<JobRpcReq  >(job_stream) ;
 					auto     report_start = deserialize<JobRpcReply>(job_stream) ;
 					auto     report_end   = deserialize<JobRpcReq  >(job_stream) ;
-					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , job->rule->stderr_len , lvl+1 ) ;
+					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , x_end_none.stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				}

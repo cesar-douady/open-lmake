@@ -164,6 +164,9 @@ public :
 	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read"  ) ;
 	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec"  ) ;
 	void solve( int at , const char* file , bool no_follow=false , ::string const& comment="solve" ) {
+		_solve(at,file,no_follow,comment).first ;
+	}
+	void stat ( int at , const char* file , bool no_follow=false , ::string const& comment="stat" ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
 		if ( !s_ignore_stat && !real.empty() ) _report_dep( ::move(real) , DFlag::Stat , comment ) ;
 	}

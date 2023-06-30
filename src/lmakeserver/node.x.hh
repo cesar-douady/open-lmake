@@ -44,8 +44,8 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx         = -1                               ;
-		static constexpr DFlags  SpecialDFlags = DFlag::Essential|DFlag::Required ;
+		static constexpr RuleIdx NoIdx         = -1                                                   ;
+		static constexpr DFlags  SpecialDFlags { DFlag::Essential , DFlag::Required , DFlag::Static } ;
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
@@ -428,7 +428,7 @@ namespace Engine {
 
 	inline Deps::Deps(::vmap<Node,DFlags> const& static_deps) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,f] : static_deps ) ds.emplace_back( d , f , DepOrder::Parallel ) ;
+		for( auto const& [d,f] : static_deps ) { SWEAR(f[DFlag::Static]) ; ds.emplace_back( d , f , DepOrder::Parallel ) ; }
 		*this = Deps(ds) ;
 	}
 

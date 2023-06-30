@@ -220,9 +220,10 @@ namespace Disk {
 			_lnk_support = ls                                                 ;
 		}
 		// services
-		SolveReport          solve( Fd at , ::string const&      , bool no_follow=false ) ;
-		SolveReport          solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,file,no_follow) ; }
-		SolveReport          solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,{}  ,no_follow) ; }
+		SolveReport          solve( Fd at , ::string const&      , bool no_follow=false , bool root_ok=false ) ;
+		SolveReport          solve( Fd at , const char*     file , bool no_follow=false , bool root_ok=false ) { return solve(at     ,::string(file),no_follow,root_ok) ; } // ensure proper types
+		SolveReport          solve(         ::string const& file , bool no_follow=false , bool root_ok=false ) { return solve(Fd::Cwd,         file ,no_follow,root_ok) ; }
+		SolveReport          solve( Fd at ,                        bool no_follow=false , bool root_ok=false ) { return solve(at     ,         {}   ,no_follow,root_ok) ; }
 		::vmap_s<ExecAccess> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
 
 		// data

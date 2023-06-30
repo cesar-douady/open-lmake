@@ -15,7 +15,7 @@ using namespace Disk ;
 ::pair_ss search_root_dir(::string const& cwd_) {
 	::string root_s_dir    = cwd_ ;
 	::string startup_dir_s ;
-	if (root_s_dir.empty()     ) throw "cwd arg is empty"s ;
+	if (root_s_dir.empty()     ) root_s_dir =           cwd()           ;
 	if (root_s_dir.front()!='/') root_s_dir = to_string(cwd(),'/',cwd_) ;
 	while (!is_target(root_s_dir+"/Lmakefile.py")) {
 		if (root_s_dir.empty()) throw "cannot find root dir"s ;

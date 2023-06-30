@@ -276,33 +276,34 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 	int unlinkat( int dirfd , const char* path , int flags ) { ORIG(unlinkat) ; LCK ; Audit::Unlink r{dirfd   ,path,bool(flags&AT_REMOVEDIR),"unlinkat"} ; return r(orig(dirfd,path,flags)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
+	#define STAT( syscall,dfd,pth,no_follow,res) ORIG(syscall) ; LCK ; Audit::stat (dfd,pth,no_follow,#syscall) ; return res
 	#define SOLVE(syscall,dfd,pth,no_follow,res) ORIG(syscall) ; LCK ; Audit::solve(dfd,pth,no_follow,#syscall) ; return res
 	//
-	int  access   (           const char* pth , int mod            ) { SOLVE(access   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,mod     )) ; }
-	int  faccessat( int dfd , const char* pth , int mod , int flgs ) { SOLVE(faccessat,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,mod,flgs)) ; }
-	DIR* opendir  (           const char* pth                      ) { SOLVE(opendir  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth         )) ; }
-	int  rmdir    (           const char* pth                      ) { SOLVE(rmdir    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth         )) ; }
+	int  access   (           const char* pth , int mod            ) { STAT(access   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,mod     )) ; }
+	int  faccessat( int dfd , const char* pth , int mod , int flgs ) { STAT(faccessat,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,mod,flgs)) ; }
+	DIR* opendir  (           const char* pth                      ) { STAT(opendir  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth         )) ; }
+	int  rmdir    (           const char* pth                      ) { STAT(rmdir    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth         )) ; }
 	//
-	int __xstat     ( int v ,           const char* pth , struct stat  * buf            ) { SOLVE(__xstat     ,AT_FDCWD,pth,false/*no_follow*/      ,orig(v,    pth,buf     )) ; }
-	int __xstat64   ( int v ,           const char* pth , struct stat64* buf            ) { SOLVE(__xstat64   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(v,    pth,buf     )) ; }
-	int __lxstat    ( int v ,           const char* pth , struct stat  * buf            ) { SOLVE(__lxstat    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(v,    pth,buf     )) ; }
-	int __lxstat64  ( int v ,           const char* pth , struct stat64* buf            ) { SOLVE(__lxstat64  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(v,    pth,buf     )) ; }
-	int __fxstatat  ( int v , int dfd , const char* pth , struct stat  * buf , int flgs ) { SOLVE(__fxstatat  ,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(v,dfd,pth,buf,flgs)) ; }
-	int __fxstatat64( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) { SOLVE(__fxstatat64,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(v,dfd,pth,buf,flgs)) ; }
+	int __xstat     ( int v ,           const char* pth , struct stat  * buf            ) { STAT(__xstat     ,AT_FDCWD,pth,false/*no_follow*/      ,orig(v,    pth,buf     )) ; }
+	int __xstat64   ( int v ,           const char* pth , struct stat64* buf            ) { STAT(__xstat64   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(v,    pth,buf     )) ; }
+	int __lxstat    ( int v ,           const char* pth , struct stat  * buf            ) { STAT(__lxstat    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(v,    pth,buf     )) ; }
+	int __lxstat64  ( int v ,           const char* pth , struct stat64* buf            ) { STAT(__lxstat64  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(v,    pth,buf     )) ; }
+	int __fxstatat  ( int v , int dfd , const char* pth , struct stat  * buf , int flgs ) { STAT(__fxstatat  ,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(v,dfd,pth,buf,flgs)) ; }
+	int __fxstatat64( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) { STAT(__fxstatat64,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(v,dfd,pth,buf,flgs)) ; }
 	#if !NEED_STAT_WRAPPERS
-		int stat     (           const char* pth , struct stat  * buf            ) { SOLVE(stat     ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,buf     )) ; }
-		int stat64   (           const char* pth , struct stat64* buf            ) { SOLVE(stat64   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,buf     )) ; }
-		int lstat    (           const char* pth , struct stat  * buf            ) { SOLVE(lstat    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth,buf     )) ; }
-		int lstat64  (           const char* pth , struct stat64* buf            ) { SOLVE(lstat64  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth,buf     )) ; }
-		int fstatat  ( int dfd , const char* pth , struct stat  * buf , int flgs ) { SOLVE(fstatat  ,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,buf,flgs)) ; }
-		int fstatat64( int dfd , const char* pth , struct stat64* buf , int flgs ) { SOLVE(fstatat64,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,buf,flgs)) ; }
+		int stat     (           const char* pth , struct stat  * buf            ) { STAT(stat     ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,buf     )) ; }
+		int stat64   (           const char* pth , struct stat64* buf            ) { STAT(stat64   ,AT_FDCWD,pth,false/*no_follow*/      ,orig(    pth,buf     )) ; }
+		int lstat    (           const char* pth , struct stat  * buf            ) { STAT(lstat    ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth,buf     )) ; }
+		int lstat64  (           const char* pth , struct stat64* buf            ) { STAT(lstat64  ,AT_FDCWD,pth,true /*no_follow*/      ,orig(    pth,buf     )) ; }
+		int fstatat  ( int dfd , const char* pth , struct stat  * buf , int flgs ) { STAT(fstatat  ,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,buf,flgs)) ; }
+		int fstatat64( int dfd , const char* pth , struct stat64* buf , int flgs ) { STAT(fstatat64,dfd     ,pth,flgs&AT_SYMLINK_NOFOLLOW,orig(dfd,pth,buf,flgs)) ; }
 	#endif
 	//
-	int statx( int dfd , const char* pth , int flgs , unsigned int msk , struct statx* buf ) noexcept { SOLVE(statx,AT_FDCWD,pth,true/*no_follow*/,orig(dfd,pth,flgs,msk,buf)) ; }
+	int statx( int dfd , const char* pth , int flgs , unsigned int msk , struct statx* buf ) noexcept { STAT(statx,AT_FDCWD,pth,true/*no_follow*/,orig(dfd,pth,flgs,msk,buf)) ; }
 	// realpath
-	char* realpath              ( const char* pth , char* rpth               ) { SOLVE(realpath              ,AT_FDCWD,pth,false/*no_follow*/,orig(pth,rpth     )) ; }
-	char* __realpath_chk        ( const char* pth , char* rpth , size_t rlen ) { SOLVE(__realpath_chk        ,AT_FDCWD,pth,false/*no_follow*/,orig(pth,rpth,rlen)) ; }
-	char* canonicalize_file_name( const char* pth                            ) { SOLVE(canonicalize_file_name,AT_FDCWD,pth,false/*no_follow*/,orig(pth          )) ; }
+	char* realpath              ( const char* pth , char* rpth               ) { STAT(realpath              ,AT_FDCWD,pth,false/*no_follow*/,orig(pth,rpth     )) ; }
+	char* __realpath_chk        ( const char* pth , char* rpth , size_t rlen ) { STAT(__realpath_chk        ,AT_FDCWD,pth,false/*no_follow*/,orig(pth,rpth,rlen)) ; }
+	char* canonicalize_file_name( const char* pth                            ) { STAT(canonicalize_file_name,AT_FDCWD,pth,false/*no_follow*/,orig(pth          )) ; }
 	// mkdir
 	int mkdir  (           const char* pth , mode_t mod ) { SOLVE(mkdir  ,AT_FDCWD,pth,true/*no_follow*/,orig(    pth,mod)) ; }
 	int mkdirat( int dfd , const char* pth , mode_t mod ) { SOLVE(mkdirat,dfd     ,pth,true/*no_follow*/,orig(dfd,pth,mod)) ; }
