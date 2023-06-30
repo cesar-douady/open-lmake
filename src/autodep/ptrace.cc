@@ -336,8 +336,12 @@ void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
 
 // unlink
 template<bool At> void entry_unlink( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
-	try { info.action.unlink = RecordSock::Unlink( true/*active*/ , info.record , _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() , At?"unlinkat":"unlink" ) ; }
-	catch (int) {}
+	try {
+		int      at    = _at<At>(entry.args[0])        ;
+		int      flags = At ? entry.args[1+At] : 0     ;
+		::string file  = get_str(pid,entry.args[0+At]) ;
+		info.action.unlink = RecordSock::Unlink( true/*active*/ , info.record , at , file.c_str() , flags&AT_REMOVEDIR , At?"unlinkat":"unlink" ) ;
+	} catch (int) {}
 }
 void exit_unlink( PidInfo& info , pid_t , SyscallExit const& res ) {
 	info.action.unlink( info.record , res.rval ) ;

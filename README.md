@@ -104,7 +104,7 @@ it has been tested with the dockers listed in the docker directory
 - `t_`  : thread local
 - `np_` : non-portable
 
-Names are suffixed with _ if needed to suppress ambiguities
+Names are suffixed with \_ if needed to suppress ambiguities
 
 ## abbreviations
 - general rules :
@@ -114,33 +114,35 @@ Names are suffixed with _ if needed to suppress ambiguities
 	- words may further be abbreviated to a single letter when name spans no more than a few lines
 	- else words are not abbreviated
 - special cases :
-	abbrev full-name
-	cap       capacity
-	del       delete
-	dict      dictionary
-	dep       dependency
-	diff      difference
-	dst       destination
-	expr      expression
-	filename  file_name
-	id        identifier
-	idx       index
-	len       length
-	namespace name_space
-	ongoing   on_going
-	par       parallel
-	proc      procedure, process
-	regexpr   regular_expression
-	res       result
-	rsv       reserv, reserved
-	ser       serial
-	sock      socket
-	symlink   symbolic link
-	tab       table
-	tmp       temporary
-	tmpl      template
-	val       value
-	wakeup    wake_up
+	<table>
+	<tr> <th> abbrev    </th> <th> full-name          </tdh </tr>
+	<tr> <td> cap       </td> <td> capacity           </td> </tr>
+	<tr> <td> del       </td> <td> delete             </td> </tr>
+	<tr> <td> dct       </td> <td> dictionary         </td> </tr>
+	<tr> <td> dep       </td> <td> dependency         </td> </tr>
+	<tr> <td> diff      </td> <td> difference         </td> </tr>
+	<tr> <td> dst       </td> <td> destination        </td> </tr>
+	<tr> <td> expr      </td> <td> expression         </td> </tr>
+	<tr> <td> filename  </td> <td> file_name          </td> </tr>
+	<tr> <td> id        </td> <td> identifier         </td> </tr>
+	<tr> <td> idx       </td> <td> index              </td> </tr>
+	<tr> <td> len       </td> <td> length             </td> </tr>
+	<tr> <td> namespace </td> <td> name_space         </td> </tr>
+	<tr> <td> ongoing   </td> <td> on_going           </td> </tr>
+	<tr> <td> par       </td> <td> parallel           </td> </tr>
+	<tr> <td> proc      </td> <td> procedure, process </td> </tr>
+	<tr> <td> regexpr   </td> <td> regular_expression </td> </tr>
+	<tr> <td> res       </td> <td> result             </td> </tr>
+	<tr> <td> rsv       </td> <td> reserv, reserved   </td> </tr>
+	<tr> <td> ser       </td> <td> serial             </td> </tr>
+	<tr> <td> sock      </td> <td> socket             </td> </tr>
+	<tr> <td> lnk       </td> <td> symbolic link      </td> </tr>
+	<tr> <td> tab       </td> <td> table              </td> </tr>
+	<tr> <td> tmp       </td> <td> temporary          </td> </tr>
+	<tr> <td> tmpl      </td> <td> template           </td> </tr>
+	<tr> <td> val       </td> <td> value              </td> </tr>
+	<tr> <td> wakeup    </td> <td> wake_up            </td> </tr>
+	</table>
 
 ## layout
 - lines are limited to 200 characters

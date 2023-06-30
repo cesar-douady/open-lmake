@@ -125,6 +125,7 @@ unit_tests/hide.py
 unit_tests/numpy.py
 unit_tests/py_rule.py
 unit_tests/rust.py
+unit_tests/scratchpad.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/tar.py

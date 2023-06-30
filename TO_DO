@@ -24,6 +24,8 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
+* consider using a single command check_deps/critical_barrier
+	* a priori they serve the same purpose
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
@@ -31,13 +33,11 @@
 	- same for manual, etc.
 ? consider a package for option passing
 	? gnu argp
-	? https://www.google.com/url?sa=t&source=web&rct=j&url=http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf&ved=2ahUKEwiu_qn_7bH_AhUKVqQEHSc4AtwQFnoECA4QAQ&usg=AOvVaw0BH-4w3AQP6qFg-iZO7QaP
+	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
 ? if actual_job!=conform_job, show both with warning in lshow
-? consider using a single command check_deps/critical_barrier
-	? a priori they serve the same purpose
 
 ****************************************************************************************************
-* ROBUSTNESS & MAINTENABILITY (not implemented and fragile/difficult to read or maintain as long as not implemented)
+* ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
 * add a warning when ids reach 15/16 of their limits

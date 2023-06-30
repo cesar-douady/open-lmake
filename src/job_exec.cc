@@ -78,11 +78,11 @@ int main( int argc , char* argv[] ) {
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
 	::map_ss cmd_env = mk_map(start_info.env) ;
-	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ; // TMPDIR is the standard environment variable to specify the temporary area
+	cmd_env.try_emplace( "PWD"         ,           start_info.cwd       ) ;
 	cmd_env.try_emplace( "ROOT_DIR"    ,           *g_root_dir          ) ;
 	cmd_env.try_emplace( "SEQUENCE_ID" , to_string(seq_id             ) ) ;
 	cmd_env.try_emplace( "SMALL_ID"    , to_string(start_info.small_id) ) ;
-	cmd_env.try_emplace( "PWD"         ,           start_info.cwd       ) ;
+	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ; // TMPDIR is the standard environment variable to specify the temporary area
 	//
 	Fd child_stdin  = Child::None ;
 	Fd child_stdout = Child::Pipe ;

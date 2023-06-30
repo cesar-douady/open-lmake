@@ -268,10 +268,7 @@ namespace Engine {
 					auto     report_req   = deserialize<JobRpcReq  >(job_stream) ;
 					auto     report_start = deserialize<JobRpcReply>(job_stream) ;
 					auto     report_end   = deserialize<JobRpcReq  >(job_stream) ;
-					if (!report_end.digest.stderr.empty()) {
-						(*this)->audit_stderr( report_end.digest.stderr , job->rule->stderr_len , lvl ) ;
-						seen_stderr = true ;
-					}
+					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , job->rule->stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				}

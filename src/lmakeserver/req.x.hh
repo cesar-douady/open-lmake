@@ -247,8 +247,8 @@ namespace Engine {
 		JobIdx n_running() const { return stats.cur(JobLvl::Queued)+stats.cur(JobLvl::Exec) ; }
 		Idx    idx      () const { return this - Req::s_store.data()                        ; }
 		// services
-		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t           ) ; }
-		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p,n.name()  ) ; }
+		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
+		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }
 		//
 		void audit_job( Color c , ProcessDate date , ::string const& step , Rule r , ::string const& jn , ::string const& host={} , Delay exec_time={} ) const {
 			::OStringStream msg ;
@@ -284,17 +284,19 @@ namespace Engine {
 				) ) ) ;
 			} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 		}
-		void audit_stderr( ::string const& stderr , size_t max_stderr_lines , DepDepth lvl=0 ) const {
-			if (stderr.empty()) return ;
+		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl=0 ) const {
+			for( auto const& [pfx,ni] : analysis_err ) audit_node( Color::Note , pfx , ni , lvl ) ;
+			if (stderr.empty()) return !analysis_err.empty() ;
 			if (max_stderr_lines!=size_t(-1)) {
 				::string_view shorten = first_lines(stderr,max_stderr_lines) ;
 				if (shorten.size()<stderr.size()) {
-					audit_info( Color::None , ::string(shorten) , lvl+1 ) ;
-					audit_info( Color::Note , "..."             , lvl+1 ) ;
-					return ;
+					audit_info( Color::None , ::string(shorten) , lvl ) ;
+					audit_info( Color::Note , "..."             , lvl ) ;
+					return true ;
 				}
 			}
-			audit_info( Color::None , stderr , lvl+1 ) ;
+			audit_info( Color::None , stderr , lvl ) ;
+			return true ;
 		}
 		::string localize(::string const& file) const {
 			return Disk::localize(file,options.startup_dir_s) ;

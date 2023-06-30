@@ -160,10 +160,10 @@ public :
 		::string comment ;
 	} ;
 	//
-	void chdir(          const char* dir                                                          ) { swear(dir[0]=='/',dir) ; real_path.cwd_ = dir ; }
-	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read" ) ;
-	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec" ) ;
-	void solve( int at , const char* file , bool no_follow=false , ::string const& comment={} ) {
+	void chdir(          const char* dir                                                           ) { swear(dir[0]=='/',dir) ; real_path.cwd_ = dir ; }
+	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read"  ) ;
+	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec"  ) ;
+	void solve( int at , const char* file , bool no_follow=false , ::string const& comment="solve" ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
 		if ( !s_ignore_stat && !real.empty() ) _report_dep( ::move(real) , DFlag::Stat , comment ) ;
 	}

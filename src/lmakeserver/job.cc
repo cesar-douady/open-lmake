@@ -665,14 +665,7 @@ namespace Engine {
 		req->audit_job(c,step,*this,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (jr==JobReport::Unknown) return ;
-		::string err ;
-		for( auto const& [pfx,ni] : analysis_err ) {
-			//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (ni) req->audit_node(Color::Note,pfx,ni,1) ;
-			else    req->audit_info(Color::Note,pfx,   1) ;
-			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		}
-		req->audit_stderr(stderr,jd.rule->stderr_len) ;
+		req->audit_stderr(analysis_err,stderr,jd.rule->stderr_len,1) ;
 	}
 
 	void Job::_set_pressure_raw(ReqInfo& ri , CoarseDelay pressure ) const {
