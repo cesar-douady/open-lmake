@@ -77,9 +77,10 @@ ASAN               := $(if $(ASAN_FLAGS),.san,)
 TSAN               := $(if $(TSAN_FLAGS),.san,)
 PREPROCESS         := $(CC)             -E                     -ftabstop=4
 COMPILE            := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
+LINK_LIB_PATH      := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH= | cut -d= -f2 | sed 's/:/ /g' | xargs realpath | uniq | sed s/^/-Wl,-rpath=/)
 LINK_O             := $(CC) $(COVERAGE) -r
-LINK_SO            := $(CC) $(COVERAGE) -shared-libgcc -shared -pthread
-LINK_BIN           := $(CC) $(COVERAGE) -pthread
+LINK_SO            := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread -shared-libgcc -shared
+LINK_BIN           := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread
 LINK_LIB           := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
 PYTHON_LIB_BASE    := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
@@ -602,7 +603,7 @@ $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
 $(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
+	mkdir -p $(LMAKE_ENV)-cache
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	mkdir -p lmake_env-cache
 	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
