@@ -73,7 +73,7 @@ Indeed, @lmake is not limited to programs.
 You can use it to describe any task where some files must be (re)computed automatically
 from others whenever recomputing would generate such files differently than what they currently are.
 Such situations include dependency modifications, but also command modifications, dependency list modifications,
-apparition of an include file that was in the search path before a include file was actually accessed, symbolic link modifications, etc.
+apparition of an include file that was in the search path before an include file was actually accessed, symbolic link modifications, etc.
 
 @lmake is designed to be scalable, robust and efficient.
 
@@ -93,7 +93,7 @@ Note that @lmake does not only recorver from its own flees, but also a lot of ex
 This includes for example violations by NFS of its close-to-open synchronization guarantee (which happens, under heavy system load, maybe once in 10.000 accesses)
 or SGE/SLURM spuriously disappearing.
 
-By efficient, we mean that jobs are run in parallel, optionally using a batcher such as slurm, managing limited resources as declared in @Lmakefile.
+By efficient, we mean that jobs are run in parallel, optionally using a batcher such as Slurm, managing limited resources as declared in @Lmakefile.
 We also mean that @lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
 Such effort includes checksum based modification detection rather than date based, so that if a job is rerun and produces an identical content, subsequent jobs are not rerun.
 Also, @lmake embed a build cache whereby jobs can record their results in a cache so that if the same run needs to be carried out by another user,
@@ -121,8 +121,8 @@ suffices to perform all necessary steps so that @file{<my_target>} is reproduced
 The @lmake program maintains an internal state in the @file{LMAKE} directory
 to decide which of the files need to be regenerated.
 For each of those files, it issues the recipes recorded in @Lmakefile.
-During the execution of recipes, @lmake instrument them in order to gather which files were read and written in order to determine hidden dependencies and whether such actions were legal.
-These informations are recorded in the @file{LMAKE} directory.
+During the execution of recipes, @lmake instruments them in order to gather which files were read and written in order to determine hidden dependencies and whether such actions were legal.
+These information are recorded in the @file{LMAKE} directory.
 
 You can provide command line arguments to @lmake to somewhat control this process.
 
@@ -139,9 +139,9 @@ If it's not clear whether you should be able to do something or not, report that
 
 Before reporting a bug or trying to fix it yourself, try to isolate it
 to the smallest possible @Lmakefile that reproduces the problem.
-Then send us the makefile and the exact results @lmake gave you, including any error messages.
+Then send us the @Lmakefile and the exact results @lmake gave you, including any error messages.
 Please don't paraphrase these messages: it's best to cut and paste them into your report.
-When generating this small makefile, be sure to not use any non-free
+When generating this small @Lmakefile, be sure to not use any non-free
 or unusual tools in your recipes: you can almost always emulate what
 such a tool would do with simple shell commands.
 Finally, be sure to explain what you expected to occur; this will help us decide whether the problem was really in the documentation.
@@ -196,13 +196,13 @@ When @lmake recompiles this tiny executable, each changed C++ source file must b
 If a header file has changed, each C++ source file that includes the header file must be recompiled.
 Each compilation produces an object file corresponding to the source file.
 Then, if any source file has changed, all the object files, whether newly made or saved from previous compilations, must be linked together to produce the new tiny executable.
-Finally, i the tiny executable changed, its unit test must be rerun and if the resulting output changes (or if the reference is modified), the actual output must be recompared against the reference.
+Finally, if the tiny executable changed, its unit test must be rerun and if the resulting output changes (or if the reference is modified), the actual output must be recompared against the reference.
 
 As its name suggests, @Lmakefile is actually a Python file.
 @lmake embeds a Python interpreter (version 3.6+) to interpret @Lmakefile.
-Because Python is among the most powerful and widely used programming langage, this choice allows @lmake users to have access to a very powerful langage to express complicated workflows
-without the need to learn a new langage.
-As a side effect, it also allows the developpers to provide such a powerful means without having to design and implement it.
+Because Python is among the most powerful and widely used programming language, this choice allows @lmake users to have access to a very powerful language to express complicated workflows
+without the need to learn a new language.
+As a side effect, it also allows the developpers to provide such a powerful mean without having to design and implement it.
 Among the features of Python that come handy when describing workflows, one can list variables, functions, f-strings, conditionals, loops and inheritance.
 
 The goal of @Lmakefile is to describe 3 aspects of your workflow :
@@ -230,9 +230,9 @@ In a simple workflow, ignoring the configuration step is a good starting point.
 @lmake needs to know the list of the source files.
 The mere presence on disk of a file is not sufficient for @lmake to qualify it as a source.
 This is because the aim of @lmake is to provide a reproductible workflow.
-For example, if you work under @code{git}, as it is very common, once you have been able to build a target, you must be able to commit and push then a colleague (or yourself in another repository)
+For example, if you work under @code{git}, as it is very common, once you have been able to build a target, you must be able to commit and push, then a colleague (or yourself in another repository)
 must be able to do a pull and build the same target to get the same result.
-If a file exists in your original repository, is not tracked by @code{git} and is used to build your target, your colleague will not be able to reproduce the same target with the same content.
+If a file exists in your original repository, but is not tracked by @code{git} and is used to build your target, your colleague will not be able to reproduce the same target with the same content.
 In such a situation, @lmake will consider your file as @dfn{dangling} and accessing it will be an error.
 
 Source files are listed in @code{lmake.sources} as a @code{list} or a @code{tuple}.
@@ -332,7 +332,7 @@ This attribute specifies the recipe to use to build targets from dependencies.
 The @code{cmd} attribute can be either a @code{str} or a function.
 
 If it is a @code{str}, it contains a shell script that will be executed when the rule is triggered
-(the shell can be customized and defaults to the default system shell, usually @file{/bin/sh}).
+(the shell can be customized and defaults to the default system shell, usually @file{/bin/bash}).
 Before execution, its environment will be augmented with the definitions of stems, targets and dependencies (and a few others that will be described later).
 This way, scripts are easy to read and write.
 
@@ -475,7 +475,7 @@ Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [-m|--manual-ok] [-o
 @itemize @bullet
 @item When a job starts if it is long (duration that qualifies a job as long is configurable). This start line is deemed of secondary importance.
 @item When a job terminates.  Such lines are followed by the content of stderr if any and status is known.
-@item When the job status is finally known if it was not known when it terminated. such lines are followed by the content of stderr if any.
+@item When the job status is finally known if it was not known when it terminated. such lines are followed by the content of stderr if any. (Typically the job status is not known when it terminated if lmake has to check if a dependency is up to date or not)
 @end itemize
 
 At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
@@ -498,12 +498,12 @@ This is useful for example if you want to archive a fully built repository.
 @item @code{-e}|@code{--forget-old-errors} : assume encountered errors are transicent.
 Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
 @item @code{-m}|@code{--manual-ok} : normally, @lmake refuses to launch a job that may overwrite a modification done by the user
-as @lmake fears to jettison important informations from the user.
+as @lmake fears to jettison important information from the user.
 With this option, the user instructs @lmake that this fear is not pertinent.
 @item @code{-o}|@code{--live-out} : normally, @lmake does not output the stdout of jobs (such stdout is accessible with the @code{lshow} command).
 However, sometimes it is practical to have the output while jobs are running.
 Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
-When this options is used, only the jobs directly producing the asked targets have their output generated on the output of @lmake.
+When this option is used, only the jobs directly producing the asked targets have their output generated on the output of @lmake.
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
 @item @code{-s}|@code{--source-ok} : normally, @lmake refuses to launch a job that may overwrite a source.
 With this option, the user instructs @lmake that this is allowed.
@@ -540,7 +540,7 @@ Once the build process is complete, a summary is generated with :
 
 Usage : @code{lshow [ [-a|--all-deps] | [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-t|--targets] ] targets...}
 
-@code{lshow} provides various informations about jobs.
+@code{lshow} provides various information about jobs.
 The jobs are those officially generating the targets (i.e. the jobs that would be selected by @lmake if needing to generate it) if any,
 else it may be the jobs that actually generated the target.
 
@@ -601,7 +601,7 @@ This is exceptionally useful in situations where @lmake's hypotheses are broken 
 In its second form, subsequent @lmake commands will :
 @itemize @minus
 @item @code{-e}|@code{--error} : consider errors seen so far as transcient errors and will rerun corresponding jobs.
-@item @code{-r}|@code{--resources} : not trust builds with old resources an rerun targets that have been successfully built with old resources.
+@item @code{-r}|@code{--resources} : not trust builds with old resources and rerun targets that have been successfully built with old resources.
 @item -
 @end itemize
 
@@ -614,7 +614,7 @@ The @code{-r} option is useful in the following scenario :
 @item You have run jobs J1 and J2. J1 completed successfully but J2 lacked some memory and ended in error.
 @item Then you have modified  the allocated memory, increasing J2's memory and decreasing J1's memory because you think it is better balanced this way.
 @item Then you remade both jobs. J2 reran because it was in error and now completes successfully. J1 did not rerun because it was ok and modifying some resources would not change the result.
-@item However, it could be that now J2 does not have enough memory any more. It is not a problem in itself because its content is correct, but it may not be reproducible.
+@item However, it could be that now J1 does not have enough memory any more. It is not a problem in itself because its content is correct, but it may not be reproducible.
 @item You want to make sure your repository is fully reproducible.
 @item In that case, you run @code{lforget -r}. J1 will rerun because it was not run with the new resources, as if its command was modified. J2 will not because it has already run since then.
 @end itemize
@@ -624,7 +624,7 @@ The @code{-r} option is useful in the following scenario :
 Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] executable args...}
 
 @code{autodep} is a small tool that may be useful when designing a flow.
-It allows to see what informations (dependencies and targets) are recorded by code instrumentation @lmake injects in jobs to track activity without actually run a job under its control.
+It allows to see what information (dependencies and targets) are recorded by code instrumentation @lmake injects in jobs to track activity without actually run a job under its control.
 
 The trace generated by @code{autodep} is halfly digested in the sens that :
 @itemize @minus
@@ -901,8 +901,8 @@ Accessing inexisting modules is the way to inform Python that this module is nee
 @subsection @code{class RustRule}
 This @code{class} may be used as a base @code{class} to execute executable written in rust.
 
-Rust uses a special link mechanis which defeats the default @code{ld_audit} autodep mechanism.
-This base @code{class} merely sets the  autodep method to @code{ld_audit} which works around this problem.
+Rust uses a special link mechanism which defeats the default @code{ld_audit} autodep mechanism.
+This base @code{class} merely sets the autodep method to @code{ld_preload} which works around this problem.
 
 @subsection @code{class GitRule}
 This @code{class} may be used to ignore all git management files. This files can be  recognized as they lie in a directory named @file{.git}.
@@ -911,7 +911,7 @@ By itself, it is a dangerous @code{class} and must be used with care.
 User must ensure that all modifications to such git management files are reflected to the actual visible files outside these @file{.git} directories.
 
 @subsection @code{class HomelessRule}
-This @code{class} opies the @code{TMPDIR} environment variable the @code{HOME} one.
+This @code{class} copies the @code{TMPDIR} environment variable the @code{HOME} one.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
 By default  the @code{HOME} environment variable points to the root of the repository, which permits to put various init code there.
 
@@ -1006,11 +1006,11 @@ Recognized attributes are :
 @item @code{heartbeat}
 @tab @code{60}
 @tab @lmake launches job through a batcher, one of them being the @code{local} batcher that launches jobs locally.
-also, a remote host executing job may reboot, or the job may be killed, or ... the batcher may simply lose it (yes, it happens from time to time, for example with SGE or slurm).
+Also, a remote host executing job may reboot, or the job may be killed, or ... the batcher may simply lose it (yes, it happens from time to time, for example with SGE or Slurm).
 In order to save resources (file descriptors), no connection is maintained between @lmake and jobs while they are running (there may be thousands of them).
 As a consequence, @lmake has no idea whether a job is running or disappeared.
 Without protection, a killed job would lead @lmake to block, waiting undefinitely (or until its timeout if it already started) for it to start or complete.
-To avoid this, submitted jobs are watched periodically to check they still exist.
+To avoid this, submitted jobs are watched periodically to check if they still exist.
 This attriute provides the interval in seconds between such heartbeats.
 @item @code{link_support}
 @tab @code{'Full'}
@@ -1074,7 +1074,7 @@ The attributes are described in the caches section below.
 @tab @code{0}
 @tab Special case of backends attribute is the @code{margin} entry, that must be present for all backends, that provide the minimum age (i.e. the difference between its ctime and the access time)
 for a freshly discovered dependency after which it is deemed acceptable.
-This margin may be necessary as some network file systems (for example some versions of NFS) do not @strong{always} respect their promess of close-to-open consistency in heavy workload situations.
+This margin may be necessary as some network file systems (for example some versions of NFS) do not @strong{always} respect their promise of close-to-open consistency in heavy workload situations.
 When a dependency is known before job execution, @lmake can insert code to check the file is actually accessible in its last version, but if a dependency is discovered during the execution,
 there is nothing @lmake can do. As a work around, @lmake only trusts such dependencies if the file is old enough that its update has had a chance to propagate.
 This value is to be determined empirically.
@@ -1324,7 +1324,7 @@ The flags may be any combination of the following flags, optionally preceded by 
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
-@item Crc @tab crc @tab Yes @tab A checksum is computed is computed on these targets when generated. Compulsery for matching targets.
+@item Crc @tab crc @tab Yes @tab A checksum is computed on these targets when generated. Compulsery for matching targets.
 @item Dep @tab dep @tab Yes @tab If such a file is read and not written, it will actually be a dependency, not a target.
 @item Essential @tab essential @tab Yes @tab This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Incremental @tab incremental @tab No @tab Previous content may be used to produce these targets. In that case, these are not unlinked before execution.
@@ -1425,7 +1425,7 @@ Hence they lack the initial @code{f} in front of the string.
 
 Accessible variables when evaluating the f-string include the @code{stems}, the @code{targets}, attributes and the module dictionary.
 
-Alternatively, values can also by @code{list} or @code{tuple} whose first item is as described above, followed by flags.
+Alternatively, values can also be @code{list} or @code{tuple} whose first item is as described above, followed by flags.
 
 The flags may be any combination of the following flags, optionally preceded by - to turn it off when it is present by default.
 
@@ -1436,7 +1436,7 @@ The flags may be any combination of the following flags, optionally preceded by 
 @item Required @tab required @tab Yes @tab This dependency must be buildable for this job to run.
 @end multitable
 
-Flag order and dependency order is not significative.
+Flag order and dependency order are not significative.
 
 In order to support hierarchical repository (@pxref{hierarchical-repositories}) :
 @itemize @minus
@@ -1638,7 +1638,7 @@ The job is deemed to be successful if the last function returns a false value.
 
 @subsection if it is a @code{str}
 
-In that case, this attribute is run to run the job.
+In that case, this attribute is executed as a shell command to run the job.
 Combined inheritance is a special case for @code{cmd}.
 While walking the MRO, if for a base class @code{cmd} is defined as a @code{function} and it has a @code{shell} attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine @code{str}'s and @code{function}'s because they use different paradigms.
@@ -1752,7 +1752,7 @@ The whole content of stderr stays accessible with the @code{lshow -e} command.
 @end multitable
 
 When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
-If it is true, writing to stderr is allowed and does not produce an error. The @lmake output will exhibit a warning, though.
+If it is @code{True}, writing to stderr is allowed and does not produce an error. The @lmake output will exhibit a warning, though.
 
 @section @code{auto_mkdir}
 
@@ -1765,7 +1765,7 @@ If it is true, writing to stderr is allowed and does not produce an error. The @
 @tab @code{False}
 @end multitable
 
-When this attribute has a true value, executing a @code{chdir} syscall (e.g. executing @code{cd} in bash) will create the target directory if it does not exist.
+When this attribute has a @code{True} value, executing a @code{chdir} syscall (e.g. executing @code{cd} in bash) will create the target directory if it does not exist.
 
 This is useful for scripts in situations such as :
 @itemize @minus
@@ -1774,7 +1774,7 @@ This is useful for scripts in situations such as :
 @item What is expected is to have a dependency on @file{a/b} which may not exist initially but will be created by some other job.
 @item However, if directory @file{a} does not exist, the @code{chdir} call fails and the file which is open for reading is @file{b} instead of @file{a/b}.
 @item As a consequence, no dependency is set for @file{a/b} and the problem will not be resolved by a further re-execution.
-@item Setting this attribute to true creates directory @file{a} on the fly when @code{chdir} is called so that it succeeds and the correct dependency is set.
+@item Setting this attribute to @code{True} creates directory @file{a} on the fly when @code{chdir} is called so that it succeeds and the correct dependency is set.
 @end itemize
 
 @section @code{ignore_stat}
@@ -1788,7 +1788,7 @@ This is useful for scripts in situations such as :
 @tab @code{False}
 @end multitable
 
-When this attribute is set to a true value, stat-like syscalls (i.e. syscalls that access the i-node only) are ignored.
+When this attribute is set to a @code{True} value, stat-like syscalls (i.e. syscalls that access the i-node only) are ignored.
 The @code{'-Stat'} flag on targets provide a more flexible mecanism.
 The only advantage of this attribute is that precisely because it is rather crude, stat-like syscalls can be filtered very early and performances are better.
 
@@ -1806,7 +1806,7 @@ The only advantage of this attribute is that precisely because it is rather crud
 When this attribute is set to a true value, the temporary directory is kept after job execution.
 It can be retreived with @code{lshow -i}.
 Sucessive executions of the same job overwrite the temporary directory, though, so only the content corresponding to the last execution is available.
-When this attribute has a false value, the temporary directory is washed at the end of the job execution.
+When this attribute has a @code{False} value, the temporary directory is washed at the end of the job execution.
 
 @section @code{force}
 
@@ -1819,8 +1819,8 @@ When this attribute has a false value, the temporary directory is washed at the 
 @tab @code{False}
 @end multitable
 
-When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
-It is rarely necessary
+When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
+It is rarely necessary.
 
 @section @code{timeout}
 
@@ -1908,9 +1908,11 @@ A job is killed when :
 The signals listed in this list are sent in turn, once every second. If the list is exhausted and the job is still alive, @code{KILLSIG}'s are sent, once per second.
 Longer interval can be obtained by inserting @code{0}'s. @code{0} signals are not sent and anyway, these would have no impact if they were.
 
+Note:this attribute is only relevant for @code{local} backend. Otherwise Slurm/SGE API is used to kill jobs.
+
 @chapter The @file{LMAKE} directory
 
-This directory contains numerous informations that may be useful to the user.
+This directory contains numerous information that may be useful to the user.
 
 There are other files than those described here which are for @lmake own management
 
@@ -1944,7 +1946,7 @@ This file contains the targets that have been required by @lmake commands in chr
 
 @chapter Some considerations
 
-This chapter contains a some considerations that appear in several places of this documentation.
+This chapter contains some considerations that appear in several places of this documentation.
 It is meant to be the target of cross-references.
 
 @anchor{rule-inheritance}
@@ -2010,7 +2012,7 @@ When this information is not available, i.e. when the job has never run successf
 
 The @lmake backend also provides the current ETA (@pxref{eta-estimation}) of the final targets to allow the backends from different repository to take the best collective decision.
 
-As of now, the only existing backend is the local backend, but a slurm backend is scheduled shortly.
+As of now, the only existing backend is the local backend, but a Slurm backend is scheduled shortly.
 
 @anchor{local-backend}
 @section Local backend
@@ -2042,7 +2044,7 @@ Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu}
 @section Autodep
 
 Autodep is a mechanism through which jobs are spied to automatically detect which disk accesses are done.
-From this information @lmake can determine if accesses were within the constraints provided by the rule and the list of the hidden dependencies.
+From this information @lmake can determine if accesses were within the constraints provided by the rule and can list the hidden dependencies.
 
 Several methods are available to spy jobs.
 Not all methods are supported on all systems, though.
@@ -2054,17 +2056,17 @@ In all cases, the environment variable @code{LMAKE_AUTO_DEP_ENV} must remain in 
 The job is not instrumented.
 The only intrusion is the presence of the environment variable @code{LMAKE_AUTODEP_ENV}.
 
-The only way to report activity is through the use of @code{ldepend} and similar commands or functions available in the @code{lmake} module.
+The only way to report activity is through the use of @code{ldepend} / @code{ltarget} or similar functions available in the @code{lmake} module.
 
-The main adavantage is that this method is not invasive (or marginally).
+The main advantage is that this method is not invasive (or marginally).
 The main inconvenient is that no automatic hidden dependencies are recorded, one has to explicitely call @code{ldepend} and experience shows it is very difficult not to forget some.
 
 This method is @strong{not} recommanded.
 
 @subsection @code{'LdPreload'} or @code{'ld_preload'}
 
-The job is run with a library loaded using the @code{LD_PRELOAD} environment variable that catches some calls @file{libc.so} (such as @code{open}) to track activity.
-This environment variable can be modified as long as the librairy introduced by @lmake stays present.
+The job is run with a library loaded using the @code{LD_PRELOAD} environment variable that catches some calls to the @file{libc.so} (such as @code{open}) to track activity.
+This environment variable may be modified as long as the librairy introduced by @lmake stays present.
 
 This requires @file{libc.so} to be dynamically linked.
 
@@ -2080,7 +2082,7 @@ This method is recommanded on systems that lack the rtld-audit capability.
 
 This method is similar to @code{ld_preload} except that the rtld-audit (through the @code{LD_AUDIT} environment variable) mechanism is used instead of @code{LD_PRELOAD},
 which is less invasive (cases where it is not transparent are very awkward).
-This environment variable can be modified as long as the librairy introduced by @lmake stays present.
+This environment variable may be modified as long as the librairy introduced by @lmake stays present.
 
 This also requires @file{libc.so} to be dynamically linked but failure to do so can be detected and an error is generated, mandating the use of another method (except @code{ld_preload}).
 
@@ -2107,7 +2109,7 @@ This method is recommanded as a fall back when the previous (@code{ld_preload} a
 @itemize @minus
 @item If @code{'None'} or @code{'none'}, Symbolic links are not supported, no effort is done to resolve them.
 @item If @code{'File'} or @code{'file'}, Symbolic links are supported only when they point to files (much like hard links), so intermediate directories are not checked for symbolic links.
-@item If @code{'Full'} or @code{'full'}, All symbolic links are supported. This is the most secure but also the most heavy in terms of performances as all intermediate directories have to be checked.
+@item If @code{'Full'} or @code{'full'}, All symbolic links are supported. This is the most secure but also the most heavy in terms of performance as all intermediate directories have to be checked.
 @end itemize
 
 @anchor{rule-selection}
@@ -2178,7 +2180,7 @@ To support this situation, @lmake allow you to simply import these @Lmakefile an
 
 An ETA estimation is made possible because the execution time for each job is recorded in @lmake book-keeping after all successful runs
 (if a job ends in error, it may very well have been much faster and the previous execution time is probably a better estimate than this one).
-When a job has never run successfully, an ETE is used instead of its actual execution time by taking a moveing average of all the jobs of the same rule.
+When a job has never run successfully, an ETE is used instead of its actual execution time by taking a moving average of all the jobs of the same rule.
 
 This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all dependencies and resources into account.
 But this is way too expensive, so a faster process must be done, even at the expense of precision.
@@ -2202,7 +2204,7 @@ The ETA is then the current time + this accumulated time.
 @anchor{video-mode}
 @section Video mode and colors
 
-If lmake is connected a terminal, then the terminal foreground and background colors are probed and if the brightness of the background color is less than that of the foreground color,
+If lmake is connected to a terminal, then the terminal foreground and background colors are probed and if the brightness of the background color is less than that of the foreground color,
 video mode is set to normal, else it is set to reverse.
 
 In that case, lmake output is colored and the (configurable) color set is chosen depending on video mode.
@@ -2215,7 +2217,7 @@ If you declare a target matching all files in your directory with the following 
 @itemize @minus
 @item @code{'-Match'} : this prevents matching on these files from other rules.
 In exchange you gain a lot of flexibility (for example your are not obliged to specify all static stems).
-@item @code{'-Dep'} : this prevents read matching files to becode a dependency (as normally the case, even for a target).
+@item @code{'-Dep'} : this prevents read matching files to become a dependency (as normally the case, even for a target).
 This is the major goal of this target.
 @item @code{'-Write'} : you may want to add this flag to consider writing to such files as an error, good if you are supposed to have read-only accesses.
 @item @code{'Incremental'} : you may want to add this flag if, on the contrary, you want to allow the rule to do update (i.e. a read followed by a write) to matching files.
@@ -2235,7 +2237,7 @@ An exemple is shown here :
 @example
 @group
 class Mrkr(lmake.Rule) :
-	prio   = -lmake.inf         # in case of clash with another rule teh other rule is perfect, as long as mrkr is not a directory
+	prio   = -lmake.inf         # in case of clash with another rule the other rule is perfect, as long as mrkr is not a directory
 	target = '@{__dir__@}mrkr'
 	cmd    = ''                 # target is open as its stdout, this is enough, we have nothing to put in the target
 class Gcc(lmake.Rule) :
@@ -2252,7 +2254,7 @@ class Gcc(lmake.Rule) :
 @table @asis
 @item MRO
 Method Research Order, the inheritance chain from the current class to its most basic base, usually @code{object}.
-Python computes the MRO in such a way as to enforce the diamong rule.
+Python computes the MRO in such a way as to enforce the diamond rule.
 @item diamond rule
 A feature of Python that allows the following behavior :
 @itemize
