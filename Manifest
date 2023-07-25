@@ -118,6 +118,7 @@ unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/conflict.py
+unit_tests/critical_barrier.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
 unit_tests/dynamic.py

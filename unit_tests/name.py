@@ -12,7 +12,7 @@ if getattr(sys,'reading_makefiles',False) :
 	lmake.sources = (
 		'Lmakefile.py'
 	,	'step.py'
-	,	'test.zip'
+	,	'test.tgz'
 	)
 
 	from step import step
@@ -20,11 +20,11 @@ if getattr(sys,'reading_makefiles',False) :
 	class Expand(lmake.Rule) :
 		name = f'expand{step}'
 		targets = {
-			'TARGET'  : '{File:.*}.zipdir/{*:.*}'
-		,	'TRIGGER' : '{File}.zipdir.trigger'
+			'TARGET'  : '{File:.*}.tgzdir/{*:.*}'
+		,	'TRIGGER' : '{File}.tgzdir.trigger'
 		}
-		deps = { 'ZIP' : '{File}.zip' }
-		cmd  = 'unzip -o -d $File.zipdir $ZIP >$TRIGGER'
+		deps = { 'TGZ' : '{File}.tgz' }
+		cmd  = 'tar -xvf $TGZ -C $File.tgzdir >$TRIGGER'
 
 else :
 
@@ -34,10 +34,10 @@ else :
 
 	os.makedirs('test',exist_ok=True)
 	open('test/testfile.py','w')
-	os.system('zip test.zip test/testfile.py')
+	os.system('tar -czf test.tgz test/testfile.py')
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('test.zipdir.trigger',new=1,done=1)
+	ut.lmake('test.tgzdir.trigger',new=1,done=1)
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake('test.zipdir.trigger')
+	ut.lmake('test.tgzdir.trigger')

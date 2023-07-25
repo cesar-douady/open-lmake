@@ -46,41 +46,40 @@ using namespace Hash ;
 	return os <<','<< ai.order <<')' ;
 }
 
-GatherDeps::AccessInfo& GatherDeps::_info( ::string const& name , bool force_new ) {
-	if (!force_new) {
-		auto it = access_map.find(name) ;
-		if (it!=access_map.end()) return accesses[it->second].second ;
+bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , bool force_new , ::string const& comment ) {
+	SWEAR(!file.empty()) ;
+	AccessInfo* info_  = nullptr/*garbage*/                                   ;
+	auto        it     = force_new ? access_map.end() : access_map.find(file) ;
+	bool        is_new = it==access_map.end()                                 ;
+	if (is_new) {
+		access_map[file] = accesses.size() ;
+		accesses.emplace_back(file,AccessInfo()) ;
+		info_ = &accesses.back().second ;
+	} else {
+		info_ = &accesses[it->second].second ;
 	}
 	//
-	access_map[name] = accesses.size() ;
-	accesses.emplace_back(name,AccessInfo()) ;
-	return accesses.back().second ;
-}
-
-void GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , bool force_new , ::string const& comment ) {
-	SWEAR(!file.empty()) ;
-	AccessInfo& info_  = _info(file,force_new) ;
-	//
 	Bool3 after =                                                              // new entries have after==No
-		!info_.info.idle() && pd>info_.write_date ? Yes
-	:	+info_.info.dfs    && pd>info_.read_date  ? Maybe
-	:	                                            No
+		!info_->info.idle() && pd>info_->write_date ? Yes
+	:	+info_->info.dfs    && pd>info_->read_date  ? Maybe
+	:	                                              No
 	;
 	//
 	if ( +ai.dfs || ai.idle() ) {                                              // if we do not write, do book-keeping as read, even if we do not access the file
 		if (after==No) {
-			info_.read_date = pd                                        ;
-			info_.file_date = dd                                        ;
-			info_.order     = parallel?DepOrder::Parallel:DepOrder::Seq ;      // Critical is managed at the end, by comparing dates with critical_barriers
-		} else if (!(info_.info.dfs&AccessDFlags)) {
-			info_.file_date = dd ;                                             // if previous accesses did not actually access the file, record our date
+			info_->read_date = pd                                        ;
+			info_->file_date = dd                                        ;
+			info_->order     = parallel?DepOrder::Parallel:DepOrder::Seq ;     // Critical is managed at the end, by comparing dates with critical_barriers
+		} else if (!(info_->info.dfs&AccessDFlags)) {
+			info_->file_date = dd ;                                            // if previous accesses did not actually access the file, record our date
 		}
 	}
-	if ( !ai.idle() && after!=Yes ) info_.write_date = pd ;
+	if ( !ai.idle() && after!=Yes ) info_->write_date = pd ;
 	//
-	JobExecRpcReq::AccessInfo old_ai = info_.info  ;                                                       // for trace only
-	info_.info.update(ai,after) ;                                                                          // execute actions in actual order as provided by dates
-	if ( after!=Yes || info_.info!=old_ai ) Trace("_new_access", pd , after , ai , file , dd , comment ) ; // only trace if something changes
+	JobExecRpcReq::AccessInfo old_ai = info_->info  ;                                                                                // for trace only
+	info_->info.update(ai,after) ;                                                                                                   // execute actions in actual order as provided by dates
+	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", pd , after , *info_ , ai , STR(parallel) , file , dd , comment ) ; // only trace if something changes
+	return is_new ;
 }
 
 ENUM( Kind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
@@ -309,9 +308,9 @@ void GatherDeps::reorder() {
 	auto it = critical_barriers.cbegin() ;
 	for( auto& [_,ai] : accesses )
 		switch (ai.order) {
-			case DepOrder::Parallel : SWEAR(!( it!=critical_barriers.cend() && ai.read_date>*it )) ;                                    break ; // parallel accesses cannot cross critical barriers
+			case DepOrder::Parallel : SWEAR(!( it!=critical_barriers.cend() && *it<ai.read_date )) ;                                    break ; // parallel accesses cannot cross critical barriers
 			case DepOrder::Seq      :                                                                                                           // report critical barrier crossing
-			case DepOrder::Critical : for ( ; it!=critical_barriers.cend() && ai.read_date>*it ; it++ ) ai.order = DepOrder::Critical ; break ; // just update it if already critical
+			case DepOrder::Critical : for ( ; it!=critical_barriers.cend() && *it<ai.read_date ; it++ ) ai.order = DepOrder::Critical ; break ; // just update it if already critical
 			default                 : SWEAR(!ai.info.idle()) ;                                                                                  // if only reading, we must have an order
 		}
 }

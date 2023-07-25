@@ -1,14 +1,14 @@
 FROM ubuntu:20.04
 
-RUN                                apt update
-RUN DEBIAN_FRONTEND=noninteractive apt install -y software-properties-common
-RUN                                apt install -y build-essential ed git python3-dev texinfo
+RUN                                apt-get update
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
+RUN                                apt-get install -y build-essential ed git python3-dev texinfo
 
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
-RUN apt update
-RUN apt install -y --no-install-recommends g++-11
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends g++-11
 
-RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

@@ -90,23 +90,15 @@ struct GatherDeps {
 	}
 	// services
 private :
-	AccessInfo& _info( ::string const& name , bool force_new=false ) ;
-	//
-	void _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , bool force_new=false , ::string const& comment={} ) ;
+	bool/*new*/ _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , bool force_new=false , ::string const& comment={} ) ;
 	//
 	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
 		bool parallel = false ;
-		for( auto const& f : files ) {
-			_new_access(pd,f,{},info,parallel,force_new,comment) ;
-			parallel = true ;
-		}
+		for( auto const& f : files ) parallel = _new_access(pd,f,{},info,parallel,force_new,comment) ;
 	}
 	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
 		bool parallel = false ;
-		for( auto const& [f,dd] : dds ) {
-			_new_access(pd,f,dd,info,parallel,force_new,comment) ;
-			parallel = true ;
-		}
+		for( auto const& [f,dd] : dds ) parallel = _new_access(pd,f,dd,info,parallel,force_new,comment) ;
 	}
 public :
 	void new_target( PD pd , S const& t         , TFs n , TFs p , S const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tfs=n,.pos_tfs=p},false/*parallel*/,false/*force_new*/,c) ; }
