@@ -29,6 +29,7 @@
 ****************************************************************************************************
 
 * explain why Lmakefile.py is re-read
+* add dflags in output of lshow -d/-a/-t
 * consider using a single command check_deps/critical_barrier
 	* a priori they serve the same purpose
 * be more consise in console output

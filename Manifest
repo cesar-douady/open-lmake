@@ -123,7 +123,9 @@ unit_tests/depend_verbose.py
 unit_tests/dynamic.py
 unit_tests/hello_world.py
 unit_tests/hide.py
+unit_tests/name.py
 unit_tests/numpy.py
+unit_tests/phony.py
 unit_tests/py_rule.py
 unit_tests/rust.py
 unit_tests/scratchpad.py

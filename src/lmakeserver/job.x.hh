@@ -210,11 +210,10 @@ namespace Engine {
 	public :
 		bool cmd_ok    () const { return exec_gen >=                     rule->cmd_gen                  ; }
 		bool exec_ok   () const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
-		bool forced    () const { return exec_gen == ExecGenForce                                       ; }
 		bool frozen    () const { return s_frozen(status)                                               ; }
 		bool is_special() const { return rule.is_special() || frozen()                                  ; }
 		//
-		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; if (!forced()) exec_gen = ok ? rule->rsrcs_gen : 0 ; } // forced jobs stay forced
+		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; if (!force()) exec_gen = ok ? rule->rsrcs_gen : 0 ; } // forced jobs stay forced
 		//
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {

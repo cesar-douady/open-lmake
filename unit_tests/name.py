@@ -1,0 +1,43 @@
+# This file is part of the lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+import sys
+
+if getattr(sys,'reading_makefiles',False) :
+
+	import lmake
+
+	lmake.sources = (
+		'Lmakefile.py'
+	,	'step.py'
+	,	'test.zip'
+	)
+
+	from step import step
+
+	class Expand(lmake.Rule) :
+		name = f'expand{step}'
+		targets = {
+			'TARGET'  : '{File:.*}.zipdir/{*:.*}'
+		,	'TRIGGER' : '{File}.zipdir.trigger'
+		}
+		deps = { 'ZIP' : '{File}.zip' }
+		cmd  = 'unzip -o -d $File.zipdir $ZIP >$TRIGGER'
+
+else :
+
+	import os
+
+	import ut
+
+	os.makedirs('test',exist_ok=True)
+	open('test/testfile.py','w')
+	os.system('zip test.zip test/testfile.py')
+
+	print('step=1',file=open('step.py','w'))
+	ut.lmake('test.zipdir.trigger',new=1,done=1)
+
+	print('step=2',file=open('step.py','w'))
+	ut.lmake('test.zipdir.trigger')

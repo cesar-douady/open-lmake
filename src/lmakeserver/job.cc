@@ -680,7 +680,7 @@ namespace Engine {
 	}
 	JobReason Job::_make_raw( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Lvl = ReqInfo::Lvl ;
-		Lvl       before_lvl = ri.lvl ;                                        // capture previous state before any update
+		Lvl before_lvl = ri.lvl ;                                              // capture previous state before any update
 		//
 		ri.update( run_action , make_action , *this ) ;
 		if (ri.waiting()) return reason ;                                      // we may have looped in which case stats update is meaningless and may fail()
@@ -689,7 +689,7 @@ namespace Engine {
 		Rule    rule    = (*this)->rule  ;
 		Special special = rule.special() ;
 		//
-		Trace trace("Jmake",*this,ri,before_lvl,run_action,reason,make_action,old_exec_time,STR(wakeup_watchers)) ;
+		Trace trace("Jmake",*this,ri,before_lvl,run_action,reason,make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 		if (ri.done(ri.action)) goto Wakeup ;
 		for (;;) {                                                                                    // loop in case analysis must be restarted (only in case of flash execution)
 			DepState    dep_state    = DepState::Ok                                                 ;
@@ -707,21 +707,11 @@ namespace Engine {
 			//
 			switch (ri.lvl) {
 				case Lvl::None :
-					if (ri.action>=RunAction::Status) {                        // only once, not in case of analysis restart
-						if ((*this)->forced()) {
-							ri.action   = RunAction::Run      ;
-							dep_action  = RunAction::Dsk      ;
-							reason     |= JobReasonTag::Force ;
-						} else if ( !(*this)->exec_ok() || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
-							// process command like a dep in parallel with static_deps
-							dep_state   = DepState::DanglingModif ;            // a new command is like a modif, new rsrcs may transform error into ok
-							ri.action   = RunAction::Run          ;            // ensure analysis is done at the right level
-							dep_action  = RunAction::Dsk          ;
-							reason     |=
-								!(*this)->cmd_ok () ? JobReasonTag::Cmd
-							:	!(*this)->exec_ok() ? JobReasonTag::Rsrcs
-							:	                      JobReasonTag::OldError
-							;
+					if (ri.action>=RunAction::Status) {                                                                           // only once, not in case of analysis restart
+						if ( (*this)->force() || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
+							ri.action   = RunAction::Run                                                  ;
+							dep_action  = RunAction::Dsk                                                  ;
+							reason     |= (*this)->force() ? JobReasonTag::Force : JobReasonTag::OldError ;
 						} else if (JobData::s_frozen(status)) {
 							ri.action = RunAction::Run ;                       // ensure crc are updated, like for sources
 						}
@@ -730,10 +720,20 @@ namespace Engine {
 					if (JobData::s_frozen(status)) break ;
 				/*fall through*/
 				case Lvl::Dep : {
-					bool restarted = false ;
-					bool is_static = true  ;
+					bool restarted = false                              ;
+					bool is_static = true                               ;
 					Dep  sentinel  { Node() , {} , DepOrder::Critical } ;
-					for ( NodeIdx i_dep=ri.dep_lvl ;;) {
+					NodeIdx i_dep  = ri.dep_lvl                         ;
+				RestartAnalysis :
+					if (i_dep==0) {                                            // process command like a dep in parallel with static_deps
+						if ( !(*this)->exec_ok() ) {
+							SWEAR(dep_state==DepState::Ok) ;                                            // we are first, did not have time to be anything else
+							dep_state  = DepState::DanglingModif                                      ;
+							reason    |= !(*this)->cmd_ok() ? JobReasonTag::Cmd : JobReasonTag::Rsrcs ;
+							trace("new_cmd") ;
+						}
+					}
+					for (;;) {
 						SWEAR(i_dep<=n_deps) ;
 						Dep& d         = i_dep<n_deps ? (*this)->deps[i_dep] : sentinel ;
 						if ( is_static && ! d.flags[DFlag::Static] && sure ) (*this)->mk_sure() ; // improve sure on last static dep (sure is pessimistic)
@@ -759,7 +759,8 @@ namespace Engine {
 											dep_state  = DepState::Ok   ;
 											i_dep      = 0              ;
 											restarted  = true           ;
-											continue ;
+											trace("restart_analysis") ;
+											goto RestartAnalysis ;
 										}
 									}
 									break ;                                    // in all cases, stop analysis if something *did* change at a fiven criticity level
@@ -800,7 +801,7 @@ namespace Engine {
 						if (dep_state>=DepState::Modif) goto Continue ;
 						//
 						{	bool makable = d->makable(special==Special::Uphill/*uphill_ok*/) ; // sub-files of makable dir are not buildable, except for Uphill so that sub-sub-files are not buildable
-							if ( d.flags[DFlag::Required] && !makable ) {                      // uphill rule is the only rule to accept uphill dep
+							if ( d.flags[DFlag::Required] && !makable ) {
 								if (is_static) { dep_state = DepState::MissingStatic ; reason |= {JobReasonTag::DepMissingStatic  ,+d} ; }
 								else           { dep_state = DepState::Err           ; reason |= {JobReasonTag::DepMissingRequired,+d} ; }
 								trace("missing",STR(is_static),d) ;

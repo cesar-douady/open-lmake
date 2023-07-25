@@ -343,7 +343,7 @@ def fix_imports() :
 				if _is_local(dir) :
 					for suffix in module_suffixes :
 						file = base+suffix
-						depend(file)
+						depend(file,required=False,essential=False)
 						if _osp.exists(file) : return
 				else :
 					for suffix in _std_suffixes :
