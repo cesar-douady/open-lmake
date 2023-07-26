@@ -44,14 +44,14 @@ static constexpr uint8_t NCrcGuardBits = 8 ;
 // minimum is 2 : we need a value for bad and ok
 // Node's store a generation, so this must not be too high
 // also, there are 2 shared Node's for each generation
-static constexpr size_t NMatchGen = 255 ;
+static constexpr size_t NMatchGen = 127 ;
 static_assert(NMatchGen>=2) ;
 
 // maximum number of cmd/rsrcs generation before a Job/Node clean up is necessary
-// minimum is 4 : we need a value for force, bad cmd, bad rsrcs and ok
+// minimum is 3 : we need a value for bad cmd, bad rsrcs and ok
 // Job's store a generation, so this must not be too high
-static constexpr size_t NExecGen = 255 ;
-static_assert(NExecGen>=4) ;
+static constexpr size_t NExecGen = 127 ;
+static_assert(NExecGen>=3) ;
 
 // weight associated to rule when a job completes
 // the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
@@ -69,6 +69,8 @@ static constexpr SeqId JobHistorySz = 1000 ;
 
 using JobNodeIdx = Largest<JobIdx,NodeIdx> ;
 
-using MatchGen = Uint<n_bits(NMatchGen+1)> ;
+static constexpr uint8_t NMatchGenBits = n_bits(NMatchGen+1) ;
+using MatchGen = Uint<NMatchGenBits> ;
 
-using ExecGen = Uint<n_bits(NExecGen+1)> ;
+static constexpr uint8_t NExecGenBits = n_bits(NExecGen+1) ;
+using ExecGen = Uint<NExecGenBits> ;

@@ -167,8 +167,8 @@ namespace Engine {
 				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
-			try                     { rt->x_match.eval(rt,match_.stems) ; }
-			catch (::string const&) { continue ;                          }    // do not consider rule if deps cannot be computed
+			try                     { rt->x_create_match.eval(rt,match_.stems) ; }
+			catch (::string const&) { continue ;                                 }    // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -181,9 +181,9 @@ namespace Engine {
 			::string            reason      ;
 			Node                missing_dep ;
 			::vmap<Node,DFlags> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"        ; goto Report ; }
-			try                                            { static_deps = rt->x_match.eval(rt,m.stems) ;               }
-			catch (::string const&)                        { reason      = "cannot compute its deps"    ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"               ; goto Report ; }
+			try                                            { static_deps = rt->x_create_match.eval(rt,m.stems) ;               }
+			catch (::string const&)                        { reason      = "cannot compute its deps"           ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
@@ -191,8 +191,8 @@ namespace Engine {
 						Node d = static_deps[di].first ;
 						if ( !static_deps[di].second[DFlag::Required]               ) continue ;
 						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
-						missing_key = rt->x_match.spec.full_dynamic ? ""s : rt->x_match.spec.deps[di].first ;
-						missing_dep = d                                                                     ;
+						missing_key = rt->x_create_match.spec.full_dynamic ? ""s : rt->x_create_match.spec.deps[di].first ;
+						missing_dep = d                                                                                   ;
 						goto Found ;
 					}
 			Found :

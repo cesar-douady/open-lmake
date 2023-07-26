@@ -190,11 +190,10 @@ namespace Backends::Local {
 			Trace::t_key = 'W' ;
 			self->_wait_jobs(stop) ;
 		}
-		static void _s_init() {
+		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
 			LocalBackend& self = *new LocalBackend ;
 			s_register(MyTag,self,false/*is_remote*/) ;
-			static ::jthread wait_jt{_s_wait_thread_func,&self} ;
 		}
 
 		// services
@@ -204,6 +203,7 @@ namespace Backends::Local {
 			capacity = RsrcsData( *this , config.dct ) ;
 			avail    = capacity                        ;
 			Trace("config",MyTag,"avail_rsrcs",'=',capacity) ;
+			static ::jthread wait_jt{_s_wait_thread_func,this} ;
 		}
 		virtual void open_req(ReqIdx req) {
 			SWEAR(!req_map.contains(req)) ;
@@ -437,7 +437,7 @@ namespace Backends::Local {
 
 	} ;
 
-	bool _inited = at_init( 1/*pass*/ , LocalBackend::_s_init ) ;
+	bool _inited = (LocalBackend::s_init(),true) ;
 
 	inline RsrcsData::RsrcsData( LocalBackend const& self , ::vmap_ss const& m ) {
 		resize(self.rsrc_idxs.size()) ;

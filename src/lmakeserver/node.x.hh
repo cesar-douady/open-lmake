@@ -249,18 +249,18 @@ namespace Engine {
 			return +dfs ;
 		}
 		// data
-		Date     date             ;                        // ~40<=64 bits,         deemed ctime (in ns) of file or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
-		Crc      crc              = Crc::None      ;       // ~47<=64 bits,         disk file CRC as computed when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
-		RuleTgts rule_tgts        ;                        // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-		JobTgts  job_tgts         ;                        //      32 bits, owned , ordered by prio, valid if match_ok
-		JobTgt   actual_job_tgt   ;                        //  31<=32 bits, shared, job that generated node
-		RuleIdx  conform_idx      = Node::NoIdx    ;       //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		MatchGen match_gen        = 0              ;       //    <= 8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		Bool3    buildable     :2 = Bool3::Unknown ;       //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
-		bool     uphill        :1 = false          ;       //       1 bit ,         if true <=> node is produced by uphill
-		bool     is_lnk        :1 = false          ;       //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
-		bool     multi         :1 = false          ;       //       1 bit ,         if true <=> several jobs generate this node
-		bool     unlinked      :1 = false          ;       //       1 bit ,         if true <=> node as been unlinked by another rule
+		Date     date                         ;                      // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		Crc      crc                          = Crc::None      ;     // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		RuleTgts rule_tgts                    ;                      // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+		JobTgts  job_tgts                     ;                      //      32 bits, owned , ordered by prio, valid if match_ok
+		JobTgt   actual_job_tgt               ;                      //  31<=32 bits, shared, job that generated node
+		RuleIdx  conform_idx                  = Node::NoIdx    ;     //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		MatchGen match_gen     :NMatchGenBits = 0              ;     //       7 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		bool     uphill        :1             = false          ;     //       1 bit ,         if true <=> node is produced by uphill
+		Bool3    buildable     :2             = Bool3::Unknown ;     //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
+		bool     is_lnk        :1             = false          ;     //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
+		bool     multi         :1             = false          ;     //       1 bit ,         if true <=> several jobs generate this node
+		bool     unlinked      :1             = false          ;     //       1 bit ,         if true <=> node as been unlinked by another rule
 	} ;
 	static_assert(sizeof(NodeData)==32) ;                                      // check expected size
 
@@ -317,6 +317,7 @@ namespace Engine {
 	inline ::vector<RuleTgt> Node::raw_rule_tgts() const {
 		::vector<RuleTgt> rts = s_rule_tgts(name()).view() ;
 		::vector<RuleTgt> res ; res.reserve(rts.size())    ;                   // pessimistic reserve ensures no realloc
+		Py::Gil           gil ;
 		for( RuleTgt const& rt : rts )
 			if (+rt.pattern().match(name())) res.push_back(rt) ;
 		return res ;

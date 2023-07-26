@@ -212,7 +212,7 @@ namespace Engine {
 		if (!match_) { trace("no_match") ; return ; }
 		::vmap<Node,DFlags> deps ;
 		try {
-			deps = rule_tgt->x_match.eval(rule_tgt,match_.stems) ;
+			deps = rule_tgt->x_create_match.eval(rule_tgt,match_.stems) ;
 		} catch (::string const&) {                                            // XXX : generate error message
 			trace("no_dep_subst") ;
 			return ;
@@ -227,14 +227,8 @@ namespace Engine {
 		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		*this = Job( match_.name(),Dflt , rule_tgt,deps ) ;
 		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		try {
-			if (rule_tgt->x_match_cmd.eval(*this).force) (*this)->mk_force() ;
-			(*this)->tokens = rule_tgt->x_match_none.eval(*this).tokens ;
-		} catch (::string const&) {                                            // XXX : generate error message
-			clear() ;
-			trace("no_match_info") ;
-			return ;
-		}
+		try                     { (*this)->tokens = rule_tgt->x_create_none.eval(*this).tokens ; } // XXX : generate error message
+		catch (::string const&) { (*this)->tokens = 0 ;                                          }
 		trace("found",*this) ;
 	}
 
@@ -708,10 +702,11 @@ namespace Engine {
 			switch (ri.lvl) {
 				case Lvl::None :
 					if (ri.action>=RunAction::Status) {                                                                           // only once, not in case of analysis restart
-						if ( (*this)->force() || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
-							ri.action   = RunAction::Run                                                  ;
-							dep_action  = RunAction::Dsk                                                  ;
-							reason     |= (*this)->force() ? JobReasonTag::Force : JobReasonTag::OldError ;
+						if (!(*this)->cmd_ok()) (*this)->force = rule->x_force_cmd.eval(*this).force ;
+						if ( (*this)->force || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
+							ri.action   = RunAction::Run                                                ;
+							dep_action  = RunAction::Dsk                                                ;
+							reason     |= (*this)->force ? JobReasonTag::Force : JobReasonTag::OldError ;
 						} else if (JobData::s_frozen(status)) {
 							ri.action = RunAction::Run ;                       // ensure crc are updated, like for sources
 						}
@@ -1062,7 +1057,7 @@ namespace Engine {
 		for( Dep const& dep : (*this)->deps ) {
 			if (!dep.flags[DFlag::Static]       ) {       break    ; }
 			if (!static_target_map.contains(dep)) { d++ ; continue ; }
-			::string dep_key = rule->x_match.spec.full_dynamic ? ""s : rule->x_match.spec.deps[d].first ;
+			::string dep_key = rule->x_create_match.spec.full_dynamic ? ""s : rule->x_create_match.spec.deps[d].first ;
 			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",dep_key," : ") ;
 			req->audit_job ( Color::Err  , "clash" , *this     ) ;
 			req->audit_node( Color::Note , err_msg , dep   , 1 ) ;

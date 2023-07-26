@@ -241,10 +241,10 @@ namespace Engine {
 	}
 
 	//
-	// MatchSpec
+	// CreateMatchSpec
 	//
 
-	::pair<string,DFlags> MatchSpec::s_split_dflags( ::string const& key , PyObject* py_dep ) {
+	::pair<string,DFlags> CreateMatchSpec::s_split_dflags( ::string const& key , PyObject* py_dep ) {
 		DFlags flags = StaticDFlags ;
 		if ( PyUnicode_Check (py_dep)) return { PyUnicode_AsUTF8(py_dep) , flags } ;
 		if (!PySequence_Check(py_dep)) throw to_string("dep ",key," is neither a str nor a sequence") ;
@@ -268,7 +268,7 @@ namespace Engine {
 		return { PyUnicode_AsUTF8(p[0]) , flags } ;
 	}
 
-	void MatchSpec::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
+	void CreateMatchSpec::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
 		if (py_src==Py_None) {
 			full_dynamic = true ;
 			return ;
@@ -310,7 +310,7 @@ namespace Engine {
 		deps = mk_vmap(map) ;
 	}
 
-	::vmap<Node,DFlags> MatchSpec::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
+	::vmap<Node,DFlags> CreateMatchSpec::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
 		auto subst = [&](::string const& d)->::string {
 			return _subst_target( d , [&](VarIdx s)->::string { return stems[s] ; } ) ;
 		} ;
@@ -353,8 +353,8 @@ namespace Engine {
 		prio = Infinity    ;                                                   // by default, rule is alone and this value has no impact
 		name = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      :                    x_match_cmd.spec.force = true ; break ; // Force so that source files are systematically inspected
-			case Special::Req      :                    x_match_cmd.spec.force = true ; break ;
+			case Special::Src      :                    x_force_cmd.spec.force = true ; break ; // Force so that source files are systematically inspected
+			case Special::Req      :                    x_force_cmd.spec.force = true ; break ;
 			case Special::Uphill   : prio = +Infinity ; anti                   = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
 			case Special::Infinite : prio = -Infinity ;                                 break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
 			default : FAIL(s) ;
@@ -623,14 +623,14 @@ namespace Engine {
 			// new
 			{	::umap_s<VarIdx> static_stem_idxs ;
 				for( auto const& [k,i] : var_idxs ) if (i.first==CmdVar::Stem) static_stem_idxs[k] = i.second ;
-				if (dct.hasKey("x_match")) x_match = { Py::Object(dct["x_match"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
+				if (dct.hasKey("x_create_match")) x_create_match = { Py::Object(dct["x_create_match"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
 			}
 			//
-			/**/                                                 var_idxs["deps"                    ] = { CmdVar::Deps , 0 } ;
-			for( VarIdx d=0 ; d<x_match.spec.deps.size() ; d++ ) var_idxs[x_match.spec.deps[d].first] = { CmdVar::Dep  , d } ;
+			/**/                                                        var_idxs["deps"                           ] = { CmdVar::Deps , 0 } ;
+			for( VarIdx d=0 ; d<x_create_match.spec.deps.size() ; d++ ) var_idxs[x_create_match.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
-			if (dct.hasKey("x_match_cmd"   )) x_match_cmd    = { Py::Object(dct["x_match_cmd"   ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_match_none"  )) x_match_none   = { Py::Object(dct["x_match_none"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_create_none" )) x_create_none  = { Py::Object(dct["x_create_none" ]).ptr() , var_idxs } ;
+			if (dct.hasKey("x_force_cmd"   )) x_force_cmd    = { Py::Object(dct["x_force_cmd"   ]).ptr() , var_idxs } ;
 			if (dct.hasKey("x_cache_none"  )) x_cache_none   = { Py::Object(dct["x_cache_none"  ]).ptr() , var_idxs } ;
 			if (dct.hasKey("x_submit_rsrcs")) x_submit_rsrcs = { Py::Object(dct["x_submit_rsrcs"]).ptr() , var_idxs } ;
 			//
@@ -655,8 +655,8 @@ namespace Engine {
 				stdout_idx = t ;
 				break ;
 			}
-			for( VarIdx d=0 ; d<x_match.spec.deps.size() ; d++ ) {
-				if (x_match.spec.deps[d].first!="<stdin>") continue ;
+			for( VarIdx d=0 ; d<x_create_match.spec.deps.size() ; d++ ) {
+				if (x_create_match.spec.deps[d].first!="<stdin>") continue ;
 				stdin_idx = d ;
 				break ;
 			}
@@ -671,6 +671,7 @@ namespace Engine {
 	}
 
 	void RuleData::_compile() {
+		Py::Gil gil ;
 		try {
 			// targets
 			// Generate and compile Python pattern
@@ -703,9 +704,9 @@ namespace Engine {
 				mk_static(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
 			}
 			_set_crcs() ;
-			x_match       .compile() ;
-			x_match_cmd   .compile() ;
-			x_match_none  .compile() ;
+			x_create_match.compile() ;
+			x_create_none .compile() ;
+			x_force_cmd   .compile() ;
 			x_cache_none  .compile() ;
 			x_submit_rsrcs.compile() ;
 			x_start_cmd   .compile() ;
@@ -797,12 +798,12 @@ namespace Engine {
 			res += sep ;
 			sep = " , " ;
 			switch (cmd_var) {
-				case CmdVar::Stem    : res += rd.stems    .at(idx).first         ; break ;
-				case CmdVar::Target  : res += rd.targets  .at(idx).first         ; break ;
-				case CmdVar::Dep     : res += rd.x_match.spec.deps.at(idx).first ; break ;
-				case CmdVar::Stems   : res += "stems"                            ; break ;
-				case CmdVar::Targets : res += "targets"                          ; break ;
-				case CmdVar::Deps    : res += "deps"                             ; break ;
+				case CmdVar::Stem    : res += rd.stems                   .at(idx).first ; break ;
+				case CmdVar::Target  : res += rd.targets                 .at(idx).first ; break ;
+				case CmdVar::Dep     : res += rd.x_create_match.spec.deps.at(idx).first ; break ;
+				case CmdVar::Stems   : res += "stems"                                   ; break ;
+				case CmdVar::Targets : res += "targets"                                 ; break ;
+				case CmdVar::Deps    : res += "deps"                                    ; break ;
 				default : FAIL(cmd_var) ;
 			}
 		}
@@ -830,7 +831,7 @@ namespace Engine {
 		return rd.job_name ;
 	}
 
-	::string _pretty( size_t i , MatchSpec const& ms , ::vmap_ss const& stems ) {
+	::string _pretty( size_t i , CreateMatchSpec const& ms , ::vmap_ss const& stems ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
@@ -864,11 +865,11 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , MatchCmdSpec const& mcs ) {
+	::string _pretty( size_t i , ForceCmdSpec const& mcs ) {
 		if (mcs.force) return to_string(::string(i,'\t'),"force : true\n") ;
 		else           return {}                                           ;
 	}
-	::string _pretty( size_t i , MatchNoneSpec const& sns ) {
+	::string _pretty( size_t i , CreateNoneSpec const& sns ) {
 		::vmap_ss entries ;
 		if  (sns.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sns.tokens) ) ;
 		return _pretty_vmap(i,entries) ;
@@ -967,13 +968,13 @@ namespace Engine {
 		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
 		if (!anti) {
 			// new
-			res << _pretty(1,"deps"              ,x_match       ,stems) ;
-			res << _pretty(1,"cmd (match)"       ,x_match_cmd         ) ;
+			res << _pretty(1,"match (create)"    ,x_create_match,stems) ;
+			res << _pretty(1,"cmd (force)"       ,x_force_cmd         ) ;
 			res << _pretty(1,"cmd (start)"       ,x_start_cmd         ) ;
 			res << _pretty(1,"cmd (end)"         ,x_end_cmd           ) ;
 			res << _pretty(1,"resources (submit)",x_submit_rsrcs      ) ;
 			res << _pretty(1,"resources (start)" ,x_start_rsrcs       ) ;
-			res << _pretty(1,"ancillary (match)" ,x_match_none        ) ;
+			res << _pretty(1,"ancillary (create)",x_create_none       ) ;
 			res << _pretty(1,"ancillary (start)" ,x_start_none        ) ;
 			res << _pretty(1,"ancillary (end)"   ,x_end_none          ) ;
 			res << _pretty(1,"ancillary (cache)" ,x_cache_none        ) ;
@@ -993,7 +994,7 @@ namespace Engine {
 	) const {
 		auto const& stems_spec   = stems                     ;
 		auto const& targets_spec = targets                   ;
-		auto const& deps_spec    = x_match.spec.deps         ;
+		auto const& deps_spec    = x_create_match.spec.deps  ;
 		auto const& rsrcs_spec   = x_submit_rsrcs.spec.rsrcs ;
 		::pair<vmap_ss,vmap_s<vmap_ss>> res ;
 		//
@@ -1038,26 +1039,26 @@ namespace Engine {
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
 			Hash::Xxh h ;
-			/**/       h.update(anti    ) ;
-			/**/       h.update(stems   ) ;
-			if (!anti) h.update(job_name) ;                                    // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
-			/**/       h.update(cwd_s   ) ;
-			/**/       h.update(targets_) ;
-			if (!anti) h.update(x_match ) ;
+			/**/       h.update(anti          ) ;
+			/**/       h.update(stems         ) ;
+			if (!anti) h.update(job_name      ) ;                                    // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
+			/**/       h.update(cwd_s         ) ;
+			/**/       h.update(targets_      ) ;
+			if (!anti) h.update(x_create_match) ;
 			match_crc = h.digest() ;
 		}
 		if (anti) return ;                                                     // anti-rules are only capable of matching
 		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
-			h.update(stems      ) ;
-			h.update(job_name   ) ;
-			h.update(targets    ) ;
-			h.update(is_python  ) ;
-			h.update(cmd_ctx    ) ;
-			h.update(cmd        ) ;
-			h.update(x_match    ) ;
-			h.update(x_match_cmd) ;
-			h.update(x_start_cmd) ;
-			h.update(x_end_cmd  ) ;
+			h.update(stems         ) ;
+			h.update(job_name      ) ;
+			h.update(targets       ) ;
+			h.update(is_python     ) ;
+			h.update(cmd_ctx       ) ;
+			h.update(cmd           ) ;
+			h.update(x_create_match) ;
+			h.update(x_force_cmd   ) ;
+			h.update(x_start_cmd   ) ;
+			h.update(x_end_cmd     ) ;
 			cmd_crc = h.digest() ;
 		}
 		{	Hash::Xxh h ;
@@ -1152,8 +1153,9 @@ namespace Engine {
 	//
 
 	Rule::Match::Match( RuleTgt rt , ::string const& target ) {
-		Trace trace("Match::Match",rt,target) ;
-		Py::Match m = rt.pattern().match(target) ;
+		Trace trace("Match",rt,target) ;
+		Py::Gil   gil ;
+		Py::Match m   = rt.pattern().match(target) ;
 		if (!m) { trace("no_match") ; return ; }
 		rule = rt ;
 		for( VarIdx s=0 ; s<rt->n_static_stems ; s++ ) stems.push_back(m[to_string('_',s)]) ;
@@ -1183,6 +1185,7 @@ namespace Engine {
 	}
 
 	bool Rule::Match::_match( VarIdx t , ::string const& target ) const {
+		Py::Gil gil ;
 		SWEAR(_targets.size()>t) ;                                                  // _targets must have been computed up to t at least
 		if (rule->flags(t)[TFlag::Star]) return +_target_pattern(t).match(target) ;
 		else                             return target==_targets[t]               ;

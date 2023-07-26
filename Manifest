@@ -122,6 +122,7 @@ unit_tests/critical_barrier.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
 unit_tests/dynamic.py
+unit_tests/force.py
 unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/name.py

@@ -83,7 +83,7 @@ namespace Engine {
 	} ;
 
 	// used at match time
-	struct MatchSpec : Spec {
+	struct CreateMatchSpec : Spec {
 		struct DepSpec {
 			template<IsStream S> void serdes(S& s) {
 				::serdes(s,pattern) ;
@@ -105,22 +105,22 @@ namespace Engine {
 		::vmap_s<DepSpec> deps         ;
 	} ;
 
-	// used at match time, but participate in cmd
-	struct MatchCmdSpec : Spec {
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(force,py_src,"force") ;
-		}
-		// data
-		bool force = false ;
-	} ;
-
 	// used at match time, but participate in nothing
-	struct MatchNoneSpec : Spec {
+	struct CreateNoneSpec : Spec {
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(tokens,py_src,"job_tokens") ;
 		}
 		// data
 		Tokens tokens = 1 ;
+	} ;
+
+	// used at force time (i.e. when deciding whether to launch job), but participate in cmd
+	struct ForceCmdSpec : Spec {
+		void update(PyObject* py_src) {
+			s_acquire_from_dct(force,py_src,"force") ;
+		}
+		// data
+		bool force = false ;
 	} ;
 
 	// used at submit time, participate in resources
@@ -289,9 +289,9 @@ namespace Engine {
 		PyObject* code = nullptr ;     // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
-	struct DynamicDeps : Dynamic<MatchSpec> {
+	struct DynamicCreateMatchSpec : Dynamic<CreateMatchSpec> {
 		// cxtors & casts
-		using Dynamic<MatchSpec>::Dynamic ;
+		using Dynamic<CreateMatchSpec>::Dynamic ;
 		// services
 		::vmap<Node,DFlags> eval( Rule , ::vector_s const& stems ) const ;
 	} ;
@@ -371,9 +371,9 @@ namespace Engine {
 		VarIdx               stdout_idx = NoVar ;                              // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar ;                              // index of dep used as stdin
 		// following is only if !anti
-		DynamicDeps                   x_match        ;                         // in match crc, evaluated at job creation time
-		Dynamic<MatchCmdSpec   >      x_match_cmd    ;                         // in cmd   crc, evaluated at job creation time
-		Dynamic<MatchNoneSpec  >      x_match_none   ;                         // in no    crc, evaluated at job creation time
+		DynamicCreateMatchSpec        x_create_match ;                         // in match crc, evaluated at job creation time
+		Dynamic<CreateNoneSpec >      x_create_none  ;                         // in no    crc, evaluated at job creation time
+		Dynamic<ForceCmdSpec   >      x_force_cmd    ;                         // in cmd   crc, evaluated at job creation time
 		Dynamic<CacheNoneSpec  >      x_cache_none   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsSpec>      x_submit_rsrcs ;                         // in rsrcs crc, evaluated at submit time
 		Dynamic<StartCmdSpec   >      x_start_cmd    ;                         // in cmd   crc, evaluated before execution
@@ -608,6 +608,7 @@ namespace Engine {
 
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
+		Py::Gil gil ;
 		code = Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input ) ;
 		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
 		Py::mk_static(code) ;
@@ -623,8 +624,6 @@ namespace Engine {
 
 	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vector_s const& rsrcs ) const {
 		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r->eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
-		//
-		Py::Gil gil ;
 		//
 		PyObject* lcls = PyDict_New() ; SWEAR(lcls) ;                          // else, we are in trouble
 		//
@@ -657,7 +656,8 @@ namespace Engine {
 	template<class T> T Dynamic<T>::eval(Job j , ::vector_s const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
 		//
-		PyObject* d = nullptr/*garbage*/ ;
+		Py::Gil   gil ;
+		PyObject* d   = nullptr/*garbage*/ ;
 		//
 		if ( need_stems || need_targets ) {
 			Rule::SimpleMatch match_{j} ;
@@ -672,10 +672,11 @@ namespace Engine {
 		return res  ;
 	}
 
-	inline ::vmap<Node,DFlags> DynamicDeps::eval( Rule r , ::vector_s const& stems ) const {
+	inline ::vmap<Node,DFlags> DynamicCreateMatchSpec::eval( Rule r , ::vector_s const& stems ) const {
 		if (!is_dynamic) return spec.mk(r,stems) ;
 		SWEAR( !need_deps && !need_rsrcs ) ;
-		PyObject* d ;
+		Py::Gil   gil ;
+		PyObject* d   ;
 		if (need_targets) d = _mk_dict( r , stems , Rule::SimpleMatch(r,stems).targets() ) ;
 		else              d = _mk_dict( r , stems                                        ) ;
 		::vmap<Node,DFlags> res = spec.mk(r,stems,d) ;
@@ -703,9 +704,9 @@ namespace Engine {
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		if (!anti) {
-			::serdes(s,x_match       ) ;
-			::serdes(s,x_match_cmd   ) ;
-			::serdes(s,x_match_none  ) ;
+			::serdes(s,x_create_match) ;
+			::serdes(s,x_create_none ) ;
+			::serdes(s,x_force_cmd   ) ;
 			::serdes(s,x_cache_none  ) ;
 			::serdes(s,x_submit_rsrcs) ;
 			::serdes(s,x_start_cmd   ) ;

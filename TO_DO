@@ -28,15 +28,14 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* explain why Lmakefile.py is re-read
 * add dflags in output of lshow -d/-a/-t
-* consider using a single command check_deps/critical_barrier
-	* a priori they serve the same purpose
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
 	- e.g. 'dep changed' on screen and actual dates (before, after) in log
 	- same for manual, etc.
+? consider using a single command check_deps/critical_barrier
+	* a priori they serve the same purpose
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
@@ -46,7 +45,7 @@
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* use memfd_create and a series of dup/dup2 to gather error message from PyErr_Print
+* and suppress all these x_ prefixes
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
 * find a use case to ensure dates are correctly handled with NFS

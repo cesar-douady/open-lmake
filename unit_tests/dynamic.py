@@ -13,7 +13,10 @@ if getattr(sys,'reading_makefiles',False) :
 		'Lmakefile.py'
 	,	'hello'
 	,	'world'
+	,	'hello+world.ref'
 	)
+
+	def var_func() : return 'the_value'
 
 	class Cat(lmake.Rule) :
 		stems = {
@@ -21,19 +24,30 @@ if getattr(sys,'reading_makefiles',False) :
 		,	'File2' : r'.*'
 		}
 		target = '{File1}+{File2}'
+		def force() : return False
+		environ_cmd = { 'VAR' : var_func }
 		deps = {
 			'FIRST'  : '{File1+""}'
 		,	'SECOND' : '{File2}'
 		}
-		cmd = 'cat $FIRST $SECOND'
+		cmd = 'cat $FIRST $SECOND ; echo $VAR'
+
+	class Cmp(lmake.Rule) :
+		target = '{File:.*}.ok'
+		deps = {
+			'DUT' : '{File}'
+		,	'REF' : '{File}.ref'
+		}
+		cmd = 'diff $REF $DUT'
 
 else :
 
 	import ut
 
-	print('hello',file=open('hello','w'))
-	print('world',file=open('world','w'))
+	print('hello'                  ,file=open('hello','w')          )
+	print('world'                  ,file=open('world','w')          )
+	print('hello\nworld\nthe_value',file=open('hello+world.ref','w'))
 
-	ut.lmake( 'hello+world' ,                 done=1 , new=2 )                 # check target is out of date
-	ut.lmake( 'hello+world' ,                 done=0 , new=0 )                 # check target is up to date
-	ut.lmake( 'hello+hello' , 'world+world' , done=2         )                 # check reconvergence
+	ut.lmake( 'hello+world.ok' ,                 done=2 , new=3 )                 # check target is out of date
+	ut.lmake( 'hello+world'    ,                 done=0 , new=0 )                 # check target is up to date
+	ut.lmake( 'hello+hello'    , 'world+world' , done=2         )                 # check reconvergence

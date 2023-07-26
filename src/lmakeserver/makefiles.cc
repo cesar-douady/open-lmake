@@ -57,12 +57,12 @@ namespace Engine {
 		return srcs ;
 	}
 
-	bool/*ok*/ Makefiles::_s_chk_makefiles(DiskDate& latest_makefile) {
+	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles(DiskDate& latest_makefile) {
 		DiskDate   makefiles_date   = file_date(s_makefiles) ;              // ensure we gather correct date with NFS
 		::ifstream makefiles_stream { s_makefiles }          ;
-		Trace trace("s_chk_makefiles",makefiles_date) ;
-		if (is_reg(s_no_makefiles)) { trace("found"    ,s_no_makefiles) ; return false ; } // s_no_makefile_file is a marker that says s_makefiles is invalid (so that is can written early)
-		if (!makefiles_stream     ) { trace("not_found",s_makefiles   ) ; return false ; }
+		Trace trace("_s_chk_makefiles",makefiles_date) ;
+		if (is_reg(s_no_makefiles)) { trace("found"    ,s_no_makefiles) ; return "last makefiles read process was interrupted" ; } // s_no_makefile_file is a marker that says s_makefiles is invalid
+		if (!makefiles_stream     ) { trace("not_found",s_makefiles   ) ; return "makefiles were never read"                   ; }
 		char line[PATH_MAX+1] ;                                                            // account for first char (+ or !)
 		while (makefiles_stream.getline(line,sizeof(line))) {
 			SWEAR( line[0]=='+' || line[0]=='!' ) ;
@@ -70,20 +70,21 @@ namespace Engine {
 			FileInfoDate file_info { line+1 } ;
 			latest_makefile = ::max(latest_makefile,file_info.date) ;
 			if (exists) {
-				if ( !file_info                     ) { trace("missing" ,line+1) ; return false ; }
-				if ( file_info.date>=makefiles_date ) { trace("modified",line+1) ; return false ; } // in case of equality, be pessimistic
+				if ( !file_info                     ) { trace("missing" ,line+1) ; return to_string(line+1," was removed" ) ; }
+				if ( file_info.date>=makefiles_date ) { trace("modified",line+1) ; return to_string(line+1," was modified") ; } // in case of equality, be pessimistic
 			} else {
-				if ( +file_info                     ) { trace("appeared",line+1) ; return false ; }
+				if ( +file_info                     ) { trace("appeared",line+1) ; return to_string(line+1," was created" ) ; }
 			}
 		}
 		trace("ok") ;
-		return true ;
+		return {} ;
 	}
 
 	static ::pair<vector_s/*deps*/,string/*stdout*/> _read_makefiles() {
-		Py::Pattern pyc_re{"(P?<dir>([^/]+/)*)__pycache__/(P?<module>\\w+)\\.\\w+-\\d+\\.pyc"} ;
-		GatherDeps gather_deps   { New }                           ;
-		::string   makefile_data = AdminDir + "/makefile_data.py"s ;
+		Py::Gil     gil           ;
+		Py::Pattern pyc_re        { "(P?<dir>([^/]+/)*)__pycache__/(P?<module>\\w+)\\.\\w+-\\d+\\.pyc"} ;
+		GatherDeps  gather_deps   { New }                                                               ;
+		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
 		Trace trace("_read_makefiles",ProcessDate::s_now()) ;
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv   // redirect stdout to stderr ...
 		Status status = gather_deps.exec_child( { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // as our stdout may be used ...
@@ -105,13 +106,15 @@ namespace Engine {
 	void Makefiles::s_refresh_makefiles(bool chk) {
 		Trace trace("s_refresh_makefiles") ;
 		DiskDate latest_makefile ;
-		if (_s_chk_makefiles(latest_makefile)) {
+		::string reason = _s_chk_makefiles(latest_makefile) ;
+		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			EngineStore::s_keep_config   (chk) ;
 			EngineStore::s_keep_makefiles(   ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
+			::cerr << "read makefiles because " << reason << '\n' ;
 			//                     vvvvvvvvvvvvvvvvv
 			auto [deps,info_str] = _read_makefiles() ;
 			//                     ^^^^^^^^^^^^^^^^^
@@ -131,6 +134,7 @@ namespace Engine {
 			::vector_s           srcs             ;
 			::string             step             ;
 			try {
+				Py::Gil gil ;
 				PyObject* eval_env = PyDict_New() ;
 				PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;
 				PyDict_SetItemString( eval_env , "nan"          , *Py::Float(nan("") ) ) ;

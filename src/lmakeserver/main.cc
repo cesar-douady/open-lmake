@@ -159,17 +159,18 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					trace("req",fd,rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make : {
-							if (!Makefiles::s_chk_makefiles()) {
-								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								audit( out_fd , rrr.options , Color::Err , 0 , "cannot make with modified makefiles while other lmake is running\n"s ) ;
-								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							::string reason = Makefiles::s_chk_makefiles() ;
+							if (!reason.empty()) {
+								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								audit( out_fd , rrr.options , Color::Err , 0 , to_string("cannot make with modified makefiles (",reason,") while other lmake is running\n") ) ;
+								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 								trace("modified_makefiles") ;
 								goto Bad ;
 							}
-						/*fall through*/
+						} /*fall through*/
 						case ReqProc::Forget :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
 						case ReqProc::Freeze :
-						case ReqProc::Show   :
+						case ReqProc::Show   : {
 							RealPath       real_path {g_config.lnk_support} ;
 							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
 							::vector_s     bads      ;
@@ -358,6 +359,7 @@ int main( int argc , char** argv ) {
 	//^^^^^^^^^^^^^^^^^^^^^
 	Trace::s_backup_trace = true ;
 	app_init(false/*search_root*/,false/*cd_root*/) ;                          // server is always launched at root
+	Py::init(true/*multi-thread*/) ;
 	_g_server_mrkr = to_string(AdminDir,'/',ServerMrkr) ;
 	_g_is_daemon   = argc==1                         ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;

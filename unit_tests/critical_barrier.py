@@ -23,7 +23,7 @@ if getattr(sys,'reading_makefiles',False) :
 		def cmd() :
 			lmake.depend('src1','src2')
 			lmake.critical_barrier()
-			lmake.depend('src1','bad1','bad2')
+			lmake.depend('src1','bad1','bad1','bad2')
 
 else :
 

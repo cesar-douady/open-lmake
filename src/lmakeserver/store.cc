@@ -440,7 +440,7 @@ namespace Engine {
 			/**/         rd.rsrcs_gen = rd.rsrcs_gen+1 ;
 			Trace trace("up gen",rd.cmd_gen,rd.rsrcs_gen) ;
 		} else {
-			rd.cmd_gen   = ExecGenForce+1    ;                                 // ExecGenForce is reserved for forced jobs
+			rd.cmd_gen   = 1                 ;                                 // 0 is reserved to force !cmd_ok
 			rd.rsrcs_gen = rd.cmd_gen+cmd_ok ;                                 // if cmd_ok, we must distinguish between bad cmd and good cmd with bad rsrcs
 			if (!cmd_ok) keep_cmd_gen = {true,0         } ;                    // all cmd_gen must be set to 0 as we have a new cmd but no room left for a new cmd_gen
 			else         keep_cmd_gen = {true,rd.cmd_gen} ;                    // all cmd_gen above this will be set to 1 to keep cmd, the others to 0

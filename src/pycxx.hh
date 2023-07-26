@@ -12,7 +12,7 @@
 
 namespace Py {
 
-	void init() ;
+	void init(bool multi_thread=false) ;                                       // if multi_thread, GIL must be acquired before each any call to Python API
 
 	// static Python object are collected at program exit and create bunches of problems.
 	// protect them from such collection by incrementing ref count.
@@ -27,7 +27,7 @@ namespace Py {
 		return obj ;
 	}
 
-	extern PyObject* Ellipsis ;
+	extern PyObject* g_ellipsis ;
 
 	static inline Module import_module(::string const& name) {
 		return Module(PyImport_ImportModule(name.c_str()),true/*clobber*/) ;

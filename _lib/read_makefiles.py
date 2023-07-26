@@ -18,6 +18,7 @@ sys.reading_makefiles        = True                                            #
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict
+f_str = serialize.f_str
 
 sys.path = [lmake_s_dir+'/lib','.',*save_path]
 import Lmakefile
@@ -121,14 +122,14 @@ def fmt_entry(kind,entry) :
 def no_match(target) :
 	return '-match' in target[1:]
 
-def qualify(rule_rep) :
+def qualify(attrs) :
 	seen = {}
-	for k in rule_rep.stems       .keys() : qualify_key('stem'       ,k,seen)
-	for k in rule_rep.targets     .keys() : qualify_key('target'     ,k,seen)
-	for k in rule_rep.post_targets.keys() : qualify_key('post_target',k,seen)
-	if not rule_rep.__anti__ :
-		for k in rule_rep.deps     .keys() : qualify_key('dep'     ,k,seen)
-		for k in rule_rep.resources.keys() : qualify_key('resource',k,seen)
+	for k in attrs.stems       .keys() : qualify_key('stem'       ,k,seen)
+	for k in attrs.targets     .keys() : qualify_key('target'     ,k,seen)
+	for k in attrs.post_targets.keys() : qualify_key('post_target',k,seen)
+	if not attrs.__anti__ :
+		for k in attrs.deps     .keys() : qualify_key('dep'     ,k,seen)
+		for k in attrs.resources.keys() : qualify_key('resource',k,seen)
 
 def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
@@ -157,39 +158,26 @@ def handle_inheritance(rule) :
 		e.base  = r
 		e.field = k
 		raise
-	# reformat dct and split into rule_rep for the standard part and attrs for the rest
-	rule_rep = pdict()
-	attrs    = pdict()
+	# reformat dct
+	attrs = pdict()
 	for k,v in dct.items() :
 		if k in StdAttrs :
 			if v is None : continue                                            # None is not transported
 			if StdAttrs.get(k) and not callable(v) :
 				try    : v = StdAttrs[k](v)
 				except : raise TypeError(f'bad format for {k} : cannot be converted to {StdAttrs[k].__name__}')
-			rule_rep[k] = v
-		else :
-			attrs[k] = v
-	rule_rep.name     = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
-	rule_rep.__anti__ = rule.__anti__
-	qualify(rule_rep)
-	return rule_rep,attrs
+		attrs[k] = v
+	attrs.name     = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
+	attrs.__anti__ = rule.__anti__
+	qualify(attrs)
+	return attrs
 
-def find_job_name(rule,rule_rep) :
-	assert 'job_name' not in rule_rep
-	if '<stdout>' in rule_rep.targets : return '<stdout>'                      # if we have a stdout, this is an excellent job_name
-	for r in rule.__mro__ :                                                    # find the first clean target of the most specific class that has one
-		for k in r.__dict__.get('targets',{}).keys() :
-			if not no_match(rule_rep.targets[k]) : return k                    # no_match targets are not good names : they may be ambiguous and they are not the focus of the user
-	for k,t in rule_rep.targets.items() :                                      # find anything, a priori a post_target
-		if not no_match(t) : return k
-	assert False,f'cannot find adequate target to name jobs of {rule.__name__}' # we know we have clean targets, we should have found a job_name
-
-def find_static_stems(rule_rep) :
+def find_static_stems(job_name) :
 	stems = set()
 	state = 'Literal'
 	key   = ''
 	depth = 0
-	for c in rule_rep.job_name :
+	for c in job_name :
 		with_re = False
 		if state=='Literal' :
 			if   c=='{' : state = 'SeenStart'
@@ -239,96 +227,119 @@ def static_fstring(s) :
 	assert prev_c not in '{}'
 	return res
 
-class NewHandle :
-	def __init__(self,rule_rep,glbs,no_import) :
-		self.rule_rep      = rule_rep
-		self.glbs          = glbs
-		self.no_imports    = {no_import}
+class Handle :
+	def __init__(self,attrs,rule) :
+		module_name     = rule.__module__
+		module          = sys.modules[module_name]
+		self.rule       = rule
+		self.attrs      = attrs
+		self.glbs       = (attrs,module.__dict__)
+		self.no_imports = {module_name}
+		self.rule_rep   = pdict( name=attrs.name , prio=attrs.prio , stems=attrs.stems )
+		try    : self.local_root = lmake.search_sub_root_dir(module.__file__)
+		except : self.local_root = ''                                          # rules defined outside repo (typically standard base rules) are deemed to apply to the whole base
 
-	def prepare_jobs(self,rule) :
-		if 'job_name' not in self.rule_rep : self.rule_rep.job_name = self.rule_rep.targets[find_job_name(rule,self.rule_rep)][0]
-		self.stems   = find_static_stems(self.rule_rep)
-		self.per_job = {
-			'stems'   , *self.stems
-		,	'targets' , *( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
+	def _handle_dict(self,key,rep_key=None) :
+		if not rep_key               : rep_key = key
+		if rep_key not in self.attrs : return
+		dct = self.attrs[rep_key]
+		if callable(dct) :
+			self.dynamic_val[key] = dct
+			return
+		sv = {}
+		dv = {}
+		for k,v in dct.items() :
+			if   callable(v)           : dv[k] = v
+			elif not isinstance(v,str) : sv[k] = v
+			elif SimpleStrRe.match(v)  : sv[k] = static_fstring(v)             # v has no variable parts, make it a static value
+			else                       : dv[k] = f_str(v)                      # mark v so it is generated as an f-string
+		if sv : self.static_val [key] = sv
+		if dv : self.dynamic_val[key] = dv
+
+	def _handle_str(self,key,rep_key=None) :
+		if not rep_key               : rep_key = key
+		if rep_key not in self.attrs : return
+		s = self.attrs[rep_key]
+		if   callable(s)          : self.dynamic_val[key] = s
+		elif SimpleStrRe.match(s) : self.static_val [key] = static_fstring(s)  # s has no variable parts, make it a static value
+		else                      : self.dynamic_val[key] = f_str(s)           # mark s so it is generated as an f-string
+
+	def _handle_any(self,key,rep_key=None) :
+		if not rep_key               : rep_key = key
+		if rep_key not in self.attrs : return
+		x = self.attrs[rep_key]
+		if callable(x) : self.dynamic_val[key] = x
+		else           : self.static_val [key] = x
+
+	def _finalize(self) :
+		static_val  = self.static_val
+		dynamic_val = self.dynamic_val
+		del self.static_val
+		del self.dynamic_val
+		if not dynamic_val : return (static_val,)
+		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
+		return ( static_val , ctx , code , tuple(names) )
+
+	def handle_targets(self) :
+		if 'target' in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
+		if   'target'      in self.attrs                          : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
+		elif 'post_target' in self.attrs                          : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
+		bad_keys = set(self.attrs.targets) & set(self.attrs.post_targets)
+		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
+		#
+		self.rule_rep.targets = {
+			**{ k:fmt_entry('target',t) for k,t in               self.attrs.targets     .items()   }
+		,	**{ k:fmt_entry('target',t) for k,t in reversed(list(self.attrs.post_targets.items())) }
 		}
 
+	def handle_job_name(self) :
+		def find_job_name() :
+			if '<stdout>' in targets : return '<stdout>'                       # if we have a stdout, this is an excellent job_name
+			for r in self.rule.__mro__ :                                       # find the first clean target of the most specific class that has one
+				for k in r.__dict__.get('targets',{}).keys() :
+					if not no_match(targets[k]) : return k                     # no_match targets are not good names : they may be ambiguous and they are not the focus of the user
+			for k,t in targets.items() :                                       # find anything, a priori a post_target
+				if not no_match(t) : return k
+			assert False,f'cannot find adequate target to name jobs of {rule.__name__}' # we know we have clean targets, we should have found a job_name
+		#
+		targets = self.rule_rep.targets
+		if 'job_name' in self.attrs : self.rule_rep.job_name = self.attrs.job_name
+		else                        : self.rule_rep.job_name = targets[find_job_name()][0]
+
+	def prepare_jobs(self) :
+		self.static_stems = find_static_stems(self.rule_rep.job_name)
+		self.per_job = {
+			'stems'   , *self.static_stems
+		,	'targets' , *( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
+		}
+		if 'cwd' in self.attrs : self.rule_rep.cwd = self.attrs.cwd
+		else                   : self.rule_rep.cwd = self.local_root
+		self.rule_rep.n_tokens = self.attrs.n_tokens
+
 	def handle_interpreter(self) :
-		if all( callable(c) for c in self.rule_rep.cmd ) :
+		if all( callable(c) for c in self.attrs.cmd ) :
 			self.rule_rep.is_python   = True
-			self.rule_rep.interpreter = self.rule_rep.pop('python')
-		elif all( isinstance(c,str) for c in self.rule_rep.cmd ) :
+			self.attrs   .interpreter = self.attrs.python
+		elif all( isinstance(c,str) for c in self.attrs.cmd ) :
 			self.rule_rep.is_python   = False
-			self.rule_rep.interpreter = self.rule_rep.pop('shell')
-		elif all( callable(c) or isinstance(c,str) for c in self.rule_rep.cmd ) :
+			self.attrs   .interpreter = self.attrs.shell
+		elif all( callable(c) or isinstance(c,str) for c in self.attrs.cmd ) :
 			raise TypeError('cannot mix Python & shell along the inheritance hierarchy')
 		else :
 			raise TypeError('bad cmd type')
 	def _init(self) :
-		self.static_val = {}
-		self.code       = []
+		self.static_val  = pdict()
+		self.dynamic_val = pdict()
 
-	@staticmethod
-	def _mk_call(c) :
-		return c.__name__+()
-
-	def _handle_dict(self,key,rep_key=None) :
-		if not rep_key                  : rep_key = key
-		if rep_key not in self.rule_rep : return
-		dct = self.rule_rep[rep_key]
-		if callable(dct) :
-			self.code += ' , ',repr(key),':',self._mk_call(dct)
-			return
-		sv = {}
-		c  = []
-		for k,v in dct.items() :
-			if callable(v)             : c     += ' , ',repr(k),':',self._mk_call(v)
-			elif not isinstance(v,str) : sv[k]  = v
-			elif SimpleStrRe.match(v)  : sv[k]  = static_fstring(v)
-			else                       : c     += ' , ',repr(k),':f',repr(v)
-		if sv : self.static_val[key]  = sv
-		if c  : self.code            += ( ' , ',repr(key),':{ ',*c[1:],' }' )
-
-	def _handle_str(self,key,rep_key=None) :
-		if not rep_key                  : rep_key = key
-		if rep_key not in self.rule_rep : return
-		s = self.rule_rep[rep_key]
-		if   callable(s)          : self.code            += ' , ',repr(key),':',self._mk_call(s)
-		elif SimpleStrRe.match(s) : self.static_val[key]  = static_fstring(s)
-		else                      : self.code            += ' , ',repr(key),':f',repr(s)
-
-	def _handle_any(self,key,rep_key=None) :
-		if not rep_key                  : rep_key = key
-		if rep_key not in self.rule_rep : return
-		x = self.rule_rep[rep_key]
-		if callable(x) : self.code            += ' , ',repr(key),':',self._mk_call(x)
-		else           : self.static_val[key]  = x
-
-	def _finalize(self) :
-		static_val = self.static_val
-		code       = self.code
-		del self.static_val
-		del self.code
-		if not code : return (static_val,)
-		if isinstance(code,list) : code  = ''.join(('{ ',*code[1:],' }'))
-		ctx,names = serialize.get_code_ctx( compile(code,self.rule_rep.name,'eval') , ctx=(self.per_job,*self.glbs) , no_imports=self.no_imports )
-		return ( static_val , ctx , code , tuple(names) )
-
-	def handle_targets(self,attrs) :
-		self.rule_rep.targets = {
-			**{ k:fmt_entry('target',t) for k,t in               self.rule_rep.targets     .items()   }
-		,	**{ k:fmt_entry('target',t) for k,t in reversed(list(self.rule_rep.post_targets.items())) }
-		}
-		self.rule_rep.pop('post_targets')
-
-	def handle_match(self) :
+	def handle_create_match(self) :
+		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
-		if callable(self.rule_rep.deps) :
-			self.static_val = None                                             # for deps, a None static value means all keys are allowed
-			self.code       = self._mk_call(self.rule_rep.deps)
+		if callable(self.attrs.deps) :
+			self.static_val  = None                                            # for deps, a None static value means all keys are allowed
+			self.dynamic_val = self.attrs.deps
 		else :
 			dynamic_deps = {}
-			for k,d in self.rule_rep.deps.items() :
+			for k,d in self.attrs.deps.items() :
 				if callable(d) :
 					dynamic_deps[k] = d
 					continue
@@ -336,36 +347,34 @@ class NewHandle :
 				if any(callable(x) for x in d) :
 					dynamic_deps[k] = d
 					continue
-				is_static = SimpleDepRe.match(d[0]) and all( k[1:-1] in self.stems for k in SimpleStemRe.findall(d[0]) )
-				self.static_val[k] = d if is_static else None                                                            # for deps, the static value must contain all dep keys
+				is_static = SimpleDepRe.match(d[0]) and all( k[1:-1] in self.static_stems for k in SimpleStemRe.findall(d[0]) )
+				self.static_val[k] = d if is_static else None                                                                   # for deps, the static value must contain all dep keys
 				if not is_static : dynamic_deps[k] = d
 			for k,v in dynamic_deps.items() :
-				self.code += ' , ' , repr(k) , ' : '
 				if callable(v) :
-					self.code.append(self._mk_call(v))
+					self.dynamic_val[k] = v
 				else :
-					c = []
+					l = []
 					for x in v :
-						if   callable  (x    ) : c += ',',self._mk_call(x)
-						elif isinstance(x,str) : c += ',','f',repr(x)
+						if   callable  (x    ) : l.append(      x )
+						elif isinstance(x,str) : l.append(f_str(x))
 						else                   : raise TypeError(f'dep {k} contains {x} which is not a str nor callable')
-					if len(v)==1 : self.code +=        c[1:]
-					else         : self.code += ( '(',*c[1:],')' )
-		self.rule_rep.x_match = self._finalize()
+					self.dynamic_val[k] = l
+		self.rule_rep.x_create_match = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.per_job.add('deps')
-		if not callable(self.rule_rep.deps) :
-			self.per_job.update({ k for k in self.rule_rep.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+		deps = self.rule_rep.x_create_match[0]
+		if not callable(deps) : self.per_job.update({ k for k in deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
-	def handle_match_cmd(self) :
-		self._init()
-		self._handle_any('force')
-		self.rule_rep.x_match_cmd = self._finalize()
-
-	def handle_match_none(self) :
+	def handle_create_none(self) :
 		self._init()
 		self._handle_any('job_tokens')
-		self.rule_rep.x_match_none = self._finalize()
+		self.rule_rep.x_create_none = self._finalize()
+
+	def handle_force_cmd(self) :
+		self._init()
+		self._handle_any('force')
+		self.rule_rep.x_force_cmd = self._finalize()
 
 	def handle_cache_none(self) :
 		self._init()
@@ -378,8 +387,8 @@ class NewHandle :
 		self._handle_dict('rsrcs'  ,'resources')
 		self.rule_rep.x_submit_rsrcs = self._finalize()
 		self.per_job.add('resources')
-		if not callable(self.rule_rep.resources) :
-			self.per_job.update(set(self.rule_rep.resources.keys()))
+		rsrcs = self.rule_rep.x_submit_rsrcs[0].rsrcs
+		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
 	def handle_start_cmd(self) :
 		self._init()
@@ -398,6 +407,7 @@ class NewHandle :
 		self.rule_rep.x_start_rsrcs = self._finalize()
 
 	def handle_start_none(self) :
+		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
 		self._handle_any ('keep_tmp'                       )
 		self._handle_any ('stderr_len'                     )
@@ -416,133 +426,65 @@ class NewHandle :
 		self._handle_any('stderr_len')
 		self.rule_rep.x_end_none = self._finalize()
 
-def old_handle_deps(rule_rep,serialize_ctx,stems) :
-	#
-	def dep_code(rule_rep,kind,key,dep) :
-		if SimpleDepRe.match(dep) and all( k[1:-1] in stems for k in SimpleStemRe.findall(dep) ) :
-			return dep,None                                                                        # this can be interpreted by the engine without resorting to f-string interpretation
-		else :
-			if   "'"   not in dep and '\n' not in dep : sep = "'"
-			elif '"'   not in dep and '\n' not in dep : sep = '"'
-			elif "'''" not in dep                     : sep = "'''"
-			elif '"""' not in dep                     : sep = '"""'
-			else                                      : raise ValueError(f'{kind}{" " if kind else ""}{key} is too complicated an f-string with both \'\'\' and """ in it')
-			dep = 'fr'+sep+dep+sep
-			return dep,compile(dep,rule_rep.name+'.'+(key or '<stdin>'),'eval') # this is a real f-string
-	#
-	def mk_deps(rule_rep,kind,serialize_ctx,code=None) :
-		deps = rule_rep[kind]
-		res  = pdict(dct={})
-		if code : codes = [code]
-		else    : codes = []
-		for k,d in deps.items() :
-			d      = fmt_entry('dep',d)
-			d0,code = dep_code(rule_rep,kind,k,d[0])
-			d       = d0,*d[1:]
-			if code : codes.append(code)
-			res.dct[k] = (d[0],bool(code),*d[1:])
-		if codes :
-			res.prelude , ctx = serialize.get_code_ctx(
-				*codes
-			,	ctx        = serialize_ctx[0]
-			,	no_imports = serialize_ctx[1]
+	def handle_cmd(self) :
+		cmd_ctx       = set()
+		serialize_ctx = (self.per_job,*self.glbs)
+		cmd           = self.attrs.cmd
+		if self.rule_rep.is_python :
+			multi = len(cmd)>1
+			if multi :
+				cmd_lst = []
+				cmd_idx = 0
+				for c in cmd :
+					cmd_idx += 1
+					while any( any(y==f'cmd{cmd_idx}' for y in x) for x in serialize_ctx ) : cmd_idx += 1 # protect against user having defined names such as cmd1, cmd2, ...
+					# create a copy of c with its name modified (dont modify in place as this would be visible for other rules inheriting from the same parent)
+					cmd_lst.append(c.__class__( c.__code__ , c.__globals__ , f'cmd{cmd_idx}' , c.__defaults__ , c.__closure__ ))
+				cmd = cmd_lst
+			cmd , cmd_ctx = serialize.get_src(
+				*cmd
+			,	ctx        = serialize_ctx
+			,	no_imports = self.no_imports
+			,	force      = True
 			)
-			res.ctx = tuple(ctx)
-		return res
-	#
-	for k,s in rule_rep.deps.items() :
-		if not isinstance(s,str) : raise TypeError(f'bad format for dep {k} of type {s.__class__.__name__}')
-	#
-	# handle deps & resources
-	#
-	rule_rep.deps = mk_deps(rule_rep,'deps',serialize_ctx)
-	#
-	job_tokens,tokens_code = dep_code(rule_rep,'','job_tokens',rule_rep.job_tokens)
-	rule_rep.job_tokens    = (job_tokens,bool(tokens_code))
-	rule_rep.resources     = { k:str(v) for k,v in rule_rep.resources.items() }
-	rule_rep.resources     = mk_deps(rule_rep,'resources',serialize_ctx,tokens_code) # resources context must be able to interpret job_tokens as well
-	per_job = serialize_ctx[0][0]
-	per_job.add('deps')
-	per_job.update({ k for k in rule_rep.deps.dct.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
-
-def handle_cmd(rule_rep,serialize_ctx) :
-	cmd_ctx = set()
-	if rule_rep.is_python :
-		multi = len(rule_rep.cmd)>1
-		if multi :
-			cmd_lst = []
-			cmd_idx = 0
-			for c in rule_rep.cmd :
-				cmd_idx += 1
-				while any( any(y==f'cmd{cmd_idx}' for y in x) for x in serialize_ctx[0] ) : cmd_idx += 1 # protect against user having defined names such as cmd1, cmd2, ...
-				# create a copy of c with its name modified (dont modify in place as this would be visible for other rules inheriting from the same parent)
-				cmd_lst.append(c.__class__( c.__code__ , c.__globals__ , f'cmd{cmd_idx}' , c.__defaults__ , c.__closure__ ))
-			rule_rep.cmd = cmd_lst
-		cmd , cmd_ctx = serialize.get_src(
-			*rule_rep.cmd
-		,	ctx        = serialize_ctx[0]
-		,	no_imports = serialize_ctx[1]
-		,	force      = True
-		)
-		if multi :
-			cmd += 'def cmd() :\n'
-			for i,c in enumerate(rule_rep.cmd) :
-				x = '' if c.__code__.co_argcount==0 else 'None' if i==0 else 'x'
-				if i<len(rule_rep.cmd)-1 : cmd += f'\tx =    {c.__name__}({x})\n'
-				else                     : cmd += f'\treturn {c.__name__}({x})\n'
-	else :
-		cmd = '\n'.join(rule_rep.cmd)
-		per_job = serialize_ctx[0][0]
-		for v in per_job :
-			if re.search(f'\\b{v}\\b',cmd) :                                   # if {v} is mentioned in cmd as a word, put it in the context
-				cmd_ctx.add(v)
-	rule_rep.cmd_ctx = tuple(cmd_ctx)
-	rule_rep.cmd     = cmd
-
-def old_handle_env(rule_rep) :
-	rule_rep.env = {}
-	for k,v in rule_rep.pop('environ_cmd'      ).items() : rule_rep.env[k] = (v,'cmd'  )
-	for k,v in rule_rep.pop('environ_resources').items() : rule_rep.env[k] = (v,'rsrcs')
-	for k,v in rule_rep.pop('environ_ancillary').items() : rule_rep.env[k] = (v,'none' )
-	if hasattr(rule_rep,'environ') :  raise TypeError('please use environ_cmd/rsrcs/ancillary')
+			if multi :
+				cmd += 'def cmd() :\n'
+				for i,c in enumerate(self.attrs.cmd) :
+					x = '' if c.__code__.co_argcount==0 else 'None' if i==0 else 'x'
+					if i<len(self.attrs.cmd)-1 : cmd += f'\tx =    {c.__name__}({x})\n'
+					else                       : cmd += f'\treturn {c.__name__}({x})\n'
+		else :
+			cmd = '\n'.join(cmd)
+			for v in self.per_job :
+				if re.search(f'\\b{v}\\b',cmd) :                               # if {v} is mentioned in cmd as a word, put it in the context
+					cmd_ctx.add(v)
+		self.rule_rep.cmd_ctx = tuple(cmd_ctx)
+		self.rule_rep.cmd     = cmd
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class
 	#
-	rule_rep,attrs = handle_inheritance(rule)
+	h = Handle( handle_inheritance(rule) , rule )
 	#
-	if 'target' in attrs and 'post_target' in attrs : raise ValueError('cannot specify both target and post_target')
-	if   'target'      in attrs                     : rule_rep.targets     ['<stdout>'] = attrs.pop('target'     )
-	elif 'post_target' in attrs                     : rule_rep.post_targets['<stdout>'] = attrs.pop('post_target')
-	bad_keys = set(rule_rep.targets) & set(rule_rep.post_targets)
-	if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
-	#
-	h = NewHandle( rule_rep , (attrs,sys.modules[rule.__module__].__dict__) , rule.__module__ )
-	#
-	h.handle_targets(attrs)
-	if all(no_match(t) for t in rule_rep.targets.values()) :                                                         # if there is no way to match this rule, must be a base class
+	h.handle_targets()
+	if all(no_match(t) for t in h.rule_rep.targets.values()) :                                                       # if there is no way to match this rule, must be a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no matching target while virtual forced False')
 		return
-	#
-	h.prepare_jobs(rule)
+	h.handle_job_name()
 	#
 	# handle cases with no execution
 	if rule.__anti__ :
-		return pdict({ k:v for k,v in rule_rep.items() if k in StdAntiAttrs },__anti__=True)
-	if not getattr(rule_rep,'cmd',None) :                                                                # Rule must have a cmd, or it is a base class
+		return pdict({ k:v for k,v in h.rule_rep.items() if k in StdAntiAttrs },__anti__=True)
+	if not getattr(h.attrs,'cmd',None) :                                                                 # Rule must have a cmd, or it is a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return
 	#
-	# prepare serialization
-	# handle execution related stuff
-	if 'dep' in attrs                   : rule_rep.deps['<stdin>'] = attrs.pop('dep')
-	if 'cwd' not in rule_rep            : rule_rep.cwd             = lmake.search_sub_root_dir(sys.modules[rule.__module__].__file__)
-	if not callable(rule_rep.kill_sigs) : rule_rep.kill_sigs       = [int(x) for x in rule_rep.kill_sigs]
-	h.handle_interpreter()
-	# new
-	h.handle_match       ()
-	h.handle_match_cmd   ()
-	h.handle_match_none  ()
+	h.prepare_jobs()
+	#
+	h.handle_interpreter ()
+	h.handle_create_match()
+	h.handle_create_none ()
+	h.handle_force_cmd   ()
 	h.handle_cache_none  ()
 	h.handle_submit_rsrcs()
 	h.handle_start_cmd   ()
@@ -550,20 +492,8 @@ def fmt_rule(rule) :
 	h.handle_start_none  ()
 	h.handle_end_cmd     ()
 	h.handle_end_none    ()
-	# old
-	static_stems = find_static_stems(rule_rep)
-	per_job = {                                                                # this is a set as there are no values as of now : they will be provided at job execution time
-		'stems'   , *static_stems
-	,	'targets' , *( k for k in rule_rep.targets.keys() if k.isidentifier() ) # special cases are not accessible from f-string's
-	}
-	serialize_ctx = ( ( per_job , attrs , sys.modules[rule.__module__].__dict__  ) , {rule.__module__} )
-	#
-	old_handle_deps(rule_rep,serialize_ctx,static_stems)
-	handle_cmd     (rule_rep,serialize_ctx             )
-	old_handle_env (rule_rep                           )
-	rule_rep.kill_sigs = tuple(int(s) for s in rule_rep.kill_sigs)
-	#
-	return rule_rep
+	h.handle_cmd         ()
+	return h.rule_rep
 
 def fmt_rule_chk(rule) :
 	try :
@@ -588,7 +518,7 @@ print(repr({
 ,	'rules' : [
 		rule_rep
 		for rule in lmake.rules
-		for rule_rep in (fmt_rule(rule),)
+		for rule_rep in (fmt_rule_chk(rule),)
 		if rule_rep
 	]
 }),file=open(sys.argv[1],'w'))

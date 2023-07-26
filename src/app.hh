@@ -70,8 +70,6 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 	::vector_s          args      ;
 } ;
 
-bool at_init( int pass , void(*)() ) ;                                         // return val is useless, just more practical to use
-
 void app_init( bool search_root=false , bool cd_root=false ) ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {

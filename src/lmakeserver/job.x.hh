@@ -194,7 +194,8 @@ namespace Engine {
 		JobData() = default ;
 		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
 			SWEAR(sp!=Special::Unknown) ;
-			exec_gen = rule->x_match_cmd.spec.force ? ExecGenForce : NExecGen ; // unless forced, special jobs are always exec_ok
+			exec_gen = NExecGen                     ;                          // special jobs are always exec_ok
+			force    = rule->x_force_cmd.spec.force ;
 		}
 		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
 			SWEAR(!rule.is_special()) ;
@@ -213,7 +214,7 @@ namespace Engine {
 		bool frozen    () const { return s_frozen(status)                                               ; }
 		bool is_special() const { return rule.is_special() || frozen()                                  ; }
 		//
-		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; if (!force()) exec_gen = ok ? rule->rsrcs_gen : 0 ; } // forced jobs stay forced
+		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
 		//
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
@@ -222,10 +223,8 @@ namespace Engine {
 			else                   return { rule->exec_time , true  } ;
 		}
 		//
-		bool sure    () const ;
-		bool force   () const { return exec_gen==ExecGenForce ;                }
-		void mk_sure ()       { match_gen = Rule::s_match_gen ; _sure = true ; }
-		void mk_force()       { exec_gen  = ExecGenForce      ;                }
+		bool sure   () const ;
+		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
 		//
 		bool err() const {
 			if (run_status>=RunStatus::Err     ) return true                ;
@@ -234,19 +233,20 @@ namespace Engine {
 		}
 		//
 		// data
-		DiskDate         db_date      ;                                                         //     64 bits,                        oldest db_date at which job is coherent (w.r.t. its state)
-		ProcessDate      end_date     ;                                                         //     64 bits,
-		Targets          star_targets ;                                                         //     32 bits, owned, for plain jobs
-		Deps             deps         ;                                                         // 31<=32 bits, owned
-		Rule             rule         ;                                                         //     16 bits,                        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time    ;                                                         //     16 bits       , for plain jobs
-		ExecGen          exec_gen     = 0                   ;                                   //   <= 8 bits,      , for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen    = 0                   ;                                   //   <= 8 bits,                        if <Rule::s_match_gen => deemed !sure
-		Tokens           tokens       = 1                   ;                                   //   <= 8 bits,      , for plain jobs, number of tokens for eta computation
-		RunStatus        run_status:3 = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status    :4 = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
+		DiskDate         db_date                   ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
+		ProcessDate      end_date                  ;                                                         //     64 bits,
+		Targets          star_targets              ;                                                         //     32 bits, owned, for plain jobs
+		Deps             deps                      ;                                                         // 31<=32 bits, owned
+		Rule             rule                      ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                 ;                                                         //     16 bits,        for plain jobs
+		ExecGen          exec_gen   :NExecGenBits  = 0                   ;                                   //   <= 7 bits,        for plain jobs, cmd generation of rule
+		bool             force      :1             = false               ;                                   //      1 bit ,        valid if cmd_ok(), if true <=> job must be launch for each Req
+		mutable MatchGen match_gen  :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens           tokens                    = 1                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens for eta computation
+		RunStatus        run_status:3              = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
+		Status           status    :4              = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
 	private :
-		mutable bool     _sure     :1 = false               ;                                   //      1 bit
+		mutable bool     _sure     :1              = false               ;                                   //      1 bit
 	} ;
 	static_assert(sizeof(JobData)==32) ;                                       // check expected size
 

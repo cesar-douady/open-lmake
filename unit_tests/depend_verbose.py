@@ -10,6 +10,11 @@ import time
 
 import lmake
 
+autodeps = []
+if lmake.has_ptrace     : autodeps.append('ptrace'    )
+if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
+if lmake.has_ld_preload : autodeps.append('ld_preload')
+
 if getattr(sys,'reading_makefiles',False) :
 
 	import step
@@ -22,24 +27,32 @@ if getattr(sys,'reading_makefiles',False) :
 	lmake.config.link_support = step.link_support
 
 	class Base(lmake.Rule) :
-		stems        = { 'File' : r'.*' }
-		autodep      = step.autodep
-		link_support = step.link_support
+		stems = { 'File' : r'.*' }
+
+	class Delay(Base) :
+		target = 'dly'
+		cmd    = 'sleep 0.5'
 
 	class Src(Base) :
 		target = 'hello'
-		cmd    = f'echo hello.{step.p>=2}.{step.interp}.{step.autodep}.{step.link_support}'
+		dep    = 'dly'                                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
+		cmd    = f'echo hello.{step.p>=2}.{step.link_support}'
 
-	class Cpy(Base) :
-		target = f'{{File}}.{step.interp}.{step.autodep}.{step.link_support}.cpy'
-		if step.interp=='sh' :
+	for ad in autodeps :
+		class CpySh(Base) :
+			name    = f'cpy-sh-{ad}'
+			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
+			autodep = ad
 			cmd = '''
 				from_server=$(ldepend -v $File | awk '{print $2}')
 				expected=$(   xxhsum     $File                   )
 				echo $from_server
 				[ $from_server = $expected ] || echo expected $expected got $from_server >&2
 			'''
-		elif step.interp=='py' :
+		class CpyPy(Base) :
+			name    = f'cpy-py-{ad}'
+			target  = f'{{File}}.py.{ad}.{step.link_support}.cpy'
+			autodep = ad
 			def cmd() :
 				from_server = lmake.depend(File,verbose=True)[File][1]
 				expected    = sp.check_output(('xxhsum',File),universal_newlines=True).strip()
@@ -50,13 +63,12 @@ else :
 
 	import ut
 
-	autodeps = []
-	if lmake.has_ptrace     : autodeps.append('ptrace'    )
-	if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
-	if lmake.has_ld_preload : autodeps.append('ld_preload')
-	for autodep in autodeps :
-		for link_support in ('none','file','full') :
-			for interp in ('sh','py') :
-				for p in range(3) :
-					print(f'p={p!r}\ninterp={interp!r}\nautodep={autodep!r}\nlink_support={link_support!r}',file=open('step.py','w'))
-					ut.lmake( f'hello.{interp}.{autodep}.{link_support}.cpy' , may_rerun=(p==0) , done=(p!=1)*2 )
+	n_ads = len(autodeps)
+
+	for ls in ('none','file','full') :
+		for p in range(3) :
+			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
+			ut.lmake(
+				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in autodeps )
+			,	may_rerun=(p==0)*2*n_ads , done=(p==0 and ls=='none')+(p!=1)+(p!=1)*2*n_ads , steady=(p==0 and ls!='none')
+			)

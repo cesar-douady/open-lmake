@@ -54,7 +54,8 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobE
 	if (is_new) {
 		access_map[file] = accesses.size() ;
 		accesses.emplace_back(file,AccessInfo()) ;
-		info_ = &accesses.back().second ;
+		info_        = &accesses.back().second                   ;
+		info_->order = parallel?DepOrder::Parallel:DepOrder::Seq ;             // Critical is managed at the end, by comparing dates with critical_barriers
 	} else {
 		info_ = &accesses[it->second].second ;
 	}
@@ -65,14 +66,9 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobE
 	:	                                              No
 	;
 	//
-	if ( +ai.dfs || ai.idle() ) {                                              // if we do not write, do book-keeping as read, even if we do not access the file
-		if (after==No) {
-			info_->read_date = pd                                        ;
-			info_->file_date = dd                                        ;
-			info_->order     = parallel?DepOrder::Parallel:DepOrder::Seq ;     // Critical is managed at the end, by comparing dates with critical_barriers
-		} else if (!(info_->info.dfs&AccessDFlags)) {
-			info_->file_date = dd ;                                            // if previous accesses did not actually access the file, record our date
-		}
+	if ( +ai.dfs || ai.idle() ) {                                                                     // if we do not write, do book-keeping as read, even if we do not access the file
+		if      (after==No                      ) { info_->file_date = dd ; info_->read_date = pd ; } // update read info if we are first to read
+		else if (!(info_->info.dfs&AccessDFlags)) { info_->file_date = dd ;                         } // if previous accesses did not actually access the file, record our date
 	}
 	if ( !ai.idle() && after!=Yes ) info_->write_date = pd ;
 	//

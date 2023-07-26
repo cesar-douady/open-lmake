@@ -9,16 +9,16 @@
 
 namespace Py {
 
-	PyObject* Ellipsis = nullptr ;
+	PyObject* g_ellipsis = nullptr ;
 
-	void init() {
+	void init(bool multi_thread) {
 		static bool once=false ; if (once) return ; else once = true ;
 		Py_Initialize() ;
 		PyObject* eval_env = PyDict_New() ;
-		Ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;
+		g_ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;
 		Py_DECREF(eval_env) ;
+		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
 	}
-	static bool _inited = at_init(1,init) ;
 
 	::ostream& operator<<( ::ostream& os , Pattern const& pat ) {
 		return os << "Pattern(" << pat.pattern() << ")" ;
@@ -27,10 +27,12 @@ namespace Py {
 	// Divert stderr to a pipe, call PyErr_Print and restore stderr
 	// This could be simpler by using memfd_create, but this is not available for CentOS7.
 	::string err_str() {
-		::string res ;
-		Pipe fds{New} ;
-		Fd stderr_save = Fd::Stderr.dup() ;
+		::string res        ;
+		Pipe     fds        { New }             ;
+		Fd       stderr_save = Fd::Stderr.dup() ;
+		::close(Fd::Stderr) ;
 		::dup2(fds.write,Fd::Stderr) ;
+		fds.write.close() ;
 		auto gather_thread_func = [&]()->void {
 			char buf[256] ;
 			ssize_t c ;
@@ -38,9 +40,10 @@ namespace Py {
 		} ;
 		::jthread gather{gather_thread_func} ;
 		PyErr_Print() ;
+		::close(Fd::Stderr) ;
 		gather.join() ;
 		::dup2(stderr_save,Fd::Stderr) ;                                       // restore
-		fds.close() ;
+		fds.read.close() ;
 		return res ;
 	}
 

@@ -198,14 +198,14 @@ namespace Engine {
 		if (show_deps==No) return ;
 		NodeIdx critical_lvl = 0 ;
 		size_t  w            = 0 ;
-		for( auto const& [k,_] : rule->x_match.spec.deps ) w = ::max( w , k.size() ) ;
+		for( auto const& [k,_] : rule->x_create_match.spec.deps ) w = ::max( w , k.size() ) ;
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
 			Dep const& dep = job->deps[d] ;
 			DepOrder   cdo = d  >0                ? dep           .order : DepOrder::Seq ;
 			DepOrder   ndo = d+1<job->deps.size() ? job->deps[d+1].order : DepOrder::Seq ;
 			if (cdo==DepOrder::Critical) critical_lvl++ ;
-			::string dep_key = dep.flags[DFlag::Static] && !rule->x_match.spec.full_dynamic ? rule->x_match.spec.deps[d].first : ""s ;
-			::string pfx     = to_string( ::setw(w) , dep_key , ' ' )                                                                ;
+			::string dep_key = dep.flags[DFlag::Static] && !rule->x_create_match.spec.full_dynamic ? rule->x_create_match.spec.deps[d].first : ""s ;
+			::string pfx     = to_string( ::setw(w) , dep_key , ' ' )                                                                              ;
 			if      ( cdo!=DepOrder::Parallel && ndo!=DepOrder::Parallel ) pfx.push_back(' ' ) ;
 			else if ( cdo!=DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('/' ) ;
 			else if ( cdo==DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('|' ) ;

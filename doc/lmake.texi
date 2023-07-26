@@ -992,8 +992,10 @@ This directory must be unique for each repository, i.e. @lmake considers it as a
 @section @code{lmake.remote_admin_dir}
 
 This variable specifies the directory to use for data that are accessed by the remote executing hosts only (not shared among them).
-It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but may not designate the same are on all of them.
+It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
 This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
+
+It can be freely modified (or removed) when @lmake is not running.
 
 @chapter Config
 

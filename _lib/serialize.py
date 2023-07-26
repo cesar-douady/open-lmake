@@ -11,6 +11,8 @@ import re
 import sys
 import types
 
+class f_str(str) : pass                                                        # used as a marker to generate an f-string as source
+
 __all__ = ('get_src','get_code_ctx')                                           # everything else is private
 
 comment_re = re.compile(r'^\s*(#.*)?$')
@@ -31,8 +33,24 @@ def get_src(*args,no_imports=(),ctx=(),force=False) :
 		if isinstance(a,dict) :
 			for k,v in a.items() : s.val_src(k,v,force)
 		else :
-			s.val_src(None,a,force)
+			s.val_src(None,a,force=force)
 	return s.get_src()
+
+def get_expr(expr,*,no_imports=(),ctx=(),force=False,call_callables=False) :
+	'''
+		get an expression text that reproduce expr :
+		- expr can be any object
+		- no_imports is a list of modules or module names that must not be imported in the resulting source.
+		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
+		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
+		The return value is (source,ctx,names) where :
+			- source is the source text that reproduces expr as an expression
+			- ctx is as ource text that reproduces the environment in which to evaluate source
+			- names is the list of names found in sets in ctx
+	'''
+	s = Serialize(no_imports,ctx)
+	src = s.expr_src(expr,force=force,call_callables=call_callables)
+	return (src,*s.get_src())
 
 def get_code_ctx(*args,no_imports=(),ctx=()) :
 	'''
@@ -46,13 +64,13 @@ def get_code_ctx(*args,no_imports=(),ctx=()) :
 	'''
 	s = Serialize(no_imports,ctx)
 	for a in args :
-		if not isinstance(a,get_code_ctx.__code__.__class__) : raise TypeError(f'args must be code, not {a.__class__.__name__}')
+		if not isinstance(a,types.CodeType) : raise TypeError(f'args must be code, not {a.__class__.__name__}')
 		for glb_var in s.get_glbs(a) : s.gather_ctx(glb_var)
 	return s.get_src()
 
 end_liness = {}
 srcs       = {}
-def analyze(file_name) :
+def _analyze(file_name) :
 	if file_name in end_liness : return
 	srcs      [file_name] = lines          = open(file_name).read().splitlines()
 	end_liness[file_name] = file_end_lines = {}
@@ -97,6 +115,7 @@ class Serialize :
 			if avoid is None : avoid = set()                                   # avoid is used to detect loops : loops have no repr (i.e. the repr output does not represent to object)
 			cls = val.__class__
 			if val in (None,...)                         : return True
+			if cls is f_str                              : return False        # cannot use a simple repr call to generate an f-string
 			if cls in (bool,int,float,complex,str,bytes) : return True
 			val_id = id(val)
 			if val_id in avoid : raise RuntimeError()
@@ -119,7 +138,7 @@ class Serialize :
 	}
 	@staticmethod
 	def get_glbs(code) :
-		'find func global'
+		'recursively find func globals'
 		# for global references, we need to inspect code as code.co_names contains much more
 		def gather_codes(code) :                                               # gather all code objects as there may be function defs within a function
 			if code in codes : return
@@ -134,7 +153,7 @@ class Serialize :
 				if i.opname in Serialize.have_name : glb_names[i.argval] = None
 		return glb_names
 
-	def val_src(self,name,val,force=False) :
+	def val_src(self,name,val,*,force=False) :
 		if not name :
 			try                   : name = val.__name__
 			except AttributeError : pass
@@ -156,17 +175,40 @@ class Serialize :
 		elif isinstance(val,types.FunctionType) :
 			self.func_src(name,val)
 		elif name :
-			if self.has_repr(val) :
-				if name : self.src_lst.append(f'{name} = {val!r}')
-			elif val.__class__.__module__ not in self.by_values :
-				# by default, use the broadest serializer available : pickle
-				# inconvenient is that the resulting source is everything but readable
-				# protocol 0 is the less unreadable, though, so use it
-				# use {name} to temporarily hold pickle.loads as it is guaranteed to be an available name
-				val_str = pickle.dumps(val,protocol=0).decode()
-				self.src_lst.append(f'from pickle import loads as {name} ; {name} = {name}({val_str!r}.encode())')
-			else :
-				raise ValueError(f'dont know how to serialize {name} = {val}')
+			self.src_lst.append(f'{name} = {self.expr_src(val,force=force)}')
+
+	def expr_src(self,val,*,force=False,call_callables=False) :
+		if isinstance(val,types.ModuleType) :
+			self.src_lst.append(f'import {val.__name__}')
+			return val.__name__
+		sfx = ''
+		if call_callables and callable(val) :
+			inspect.signature(val).bind()                                                                                     # check val can be called with no argument
+			sfx = '()'                                                                                                        # call val if possible and required
+		if hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
+			self.src_lst.append(f'import {val.__module__}')
+			return f'{val.__module__}.{val.__qualname__}{sfx}'
+		if isinstance(val,types.FunctionType) :
+			self.func_src(val.__name__,val)
+			return f'{val.__name__}{sfx}'
+		kwds = { 'force':force , 'call_callables':call_callables }
+		if self.has_repr(val)    : return repr(val)
+		if isinstance(val,tuple) : return f"( { ' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} {',' if len(val)==1 else ''})"
+		if isinstance(val,list ) : return f"[ { ' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} ]"
+		if isinstance(val,set  ) : return f"{{ {' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} }}" if len(val) else "set()"
+		if isinstance(val,dict ) : return f"{{ {' , '.join(f'{self.expr_src(k,**kwds)}:{self.expr_src(v,**kwds)}' for k,v in val.items())} }}"
+		if isinstance(val,f_str) :
+			fs = 'f'+repr(val)
+			for glb_var in self.get_glbs(compile(fs,'','eval')) : self.gather_ctx(glb_var)
+			return fs
+		if val.__class__.__module__ not in self.by_values :
+			# by default, use the broadest serializer available : pickle
+			# inconvenient is that the resulting source is everything but readable
+			# protocol 0 is the least unreadable, though, so use it
+			val_str = pickle.dumps(val,protocol=0).decode()
+			self.src_lst.append(f'import pickle')
+			return f'pickle.loads({val_str!r}.encode()){sfx}'
+		raise ValueError(f'dont know how to serialize {val}')
 
 	def gather_ctx(self,name) :
 		for d in self.ctx :
@@ -193,7 +235,7 @@ class Serialize :
 	def func_src(self,name,func) :
 		code      = func.__code__
 		file_name = code.co_filename
-		analyze(file_name)
+		_analyze(file_name)
 		file_src       = srcs      [file_name]
 		file_end_lines = end_liness[file_name]
 		first_line_no  = code.co_firstlineno-1

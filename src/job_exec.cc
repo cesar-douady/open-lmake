@@ -62,6 +62,7 @@ int main( int argc , char* argv[] ) {
 	}
 
 	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
+	//
 	::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	//
 	// set g_tmp_dir before calling app_init so it does not search TMPDIR env variable
@@ -69,6 +70,7 @@ int main( int argc , char* argv[] ) {
 	else                                     g_tmp_dir = new ::string{to_string(start_info.root_dir,'/',start_info.job_tmp_dir)} ;
 	//
 	app_init() ;                                                               // safer to call app_init once we are in repo
+	Py::init() ;
 
 	Trace trace("main",service,seq_id,job) ;
 	trace("start_overhead",start_overhead) ;

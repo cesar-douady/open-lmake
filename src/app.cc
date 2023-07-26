@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <thread>
-
 #include "disk.hh"
 #include "trace.hh"
 
@@ -13,23 +11,12 @@
 using namespace Disk ;
 using namespace Time ;
 
-using InitTab = ::vmap<int/*pass*/,void(*)()> ;
-
 ::string* g_lmake_dir     = nullptr ;
 ::string* g_startup_dir_s = nullptr ;                                          // includes final   /, relative to g_root_dir , dir from which command was launched
 
 void crash_handler(int sig) {
 	if (sig==SIGABRT) crash(4,sig,"aborted"               ) ;
 	else              crash(2,sig,"caught ",strsignal(sig)) ;
-}
-
-static InitTab& _get_init_tab() {
-	static InitTab* _init_tab = new InitTab ;                                  // embed static var and define it through new to be sure it is available during initialization/finalization
-	return         *_init_tab ;
-}
-bool at_init( int pass , void(*func)() ) {
-	_get_init_tab().emplace_back(pass,func) ;
-	return true ;                                                              // return val is useless, just more practical to use
 }
 
 #pragma GCC visibility push(default)                                           // force visibility of functions defined hereinafter, until the corresponding pop
@@ -63,7 +50,4 @@ void app_init( bool search_root , bool cd_root ) {
 	//
 	Trace::s_start() ;
 	Trace trace("app_init",g_startup_dir_s?*g_startup_dir_s:""s) ;
-	InitTab& tab = _get_init_tab() ;
-	::sort(tab) ;
-	for( auto const& [pass,f] : tab ) f() ;
 }

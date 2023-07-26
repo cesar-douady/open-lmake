@@ -138,7 +138,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	JobExecRpcReq  jerr   = JobExecRpcReq( ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                          ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                           ;
 	//
 	Py_RETURN_NONE ;
 }
@@ -157,7 +157,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	::vector_s views = _get_files(args) ;
 	if (views.size()==0) views.push_back(cwd()) ;
 	SWEAR(views.size()==1) ;
-	::string& view = views[0] ;
+	::string const& view = views[0] ;
 	SWEAR(!view.empty()) ;
 	//
 	RealPath::SolveReport solve_report = RealPath(_g_autodep_support.lnk_support).solve(view,no_follow,true/*root_ok*/) ;
