@@ -3,22 +3,24 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <link.h>   // all dynamic link related
+#include <link.h>  // all dynamic link related
 
 #include "lib.hh"
 
 bool        g_force_orig = false   ;
-Lmid_t      g_libc_lmid  = 0       ;                                           // acquired during initial audit
-const char* g_libc_name  = nullptr ;                                           // .
+const char* g_libc_name  = nullptr ;   // .
 
+void* get_libc_handle() {
+	static void* s_libc_handle = ::dlmopen( LM_ID_BASE , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
+	swear_prod(s_libc_handle,"cannot find libc") ;
+	return s_libc_handle ;
+}
 
 struct Ctx {
 private :
 	static void* _s_get_orig_errno() {
-		void* s_libc_handle = ::dlmopen( g_libc_lmid , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
-		swear_prod(s_libc_handle,"cannot find libc") ;
-		Save  save { g_force_orig , true }                     ;               // avoid loop during dlsym execution
-		void* res  = ::dlsym(s_libc_handle,"__errno_location") ;               // gather errno from app space // XXX : find a way to stick to documented interfaces
+		Save  save { g_force_orig , true }                         ;           // avoid loop during dlsym execution
+		void* res  = ::dlsym(get_libc_handle(),"__errno_location") ;           // gather errno from app space // XXX : find a way to stick to documented interfaces
 		swear_prod(res,"cannot find __errno_location in libc") ;
 		return res ;
 	}
@@ -40,7 +42,7 @@ struct Lock {
 ::mutex Lock::s_mutex ;
 
 struct SymEntry {
-	SymEntry(void* f,LnkSupport ls=LnkSupport::None) : func{f},lnk_support{ls} {}
+	SymEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
 	void*         func        = nullptr          ;
 	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this syscall
 	mutable void* orig        = nullptr          ;
@@ -49,7 +51,9 @@ extern ::umap_s<SymEntry> const* const g_syscall_tab ;
 
 void* get_orig(const char* syscall) {
 	if (!g_libc_name) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
-	return g_syscall_tab->at(syscall).orig ;
+	SymEntry const& entry = g_syscall_tab->at(syscall) ;
+	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ;             // may be not initialized if syscall was routed to another syscall // XXX : why get_libc_handle() does not work ?
+	return entry.orig ;
 }
 
 #define LD_AUDIT 1
@@ -65,9 +69,9 @@ void* get_orig(const char* syscall) {
 //,	{ "dlopen"           , { reinterpret_cast<void*>(Audited::dlopen           ) } } // .
 ,	{ "dup2"             , { reinterpret_cast<void*>(Audited::dup2             ) } }
 ,	{ "dup3"             , { reinterpret_cast<void*>(Audited::dup3             ) } }
-,	{ "execl"            , { reinterpret_cast<void*>(Audited::execl            ) } }
-,	{ "execle"           , { reinterpret_cast<void*>(Audited::execle           ) } }
-,	{ "execlp"           , { reinterpret_cast<void*>(Audited::execlp           ) } }
+,	{ "execl"            , { reinterpret_cast<void*>(Audited::execl            ) } } // because calling variadic functions is impractical
+,	{ "execle"           , { reinterpret_cast<void*>(Audited::execle           ) } } // .
+,	{ "execlp"           , { reinterpret_cast<void*>(Audited::execlp           ) } } // .
 ,	{ "execv"            , { reinterpret_cast<void*>(Audited::execv            ) } }
 ,	{ "execve"           , { reinterpret_cast<void*>(Audited::execve           ) } }
 ,	{ "execveat"         , { reinterpret_cast<void*>(Audited::execveat         ) } }
@@ -76,11 +80,14 @@ void* get_orig(const char* syscall) {
 ,	{ "fchdir"           , { reinterpret_cast<void*>(Audited::fchdir           ) } }
 ,	{ "fopen"            , { reinterpret_cast<void*>(Audited::fopen            ) } }
 ,	{ "fopen64"          , { reinterpret_cast<void*>(Audited::fopen64          ) } }
+,	{ "fork"             , { reinterpret_cast<void*>(Audited::fork             ) } }
+,	{ "__fork"           , { reinterpret_cast<void*>(Audited::__fork           ) } }
 ,	{ "freopen"          , { reinterpret_cast<void*>(Audited::freopen          ) } }
 ,	{ "freopen64"        , { reinterpret_cast<void*>(Audited::freopen64        ) } }
+,	{ "__libc_fork"      , { reinterpret_cast<void*>(Audited::__libc_fork      ) } }
 ,	{ "link"             , { reinterpret_cast<void*>(Audited::link             ) } }
 ,	{ "linkat"           , { reinterpret_cast<void*>(Audited::linkat           ) } }
-//,	{ "mkostemp"         , { reinterpret_cast<void*>(Audited::mkostemp         ) } } // normally only accesses $TMPDIR which is not tracked for deps (and difficult to implement)
+//,	{ "mkostemp"         , { reinterpret_cast<void*>(Audited::mkostemp         ) } } // normally only accesses $TMPDIR which are not tracked for deps (and difficult to implement)
 //,	{ "mkostemp64"       , { reinterpret_cast<void*>(Audited::mkostemp64       ) } } // .
 //,	{ "mkostemps"        , { reinterpret_cast<void*>(Audited::mkostemps        ) } } // .
 //,	{ "mkostemps64"      , { reinterpret_cast<void*>(Audited::mkostemps64      ) } } // .
@@ -109,12 +116,13 @@ void* get_orig(const char* syscall) {
 ,	{ "renameat2"        , { reinterpret_cast<void*>(Audited::renameat2        ) } }
 ,	{ "symlink"          , { reinterpret_cast<void*>(Audited::symlink          ) } }
 ,	{ "symlinkat"        , { reinterpret_cast<void*>(Audited::symlinkat        ) } }
+,	{ "system"           , { reinterpret_cast<void*>(Audited::system           ) } }
 ,	{ "truncate"         , { reinterpret_cast<void*>(Audited::truncate         ) } }
 ,	{ "truncate64"       , { reinterpret_cast<void*>(Audited::truncate64       ) } }
 ,	{ "unlink"           , { reinterpret_cast<void*>(Audited::unlink           ) } }
 ,	{ "unlinkat"         , { reinterpret_cast<void*>(Audited::unlinkat         ) } }
-,	{ "vfork"            , { reinterpret_cast<void*>(Audited::vfork            ) } }
-,	{ "__vfork"          , { reinterpret_cast<void*>(Audited::__vfork          ) } }
+,	{ "vfork"            , { reinterpret_cast<void*>(Audited::vfork            ) } } // because vfork semantic does not allow instrumentation of following exec
+,	{ "__vfork"          , { reinterpret_cast<void*>(Audited::__vfork          ) } } // .
 //
 // mere path accesses, no actual accesses to file data
 //
@@ -149,20 +157,21 @@ void* get_orig(const char* syscall) {
 ,	{ "scandirat64"            , { reinterpret_cast<void*>(Audited::scandirat64           ) , LnkSupport::File } }
 } ;
 
-static bool _catch(const char* c_name) {
+static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name) {
 	// search for string (.*/)?libc.so(.<number>)*
 	static const char LibC      [] = "libc.so"       ;
 	static const char LibPthread[] = "libpthread.so" ;                         // some systems redefine entries such as open in libpthread
 	//
-	::string_view name { c_name }               ;
-	size_t        end  = 0/*garbage*/           ;
-	size_t        pos  = name.rfind(LibC      ) ; if (pos!=NPos) { end = pos+sizeof(LibC      )-1 ; goto Qualify ; }
-	/**/          pos  = name.rfind(LibPthread) ; if (pos!=NPos) { end = pos+sizeof(LibPthread)-1 ; goto Qualify ; }
-	return false ;
+	bool          is_libc = false/*garbage*/       ;
+	::string_view name    { c_name }               ;
+	size_t        end     = 0/*garbage*/           ;
+	size_t        pos     = name.rfind(LibC      ) ; if (pos!=NPos) { end = pos+sizeof(LibC      )-1 ; is_libc = true  ; goto Qualify ; }
+	/**/          pos     = name.rfind(LibPthread) ; if (pos!=NPos) { end = pos+sizeof(LibPthread)-1 ; is_libc = false ; goto Qualify ; }
+	return {false,false} ;
 Qualify :
-	/**/                             if ( pos!=0 && name[pos-1]!='/' ) return false ;
-	for( char c : name.substr(end) ) if ( (c<'0'||c>'9') && c!='.'   ) return false ;
-	/**/                                                               return true  ;
+	/**/                             if ( pos!=0 && name[pos-1]!='/' ) return {false,false  } ;
+	for( char c : name.substr(end) ) if ( (c<'0'||c>'9') && c!='.'   ) return {false,false  } ;
+	/**/                                                               return {true ,is_libc} ;
 }
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
@@ -196,13 +205,13 @@ extern "C" {
 		Audit::t_audit() ;                                                              // force Audit static init
 		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
 			Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
-		bool catch_ = _catch(map->l_name) ;
-		*cookie = !catch_ ;
-		if (catch_) {
-			g_libc_lmid = lmid        ;                                        // seems more robust to avoid directly calling dlmopen while in a call-back due to opening a dl
+		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
+		*cookie = !known.first ;
+		if (known.second) {
+			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = map->l_name ;
 		}
-		return LA_FLG_BINDFROM | (catch_?LA_FLG_BINDTO:0) ;
+		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
 	}
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {

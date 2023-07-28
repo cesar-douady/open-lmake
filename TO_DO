@@ -7,11 +7,20 @@
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* mail NM 2023/7/26 14:40
+	- manual after ^C may appear
+* sometimes losing terminal colors
+
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* find a way so that the HOME env variable does not contain abs path
+* when ^C is hit, lmake should return as with ^C, not status=2
+	- this will allow scripts calling lmake to interrupt gracefully
+* document that deps are readable if available (and not other disk accesses)
+	- ensure it is the case (i.e. do not make them available until start)
+	- say that this will be enforced in the future
+* find a way so that the HOME env variable does not contain abs path in crc
 	- so as to allow cache to work properly
 	- apply to all env variables as well, such as PATH, PYTHONPATH, ...
 	- when computing crc, replace any occurence of \<root\> with a marker

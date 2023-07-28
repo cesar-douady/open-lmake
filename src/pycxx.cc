@@ -27,9 +27,10 @@ namespace Py {
 	// Divert stderr to a pipe, call PyErr_Print and restore stderr
 	// This could be simpler by using memfd_create, but this is not available for CentOS7.
 	::string err_str() {
-		::string res        ;
-		Pipe     fds        { New }             ;
-		Fd       stderr_save = Fd::Stderr.dup() ;
+		::string res          ;
+		Pipe     fds          { New }                       ;
+		Fd       stderr_save  = Fd::Stderr.dup()            ;
+		int      stderr_flags = ::fcntl(Fd::Stderr,F_GETFD) ;
 		::close(Fd::Stderr) ;
 		::dup2(fds.write,Fd::Stderr) ;
 		fds.write.close() ;
@@ -42,7 +43,8 @@ namespace Py {
 		PyErr_Print() ;
 		::close(Fd::Stderr) ;
 		gather.join() ;
-		::dup2(stderr_save,Fd::Stderr) ;                                       // restore
+		::dup2 (stderr_save,Fd::Stderr                     ) ;                 // restore file description
+		::fcntl(            Fd::Stderr,F_SETFD,stderr_flags) ;                 // restore flags
 		fds.read.close() ;
 		return res ;
 	}

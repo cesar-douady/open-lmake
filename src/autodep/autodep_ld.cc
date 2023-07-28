@@ -189,8 +189,8 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 		va_end(arg_cnt_lst) ;                                                \
 		va_end(args_lst   )
 	int execl ( const char* path , const char* arg , ... ) { MK_ARGS(                                               ) ; int rc = execv (path,args     ) ; delete[] args ; return rc ; }
-	int execlp( const char* path , const char* arg , ... ) { MK_ARGS(                                               ) ; int rc = execvp(path,args     ) ; delete[] args ; return rc ; }
 	int execle( const char* path , const char* arg , ... ) { MK_ARGS( char* const* envp = va_arg(args_lst,char**) ; ) ; int rc = execve(path,args,envp) ; delete[] args ; return rc ; }
+	int execlp( const char* path , const char* arg , ... ) { MK_ARGS(                                               ) ; int rc = execvp(path,args     ) ; delete[] args ; return rc ; }
 	#undef MK_ARGS
 
 	// fopen
@@ -200,8 +200,13 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 	FILE* freopen64( const char* pth , const char* mode , FILE* fp ) { ORIG(freopen64) ; LCK ; Audit::Fopen r{pth,mode,"freopen64"} ; return r(orig(pth,mode,fp)) ; }
 
 	// fork
-	pid_t vfork  () { return fork  () ; } // mapped to fork as restrictions prevent most actions before following exec and we need a clean semantic to instrument exec
-	pid_t __vfork() { return __fork() ; } // .
+	pid_t fork       () { ORIG(fork       ) ; LCK ; return orig()   ; }        // a simple way to do this is to take the lock before calling, so that it will be freed in both the parent and the child
+	pid_t __fork     () { ORIG(__fork     ) ; LCK ; return orig()   ; }        // a simple way to do this is to take the lock before calling, so that it will be freed in both the parent and the child
+	pid_t __libc_fork() { ORIG(__libc_fork) ; LCK ; return orig()   ; }        // .
+	pid_t vfork      () {                           return fork  () ; }        // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
+	pid_t __vfork    () {                           return __fork() ; }        // .
+	//
+	int system(const char* cmd) { ORIG(system) ; LCK ; return orig(cmd) ; }    // cf fork for explanation
 
 	// link
 	int link  (       const char* op,       const char* np         ) { ORIG(link  ) ; LCK ; Audit::Lnk r{AT_FDCWD,op,AT_FDCWD,np     } ; return r(orig(   op,   np     )) ; }
