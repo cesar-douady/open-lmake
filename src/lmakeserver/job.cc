@@ -212,7 +212,7 @@ namespace Engine {
 		if (!match_) { trace("no_match") ; return ; }
 		::vmap<Node,DFlags> deps ;
 		try {
-			deps = rule_tgt->x_create_match.eval(rule_tgt,match_.stems) ;
+			deps = rule_tgt->create_match_attrs.eval(rule_tgt,match_.stems) ;
 		} catch (::string const&) {                                            // XXX : generate error message
 			trace("no_dep_subst") ;
 			return ;
@@ -227,8 +227,8 @@ namespace Engine {
 		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		*this = Job( match_.name(),Dflt , rule_tgt,deps ) ;
 		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		try                     { (*this)->tokens = rule_tgt->x_create_none.eval(*this).tokens ; } // XXX : generate error message
-		catch (::string const&) { (*this)->tokens = 0 ;                                          }
+		try                     { (*this)->tokens = rule_tgt->create_none_attrs.eval(*this).tokens ; } // XXX : generate error message
+		catch (::string const&) { (*this)->tokens = 0 ;                                              }
 		trace("found",*this) ;
 	}
 
@@ -372,23 +372,23 @@ namespace Engine {
 	}
 
 	bool/*modified*/ JobExec::end( ProcessDate start , JobDigest const& digest ) {
-		Status        status        = digest.status                                      ; // status will be modified, need to make a copy
-		bool          err           = status>=Status::Err                                ;
-		bool          killed        = status<=Status::Killed                             ;
-		JobReason     local_reason  = killed ? JobReasonTag::Killed : JobReasonTag::None ;
-		bool          any_modified  = false                                              ;
-		Rule          rule          = (*this)->rule                                      ;
-		::vector<Req> running_reqs_ = running_reqs()                                     ;
-		AnalysisErr   analysis_err  ;
-		CacheNoneSpec x_cache_none  ;
-		EndCmdSpec    x_end_cmd     ;
-		EndNoneSpec   x_end_none    ;
+		Status         status            = digest.status                                      ; // status will be modified, need to make a copy
+		bool           err               = status>=Status::Err                                ;
+		bool           killed            = status<=Status::Killed                             ;
+		JobReason      local_reason      = killed ? JobReasonTag::Killed : JobReasonTag::None ;
+		bool           any_modified      = false                                              ;
+		Rule           rule              = (*this)->rule                                      ;
+		::vector<Req>  running_reqs_     = running_reqs()                                     ;
+		AnalysisErr    analysis_err      ;
+		CacheNoneAttrs cache_none_attrs  ;
+		EndCmdAttrs    end_cmd_attrs     ;
+		EndNoneAttrs   end_none_attrs    ;
 		//
 		SWEAR( status!=Status::New && !JobData::s_frozen(status) ) ;           // we just executed the job, it can be neither new nor frozen
 		SWEAR(!rule.is_special()) ;
-		try { x_cache_none  = rule->x_cache_none.eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute cache info"        , 0 ) ; } // XXX : improve error message
-		try { x_end_cmd     = rule->x_end_cmd   .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error message
-		try { x_end_none    = rule->x_end_none  .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error message
+		try { cache_none_attrs = rule->cache_none_attrs.eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute cache info"        , 0 ) ; } // XXX : improve error msg
+		try { end_cmd_attrs    = rule->end_cmd_attrs   .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error msg
+		try { end_none_attrs   = rule->end_none_attrs  .eval(*this) ; } catch (::string const&) { analysis_err.emplace_back( "cannot compute job analysis info" , 0 ) ; } // XXX : improve error msg
 		//
 		switch (status) {
 			case Status::Lost    : local_reason = JobReasonTag::Lost    ; break ;
@@ -546,8 +546,8 @@ namespace Engine {
 		// wrap up
 		//
 		switch (status) {
-			case Status::Ok      : if ( !digest.stderr.empty() && !x_end_cmd.allow_stderr ) { analysis_err.emplace_back("non-empty stderr",0) ; err = true ; } break ;
-			case Status::Timeout :                                                          { analysis_err.emplace_back("timeout"         ,0) ;              } break ;
+			case Status::Ok      : if ( !digest.stderr.empty() && !end_cmd_attrs.allow_stderr ) { analysis_err.emplace_back("non-empty stderr",0) ; err = true ; } break ;
+			case Status::Timeout :                                                              { analysis_err.emplace_back("timeout"         ,0) ;              } break ;
 			default : ;
 		}
 		//
@@ -580,7 +580,7 @@ namespace Engine {
 			AnalysisErr        ae_reason ;                                                                                                 // we need a variable to own the data
 			AnalysisErr const& ae        = reason.has_err() ? (ae_reason={s_reason_str(reason)}) : analysis_err ;
 			if (ri.done()) {
-				audit_end( {} , ri , reason.has_err()?"":digest.stderr , ae , x_end_none.stderr_len , any_modified , digest.stats.total ) ; // report exec time even if not recording it
+				audit_end( {} , ri , reason.has_err()?"":digest.stderr , ae , end_none_attrs.stderr_len , any_modified , digest.stats.total ) ; // report exec time even if not recording it
 				trace("wakeup_watchers",ri) ;
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
 				if ( !ae.empty() && !analysis_stamped ) {                      // this is code is done in such a way as to be fast in the common case (ae empty)
@@ -598,8 +598,8 @@ namespace Engine {
 					analysis_stamped = true ;
 				}
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need to ensure job is done
-				if ( !x_cache_none.key.empty() && !cached && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) { // cache only successful results
-					Cache::s_tab.at(x_cache_none.key)->upload( *this , digest ) ;
+				if ( !cache_none_attrs.key.empty() && !cached && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) { // cache only successful results
+					Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest ) ;
 					cached = true ;
 				}
 				ri.wakeup_watchers() ;
@@ -620,18 +620,22 @@ namespace Engine {
 		Color          c    = Color::Ok          ;
 		JobReport      jr   = JobReport::Unknown ;
 		JobData const& jd   = **this             ;
-		if      (jd.status==Status::Killed) { step = mk_snake(jd.status) ; c = Color::Err  ; }
-		else if (req->zombie              ) { step = "completed"         ; c = Color::Note ; }
-		else {
-			if      (!cri.done()                       ) { jr = JobReport::Rerun                           ; step = mk_snake(jr           ) ;                      c = Color::Note    ; }
-			else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed                          ; step = mk_snake(jd.run_status) ;                      c = Color::Err     ; }
-			else if (jd.status    ==Status   ::Timeout ) { jr = JobReport::Failed                          ; step = mk_snake(jd.status    ) ;                      c = Color::Err     ; }
-			else if (jd.err()                          ) { jr = JobReport::Failed                          ; step = mk_snake(jr           ) ;                      c = Color::Err     ; }
-			else                                         { jr = modified?JobReport::Done:JobReport::Steady ; step = mk_snake(jr           ) ; if (!stderr.empty()) c = Color::Warning ; }
-			//
-			if (+exec_time) {                                                  // if no exec time, no job was actually run
-				req->stats.ended(jr)++ ;
-				req->stats.jobs_time[cri.done()/*useful*/] += exec_time ;
+		if (req->zombie) {
+			if (jd.status<=Status::Garbage) { step = mk_snake(jd.status) ; c = Color::Err  ; }
+			else                            { step = "completed"         ; c = Color::Note ; }
+		} else {
+			if (jd.status==Status::Killed) { step = mk_snake(jd.status) ; c = Color::Err  ; }
+			else {
+				if      (!cri.done()                       ) { jr = JobReport::Rerun                           ; step = mk_snake(jr           ) ;                      c = Color::Note    ; }
+				else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed                          ; step = mk_snake(jd.run_status) ;                      c = Color::Err     ; }
+				else if (jd.status    ==Status   ::Timeout ) { jr = JobReport::Failed                          ; step = mk_snake(jd.status    ) ;                      c = Color::Err     ; }
+				else if (jd.err()                          ) { jr = JobReport::Failed                          ; step = mk_snake(jr           ) ;                      c = Color::Err     ; }
+				else                                         { jr = modified?JobReport::Done:JobReport::Steady ; step = mk_snake(jr           ) ; if (!stderr.empty()) c = Color::Warning ; }
+				//
+				if (+exec_time) {                                                  // if no exec time, no job was actually run
+					req->stats.ended(jr)++ ;
+					req->stats.jobs_time[cri.done()/*useful*/] += exec_time ;
+				}
 			}
 		}
 		if (!pfx.empty()) step = pfx+step ;
@@ -701,8 +705,8 @@ namespace Engine {
 			//
 			switch (ri.lvl) {
 				case Lvl::None :
-					if (ri.action>=RunAction::Status) {                                                                           // only once, not in case of analysis restart
-						if (!(*this)->cmd_ok()) (*this)->force = rule->x_force_cmd.eval(*this).force ;
+					if (ri.action>=RunAction::Status) {                                                    // only once, not in case of analysis restart
+						if (!(*this)->cmd_ok()) (*this)->force = rule->force_cmd_attrs.eval(*this).force ;
 						if ( (*this)->force || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
 							ri.action   = RunAction::Run                                                ;
 							dep_action  = RunAction::Dsk                                                ;
@@ -918,14 +922,14 @@ namespace Engine {
 				req->stats.jobs_time[true /*useful*/] += (*this)->exec_time ;  // .
 			}
 			//
-			EndNoneSpec x_end_none   ;
-			AnalysisErr analysis_err ;
-			bool        no_info      = false ;
-			try                     { x_end_none = rule->x_end_none.eval(*this) ;                                        }
+			EndNoneAttrs end_none_attrs ;
+			AnalysisErr  analysis_err   ;
+			bool         no_info        = false ;
+			try                     { end_none_attrs = rule->end_none_attrs.eval(*this) ;                                }
 			catch (::string const&) { analysis_err.emplace_back("cannot compute job analysis info",0) ; no_info = true ; } // XXX : improve error message
 			analysis_err.push_back(s_reason_str(reason)) ;
-			if ( reason.has_err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , analysis_err    , x_end_none.stderr_len , ja.modified ) ;
-			else                               audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , ja.analysis_err , x_end_none.stderr_len , ja.modified ) ;
+			if ( reason.has_err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , analysis_err    , end_none_attrs.stderr_len , ja.modified ) ;
+			else                               audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , ja.analysis_err , end_none_attrs.stderr_len , ja.modified ) ;
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
@@ -1057,13 +1061,18 @@ namespace Engine {
 		for( Dep const& dep : (*this)->deps ) {
 			if (!dep.flags[DFlag::Static]       ) {       break    ; }
 			if (!static_target_map.contains(dep)) { d++ ; continue ; }
-			::string dep_key = rule->x_create_match.spec.full_dynamic ? ""s : rule->x_create_match.spec.deps[d].first ;
+			::string dep_key = rule->create_match_attrs.spec.full_dynamic ? ""s : rule->create_match_attrs.spec.deps[d].first ;
 			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",dep_key," : ") ;
 			req->audit_job ( Color::Err  , "clash" , *this     ) ;
 			req->audit_node( Color::Note , err_msg , dep   , 1 ) ;
 			(*this)->run_status = RunStatus::DepErr ;
 			trace("clash") ;
 			return false ;
+		}
+		if ((*this)->status==Status::Lost) {
+			trace("job_lost") ;
+			SWEAR((*this)->star_targets.empty()) ;                             // lost jobs report no targets at all
+			return true ;                                                      // targets may have been modified but job may not have reported it
 		}
 		// check targets
 		::vmap<Node,bool/*ok*/> manual_targets ;
@@ -1107,15 +1116,15 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ Job::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
 		using Lvl = ReqInfo::Lvl ;
-		Req             req            = ri.req                           ;
-		Rule            rule           = (*this)->rule                    ;
-		SubmitRsrcsSpec x_submit_rsrcs ;
-		CacheNoneSpec   x_cache_none   ;
+		Req              req                = ri.req        ;
+		Rule             rule               = (*this)->rule ;
+		SubmitRsrcsAttrs submit_rsrcs_attrs ;
+		CacheNoneAttrs   cache_none_attrs   ;
 		Trace trace("submit_plain",*this,ri,reason,pressure) ;
 		SWEAR(!ri.waiting()) ;
 		try {
-			x_submit_rsrcs = rule->x_submit_rsrcs.eval(*this) ;
-			x_cache_none   = rule->x_cache_none  .eval(*this) ;
+			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval(*this) ;
+			cache_none_attrs   = rule->cache_none_attrs  .eval(*this) ;
 		} catch (::string const& e) {
 			req->audit_job ( Color::Err  , "resources" , *this     ) ;
 			req->audit_info( Color::Note , e           ,         1 ) ;
@@ -1123,7 +1132,7 @@ namespace Engine {
 			trace("no_rsrcs",ri) ;
 			return false/*may_new_deps*/ ;
 		}
-		ri.backend = x_submit_rsrcs.backend ;
+		ri.backend = submit_rsrcs_attrs.backend ;
 		for( Req r : running_reqs() ) if (r!=req) {
 			ReqInfo const& cri = c_req_info(r) ;
 			SWEAR( cri.backend == ri.backend ) ;
@@ -1138,10 +1147,10 @@ namespace Engine {
 		Rule::Match match_ = match() ;
 		if (!_targets_ok(req,match_)) return false /*may_new_deps*/ ;
 		//
-		if (!x_cache_none.key.empty()) {
-			Cache*       cache       = Cache::s_tab.at(x_cache_none.key) ;
-			ProcessDate  start       = ProcessDate::s_now()              ;
-			Cache::Match cache_match = cache->match(*this,req)           ;
+		if (!cache_none_attrs.key.empty()) {
+			Cache*       cache       = Cache::s_tab.at(cache_none_attrs.key) ;
+			ProcessDate  start       = ProcessDate::s_now()                  ;
+			Cache::Match cache_match = cache->match(*this,req)               ;
 			if (!cache_match.completed) {
 				FAIL("delayed cache not yet implemented") ;
 			}
@@ -1175,9 +1184,9 @@ namespace Engine {
 		ri.n_wait++ ;                                                          // set before calling submit call back as in case of flash execution, we must be clean
 		ri.lvl = Lvl::Queued ;
 		try {
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( ri.backend , +*this , +req , pressure , ri.live_out , x_submit_rsrcs.rsrcs , reason ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( ri.backend , +*this , +req , pressure , ri.live_out , submit_rsrcs_attrs.rsrcs , reason ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			ri.n_wait-- ;                                                      // restore n_wait as we prepared to wait
 			(*this)->status = Status::Err ;

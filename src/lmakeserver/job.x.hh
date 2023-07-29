@@ -194,8 +194,8 @@ namespace Engine {
 		JobData() = default ;
 		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
 			SWEAR(sp!=Special::Unknown) ;
-			exec_gen = NExecGen                     ;                          // special jobs are always exec_ok
-			force    = rule->x_force_cmd.spec.force ;
+			exec_gen = NExecGen                         ;                      // special jobs are always exec_ok
+			force    = rule->force_cmd_attrs.spec.force ;
 		}
 		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
 			SWEAR(!rule.is_special()) ;

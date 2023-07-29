@@ -16,6 +16,8 @@
 using namespace Disk ;
 using namespace Time ;
 
+bool g_seen_int = false ;
+
 static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	Trace::t_key = 'I' ;
 	Trace trace ;
@@ -30,6 +32,7 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 		trace("send_int") ;
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
 		::cout << ::endl ;                                                     // output is nicer if ^C is on its own line
+		g_seen_int = true ;
 	}
 }
 
@@ -50,5 +53,10 @@ int main( int argc , char* argv[] ) {
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , int_fd } ; } ) ; // start interrupt handling thread once server is started
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (g_seen_int) {
+		int_fd.close() ;
+		unblock_sig(SIGINT) ;
+		kill_self  (SIGINT) ;                                                  // appear as being interrupted : important for shell scripts to actually stop
+	}
 	return mk_rc(ok) ;
 }

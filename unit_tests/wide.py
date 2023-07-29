@@ -5,32 +5,25 @@
 
 import sys
 
-try    : import numba
-except : numba = None
-
 if getattr(sys,'reading_makefiles',False) :
 
 	import lmake
 
 	lmake.sources = ('Lmakefile.py',)
 
-	class TestNumba(lmake.PyRule) :
-		targets = { 'TGT' : 'test.so'}
+	class GenFile(lmake.PyRule) :
+		target = 'file_{:\d+}'
 		def cmd() :
-			from numba.pycc import CC
-			import numpy as np
-			cc = CC('test')
-			@cc.export('test_nb','uint16[:]()')
-			def test_nb():
-				res = np.empty((1,),dtype=np.uint16)
-				return res
-			cc.target_cpu  = None
-			cc.output_file = TGT
-			cc.compile()
+			for x in range(1000) : print(x)
+
+	class Trig(lmake.PyRule) :
+		target = 'out_{N:\d+}'
+		def cmd() :
+			lmake.depend([f'file_{x}' for x in range(int(N))])
 
 else :
 
 	import ut
 
-	if numba :
-		ut.lmake('test.so',done=1)
+	n = 1000
+	ut.lmake( f'out_{n}' , may_rerun=1 , done=n , steady=1 )

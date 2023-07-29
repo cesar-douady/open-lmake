@@ -206,10 +206,10 @@ namespace Engine {
 	}
 
 	//
-	// Spec
+	// Attrs
 	//
 
-	void Spec::s_acquire( bool& dst , PyObject* py_src ) {
+	void Attrs::s_acquire( bool& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,false)) return ;
 		//
 		int v = PyObject_IsTrue(py_src) ;
@@ -217,7 +217,7 @@ namespace Engine {
 		dst = v ;
 	}
 
-	void Spec::s_acquire( Time::Delay& dst , PyObject* py_src ) {
+	void Attrs::s_acquire( Time::Delay& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,{})) return ;
 		//
 		if (PyFloat_Check(py_src)) {
@@ -230,7 +230,7 @@ namespace Engine {
 		}
 	}
 
-	void Spec::s_acquire( ::string& dst , PyObject* py_src ) {
+	void Attrs::s_acquire( ::string& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,{})) return ;
 		//
 		bool is_str = PyUnicode_Check(py_src) ;
@@ -241,10 +241,10 @@ namespace Engine {
 	}
 
 	//
-	// CreateMatchSpec
+	// CreateMatchAttrs
 	//
 
-	::pair<string,DFlags> CreateMatchSpec::s_split_dflags( ::string const& key , PyObject* py_dep ) {
+	::pair<string,DFlags> CreateMatchAttrs::s_split_dflags( ::string const& key , PyObject* py_dep ) {
 		DFlags flags = StaticDFlags ;
 		if ( PyUnicode_Check (py_dep)) return { PyUnicode_AsUTF8(py_dep) , flags } ;
 		if (!PySequence_Check(py_dep)) throw to_string("dep ",key," is neither a str nor a sequence") ;
@@ -268,7 +268,7 @@ namespace Engine {
 		return { PyUnicode_AsUTF8(p[0]) , flags } ;
 	}
 
-	void CreateMatchSpec::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
+	void CreateMatchAttrs::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
 		if (py_src==Py_None) {
 			full_dynamic = true ;
 			return ;
@@ -310,7 +310,7 @@ namespace Engine {
 		deps = mk_vmap(map) ;
 	}
 
-	::vmap<Node,DFlags> CreateMatchSpec::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
+	::vmap<Node,DFlags> CreateMatchAttrs::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
 		auto subst = [&](::string const& d)->::string {
 			return _subst_target( d , [&](VarIdx s)->::string { return stems[s] ; } ) ;
 		} ;
@@ -353,10 +353,10 @@ namespace Engine {
 		prio = Infinity    ;                                                   // by default, rule is alone and this value has no impact
 		name = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      :                    x_force_cmd.spec.force = true ; break ; // Force so that source files are systematically inspected
-			case Special::Req      :                    x_force_cmd.spec.force = true ; break ;
-			case Special::Uphill   : prio = +Infinity ; anti                   = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
-			case Special::Infinite : prio = -Infinity ;                                 break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
+			case Special::Src      :                    force_cmd_attrs.spec.force = true ; break ; // Force so that source files are systematically inspected
+			case Special::Req      :                    force_cmd_attrs.spec.force = true ; break ;
+			case Special::Uphill   : prio = +Infinity ; anti                       = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
+			case Special::Infinite : prio = -Infinity ;                                     break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
 			default : FAIL(s) ;
 		}
 	}
@@ -623,25 +623,25 @@ namespace Engine {
 			// new
 			{	::umap_s<VarIdx> static_stem_idxs ;
 				for( auto const& [k,i] : var_idxs ) if (i.first==CmdVar::Stem) static_stem_idxs[k] = i.second ;
-				if (dct.hasKey("x_create_match")) x_create_match = { Py::Object(dct["x_create_match"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
+				if (dct.hasKey("create_match_attrs")) create_match_attrs = { Py::Object(dct["create_match_attrs"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
 			}
 			//
-			/**/                                                        var_idxs["deps"                           ] = { CmdVar::Deps , 0 } ;
-			for( VarIdx d=0 ; d<x_create_match.spec.deps.size() ; d++ ) var_idxs[x_create_match.spec.deps[d].first] = { CmdVar::Dep  , d } ;
+			/**/                                                            var_idxs["deps"                           ] = { CmdVar::Deps , 0 } ;
+			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
-			if (dct.hasKey("x_create_none" )) x_create_none  = { Py::Object(dct["x_create_none" ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_force_cmd"   )) x_force_cmd    = { Py::Object(dct["x_force_cmd"   ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_cache_none"  )) x_cache_none   = { Py::Object(dct["x_cache_none"  ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_submit_rsrcs")) x_submit_rsrcs = { Py::Object(dct["x_submit_rsrcs"]).ptr() , var_idxs } ;
+			if (dct.hasKey("create_none_attrs" )) create_none_attrs  = { Py::Object(dct["create_none_attrs" ]).ptr() , var_idxs } ;
+			if (dct.hasKey("force_cmd_attrs"   )) force_cmd_attrs    = { Py::Object(dct["force_cmd_attrs"   ]).ptr() , var_idxs } ;
+			if (dct.hasKey("cache_none_attrs"  )) cache_none_attrs   = { Py::Object(dct["cache_none_attrs"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("submit_rsrcs_attrs")) submit_rsrcs_attrs = { Py::Object(dct["submit_rsrcs_attrs"]).ptr() , var_idxs } ;
 			//
-			/**/                                                         var_idxs["resources"                       ] = { CmdVar::Rsrcs , 0 } ;
-			for( VarIdx r=0 ; r<x_submit_rsrcs.spec.rsrcs.size() ; r++ ) var_idxs[x_submit_rsrcs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
+			/**/                                                             var_idxs["resources"                       ] = { CmdVar::Rsrcs , 0 } ;
+			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
 			//
-			if (dct.hasKey("x_start_cmd"  )) x_start_cmd   = { Py::Object(dct["x_start_cmd"  ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_start_rsrcs")) x_start_rsrcs = { Py::Object(dct["x_start_rsrcs"]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_start_none" )) x_start_none  = { Py::Object(dct["x_start_none" ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_end_cmd"    )) x_end_cmd     = { Py::Object(dct["x_end_cmd"    ]).ptr() , var_idxs } ;
-			if (dct.hasKey("x_end_none"   )) x_end_none    = { Py::Object(dct["x_end_none"   ]).ptr() , var_idxs } ;
+			if (dct.hasKey("start_cmd_attrs"  )) start_cmd_attrs   = { Py::Object(dct["start_cmd_attrs"  ]).ptr() , var_idxs } ;
+			if (dct.hasKey("start_rsrcs_attrs")) start_rsrcs_attrs = { Py::Object(dct["start_rsrcs_attrs"]).ptr() , var_idxs } ;
+			if (dct.hasKey("start_none_attrs" )) start_none_attrs  = { Py::Object(dct["start_none_attrs" ]).ptr() , var_idxs } ;
+			if (dct.hasKey("end_cmd_attrs"    )) end_cmd_attrs     = { Py::Object(dct["end_cmd_attrs"    ]).ptr() , var_idxs } ;
+			if (dct.hasKey("end_none_attrs"   )) end_none_attrs    = { Py::Object(dct["end_none_attrs"   ]).ptr() , var_idxs } ;
 
 			//
 			// now process fields linked to execution
@@ -655,8 +655,8 @@ namespace Engine {
 				stdout_idx = t ;
 				break ;
 			}
-			for( VarIdx d=0 ; d<x_create_match.spec.deps.size() ; d++ ) {
-				if (x_create_match.spec.deps[d].first!="<stdin>") continue ;
+			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) {
+				if (create_match_attrs.spec.deps[d].first!="<stdin>") continue ;
 				stdin_idx = d ;
 				break ;
 			}
@@ -704,16 +704,16 @@ namespace Engine {
 				mk_static(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
 			}
 			_set_crcs() ;
-			x_create_match.compile() ;
-			x_create_none .compile() ;
-			x_force_cmd   .compile() ;
-			x_cache_none  .compile() ;
-			x_submit_rsrcs.compile() ;
-			x_start_cmd   .compile() ;
-			x_start_rsrcs .compile() ;
-			x_start_none  .compile() ;
-			x_end_cmd     .compile() ;
-			x_end_none    .compile() ;
+			create_match_attrs.compile() ;
+			create_none_attrs .compile() ;
+			force_cmd_attrs   .compile() ;
+			cache_none_attrs  .compile() ;
+			submit_rsrcs_attrs.compile() ;
+			start_cmd_attrs   .compile() ;
+			start_rsrcs_attrs .compile() ;
+			start_none_attrs  .compile() ;
+			end_cmd_attrs     .compile() ;
+			end_none_attrs    .compile() ;
 		}
 		catch(::string const& e) { throw to_string("while processing ",user_name()," :\n"  ,indent(e)     ) ; }
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name()," :\n\t",e.errorValue()) ; }
@@ -798,12 +798,12 @@ namespace Engine {
 			res += sep ;
 			sep = " , " ;
 			switch (cmd_var) {
-				case CmdVar::Stem    : res += rd.stems                   .at(idx).first ; break ;
-				case CmdVar::Target  : res += rd.targets                 .at(idx).first ; break ;
-				case CmdVar::Dep     : res += rd.x_create_match.spec.deps.at(idx).first ; break ;
-				case CmdVar::Stems   : res += "stems"                                   ; break ;
-				case CmdVar::Targets : res += "targets"                                 ; break ;
-				case CmdVar::Deps    : res += "deps"                                    ; break ;
+				case CmdVar::Stem    : res += rd.stems                       .at(idx).first ; break ;
+				case CmdVar::Target  : res += rd.targets                     .at(idx).first ; break ;
+				case CmdVar::Dep     : res += rd.create_match_attrs.spec.deps.at(idx).first ; break ;
+				case CmdVar::Stems   : res += "stems"                                       ; break ;
+				case CmdVar::Targets : res += "targets"                                     ; break ;
+				case CmdVar::Deps    : res += "deps"                                        ; break ;
 				default : FAIL(cmd_var) ;
 			}
 		}
@@ -831,7 +831,7 @@ namespace Engine {
 		return rd.job_name ;
 	}
 
-	::string _pretty( size_t i , CreateMatchSpec const& ms , ::vmap_ss const& stems ) {
+	::string _pretty( size_t i , CreateMatchAttrs const& ms , ::vmap_ss const& stems ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
@@ -865,26 +865,26 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , ForceCmdSpec const& mcs ) {
-		if (mcs.force) return to_string(::string(i,'\t'),"force : true\n") ;
+	::string _pretty( size_t i , ForceCmdAttrs const& mca ) {
+		if (mca.force) return to_string(::string(i,'\t'),"force : true\n") ;
 		else           return {}                                           ;
 	}
-	::string _pretty( size_t i , CreateNoneSpec const& sns ) {
+	::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
 		::vmap_ss entries ;
-		if  (sns.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sns.tokens) ) ;
+		if  (sna.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sna.tokens) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , CacheNoneSpec const& cs ) {
-		if (!cs.key.empty()) return to_string(::string(i,'\t'),"key : ",cs.key,'\n') ;
-		else                 return {}                                               ;
+	::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
+		if (!cna.key.empty()) return to_string(::string(i,'\t'),"key : ",cna.key,'\n') ;
+		else                  return {}                                               ;
 	}
-	::string _pretty( size_t i , SubmitRsrcsSpec const& srs ) {
+	::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
 		::vmap_ss entries ;
-		if  (srs.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (srs.backend) ) ;
-		for (auto const& [k,v] : srs.rsrcs ) entries.emplace_back( k           , v                    ) ;
+		if  (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (sra.backend) ) ;
+		for (auto const& [k,v] : sra.rsrcs ) entries.emplace_back( k           , v                    ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , StartCmdSpec const& scs ) {
+	::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
 		OStringStream res    ;
 		int           pass   ;
@@ -894,47 +894,47 @@ namespace Engine {
 			else         res <<::string(i,'\t')<< ::setw(key_sz)<<key <<" : "<< val <<'\n' ;
 		} ;
 		for( pass=1 ; pass<=2 ; pass++ ) {                                          // on 1st pass we compute key size, on 2nd pass we do the job
-			if ( scs.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(scs.auto_mkdir ) ) ;
-			if ( scs.ignore_stat        ) do_field( "ignore_stat" , to_string(scs.ignore_stat) ) ;
-			/**/                          do_field( "autodep"     , mk_snake (scs.method     ) ) ;
-			if (!scs.chroot     .empty()) do_field( "chroot"      ,           scs.chroot       ) ;
-			if (!scs.interpreter.empty()) {
+			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
+			if ( sca.ignore_stat        ) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
+			/**/                          do_field( "autodep"     , mk_snake (sca.method     ) ) ;
+			if (!sca.chroot     .empty()) do_field( "chroot"      ,           sca.chroot       ) ;
+			if (!sca.interpreter.empty()) {
 				OStringStream i ;
-				for( ::string const& c : scs.interpreter ) i <<' '<<c ;
+				for( ::string const& c : sca.interpreter ) i <<' '<<c ;
 				do_field( "interpreter" , i.str().substr(1) ) ;
 			}
 		}
-		if (!scs.env.empty()) {
-			res << indent("environ :\n",i) << _pretty_vmap( i+1 , scs.env ) ;
+		if (!sca.env.empty()) {
+			res << indent("environ :\n",i) << _pretty_vmap( i+1 , sca.env ) ;
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , StartRsrcsSpec const& srs ) {
+	::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		if (+srs.timeout) entries.emplace_back( "timeout" , srs.timeout.short_str() ) ;
+		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		/**/                  res << _pretty_vmap(i,entries) ;
-		if (!srs.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , srs.env ) ;
+		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sra.env ) ;
 		return res.str() ;
 	}
-	::string _pretty( size_t i , StartNoneSpec const& sns ) {
+	::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		if ( sns.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sns.keep_tmp   )            ) ;
-		if (+sns.start_delay      ) entries.emplace_back( "start_delay" ,              sns.start_delay.short_str() ) ;
-		if (!sns.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sns.kill_sigs  )            ) ;
+		if ( sna.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
+		if (+sna.start_delay      ) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
+		if (!sna.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/                  res << _pretty_vmap(i,entries) ;
-		if (!sns.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sns.env ) ;
+		if (!sna.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sna.env ) ;
 		return res.str() ;
 	}
-	::string _pretty( size_t i , EndCmdSpec const& ecs ) {
+	::string _pretty( size_t i , EndCmdAttrs const& eca ) {
 		::vmap_ss entries ;
-		if  (ecs.allow_stderr) entries.emplace_back( "allow_stderr" , to_string(ecs.allow_stderr) ) ;
+		if  (eca.allow_stderr) entries.emplace_back( "allow_stderr" , to_string(eca.allow_stderr) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , EndNoneSpec const& ens ) {
+	::string _pretty( size_t i , EndNoneAttrs const& ena ) {
 		::vmap_ss entries ;
-		if  (ens.stderr_len!=size_t(-1)) entries.emplace_back( "stderr_len" , to_string(ens.stderr_len) ) ;
+		if  (ena.stderr_len!=size_t(-1)) entries.emplace_back( "stderr_len" , to_string(ena.stderr_len) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 
@@ -968,16 +968,16 @@ namespace Engine {
 		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
 		if (!anti) {
 			// new
-			res << _pretty(1,"match (create)"    ,x_create_match,stems) ;
-			res << _pretty(1,"cmd (force)"       ,x_force_cmd         ) ;
-			res << _pretty(1,"cmd (start)"       ,x_start_cmd         ) ;
-			res << _pretty(1,"cmd (end)"         ,x_end_cmd           ) ;
-			res << _pretty(1,"resources (submit)",x_submit_rsrcs      ) ;
-			res << _pretty(1,"resources (start)" ,x_start_rsrcs       ) ;
-			res << _pretty(1,"ancillary (create)",x_create_none       ) ;
-			res << _pretty(1,"ancillary (start)" ,x_start_none        ) ;
-			res << _pretty(1,"ancillary (end)"   ,x_end_none          ) ;
-			res << _pretty(1,"ancillary (cache)" ,x_cache_none        ) ;
+			res << _pretty(1,"match (create)"    ,create_match_attrs,stems) ;
+			res << _pretty(1,"cmd (force)"       ,force_cmd_attrs         ) ;
+			res << _pretty(1,"cmd (start)"       ,start_cmd_attrs         ) ;
+			res << _pretty(1,"cmd (end)"         ,end_cmd_attrs           ) ;
+			res << _pretty(1,"resources (submit)",submit_rsrcs_attrs      ) ;
+			res << _pretty(1,"resources (start)" ,start_rsrcs_attrs       ) ;
+			res << _pretty(1,"ancillary (create)",create_none_attrs       ) ;
+			res << _pretty(1,"ancillary (start)" ,start_none_attrs        ) ;
+			res << _pretty(1,"ancillary (end)"   ,end_none_attrs          ) ;
+			res << _pretty(1,"ancillary (cache)" ,cache_none_attrs        ) ;
 			//
 			res << indent("cmd :\n",1) << _pretty_cmd(2,cmd) ;
 		}
@@ -992,10 +992,10 @@ namespace Engine {
 	,	::vector_view_c<Dep>  const& deps
 	,	::vector_s            const& rsrcs
 	) const {
-		auto const& stems_spec   = stems                     ;
-		auto const& targets_spec = targets                   ;
-		auto const& deps_spec    = x_create_match.spec.deps  ;
-		auto const& rsrcs_spec   = x_submit_rsrcs.spec.rsrcs ;
+		auto const& stems_spec   = stems                         ;
+		auto const& targets_spec = targets                       ;
+		auto const& deps_spec    = create_match_attrs.spec.deps  ;
+		auto const& rsrcs_spec   = submit_rsrcs_attrs.spec.rsrcs ;
 		::pair<vmap_ss,vmap_s<vmap_ss>> res ;
 		//
 		for( auto const& [k,i] : ctx ) {
@@ -1039,32 +1039,32 @@ namespace Engine {
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
 			Hash::Xxh h ;
-			/**/       h.update(anti          ) ;
-			/**/       h.update(stems         ) ;
-			if (!anti) h.update(job_name      ) ;                                    // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
-			/**/       h.update(cwd_s         ) ;
-			/**/       h.update(targets_      ) ;
-			if (!anti) h.update(x_create_match) ;
+			/**/       h.update(anti              ) ;
+			/**/       h.update(stems             ) ;
+			if (!anti) h.update(job_name          ) ;                          // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
+			/**/       h.update(cwd_s             ) ;
+			/**/       h.update(targets_          ) ;
+			if (!anti) h.update(create_match_attrs) ;
 			match_crc = h.digest() ;
 		}
 		if (anti) return ;                                                     // anti-rules are only capable of matching
 		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
-			h.update(stems         ) ;
-			h.update(job_name      ) ;
-			h.update(targets       ) ;
-			h.update(is_python     ) ;
-			h.update(cmd_ctx       ) ;
-			h.update(cmd           ) ;
-			h.update(x_create_match) ;
-			h.update(x_force_cmd   ) ;
-			h.update(x_start_cmd   ) ;
-			h.update(x_end_cmd     ) ;
+			h.update(stems             ) ;
+			h.update(job_name          ) ;
+			h.update(targets           ) ;
+			h.update(is_python         ) ;
+			h.update(cmd_ctx           ) ;
+			h.update(cmd               ) ;
+			h.update(create_match_attrs) ;
+			h.update(force_cmd_attrs   ) ;
+			h.update(start_cmd_attrs   ) ;
+			h.update(end_cmd_attrs     ) ;
 			cmd_crc = h.digest() ;
 		}
 		{	Hash::Xxh h ;
-			h.update(x_submit_rsrcs) ;
-			h.update(x_start_rsrcs ) ;
-			h.update(targets       ) ;                                         // all is not necessary, but simpler to code
+			h.update(submit_rsrcs_attrs) ;
+			h.update(start_rsrcs_attrs ) ;
+			h.update(targets           ) ;                                     // all is not necessary, but simpler to code
 			rsrcs_crc = h.digest() ;
 		}
 	}

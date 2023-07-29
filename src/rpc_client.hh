@@ -48,8 +48,6 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	ManualOk        // if proc==Make  , allow lmake to overwrite manual files
 ,	SourceOk        // if proc==Make  , allow lmake to overwrite source files
 ,	Force           // if proc==Freeze, act if doable, even if awkward
-,	Job             // if proc==Freeze, Job  oriented action
-,	File            // if proc==Freeze, File oriented action
 )
 using ReqFlags = BitMap<ReqFlag> ;
 

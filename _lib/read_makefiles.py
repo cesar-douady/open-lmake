@@ -331,6 +331,21 @@ class Handle :
 		self.static_val  = pdict()
 		self.dynamic_val = pdict()
 
+	def handle_create_none(self) :
+		self._init()
+		self._handle_any('job_tokens')
+		self.rule_rep.create_none_attrs = self._finalize()
+
+	def handle_force_cmd(self) :
+		self._init()
+		self._handle_any('force')
+		self.rule_rep.force_cmd_attrs = self._finalize()
+
+	def handle_cache_none(self) :
+		self._init()
+		self._handle_any('key','cache')
+		self.rule_rep.cache_none_attrs = self._finalize()
+
 	def handle_create_match(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
@@ -360,34 +375,19 @@ class Handle :
 						elif isinstance(x,str) : l.append(f_str(x))
 						else                   : raise TypeError(f'dep {k} contains {x} which is not a str nor callable')
 					self.dynamic_val[k] = l
-		self.rule_rep.x_create_match = self._finalize()
+		self.rule_rep.create_match_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.per_job.add('deps')
-		deps = self.rule_rep.x_create_match[0]
+		deps = self.rule_rep.create_match_attrs[0]
 		if not callable(deps) : self.per_job.update({ k for k in deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
-
-	def handle_create_none(self) :
-		self._init()
-		self._handle_any('job_tokens')
-		self.rule_rep.x_create_none = self._finalize()
-
-	def handle_force_cmd(self) :
-		self._init()
-		self._handle_any('force')
-		self.rule_rep.x_force_cmd = self._finalize()
-
-	def handle_cache_none(self) :
-		self._init()
-		self._handle_any('key','cache')
-		self.rule_rep.x_cache_none = self._finalize()
 
 	def handle_submit_rsrcs(self) :
 		self._init()
 		self._handle_str ('backend'            )
 		self._handle_dict('rsrcs'  ,'resources')
-		self.rule_rep.x_submit_rsrcs = self._finalize()
+		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.per_job.add('resources')
-		rsrcs = self.rule_rep.x_submit_rsrcs[0].rsrcs
+		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].rsrcs
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
 	def handle_start_cmd(self) :
@@ -398,13 +398,13 @@ class Handle :
 		self._handle_str ('chroot'                   )
 		self._handle_any ('interpreter'              )
 		self._handle_dict('env'        ,'environ_cmd')
-		self.rule_rep.x_start_cmd = self._finalize()
+		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
 		self._handle_dict('env'    ,'environ_resources')
 		self._handle_any ('timeout'                    )
-		self.rule_rep.x_start_rsrcs = self._finalize()
+		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
@@ -414,17 +414,17 @@ class Handle :
 		self._handle_any ('start_delay'                    )
 		self._handle_any ('kill_sigs'                      )
 		self._handle_dict('env'        ,'environ_ancillary')
-		self.rule_rep.x_start_none = self._finalize()
+		self.rule_rep.start_none_attrs = self._finalize()
 
 	def handle_end_cmd(self) :
 		self._init()
 		self._handle_any('allow_stderr')
-		self.rule_rep.x_end_cmd = self._finalize()
+		self.rule_rep.end_cmd_attrs = self._finalize()
 
 	def handle_end_none(self) :
 		self._init()
 		self._handle_any('stderr_len')
-		self.rule_rep.x_end_none = self._finalize()
+		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
 		cmd_ctx       = set()
@@ -449,7 +449,7 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() :\n'
-				for i,c in enumerate(self.attrs.cmd) :
+				for i,c in enumerate(cmd_lst) :
 					x = '' if c.__code__.co_argcount==0 else 'None' if i==0 else 'x'
 					if i<len(self.attrs.cmd)-1 : cmd += f'\tx =    {c.__name__}({x})\n'
 					else                       : cmd += f'\treturn {c.__name__}({x})\n'
@@ -482,10 +482,10 @@ def fmt_rule(rule) :
 	h.prepare_jobs()
 	#
 	h.handle_interpreter ()
-	h.handle_create_match()
 	h.handle_create_none ()
 	h.handle_force_cmd   ()
 	h.handle_cache_none  ()
+	h.handle_create_match()
 	h.handle_submit_rsrcs()
 	h.handle_start_cmd   ()
 	h.handle_start_rsrcs ()

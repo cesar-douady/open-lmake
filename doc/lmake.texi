@@ -8,8 +8,6 @@
 @macro XXX{txt}
 @end macro
 
-@XXX{document cache mechanism}
-
 @macro lmake
 @code{lmake}
 @end macro
@@ -567,7 +565,7 @@ If a dep does not exist, it is deemed secondary information.
 
 @section @code{lfreeze}
 
-Usage : @code{lfreeze [ [-a|--add] | [-d|--delete] ] [-j|--job] [-f|--file]  targets...} or @code{lfreeze [-l|--list] | [-D|--delete-all] [-j|--job] [-f|--file]}
+Usage : @code{lfreeze [ [-a|--add] | [-d|--delete] ] targets...} or @code{lfreeze [-l|--list] | [-D|--delete-all]}
 
 @code{lfreeze} is used to manipulate frozen jobs and files.
 Frozen files are considered by @lmake as sources although they are not listed as such by @Lmakefile.
@@ -584,8 +582,6 @@ Options :
 @item @code{-d}|@code{--delete} : remove targets from the list of frozen files.
 @item @code{-l}|@code{--list} : list frozen files.
 @item @code{-D}|@code{--delete-all} : delete all frozen files.
-@item @code{-j}|@code{--job} : restrict action to jobs
-@item @code{-f}|@code{--file} : restrict action to files
 @end itemize
 
 @section @code{lforget}
@@ -1016,7 +1012,7 @@ In order to save resources (file descriptors), no connection is maintained betwe
 As a consequence, @lmake has no idea whether a job is running or disappeared.
 Without protection, a killed job would lead @lmake to block, waiting undefinitely (or until its timeout if it already started) for it to start or complete.
 To avoid this, submitted jobs are watched periodically to check if they still exist.
-This attriute provides the interval in seconds between such heartbeats.
+This attribute provides the interval in seconds between such heartbeats.
 @item @code{link_support}
 @tab @code{'Full'}
 @tab @lmake has several levels of symbolic link support (@pxref{link-support}).
@@ -1026,6 +1022,13 @@ This attribute specifies the used level.
 @tab The rule selection process is a recursive one (@pxref{rule-selection}).
 Several means are provided to avoid infinite recursion and this one is the last resort.
 The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
+@item @code{network_delay}
+@tab @code{3}
+@tab When a job completes, it signals it to @lmake.
+But while this informations is travelling, the job is nowhere : it is no more running and @lmake is not aware of it being completed.
+If during that time, the heartbeat fires checking for job liveness or a ^C is hit asking for jobs to die, @lmake may think this job is lost.
+To prevent that, @lmake waits for some time before declaring such a job as actually lost.
+This attribute provides this delay in seconds.
 @item @code{trace_size}
 @tab @code{100_000_000}
 @tab While @lmake runs, it generates an execution trace recording a lot of internal events meant for debugging purpose.
@@ -1184,6 +1187,8 @@ Other ones are useless and ignored.
 
 Rules are described by a series of attribute as follows.
 
+@section Dynamic values
+
 Most attributes can either be data of the described type or a function taking no argument returning the desired value.
 This allows the value to be dynamically selected depending on the job.
 
@@ -1194,7 +1199,11 @@ Whether or not these are available depend on when a given attribute is needed.
 For example, when defining the @code{deps}, the deps are obviously not available,
 but also, when defining the @code{force} attribute, which is used to decide whether a job must be run or not, the resources, which are computing when running the job, are not available.
 
-for composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+Generally, these functions are not supposed to access the disk as at the time they are called, such accessed files may not be up to date.
+However, when @code{deps} are in the function environment, the listed files are up to date and can be accessed.
+In the current release, these restrictions are not enforced by @lmake, but they will be in a future release.
+
+For composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
 For dictionaries, if the value function returns @code{None}, there will be no corresponding entry in the resulting dictionary.
 
 Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.
@@ -1773,7 +1782,7 @@ The job is deemed to be successful if the return code of the overall process is 
 @item Default
 @tab <not cached>
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab Yes. Environment includes stems, targets.
 @end multitable
 
 This attribute specifies the cache to use for jobs executed by this rule.
@@ -1937,7 +1946,7 @@ When this attribute has a @code{False} value, the temporary directory is washed 
 @item Default
 @tab @code{False}
 @item Dynamic
-@tab Yes. Environment includes stems, targets and deps.
+@tab Yes. Environment includes stems and targets.
 @end multitable
 
 When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
@@ -1972,7 +1981,7 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 @item Default
 @tab @code{1}
 @item Dynamic
-@tab Yes. Environment includes stems, targets and deps.
+@tab Yes. Environment includes stems and targets.
 @end multitable
 
 This attribute has the same syntax as a resource, except that a @code{float} is accepted.

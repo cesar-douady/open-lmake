@@ -377,7 +377,7 @@ namespace Backends::Local {
 					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
 					RsrcsData const&      rsrcs_data     = *rsrcs                ;
                     //
-					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->x_submit_rsrcs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
+					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->submit_rsrcs_attrs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
 					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , ::move(rsrcs_vec) , wit->second.reason ) ;
 					//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					Child                 child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;

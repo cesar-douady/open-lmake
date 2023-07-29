@@ -73,6 +73,7 @@ if getattr(_sys,'reading_makefiles',False) :
 	,	interface       = ''                               # network interface that connect to remote hosts executing jobs
 	,	link_support    = 'Full'                           # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 	,	max_dep_depth   = 1000                             # used to detect infinite recursions and loops
+	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
@@ -198,7 +199,7 @@ if getattr(_sys,'reading_makefiles',False) :
 		,	'mem' : config.backends.local.mem//config.backends.local.cpu # memory to allocate to jobs
 		}                                                  # follow the same syntax as deps
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
-			HOME       = root_dir                                    # favor repeatability by hiding use home dir some tools use at start up time
+			HOME       = root_dir                          # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
 		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' ,           ))
 		)
@@ -318,29 +319,29 @@ if getattr(_sys,'reading_makefiles',False) :
 # job execution, available in rules to have full access when writing rule cmd's
 #
 
+module_suffixes = ('.so','.py','/__init__.py')                                 # can be tailored to suit application needs, the lesser the better (less spurious dependencies)
+
 import importlib.machinery as _machinery
 
-module_suffixes = ('.so','.py','/__init__.py')                             # you can put the adequate list for your application here, the lesser the better (less spurious dependencies)
-_std_suffixes   = _machinery.all_suffixes()+['/__init__.py']               # account for packages, not included in all_suffixes()
-_local_admin    = 'LMAKE/'
-_global_admin   = root_dir+_local_admin
+_std_suffixes = _machinery.all_suffixes()+['/__init__.py']                     # account for packages, not included in all_suffixes()
+_local_admin  = 'LMAKE/'
+_global_admin = root_dir+'/'+_local_admin
 
-def _is_local(file) :
-	if file[0]!='/'              : return not file.startswith(_local_admin )
-	if file.startswith(root_dir) : return not file.startswith(_global_admin)
-	else                         : return False
+def _maybe_local(file) :
+	'fast check for local files, avoiding full absolute path generation'
+	return not file or file[0]!='/' or file.startswith(root_dir)
 
 def fix_imports() :
 	'''fixes imports so as to be sure all files needed to do an import is correctly reported (not merely those which exist)'''
 	class Depend :
 		@staticmethod
-		def find_spec(file_name,path,target=None) :
+		def find_spec(module_name,path,target=None) :
 			if path==None : path = _sys.path
-			tail = file_name.rsplit('.',1)[-1]
+			tail = module_name.rsplit('.',1)[-1]
 			for dir in path :
-				dir += '/'
+				if dir : dir += '/'
 				base = dir+tail
-				if _is_local(dir) :
+				if _maybe_local(base) :
 					for suffix in module_suffixes :
 						file = base+suffix
 						depend(file,required=False,essential=False)
@@ -351,8 +352,8 @@ def fix_imports() :
 
 	# give priority to system so as to avoid too numerous dependencies
 	_sys.path = (
-		[ d for d in _sys.path if not _is_local(d+'/') ]
-	+	[ d for d in _sys.path if     _is_local(d+'/') ]
+		[ d for d in _sys.path if not _maybe_local(d+'/') ]
+	+	[ d for d in _sys.path if     _maybe_local(d+'/') ]
 	)
 
 	# put dependency checker before the first path based finder

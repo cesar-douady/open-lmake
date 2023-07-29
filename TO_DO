@@ -3,20 +3,22 @@
 * This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 * This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+items :
+	* normal    item : ordered by implementation priority in each section
+	! difficult item : unclear how to implement it
+	? idea      item : unclear that it is desirable
+
 ****************************************************************************************************
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* mail NM 2023/7/26 14:40
-	- manual after ^C may appear
-* sometimes losing terminal colors
+! sometimes losing terminal colors
+	- hard to reproduce
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* when ^C is hit, lmake should return as with ^C, not status=2
-	- this will allow scripts calling lmake to interrupt gracefully
 * document that deps are readable if available (and not other disk accesses)
 	- ensure it is the case (i.e. do not make them available until start)
 	- say that this will be enforced in the future
@@ -24,11 +26,11 @@
 	- so as to allow cache to work properly
 	- apply to all env variables as well, such as PATH, PYTHONPATH, ...
 	- when computing crc, replace any occurence of \<root\> with a marker
-* in autodep dlopen/ld_preload (cf man 3 dlopen)
+! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
-* before erasing a dir, check for phony targets, not only files on disk
-* find a means to lshow a job, even if we have no target
+! before erasing a dir, check for phony targets, not only files on disk
+! find a means to lshow a job, even if we have no target
 	- or to lshow a job that does not produce a target
 ? report resources even when job spawn process groups
 	? dont know how to do that
@@ -37,7 +39,8 @@
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* add dflags in output of lshow -d/-a/-t
+* add flags in output of lshow -d/-a/-t
+* add scheduling info (pressure, ETA, resources) to lshow -i
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
@@ -54,10 +57,9 @@
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* and suppress all these x_ prefixes
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
-* find a use case to ensure dates are correctly handled with NFS
+! find a use case to ensure dates are correctly handled with NFS
 
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
@@ -70,12 +72,6 @@
 * add a -j option to lmake
 	- to limit the number of jobs
 	- consider a more general approach to limit resource occupation and keep reactivity
-* lshow must show dep & target flags
-* add scheduling info (pressure, ETA, resources) to lshow -i
-* implement star optional :
-	- walk through nodes from best root (which means implementing "find")
-	- match against regexpr
-	- operate as for star in star_targets
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -94,6 +90,10 @@
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
+! implement star optional :
+	- walk through nodes from best root (which means implementing "find")
+	- match against regexpr
+	- operate as for star in star_targets
 ? consider fuse as an autodep method
 	? unclear it is faster than ptrace
 		? all data traffic goes through it
@@ -134,7 +134,7 @@
 * gprof
 * get rid of libseccomp
 * get rid of pycxx
-* manage HUGE pages in store
+! manage HUGE pages in store
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials

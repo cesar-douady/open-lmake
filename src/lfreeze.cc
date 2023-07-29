@@ -14,23 +14,19 @@ int main( int argc , char* argv[] ) {
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	//
 	ReqSyntax syntax{{
-		{ ReqKey::Add       , { .short_name='a' ,                  .doc="make args behave as sources"     } }
-	,	{ ReqKey::Delete    , { .short_name='d' ,                  .doc="delete frozen attribute of args" } }
-	,	{ ReqKey::DeleteAll , { .short_name='D' ,                  .doc="delete all frozen attributes"    } }
-	,	{ ReqKey::List      , { .short_name='l' ,                  .doc="list frozen jobs/files"          } }
+		{ ReqKey::Add       , { .short_name='a' , .doc="make args behave as sources"     } }
+	,	{ ReqKey::Delete    , { .short_name='d' , .doc="delete frozen attribute of args" } }
+	,	{ ReqKey::DeleteAll , { .short_name='D' , .doc="delete all frozen attributes"    } }
+	,	{ ReqKey::List      , { .short_name='l' , .doc="list frozen jobs/files"          } }
 	},{
-		{ ReqFlag::Job      , { .short_name='j' , .has_arg=false , .doc="job oriented action"             } }
-	,	{ ReqFlag::File     , { .short_name='f' , .has_arg=false , .doc="file oriented action"            } }
-	,	{ ReqFlag::Force    , { .short_name='F' ,                  .doc="force action if possible"        } }
+		{ ReqFlag::Force    , { .short_name='F' , .doc="force action if possible"        } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::File] ) syntax.usage("cannot process args as both jobs and files" ) ;
 	switch (cmd_line.key) {
 		case ReqKey::DeleteAll :
 		case ReqKey::List      :
-			if ( !cmd_line.args.empty()                                        ) syntax.usage("cannot have files when listing or deleting all"      ) ;
-			if ( cmd_line.flags[ReqFlag::Job] || cmd_line.flags[ReqFlag::File] ) syntax.usage("cannot mention job/file when listing or deleting all") ;
+			if (!cmd_line.args.empty()) syntax.usage("cannot have files when listing or deleting all") ;
 		break ;
 		default : ;
 	}

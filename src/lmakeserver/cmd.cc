@@ -60,113 +60,85 @@ namespace Engine {
 		audit( fd , ro  , add?Color::Warning:Color::Note , 0 , add?"froze file":"melted file" , t.name() ) ;
 	}
 	bool/*ok*/ freeze( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
-		bool do_job  = ro.flags[ReqFlag::Job  ] ;
-		bool do_node = ro.flags[ReqFlag::File ] ;
-		bool force   = ro.flags[ReqFlag::Force] ;
-		bool add     = ro.key==ReqKey::Add     ;
-		bool lst     = ro.key==ReqKey::List    ;
-		bool glb     = false                   ;
+		bool force = ro.flags[ReqFlag::Force] ;
+		bool add   = ro.key==ReqKey::Add      ;
+		bool lst   = ro.key==ReqKey::List     ;
+		bool glb   = false                    ;
 		Trace trace("freeze",ro,targets) ;
 		switch (ro.key) {
 			case ReqKey::DeleteAll :
-			case ReqKey::List      : glb = true  ; break ;
+			case ReqKey::List      : glb = true ; break ;
 			default : ;
 		}
-		if (glb) SWEAR(targets.empty()   ) ;
-		/**/     SWEAR(!(do_job&&do_node)) ;
 
 		if (glb) {
+			SWEAR(targets.empty()) ;
 			if (lst) {
-				if (!do_node) {
-					size_t w = 0 ;
-					::vector<Job> frozens = Job::s_frozens() ;
+				{	::vector<Job> frozens = Job::s_frozens() ;
+					size_t        w       = 0                ;
 					trace("job_list",frozens) ;
 					for( Job j : frozens ) w = ::max(w,j->rule->user_name().size()) ;
-					audit(fd,ro,Color::Note,0,"jobs :") ;
+					/**/                   audit(fd,ro,Color::Note   ,0,"jobs :"                                               ) ;
 					for( Job j : frozens ) audit(fd,ro,Color::Warning,1,to_string(::setw(w),j->rule->user_name()),j.user_name()) ;
 				}
-				if (!do_job) {
-					::vector<Node> frozens = Node::s_frozens() ;
+				{	::vector<Node> frozens = Node::s_frozens() ;
 					trace("node_list",frozens) ;
-					audit(fd,ro,Color::Note,0,"files :") ;
+					/**/                    audit(fd,ro,Color::Note   ,0,"files :"  ) ;
 					for( Node t : frozens ) audit(fd,ro,Color::Warning,1,{},t.name()) ;
 				}
 			} else {
-				if (!do_node) {
-					size_t w = 0 ;
-					for( Job j : Job::s_frozens() ) w = ::max(w,j->rule->user_name().size()) ;
-					for( Job j : Job::s_frozens() ) _freeze(fd,ro,j,false/*add*/,w) ;
-					Job::s_frozens({}) ;
-				}
-				if (!do_job) {
-					for( Node t : Node::s_frozens() ) _freeze(fd,ro,t,false/*add*/) ;
-					Node::s_frozens({}) ;
-				}
+				size_t w = 0 ;
+				for( Job  j : Job ::s_frozens() ) w = ::max(w,j->rule->user_name().size()) ;
+				for( Job  j : Job ::s_frozens() ) _freeze(fd,ro,j,false/*add*/,w) ;
+				for( Node t : Node::s_frozens() ) _freeze(fd,ro,t,false/*add*/  ) ;
+				Job ::s_frozens({}) ;
+				Node::s_frozens({}) ;
 			}
 		} else {
-			::string       job_err         ;
-			::string       node_err        ;
-			Node           job_err_target  ;
-			Node           node_err_target ;
-			::vector<Node> to_do           ; to_do.reserve(targets.size()) ;
-			size_t         w               = 0 ;
+			::string       err        ;
+			::vector<Node> to_do_node ;
+			::vector<Job > to_do_job  ;
+			size_t         w          = 0 ;
 			//check
-			if (!do_node) {
-				for( Node t : targets ) {
-					Job j = t->actual_job_tgt ;
-					if ( !j.active() || t->is_src() )                                                  { job_err = "job not found"                              ; job_err_target = t ; break    ; }
-					if ( add                        ) for( Req r [[maybe_unused]] : j.running_reqs() ) { job_err = "job is running"                             ; job_err_target = t ; break    ; }
-					if ( !force && !t->conform()    )                                                  { job_err = "target was not produced by its offical job" ; job_err_target = t ; break    ; }
-					if ( (j->frozen())==add         )                                                  { trace("already_done",j->status,j) ;                                           continue ; }
-					to_do.push_back(t) ;
-					w = ::max( w , j->rule->user_name().size() ) ;
-				}
-			}
-			if (!do_job) {
-				if (add) {
-					for( Node t : targets ) {
-						Job j = t->actual_job_tgt ;
-						if (!j.active()) { to_do.push_back(t) ;                                                                     continue ; }
-						if (j->frozen()) { trace("already_frozen",t) ;                                                              continue ; }
-						if (t->is_src()) { node_err =           "file is a source"                          ; node_err_target = t ; break    ; }
-						else             { node_err = to_string("file is produced by",j->rule->user_name()) ; node_err_target = t ; break    ; }
-					}
+			for( Node t : targets ) {
+				Job j = t->actual_job_tgt ;
+				if (!j.active()) {
+					if (add) to_do_node.push_back(t) ;
+					else     err = "file is already melted" ;
+				} else if ( j->frozen() && add ) {
+					err = "target is already frozen" ;
+				} else if (t->is_src()) {
+					if (j->frozen()) to_do_node.push_back(t) ;
+					else             err = "file is a source" ;
 				} else {
-					for( Node t : targets ) {
-						Job j = t->actual_job_tgt ;
-						if (!j.active() ) { trace("already_melted",j,t) ;                                                                   continue ; }
-						if (!j->frozen()) { trace("already_melted",j,t) ;                                                                   continue ; }
-						if (!t->is_src()) { node_err = to_string("file is produced by frozen",j->rule->user_name()) ; node_err_target = t ; break    ; }
-						to_do.push_back(t) ;
+					if      ( !force && !t->conform() ) err = "target was not produced by its offical job" ;
+					else if ( add                     ) for( Req r [[maybe_unused]] : j.running_reqs() ) err = "job is running" ;
+					else if ( !j->frozen()            ) err = "target is already melted" ;
+					if (err.empty()) {
+						to_do_job.push_back(j) ;
+						w = ::max( w , j->rule->user_name().size() ) ;
 					}
 				}
+				if (!err.empty()) {
+					audit(fd,ro,Color::Err,0,to_string(err ," :"),t .name()) ;
+					return false ;
+				}
 			}
-			if (to_do.empty()) { trace("empty") ; return true ;}               // nothing to do
-			// report error if any
-			SWEAR( +job_err_target || +node_err_target ) ;                     // there are never any choice
-			//
-			do_job  |= !do_node && !job_err_target  ;
-			do_node |= !do_job  && !node_err_target ;
-			SWEAR(!( do_job && do_node )) ;
-			if ( do_node && Req::s_n_reqs() ) { audit(fd,ro,Color::Err,0,"cannot freeze/melt files while running") ; return false ; }
-			bool err = false ;
-			if ( +job_err_target  && !do_node ) { audit(fd,ro,Color::Err,0,to_string(job_err ," :"),job_err_target .name()) ; err = true ; }
-			if ( +node_err_target && !do_job  ) { audit(fd,ro,Color::Err,0,to_string(node_err," :"),node_err_target.name()) ; err = true ; }
-			if ( err                          ) { trace("both_err",job_err_target,node_err_target) ; return false ;                        }
+			if ( !to_do_node.empty() && Req::s_n_reqs() ) {
+				audit(fd,ro,Color::Err,0,"cannot freeze/melt files while running") ;
+				return false ;
+			}
 			// do what is asked
-			if (do_job) {
-				::uset<Job> frozens = mk_uset(Job::s_frozens()) ;
-				for( Node t : to_do ) {
-					Job j = t->actual_job_tgt ;
+			{	::uset<Job> frozens = mk_uset(Job::s_frozens()) ;
+				for( Job j : to_do_job ) {
 					_freeze(fd,ro,j,add,w) ;
 					if (add) frozens.insert(j) ;
 					else     frozens.erase (j) ;
 				}
 				Job::s_frozens(mk_vector(frozens)) ;
 			}
-			if (do_node) {
-				::uset<Node> frozens = mk_uset(Node::s_frozens()) ;
-				for( Node t : to_do ) {
+			{	::uset<Node> frozens = mk_uset(Node::s_frozens()) ;
+				for( Node t : to_do_node ) {
 					_freeze(fd,ro,t,add) ;
 					if (add) frozens.insert(t) ;
 					else     frozens.erase (t) ;
@@ -198,14 +170,14 @@ namespace Engine {
 		if (show_deps==No) return ;
 		NodeIdx critical_lvl = 0 ;
 		size_t  w            = 0 ;
-		for( auto const& [k,_] : rule->x_create_match.spec.deps ) w = ::max( w , k.size() ) ;
+		for( auto const& [k,_] : rule->create_match_attrs.spec.deps ) w = ::max( w , k.size() ) ;
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
 			Dep const& dep = job->deps[d] ;
 			DepOrder   cdo = d  >0                ? dep           .order : DepOrder::Seq ;
 			DepOrder   ndo = d+1<job->deps.size() ? job->deps[d+1].order : DepOrder::Seq ;
 			if (cdo==DepOrder::Critical) critical_lvl++ ;
-			::string dep_key = dep.flags[DFlag::Static] && !rule->x_create_match.spec.full_dynamic ? rule->x_create_match.spec.deps[d].first : ""s ;
-			::string pfx     = to_string( ::setw(w) , dep_key , ' ' )                                                                              ;
+			::string dep_key = dep.flags[DFlag::Static] && !rule->create_match_attrs.spec.full_dynamic ? rule->create_match_attrs.spec.deps[d].first : ""s ;
+			::string pfx     = to_string( ::setw(w) , dep_key , ' ' )                                                                                      ;
 			if      ( cdo!=DepOrder::Parallel && ndo!=DepOrder::Parallel ) pfx.push_back(' ' ) ;
 			else if ( cdo!=DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('/' ) ;
 			else if ( cdo==DepOrder::Parallel && ndo==DepOrder::Parallel ) pfx.push_back('|' ) ;
@@ -335,10 +307,10 @@ namespace Engine {
 								if (has_end  ) audit( fd , ro , Color::None , lvl+1 , "elapsed total  : "+to_string(float(digest.stats.total)         ,'s' )  ) ;
 								if (has_end  ) audit( fd , ro , Color::None , lvl+1 , "memory         : "+to_string(      digest.stats.mem  /1'000'000,"MB")  ) ;
 								if ( has_start && !report_start.second.rsrcs.empty() ) {
-									SubmitRsrcsSpec rsrcs_spec ;
-									bool no_rsrcs = false ;
+									SubmitRsrcsAttrs rsrcs_attrs ;
+									bool             no_rsrcs    = false ;
 									try {
-										rsrcs_spec = rule->x_submit_rsrcs.eval(jt) ;
+										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt) ;
 									} catch(::string const& e) {
 										audit( fd , ro , Color::Err , lvl+1 , "resources : cannot compute" ) ;
 										audit( fd , ro , Color::Err , lvl+2 , e                            ) ;
@@ -347,9 +319,9 @@ namespace Engine {
 									if (!no_rsrcs) {
 										audit( fd , ro , Color::None , lvl+1 , "resources :" ) ;
 										size_t kw = 0 ;
-										for( auto const& [k,_] : rsrcs_spec.rsrcs ) kw = ::max(kw,k.size()) ;
-										for( size_t r=0 ; r<rsrcs_spec.rsrcs.size() ; r++ )
-											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_spec.rsrcs[r].first," : ",report_start.second.rsrcs[r]) ) ;
+										for( auto const& [k,_] : rsrcs_attrs.rsrcs ) kw = ::max(kw,k.size()) ;
+										for( size_t r=0 ; r<rsrcs_attrs.rsrcs.size() ; r++ )
+											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_attrs.rsrcs[r].first," : ",report_start.second.rsrcs[r]) ) ;
 									}
 								}
 							} break ;

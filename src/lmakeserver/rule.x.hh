@@ -63,7 +63,7 @@ namespace Engine {
 #ifdef DATA_DEF
 namespace Engine {
 
-	struct Spec {
+	struct Attrs {
 		template<class T> static bool s_easy( T& dst , PyObject* py_src , T const& dflt ) {
 			if (!py_src        ) {              return true ; }
 			if (py_src==Py_None) { dst = dflt ; return true ; }
@@ -83,7 +83,7 @@ namespace Engine {
 	} ;
 
 	// used at match time
-	struct CreateMatchSpec : Spec {
+	struct CreateMatchAttrs : Attrs {
 		struct DepSpec {
 			template<IsStream S> void serdes(S& s) {
 				::serdes(s,pattern) ;
@@ -101,12 +101,12 @@ namespace Engine {
 		}
 		::vmap<Node,DFlags> mk( Rule , ::vector_s const& stems , PyObject* py_src=nullptr ) const ;
 		// data
-		bool              full_dynamic = false ;           // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
+		bool               full_dynamic = false ;          // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
 		::vmap_s<DepSpec> deps         ;
 	} ;
 
 	// used at match time, but participate in nothing
-	struct CreateNoneSpec : Spec {
+	struct CreateNoneAttrs : Attrs {
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(tokens,py_src,"job_tokens") ;
 		}
@@ -115,7 +115,7 @@ namespace Engine {
 	} ;
 
 	// used at force time (i.e. when deciding whether to launch job), but participate in cmd
-	struct ForceCmdSpec : Spec {
+	struct ForceCmdAttrs : Attrs {
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(force,py_src,"force") ;
 		}
@@ -124,7 +124,7 @@ namespace Engine {
 	} ;
 
 	// used at submit time, participate in resources
-	struct SubmitRsrcsSpec : Spec {
+	struct SubmitRsrcsAttrs : Attrs {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,backend) ;
@@ -141,7 +141,7 @@ namespace Engine {
 	} ;
 
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
-	struct CacheNoneSpec : Spec {
+	struct CacheNoneAttrs : Attrs {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,key) ;
@@ -155,7 +155,7 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate in cmd
-	struct StartCmdSpec : Spec {
+	struct StartCmdAttrs : Attrs {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,auto_mkdir ) ;
@@ -191,7 +191,7 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate in resources
-	struct StartRsrcsSpec : Spec {
+	struct StartRsrcsAttrs : Attrs {
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,timeout) ;
 			::serdes(s,env    ) ;
@@ -208,7 +208,7 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate to nothing
-	struct StartNoneSpec : Spec {
+	struct StartNoneAttrs : Attrs {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,keep_tmp   ) ;
@@ -221,7 +221,7 @@ namespace Engine {
 			s_acquire_from_dct(start_delay,py_src,"start_delay") ;
 			s_acquire_from_dct(kill_sigs  ,py_src,"kill_sigs"  ) ;
 			s_acquire_from_dct(env        ,py_src,"env"        ) ;
-			::sort(env) ;                                                       // by symmetry with env entries in StartCmdSpec and StartRsrcsSpec
+			::sort(env) ;                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		bool              keep_tmp    = false ;
@@ -231,7 +231,7 @@ namespace Engine {
 	} ;
 
 	// used at end of job execution, participate in cmd
-	struct EndCmdSpec : Spec {
+	struct EndCmdAttrs : Attrs {
 		// services
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(allow_stderr,py_src,"allow_stderr") ;
@@ -241,7 +241,7 @@ namespace Engine {
 	} ;
 
 	// used at end of job execution, participate in nothing
-	struct EndNoneSpec : Spec {
+	struct EndNoneAttrs : Attrs {
 		// services
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(stderr_len,py_src,"stderr_len") ;
@@ -289,9 +289,9 @@ namespace Engine {
 		PyObject* code = nullptr ;     // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
-	struct DynamicCreateMatchSpec : Dynamic<CreateMatchSpec> {
+	struct DynamicCreateMatchAttrs : Dynamic<CreateMatchAttrs> {
 		// cxtors & casts
-		using Dynamic<CreateMatchSpec>::Dynamic ;
+		using Dynamic<CreateMatchAttrs>::Dynamic ;
 		// services
 		::vmap<Node,DFlags> eval( Rule , ::vector_s const& stems ) const ;
 	} ;
@@ -361,30 +361,30 @@ namespace Engine {
 
 		// user data
 	public :
-		bool                 anti     = false   ;                              // this is an anti-rule
-		Prio                 prio     = 0       ;                              // the priority of the rule
-		::string             name     ;                                        // the short message associated with the rule
-		::vmap_ss            stems    ;                                        // stems   are ordered : statics then stars
-		::string             cwd_s    ;                                        // cwd in which to interpret targets & deps and execute cmd (with ending /)
-		::string             job_name ;                                        // used to show in user messages, same format as a target
-		::vmap_s<TargetSpec> targets  ;                                        // keep user order, except static targets before star targets
+		bool                 anti       = false ;                              // this is an anti-rule
+		Prio                 prio       = 0     ;                              // the priority of the rule
+		::string             name       ;                                      // the short message associated with the rule
+		::vmap_ss            stems      ;                                      // stems   are ordered : statics then stars
+		::string             cwd_s      ;                                      // cwd in which to interpret targets & deps and execute cmd (with ending /)
+		::string             job_name   ;                                      // used to show in user messages, same format as a target
+		::vmap_s<TargetSpec> targets    ;                                      // keep user order, except static targets before star targets
 		VarIdx               stdout_idx = NoVar ;                              // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar ;                              // index of dep used as stdin
 		// following is only if !anti
-		DynamicCreateMatchSpec        x_create_match ;                         // in match crc, evaluated at job creation time
-		Dynamic<CreateNoneSpec >      x_create_none  ;                         // in no    crc, evaluated at job creation time
-		Dynamic<ForceCmdSpec   >      x_force_cmd    ;                         // in cmd   crc, evaluated at job creation time
-		Dynamic<CacheNoneSpec  >      x_cache_none   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsSpec>      x_submit_rsrcs ;                         // in rsrcs crc, evaluated at submit time
-		Dynamic<StartCmdSpec   >      x_start_cmd    ;                         // in cmd   crc, evaluated before execution
-		Dynamic<StartRsrcsSpec >      x_start_rsrcs  ;                         // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneSpec  >      x_start_none   ;                         // in no    crc, evaluated before execution
-		Dynamic<EndCmdSpec     >      x_end_cmd      ;                         // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneSpec    >      x_end_none     ;                         // in no    crc, evaluated after  execution
-		::vector<pair<CmdVar,VarIdx>> cmd_ctx        ;                         // a list of stems, targets, deps, rsrcs & tokens accessed by cmd
-		bool                          is_python      = false ;                 // if true <=> cmd is a Python script
-		::string                      cmd            ;
-		size_t                        n_tokens       = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
+		DynamicCreateMatchAttrs       create_match_attrs ;                     // in match crc, evaluated at job creation time
+		Dynamic<CreateNoneAttrs >     create_none_attrs  ;                     // in no    crc, evaluated at job creation time
+		Dynamic<ForceCmdAttrs   >     force_cmd_attrs    ;                     // in cmd   crc, evaluated at job analysis time
+		Dynamic<CacheNoneAttrs  >     cache_none_attrs   ;                     // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs>     submit_rsrcs_attrs ;                     // in rsrcs crc, evaluated at submit time
+		Dynamic<StartCmdAttrs   >     start_cmd_attrs    ;                     // in cmd   crc, evaluated before execution
+		Dynamic<StartRsrcsAttrs >     start_rsrcs_attrs  ;                     // in rsrcs crc, evaluated before execution
+		Dynamic<StartNoneAttrs  >     start_none_attrs   ;                     // in no    crc, evaluated before execution
+		Dynamic<EndCmdAttrs     >     end_cmd_attrs      ;                     // in cmd   crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    >     end_none_attrs     ;                     // in no    crc, evaluated after  execution
+		::vector<pair<CmdVar,VarIdx>> cmd_ctx            ;                     // a list of stems, targets, deps, rsrcs & tokens accessed by cmd
+		bool                          is_python          = false ;             // if true <=> cmd is a Python script
+		::string                      cmd                ;
+		size_t                        n_tokens           = 1     ;             // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
 		bool    has_stars        = false ;
 		VarIdx  n_static_stems   = 0     ;
@@ -503,10 +503,10 @@ namespace Engine {
 	}
 
 	//
-	// Spec
+	// Attrs
 	//
 
-	template<::integral I> void Spec::s_acquire( I& dst , PyObject* py_src ) {
+	template<::integral I> void Attrs::s_acquire( I& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,I(0))) return ;
 		//
 		PyObject* py_src_long = PyNumber_Long(py_src) ;
@@ -520,14 +520,14 @@ namespace Engine {
 		dst = I(v) ;
 	}
 
-	template<StdEnum E> void Spec::s_acquire( E& dst , PyObject* py_src ) {
+	template<StdEnum E> void Attrs::s_acquire( E& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,E::Dflt)) return ;
 		//
 		if (!PyUnicode_Check(py_src)) throw "not a str"s ;
 		dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
 	}
 
-	template<class T> void Spec::s_acquire( ::vector<T>& dst , PyObject* py_src ) {
+	template<class T> void Attrs::s_acquire( ::vector<T>& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,{})) return ;
 		//
 		if (!PySequence_Check(py_src)) throw "not a sequence"s ;
@@ -544,7 +544,7 @@ namespace Engine {
 		dst.resize(n) ;
 	}
 
-	template<class T> void Spec::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+	template<class T> void Attrs::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src,{})) return ;
 		//
 		::map_s<T> map = mk_map(dst) ;
@@ -672,7 +672,7 @@ namespace Engine {
 		return res  ;
 	}
 
-	inline ::vmap<Node,DFlags> DynamicCreateMatchSpec::eval( Rule r , ::vector_s const& stems ) const {
+	inline ::vmap<Node,DFlags> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
 		if (!is_dynamic) return spec.mk(r,stems) ;
 		SWEAR( !need_deps && !need_rsrcs ) ;
 		Py::Gil   gil ;
@@ -704,24 +704,24 @@ namespace Engine {
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		if (!anti) {
-			::serdes(s,x_create_match) ;
-			::serdes(s,x_create_none ) ;
-			::serdes(s,x_force_cmd   ) ;
-			::serdes(s,x_cache_none  ) ;
-			::serdes(s,x_submit_rsrcs) ;
-			::serdes(s,x_start_cmd   ) ;
-			::serdes(s,x_start_rsrcs ) ;
-			::serdes(s,x_start_none  ) ;
-			::serdes(s,x_end_cmd     ) ;
-			::serdes(s,x_end_none    ) ;
-			::serdes(s,cmd_ctx       ) ;
-			::serdes(s,is_python     ) ;
-			::serdes(s,cmd           ) ;
-			::serdes(s,n_tokens      ) ;
-			::serdes(s,cmd_gen       ) ;
-			::serdes(s,rsrcs_gen     ) ;
-			::serdes(s,exec_time     ) ;
-			::serdes(s,stats_weight  ) ;
+			::serdes(s,create_match_attrs) ;
+			::serdes(s,create_none_attrs ) ;
+			::serdes(s,force_cmd_attrs   ) ;
+			::serdes(s,cache_none_attrs  ) ;
+			::serdes(s,submit_rsrcs_attrs) ;
+			::serdes(s,start_cmd_attrs   ) ;
+			::serdes(s,start_rsrcs_attrs ) ;
+			::serdes(s,start_none_attrs  ) ;
+			::serdes(s,end_cmd_attrs     ) ;
+			::serdes(s,end_none_attrs    ) ;
+			::serdes(s,cmd_ctx           ) ;
+			::serdes(s,is_python         ) ;
+			::serdes(s,cmd               ) ;
+			::serdes(s,n_tokens          ) ;
+			::serdes(s,cmd_gen           ) ;
+			::serdes(s,rsrcs_gen         ) ;
+			::serdes(s,exec_time         ) ;
+			::serdes(s,stats_weight      ) ;
 		}
 		if (is_base_of_v<::istream,S>) _compile() ;
 	}

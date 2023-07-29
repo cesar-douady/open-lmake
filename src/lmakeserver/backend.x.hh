@@ -54,13 +54,16 @@ namespace Backends {
             Tag            tag      = Tag::Unknown ;
 		} ;
 
-		struct DeferredEntry {
-			DeferredEntry() = default ;
-			DeferredEntry( Date d , JobExec&& je , SeqId si ) : publish_date{d} , job_exec{::move(je)} , seq_id{si} {}
-			// data
-			Date    publish_date ;
-			JobExec job_exec     ;
-			SeqId   seq_id       ;
+		struct DeferredReportEntry {
+			Date    date     ;         // date at which report must be displayed if job is not done yet
+			SeqId   seq_id   ;
+			JobExec job_exec ;
+		} ;
+
+		struct DeferredLostEntry {
+			Date   date   ;            // date at which job must be declared lost if it has not completed by then
+			SeqId  seq_id ;
+			JobIdx job    ;
 		} ;
 
 		struct BackendDescr {
@@ -94,12 +97,13 @@ namespace Backends {
 			s_tab[+t] = { &be , is_remote } ;
 		}
 	private :
-		static void            _s_kill_req             ( ReqIdx=0                                             ) ; // kill all if req==0
-		static void            _s_wakeup_remote        ( JobIdx , StartTabEntry::Conn const& , JobExecRpcProc ) ;
-		static bool/*keep_fd*/ _s_handle_job_req       ( Fd , JobRpcReq &&                                    ) ;
-		static void            _s_job_exec_thread_func ( ::stop_token                                         ) ;
-		static void            _s_heartbeat_thread_func( ::stop_token                                         ) ;
-		static void            _s_deferred_thread_func ( ::stop_token                                         ) ;
+		static void            _s_kill_req                   ( ReqIdx=0                                             ) ; // kill all if req==0
+		static void            _s_wakeup_remote              ( JobIdx , StartTabEntry::Conn const& , JobExecRpcProc ) ;
+		static bool/*keep_fd*/ _s_handle_job_req             ( JobRpcReq && , Fd={}                                 ) ;
+		static void            _s_job_exec_thread_func       ( ::stop_token                                         ) ;
+		static void            _s_heartbeat_thread_func      ( ::stop_token                                         ) ;
+		static void            _s_deferred_report_thread_func( ::stop_token                                         ) ;
+		static void            _s_deferred_lost_thread_func  ( ::stop_token                                         ) ;
 		// static data
 	public :
 		static ::latch      s_service_ready    ;
@@ -107,11 +111,12 @@ namespace Backends {
 		static BackendDescr s_tab[/*+Tag::N*/] ;
 		static ServerSockFd s_server_fd        ;
 	private :
-		static ::mutex                      _s_mutex          ;
-		static ::umap<JobIdx,StartTabEntry> _s_start_tab      ;
-		static SmallIds<SmallId>            _s_small_ids      ;
-		static SmallId                      _s_max_small_id   ;
-		static ThreadQueue<DeferredEntry>   _s_deferred_queue ;
+		static ::mutex                          _s_mutex                 ;
+		static ::umap<JobIdx,StartTabEntry>     _s_start_tab             ;
+		static SmallIds<SmallId>                _s_small_ids             ;
+		static SmallId                          _s_max_small_id          ;
+		static ThreadQueue<DeferredReportEntry> _s_deferred_report_queue ;
+		static ThreadQueue<DeferredLostEntry  > _s_deferred_lost_queue   ;
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
 	public :
@@ -150,7 +155,7 @@ namespace Backends {
 	inline void Backend::s_close_req(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",req) ; for( Tag t : Tag::N ) s_tab[+t].be->close_req(req) ; }
 	//
 	inline void Backend::s_submit( Tag t , JobIdx j , ReqIdx r , CoarseDelay p , bool lo , ::vmap_ss const& rs , JobReason jr ) {
-		::vmap_ss const& rsrcs_spec= Job(j)->rule->x_submit_rsrcs.spec.rsrcs ;
+		::vmap_ss const& rsrcs_spec= Job(j)->rule->submit_rsrcs_attrs.spec.rsrcs ;
 		SWEAR( rsrcs_spec.empty() || mk_key_vector(rsrcs_spec)==mk_key_vector(rs) ) ;
 		//
 		::unique_lock lock{_s_mutex} ;

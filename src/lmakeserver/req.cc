@@ -167,8 +167,8 @@ namespace Engine {
 				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
-			try                     { rt->x_create_match.eval(rt,match_.stems) ; }
-			catch (::string const&) { continue ;                                 }    // do not consider rule if deps cannot be computed
+			try                     { rt->create_match_attrs.eval(rt,match_.stems) ; }
+			catch (::string const&) { continue ;                                     } // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -181,9 +181,9 @@ namespace Engine {
 			::string            reason      ;
 			Node                missing_dep ;
 			::vmap<Node,DFlags> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"               ; goto Report ; }
-			try                                            { static_deps = rt->x_create_match.eval(rt,m.stems) ;               }
-			catch (::string const&)                        { reason      = "cannot compute its deps"           ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                   ; goto Report ; }
+			try                                            { static_deps = rt->create_match_attrs.eval(rt,m.stems) ;               }
+			catch (::string const&)                        { reason      = "cannot compute its deps"               ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
@@ -191,8 +191,8 @@ namespace Engine {
 						Node d = static_deps[di].first ;
 						if ( !static_deps[di].second[DFlag::Required]               ) continue ;
 						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
-						missing_key = rt->x_create_match.spec.full_dynamic ? ""s : rt->x_create_match.spec.deps[di].first ;
-						missing_dep = d                                                                                   ;
+						missing_key = rt->create_match_attrs.spec.full_dynamic ? ""s : rt->create_match_attrs.spec.deps[di].first ;
+						missing_dep = d                                                                                       ;
 						goto Found ;
 					}
 			Found :
@@ -265,12 +265,12 @@ namespace Engine {
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
 				try {
 					// show first stderr
-					EndNoneSpec x_end_none = job->rule->x_end_none.eval(job) ;
-					IFStream job_stream   { job.ancillary_file() }               ;
-					auto     report_req   = deserialize<JobRpcReq  >(job_stream) ;
-					auto     report_start = deserialize<JobRpcReply>(job_stream) ;
-					auto     report_end   = deserialize<JobRpcReq  >(job_stream) ;
-					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , x_end_none.stderr_len , lvl+1 ) ;
+					EndNoneAttrs end_none_attrs = job->rule->end_none_attrs.eval(job)  ;
+					IFStream     job_stream     { job.ancillary_file() }               ;
+					auto         report_req     = deserialize<JobRpcReq  >(job_stream) ;
+					auto         report_start   = deserialize<JobRpcReply>(job_stream) ;
+					auto         report_end     = deserialize<JobRpcReq  >(job_stream) ;
+					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				}
