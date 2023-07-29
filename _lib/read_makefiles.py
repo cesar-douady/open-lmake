@@ -392,12 +392,13 @@ class Handle :
 
 	def handle_start_cmd(self) :
 		self._init()
-		self._handle_any ('auto_mkdir'               )
-		self._handle_any ('ignore_stat'              )
-		self._handle_str ('autodep'                  )
-		self._handle_str ('chroot'                   )
-		self._handle_any ('interpreter'              )
-		self._handle_dict('env'        ,'environ_cmd')
+		self._handle_any ('auto_mkdir'                )
+		self._handle_any ('ignore_stat'               )
+		self._handle_str ('autodep'                   )
+		self._handle_str ('chroot'                    )
+		self._handle_any ('interpreter'               )
+		self._handle_str ('local_mrkr' ,'local_marker')
+		self._handle_dict('env'        ,'environ_cmd' )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

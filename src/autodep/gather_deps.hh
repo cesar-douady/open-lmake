@@ -19,9 +19,9 @@ struct AutodepEnv {
 	//if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
 	AutodepEnv( ::string const& env ) {
 		if (env.empty()) return ;
-		size_t pos1 = env.find(':'       ) ; if (pos1==NPos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
-		/**/   pos1 = env.find(':',pos1+1) ; if (pos1==NPos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
-		size_t pos2 = env.find(':',pos1+1) ; if (pos2==NPos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
+		size_t pos1 = env.find(':'       ) ; if (pos1==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
+		/**/   pos1 = env.find(':',pos1+1) ; if (pos1==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
+		size_t pos2 = env.find(':',pos1+1) ; if (pos2==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
 		//
 		service   = env.substr(0     ,pos1) ;
 		root_dir  = env.substr(pos2+1     ) ;

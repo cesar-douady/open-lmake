@@ -139,6 +139,7 @@ namespace Backends {
 						reply.kill_sigs        = start_none_attrs.kill_sigs  ;
 						reply.live_out         = entry.live_out              ;
 						reply.lnk_support      = g_config.lnk_support        ;
+						reply.local_mrkr       = start_cmd_attrs.local_mrkr  ;
 						reply.reason           = entry.reason                ;
 						reply.root_dir         = *g_root_dir                 ;
 						reply.rsrcs            = ::move(entry.rsrcs)         ;

@@ -16,12 +16,13 @@
 using namespace Disk ;
 using namespace Time ;
 
-bool g_seen_int = false ;
+::atomic<bool> g_seen_int = false ;
 
 static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	Trace::t_key = 'I' ;
 	Trace trace ;
 	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;          // transform request_stop into an event we wait for
+	trace("start") ;
 	for(;;) {
 		struct signalfd_siginfo _ ;
 		SWEAR( ::read(int_fd,&_,sizeof(_)) == sizeof(_) ) ;
@@ -36,8 +37,19 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	}
 }
 
+
 int main( int argc , char* argv[] ) {
-	Fd int_fd = open_sig_fd(SIGINT,true/*block*/) ;                            // must be done before app_init so that all threads block the signal
+	struct Exit {
+		~Exit() {                                                              // this must be executed after _int_thread_func has completed
+			if (!g_seen_int) return ;
+			unblock_sig(SIGINT) ;
+			kill_self  (SIGINT) ;                                              // appear as being interrupted : important for shell scripts to actually stop
+			kill_self  (SIGHUP) ;                                              // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
+			fail_prod("lmake does not want to die") ;
+		}
+	} ;
+	static Exit        exit   ;
+	static AutoCloseFd int_fd = open_sig_fd(SIGINT,true/*block*/) ;            // must be closed after _int_thread_func has completed and before ~Exit code
 	Trace::s_backup_trace = true ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	//
@@ -50,13 +62,8 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Make , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , int_fd } ; } ) ; // start interrupt handling thread once server is started
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (g_seen_int) {
-		int_fd.close() ;
-		unblock_sig(SIGINT) ;
-		kill_self  (SIGINT) ;                                                  // appear as being interrupted : important for shell scripts to actually stop
-	}
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Make , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ; // start interrupt handling thread once server is started
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

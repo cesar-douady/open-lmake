@@ -19,13 +19,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* document that deps are readable if available (and not other disk accesses)
-	- ensure it is the case (i.e. do not make them available until start)
-	- say that this will be enforced in the future
-* find a way so that the HOME env variable does not contain abs path in crc
-	- so as to allow cache to work properly
-	- apply to all env variables as well, such as PATH, PYTHONPATH, ...
-	- when computing crc, replace any occurence of \<root\> with a marker
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -59,6 +52,10 @@ items :
 
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
+! track disk accesses from server
+	- allow direct read of makefiles
+		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
+	- allow check that dynamic attributes only access what they are allowed to access
 ! find a use case to ensure dates are correctly handled with NFS
 
 ****************************************************************************************************
@@ -67,8 +64,6 @@ items :
 
 * implement a compilation rule py->pyc
 	- and user python -B
-* allow dynamic attributes
-	- allow functions to have inherited values (passing inherited value as argument)
 * add a -j option to lmake
 	- to limit the number of jobs
 	- consider a more general approach to limit resource occupation and keep reactivity
@@ -90,6 +85,8 @@ items :
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
+* allow dynamic attributes
+	- allow functions to have inherited values (passing inherited value as argument)
 ! implement star optional :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr

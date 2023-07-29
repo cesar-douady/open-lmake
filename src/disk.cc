@@ -177,13 +177,13 @@ namespace Disk {
 
 	::string dir_name(::string const& file) {
 		size_t sep = file.rfind('/') ;
-		if (sep==NPos) return {}                 ;
+		if (sep==Npos) return {}                 ;
 		else           return file.substr(0,sep) ;
 	}
 
 	::string base_name(::string const& file) {
 		size_t sep = file.rfind('/') ;
-		if (sep!=NPos) return file.substr(sep+1) ;
+		if (sep!=Npos) return file.substr(sep+1) ;
 		else           return file               ;
 	}
 
@@ -196,7 +196,7 @@ namespace Disk {
 	::string localize( ::string const& file , ::string const& dir_s ) {
 		if (is_abs_path(file)                    ) return file                      ;
 		if (file.compare(0,dir_s.size(),dir_s)==0) return file.substr(dir_s.size()) ;
-		size_t last_slash = NPos  ;
+		size_t last_slash = Npos  ;
 		size_t n_slash    = 0     ;
 		bool   dvg        = false ;
 		for( size_t i=0 ; i<dir_s.size() ; i++ ) {
@@ -205,8 +205,8 @@ namespace Disk {
 			else                        {                    dvg        = true ; }
 		}
 		// fast path's to avoid copies
-		if (n_slash) { ::string res ; for( size_t i=0 ; i<n_slash ; i++ ) res += "../" ; if (last_slash==NPos) res += file ; else res += file.substr(last_slash+1) ; return res ; }
-		else         {                                                                   if (last_slash==NPos) return file ; else return file.substr(last_slash+1) ;              }
+		if (n_slash) { ::string res ; for( size_t i=0 ; i<n_slash ; i++ ) res += "../" ; if (last_slash==Npos) res += file ; else res += file.substr(last_slash+1) ; return res ; }
+		else         {                                                                   if (last_slash==Npos) return file ; else return file.substr(last_slash+1) ;              }
 	}
 
 	::string globalize( ::string const& file , ::string const& dir_s ) {
@@ -272,7 +272,7 @@ namespace Disk {
 			,	in_proc.update(*proc      ,real)                               // .
 		) {
 			end = file_p->find( '/', pos ) ;
-			bool last = end==NPos ;
+			bool last = end==Npos ;
 			if (last    ) end = file_p->size() ;
 			if (end==pos) continue ;                                           // empty component, ignore
 			if ((*file_p)[pos]=='.') {
@@ -343,7 +343,7 @@ namespace Disk {
 			real_stream.getline(interpreter.data(),interpreter.size()) ;           // man execve specifies that data beyond 255 chars are ignored
 			if (!real_stream.gcount()) break ;
 			size_t pos = interpreter.find(' ') ;
-			if      (pos!=NPos               ) interpreter.resize(pos                   ) ; // interpreter is the first word
+			if      (pos!=Npos               ) interpreter.resize(pos                   ) ; // interpreter is the first word
 			else if (interpreter.back()=='\n') interpreter.resize(real_stream.gcount()-1) ; // or the entire line if it is composed of a single word
 			else                               interpreter.resize(real_stream.gcount()  ) ; // .
 			// recurse

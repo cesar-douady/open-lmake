@@ -184,6 +184,7 @@ if getattr(_sys,'reading_makefiles',False) :
 		ignore_stat  = False                               # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
 		keep_tmp     = False                               # keep tmp dir after job execution
 		kill_sigs    = (_signal.SIGKILL,)                  # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
+		local_marker = '$CWD'                              # a marker recognized in environ_* attributes and replaced by the cwd of the rule to allow cache effenciency
 		n_tokens     = 1                                   # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 		prio         = 0                                   # in case of ambiguity, rules are selected with highest prio first
 		python       = (_python,)                          # python used for callable cmd
@@ -199,7 +200,7 @@ if getattr(_sys,'reading_makefiles',False) :
 		,	'mem' : config.backends.local.mem//config.backends.local.cpu # memory to allocate to jobs
 		}                                                  # follow the same syntax as deps
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
-			HOME       = root_dir                          # favor repeatability by hiding use home dir some tools use at start up time
+			HOME       = '$CWD'                            # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
 		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' ,           ))
 		)

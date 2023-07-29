@@ -10,6 +10,6 @@ sleep 1
 lmake src1.2.wait &
 sleep 1
 kill -2 %2
-sleep 1
+wait %2 || :
 ut_launch -done 1 lmake src1.2.wait
 wait %1

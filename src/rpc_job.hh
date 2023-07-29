@@ -422,7 +422,6 @@ struct JobRpcReply {
 				::serdes(s,chroot          ) ;
 				::serdes(s,cwd_s           ) ;
 				::serdes(s,env             ) ;
-				::serdes(s,static_deps     ) ;
 				::serdes(s,hash_algo       ) ;
 				::serdes(s,ignore_stat     ) ;
 				::serdes(s,interpreter     ) ;
@@ -432,6 +431,7 @@ struct JobRpcReply {
 				::serdes(s,kill_sigs       ) ;
 				::serdes(s,live_out        ) ;
 				::serdes(s,lnk_support     ) ;
+				::serdes(s,local_mrkr      ) ;
 				::serdes(s,method          ) ;
 				::serdes(s,reason          ) ;
 				::serdes(s,remote_admin_dir) ;
@@ -439,6 +439,7 @@ struct JobRpcReply {
 				::serdes(s,rsrcs           ) ;
 				::serdes(s,script          ) ;
 				::serdes(s,small_id        ) ;
+				::serdes(s,static_deps     ) ;
 				::serdes(s,stdin           ) ;
 				::serdes(s,stdout          ) ;
 				::serdes(s,targets         ) ;
@@ -455,7 +456,6 @@ struct JobRpcReply {
 	::string                  chroot           ;                               // proc == Start
 	::string                  cwd_s            ;                               // proc == Start
 	::vmap_ss                 env              ;                               // proc == Start
-	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
 	bool                      ignore_stat      = false               ;         // proc == Start   , if true <=> stat-like syscalls do not trigger dependencies
 	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute script
@@ -465,6 +465,7 @@ struct JobRpcReply {
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
 	LnkSupport                lnk_support      = LnkSupport   ::None ;         // proc == Start
+	::string                  local_mrkr       ;                               // proc == Start
 	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
 	JobReason                 reason           = JobReasonTag ::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
@@ -472,6 +473,7 @@ struct JobRpcReply {
 	::vector_s                rsrcs            ;                               // proc == Start   , for recording only, not used in job_exec, values only, keys can be gathered from rule
 	::string                  script           ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
+	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start
 	::vector<TargetSpec>      targets          ;                               // proc == Start

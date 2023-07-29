@@ -9,6 +9,6 @@ TARGET=src1.w3.wait
 lmake $TARGET &
 sleep 1
 kill -2 %1
-
 echo 'Wait.stems["Wait"] = "("+Wait.stems["Wait"]+")"' >> Lmakefile.py
+wait %1 || :
 ut_launch -done 1 -steady 0 -manual 0 lmake $TARGET

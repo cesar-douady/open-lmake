@@ -165,8 +165,8 @@ static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name)
 	bool          is_libc = false/*garbage*/       ;
 	::string_view name    { c_name }               ;
 	size_t        end     = 0/*garbage*/           ;
-	size_t        pos     = name.rfind(LibC      ) ; if (pos!=NPos) { end = pos+sizeof(LibC      )-1 ; is_libc = true  ; goto Qualify ; }
-	/**/          pos     = name.rfind(LibPthread) ; if (pos!=NPos) { end = pos+sizeof(LibPthread)-1 ; is_libc = false ; goto Qualify ; }
+	size_t        pos     = name.rfind(LibC      ) ; if (pos!=Npos) { end = pos+sizeof(LibC      )-1 ; is_libc = true  ; goto Qualify ; }
+	/**/          pos     = name.rfind(LibPthread) ; if (pos!=Npos) { end = pos+sizeof(LibPthread)-1 ; is_libc = false ; goto Qualify ; }
 	return {false,false} ;
 Qualify :
 	/**/                             if ( pos!=0 && name[pos-1]!='/' ) return {false,false  } ;

@@ -284,10 +284,10 @@ namespace Engine {
 		Item const& operator[](size_t i) const { return items()[i       ] ; }  // .
 		Item      & operator[](size_t i)       { return items()[i       ] ; }  // .
 		//
-		::vector_view_c    <Item> const subvec( size_t start , size_t sz=NPos ) const { return ::vector_view_c    ( begin()+start , ::min(sz,size()-start) ) ; }
-		::vector_view      <Item>       subvec( size_t start , size_t sz=NPos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item> const substr( size_t start , size_t sz=NPos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item>       substr( size_t start , size_t sz=NPos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
+		::vector_view_c    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::vector_view_c    ( begin()+start , ::min(sz,size()-start) ) ; }
+		::vector_view      <Item>       subvec( size_t start , size_t sz=Npos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }
+		::basic_string_view<Item> const substr( size_t start , size_t sz=Npos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
+		::basic_string_view<Item>       substr( size_t start , size_t sz=Npos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
 		// services
 		template<IsA<Item> I> void append(::vector_view      <I> const& v) { return Base::append(                v ) ; }
 		template<IsA<Item> I> void append(::vector           <I> const& v) { return       append(::vector_view_c(v)) ; }

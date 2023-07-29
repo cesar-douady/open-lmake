@@ -23,6 +23,21 @@ using namespace Time ;
 static constexpr uint8_t TraceNameSz = JobHistorySz<= 10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
 static_assert(JobHistorySz<=10000) ;                                                       // above, we need to make hierarchical names
 
+::string _glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {
+	if (sub.empty()) return txt ;
+	size_t pos = txt.find(sub) ;
+	if (pos==Npos) return txt ;
+	::string_view sv  = txt                ;
+	::string      res { sv.substr(0,pos) } ; res.reserve(sv.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
+	while (pos!=Npos) {
+		size_t p = pos+sub.size() ;
+		pos  = sv.find(sub,p)   ;
+		res += repl             ;
+		res += sv.substr(p,pos) ;
+	}
+	return res ;
+}
+
 int main( int argc , char* argv[] ) {
 	using Date = ProcessDate ;
 
@@ -79,13 +94,15 @@ int main( int argc , char* argv[] ) {
 	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
-	::string cwd = start_info.cwd_s ; if (!cwd.empty()) cwd.pop_back() ;
-	::map_ss cmd_env = mk_map(start_info.env) ;
-	cmd_env.try_emplace( "PWD"         ,           cwd                  ) ;
-	cmd_env.try_emplace( "ROOT_DIR"    ,           *g_root_dir          ) ;
-	cmd_env.try_emplace( "SEQUENCE_ID" , to_string(seq_id             ) ) ;
-	cmd_env.try_emplace( "SMALL_ID"    , to_string(start_info.small_id) ) ;
-	cmd_env.try_emplace( "TMPDIR"      ,           *g_tmp_dir           ) ;    // TMPDIR is the standard environment variable to specify the temporary area
+	::string cwd_    = start_info.cwd_s ; if (!cwd_.empty()) cwd_.pop_back() ;
+	::string abs_cwd = cwd_.empty() ? *g_root_dir : to_string(*g_root_dir,'/',cwd_) ;
+	::map_ss cmd_env ;
+	/**/                                      cmd_env["PWD"        ] =           abs_cwd                           ;
+	/**/                                      cmd_env["ROOT_DIR"   ] =           *g_root_dir                       ;
+	/**/                                      cmd_env["SEQUENCE_ID"] = to_string(seq_id             )              ;
+	/**/                                      cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)              ;
+	/**/                                      cmd_env["TMPDIR"     ] =           *g_tmp_dir                        ; // TMPDIR is the standard environment variable to specify the temporary area
+	for( auto const& [k,v] : start_info.env ) cmd_env[k            ] = _glb_subst(v,start_info.local_mrkr,abs_cwd) ;
 	//
 	Fd       child_stdin  = Child::None                     ;
 	Fd       child_stdout = Child::Pipe                     ;
@@ -188,7 +205,7 @@ int main( int argc , char* argv[] ) {
 		// could be slightly optimized, but when generating live output, we have a single job, no need to optimize
 		live_out_buf.append(txt) ;
 		size_t pos = live_out_buf.rfind('\n') ;
-		if (pos==NPos) return ;
+		if (pos==Npos) return ;
 		pos++ ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( ClientSockFd(service) , JobRpcReq( JobProc::LiveOut , seq_id , job , host_ , live_out_buf.substr(0,pos) ) ) ;
@@ -205,7 +222,7 @@ int main( int argc , char* argv[] ) {
 	/**/                     gather_deps.timeout                 = start_info.timeout     ;
 	/**/                     gather_deps.kill_sigs               = start_info.kill_sigs   ;
 	/**/                     gather_deps.chroot                  = start_info.chroot      ;
-	/**/                     gather_deps.cwd                     = cwd                    ;
+	/**/                     gather_deps.cwd                     = cwd_                   ;
 	/**/                     gather_deps.env                     = &cmd_env               ;
 	if (start_info.live_out) gather_deps.live_out_cb             = live_out_cb            ;
 	//

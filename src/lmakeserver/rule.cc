@@ -22,7 +22,7 @@ namespace Engine {
 	static ::string escape(::string const& s) {
 		::string res ; res.reserve(s.size()+(s.size()>>4)) ;                   // take a little margin for escapes
 		for( char c : s ) {
-			if (_g_specials.find(c)!=NPos) res.push_back('\\') ;               // escape specials
+			if (_g_specials.find(c)!=Npos) res.push_back('\\') ;               // escape specials
 			res.push_back(c) ;
 		}
 		return res ;
@@ -143,7 +143,7 @@ namespace Engine {
 				stem  = 0 ;
 			} else {
 				if (c==Rule::StemMrkr) { state = 1 ; continue ; }
-				if ( escape && _g_specials.find(c)!=NPos ) res += '\\' ;
+				if ( escape && _g_specials.find(c)!=Npos ) res += '\\' ;
 				res += c ;
 			}
 		}
@@ -894,10 +894,11 @@ namespace Engine {
 			else         res <<::string(i,'\t')<< ::setw(key_sz)<<key <<" : "<< val <<'\n' ;
 		} ;
 		for( pass=1 ; pass<=2 ; pass++ ) {                                          // on 1st pass we compute key size, on 2nd pass we do the job
-			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
-			if ( sca.ignore_stat        ) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
-			/**/                          do_field( "autodep"     , mk_snake (sca.method     ) ) ;
-			if (!sca.chroot     .empty()) do_field( "chroot"      ,           sca.chroot       ) ;
+			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"   , to_string(sca.auto_mkdir ) ) ;
+			if ( sca.ignore_stat        ) do_field( "ignore_stat"  , to_string(sca.ignore_stat) ) ;
+			/**/                          do_field( "autodep"      , mk_snake (sca.method     ) ) ;
+			if (!sca.chroot     .empty()) do_field( "chroot"       ,           sca.chroot       ) ;
+			if (!sca.local_mrkr .empty()) do_field( "local_marker" ,           sca.local_mrkr   ) ;
 			if (!sca.interpreter.empty()) {
 				OStringStream i ;
 				for( ::string const& c : sca.interpreter ) i <<' '<<c ;
@@ -1115,7 +1116,7 @@ namespace Engine {
 			,	rule->n_static_stems/*stop_above*/
 			) ;
 			size_t sep = target.rfind('/') ;
-			if (sep!=NPos) dirs.insert(target.substr(0,sep)) ;
+			if (sep!=Npos) dirs.insert(target.substr(0,sep)) ;
 		}
 		return mk_vector(dirs) ;
 	}

@@ -379,11 +379,11 @@ namespace Backends::Local {
                     //
 					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->submit_rsrcs_attrs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
 					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , ::move(rsrcs_vec) , wit->second.reason ) ;
-					//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					Child                 child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
-					//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					Child child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
+					//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("child",req,job,pressure_first->pressure,child.pid,cmd_line) ;
-					child.mk_daemon() ;                                        // we have recorded the pid to wait and there is no fd to close
+					child.mk_daemon() ;                                                  // we have recorded the pid to wait and there is no fd to close
 					avail -= *rsrcs ;
 					trace("avail_rsrcs",'-',avail) ;
 					{	auto wit = waiting_map.find(job) ;
@@ -455,7 +455,7 @@ namespace Backends::Local {
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",MyTag) ;
 			try {
 				size_t pos = v.find('<') ;
-				if (pos==NPos) {
+				if (pos==Npos) {
 					Rsrc x ; ::istringstream(v)>>x ;
 					(*this)[it->second].min = x ;
 					(*this)[it->second].max = x ;

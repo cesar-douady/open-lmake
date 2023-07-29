@@ -19,7 +19,7 @@ namespace Engine {
 		size_t pos = 0 ;
 		for(;;) {
 			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
-			if (nxt_pos==NPos) break ;
+			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
 		if (pos==0) return EngineStore::StartMrkr+str ;                        // signal that there is no stem by prefixing with StartMrkr
@@ -28,7 +28,7 @@ namespace Engine {
 	// return prefix before first stem (empty if no stem)
 	static ::string parse_prefix(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==NPos) return {}                ;                              // absence of stem is already signal in parse_suffix, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ;                              // absence of stem is already signal in parse_suffix, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
 

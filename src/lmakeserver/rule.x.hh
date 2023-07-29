@@ -163,6 +163,7 @@ namespace Engine {
 			::serdes(s,method     ) ;
 			::serdes(s,chroot     ) ;
 			::serdes(s,interpreter) ;
+			::serdes(s,local_mrkr ) ;
 			::serdes(s,env        ) ;
 		}
 		void update(PyObject* py_src) {
@@ -171,6 +172,7 @@ namespace Engine {
 			s_acquire_from_dct(method     ,py_src,"autodep"    ) ;
 			s_acquire_from_dct(chroot     ,py_src,"chroot"     ) ;
 			s_acquire_from_dct(interpreter,py_src,"interpreter") ;
+			s_acquire_from_dct(local_mrkr ,py_src,"local_mrkr" ) ;
 			s_acquire_from_dct(env        ,py_src,"env"        ) ;
 			switch (method) {
 				case AutodepMethod::None      :                                                                                 break ;
@@ -187,6 +189,7 @@ namespace Engine {
 		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      chroot      ;
 		::vector_s    interpreter ;
+		::string      local_mrkr  ;
 		::vmap_ss     env         ;
 	} ;
 

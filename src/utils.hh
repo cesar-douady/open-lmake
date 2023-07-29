@@ -258,7 +258,7 @@ struct IStringStream : ::istringstream {
 // string
 //
 
-static constexpr size_t NPos = ::string::npos ;
+static constexpr size_t Npos = ::string::npos ;
 
 template<class... A> ::string to_string(A const&... args) {
 	OStringStream res ;
@@ -313,13 +313,13 @@ static inline ::vector_s split(::string_view const& path) {
 }
 
 // split on sep
-static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=NPos ) {
+static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
 	::vector_s res ;
 	size_t     pos = 0 ;
 	for( size_t i=0 ; i<n_sep ; i++ ) {
 		size_t   end    = txt.find(sep,pos) ;
 		res.emplace_back( txt.substr(pos,end-pos) ) ;
-		if (end==NPos) return res ;                                            // we have exhausted all sep's
+		if (end==Npos) return res ;                                            // we have exhausted all sep's
 		pos = end+1 ;                                                          // after the sep
 	}
 	res.emplace_back(txt.substr(pos)) ;                                        // all the remaining as last component after n_sep sep's
@@ -348,7 +348,7 @@ static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep
 	size_t pos = -1 ;
 	for( size_t i=0 ; i<n_sep ; i++ ) {
 		pos = txt.find(sep,pos+1) ;
-		if (pos==NPos) return txt ;
+		if (pos==Npos) return txt ;
 	}
 	return txt.substr(0,pos+1) ;
 }
@@ -523,9 +523,9 @@ template<class T> struct vector_view {
 	size_t   size      (        ) const { return  _sz         ; }
 	bool     empty     (        ) const { return !_sz         ; }
 	// services
-	View  subvec( size_t start , size_t sz=NPos ) const requires( IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
-	ViewC subvec( size_t start , size_t sz=NPos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
-	View  subvec( size_t start , size_t sz=NPos )       requires(!IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
+	View  subvec( size_t start , size_t sz=Npos ) const requires( IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
+	ViewC subvec( size_t start , size_t sz=Npos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
+	View  subvec( size_t start , size_t sz=Npos )       requires(!IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
 	//
 	void clear() { *this = vector_view() ; }
 	// data
@@ -542,7 +542,7 @@ template<class T> struct vector_view_c : vector_view<T const> {
 	vector_view_c( T const* begin                        , size_t sz    ) : Base{begin  ,sz} {}
 	vector_view_c( ::vector<T> const& v , size_t start=0 , size_t sz=-1 ) : Base{v,start,sz} {}
 	// services
-	vector_view_c subvec( size_t start , size_t sz=NPos ) const { return vector_view_c( begin()+start , ::min(sz,_sz-start) ) ; }
+	vector_view_c subvec( size_t start , size_t sz=Npos ) const { return vector_view_c( begin()+start , ::min(sz,_sz-start) ) ; }
 } ;
 
 using vector_view_s = vector_view<::string> ;
@@ -958,7 +958,7 @@ struct ClientSockFd : SockFd {
 	void connect( ::string const& server , in_port_t port ) { connect( s_addr(server) , port ) ; }
 	void connect( ::string const& service ) {
 		size_t col = service.rfind(':') ;
-		swear_prod(col!=NPos,"bad service : ",service) ;
+		swear_prod(col!=Npos,"bad service : ",service) ;
 		connect( service.substr(0,col) , ::stoul(service.substr(col+1)) ) ;
 	}
 } ;
@@ -1088,13 +1088,12 @@ struct Pipe {
 	Fd write ;     // write side of the pipe
 } ;
 
-static inline bool/*was_blocked*/ set_sig(int sig_num,Bool3 block) {
+static inline bool/*was_blocked*/ set_sig( int sig_num , Bool3 block ) {
 	sigset_t mask ;
-	//
 	sigemptyset(&mask        ) ;
 	sigaddset  (&mask,sig_num) ;
 	//
-	pthread_sigmask( block==Yes?SIG_BLOCK:SIG_UNBLOCK ,block==Maybe?nullptr:&mask , &mask  ) ;
+	SWEAR(pthread_sigmask( block==Yes?SIG_BLOCK:SIG_UNBLOCK , block==Maybe?nullptr:&mask , &mask )==0) ;
 	//
 	return sigismember(&mask,sig_num)!=(block==Yes) ;
 }
@@ -1102,7 +1101,7 @@ static inline bool/*did_block  */ block_sig  (int sig_num) { return set_sig(sig_
 static inline bool/*did_unblock*/ unblock_sig(int sig_num) { return set_sig(sig_num,No   ) ; }
 static inline bool/*is_blocked */ probe_sig  (int sig_num) { return set_sig(sig_num,Maybe) ; }
 
-static inline Fd open_sig_fd(int sig_num,bool block=false) {
+static inline Fd open_sig_fd( int sig_num , bool block=false ) {
 	if (block) swear_prod(block_sig(sig_num),"signal ",::strsignal(sig_num)," is already blocked") ;
 	else       swear_prod(probe_sig(sig_num),"signal ",::strsignal(sig_num)," is not blocked"    ) ;
 	//

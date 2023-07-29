@@ -126,6 +126,7 @@ unit_tests/dynamic_py.py
 unit_tests/force.py
 unit_tests/hello_world.py
 unit_tests/hide.py
+unit_tests/home.py
 unit_tests/name.py
 unit_tests/numba.py
 unit_tests/numpy.py
