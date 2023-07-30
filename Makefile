@@ -579,7 +579,7 @@ UNIT_TESTS : Manifest \
 	rm -rf $*.dir/*                                                            # keep $*.dir to ease debugging when we have cd inside and rerun make
 	mkdir -p $*.dir
 	cp $< $*.dir/Lmakefile.py
-	( cd $*.dir ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH PYTHONPATH=$(ROOT)/lib:$(ROOT)/_lib $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $*.dir ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH PYTHONPATH=$(ROOT)/lib:$(ROOT)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
 
 #
 # lmake env

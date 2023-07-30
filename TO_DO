@@ -64,9 +64,6 @@ items :
 
 * implement a compilation rule py->pyc
 	- and user python -B
-* add a -j option to lmake
-	- to limit the number of jobs
-	- consider a more general approach to limit resource occupation and keep reactivity
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -75,7 +72,7 @@ items :
 		- because exec bit is part of crc
 * ldebug
 	- low priority (wait for user experience)
-* implement slurm interface
+! implement slurm interface
 	- and implement lmake -l (--local) to force local backend for all jobs
 	- for heavy rules
 	- implement job resources
@@ -85,8 +82,8 @@ items :
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
-* allow dynamic attributes
-	- allow functions to have inherited values (passing inherited value as argument)
+* allow dynamic attribute functions to have inherited values (passing inherited value as argument)
+	- maybe not strictly necessary, but this is what is done for cmd
 ! implement star optional :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr

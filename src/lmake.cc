@@ -56,12 +56,15 @@ int main( int argc , char* argv[] ) {
 	ReqSyntax syntax{{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transcient"            } }
+	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }
 	,	{ ReqFlag::ManualOk        , { .short_name='m' , .has_arg=false , .doc="allow overwrite of manually modified files"  } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
+	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;
+	if ( cmd_line.flags[ReqFlag::Jobs] && ( n_jobs<=0 || n_jobs>=::numeric_limits<JobIdx>::max() ) ) syntax.usage("cannot understand max number of jobs") ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ; // start interrupt handling thread once server is started
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

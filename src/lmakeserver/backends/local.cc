@@ -142,13 +142,13 @@ namespace Backends::Local {
 	struct LocalBackend : Backend {
 
 		struct WaitingEntry {
-            WaitingEntry() = default ;
-            WaitingEntry( Rsrcs2 const& rs2 , bool lo , JobReason const& r ) : rsrcs2{rs2} , reason{r} , n_reqs{1} , live_out{lo} {}
-            // data
+			WaitingEntry() = default ;
+			WaitingEntry( Rsrcs2 const& rs2 , bool lo , JobReason const& r ) : rsrcs2{rs2} , reason{r} , n_reqs{1} , live_out{lo} {}
+			// data
 			Rsrcs2    rsrcs2   ;
 			JobReason reason   ;
 			ReqIdx    n_reqs   = 0     ;                                       // number of reqs waiting for this job
-            bool      live_out = false ;
+			bool      live_out = false ;
 		} ;
 
 		struct RunningEntry {
@@ -172,7 +172,8 @@ namespace Backends::Local {
 		} ;
 
 		struct ReqEntry {
-			ReqEntry() = default ;
+			ReqEntry(         ) = default ;
+			ReqEntry(JobIdx nj) : n_jobs{nj} {}
 			// service
 			void clear() {
 				waiting_queues.clear() ;
@@ -183,6 +184,7 @@ namespace Backends::Local {
 			::umap<Rsrcs2,set<PressureEntry>> waiting_queues ;
 			::umap<JobIdx,CoarseDelay       > waiting_jobs   ;
 			::uset<JobIdx                   > starting_jobs  ;
+			JobIdx                            n_jobs         = 0 ;
 		} ;
 
 		// init
@@ -205,9 +207,9 @@ namespace Backends::Local {
 			Trace("config",MyTag,"avail_rsrcs",'=',capacity) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
 		}
-		virtual void open_req(ReqIdx req) {
+		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
 			SWEAR(!req_map.contains(req)) ;
-			req_map.insert({req,{}}) ;
+			req_map.insert({req,n_jobs}) ;
 		}
 		virtual void close_req(ReqIdx req) {
 			SWEAR(req_map.at(req).waiting_jobs .empty()) ;
@@ -257,7 +259,7 @@ namespace Backends::Local {
 			//
 			entry.waiting_jobs[job] = pressure ;
 			entry.waiting_queues[we.rsrcs2].insert({pressure,job}) ;           // job must be known
-            we.live_out |= live_out ;
+			we.live_out |= live_out ;
 			we.n_reqs++ ;
 		}
 		virtual void set_pressure( JobIdx job , ReqIdx req , CoarseDelay pressure ) {
@@ -358,8 +360,10 @@ namespace Backends::Local {
 			for( Req req : Req::s_reqs_by_eta ) {
 				auto req_it = req_map.find(+req) ;
 				if (req_it==req_map.end()) continue ;
+				JobIdx n_jobs = req_it->second.n_jobs ;
 				::umap<Rsrcs2,set<PressureEntry>>& queues = req_it->second.waiting_queues ;
 				for(;;) {
+					if ( n_jobs && running_map.size()>=n_jobs ) break ;        // cannot have more than n_jobs running jobs because of this req
 					auto candidate = queues.end() ;
 					for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
 						SWEAR(!it->second.empty()) ;
@@ -376,7 +380,7 @@ namespace Backends::Local {
 					Rsrcs2 const&         rsrcs2         = candidate->first      ;
 					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
 					RsrcsData const&      rsrcs_data     = *rsrcs                ;
-                    //
+					//
 					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->submit_rsrcs_attrs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
 					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , ::move(rsrcs_vec) , wit->second.reason ) ;
 					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

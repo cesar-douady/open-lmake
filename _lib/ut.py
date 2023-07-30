@@ -36,7 +36,7 @@ def lmake(*args,rc=0,summary={},**kwds) :
 					cnt[k] += 1
 		for k,v in list(kwds.items()) :
 			if v==... :
-				del cnt[k]
+				del cnt [k]
 				del kwds[k]
 		if cnt!=kwds :
 			for k in cnt :

@@ -465,7 +465,7 @@ The colors bears a semantic :
 
 @section @lmake
 
-Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [-m|--manual-ok] [-o|--live-out] targets...}
+Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] targets...}
 
 @lmake launches all necessary jobs to ensure that targets are generated following rules specified in @Lmakefile.
 
@@ -498,6 +498,8 @@ Options :
 This is useful for example if you want to archive a fully built repository.
 @item @code{-e}|@code{--forget-old-errors} : assume encountered errors are transicent.
 Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
+@item @code{-j}|@code{--jobs} max_jobs : When this option is used, @lmake will limit the overall number of simultaneous jobs to max_jobs per backend.
+If several @lmake commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated max_jobs.
 @item @code{-m}|@code{--manual-ok} : normally, @lmake refuses to launch a job that may overwrite a modification done by the user
 as @lmake fears to jettison important information from the user.
 With this option, the user instructs @lmake that this fear is not pertinent.

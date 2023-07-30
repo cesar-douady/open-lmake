@@ -76,7 +76,7 @@ namespace Backends {
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void s_open_req    (                ReqIdx                                                             ) ;
+		static void s_open_req    (                ReqIdx , JobIdx n_jobs                                             ) ;
 		static void s_close_req   (                ReqIdx                                                             ) ;
 		static void s_submit      ( Tag , JobIdx , ReqIdx , CoarseDelay p , bool lo , ::vmap_ss const& rs , JobReason ) ;
 		static void s_add_pressure( Tag , JobIdx , ReqIdx , CoarseDelay p , bool lo                                   ) ;
@@ -122,10 +122,10 @@ namespace Backends {
 	public :
 		virtual void config(Config::Backend const&) {}
 		//
-		virtual void           open_req   ( ReqIdx   ) {}                      // called before any operation on req
-		virtual void           new_req_eta( ReqIdx   ) {}                      // inform backend that req has a new eta, which may change job priorities
-		virtual void           close_req  ( ReqIdx   ) {}                      // called after any operation on req
-		virtual ::uset<JobIdx> kill_req   ( ReqIdx=0 ) = 0 ;                   // kill all if req==0, return killed jobs
+		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}     // called before any operation on req
+		virtual void           new_req_eta( ReqIdx                       ) {}     // inform backend that req has a new eta, which may change job priorities
+		virtual void           close_req  ( ReqIdx                       ) {}     // called after any operation on req
+		virtual ::uset<JobIdx> kill_req   ( ReqIdx=0                     ) = 0 ;  // kill all if req==0, return killed jobs
 		//
 		virtual void submit      ( JobIdx , ReqIdx , CoarseDelay /*pressure*/ , bool /*live_out*/ , ::vmap_ss const& /*rsrcs*/ , JobReason ) = 0 ; // submit a new job
 		virtual void add_pressure( JobIdx , ReqIdx , CoarseDelay /*pressure*/ , bool /*live_out*/                                          ) {}    // add a new req for an already submitted job
@@ -151,8 +151,8 @@ namespace Backends {
 #ifdef IMPL
 namespace Backends {
 
-	inline void Backend::s_open_req (ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,req) ; for( Tag t : Tag::N ) s_tab[+t].be->open_req (req) ; }
-	inline void Backend::s_close_req(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",req) ; for( Tag t : Tag::N ) s_tab[+t].be->close_req(req) ; }
+	inline void Backend::s_open_req ( ReqIdx r , JobIdx n_jobs ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,r) ; for( Tag t : Tag::N ) s_tab[+t].be->open_req (r,n_jobs) ; }
+	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) s_tab[+t].be->close_req(r       ) ; }
 	//
 	inline void Backend::s_submit( Tag t , JobIdx j , ReqIdx r , CoarseDelay p , bool lo , ::vmap_ss const& rs , JobReason jr ) {
 		::vmap_ss const& rsrcs_spec= Job(j)->rule->submit_rsrcs_attrs.spec.rsrcs ;

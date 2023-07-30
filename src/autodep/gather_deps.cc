@@ -297,8 +297,13 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 }
 
 void GatherDeps::reorder() {
-	// keep the first n_statics entries in original order
-	::sort( accesses.begin()+n_statics , accesses.end() , []( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool { return a.second.read_date < b.second.read_date ; } ) ;
+	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what it expects
+	::stable_sort(                                                             // reorder by date, keeping entries marked parallel after their first items
+		accesses.begin()+n_statics , accesses.end()                            // keep the first n_statics entries in original order
+	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
+			return ::pair(a.second.read_date,a.second.order==DepOrder::Parallel) < ::pair(b.second.read_date,b.second.order==DepOrder::Parallel) ;
+		}
+	) ;
 	sort( critical_barriers ) ;
 	// ensure critical barrier crossing are reported as Critical
 	auto it = critical_barriers.cbegin() ;

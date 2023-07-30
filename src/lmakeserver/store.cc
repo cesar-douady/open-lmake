@@ -262,14 +262,11 @@ namespace Engine {
 					pfx_rule_tgt_vec
 				,	[]( RuleTgt const& a , RuleTgt const& b )->bool {
 						// compulsery : order by priority, with Anti's first within each prio
-						if (a->prio!=b->prio) return a->prio > b->prio ;
-						if (a->anti!=b->anti) return a->anti > b->anti ;
-						// optim : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
+						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
+						// finally    : any stable sort is fine, just to avoid random order
 						::string a_tgt = a.target() ; size_t a_psfx_sz = parse_prefix(a_tgt).size() + parse_suffix(a_tgt).size() ;
 						::string b_tgt = b.target() ; size_t b_psfx_sz = parse_prefix(b_tgt).size() + parse_suffix(b_tgt).size() ;
-						if (a_psfx_sz!=b_psfx_sz) return a_psfx_sz > b_psfx_sz ;
-						// finally any stable sort is fine, just to avoid random order
-						return a->name < b->name ;
+						return ::tuple(a->prio,a->anti,a_psfx_sz,a->name) > ::tuple(b->prio,b->anti,b_psfx_sz,b->name) ;
 					}
 				) ;
 				pfxs.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;

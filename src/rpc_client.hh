@@ -44,6 +44,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Archive         // if proc==Make  , all intermediate files are generated
 ,	ForgetOldErrors // if proc==Make  , assume old errors are transcient
 ,	KeepTmp         // if proc==Make  , keep tmp dir after job execution
+,	Jobs            // if proc==Make  , max number of jobs
 ,	LiveOut         // if proc==Make  , generate live output for last job
 ,	ManualOk        // if proc==Make  , allow lmake to overwrite manual files
 ,	SourceOk        // if proc==Make  , allow lmake to overwrite source files
@@ -60,19 +61,21 @@ struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
 	// cxtors & casts
 	ReqOptions(                          ) = default ;
-	ReqOptions( Bool3 rv , ReqCmdLine cl ) : startup_dir_s{*g_startup_dir_s} , reverse_video{rv} , key{cl.key} , flags{cl.flags} {}
+	ReqOptions( Bool3 rv , ReqCmdLine cl ) : startup_dir_s{*g_startup_dir_s} , reverse_video{rv} , key{cl.key} , flags{cl.flags} , n_jobs{JobIdx(::atol(cl.flag_args[+ReqFlag::Jobs].c_str()))} {}
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,startup_dir_s) ;
 		::serdes(s,reverse_video) ;
 		::serdes(s,key          ) ;
 		::serdes(s,flags        ) ;
+		::serdes(s,n_jobs       ) ;
 	}
 	// data
 	::string startup_dir_s ;
 	Bool3    reverse_video = Maybe        ;                // if Maybe <=> not a terminal, do not colorize
 	ReqKey   key           = ReqKey::None ;                // if proc==          Freeze           || Show
 	ReqFlags flags         ;                               // if proc==Forget || Freeze   || Make
+	JobIdx   n_jobs        = 0            ;                // if proc==                      Make
 } ;
 
 struct ReqRpcReq {
