@@ -263,7 +263,7 @@ namespace Engine {
 		//
 		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , r,jn , h       , et ) ; }
 		void audit_job( Color c , ::string const& s , Job     j                   , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , j    , h       , et ) ; }
-		void audit_job( Color c , ::string const& s , JobExec je                  ,                        Delay et={} ) const { audit_job( c , je.date              , s , je   , je.host , et ) ; }
+		void audit_job( Color c , ::string const& s , JobExec je                  ,                        Delay et={} ) const { audit_job( c , je.start             , s , je   , je.host , et ) ; }
 		//
 		void audit_status(bool ok) const {
 			try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }

@@ -153,24 +153,24 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const ) ;
 		// cxtors & casts
-		JobExec(                                      ) = default ;
-		JobExec( Job j , ::string&& h , ProcessDate d ) : Job{j} , host{::move(h)} , date{d} {}
-		JobExec( Job j ,                ProcessDate d ) : Job{j} ,                   date{d} {}
+		JobExec(                                         ) = default ;
+		JobExec( Job j , ::string&& h , ProcessDate d={} ) : Job{j} , host{::move(h)} , start{d} {}
+		JobExec( Job j ,                ProcessDate d={} ) : Job{j} ,                   start{d} {}
 		// services
 		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} ) const ;
 		void             report_start (                                                   ) const ; // called in engine thread after start if started called with false
 		void             started      ( bool report , ::vector<Node> const& report_unlink ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                   ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps              ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ProcessDate start , JobDigest const&              ) ;       // hit indicates that result comes from a cache hit
+		bool/*modified*/ end          (  JobDigest const&                                 ) ;       // hit indicates that result comes from a cache hit
 		void             premature_end( Req , bool report=true                            ) ;       // Req is killed but job is necessary for some other req
 		void             not_started  (                                                   ) ;       // Req was killed before it started
 		//
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		// data
-		::string    host ;             // host executing the job
-		ProcessDate date ;             // date at which action has been created (may be reported later to user, but with this date)
+		::string    host  ;            // host executing the job
+		ProcessDate start ;            // date at which action has been created (may be reported later to user, but with this date)
 	} ;
 }
 #endif

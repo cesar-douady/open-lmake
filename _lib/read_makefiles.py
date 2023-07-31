@@ -67,32 +67,33 @@ SimpleStemRe = re.compile(r'{\w+}')
 SimpleDepRe  = re.compile(r'^([^{}]|{{|}})*({\w+}([^{}]|{{|}})*)*$')           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
 SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$')                                 # this means string can be interpreted
 
-def update_dict(acc,new) :
+def update_dct(acc,new) :
 	for k,v in new.items() :
 		acc.pop(k,None)                                                        # ensure entry is put at the end of dict order
 		if v is not None : acc[k] = v                                          # None is used to suppress entries
-def update_list(acc,new) :
-	if not isinstance(new,(list,tuple,set)) : new = (new,)
-	acc += new
 def update_set(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
 	for k in new :
-		if isinstance(k,str) and len(k) and k[0]=='-' : acc.discard(k[1:])
-		else                                          : acc.add    (k    )
+		if isinstance(k,str) and k and k[0]=='-' : acc.discard(k[1:])
+		else                                     : acc.add    (k    )
+def update_lst(acc,new) :
+	if not isinstance(new,(list,tuple,set)) : new = (new,)
+	acc += new
 def update(acc,new) :
 	if   callable  (acc     ) : acc = top(new)
-	elif isinstance(acc,dict) : update_dict(acc,new)
-	elif isinstance(acc,list) : update_list(acc,new)
-	elif isinstance(acc,set ) : update_set (acc,new)
+	elif callable  (new     ) : acc = top(new)
+	elif isinstance(acc,dict) : update_dct(acc,new)
+	elif isinstance(acc,set ) : update_set(acc,new)
+	elif isinstance(acc,list) : update_lst(acc,new)
 	else                      : raise TypeError(f'cannot combine {acc.__class__.__name__} and {new.__class__.__name__}')
-def top(new) :
-	if   callable  (new             ) : return new
-	elif isinstance(new,dict        ) : acc = {}
-	elif isinstance(new,(list,tuple)) : acc = []
-	elif isinstance(new,set         ) : acc = set()
-	else                              : raise TypeError(f'cannot combine {new.__class__.__name__}')
-	update(acc,new)
 	return acc
+def top(new) :
+	if   callable  (new     ) : return new
+	elif isinstance(new,dict) : acc = {}
+	elif isinstance(new,set ) : acc = set()
+	elif isinstance(new,list) : acc = []
+	else                      : raise TypeError(f'cannot combine {new.__class__.__name__}')
+	return update(acc,new)
 
 def qualify_key(kind,key,seen) :
 	if not isinstance(key,str) : raise TypeError(f'{kind} key {key} is not a str'               )
@@ -128,13 +129,15 @@ def qualify(attrs) :
 	for k in attrs.targets     .keys() : qualify_key('target'     ,k,seen)
 	for k in attrs.post_targets.keys() : qualify_key('post_target',k,seen)
 	if not attrs.__anti__ :
-		for k in attrs.deps     .keys() : qualify_key('dep'     ,k,seen)
-		for k in attrs.resources.keys() : qualify_key('resource',k,seen)
+		for key in ('dep','resource') :
+			dct = attrs[key+'s']
+			if callable(dct) : continue
+			for k in dct.keys() : qualify_key(key,k,seen)
 
 def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
 	combine = set()
-	dct     = pdict()
+	dct     = pdict(cmd=[])                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
 	is_shell = isinstance(getattr(rule,'cmd',None),str)
@@ -144,13 +147,17 @@ def handle_inheritance(rule) :
 			if 'combine' in d :
 				for k in d['combine'] :
 					if k in dct and k not in combine : dct[k] = top(dct[k])    # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
-				update(combine,d['combine'])                                   # process combine first so we use the freshest value
+				combine = update(combine,d['combine'])                         # process combine first so we use the freshest value
 			for k,v in d.items() :
 				if k.startswith('__') and k.endswith('__')                      : continue # do not process standard python attributes
 				if k=='combine'                                                 : continue
-				if k=='cmd' and callable(v) and is_shell and hasattr(v,'shell') : v = v.shell
-				if k in combine :
-					if k in dct : update(dct[k],v)
+				if k=='cmd' :
+					if is_shell and callable(v) :
+						if not hasattr(v,'shell') : raise TypeError(f'{r.__name__}.cmd is callable and has no shell attribute while a shell cmd is needed')
+						v = v.shell
+					dct[k].append(v)
+				elif k in combine :
+					if k in dct : dct[k] = update(dct[k],v)
 					else        : dct[k] = top(v)                              # make a fresh copy as it may be modified by further combine's
 				else :
 					dct[k] = v
@@ -350,27 +357,20 @@ class Handle :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
 		if callable(self.attrs.deps) :
-			self.static_val  = None                                            # for deps, a None static value means all keys are allowed
+			raise NotImplementedError('callable deps as a whole not yet implemented')
+			self.static_val  = None                                                   # for deps, a None static value means all keys are allowed
 			self.dynamic_val = self.attrs.deps
 		else :
-			dynamic_deps = {}
 			for k,d in self.attrs.deps.items() :
-				if callable(d) :
-					dynamic_deps[k] = d
-					continue
+				self.static_val[k] = None                                      # in all cases, we need a static entry, even for dynamic values, so we have an idx at compilations time
 				if isinstance(d,str) : d = (d,)
-				if any(callable(x) for x in d) :
-					dynamic_deps[k] = d
-					continue
-				is_static = SimpleDepRe.match(d[0]) and all( k[1:-1] in self.static_stems for k in SimpleStemRe.findall(d[0]) )
-				self.static_val[k] = d if is_static else None                                                                   # for deps, the static value must contain all dep keys
-				if not is_static : dynamic_deps[k] = d
-			for k,v in dynamic_deps.items() :
-				if callable(v) :
-					self.dynamic_val[k] = v
+				if callable(d) :
+					self.dynamic_val[k] = d
+				elif not any(callable(x) for x in d) and SimpleDepRe.match(d[0]) and all( k[1:-1] in self.static_stems for k in SimpleStemRe.findall(d[0]) ) :
+					self.static_val[k] = d
 				else :
 					l = []
-					for x in v :
+					for x in d :
 						if   callable  (x    ) : l.append(      x )
 						elif isinstance(x,str) : l.append(f_str(x))
 						else                   : raise TypeError(f'dep {k} contains {x} which is not a str nor callable')
@@ -378,8 +378,7 @@ class Handle :
 		self.rule_rep.create_match_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.per_job.add('deps')
-		deps = self.rule_rep.create_match_attrs[0]
-		if not callable(deps) : self.per_job.update({ k for k in deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+		if self.rule_rep.create_match_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()

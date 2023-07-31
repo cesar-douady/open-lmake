@@ -97,11 +97,12 @@ namespace Engine {
 		// services
 		void update( PyObject* , RuleData const& , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) ;
 		template<IsStream S> void serdes(S& s) {
+			::serdes(s,full_dynamic) ;
 			::serdes(s,deps) ;
 		}
 		::vmap<Node,DFlags> mk( Rule , ::vector_s const& stems , PyObject* py_src=nullptr ) const ;
 		// data
-		bool               full_dynamic = false ;          // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
+		bool              full_dynamic = false ;           // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
 		::vmap_s<DepSpec> deps         ;
 	} ;
 
@@ -253,16 +254,14 @@ namespace Engine {
 		size_t stderr_len = -1 ;       // max lines when displaying stderr (full content is shown with lshow -e)
 	} ;
 
-	template<class T> struct Dynamic {
+	// the part of the Dynamic struct which is stored on disk
+	template<class T> struct DynamicDsk {
 		// statics
 		static bool s_is_dynamic(PyObject*) ;
 		// cxtors & casts
-		Dynamic() = default ;
-		template<class... A> Dynamic( PyObject* , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... ) ;
+		DynamicDsk() = default ;
+		template<class... A> DynamicDsk( PyObject* , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... ) ;
 		// services
-		void compile(                                 ) ;
-		T    eval   (Job , ::vector_s const& rsrcs={} ) const ;
-		//
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,is_dynamic  ) ;
 			::serdes(s,need_stems  ) ;
@@ -274,10 +273,7 @@ namespace Engine {
 			::serdes(s,code_str    ) ;
 			::serdes(s,ctx         ) ;
 		}
-	protected :
-		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vector_s const& rsrcs={} ) const ;
 		// data
-	public :
 		bool                          is_dynamic   = false ;
 		bool                          need_stems   = false ;
 		bool                          need_targets = false ;
@@ -287,14 +283,55 @@ namespace Engine {
 		::string                      glbs_str     ;                           // if is_dynamic <=> contains string to run to get the glbs below
 		::string                      code_str     ;                           // if is_dynamic <=> contains string to compile to code object below
 		::vector<pair<CmdVar,VarIdx>> ctx          ;                           // a list of stems, targets & deps, accessed by code
+	} ;
+	template<class T> struct Dynamic : DynamicDsk<T> {
+		using Base = DynamicDsk<T> ;
+		using Base::is_dynamic   ;
+		using Base::need_stems   ;
+		using Base::need_targets ;
+		using Base::spec         ;
+		using Base::glbs_str     ;
+		using Base::code_str     ;
+		using Base::ctx          ;
+		// statics
+		static bool s_is_dynamic(PyObject*) ;
+		// cxtors & casts
+		using Base::Base ;
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{Py::boost(src.glbs)} , code{Py::boost(src.code)} {                                           } // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{          src.glbs } , code{          src.code } { src.glbs = nullptr ; src.code = nullptr ; } // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                                          // .
+			Base::operator=(src) ;
+			Py_XDECREF(glbs) ; glbs = src.glbs ; Py_XINCREF(glbs) ;
+			Py_XDECREF(code) ; code = src.code ; Py_XINCREF(code) ;
+			return *this ;
+		}
+		Dynamic& operator=(Dynamic&& src) {                                                                                                                              // .
+			Base::operator=(::move(src)) ;
+			Py_XDECREF(glbs) ; glbs = src.glbs ; src.glbs = nullptr ;
+			Py_XDECREF(code) ; code = src.code ; src.code = nullptr ;
+			return *this ;
+		}             // .
+		// services
+		void compile(                                 ) ;
+		T    eval   (Job , ::vector_s const& rsrcs={} ) const ;
+	protected :
+		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vector_s const& rsrcs={} ) const ;
+		// data
 		// not stored on disk
 		PyObject* glbs = nullptr ;     // if is_dynamic <=> dict to use as globals when executing code
 		PyObject* code = nullptr ;     // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
+	private :
+		mutable ::mutex _glbs_mutex ;  // ensure glbs is not used for several jobs simultaneously
 	} ;
 
 	struct DynamicCreateMatchAttrs : Dynamic<CreateMatchAttrs> {
+		using Base = Dynamic<CreateMatchAttrs> ;
 		// cxtors & casts
-		using Dynamic<CreateMatchAttrs>::Dynamic ;
+		using Base::Base ;
+		DynamicCreateMatchAttrs           (DynamicCreateMatchAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
+		DynamicCreateMatchAttrs           (DynamicCreateMatchAttrs     && src) : Base           {::move(src)} {}                 // .
+		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
+		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
 		::vmap<Node,DFlags> eval( Rule , ::vector_s const& stems ) const ;
 	} ;
@@ -569,7 +606,7 @@ namespace Engine {
 	// Dynamic
 	//
 
-	template<class T> bool Dynamic<T>::s_is_dynamic(PyObject* py_src) {
+	template<class T> bool DynamicDsk<T>::s_is_dynamic(PyObject* py_src) {
 		SWEAR(PyTuple_Check(py_src)) ;
 		ssize_t sz = PyTuple_GET_SIZE(py_src) ;
 		switch (sz) {
@@ -585,7 +622,7 @@ namespace Engine {
 		}
 	}
 
-	template<class T> template<class... A> Dynamic<T>::Dynamic( PyObject* py_src , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... args ) :
+	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( PyObject* py_src , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... args ) :
 		is_dynamic{ s_is_dynamic(py_src)                                           }
 	,	glbs_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,1)) : "" }
 	,	code_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,2)) : "" }
@@ -612,14 +649,14 @@ namespace Engine {
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		code = Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input ) ;
+		code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
 		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
-		Py::mk_static(code) ;
 		//
-		glbs = Py::mk_static(PyDict_New())                                   ;
+		glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
 		PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
 		PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
-		PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ;   // Python3.6 does not provide it for us
+		PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
+		//
 		PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
 		if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
 		Py_DECREF(val) ;
@@ -627,36 +664,39 @@ namespace Engine {
 
 	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vector_s const& rsrcs ) const {
 		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r->eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
-		//
-		PyObject* lcls = PyDict_New() ; SWEAR(lcls) ;                          // else, we are in trouble
+		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not...
+		// be seen by these functions, which is the whole purpose of such dynamic values
+		::unique_lock lock{_glbs_mutex} ;                                      // ensure glbs is not used simultaneously for several jobs
 		//
 		for( auto const& [key,str] : ctx_.first ) {
 			PyObject* py_str = PyUnicode_FromString(str.c_str()) ;
 			SWEAR(py_str) ;                                                    // else, we are in trouble
-			swear(PyDict_SetItemString( lcls , key.c_str() , py_str )==0) ;    // else we are in trouble
+			swear(PyDict_SetItemString( glbs , key.c_str() , py_str )==0) ;    // else, we are in trouble
 			Py_DECREF(py_str) ;                                                // py_v is not stolen by PyDict_SetItemString
 		}
-		//
 		for( auto const& [key,dct] : ctx_.second ) {
 			PyObject* py_dct = PyDict_New() ; SWEAR(py_dct) ;
 			for( auto const& [k,v] : dct ) {
 				PyObject* py_v = PyUnicode_FromString(v.c_str()) ;
 				SWEAR(py_v) ;                                                  // else, we are in trouble
-				swear(PyDict_SetItemString( py_dct , k.c_str() , py_v )==0) ;  // else we are in trouble
+				swear(PyDict_SetItemString( py_dct , k.c_str() , py_v )==0) ;  // else, we are in trouble
 				Py_DECREF(py_v) ;                                              // py_v is not stolen by PyDict_SetItemString
 			}
-			swear(PyDict_SetItemString( lcls , key.c_str() , py_dct )==0) ;    // else we are in trouble
+			swear(PyDict_SetItemString( glbs , key.c_str() , py_dct )==0) ;    // else, we are in trouble
 			Py_DECREF(py_dct) ;                                                // py_v is not stolen by PyDict_SetItemString
 		}
+		//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		PyObject* d = PyEval_EvalCode( code , glbs , nullptr ) ;
+		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		for( auto const& [key,_] : ctx_.first  ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs...
+		for( auto const& [key,_] : ctx_.second ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, but otherwise, this is not necessary
 		//
-		PyObject* d = PyEval_EvalCode( code , glbs , lcls ) ;
-		Py_DECREF(lcls) ;
 		if (!d) throw Py::err_str() ;
 		SWEAR(PyDict_Check(d)) ;
 		return d ;
 	}
 
-	template<class T> T Dynamic<T>::eval(Job j , ::vector_s const& rsrcs ) const {
+	template<class T> T Dynamic<T>::eval( Job j , ::vector_s const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
 		//
 		Py::Gil   gil ;

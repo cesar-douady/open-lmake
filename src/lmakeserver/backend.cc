@@ -78,7 +78,6 @@ namespace Backends {
 	}
 
 	bool/*keep_fd*/ Backend::_s_handle_job_req( JobRpcReq && jrr , Fd fd ) {
-		Date start ;
 		switch (jrr.proc) {
 			case JobProc::None     :              return false ;               // if connection is lost, ignore it
 			case JobProc::Start    : SWEAR(+fd) ; break        ;               // fd is needed to reply
@@ -88,10 +87,10 @@ namespace Backends {
 			case JobProc::DepInfos :              break        ;
 			default : FAIL(jrr.proc) ;
 		}
-		Job             job               { jrr.job                                } ;
-		JobExec         job_exec          { job , ::move(jrr.host) , Date::s_now() } ;
-		Rule            rule              = job->rule                                ;
-		JobRpcReply     reply             { JobProc::Start                         } ;
+		Job             job               { jrr.job                } ;
+		JobExec         job_exec          { job , ::move(jrr.host) } ;
+		Rule            rule              = job->rule                ;
+		JobRpcReply     reply             { JobProc::Start         } ;
 		::vector<Node>  report_unlink     ;
 		StartCmdAttrs   start_cmd_attrs   ;
 		StartRsrcsAttrs start_rsrcs_attrs ;
@@ -103,10 +102,11 @@ namespace Backends {
 			trace("entry",entry) ;
 			switch (jrr.proc) {
 				case JobProc::Start :
+					job_exec.start = Date::s_now() ;
 					//            vvvvvvvvvvvvvvvvvvvvvvv
 					entry.reqs  = s_start(entry.tag,+job) ;
-					entry.start = job_exec.date           ;
-					//            ^^^^^^^^^^^^^
+					entry.start = job_exec.start          ;
+					//            ^^^^^^^^^^^^^^
 					try {
 						start_cmd_attrs   = rule->start_cmd_attrs  .eval(job) ;
 						start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(job) ;
@@ -165,16 +165,16 @@ namespace Backends {
 						Tag tag = entry.tag ;
 						_s_start_tab.erase(it) ;
 						job_exec.host.clear() ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , false/*report*/                  ) ;
-						s_end(tag,+job)                                                                                                ;
-						g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , start , JobDigest{.status=Status::Err,.stderr=e} ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , false/*report*/          ) ;
+						s_end(tag,+job)                                                                                        ;
+						g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , JobDigest{.status=Status::Err,.stderr=e} ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						return false ;
 					}
 				break ;
 				case JobProc::End : {
-					start = entry.start ;
+					job_exec.start = entry.start ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
 					Tag tag = entry.tag ;
@@ -198,7 +198,7 @@ namespace Backends {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , !deferred_start_report ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (deferred_start_report) _s_deferred_report_queue.emplace( start+start_none_attrs.start_delay , jrr.seq_id , ::move(job_exec) ) ;
+				if (deferred_start_report) _s_deferred_report_queue.emplace( job_exec.start+start_none_attrs.start_delay , jrr.seq_id , ::move(job_exec) ) ;
 				trace("started",reply) ;
 			} break ;
 			case JobProc::ChkDeps  : //                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -208,9 +208,9 @@ namespace Backends {
 			case JobProc::End :
 				serialize( OFStream(job.ancillary_file(),::ios::app) , jrr ) ;
 				job.end_exec() ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( jrr.proc , ::move(job_exec) , start , ::move(jrr.digest) ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			break ;
 			default : FAIL(jrr.proc) ;
 		}

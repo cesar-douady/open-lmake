@@ -1201,7 +1201,7 @@ Whether or not these are available depend on when a given attribute is needed.
 For example, when defining the @code{deps}, the deps are obviously not available,
 but also, when defining the @code{force} attribute, which is used to decide whether a job must be run or not, the resources, which are computing when running the job, are not available.
 
-Generally, these functions are not supposed to access the disk as at the time they are called, such accessed files may not be up to date.
+Generally, these functions are not supposed to do local disk accesses (i.e. from within the repository) as at the time they are called, such accessed files may not be up to date.
 However, when @code{deps} are in the function environment, the listed files are up to date and can be accessed.
 In the current release, these restrictions are not enforced by @lmake, but they will be in a future release.
 

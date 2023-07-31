@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* deps in cmd does not work
 ! sometimes losing terminal colors
 	- hard to reproduce
 
@@ -19,6 +20,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* allow def deps() : ...
+	- either return a list
+	- or a dict, keys being of secondary interest
+		- in that case, find a place to store the keys that are no more in the rule
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads

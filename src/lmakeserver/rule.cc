@@ -222,11 +222,18 @@ namespace Engine {
 		//
 		if (PyFloat_Check(py_src)) {
 			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
+		} else if (PyLong_Check(py_src)) {
+			long sd = PyLong_AsLong(py_src) ;
+			if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
+			if ( sd<0                       )                   throw "underflow"s ;
+			dst = Time::Delay(double(sd)) ;
 		} else if (PyUnicode_Check(py_src)) {
 			PyObject* f = PyFloat_FromString(py_src) ;
-			if (!f) throw ""s ;
+			if (!f) throw "cannot convert to float"s ;
 			dst = Time::Delay(PyFloat_AsDouble(f)) ;
 			Py_DECREF(f) ;
+		} else {
+			throw "cannot convert to float"s ;
 		}
 	}
 
@@ -701,7 +708,7 @@ namespace Engine {
 				,	true/*escape*/
 				) ;
 				target_patterns.emplace_back(pattern) ;
-				mk_static(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
+				Py::boost(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
 			}
 			_set_crcs() ;
 			create_match_attrs.compile() ;

@@ -7,6 +7,8 @@ import sys
 
 if getattr(sys,'reading_makefiles',False) :
 
+	import os
+
 	import lmake
 
 	lmake.sources = (
@@ -16,7 +18,7 @@ if getattr(sys,'reading_makefiles',False) :
 	,	'hello+world.ref'
 	)
 
-	def var_func() : return 'the_value'
+	def file2() : return File2
 
 	class Cat(lmake.Rule) :
 		stems = {
@@ -24,15 +26,20 @@ if getattr(sys,'reading_makefiles',False) :
 		,	'File2' : r'.*'
 		}
 		target = '{File1}+{File2}'
-		def force() : return False
-		environ_cmd = { 'VAR' : var_func }
+		def force() : return File2=='hello'
+		environ_cmd = { 'VAR' : file2 }
 		deps = {
-			'FIRST'  : '{File1+""}'
-		,	'SECOND' : '{File2}'
+			'FIRST'  : '{File1}'
+		,	'SECOND' : file2
 		}
-		cmd = 'cat $FIRST $SECOND ; echo $VAR'
+		def start_delay() : return File2=='hello'
+		def cmd() :
+			print(open(deps['FIRST']).read(),end='')
+			print(open(SECOND       ).read(),end='')
+			print(os.environ['VAR'])
 
 	class Cmp(lmake.Rule) :
+		prio   = 1
 		target = '{File:.*}.ok'
 		deps = {
 			'DUT' : '{File}'
@@ -44,10 +51,11 @@ else :
 
 	import ut
 
-	print('hello'                  ,file=open('hello','w')          )
-	print('world'                  ,file=open('world','w')          )
-	print('hello\nworld\nthe_value',file=open('hello+world.ref','w'))
+	print('hello'              ,file=open('hello','w')          )
+	print('world'              ,file=open('world','w')          )
+	print('hello\nworld\nworld',file=open('hello+world.ref','w'))
 
-	ut.lmake( 'hello+world.ok' ,                 done=2 , new=3 )                 # check target is out of date
-	ut.lmake( 'hello+world'    ,                 done=0 , new=0 )                 # check target is up to date
-	ut.lmake( 'hello+hello'    , 'world+world' , done=2         )                 # check reconvergence
+	ut.lmake( 'hello+world.ok' ,                 done=2 , new=3    )           # check target is out of date
+	ut.lmake( 'hello+world'    ,                 done=0 , new=0    )           # check target is up to date
+	ut.lmake( 'hello+hello'    , 'world+world' , done=2            )           # check reconvergence
+	ut.lmake( 'hello+hello'    , 'world+world' , steady=1 ,start=0 )           # check force & start_delay

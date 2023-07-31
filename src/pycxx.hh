@@ -16,14 +16,12 @@ namespace Py {
 
 	// static Python object are collected at program exit and create bunches of problems.
 	// protect them from such collection by incrementing ref count.
-	// must be called on all statically allocated objects such as :
-	// static Dict my_static_dict ; mk_static(my_static_dict) ;
-	static inline Object mk_static(Object obj) {
+	static inline Object boost(Object obj) {
 		obj.increment_reference_count() ;
 		return obj ;
 	}
-	static inline PyObject* mk_static(PyObject* obj) {
-		Py_INCREF(obj) ;
+	static inline PyObject* boost(PyObject* obj) {
+		Py_XINCREF(obj) ;
 		return obj ;
 	}
 
@@ -44,7 +42,7 @@ namespace Py {
 		Pattern(                       ) : Object{static_cast<PyObject*>(nullptr)} {}
 		Pattern(Object   const& from   ) : Object{from                           } {}
 		Pattern(::string const& pattern) : Pattern{} {
-			static Callable py_compile = mk_static(import_module("re").getAttr("compile")) ;
+			static Callable py_compile = boost(import_module("re").getAttr("compile")) ;
 			static_cast<Object&>(*this) = py_compile.apply(TupleN(String(pattern))) ;
 		}
 		// accesses
@@ -63,7 +61,7 @@ namespace Py {
 		// accesses
 		::string operator[](::string const& key) const {
 			// find py_group by executing "re.compile('').fullmatch('')._class__.group"
-			static Callable py_group = mk_static(
+			static Callable py_group = boost(
 					Callable(
 							Callable(import_module("re").getAttr("compile"))
 						.	apply(TupleN(String("")))
@@ -90,7 +88,7 @@ namespace Py {
 
 	inline Match Pattern::match(::string const& target) const {
 		// find py_mach by executing "re.compile('').__class__.fullmatch"
-		static Callable py_match = mk_static(
+		static Callable py_match = boost(
 				Callable(import_module("re").getAttr("compile"))
 			.	apply(TupleN(String("")))
 			.	type()

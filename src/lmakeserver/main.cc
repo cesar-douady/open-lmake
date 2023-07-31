@@ -327,7 +327,7 @@ bool/*interrupted*/ engine_loop() {
 					case JobProc::LiveOut     : je.live_out     (job.txt                     ) ;                       break ;
 					case JobProc::Continue    : je.premature_end(job.req                     ) ;                       break ;
 					case JobProc::NotStarted  : je.not_started  (                            ) ;          /*vvvvvv*/   break ;
-					case JobProc::End         : je.end          (job.start,job.digest        ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
+					case JobProc::End         : je.end          (job.digest                  ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
 					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {

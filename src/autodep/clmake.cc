@@ -166,10 +166,15 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 		PyErr_SetString(PyExc_ValueError,"cannot find sub root dir in repository") ;
 		return nullptr ;
 	}
-	::string abs_path         = solve_report.real.empty() ? *g_root_dir : to_string(*g_root_dir,'/',solve_report.real) ;
-	::string abs_sub_root_dir = search_root_dir(abs_path).first                                                        ;
-	abs_sub_root_dir.push_back('/') ;
-	return PyUnicode_FromString( abs_sub_root_dir.c_str()+g_root_dir->size()+1 ) ;
+	::string abs_path = solve_report.real.empty() ? *g_root_dir : to_string(*g_root_dir,'/',solve_report.real) ;
+	try {
+		::string abs_sub_root_dir = search_root_dir(abs_path).first ;
+		abs_sub_root_dir.push_back('/') ;
+		return PyUnicode_FromString( abs_sub_root_dir.c_str()+g_root_dir->size()+1 ) ;
+	} catch (::string const&e) {
+		PyErr_SetString(PyExc_ValueError,e.c_str()) ;
+		return nullptr ;
+	}
 }
 
 static PyMethodDef funcs[] = {

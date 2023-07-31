@@ -200,7 +200,7 @@ namespace Engine {
 		if (!je) return os << "JT()" ;
 		os << "JobExec(" << Job(je) ;
 		if (!je.host.empty()) os <<','<< je.host ;
-		return os <<','<< je.date <<')' ;
+		return os <<','<< je.start <<')' ;
 	}
 
 	::shared_mutex    Job::_s_target_dirs_mutex ;
@@ -371,7 +371,7 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( ProcessDate start , JobDigest const& digest ) {
+	bool/*modified*/ JobExec::end( JobDigest const& digest ) {
 		Status         status            = digest.status                                      ; // status will be modified, need to make a copy
 		bool           err               = status>=Status::Err                                ;
 		bool           killed            = status<=Status::Killed                             ;
@@ -1149,7 +1149,6 @@ namespace Engine {
 		//
 		if (!cache_none_attrs.key.empty()) {
 			Cache*       cache       = Cache::s_tab.at(cache_none_attrs.key) ;
-			ProcessDate  start       = ProcessDate::s_now()                  ;
 			Cache::Match cache_match = cache->match(*this,req)               ;
 			if (!cache_match.completed) {
 				FAIL("delayed cache not yet implemented") ;
@@ -1163,7 +1162,7 @@ namespace Engine {
 						ri.lvl = Lvl::Hit ;
 						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
-						bool modified = je.end( start , digest ) ;
+						bool modified = je.end(digest) ;
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[*this] = { true/*hit*/ , modified , {} } ;
 						return true/*maybe_new_deps*/ ;

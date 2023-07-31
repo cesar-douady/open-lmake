@@ -132,7 +132,7 @@ if getattr(_sys,'reading_makefiles',False) :
 		,	'targets'     , 'post_targets'
 		,	'deps'
 		,	'environ_cmd' , 'environ_rsrcs' , 'environ_ancillary'
-		,	'cmd'         , 'resources'
+		,	'resources'
 		}
 	#	name                                               # must be specific for each rule, defaults to class name
 	#	job_name                                           # defaults to first target
@@ -169,7 +169,7 @@ if getattr(_sys,'reading_makefiles',False) :
 		backend      = 'local'                             # may be set anywhere in the inheritance hierarchy if execution must be remote
 		chroot       = ''                                  # chroot directory to execute cmd (if empty, chroot cmd is not done)
 		cache        = None                                # cache used to store results for this rule. None means no caching
-		cmd          = []                                  # must be set anywhere in the inheritance hierarchy for the rule to be runable, if several definitions, they are chained
+	#	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 	#	cwd                                                # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
 	#                                                      # defaults to the nearest root dir of the module in which the rule is defined
 		deps         = {}                                  # patterns used to express explicit depencies, refers to stems through f-string notation, e.g. {'SRC':'{File}.c'}
