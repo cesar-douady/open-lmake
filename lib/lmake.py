@@ -45,7 +45,7 @@ if getattr(_sys,'reading_makefiles',False) :
 	import signal     as _signal
 	import subprocess as _sp
 
-	_std_path = _sp.check_output( 'echo $PATH' , shell=True , env={} , universal_newlines=True ).strip()
+	_std_path = _sp.run( 'echo $PATH' , shell=True , check=True , stdout=_sp.PIPE , env={} , universal_newlines=True ).stdout.strip()
 	def _get_std(cmd) :
 		for d in _std_path.split(':') :
 			abs_cmd = _osp.join(d,cmd)
@@ -73,6 +73,7 @@ if getattr(_sys,'reading_makefiles',False) :
 	,	interface       = ''                               # network interface that connect to remote hosts executing jobs
 	,	link_support    = 'Full'                           # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 	,	max_dep_depth   = 1000                             # used to detect infinite recursions and loops
+#	,	max_error_lines = 30                               # used to limit the number of error lines when not reasonably limited otherwise
 	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
@@ -265,19 +266,6 @@ if getattr(_sys,'reading_makefiles',False) :
 		line_re = re.compile(r'\s*(?P<file>[^#\s](.*\S)?)?\s+(#.*)?\n?')
 		return [ f for f in ( line_re.fullmatch(l).group('file') for l in open(manifest) ) if f ]
 
-	def git_sources(recurse=True,**kwds) :
-		'''
-			gather git controled files.
-			recurse to sub-modules if recurse is True
-			kwds are ignored which simplifies the usage of auto_sources
-		'''
-		import subprocess
-		if not _osp.isdir('.git') : raise FileNotFoundError('.git')
-		git_cmd = ['git','ls-files']
-		if recurse : git_cmd.append('--recurse-submodules')
-		srcs = subprocess.check_output( git_cmd , universal_newlines=True ).splitlines()
-		srcs += ('.git/HEAD','.git/config','.git/index')                                 # not listed by git, but actually a source as it is read by git ls-files # XXX : apply to submodules as well
-		return srcs
 	def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		'''
 			gather git controled files.
@@ -285,25 +273,25 @@ if getattr(_sys,'reading_makefiles',False) :
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
 		import subprocess
-		if not _osp.isdir('.git') : raise FileNotFoundError('.git')
 
-		if recurse :
-			git_cmd = ['git','submodule','--quiet','foreach','--recursive','echo $displaypath']
-			submodules = subprocess.check_output( git_cmd , universal_newlines=True ).splitlines()
+		if not _osp.isdir('.git') : raise FileNotFoundError('.git')
 
 		git_cmd = ['git','ls-files']
 		if recurse : git_cmd.append('--recurse-submodules')
-		srcs  = subprocess.check_output( git_cmd , universal_newlines=True ).splitlines()
-		srcs += ('.git/HEAD','.git/config','.git/index')
-		srcs += [_osp.join('.git',f) for f in ('HEAD','config','index') ]      # not listed by git, but actually a source as it is read by git ls-files
+		srcs = subprocess.check_output( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		if not srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
+		srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ]              # not listed by git, but actually sources as they are read by git ls-files
 
-		for submodule in submodules :
-			sub_git = _osp.join(submodule,'.git')
-			# XXX : fix using 'git submodule status' to detect and handle cases where submodules are not loaded but this creates more dependencies
-			if not _osp.exists(sub_git) and not ignore_missing_submodules : raise FileNotFoundError(f'cannot find git submodule {submodule}')
-			git_dir  = open(sub_git).readline().split()[1]
-			sub_git_dir  = _osp.normpath(_osp.join(_osp.dirname(sub_git),git_dir))
-			srcs    += ( sub_git , *( _osp.join(sub_git_dir,f) for f in ('HEAD','config','index') ) ) # not listed by git, but actually a source as it is read by git ls-files
+		if recurse :
+			git_cmd    = ('git','submodule','--quiet','foreach','--recursive','echo $displaypath')
+			submodules = subprocess.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			for submodule in submodules :
+				sub_git = _osp.join(submodule,'.git')
+				# XXX : fix using 'git submodule status' to detect and handle cases where submodules are not loaded but this creates more dependencies
+				if not _osp.exists(sub_git) and not ignore_missing_submodules : raise FileNotFoundError(f'cannot find git submodule {submodule}')
+				git_dir      = open(sub_git).readline().split()[1]
+				sub_git_dir  = _osp.normpath(_osp.join(_osp.dirname(sub_git),git_dir))
+				srcs        += ( sub_git , *( _osp.join(sub_git_dir,f) for f in ('HEAD','config','index') ) ) # not listed by git, but actually a source as it is read by git ls-files
 		return srcs
 
 	def auto_sources(**kwds) :

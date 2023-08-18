@@ -152,9 +152,9 @@ namespace Engine {
 
 	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      ( hide==Yes             ) color =                         Color::HiddenNote ;
-		else if (!node->has_actual_job()) color = hide==No ? Color::Err : Color::HiddenNote ;
-		else if ( node->err()           ) color =            Color::Err                     ;
+		if      ( hide==Yes                                         ) color =                         Color::HiddenNote ;
+		else if ( !node->has_actual_job() && !FileInfo(node.name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
+		else if ( node->err()                                       ) color =            Color::Err                     ;
 		//
 		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , lvl , pfx , node.name() ) ;
 	}
@@ -353,8 +353,9 @@ namespace Engine {
 						size_t            wk    = 0                      ;
 						for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
 						auto send_target = [&]( VarIdx ti , char star , Node t )->void {
-							bool m = rule->flags(ti)[TFlag::Match] ;
-							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( m?' ':'!' , star , ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
+							bool m = ti!=Rule::NoVar && rule->flags(ti)[TFlag::Match] ;
+							if (ti==Rule::NoVar) _send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( m?' ':'!' , star , ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
+							else                 _send_node( fd , ro , true/*always*/ , Yes     /*hide*/ , to_string(       '!' , star , ::setw(wk) , "<unexpected>"          ) , t , lvl ) ;
 						} ;
 						for( VarIdx t=0 ; t<sts.size() ; t++ ) send_target( t                   , ' ' , Node(sts[t]) ) ;
 						for( Target t : jt->star_targets     ) send_target( match.idx(t.name()) , '*' , t            ) ;

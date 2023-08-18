@@ -177,22 +177,21 @@ namespace Engine {
 		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
 		//
 		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
-			JobTgt              jt          { rt , name } ;
-			::string            reason      ;
-			Node                missing_dep ;
-			::vmap<Node,DFlags> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                   ; goto Report ; }
-			try                                            { static_deps = rt->create_match_attrs.eval(rt,m.stems) ;               }
-			catch (::string const&)                        { reason      = "cannot compute its deps"               ; goto Report ; }
+			JobTgt                      jt          { rt , name } ;
+			::string                    reason      ;
+			Node                        missing_dep ;
+			::vmap_s<pair<Node,DFlags>> static_deps ;
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                     ; goto Report ; }
+			try                                            { static_deps = rt->create_match_attrs.eval(rt,m.stems)   ;               }
+			catch (::string const& e)                      { reason      = to_string("cannot compute its deps : ",e) ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
-					for( VarIdx di=0 ; di<static_deps.size() ; di++ ) {
-						Node d = static_deps[di].first ;
-						if ( !static_deps[di].second[DFlag::Required]               ) continue ;
-						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
-						missing_key = rt->create_match_attrs.spec.full_dynamic ? ""s : rt->create_match_attrs.spec.deps[di].first ;
-						missing_dep = d                                                                                       ;
+					for( auto const& [k,df] : static_deps ) {
+						if ( !df.second[DFlag::Required]                                          ) continue ;
+						if ( search_non_buildable ? df.first->buildable!=No : df.first->makable() ) continue ;
+						missing_key = k        ;
+						missing_dep = df.first ;
 						goto Found ;
 					}
 			Found :
@@ -201,9 +200,10 @@ namespace Engine {
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
-			if ( !missing_dep                             ) (*this)->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
-			else                                            (*this)->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;
-			if ( +missing_dep && n_missing==1 && lvl<NErr ) _report_no_rule( missing_dep , lvl+2 ) ;
+			if (!missing_dep) (*this)->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
+			else              (*this)->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;
+			//
+			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
 		}
 		//
 		if (+art) (*this)->audit_info( Color::Note , to_string("anti-rule ",art->user_name()," matches") , lvl+1 ) ;
@@ -242,7 +242,7 @@ namespace Engine {
 		}
 	}
 
-	bool/*overflow*/ Req::_report_err( Dep const& dep , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
+	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri = dep.c_req_info(*this) ;
@@ -308,7 +308,7 @@ namespace Engine {
 				for( Node n : (*this)->clash_nodes ) (*this)->audit_node(Color::Warning,{},n,1) ;
 			}
 			if (job_err) {
-				JobNodeIdx   n_err       = NErr ;
+				size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
 				bool         seen_stderr = false ;
 				::uset<Job > seen_jobs   ;
 				::uset<Node> seen_nodes  ;
@@ -336,7 +336,7 @@ namespace Engine {
 		*this = ReqData() ;
 	}
 
-	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , JobNodeIdx& n_err , DepDepth lvl ) {
+	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
 		if (n_err) audit_node( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , node , lvl ) ;

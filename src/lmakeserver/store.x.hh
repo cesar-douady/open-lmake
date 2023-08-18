@@ -421,8 +421,7 @@ namespace Engine {
 		static MatchGen s_match_gen ;
 		// cxtors & casts
 		using Base::Base ;
-		constexpr RuleBase(Special         s ) : Base{RuleIdx(+s)} { SWEAR( +s && s!=Special::Unknown ) ; } // Special::0 is a marker that says not special
-		/**/      RuleBase(RuleData const& rd) ;
+		constexpr RuleBase(Special s ) : Base{RuleIdx(+s)} { SWEAR( +s && s!=Special::Unknown ) ; } // Special::0 is a marker that says not special
 		void invalidate_old() ;
 		// accesses
 		RuleData      & rule_data ()       ;

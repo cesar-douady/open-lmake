@@ -106,7 +106,7 @@ namespace Engine {
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
 		void audit_end_special( Req , SpecialStep , Node ) const ;
-		void audit_end_special( Req , SpecialStep        ) const ;
+		void audit_end_special( Req , SpecialStep        ) const ;             // cannot use default Node={} as Node is incomplete
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		//

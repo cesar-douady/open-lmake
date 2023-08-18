@@ -28,14 +28,15 @@ if getattr(sys,'reading_makefiles',False) :
 		target = '{File1}+{File2}'
 		def force() : return File2=='hello'
 		environ_cmd = { 'VAR' : file2 }
-		deps = {
-			'FIRST'  : '{File1}'
-		,	'SECOND' : file2
-		}
+		def deps() :
+			return {
+				'FIRST'  : File1
+			,	'SECOND' : file2()
+			}
 		def start_delay() : return File2=='hello'
 		def cmd() :
-			print(open(deps['FIRST']).read(),end='')
-			print(open(SECOND       ).read(),end='')
+			print(open(deps['FIRST' ]).read(),end='')
+			print(open(deps['SECOND']).read(),end='')
 			print(os.environ['VAR'])
 
 	class Cmp(lmake.Rule) :

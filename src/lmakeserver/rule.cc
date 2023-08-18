@@ -317,15 +317,15 @@ namespace Engine {
 		deps = mk_vmap(map) ;
 	}
 
-	::vmap<Node,DFlags> CreateMatchAttrs::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
+	::vmap_s<pair<Node,DFlags>> CreateMatchAttrs::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
 		auto subst = [&](::string const& d)->::string {
 			return _subst_target( d , [&](VarIdx s)->::string { return stems[s] ; } ) ;
 		} ;
-		::vmap<Node,DFlags> res ;
-		for( auto const& [k,ds] : deps ) res.emplace_back( subst(ds.pattern) , ds.flags ) ;
+		::vmap_s<pair<Node,DFlags>> res ;
+		for( auto const& [k,ds] : deps ) res.emplace_back( k , ::pair(Node(subst(ds.pattern)),ds.flags) ) ;
 		if (!s_easy(res,py_src,{})) {
 			::map_s<pair<Node,DFlags>> map ;
-			for( size_t d=0 ; d<deps.size() ; d++ ) map[deps[d].first] = res[d] ;
+			for( size_t d=0 ; d<deps.size() ; d++ ) map[deps[d].first] = res[d].second ;
 			PyObject*  py_key = nullptr/*garbage*/ ;
 			PyObject*  py_val = nullptr/*garbage*/ ;
 			Py_ssize_t pos    = 0                  ;
@@ -344,8 +344,8 @@ namespace Engine {
 				if (!full_dynamic) SWEAR(map.contains(key)) ;
 				map[key] = { rule->add_cwd(::move(dep)) , flags } ;
 			}
-			if (full_dynamic) for( auto const& [k,v] : map          ) res.push_back(v) ;
-			else              for( size_t d=0 ; d<deps.size() ; d++ ) res[d] = map[deps[d].first]  ;
+			if (full_dynamic) res = mk_vmap(map) ;
+			else              for( size_t d=0 ; d<deps.size() ; d++ ) res[d] = { deps[d].first , map[deps[d].first] } ;
 		}
 		return res ;
 	}
@@ -993,17 +993,17 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	::pair<vmap_ss,vmap_s<vmap_ss>> RuleData::eval_ctx(
+	::pair<vmap_ss,vmap_s<vmap_ss>> Rule::eval_ctx(
 		::vmap<CmdVar,VarIdx> const& ctx
 	,	::vector_s            const& stems_
 	,	::vector_s            const& targets_
 	,	::vector_view_c<Dep>  const& deps
 	,	::vector_s            const& rsrcs
 	) const {
-		auto const& stems_spec   = stems                         ;
-		auto const& targets_spec = targets                       ;
-		auto const& deps_spec    = create_match_attrs.spec.deps  ;
-		auto const& rsrcs_spec   = submit_rsrcs_attrs.spec.rsrcs ;
+		auto const& stems_spec   = (*this)->stems                         ;
+		auto const& targets_spec = (*this)->targets                       ;
+		auto const& deps_spec    = (*this)->create_match_attrs.spec.deps  ;
+		auto const& rsrcs_spec   = (*this)->submit_rsrcs_attrs.spec.rsrcs ;
 		::pair<vmap_ss,vmap_s<vmap_ss>> res ;
 		//
 		for( auto const& [k,i] : ctx ) {
@@ -1016,10 +1016,26 @@ namespace Engine {
 				case CmdVar::Dep    : var = deps_spec   [i].first ; str = +deps[i] ? deps    [i].name() : ""s ; goto Str ;
 				case CmdVar::Rsrc   : var = rsrcs_spec  [i].first ; str =            rsrcs   [i]              ; goto Str ;
 				//
-				case CmdVar::Stems   : var = "stems"     ; for(VarIdx j=0;j<n_static_stems     ;j++)                           dct.emplace_back(stems_spec  [j].first,stems_  [j]       ) ; goto Dct ;
-				case CmdVar::Targets : var = "targets"   ; for(VarIdx j=0;j<targets_spec.size();j++) if (!targets_[j].empty()) dct.emplace_back(targets_spec[j].first,targets_[j]       ) ; goto Dct ;
-				case CmdVar::Deps    : var = "deps"      ; for(VarIdx j=0;j<deps_spec   .size();j++) if (+deps    [j]        ) dct.emplace_back(deps_spec   [j].first,deps    [j].name()) ; goto Dct ;
-				case CmdVar::Rsrcs   : var = "resources" ; for(VarIdx j=0;j<rsrcs_spec  .size();j++)                           dct.emplace_back(rsrcs_spec  [j].first,rsrcs   [j]       ) ; goto Dct ;
+				case CmdVar::Stems :
+					var = "stems" ;
+					for( VarIdx j=0 ; j<(*this)->n_static_stems ; j++ ) dct.emplace_back( stems_spec[j].first , stems_[j] ) ;
+					goto Dct ;
+				case CmdVar::Targets :
+				var = "targets" ;
+				for( VarIdx j=0 ; j<targets_spec.size() ; j++ ) if (!targets_[j].empty()) dct.emplace_back( targets_spec[j].first , targets_[j] ) ;
+				goto Dct ;
+				case CmdVar::Deps :
+					var = "deps" ;
+					if ((*this)->create_match_attrs.spec.full_dynamic) {
+						for( auto const& [k,df] : (*this)->create_match_attrs.eval(*this,stems_) ) dct.emplace_back( k , df.first.name() ) ;
+					} else {
+						for( VarIdx j=0 ; j<deps_spec.size() ; j++ ) if (+deps[j]) dct.emplace_back( deps_spec[j].first , deps[j].name() ) ;
+					}
+					goto Dct ;
+				case CmdVar::Rsrcs :
+					var = "resources" ;
+					for( VarIdx j=0 ; j<rsrcs_spec.size() ; j++ ) dct.emplace_back( rsrcs_spec[j].first , rsrcs[j] ) ;
+					goto Dct ;
 				default : FAIL(k) ;
 			}
 		Str :

@@ -59,7 +59,7 @@ if getattr(sys,'reading_makefiles',False) :
 			autodep = ad
 			target  = f'{{File}}.py.dep.{ad}.{step.link_support}.cpy'
 			def cmd() :
-				lmake.depend(File)
+				lmake.depend(File,'/usr/bin/x')                                # check external dependencies are ok
 				print('yes')
 
 else :

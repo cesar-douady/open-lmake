@@ -76,19 +76,20 @@ void Record::exec( int at , const char* exe , bool no_follow , ::string const& c
 JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 	if (jerr.has_files()) {
 		SWEAR(jerr.auto_date) ;
-		bool     some_in_tmp = false               ;
-		::string c           = jerr.comment+".lnk" ;
-		for( auto& [f,dd] : jerr.files ) {
-			bool in_tmp ;
-			::tie(f,in_tmp)  = _solve(AT_FDCWD,f.c_str(),false/*no_follow*/,c) ;
-			dd               = file_date(s_get_root_fd(),f)                    ;
-			some_in_tmp     |= in_tmp                                          ;
+		bool               some_in_tmp = false               ;
+		::string           c           = jerr.comment+".lnk" ;
+		::vmap_s<DiskDate> files       ;
+		for( auto const& [f,dd] : jerr.files ) {
+			::pair_s<bool/*in_tmp*/> sr = _solve(AT_FDCWD,f.c_str(),false/*no_follow*/,c) ;
+			if (!sr.first.empty()) files.emplace_back( sr.first , file_date(s_get_root_fd(),sr.first) ) ;
+			some_in_tmp |= sr.second ;
 		}
-		jerr.auto_date = false ;                                               // files are now physical and dated
+		jerr.files     = ::move(files) ;
+		jerr.auto_date = false         ;                                       // files are now physical and dated
 		if ( some_in_tmp && jerr.info.write ) _report(JobExecRpcProc::Tmp) ;
 	}
-	jerr.date = ProcessDate::s_now() ;                                         // ensure date is posterior to links encountered while solving
-	jerr.comment += ".backdoor" ;
+	jerr.date     = ProcessDate::s_now() ;                                     // ensure date is posterior to links encountered while solving
+	jerr.comment += ".backdoor"          ;
 	_report(jerr) ;
 	if (jerr.sync) return get_reply_cb() ;
 	else           return {}             ;

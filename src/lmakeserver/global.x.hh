@@ -137,6 +137,7 @@ namespace Engine {
 			::serdes(s,heartbeat            ) ;
 			::serdes(s,lnk_support          ) ;
 			::serdes(s,max_dep_depth        ) ;
+			::serdes(s,max_err_lines        ) ;
 			::serdes(s,network_delay        ) ;
 			::serdes(s,trace_sz             ) ;
 			::serdes(s,path_max             ) ;
@@ -157,6 +158,7 @@ namespace Engine {
 		Time::Delay    heartbeat                                       ;
 		LnkSupport     lnk_support                                     = LnkSupport::Full ;
 		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
+		size_t         max_err_lines                                   = 0                ; // unlimited
 		Time::Delay    network_delay                                   ;
 		size_t         trace_sz                                        = 0                ;
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited

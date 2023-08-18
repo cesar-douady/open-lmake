@@ -92,9 +92,9 @@ namespace Engine {
 		/**/                 ::string _color_pfx(Color ) const ;
 		/**/                 ::string _color_sfx(Color ) const ;
 		//
-		bool/*overflow*/ _report_err    ( Dep const& , JobNodeIdx& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
-		void             _report_cycle  ( Node                                                                                                                    ) ;
-		void             _report_no_rule( Node                                                                                                   , DepDepth lvl=0 ) ;
+		bool/*overflow*/ _report_err    ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
+		void             _report_cycle  ( Node                                                                                                                ) ;
+		void             _report_no_rule( Node                                                                                               , DepDepth lvl=0 ) ;
 	} ;
 
 	struct ReqStats {
@@ -302,7 +302,7 @@ namespace Engine {
 			return Disk::localize(file,options.startup_dir_s) ;
 		}
 	private :
-		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , JobNodeIdx& n_err , DepDepth lvl ) ;
+		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , size_t& n_err , DepDepth lvl ) ;
 		// data
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;

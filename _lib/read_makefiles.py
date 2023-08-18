@@ -112,14 +112,6 @@ def mk_snake(txt) :
 		start_of_word = not c.isalnum()
 	return ''.join(res)
 
-def fmt_entry(kind,entry) :
-	if       isinstance(entry,str         ) : flags = ()
-	elif not isinstance(entry,(tuple,list)) : raise TypeError(f'bad format for {kind} {k} of type {entry.__class__.__name__}')
-	elif not entry                          : raise TypeError(f'cannot find {kind} {k} in empty entry')
-	elif not isinstance(entry[0],str)       : raise TypeError(f'bad format for {kind} {k} of type {entry[0].__class__.__name__}')
-	else                                    : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
-	return (entry,*flags)
-
 def no_match(target) :
 	return '-match' in target[1:]
 
@@ -288,6 +280,13 @@ class Handle :
 		return ( static_val , ctx , code , tuple(names) )
 
 	def handle_targets(self) :
+		def fmt(key,entry) :
+			if       isinstance(entry,str         ) : flags = ()
+			elif not isinstance(entry,(tuple,list)) : raise TypeError(f'bad format for target {key} of type {entry.__class__.__name__}')
+			elif not entry                          : raise TypeError(f'cannot find target {key} in empty entry')
+			elif not isinstance(entry[0],str)       : raise TypeError(f'bad format for target {key} of type {entry[0].__class__.__name__}')
+			else                                    : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
+			return (entry,*flags)
 		if 'target' in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
 		if   'target'      in self.attrs                          : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
 		elif 'post_target' in self.attrs                          : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
@@ -295,8 +294,8 @@ class Handle :
 		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
 		#
 		self.rule_rep.targets = {
-			**{ k:fmt_entry('target',t) for k,t in               self.attrs.targets     .items()   }
-		,	**{ k:fmt_entry('target',t) for k,t in reversed(list(self.attrs.post_targets.items())) }
+			**{ k:fmt(k,t) for k,t in               self.attrs.targets     .items()   }
+		,	**{ k:fmt(k,t) for k,t in reversed(list(self.attrs.post_targets.items())) }
 		}
 
 	def handle_job_name(self) :
@@ -357,7 +356,6 @@ class Handle :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
 		if callable(self.attrs.deps) :
-			raise NotImplementedError('callable deps as a whole not yet implemented')
 			self.static_val  = None                                                   # for deps, a None static value means all keys are allowed
 			self.dynamic_val = self.attrs.deps
 		else :

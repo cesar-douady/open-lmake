@@ -56,6 +56,13 @@ namespace Engine {
 		::string job_sfx() const ;
 		// services
 		void new_job_exec_time( Delay , Tokens ) ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> eval_ctx(
+			::vmap<CmdVar,VarIdx> const& ctx
+		,	::vector_s            const& stems
+		,	::vector_s            const& targets
+		,	::vector_view_c<Dep>  const& deps
+		,	::vector_s            const& rsrcs
+		) const ;
 	} ;
 
 }
@@ -100,7 +107,7 @@ namespace Engine {
 			::serdes(s,full_dynamic) ;
 			::serdes(s,deps) ;
 		}
-		::vmap<Node,DFlags> mk( Rule , ::vector_s const& stems , PyObject* py_src=nullptr ) const ;
+		::vmap_s<pair<Node,DFlags>> mk( Rule , ::vector_s const& stems , PyObject* py_src=nullptr ) const ;
 		// data
 		bool              full_dynamic = false ;           // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
 		::vmap_s<DepSpec> deps         ;
@@ -333,7 +340,7 @@ namespace Engine {
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap<Node,DFlags> eval( Rule , ::vector_s const& stems ) const ;
+		::vmap_s<pair<Node,DFlags>> eval( Rule , ::vector_s const& stems ) const ;
 	} ;
 
 	struct RuleData {
@@ -384,13 +391,6 @@ namespace Engine {
 		}
 
 		// services
-		::pair<vmap_ss,vmap_s<vmap_ss>> eval_ctx(
-			::vmap<CmdVar,VarIdx> const& ctx
-		,	::vector_s            const& stems
-		,	::vector_s            const& targets
-		,	::vector_view_c<Dep>  const& deps
-		,	::vector_s            const& rsrcs
-		) const ;
 		::string add_cwd(::string&& file) const {
 			if      (file[0]=='/' ) return file.substr(1) ;
 			else if (cwd_s.empty()) return ::move(file)   ;                    // fast path
@@ -663,7 +663,7 @@ namespace Engine {
 	}
 
 	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vector_s const& rsrcs ) const {
-		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r->eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r.eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not...
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::unique_lock lock{_glbs_mutex} ;                                      // ensure glbs is not used simultaneously for several jobs
@@ -715,14 +715,14 @@ namespace Engine {
 		return res  ;
 	}
 
-	inline ::vmap<Node,DFlags> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
+	inline ::vmap_s<pair<Node,DFlags>> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
 		if (!is_dynamic) return spec.mk(r,stems) ;
 		SWEAR( !need_deps && !need_rsrcs ) ;
 		Py::Gil   gil ;
 		PyObject* d   ;
 		if (need_targets) d = _mk_dict( r , stems , Rule::SimpleMatch(r,stems).targets() ) ;
 		else              d = _mk_dict( r , stems                                        ) ;
-		::vmap<Node,DFlags> res = spec.mk(r,stems,d) ;
+		::vmap_s<pair<Node,DFlags>> res = spec.mk(r,stems,d) ;
 		Py_DECREF(d) ;
 		return res  ;
 	}

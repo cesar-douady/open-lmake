@@ -57,9 +57,6 @@ static_assert(NExecGen>=3) ;
 // the average value kept in rule is the weighted average between old average value and job value with weiths RuleWeight and 1
 static constexpr NodeIdx RuleWeight = 100 ;
 
-// max number of reported errors when list is not reasonably bounded by some other means
-static constexpr uint32_t NErr = 30 ;
-
 // number of job traces to keep (indexed by unique id)
 static constexpr SeqId JobHistorySz = 1000 ;
 

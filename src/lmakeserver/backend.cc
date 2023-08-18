@@ -115,7 +115,8 @@ namespace Backends {
 						Rule::SimpleMatch match    = job.simple_match()     ;
 						in_addr_t         job_addr = fd.peer_addr()         ;
 						SmallId           small_id = _s_small_ids.acquire() ;
-						bool              keep_tmp = start_none_attrs.keep_tmp  ; for( ReqIdx r : entry.reqs ) if (Req(r)->options.flags[ReqFlag::KeepTmp]) keep_tmp = true ;
+						bool              keep_tmp = start_none_attrs.keep_tmp ; for( ReqIdx r : entry.reqs ) if (Req(r)->options.flags[ReqFlag::KeepTmp]) keep_tmp = true ;
+						::string          tmp_dir  = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
 						//
 						job.fill_rpc_reply( reply , match , entry.rsrcs ) ;
 						for( ::pair_ss const& kv : start_cmd_attrs  .env ) reply.env.push_back(kv) ;
@@ -151,9 +152,8 @@ namespace Backends {
 					//	reply.stdout                                            // from job.fill_rpc_reply above
 					//	reply.targets                                           // from job.fill_rpc_reply above
 						reply.timeout          = start_rsrcs_attrs.timeout   ;
-						reply.remote_admin_dir = *g_remote_admin_dir     ;
-						//
-						reply.job_tmp_dir      = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
+						reply.remote_admin_dir = *g_remote_admin_dir         ;
+						reply.job_tmp_dir      = ::move(tmp_dir)             ;
 						//
 						report_unlink = job.wash(match) ;
 						entry.conn.job_addr = job_addr ;

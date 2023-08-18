@@ -123,7 +123,7 @@ namespace Engine {
 		//
 		if (r->stdout_idx!=Rule::NoVar) jrr.stdout =                       targets[r->stdout_idx]                       ;
 		if (r->stdin_idx !=Rule::NoVar) jrr.stdin  = +deps[r->stdin_idx] ? deps   [r->stdin_idx ].name() : "/dev/null"s ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> ctx = r->eval_ctx( r->cmd_ctx , match_.stems , targets , deps , rsrcs ) ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> ctx = r.eval_ctx( r->cmd_ctx , match_.stems , targets , deps , rsrcs ) ;
 		if (r->is_python) {
 			for( auto const& [var,str] : ctx.first ) append_to_string( jrr.script , var ," = ", mk_py_str(str) ,'\n') ;
 			for( auto const& [var,dct] : ctx.second ) {
@@ -212,8 +212,8 @@ namespace Engine {
 		if (!match_) { trace("no_match") ; return ; }
 		::vmap<Node,DFlags> deps ;
 		try {
-			deps = rule_tgt->create_match_attrs.eval(rule_tgt,match_.stems) ;
-		} catch (::string const&) {                                            // XXX : generate error message
+			deps = mk_val_vector(rule_tgt->create_match_attrs.eval(rule_tgt,match_.stems)) ;
+		} catch (::string const&) {                                                          // XXX : generate error message
 			trace("no_dep_subst") ;
 			return ;
 		}
@@ -958,9 +958,9 @@ namespace Engine {
 			case Special::Infinite : {
 				Deps const& deps        = (*this)->deps ;
 				size_t      n_all_deps  = deps.size()   ;
-				size_t      n_show_deps = n_all_deps    ; if (n_show_deps>NErr) n_show_deps = NErr-1 ; // NErr lines, including ...
+				size_t      n_show_deps = n_all_deps    ; if ( g_config.max_err_lines && n_show_deps>g_config.max_err_lines ) n_show_deps = g_config.max_err_lines-1 ; // including last line (...)
 				for( size_t i=1 ; i<=n_show_deps ; i++ ) res << deps[n_all_deps-i].name() << '\n' ;
-				if (deps.size()>NErr) res << "...\n" ;
+				if ( g_config.max_err_lines && deps.size()>g_config.max_err_lines ) res << "...\n" ;
 			} break ;
 			case Special::Src :
 				if ((*this)->status>=Status::Err) {
@@ -1021,9 +1021,10 @@ namespace Engine {
 			case Special::Src : {
 				SWEAR((*this)->rule->n_static_targets==0) ;
 				//
-				::string    tn = name()                                                                   ;
-				UNode       t  { tn }                                                                     ;
-				SpecialStep ss = _update_frozen_target( true/*is_src*/ , *this , t , tn , 0/*not_star*/ ) ;
+				::string    tn = name()                                                                    ;
+				UNode       un { tn }                                                                      ;
+				SpecialStep ss = _update_frozen_target( true/*is_src*/ , *this , un , tn , 0/*not_star*/ ) ;
+				un->actual_job_tgt = {*this,true/*is_sure*/} ;
 				if ((*this)->frozen()) (*this)->status = ss<SpecialStep::Err ? Status::Frozen : Status::ErrFrozen ;
 				else                   (*this)->status = ss<SpecialStep::Err ? Status::Ok     : Status::Err       ;
 				audit_end_special(req,ss) ;

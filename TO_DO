@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* deps in cmd does not work
 ! sometimes losing terminal colors
 	- hard to reproduce
 
@@ -20,10 +19,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* allow def deps() : ...
-	- either return a list
-	- or a dict, keys being of secondary interest
-		- in that case, find a place to store the keys that are no more in the rule
+* allow def resources() : ...
+	- change backend interface so backend reply a map of resources rather than a vector
+	- search by key, rather than by index for named resources
+	- provide the whole map returned by backend fo the 'resources' global var
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -67,6 +66,9 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* split 2 notions
+	- root of repository
+	- location of Lmakefile.py
 * implement a compilation rule py->pyc
 	- and user python -B
 * result cache v2 (copy & link) :
@@ -168,8 +170,6 @@ items :
 * improve unit_test/dynamic.py to include more dynamic features
 * ancillary commands to unit tests
 	- lcheck_deps, ...
-* lmake module
-	- depend, ...
 * gcov
 * idx overflow
 	- check with 8-bits indexes
@@ -192,7 +192,7 @@ items :
 * implement a file dump
 	- put a header in files so that format can be automatically recognized
 	- suitable for use in vim
-* develop lmake under lmake
+! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script
 ? make a navigation tool based on Neo4J or a similarly complete tool

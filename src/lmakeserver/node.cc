@@ -206,10 +206,15 @@ namespace Engine {
 		try                                  { set_buildable() ;                  }
 		//                                     ^^^^^^^^^^^^^^^
 		catch (::vmap<Node,DFlags> const& e) { set_special(Special::Infinite,e) ; }
-		if ((*this)->buildable==No) {                                              // avoid allocating ReqInfo for non-buildable Node's
+		if ((*this)->buildable==No) {                                               // avoid allocating ReqInfo for non-buildable Node's
 			SWEAR(make_action<MakeAction::Dec) ;
 			SWEAR(!cri.has_watchers()        ) ;
 			trace("not_buildable",cri) ;
+			if ( (*this)->crc!=Crc::None && manual_ok()==Maybe ) {             // if file has been removed, everything is ok again : file is not buildable and does not exist
+				UNode un{*this} ;
+				un.refresh( false/*is_lnk*/ , Crc::None , DiskDate::s_now() ) ;
+				un.share() ;                                                    // now that there is no more crc, maybe node is sharable
+			}
 			return cri ;
 		}
 		ReqInfo& ri = req_info(cri) ;                                          // past this point, cri must not be used as it may be obsolete, use ri instead
@@ -292,10 +297,11 @@ namespace Engine {
 				}
 				trace("make_job",ri,clean,action,*it) ;
 				Job::ReqInfo& jri = it->req_info(req) ;
-				jri.live_out = ri.live_out ;                                                       // transmit user request to job for last level live output
-				//                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (action!=RunAction::None) it->make(jri,action, {JobReasonTag::NoTarget,+*this} ) ;
-				//                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				jri.live_out = ri.live_out ;                                                                 // transmit user request to job for last level live output
+				//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if      (action==RunAction::Run ) it->make( jri , action , {JobReasonTag::NoTarget,+*this} ) ;
+				else if (action!=RunAction::None) it->make( jri , action                                   ) ;
+				//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (jri.waiting()          ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
 				if (it->produces(*this)==No) {                                             continue ; }
 				if (prod_idx==NoIdx        ) { prod_idx = it.idx ;                                    }

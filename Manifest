@@ -128,6 +128,8 @@ unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py
 unit_tests/jobs.py
+unit_tests/misc1.py
+unit_tests/misc2.py
 unit_tests/name.py
 unit_tests/numba.py
 unit_tests/numpy.py
