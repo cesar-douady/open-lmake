@@ -252,6 +252,7 @@ class Handle :
 			elif not isinstance(v,str) : sv[k] = v
 			elif SimpleStrRe.match(v)  : sv[k] = static_fstring(v)             # v has no variable parts, make it a static value
 			else                       : dv[k] = f_str(v)                      # mark v so it is generated as an f-string
+		for k in dv.keys() : sv[k] = None                                      # ensure key is in static val so that it is seen from cmd
 		if sv : self.static_val [key] = sv
 		if dv : self.dynamic_val[key] = dv
 
@@ -270,6 +271,10 @@ class Handle :
 		if callable(x) : self.dynamic_val[key] = x
 		else           : self.static_val [key] = x
 
+	def _init(self) :
+		self.static_val  = pdict()
+		self.dynamic_val = pdict()
+
 	def _finalize(self) :
 		static_val  = self.static_val
 		dynamic_val = self.dynamic_val
@@ -287,9 +292,9 @@ class Handle :
 			elif not isinstance(entry[0],str)       : raise TypeError(f'bad format for target {key} of type {entry[0].__class__.__name__}')
 			else                                    : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
 			return (entry,*flags)
-		if 'target' in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
-		if   'target'      in self.attrs                          : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
-		elif 'post_target' in self.attrs                          : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
+		if   'target' in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
+		if   'target'      in self.attrs                            : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
+		elif 'post_target' in self.attrs                            : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
 		bad_keys = set(self.attrs.targets) & set(self.attrs.post_targets)
 		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
 		#
@@ -333,9 +338,6 @@ class Handle :
 			raise TypeError('cannot mix Python & shell along the inheritance hierarchy')
 		else :
 			raise TypeError('bad cmd type')
-	def _init(self) :
-		self.static_val  = pdict()
-		self.dynamic_val = pdict()
 
 	def handle_create_none(self) :
 		self._init()
@@ -384,7 +386,7 @@ class Handle :
 		self._handle_dict('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.per_job.add('resources')
-		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].rsrcs
+		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
 	def handle_start_cmd(self) :

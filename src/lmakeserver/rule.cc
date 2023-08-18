@@ -633,7 +633,7 @@ namespace Engine {
 				if (dct.hasKey("create_match_attrs")) create_match_attrs = { Py::Object(dct["create_match_attrs"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
 			}
 			//
-			/**/                                                            var_idxs["deps"                           ] = { CmdVar::Deps , 0 } ;
+			/**/                                                            var_idxs["deps"                               ] = { CmdVar::Deps , 0 } ;
 			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
 			if (dct.hasKey("create_none_attrs" )) create_none_attrs  = { Py::Object(dct["create_none_attrs" ]).ptr() , var_idxs } ;
@@ -641,7 +641,7 @@ namespace Engine {
 			if (dct.hasKey("cache_none_attrs"  )) cache_none_attrs   = { Py::Object(dct["cache_none_attrs"  ]).ptr() , var_idxs } ;
 			if (dct.hasKey("submit_rsrcs_attrs")) submit_rsrcs_attrs = { Py::Object(dct["submit_rsrcs_attrs"]).ptr() , var_idxs } ;
 			//
-			/**/                                                             var_idxs["resources"                       ] = { CmdVar::Rsrcs , 0 } ;
+			/**/                                                             var_idxs["resources"                           ] = { CmdVar::Rsrcs , 0 } ;
 			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
 			//
 			if (dct.hasKey("start_cmd_attrs"  )) start_cmd_attrs   = { Py::Object(dct["start_cmd_attrs"  ]).ptr() , var_idxs } ;
@@ -805,12 +805,14 @@ namespace Engine {
 			res += sep ;
 			sep = " , " ;
 			switch (cmd_var) {
-				case CmdVar::Stem    : res += rd.stems                       .at(idx).first ; break ;
-				case CmdVar::Target  : res += rd.targets                     .at(idx).first ; break ;
-				case CmdVar::Dep     : res += rd.create_match_attrs.spec.deps.at(idx).first ; break ;
-				case CmdVar::Stems   : res += "stems"                                       ; break ;
-				case CmdVar::Targets : res += "targets"                                     ; break ;
-				case CmdVar::Deps    : res += "deps"                                        ; break ;
+				case CmdVar::Stem    : res += rd.stems                        .at(idx).first ; break ;
+				case CmdVar::Target  : res += rd.targets                      .at(idx).first ; break ;
+				case CmdVar::Dep     : res += rd.create_match_attrs.spec.deps .at(idx).first ; break ;
+				case CmdVar::Rsrc    : res += rd.submit_rsrcs_attrs.spec.rsrcs.at(idx).first ; break ;
+				case CmdVar::Stems   : res += "stems"                                        ; break ;
+				case CmdVar::Targets : res += "targets"                                      ; break ;
+				case CmdVar::Deps    : res += "deps"                                         ; break ;
+				case CmdVar::Rsrcs   : res += "resources"                                    ; break ;
 				default : FAIL(cmd_var) ;
 			}
 		}
@@ -998,13 +1000,14 @@ namespace Engine {
 	,	::vector_s            const& stems_
 	,	::vector_s            const& targets_
 	,	::vector_view_c<Dep>  const& deps
-	,	::vector_s            const& rsrcs
+	,	::vmap_ss             const& rsrcs
 	) const {
-		auto const& stems_spec   = (*this)->stems                         ;
-		auto const& targets_spec = (*this)->targets                       ;
-		auto const& deps_spec    = (*this)->create_match_attrs.spec.deps  ;
-		auto const& rsrcs_spec   = (*this)->submit_rsrcs_attrs.spec.rsrcs ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> res ;
+		auto const&                     stems_spec   = (*this)->stems                         ;
+		auto const&                     targets_spec = (*this)->targets                       ;
+		auto const&                     deps_spec    = (*this)->create_match_attrs.spec.deps  ;
+		auto const&                     rsrcs_spec   = (*this)->submit_rsrcs_attrs.spec.rsrcs ;
+		::umap_ss                       rsrcs_map    = mk_umap(rsrcs)                         ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> res          ;
 		//
 		for( auto const& [k,i] : ctx ) {
 			::string  var ;
@@ -1014,7 +1017,13 @@ namespace Engine {
 				case CmdVar::Stem   : var = stems_spec  [i].first ; str =            stems_  [i]              ; goto Str ;
 				case CmdVar::Target : var = targets_spec[i].first ; str =            targets_[i]              ; goto Str ;
 				case CmdVar::Dep    : var = deps_spec   [i].first ; str = +deps[i] ? deps    [i].name() : ""s ; goto Str ;
-				case CmdVar::Rsrc   : var = rsrcs_spec  [i].first ; str =            rsrcs   [i]              ; goto Str ;
+				case CmdVar::Rsrc   : {
+					var = rsrcs_spec[i].first ;
+					auto it = rsrcs_map.find(var) ;
+					if (it==rsrcs_map.end()) continue ;                        // if resource is not found, do not set corresponding variable
+					str = it->second ;
+					goto Str ;
+				}
 				//
 				case CmdVar::Stems :
 					var = "stems" ;
@@ -1034,7 +1043,7 @@ namespace Engine {
 					goto Dct ;
 				case CmdVar::Rsrcs :
 					var = "resources" ;
-					for( VarIdx j=0 ; j<rsrcs_spec.size() ; j++ ) dct.emplace_back( rsrcs_spec[j].first , rsrcs[j] ) ;
+					dct = rsrcs       ;
 					goto Dct ;
 				default : FAIL(k) ;
 			}

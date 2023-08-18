@@ -318,10 +318,7 @@ namespace Backends {
 		s_service_ready.wait() ;
 	}
 
-	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , bool live_out , ::vector_s&& rsrcs , JobReason reason ) {
-		::vmap_ss const& rsrcs_spec = Job(job)->rule->submit_rsrcs_attrs.spec.rsrcs ;
-		SWEAR( rsrcs_spec.empty() || rsrcs_spec.size()==rsrcs.size() ) ;
-		//
+	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , bool live_out , ::vmap_ss&& rsrcs , JobReason reason ) {
 		Trace trace("acquire_cmd_line",tag,job,reason) ;
 		SWEAR(!_s_mutex.try_lock()       ) ;
 		SWEAR(!_s_start_tab.contains(job)) ;

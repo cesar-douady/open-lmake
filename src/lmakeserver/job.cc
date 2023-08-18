@@ -116,7 +116,7 @@ namespace Engine {
 		return report_unlink ;
 	}
 
-	void Job::fill_rpc_reply( JobRpcReply& jrr , Rule::SimpleMatch const& match_ , ::vector_s const& rsrcs ) const {
+	void Job::fill_rpc_reply( JobRpcReply& jrr , Rule::SimpleMatch const& match_ , ::vmap_ss const& rsrcs ) const {
 		Rule        r       = (*this)->rule    ;
 		::vector_s  targets = match_.targets() ;
 		auto const& deps    = (*this)->deps    ;

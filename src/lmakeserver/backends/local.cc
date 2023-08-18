@@ -200,8 +200,10 @@ namespace Backends::Local {
 
 		// services
 		virtual void config(Config::Backend const& config) {
-			int i = 0 ;
-			for( auto const& [k,v] : config.dct ) rsrc_idxs[k] = i++ ;
+			for( auto const& [k,v] : config.dct ) {
+				rsrc_idxs[k] = rsrc_keys.size() ;
+				rsrc_keys.push_back(k) ;
+			}
 			capacity = RsrcsData( *this , config.dct ) ;
 			avail    = capacity                        ;
 			Trace("config",MyTag,"avail_rsrcs",'=',capacity) ;
@@ -379,10 +381,8 @@ namespace Backends::Local {
 					auto                  wit            = waiting_map.find(job) ;
 					Rsrcs2 const&         rsrcs2         = candidate->first      ;
 					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
-					RsrcsData const&      rsrcs_data     = *rsrcs                ;
 					//
-					::vector_s rsrcs_vec ; for( auto const& [k,_] : Job(job)->rule->submit_rsrcs_attrs.spec.rsrcs ) rsrcs_vec.push_back(to_string(rsrcs_data[rsrc_idxs.at(k)])) ;
-					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , ::move(rsrcs_vec) , wit->second.reason ) ;
+					::vector_s cmd_line  = acquire_cmd_line( MyTag , job , wit->second.live_out , rsrcs->vmap(*this) , wit->second.reason ) ;
 					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					Child child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
 					//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -434,6 +434,7 @@ namespace Backends::Local {
 		::umap<JobIdx,WaitingEntry> waiting_map ;
 		::umap<JobIdx,RunningEntry> running_map ;
 		::umap_s<size_t>            rsrc_idxs   ;
+		::vector_s                  rsrc_keys   ;
 		RsrcsData                   capacity    ;
 		RsrcsData                   avail       ;
 	private :
@@ -444,19 +445,21 @@ namespace Backends::Local {
 	bool _inited = (LocalBackend::s_init(),true) ;
 
 	inline RsrcsData::RsrcsData( LocalBackend const& self , ::vmap_ss const& m ) {
-		resize(self.rsrc_idxs.size()) ;
+		resize(self.rsrc_keys.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+			SWEAR(it->second<size()) ;
 			try        { ::istringstream(v)>>(*this)[it->second] ;                           }
 			catch(...) { throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()) ; }
 		}
 	}
 	inline RsrcsData2::RsrcsData2( LocalBackend const& self , ::vmap_ss const& m ) {
-		resize(self.rsrc_idxs.size()) ;
+		resize(self.rsrc_keys.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",MyTag) ;
+			SWEAR(it->second<size()) ;
 			try {
 				size_t pos = v.find('<') ;
 				if (pos==Npos) {
@@ -474,8 +477,8 @@ namespace Backends::Local {
 	}
 
 	::vmap_ss RsrcsData::vmap(LocalBackend const& self) const {
-		::vmap_ss res ; res.reserve(self.rsrc_idxs.size()) ;
-		for( auto const& [k,i] : self.rsrc_idxs ) res.emplace_back(k,to_string((*this)[i])) ;
+		::vmap_ss res ; res.reserve(self.rsrc_keys.size()) ;
+		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) res.emplace_back( self.rsrc_keys[i] , to_string((*this)[i]) ) ;
 		return res ;
 	}
 

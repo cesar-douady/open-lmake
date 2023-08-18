@@ -61,7 +61,7 @@ namespace Engine {
 		,	::vector_s            const& stems
 		,	::vector_s            const& targets
 		,	::vector_view_c<Dep>  const& deps
-		,	::vector_s            const& rsrcs
+		,	::vmap_ss             const& rsrcs
 		) const ;
 	} ;
 
@@ -319,10 +319,10 @@ namespace Engine {
 			return *this ;
 		}             // .
 		// services
-		void compile(                                 ) ;
-		T    eval   (Job , ::vector_s const& rsrcs={} ) const ;
+		void compile(                                ) ;
+		T    eval   (Job , ::vmap_ss const& rsrcs={} ) const ;
 	protected :
-		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vector_s const& rsrcs={} ) const ;
+		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vmap_ss const& rsrcs={} ) const ;
 		// data
 		// not stored on disk
 		PyObject* glbs = nullptr ;     // if is_dynamic <=> dict to use as globals when executing code
@@ -576,8 +576,8 @@ namespace Engine {
 		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
 		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
 		for( size_t i=0 ; i<n ; i++ ) {
+			if (i>=dst.size()) dst.push_back(T()) ;                            // create empty entry
 			if (p[i]==Py_None) continue ;
-			if (i>=dst.size()) dst.push_back(T()) ;
 			try                       { s_acquire(dst.back(),p[i]) ;             }
 			catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
 		}
@@ -595,7 +595,7 @@ namespace Engine {
 		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
 			if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
 			const char* key = PyUnicode_AsUTF8(py_key) ;
-			if (py_val==Py_None) { map.erase(key) ; continue ; }
+			if (py_val==Py_None) { map[key] ; continue ; }                     // create empty entry
 			try { s_acquire(map[key],py_val) ; }
 			catch (::string const& e) { throw to_string("for item ",key," : ",e) ; }
 		}
@@ -662,7 +662,7 @@ namespace Engine {
 		Py_DECREF(val) ;
 	}
 
-	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vector_s const& rsrcs ) const {
+	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vmap_ss const& rsrcs ) const {
 		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r.eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not...
 		// be seen by these functions, which is the whole purpose of such dynamic values
@@ -696,7 +696,7 @@ namespace Engine {
 		return d ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job j , ::vector_s const& rsrcs ) const {
+	template<class T> T Dynamic<T>::eval( Job j , ::vmap_ss const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
 		//
 		Py::Gil   gil ;

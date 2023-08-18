@@ -17,7 +17,6 @@ int main( int argc , char* /*argv*/[] ) {
 	if (argc!=1) exit(2,"must be called without arg") ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	Py::init() ;
-	::cout << left ;
 	//
 	EngineStore::s_keep_config   (false/*rescue*/) ;
 	EngineStore::s_keep_makefiles(               ) ;

@@ -26,6 +26,7 @@ void print_req(::istream & s) {
 	auto jrr = deserialize<JobRpcReq>(s) ;
 	SWEAR(jrr.proc==JobProc::Start) ;
 	::cout << "--req--\n" ;
+	//
 	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
 	::cout << "job    : " << jrr.job    <<'\n' ;
 	::cout << "host   : " << jrr.host   <<'\n' ;
@@ -35,6 +36,7 @@ void print_start(::istream & s) {
 	auto jrr = deserialize<JobRpcReply>(s) ;
 	SWEAR(jrr.proc==JobProc::Start) ;
 	::cout << "--start--\n" ;
+	//
 	::cout << "addr           : "  << hex<<jrr.addr          <<dec <<'\n' ;
 	::cout << "ancillary_file : "  <<      jrr.ancillary_file      <<'\n' ;
 	::cout << "auto_mkdir     : "  <<      jrr.auto_mkdir          <<'\n' ;
@@ -56,27 +58,27 @@ void print_start(::istream & s) {
 	::cout << "targets        : "  <<      jrr.targets             <<'\n' ;
 	::cout << "timeout        : "  <<      jrr.timeout             <<'\n' ;
 	//
-	::cout << "rsrcs :\n"       ; _print_vector(jrr.rsrcs      )      ;
+	::cout << "rsrcs :\n"       ; _print_map   (jrr.rsrcs      )      ;
 	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)      ;
 	::cout << "env :\n"         ; _print_map   (jrr.env        )      ;
 	::cout << "script :\n"      ; ::cout << indent(jrr.script) <<'\n' ;
 }
 
 void print_end(::istream & s) {
-	auto jrr = deserialize<JobRpcReq>(s) ;
+	auto             jrr = deserialize<JobRpcReq>(s) ;
+	JobDigest const& jd  = jrr.digest                ;
+	JobStats  const& st  = jd.stats                  ;
 	SWEAR(jrr.proc==JobProc::End) ;
+	//
 	::cout << "--end--\n" ;
 	//
-	JobDigest const & jd = jrr.digest ;
 	::cout << "digest.status      : " << jd.status   <<'\n' ;
 	::cout << "digest.wstatus     : " << jd.wstatus  <<'\n' ;
 	::cout << "digest.end_date    : " << jd.end_date <<'\n' ;
-	//
-	JobStats const& st = jd.stats ;
-	::cout << "digest.stats.cpu   : " << st.cpu   <<'\n' ;
-	::cout << "digest.stats.job   : " << st.job   <<'\n' ;
-	::cout << "digest.stats.total : " << st.total <<'\n' ;
-	::cout << "digest.stats.mem   : " << st.mem   <<'\n' ;
+	::cout << "digest.stats.cpu   : " << st.cpu      <<'\n' ;
+	::cout << "digest.stats.job   : " << st.job      <<'\n' ;
+	::cout << "digest.stats.total : " << st.total    <<'\n' ;
+	::cout << "digest.stats.mem   : " << st.mem      <<'\n' ;
 	//
 	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )       ;
 	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )       ;
@@ -86,12 +88,11 @@ void print_end(::istream & s) {
 }
 
 int main( int argc , char* argv[] ) {
-	//
 	if (argc!=2) exit(2,"usage : ldump_job file") ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
-	::cout << ::left ;
 	//
-	IFStream job_stream{ argv[1] } ;
+	IFStream job_stream{argv[1]} ;
+	//
 	print_req  (job_stream) ;
 	print_start(job_stream) ;
 	print_end  (job_stream) ;

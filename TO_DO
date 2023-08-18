@@ -14,15 +14,13 @@ items :
 
 ! sometimes losing terminal colors
 	- hard to reproduce
+	- maybe, if reporting is done from several threads (but normally it is not)
+		- then we should fix that or implement a lock
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* allow def resources() : ...
-	- change backend interface so backend reply a map of resources rather than a vector
-	- search by key, rather than by index for named resources
-	- provide the whole map returned by backend fo the 'resources' global var
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads

@@ -545,7 +545,7 @@ $(LIB)/clmake.so : \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/clmake.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ -l$(PYTHON_LIB_BASE) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LINK_LIB)
 
 #
 # Manifest

@@ -28,6 +28,8 @@ extern "C" {
 #pragma GCC visibility pop
 
 void app_init( bool search_root , bool cd_root ) {
+	sanitize(::cout) ;
+	sanitize(::cerr) ;
 	//
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//

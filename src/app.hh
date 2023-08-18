@@ -77,7 +77,6 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	size_t flag_sz = 0     ; for( Flag f : Flag::N ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , mk_snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : Flag::N )                           has_arg |= flags[+e].has_arg                     ;
 	//
-	::cerr << left ;
 	if (!msg.empty()) ::cerr << msg <<'\n' ;
 	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
 	if (OptionsAnywhere) ::cerr << "options may be interleaved with args\n"                                                                                                               ;

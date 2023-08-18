@@ -135,6 +135,7 @@ unit_tests/numba.py
 unit_tests/numpy.py
 unit_tests/phony.py
 unit_tests/py_rule.py
+unit_tests/resources.py
 unit_tests/rust.py
 unit_tests/scratchpad.py
 unit_tests/src.py

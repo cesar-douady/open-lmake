@@ -206,7 +206,6 @@ void write_backtrace( ::ostream& os , int hide_cnt ) {
 		wf = ::max( wf , strnlen(symbolic_stack[i].file,PATH_MAX) ) ;
 		wl = ::max( wl , w                                        ) ;
 	}
-	os <<::left ;
 	for( int i=0 ; i<stack_sz ; i++ ) {
 		/**/                        os <<         ::setw(wf)<<          symbolic_stack[i].file         ;
 		if (symbolic_stack[i].line) os <<':'   << ::setw(wl)<< ::right<<symbolic_stack[i].line<<::left ;

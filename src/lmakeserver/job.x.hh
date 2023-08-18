@@ -81,8 +81,8 @@ namespace Engine {
 		bool active() const ;
 		//
 		//services
-		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vector_s const& rsrcs ) const ; // thread-safe
-		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                          ) const ; // thread-safe
+		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vmap_ss const& rsrcs ) const ; // thread-safe
+		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                         ) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;

@@ -219,17 +219,17 @@ static inline void _set_cloexec(::filebuf* fb) {
 	int fd = np_get_fd(*fb) ;
 	if (fd>=0) ::fcntl(fd,F_SETFD,FD_CLOEXEC) ;
 }
-static inline void _sanitize(::ostream& os) {
+static inline void sanitize(::ostream& os) {
 	os.exceptions(~os.goodbit) ;
 	os<<::left<<::boolalpha ;
 }
 struct OFStream : ::ofstream {
 	using Base = ::ofstream ;
 	// cxtors & casts
-	OFStream(                                 ) : Base{           } { _sanitize(*this) ;                         }
-	OFStream( ::string const& f               ) : Base{f          } { _sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream( ::string const& f , openmode om ) : Base{f,om       } { _sanitize(*this) ; _set_cloexec(rdbuf()) ; }
-	OFStream( OFStream&& ofs                  ) : Base{::move(ofs)} {                                            }
+	OFStream(                                 ) : Base{           } { sanitize(*this) ;                         }
+	OFStream( ::string const& f               ) : Base{f          } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream( ::string const& f , openmode om ) : Base{f,om       } { sanitize(*this) ; _set_cloexec(rdbuf()) ; }
+	OFStream( OFStream&& ofs                  ) : Base{::move(ofs)} {                                           }
 	//
 	OFStream& operator=(OFStream&& ofs) { Base::operator=(::move(ofs)) ; return *this ; }
 	// services
@@ -248,7 +248,7 @@ struct IFStream : ::ifstream {
 } ;
 
 struct OStringStream : ::ostringstream {
-	OStringStream() : ::ostringstream{} { _sanitize(*this) ; }
+	OStringStream() : ::ostringstream{} { sanitize(*this) ; }
 } ;
 struct IStringStream : ::istringstream {
 	IStringStream(::string const& s) : ::istringstream{s} { exceptions(~goodbit) ; }

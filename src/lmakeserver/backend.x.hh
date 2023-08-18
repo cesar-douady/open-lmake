@@ -46,7 +46,7 @@ namespace Backends {
 			Conn           conn     ;
 			Date           start    ;
 			::uset_s       washed   ;
-			::vector_s     rsrcs    ;
+			::vmap_ss      rsrcs    ;
 			::uset<ReqIdx> reqs     ;
 			bool           live_out = false        ;
 			JobReason      reason   ;
@@ -138,9 +138,8 @@ namespace Backends {
 		virtual ::vector<JobIdx> heartbeat() { return {} ; }                   // regularly called (~ every minute) to give opportunity to backend to check jobs (typicallay between launch and start)
 		/**/                                                                   // return lost jobs
 	protected :
-		::vector_s acquire_cmd_line( Tag , JobIdx , bool live_out , ::vector_s&& rsrcs , JobReason ) ; // must be called once before job is launched, return job command line
-		/**/                                                                                           // live_out must the or of the submit/add_pressure live_out's for the job
-		/**/                                                                                           // rsrcs must be in same order as passed to submit, but values may be different
+		::vector_s acquire_cmd_line( Tag , JobIdx , bool live_out , ::vmap_ss&& rsrcs , JobReason ) ; // must be called once before job is launched, return job command line
+		/**/                                                                                          // live_out must be the or of the submit/add_pressure live_out's for the job
 		// data
 	private :
 		SmallIds<SmallId> _small_ids ;
@@ -155,9 +154,6 @@ namespace Backends {
 	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) s_tab[+t].be->close_req(r       ) ; }
 	//
 	inline void Backend::s_submit( Tag t , JobIdx j , ReqIdx r , CoarseDelay p , bool lo , ::vmap_ss const& rs , JobReason jr ) {
-		::vmap_ss const& rsrcs_spec= Job(j)->rule->submit_rsrcs_attrs.spec.rsrcs ;
-		SWEAR( rsrcs_spec.empty() || mk_key_vector(rsrcs_spec)==mk_key_vector(rs) ) ;
-		//
 		::unique_lock lock{_s_mutex} ;
 		//
 		Trace trace("s_submit",t,j,r,p,rs,jr) ;

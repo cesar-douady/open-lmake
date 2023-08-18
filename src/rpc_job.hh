@@ -470,7 +470,7 @@ struct JobRpcReply {
 	JobReason                 reason           = JobReasonTag ::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	::string                  root_dir         ;                               // proc == Start
-	::vector_s                rsrcs            ;                               // proc == Start   , for recording only, not used in job_exec, values only, keys can be gathered from rule
+	::vmap_ss                 rsrcs            ;                               // proc == Start   , for recording only, not used in job_exec, values only, keys can be gathered from rule
 	::string                  script           ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
 	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
