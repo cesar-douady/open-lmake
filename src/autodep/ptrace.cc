@@ -57,7 +57,7 @@ struct PidInfo {
 	// static data
 	static ::umap<pid_t,PidInfo > s_tab ;
 	// cxtors & casts
-	PidInfo(pid_t pid) : record{pid} {}
+	PidInfo( pid_t pid ) : record{pid} {}
 	// data
 	RecordSock record   ;
 	size_t     idx      = 0     ;

@@ -354,8 +354,8 @@ namespace Engine {
 						for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
 						auto send_target = [&]( VarIdx ti , char star , Node t )->void {
 							bool m = ti!=Rule::NoVar && rule->flags(ti)[TFlag::Match] ;
-							if (ti==Rule::NoVar) _send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( m?' ':'!' , star , ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
-							else                 _send_node( fd , ro , true/*always*/ , Yes     /*hide*/ , to_string(       '!' , star , ::setw(wk) , "<unexpected>"          ) , t , lvl ) ;
+							if (ti==Rule::NoVar) _send_node( fd , ro , true/*always*/ , Yes     /*hide*/ , to_string(       '!' , star , ::setw(wk) , "<unexpected>"          ) , t , lvl ) ;
+							else                 _send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( m?' ':'!' , star , ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
 						} ;
 						for( VarIdx t=0 ; t<sts.size() ; t++ ) send_target( t                   , ' ' , Node(sts[t]) ) ;
 						for( Target t : jt->star_targets     ) send_target( match.idx(t.name()) , '*' , t            ) ;

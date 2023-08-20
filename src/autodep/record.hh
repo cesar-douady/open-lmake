@@ -27,6 +27,7 @@ struct Record {
 		s_auto_mkdir  = ade.auto_mkdir  ;
 		s_ignore_stat = ade.ignore_stat ;
 		s_lnk_support = ade.lnk_support ;
+		s_report_ext  = ade.report_ext  ;
 	}
 	// statics
 	static Fd s_get_root_fd() {
@@ -54,6 +55,7 @@ struct Record {
 	static bool       s_auto_mkdir  ;
 	static bool       s_ignore_stat ;
 	static LnkSupport s_lnk_support ;
+	static bool       s_report_ext  ;
 	static Fd         s_root_fd     ;
 	// services
 private :
@@ -164,7 +166,7 @@ public :
 	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read"  ) ;
 	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec"  ) ;
 	void solve( int at , const char* file , bool no_follow=false , ::string const& comment="solve" ) {
-		_solve(at,file,no_follow,comment).first ;
+		_solve(at,file,no_follow,comment) ;
 	}
 	void stat ( int at , const char* file , bool no_follow=false , ::string const& comment="stat" ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
@@ -212,5 +214,5 @@ struct RecordSock : Record {
 	static ::string        *_s_service        ;            // pointer to avoid init/fin order hazard
 	static bool            _s_service_is_file ;
 	// cxtors & casts
-	RecordSock(pid_t p=0) : Record{ _s_report , _s_get_reply , p } {}
+	RecordSock( pid_t p=0 ) : Record{ _s_report , _s_get_reply , p } {}
 } ;

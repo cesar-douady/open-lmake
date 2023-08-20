@@ -23,6 +23,7 @@ using namespace Hash ;
 	os << "AutodepEnv(" << ade.service <<','<< ade.root_dir <<',' ;
 	if (ade.auto_mkdir ) os <<",auto_mkdir"  ;
 	if (ade.ignore_stat) os <<",ignore_stat" ;
+	if (ade.report_ext ) os <<",report_ext"  ;
 	return os <<','<< ade.lnk_support <<')' ;
 }
 
@@ -101,7 +102,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		// so we split the responsability into 2 processes :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		bool in_parent = child.spawn( true/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
+		bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
 		if (!in_parent) {
 			Child grand_child ;
 			AutodepPtrace::s_autodep_env = autodep_env ;

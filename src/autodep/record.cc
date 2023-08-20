@@ -27,6 +27,7 @@ using namespace Time         ;
 bool       Record::s_auto_mkdir  = false               ;
 bool       Record::s_ignore_stat = false               ;
 LnkSupport Record::s_lnk_support = LnkSupport::Unknown ;
+bool       Record::s_report_ext  = false               ;
 Fd         Record::s_root_fd     ;
 
 void Record::_report( JobExecRpcReq const& jerr ) const {
@@ -55,7 +56,8 @@ void Record::_report( JobExecRpcReq const& jerr ) const {
 	if (!file) return {{},false/*in_tmp*/} ;
 	RealPath::SolveReport rp = real_path.solve(at,file,no_follow) ;
 	for( ::string& real : rp.lnks ) _report_dep( ::move(real) , file_date(s_get_root_fd(),real) , DFlag::Lnk , comment+".lnk"  ) ;
-	return {rp.real,rp.in_tmp} ;
+	if ( rp.in_repo || s_report_ext ) return {rp.real,rp.in_tmp} ;
+	else                              return {{}     ,rp.in_tmp} ;
 }
 
 void Record::read( int at , const char* file , bool no_follow , ::string const& comment ) {
@@ -69,7 +71,7 @@ void Record::exec( int at , const char* exe , bool no_follow , ::string const& c
 		DFlags fs ;
 		if (a.as_lnk) fs |= DFlag::Lnk ;
 		if (a.as_reg) fs |= DFlag::Reg ;
-		_report_dep( ::move(file) , fs , comment ) ;
+		if ( file[0]!='/' || s_report_ext ) _report_dep( ::move(file) , fs , comment ) ;
 	}
 }
 

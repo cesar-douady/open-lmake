@@ -321,9 +321,10 @@ namespace Disk {
 			real.resize(prev_real_size) ;                                      // links are relative to containing dir, suppress last component
 		}
 		// admin is typically in repo, tmp might be, repo root is in_repo
-		if      ( !in_repo || in_tmp || in_admin  ) return { {}                                , ::move(lnks) , false   , in_tmp } ;
-		else if ( real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , root_ok , false  } ;
-		else                                        return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true    , false  } ;
+		if ( in_tmp || in_admin || in_proc   ) return { {}                                , ::move(lnks) , false   , in_tmp } ;
+		if ( !in_repo                        ) return { ::move(real)                      , ::move(lnks) , false   , false  } ;
+		if ( real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , root_ok , false  } ;
+		/**/                                   return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true    , false  } ;
 	}
 
 	::vmap_s<RealPath::ExecAccess> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {
@@ -334,7 +335,7 @@ namespace Disk {
 			SolveReport real = solve(at,cur_file,no_follow) ;
 			for( ::string& l : real.lnks ) res.emplace_back(::move(l),ExecAccess(true/*as_lnk*/,false/*as_reg*/)) ;
 			if (real.real.empty()) break ;
-			::ifstream real_stream{to_string(*g_root_dir,'/',real.real)} ;
+			::ifstream real_stream{ real.real[0]=='/' ? real.real : to_string(*g_root_dir,'/',real.real) } ;
 			res.emplace_back(::move(real.real),ExecAccess(!no_follow/*as_lnk*/,true/*as_reg*/)) ;
 			char hdr[2] ;
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;

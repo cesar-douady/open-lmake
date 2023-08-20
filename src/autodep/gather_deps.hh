@@ -29,6 +29,7 @@ struct AutodepEnv {
 			switch (c) {
 				case 'd' : auto_mkdir  = true             ; break ;
 				case 'i' : ignore_stat = true             ; break ;
+				case 'e' : report_ext  = true             ; break ;
 				case 'n' : lnk_support = LnkSupport::None ; break ;
 				case 'f' : lnk_support = LnkSupport::File ; break ;
 				case 'a' : lnk_support = LnkSupport::Full ; break ;
@@ -39,6 +40,7 @@ struct AutodepEnv {
 		::string res = service + ':' ;
 		if (auto_mkdir ) res += 'd' ;
 		if (ignore_stat) res += 'i' ;
+		if (report_ext ) res += 'e' ;
 		switch (lnk_support) {
 			case LnkSupport::None : res += 'n' ; break ;
 			case LnkSupport::File : res += 'f' ; break ;
@@ -54,6 +56,7 @@ struct AutodepEnv {
 	::string   root_dir    ;
 	bool       auto_mkdir  = false            ;
 	bool       ignore_stat = false            ;
+	bool       report_ext  = false            ;
 	LnkSupport lnk_support = LnkSupport::Full ;
 } ;
 
@@ -115,7 +118,7 @@ public :
 			DFlags fs ;
 			if (a.as_lnk) fs |= DFlag::Lnk ;
 			if (a.as_reg) fs |= DFlag::Reg ;
-			new_dep( pd , ::move(file) , dd , fs , c ) ;
+			if ( file[0]!='/' || autodep_env.report_ext ) new_dep( pd , ::move(file) , dd , fs , c ) ;
 		}
 	}
 

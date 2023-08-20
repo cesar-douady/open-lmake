@@ -175,9 +175,9 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
 							::vector_s     bads      ;
 							for( ::string const& target : rrr.targets ) {
-								::string real_target = real_path.solve(target).real ;        // ignore links that lead to real path
-								if (real_target.empty()) bads   .emplace_back(target     ) ;
-								else                     targets.emplace_back(real_target) ;
+								RealPath::SolveReport rp = real_path.solve(target) ; // ignore links that lead to real path
+								if (rp.in_repo) targets.emplace_back(rp.real) ;
+								else            bads   .emplace_back(target ) ;
 							}
 							if (bads.empty()) {
 								trace("targets",targets) ;

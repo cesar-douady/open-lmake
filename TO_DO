@@ -28,7 +28,7 @@ items :
 ! find a means to lshow a job, even if we have no target
 	- or to lshow a job that does not produce a target
 ? report resources even when job spawn process groups
-	? dont know how to do that
+	- dont know how to do that
 
 ****************************************************************************************************
 * COSMETIC (not implemented and ugly as long as not implemented)
@@ -65,8 +65,18 @@ items :
 ****************************************************************************************************
 
 * split 2 notions
-	- root of repository
-	- location of Lmakefile.py
+	- root of lmake repository : where files may be built
+	- root of git repository : where sources are located
+	- LMAKE dir is created in lmake root
+	- Node names are relative to git root
+	- possibly extend to have several git root
+		- this would allow to list directories that are outside lmake repo but for which we want to track modifs
+		- usage examples :
+			- git repo above lmake repo
+			- image data bases
+			- frequently updated tools
+	- system files are actually tracked by using chroot : create a new chroot for each new system
+	- this may be implemented by prefixing all node names with an id (1 to 255) identifying the root
 * implement a compilation rule py->pyc
 	- and user python -B
 * result cache v2 (copy & link) :

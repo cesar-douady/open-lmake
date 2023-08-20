@@ -49,6 +49,7 @@ namespace Engine {
 			RealPath::SolveReport rp = real_path.solve(src,true/*no_follow*/) ;
 			//
 			if (!rp.lnks.empty()) throw to_string("source ",src," : found a link in its path : ",rp.lnks[0]) ;
+			if (!rp.in_repo     ) throw to_string("source ",src," : not in reposiroty"                     ) ;
 			if (rp.real!=src    ) throw to_string("source ",src," : canonical form is "         ,rp.real   ) ;
 			if (g_config.lnk_support==LnkSupport::None) { if (!is_reg   (src)) throw to_string("source ",src," is not a regular file"           ) ; }
 			else                                        { if (!is_target(src)) throw to_string("source ",src," is not a regular file nor a link") ; }
@@ -86,6 +87,7 @@ namespace Engine {
 		GatherDeps  gather_deps   { New }                                                               ;
 		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
 		Trace trace("_read_makefiles",ProcessDate::s_now()) ;
+		gather_deps.autodep_env.report_ext = true ;
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv   // redirect stdout to stderr ...
 		Status status = gather_deps.exec_child( { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // as our stdout may be used ...
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // communicate with client
@@ -150,7 +152,7 @@ namespace Engine {
 				step = "rules"   ; rules = _gather_rules( Py::Sequence(info[step  ]) ) ;
 				step = "sources" ; srcs  = _gather_srcs ( Py::Sequence(info["srcs"]) ) ;
 				{	::uset_s src_set = mk_uset(srcs) ;
-					for( ::string const& f : deps ) if ( !src_set.contains(f) && +FileInfo(f) ) throw to_string("dangling makefile : ",f) ;
+					for( ::string const& f : deps ) if ( f[0]!='/' && !src_set.contains(f) && +FileInfo(f) ) throw to_string("dangling makefile : ",f) ;
 				}
 			} catch(::string& e) {
 				if (!step.empty()) e = to_string("while processing ",step," :\n",indent(e)) ;

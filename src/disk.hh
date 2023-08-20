@@ -164,8 +164,8 @@ namespace Disk {
 			SolveReport(                                                     ) = default ;
 			SolveReport( ::string && r , ::vector_s&& ls , bool ir , bool it ) : real{::move(r)} , lnks{::move(ls)} , in_repo{ir} , in_tmp{it} {}
 			// data
-			::string   real    ;
-			::vector_s lnks    ;
+			::string   real    ;                           // real path relative to root if in_repo, else absolute or empty if in tmp, admin or proc
+			::vector_s lnks    ;                           // links followed to get to real
 			bool       in_repo = false ;
 			bool       in_tmp  = false ;
 		} ;

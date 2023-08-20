@@ -272,20 +272,19 @@ if getattr(_sys,'reading_makefiles',False) :
 			recurse to sub-modules if recurse is True
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
-		import subprocess
-
-		if not _osp.isdir('.git') : raise FileNotFoundError('.git')
+		git_top = _osp.isdir('.git')
 
 		git_cmd = ['git','ls-files']
 		if recurse : git_cmd.append('--recurse-submodules')
-		srcs = subprocess.check_output( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		srcs = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
 		if not srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
-		srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ]              # not listed by git, but actually sources as they are read by git ls-files
+		if git_top : srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources if .git is in repo as they are read by git ls-files
 
 		if recurse :
 			git_cmd    = ('git','submodule','--quiet','foreach','--recursive','echo $displaypath')
-			submodules = subprocess.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			submodules = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
 			for submodule in submodules :
+				if submodule.startswith('../') : continue
 				sub_git = _osp.join(submodule,'.git')
 				# XXX : fix using 'git submodule status' to detect and handle cases where submodules are not loaded but this creates more dependencies
 				if not _osp.exists(sub_git) and not ignore_missing_submodules : raise FileNotFoundError(f'cannot find git submodule {submodule}')

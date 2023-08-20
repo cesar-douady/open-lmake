@@ -13,14 +13,33 @@ using namespace Disk ;
 ::string* g_tmp_dir  = nullptr ;
 
 ::pair_ss search_root_dir(::string const& cwd_) {
-	::string root_s_dir    = cwd_ ;
-	::string startup_dir_s ;
+	::string root_s_dir = cwd_ ;
 	if (root_s_dir.empty()     ) root_s_dir =           cwd()           ;
 	if (root_s_dir.front()!='/') root_s_dir = to_string(cwd(),'/',cwd_) ;
-	while (!is_target(root_s_dir+"/Lmakefile.py")) {
-		if (root_s_dir.empty()) throw "cannot find root dir"s ;
-		root_s_dir = dir_name(root_s_dir) ;
+	::vector_s candidates ;
+	for(; !root_s_dir.empty() ; root_s_dir = dir_name(root_s_dir) ) if (is_target(root_s_dir+"/Lmakefile.py")) candidates.push_back(root_s_dir) ;
+	switch (candidates.size()) {
+		case 0 : throw "cannot find root dir"s ;
+		case 1 : root_s_dir = candidates[0] ; break ;
+		default : {
+			::vector_s candidates2 ;
+			for( ::string const& c : candidates ) if (is_dir(root_s_dir+"/LMAKE")) candidates2.push_back(c) ;
+			switch (candidates2.size()) {
+				case 0 : {
+					::string msg = "ambiguous root dir, disambiguate by executing one of :\n" ;
+					for( ::string const& c : candidates ) msg += to_string("\tmkdir ",c,"/LMAKE") ;
+					throw msg ;
+				}
+				case 1 : root_s_dir = candidates2[0] ; break ;
+				default : {
+					::string msg = to_string("ambiguous root dir, disambiguate by executing ",candidates2.size()-1," of :\n") ;
+					for( ::string const& c : candidates2 ) msg += to_string("\trm -r ",c,"/LMAKE") ;
+					throw msg ;
+				}
+			}
+		}
 	}
+	::string startup_dir_s ;
 	if (root_s_dir.size()<cwd_.size()) startup_dir_s = cwd_.substr(root_s_dir.size()+1)+'/' ;
 	return {root_s_dir,startup_dir_s} ;
 }
