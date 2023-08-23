@@ -141,7 +141,9 @@ namespace Engine {
 				PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;
 				PyDict_SetItemString( eval_env , "nan"          , *Py::Float(nan("") ) ) ;
 				PyDict_SetItemString( eval_env , "__builtins__" , PyEval_GetBuiltins() ) ;                                       // Python3.6 does not provide it for us
-				Py::Dict info = Py::Object( PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) , true/*clobber*/ ) ;
+				PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
+				if (!py_info) throw Py::err_str() ;
+				Py::Dict info = Py::Object( py_info , true/*clobber*/ ) ;
 				Py_DECREF(eval_env) ;
 				step = "local_admin_dir"  ; local_admin_dir  = Py::String (info[step]) ;
 				step = "remote_admin_dir" ; remote_admin_dir = Py::String (info[step]) ;
@@ -157,10 +159,6 @@ namespace Engine {
 			} catch(::string& e) {
 				if (!step.empty()) e = to_string("while processing ",step," :\n",indent(e)) ;
 				throw e ;
-			} catch(Py::Exception& e) {
-				if (!step.empty()) ::cerr<<"while processing "<<step<<" : "<<endl ;
-				PyErr_Print() ;
-				throw ""s ;
 			}
 			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			EngineStore::s_new_makefiles( ::move(rules) , ::move(srcs) ) ;

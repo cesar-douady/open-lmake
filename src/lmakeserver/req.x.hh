@@ -274,17 +274,17 @@ namespace Engine {
 			try {
 				OMsgBuf().send( audit_fd , ReqRpcReply( title(
 					options
-				,	"useful : "     , stats.useful()
-				,	" / hit : "     , stats.ended(JobReport::Hit  )
-				,	" / rerun : "   , stats.ended(JobReport::Rerun)
-				,	" / running : " , stats.cur  (JobLvl::Exec    )
-				,	" / queued : "  , stats.cur  (JobLvl::Queued  )
-				,	" / waiting : " , stats.cur  (JobLvl::Dep     )
-				,	" -- ETA = "    , stats.eta.str()
+				,	                                          "useful:"   , stats.useful()
+				,	g_config.caches.empty() ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit  ))
+				,	                                          " rerun:"   , stats.ended(JobReport::Rerun)
+				,	                                          " running:" , stats.cur  (JobLvl::Exec    )
+				,	                                          " queued:"  , stats.cur  (JobLvl::Queued  )
+				,	                                          " waiting:" , stats.cur  (JobLvl::Dep     )
+				,	                                          " -- ETA = ", stats.eta.str()
 				) ) ) ;
 			} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 		}
-		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl=0 ) const {
+		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
 			for( auto const& [pfx,ni] : analysis_err ) audit_node( Color::Note , pfx , ni , lvl ) ;
 			if (stderr.empty()) return !analysis_err.empty() ;
 			if (max_stderr_lines!=size_t(-1)) {

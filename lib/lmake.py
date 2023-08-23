@@ -276,7 +276,11 @@ if getattr(_sys,'reading_makefiles',False) :
 
 		git_cmd = ['git','ls-files']
 		if recurse : git_cmd.append('--recurse-submodules')
-		srcs = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		try :
+			srcs = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		except :
+			if recurse : return git_sources(False)
+			else       : raise
 		if not srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
 		if git_top : srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources if .git is in repo as they are read by git ls-files
 

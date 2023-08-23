@@ -91,6 +91,7 @@ namespace Engine {
 
 	// used at match time
 	struct CreateMatchAttrs : Attrs {
+		static constexpr const char* Msg = "deps" ;
 		struct DepSpec {
 			template<IsStream S> void serdes(S& s) {
 				::serdes(s,pattern) ;
@@ -115,6 +116,7 @@ namespace Engine {
 
 	// used at match time, but participate in nothing
 	struct CreateNoneAttrs : Attrs {
+		static constexpr const char* Msg = "tokens" ;
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(tokens,py_src,"job_tokens") ;
 		}
@@ -122,17 +124,9 @@ namespace Engine {
 		Tokens tokens = 1 ;
 	} ;
 
-	// used at force time (i.e. when deciding whether to launch job), but participate in cmd
-	struct ForceCmdAttrs : Attrs {
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(force,py_src,"force") ;
-		}
-		// data
-		bool force = false ;
-	} ;
-
 	// used at submit time, participate in resources
 	struct SubmitRsrcsAttrs : Attrs {
+		static constexpr const char* Msg = "submit resources attributes" ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,backend) ;
@@ -150,6 +144,7 @@ namespace Engine {
 
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
 	struct CacheNoneAttrs : Attrs {
+		static constexpr const char* Msg = "cache key" ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,key) ;
@@ -164,6 +159,7 @@ namespace Engine {
 
 	// used at start time, participate in cmd
 	struct StartCmdAttrs : Attrs {
+		static constexpr const char* Msg = "execution command attributes" ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,auto_mkdir ) ;
@@ -203,6 +199,7 @@ namespace Engine {
 
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs : Attrs {
+		static constexpr const char* Msg = "execution resources attributes" ;
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,timeout) ;
 			::serdes(s,env    ) ;
@@ -220,6 +217,7 @@ namespace Engine {
 
 	// used at start time, participate to nothing
 	struct StartNoneAttrs : Attrs {
+		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,keep_tmp   ) ;
@@ -243,6 +241,7 @@ namespace Engine {
 
 	// used at end of job execution, participate in cmd
 	struct EndCmdAttrs : Attrs {
+		static constexpr const char* Msg = "allow stderr" ;
 		// services
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(allow_stderr,py_src,"allow_stderr") ;
@@ -253,6 +252,7 @@ namespace Engine {
 
 	// used at end of job execution, participate in nothing
 	struct EndNoneAttrs : Attrs {
+		static constexpr const char* Msg = "max stderr length" ;
 		// services
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(stderr_len,py_src,"stderr_len") ;
@@ -264,7 +264,8 @@ namespace Engine {
 	// the part of the Dynamic struct which is stored on disk
 	template<class T> struct DynamicDsk {
 		// statics
-		static bool s_is_dynamic(PyObject*) ;
+		static bool     s_is_dynamic(PyObject*        ) ;
+		static ::string s_exc_msg   (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
 		template<class... A> DynamicDsk( PyObject* , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... ) ;
@@ -389,6 +390,9 @@ namespace Engine {
 			+	sizeof(RuleIdx)                                                // Rule index
 			;
 		}
+		bool cmd_need_deps() const {                                           // if deps are needed for cmd computation, then static deps are deemed to be read...
+			return start_cmd_attrs.need_deps | end_cmd_attrs.need_deps ;       // as deps are not recorded and we need to be pessimistic
+		}
 
 		// services
 		::string add_cwd(::string&& file) const {
@@ -413,7 +417,6 @@ namespace Engine {
 		// following is only if !anti
 		DynamicCreateMatchAttrs       create_match_attrs ;                     // in match crc, evaluated at job creation time
 		Dynamic<CreateNoneAttrs >     create_none_attrs  ;                     // in no    crc, evaluated at job creation time
-		Dynamic<ForceCmdAttrs   >     force_cmd_attrs    ;                     // in cmd   crc, evaluated at job analysis time
 		Dynamic<CacheNoneAttrs  >     cache_none_attrs   ;                     // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs>     submit_rsrcs_attrs ;                     // in rsrcs crc, evaluated at submit time
 		Dynamic<StartCmdAttrs   >     start_cmd_attrs    ;                     // in cmd   crc, evaluated before execution
@@ -422,6 +425,7 @@ namespace Engine {
 		Dynamic<EndCmdAttrs     >     end_cmd_attrs      ;                     // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    >     end_none_attrs     ;                     // in no    crc, evaluated after  execution
 		::vector<pair<CmdVar,VarIdx>> cmd_ctx            ;                     // a list of stems, targets, deps, rsrcs & tokens accessed by cmd
+		bool                          force              = false ;
 		bool                          is_python          = false ;             // if true <=> cmd is a Python script
 		::string                      cmd                ;
 		size_t                        n_tokens           = 1     ;             // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
@@ -430,8 +434,8 @@ namespace Engine {
 		VarIdx  n_static_stems   = 0     ;
 		VarIdx  n_static_targets = 0     ;
 		// management data
-		ExecGen cmd_gen   = ExecGenForce+1 ;                                   // cmd generation, must be >0 as 0 means !cmd_ok and >ExecGenForce as this means forced jobs
-		ExecGen rsrcs_gen = ExecGenForce+1 ;                                   // for a given cmd, resources generation, must be >=cmd_gen
+		ExecGen cmd_gen   = 1 ;                                                // cmd generation, must be >0 as 0 means !cmd_ok
+		ExecGen rsrcs_gen = 1 ;                                                // for a given cmd, resources generation, must be >=cmd_gen
 		// stats
 		mutable Delay  exec_time    = {} ;                                     // average exec_time
 		mutable JobIdx stats_weight = 0  ;                                     // number of jobs used to compute average
@@ -749,7 +753,6 @@ namespace Engine {
 		if (!anti) {
 			::serdes(s,create_match_attrs) ;
 			::serdes(s,create_none_attrs ) ;
-			::serdes(s,force_cmd_attrs   ) ;
 			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;
 			::serdes(s,start_cmd_attrs   ) ;
@@ -758,6 +761,7 @@ namespace Engine {
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,cmd_ctx           ) ;
+			::serdes(s,force             ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,cmd               ) ;
 			::serdes(s,n_tokens          ) ;

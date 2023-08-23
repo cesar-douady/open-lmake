@@ -163,7 +163,7 @@ namespace Engine {
 			if (!match_ ) {            continue ; }
 			if (rt->anti) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match_) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {
+			if ( JobTgt jt{rt,name} ; +jt ) {                                                                               // do not pass *this as req to avoid generating error message at cxtor time
 				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
@@ -177,13 +177,13 @@ namespace Engine {
 		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
 		//
 		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
-			JobTgt                      jt          { rt , name } ;
+			JobTgt                      jt          {rt,name} ;                // do not pass *this as req to avoid generating error message at cxtor time
 			::string                    reason      ;
 			Node                        missing_dep ;
 			::vmap_s<pair<Node,DFlags>> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                     ; goto Report ; }
-			try                                            { static_deps = rt->create_match_attrs.eval(rt,m.stems)   ;               }
-			catch (::string const& e)                      { reason      = to_string("cannot compute its deps : ",e) ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
+			try                                            { static_deps = rt->create_match_attrs.eval(rt,m.stems)    ;               }
+			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
@@ -287,6 +287,7 @@ namespace Engine {
 		Job                 job     = (*this)->job                   ;
 		bool                job_err = job->status!=Status::Ok        ;
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
+		(*this)->audit_stats() ;
 		if (!(*this)->zombie) {
 			SWEAR(!job->frozen()) ;                                            // what does it mean for job of a Req to be frozen ?
 			bool job_warning = !(*this)->frozens.empty() ;

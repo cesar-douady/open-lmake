@@ -100,7 +100,7 @@ namespace Engine {
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and return how many rule_tgts were consumed
 	// - anti-rules always precede regular rules at given prio and are deemed to be of higher prio (and thus in different iso-prio chunks)
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
-	::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> Node::_gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , DepDepth lvl ) {
+	::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> Node::_gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req req , DepDepth lvl ) {
 		//
 		if (rule_tgts.empty()) return {No,NoIdx} ;                             // fast path : avoid computing name()
 		//
@@ -115,9 +115,9 @@ namespace Engine {
 			if (rt->prio<prio) goto Done ;
 			n++ ;
 			if ( rt->anti && +Rule::Match(rt,name_) ) { SWEAR(jts.empty()) ; clear = true ; goto Return ; }
-			//          vvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt = JobTgt(rt,name_,lvl+1) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (!jt) continue ;
 			if (jt.sure()) { buildable |= Yes   ; clear = true ; }
 			else           { buildable |= Maybe ;                }
@@ -134,7 +134,7 @@ namespace Engine {
 		else       return {buildable,n    } ;
 	}
 
-	void Node::_set_buildable_raw(DepDepth lvl) {
+	void Node::_set_buildable_raw( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",*this,lvl) ;
 		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,{}}}) ; // infinite dep path
 		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
@@ -154,9 +154,9 @@ namespace Engine {
 		_set_buildable(Yes) ;
 		try {
 			if ( Node dir_=dir() ; +dir_ ) {
-				//vvvvvvvvvvvvvvvvvvvvvvv
-				dir_.set_buildable(lvl+1) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvv
+				dir_.set_buildable(req,lvl+1) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (dir_->buildable!=No) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					set_special(Special::Uphill,{{dir_,SpecialDFlags|DFlag::Lnk}}) ;
@@ -165,9 +165,9 @@ namespace Engine {
 					else                      goto AllRules ;
 				}
 			}
-			//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			auto [buildable,shorten_by] = _gather_prio_job_tgts(rule_tgts,lvl) ;
-			//vvvvvvvvvvvvvvvvvvvvvvv     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			auto [buildable,shorten_by] = _gather_prio_job_tgts(rule_tgts,req,lvl) ;
+			//vvvvvvvvvvvvvvvvvvvvvvv     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			_set_buildable(buildable) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^
 			//
@@ -202,9 +202,9 @@ namespace Engine {
 		Job     regenerate_job ;
 		Trace trace("Nmake",*this,cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
-		//                                     vvvvvvvvvvvvvvv
-		try                                  { set_buildable() ;                  }
-		//                                     ^^^^^^^^^^^^^^^
+		//                                     vvvvvvvvvvvvvvvvvv
+		try                                  { set_buildable(req) ;               }
+		//                                     ^^^^^^^^^^^^^^^^^^
 		catch (::vmap<Node,DFlags> const& e) { set_special(Special::Infinite,e) ; }
 		if ((*this)->buildable==No) {                                               // avoid allocating ReqInfo for non-buildable Node's
 			SWEAR(make_action<MakeAction::Dec) ;
@@ -253,9 +253,9 @@ namespace Engine {
 			if (ri.prio_idx>=(*this)->job_tgts.size()) {
 				if (!(*this)->rule_tgts) break ;                               // fast path : avoid creating UNode(*this)
 				try {
-					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					RuleIdx shorten_by = _gather_prio_job_tgts((*this)->rule_tgts.view()).second ;
-					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					RuleIdx shorten_by = _gather_prio_job_tgts((*this)->rule_tgts.view(),req).second ;
+					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (shorten_by==NoIdx) { if (!shared()) { UNode(*this)->rule_tgts.clear()                ; share() ; } }
 					else                   {                  UNode(*this)->rule_tgts.shorten_by(shorten_by) ;             }
 					if (ri.prio_idx>=(*this)->job_tgts.size()) break ;                                                       // fast path

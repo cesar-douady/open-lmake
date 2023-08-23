@@ -56,7 +56,6 @@
 		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
 		case JobProc::Start :
 			/**/                          os       << hex<<jrr.addr<<dec   ;
-			/**/                          os <<',' << jrr.ancillary_file   ;
 			if (jrr.auto_mkdir          ) os <<',' << "auto_mkdir"         ;
 			if (!jrr.chroot.empty()     ) os <<',' << jrr.chroot           ;
 			if (!jrr.cwd_s .empty()     ) os <<',' << jrr.cwd_s            ;

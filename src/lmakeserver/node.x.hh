@@ -73,7 +73,7 @@ namespace Engine {
 		::vector_view_c<JobTgt> conform_job_tgts( ReqInfo const&   ) const ;
 		::vector_view_c<JobTgt> conform_job_tgts(                  ) const ;
 		//
-		void set_buildable( DepDepth lvl=0                     ) ;             // data independent, may be pessimistic (Maybe instead of Yes)
+		void set_buildable( Req , DepDepth lvl=0               ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& ri , CoarseDelay pressure ) const ;
 		//
 		void set_special( Special , ::vmap<Node,DFlags> const& deps={} ) ;
@@ -87,11 +87,11 @@ namespace Engine {
 		//
 		void add_watcher( ReqInfo& ri , Job watcher , Job::ReqInfo& wri , CoarseDelay pressure ) ;
 	private :
-		void           _set_buildable_raw( DepDepth                                ) ;
+		void           _set_buildable_raw( Req , DepDepth                          ) ; // req is for error reporting only
 		ReqInfo const& _make_raw         ( ReqInfo const& , RunAction , MakeAction ) ;
 		void           _set_pressure_raw ( ReqInfo&                                ) const ;
 		//
-		::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , DepDepth lvl=0 ) ;
+		::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req , DepDepth lvl=0 ) ;
 		//
 		void _set_buildable(Bool3=Bool3::Unknown) ;
 	} ;
@@ -374,9 +374,9 @@ namespace Engine {
 		}
 	}
 
-	inline void Node::set_buildable(DepDepth lvl) {
+	inline void Node::set_buildable( Req req , DepDepth lvl ) {                // req is for error reporting only
 		if ((*this)->match_ok()) return ;                                      // already set
-		_set_buildable_raw(lvl) ;
+		_set_buildable_raw(req,lvl) ;
 	}
 
 	inline void Node::set_pressure( ReqInfo& ri , CoarseDelay pressure ) const {

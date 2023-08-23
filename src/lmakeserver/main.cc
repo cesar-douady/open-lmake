@@ -321,14 +321,14 @@ bool/*interrupted*/ engine_loop() {
 				JobExec           & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started      (job.report,job.report_unlink) ;                       break ;
-					case JobProc::ReportStart : je.report_start (                            ) ;                       break ;
-					case JobProc::LiveOut     : je.live_out     (job.txt                     ) ;                       break ;
-					case JobProc::Continue    : je.premature_end(job.req                     ) ;                       break ;
-					case JobProc::NotStarted  : je.not_started  (                            ) ;          /*vvvvvv*/   break ;
-					case JobProc::End         : je.end          (job.digest                  ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt) ;                       break ;
+					case JobProc::ReportStart : je.report_start (                                    ) ;                       break ;
+					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ;                       break ;
+					case JobProc::Continue    : je.premature_end(job.req                             ) ;                       break ;
+					case JobProc::NotStarted  : je.not_started  (                                    ) ;          /*vvvvvv*/   break ;
+					case JobProc::End         : je.end          (job.digest                          ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;

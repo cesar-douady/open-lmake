@@ -479,6 +479,15 @@ Typically the job status is not known at the end of execution when a new dep was
 In that case, the dependency is rebuilt, and if the new content is identical to the old one, @lmake can then decide that the job was run with up-to-date deps.
 @end itemize
 
+During execution, if launched from a terminal, @lmake also generates a progression status in the title bar.
+This progression status line contains :
+@itemize @bullet
+@item the number of executed jobs (split between useful, rerun and hit)
+@item the number of queued jobs, i.e. jobs that are waiting for resources to be run
+@item the number of waiting jobs, i.e. jbos that are waiting for dependencies to be run
+@item the ETA of the command, i.e. as estimation of when this command will be done.
+@end itemize
+
 At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
 and the stderr of the first error. Intermediate targets are deemed of secondary importance.
 
@@ -1202,8 +1211,7 @@ Such functions are evaluated in an environment in which the stems (as well as th
 and the targets (as well as the @code{targets} variable) are defined and usable to derive the return value.
 Also, depending on the attribute, the deps (as well as the @code{deps} variable) and the resources (as well as the @code{resources} variable) may also be defined.
 Whether or not these are available depend on when a given attribute is needed.
-For example, when defining the @code{deps}, the deps are obviously not available,
-but also, when defining the @code{force} attribute, which is used to decide whether a job must be run or not, the resources, which are computing when running the job, are not available.
+For example, when defining the @code{deps}, the deps are obviously not available.
 
 Generally, these functions are not supposed to do local disk accesses (i.e. from within the repository) as at the time they are called, such accessed files may not be up to date.
 However, when @code{deps} are in the function environment, the listed files are up to date and can be accessed.
@@ -1900,6 +1908,8 @@ The whole content of stderr stays accessible with the @code{lshow -e} command.
 @tab @code{bool}
 @item Default
 @tab @code{False}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
 When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
@@ -1975,7 +1985,7 @@ When this attribute has a @code{False} value, the temporary directory is washed 
 @item Default
 @tab @code{False}
 @item Dynamic
-@tab Yes. Environment includes stems and targets.
+@tab No.
 @end multitable
 
 When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.

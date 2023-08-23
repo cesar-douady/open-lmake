@@ -25,5 +25,7 @@ int main( int argc , char* /*argv*/[] ) {
 	for( const Job  j : g_store.job_lst () ) _out( to_string(j) , to_string(j->rule) , j.user_name() ) ;
 	for( const Node n : g_store.node_lst() ) _out( to_string(n) , n.shared()?"!":""  , n.name     () ) ;
 	//
+	g_store.chk() ;
+	//
 	return 0 ;
 }

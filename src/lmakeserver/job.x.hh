@@ -60,7 +60,7 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using JobBase::JobBase ;
-		Job( RuleTgt , ::string const& target , DepDepth lvl=0 ) ;             // plain Job, match on target
+		Job( RuleTgt , ::string const& target , Req={} , DepDepth lvl=0 ) ;    // plain Job, match on target, req is only for error reporting
 		//
 		Job( Special ,               ::vmap<Node,DFlags> const& deps ) ;       // Job used to represent a Req
 		Job( Special , Node target , ::vmap<Node,DFlags> const& deps ) ;       // special job
@@ -125,10 +125,10 @@ namespace Engine {
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , JobTgt const ) ;
 		// cxtors & casts
-		JobTgt(                                                 ) = default ;
-		JobTgt( Job j , bool is=false                           ) : Job(j ) { is_sure( +j && is )   ; } // if no job, ensure JobTgt appears as false
-		JobTgt( RuleTgt rt , ::string const& t , DepDepth lvl=0 ) ;
-		JobTgt( JobTgt const& jt                                ) : Job(jt) { is_sure(jt.is_sure()) ; }
+		JobTgt(                                                              ) = default ;
+		JobTgt( Job j , bool is=false                                        ) : Job(j ) { is_sure( +j && is )   ; } // if no job, ensure JobTgt appears as false
+		JobTgt( RuleTgt rt , ::string const& t , Req req={} , DepDepth lvl=0 ) ;
+		JobTgt( JobTgt const& jt                                             ) : Job(jt) { is_sure(jt.is_sure()) ; }
 		//
 		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_sure(jt.is_sure()) ; return *this ; }
 		// accesses
@@ -157,14 +157,14 @@ namespace Engine {
 		JobExec( Job j , ::string&& h , ProcessDate d={} ) : Job{j} , host{::move(h)} , start{d} {}
 		JobExec( Job j ,                ProcessDate d={} ) : Job{j} ,                   start{d} {}
 		// services
-		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} ) const ;
-		void             report_start (                                                   ) const ; // called in engine thread after start if started called with false
-		void             started      ( bool report , ::vector<Node> const& report_unlink ) ;       // called in engine thread after start
-		void             live_out     ( ::string const&                                   ) const ;
-		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps              ) const ; // answer to requests from job execution
-		bool/*modified*/ end          (  JobDigest const&                                 ) ;       // hit indicates that result comes from a cache hit
-		void             premature_end( Req , bool report=true                            ) ;       // Req is killed but job is necessary for some other req
-		void             not_started  (                                                   ) ;       // Req was killed before it started
+		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} , ::string const& txt={} ) const ;
+		void             report_start (                                                                            ) const ; // called in engine thread after start if started called with false
+		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
+		void             live_out     ( ::string const&                                                            ) const ;
+		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
+		bool/*modified*/ end          (  JobDigest const&                                                          ) ;       // hit indicates that result comes from a cache hit
+		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job is necessary for some other req
+		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
@@ -194,8 +194,7 @@ namespace Engine {
 		JobData() = default ;
 		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
 			SWEAR(sp!=Special::Unknown) ;
-			exec_gen = NExecGen                         ;                      // special jobs are always exec_ok
-			force    = rule->force_cmd_attrs.spec.force ;
+			exec_gen = NExecGen ;                                              // special jobs are always exec_ok
 		}
 		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
 			SWEAR(!rule.is_special()) ;
@@ -233,20 +232,19 @@ namespace Engine {
 		}
 		//
 		// data
-		DiskDate         db_date                   ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
-		ProcessDate      end_date                  ;                                                         //     64 bits,
-		Targets          star_targets              ;                                                         //     32 bits, owned, for plain jobs
-		Deps             deps                      ;                                                         // 31<=32 bits, owned
-		Rule             rule                      ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                 ;                                                         //     16 bits,        for plain jobs
-		ExecGen          exec_gen   :NExecGenBits  = 0                   ;                                   //   <= 7 bits,        for plain jobs, cmd generation of rule
-		bool             force      :1             = false               ;                                   //      1 bit ,        valid if cmd_ok(), if true <=> job must be launch for each Req
-		mutable MatchGen match_gen  :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens           tokens                    = 1                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens for eta computation
-		RunStatus        run_status:3              = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status    :4              = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
+		DiskDate         db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
+		ProcessDate      end_date                 ;                                                         //     64 bits,
+		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
+		Deps             deps                     ;                                                         // 31<=32 bits, owned
+		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                ;                                                         //     16 bits,        for plain jobs
+		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 7 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 7 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens           tokens                   = 1                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens for eta computation
+		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
+		Status           status    :4             = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
 	private :
-		mutable bool     _sure     :1              = false               ;                                   //      1 bit
+		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
 	static_assert(sizeof(JobData)==32) ;                                       // check expected size
 
@@ -374,7 +372,7 @@ namespace Engine {
 	// JobTgt
 	//
 
-	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , DepDepth lvl ) : JobTgt{ Job(rt,t,lvl) , rt.sure() } {}
+	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,r,lvl) , rt.sure() } {}
 
 	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
 

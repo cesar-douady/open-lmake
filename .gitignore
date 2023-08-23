@@ -5,6 +5,8 @@
 __pycache__
 
 # directories
+!/unit_tests/git.dir/hello
+!/unit_tests/git.dir/world
 *.dir
 
 # doc
@@ -18,7 +20,6 @@ __pycache__
 *.i
 *.o
 *.so
-/ext/**.dir
 /ext/**.patched*
 *.stamp
 */stamp
@@ -31,8 +32,7 @@ __pycache__
 /bin/
 
 # tests
-*.tok
-*/tok
+tok
 /src/store/unit_test
 
 # IDE files
@@ -40,23 +40,10 @@ __pycache__
 /.vscode/
 
 # Lmake env
-/lmake_env/_bin/
-/lmake_env/bin/
-/lmake_env/doc/
-/lmake_env/ext/
-/lmake_env/_lib/
-/lmake_env/lib/
-/lmake_env/LMAKE/
-/lmake_env/LMAKE_LOCAL/
-/lmake_env/LMAKE_REMOTE/
-/lmake_env/lmake.tar.gz
-/lmake_env/Manifest
-/lmake_env/mrkr
-/lmake_env/src/
-/lmake_env/sys_config
-/lmake_env/sys_config.h
-/lmake_env/trial/
-/lmake_env-cache/
+!/lmake_env/Lmakefile.py
+!/lmake_env/ext_lnk
+/lmake_env
+/lmake_env-cache
 
 # tarball
 /lmake.tar.gz

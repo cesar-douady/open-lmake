@@ -112,7 +112,7 @@ ENUM( Status       // result of job execution
 ,	Err            // >=Err means job ended in error
 ,	ErrFrozen      // job is frozen in error
 ,	Timeout        // job timed out
-,	SystemErr      // a system error occurrred during job execution
+,	EarlyErr       // job failed before even starting
 )
 
 ENUM_2( TFlag                          // flags for targets
@@ -312,7 +312,7 @@ struct JobRpcReq {
 	JobRpcReq() = default ;
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt                  } { SWEAR( p==P::Start                     ) ; }
 	JobRpcReq( P p , SI ui , JI j ,                     S s                    ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s           } { SWEAR( p==P::End && s<=S::Garbage      ) ; }
-	JobRpcReq( P p ,         JI j ,                     S s , ::string&& e     ) : proc{p} ,              job{j} ,           digest{.status=s,.stderr{e}} { SWEAR( p==P::End && s==S::Err          ) ; }
+	JobRpcReq( P p ,         JI j ,                     S s , ::string&& e     ) : proc{p} ,              job{j} ,           digest{.status=s,.stderr{e}} { SWEAR( p==P::End && s>=S::Err          ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d                   } { SWEAR( p==P::End                       ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t                   } { SWEAR( p==P::LiveOut                   ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds            } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
@@ -417,7 +417,6 @@ struct JobRpcReply {
 			case Proc::ChkDeps  : ::serdes(s,ok   ) ; break ;
 			case Proc::Start :
 				::serdes(s,addr            ) ;
-				::serdes(s,ancillary_file  ) ;
 				::serdes(s,auto_mkdir      ) ;
 				::serdes(s,chroot          ) ;
 				::serdes(s,cwd_s           ) ;
@@ -451,7 +450,6 @@ struct JobRpcReply {
 	// data
 	Proc                      proc             = Proc::None          ;
 	in_addr_t                 addr             = 0                   ;         // proc == Start   , the address at which server can contact job, it is assumed that it can be used by subprocesses
-	::string                  ancillary_file   ;                               // proc == Start
 	bool                      auto_mkdir       = false               ;         // proc == Start   , if true <=> auto mkdir in case of chdir
 	::string                  chroot           ;                               // proc == Start
 	::string                  cwd_s            ;                               // proc == Start

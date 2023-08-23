@@ -360,10 +360,10 @@ namespace Engine {
 		prio = Infinity    ;                                                   // by default, rule is alone and this value has no impact
 		name = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      :                    force_cmd_attrs.spec.force = true ; break ; // Force so that source files are systematically inspected
-			case Special::Req      :                    force_cmd_attrs.spec.force = true ; break ;
-			case Special::Uphill   : prio = +Infinity ; anti                       = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
-			case Special::Infinite : prio = -Infinity ;                                     break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
+			case Special::Src      :                    force = true ; break ; // Force so that source files are systematically inspected
+			case Special::Req      :                    force = true ; break ;
+			case Special::Uphill   : prio = +Infinity ; anti  = true ; break ; // +inf : there may be other rules after , AllDepsStatic : dir must exist to apply rule
+			case Special::Infinite : prio = -Infinity ;                break ; // -inf : it can appear after other rules, NoDep         : deps contains the chain
 			default : FAIL(s) ;
 		}
 	}
@@ -637,7 +637,6 @@ namespace Engine {
 			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
 			if (dct.hasKey("create_none_attrs" )) create_none_attrs  = { Py::Object(dct["create_none_attrs" ]).ptr() , var_idxs } ;
-			if (dct.hasKey("force_cmd_attrs"   )) force_cmd_attrs    = { Py::Object(dct["force_cmd_attrs"   ]).ptr() , var_idxs } ;
 			if (dct.hasKey("cache_none_attrs"  )) cache_none_attrs   = { Py::Object(dct["cache_none_attrs"  ]).ptr() , var_idxs } ;
 			if (dct.hasKey("submit_rsrcs_attrs")) submit_rsrcs_attrs = { Py::Object(dct["submit_rsrcs_attrs"]).ptr() , var_idxs } ;
 			//
@@ -654,6 +653,7 @@ namespace Engine {
 			// now process fields linked to execution
 			//
 			field = "ete"       ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
+			field = "force"     ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
 			field = "is_python" ; if (dct.hasKey(field)) is_python =       Py::Object(dct[field]).as_bool() ; else throw "not found"s ;
 			field = "cmd"       ; if (dct.hasKey(field)) cmd       =       Py::String(dct[field])           ; else throw "not found"s ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
@@ -713,7 +713,6 @@ namespace Engine {
 			_set_crcs() ;
 			create_match_attrs.compile() ;
 			create_none_attrs .compile() ;
-			force_cmd_attrs   .compile() ;
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
 			start_cmd_attrs   .compile() ;
@@ -874,10 +873,6 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , ForceCmdAttrs const& mca ) {
-		if (mca.force) return to_string(::string(i,'\t'),"force : true\n") ;
-		else           return {}                                           ;
-	}
 	::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
 		::vmap_ss entries ;
 		if  (sna.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sna.tokens) ) ;
@@ -970,6 +965,7 @@ namespace Engine {
 		/**/                entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
 		if (!cwd_s.empty()) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
 		if (!anti) {
+			if (force)            entries.emplace_back( "force"       , to_string(force   )        ) ;
 			/**/                  entries.emplace_back( "n_tokens"    , to_string(n_tokens)        ) ;
 			if (!cmd_ctx.empty()) entries.emplace_back( "cmd_context" , _pretty_ctx(*this,cmd_ctx) ) ;
 		}
@@ -979,7 +975,6 @@ namespace Engine {
 		if (!anti) {
 			// new
 			res << _pretty(1,"match (create)"    ,create_match_attrs,stems) ;
-			res << _pretty(1,"cmd (force)"       ,force_cmd_attrs         ) ;
 			res << _pretty(1,"cmd (start)"       ,start_cmd_attrs         ) ;
 			res << _pretty(1,"cmd (end)"         ,end_cmd_attrs           ) ;
 			res << _pretty(1,"resources (submit)",submit_rsrcs_attrs      ) ;
@@ -1085,11 +1080,11 @@ namespace Engine {
 			h.update(stems             ) ;
 			h.update(job_name          ) ;
 			h.update(targets           ) ;
+			h.update(force             ) ;
 			h.update(is_python         ) ;
 			h.update(cmd_ctx           ) ;
 			h.update(cmd               ) ;
 			h.update(create_match_attrs) ;
-			h.update(force_cmd_attrs   ) ;
 			h.update(start_cmd_attrs   ) ;
 			h.update(end_cmd_attrs     ) ;
 			cmd_crc = h.digest() ;

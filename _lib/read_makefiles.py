@@ -28,38 +28,41 @@ sys.path = save_path                                                           #
 # helper constants
 # AntiRule's only need a subset of plain rule attributes as there is no execution
 StdAntiAttrs = {
-	'job_name'     : str
-,	'name'         : str
-,	'post_targets' : dict
-,	'prio'         : float
-,	'targets'      : dict
-,	'stems'        : dict
+	#                  type    dynamic
+	'job_name'     : ( str   , False   )
+,	'name'         : ( str   , False   )
+,	'post_targets' : ( dict  , False   )
+,	'prio'         : ( float , False   )
+,	'targets'      : ( dict  , False   )
+,	'stems'        : ( dict  , False   )
 }
 StdExecAttrs = {
-	'allow_stderr'      : bool
-,	'autodep'           : str
-,	'auto_mkdir'        : bool
-,	'backend'           : str
-,	'chroot'            : str
-,	'cache'             : str
-,	'cmd'               : None
-,	'deps'              : dict
-,	'environ_cmd'       : dict
-,	'environ_resources' : dict
-,	'environ_ancillary' : dict
-,	'ete'               : float
-,	'force'             : bool
-,	'ignore_stat'       : bool
-,	'keep_tmp'          : bool
-,	'kill_sigs'         : tuple
-,	'n_tokens'          : int
-,	'python'            : tuple
-,	'resources'         : dict
-,	'shell'             : tuple
-,	'start_delay'       : float
-,	'stderr_len'        : int
-,	'timeout'           : float
-,	'job_tokens'        : str
+	#                       type    dynamic
+	'allow_stderr'      : ( bool  , True    )
+,	'autodep'           : ( str   , True    )
+,	'auto_mkdir'        : ( bool  , True    )
+,	'backend'           : ( str   , True    )
+,	'chroot'            : ( str   , True    )
+,	'cache'             : ( str   , True    )
+,	'cmd'               : ( None  , False   )
+,	'cwd'               : ( str   , False   )
+,	'deps'              : ( dict  , True    )
+,	'environ_cmd'       : ( dict  , True    )
+,	'environ_resources' : ( dict  , True    )
+,	'environ_ancillary' : ( dict  , True    )
+,	'ete'               : ( float , False   )
+,	'force'             : ( bool  , False   )
+,	'ignore_stat'       : ( bool  , True    )
+,	'keep_tmp'          : ( bool  , True    )
+,	'kill_sigs'         : ( tuple , True    )
+,	'n_tokens'          : ( int   , False   )
+,	'python'            : ( tuple , False   )
+,	'resources'         : ( dict  , True    )
+,	'shell'             : ( tuple , False   )
+,	'start_delay'       : ( float , True    )
+,	'stderr_len'        : ( int   , True    )
+,	'timeout'           : ( float , True    )
+,	'job_tokens'        : ( str   , True    )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
@@ -162,9 +165,10 @@ def handle_inheritance(rule) :
 	for k,v in dct.items() :
 		if k in StdAttrs :
 			if v is None : continue                                            # None is not transported
-			if StdAttrs.get(k) and not callable(v) :
-				try    : v = StdAttrs[k](v)
-				except : raise TypeError(f'bad format for {k} : cannot be converted to {StdAttrs[k].__name__}')
+			typ,dyn = StdAttrs[k]
+			if typ and not ( dyn and callable(v) ) :
+				try    : v = typ(v)
+				except : raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
 		attrs[k] = v
 	attrs.name     = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__anti__ = rule.__anti__
@@ -323,9 +327,10 @@ class Handle :
 			'stems'   , *self.static_stems
 		,	'targets' , *( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
-		if 'cwd' in self.attrs : self.rule_rep.cwd = self.attrs.cwd
-		else                   : self.rule_rep.cwd = self.local_root
-		self.rule_rep.n_tokens = self.attrs.n_tokens
+		if 'cwd'   in self.attrs : self.rule_rep.cwd      = self.attrs.cwd
+		else                     : self.rule_rep.cwd      = self.local_root
+		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
+		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
 
 	def handle_interpreter(self) :
 		if all( callable(c) for c in self.attrs.cmd ) :
@@ -343,11 +348,6 @@ class Handle :
 		self._init()
 		self._handle_any('job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
-
-	def handle_force_cmd(self) :
-		self._init()
-		self._handle_any('force')
-		self.rule_rep.force_cmd_attrs = self._finalize()
 
 	def handle_cache_none(self) :
 		self._init()
@@ -410,7 +410,6 @@ class Handle :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
 		self._handle_any ('keep_tmp'                       )
-		self._handle_any ('stderr_len'                     )
 		self._handle_any ('start_delay'                    )
 		self._handle_any ('kill_sigs'                      )
 		self._handle_dict('env'        ,'environ_ancillary')
@@ -483,7 +482,6 @@ def fmt_rule(rule) :
 	#
 	h.handle_interpreter ()
 	h.handle_create_none ()
-	h.handle_force_cmd   ()
 	h.handle_cache_none  ()
 	h.handle_create_match()
 	h.handle_submit_rsrcs()

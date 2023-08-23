@@ -15,7 +15,8 @@ namespace Py {
 		static bool once=false ; if (once) return ; else once = true ;
 		Py_Initialize() ;
 		PyObject* eval_env = PyDict_New() ;
-		g_ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;
+		g_ellipsis = PyRun_String("..."                              ,Py_eval_input,eval_env,eval_env) ;
+		/**/         PyRun_String("import sys ; sys.path.append('.')",Py_file_input,eval_env,eval_env) ;
 		Py_DECREF(eval_env) ;
 		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
 	}

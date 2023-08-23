@@ -213,7 +213,7 @@ $(SECCOMP).install.stamp : $(SECCOMP).stamp
 # store
 #
 
-STORE_TEST : $(STORE_LIB)/unit_test.tok
+STORE_TEST : $(STORE_LIB)/unit_test.dir/tok
 
 $(STORE_LIB)/unit_test : \
 	$(STORE_LIB)/file$(SAN).o \
@@ -227,9 +227,10 @@ $(STORE_LIB)/unit_test : \
 	$(STORE_LIB)/unit_test$(SAN).o
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
-$(STORE_LIB)/unit_test.tok : $(STORE_LIB)/unit_test
-	rm -rf $(STORE_LIB)/unit_test.dir
-	./$< $(STORE_LIB)/unit_test.dir
+$(STORE_LIB)/unit_test.dir/tok : $(STORE_LIB)/unit_test
+	rm -rf $(@D)
+	mkdir -p $(@D)
+	./$< $(@D)
 	touch $@
 
 #
@@ -564,22 +565,21 @@ UT_DIR      := unit_tests
 UT_BASE_DIR := $(UT_DIR)/base
 
 UNIT_TESTS : Manifest \
-	$(patsubst %.script,%.tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) ) \
-	$(patsubst %.py,%.tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
+	$(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) ) \
+	$(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
 
-%.tok : %.script $(LMAKE_FILES) $(UT_BASE) Manifest
+%.dir/tok : %.script $(LMAKE_FILES) $(UT_BASE) Manifest
 	mkdir -p $(@D)
-	rm -rf $*.dir/*                                                            # keep $*.dir to ease debugging when we have cd inside and rerun make
-	mkdir -p $*.dir
-	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$*.dir/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
-	cd $*.dir ; find . -type f -printf '%P\n' > Manifest
-	( cd $*.dir ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH $(ROOT)/$< > ../$(@F) ) || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
+	cd $(@D) ; find . -type f -printf '%P\n' > Manifest
+	( cd $(@D) ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH $(ROOT)/$< ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
 
-%.tok : %.py $(LMAKE_FILES) _lib/ut.py
-	rm -rf $*.dir/*                                                            # keep $*.dir to ease debugging when we have cd inside and rerun make
-	mkdir -p $*.dir
-	cp $< $*.dir/Lmakefile.py
-	( cd $*.dir ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH PYTHONPATH=$(ROOT)/lib:$(ROOT)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+%.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
+	mkdir -p $(@D)
+	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	cp $< $(@D)/Lmakefile.py
+	( cd $(@D) ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH PYTHONPATH=$(ROOT)/lib:$(ROOT)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
 
 #
 # lmake env
