@@ -60,6 +60,18 @@ if getattr(_sys,'reading_makefiles',False) :
 	# - rules   : no default, must be set by user as the list of classes representing rules (use Rule & AntiRule base classes to help)
 	# - sources : defaults to files listed in Manifest or by searching git
 
+	exclude_deps = (
+		'/bin/'
+	,	'/boot/'
+	,	'/dev/'
+	,	'/etc/'
+	,	'/lib/'
+	,	'/proc/'
+	,	'/run/'
+	,	'/usr/'
+	,	'/var/'
+	)
+
 	#
 	# config
 	#

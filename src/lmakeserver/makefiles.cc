@@ -120,13 +120,35 @@ namespace Engine {
 			//                     vvvvvvvvvvvvvvvvv
 			auto [deps,info_str] = _read_makefiles() ;
 			//                     ^^^^^^^^^^^^^^^^^
+			Py::Gil   gil      ;
+			PyObject* eval_env = PyDict_New() ;
+			PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;
+			PyDict_SetItemString( eval_env , "nan"          , *Py::Float(nan("") ) ) ;
+			PyDict_SetItemString( eval_env , "__builtins__" , PyEval_GetBuiltins() ) ;           // Python3.6 does not provide it for us
+			PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
+			Py_DECREF(eval_env) ;
+			if (!py_info) exit( 2 , "error while reading makefile digest :\n" , Py::err_str() ) ;
+			Py::Dict   info     = Py::Object( py_info , true/*clobber*/ ) ;
+			::vector_s excludes ;
+			if (info.hasKey("exclude_deps"))
+				for( auto py_ed : Py::Sequence(info["exclude_deps"]) ) {
+					::string ed = py_ed.str() ;
+					if (!ed.empty()) excludes.push_back(ed) ;
+				}
 			// we should write deps once makefiles info is correctly stored as this implies that makefiles will not be read again unless they are modified
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
 			// so we create a no_makefiles file that we unlink once everything is ok.
 			do {
 				OFStream no_makefiles_stream{s_no_makefiles} ;                 // create marker
 				OFStream makefiles_stream   {s_makefiles   } ;
-				for( ::string const& f : deps ) makefiles_stream << (+FileInfo(f)?'+':'!') << f <<'\n' ;
+				for( ::string const& f : deps ) {
+					for( ::string const& ed : excludes ) {
+						if (ed.back()=='/') { if (f.starts_with(ed)) goto Skip ; }
+						else                { if (f==           ed ) goto Skip ; }
+					}
+					makefiles_stream << (+FileInfo(f)?'+':'!') << f <<'\n' ;
+				Skip : ;
+				}
 			} while (file_date(s_makefiles)<=latest_makefile) ;                                          // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
 			::string             local_admin_dir  ;
@@ -136,15 +158,6 @@ namespace Engine {
 			::vector_s           srcs             ;
 			::string             step             ;
 			try {
-				Py::Gil gil ;
-				PyObject* eval_env = PyDict_New() ;
-				PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;
-				PyDict_SetItemString( eval_env , "nan"          , *Py::Float(nan("") ) ) ;
-				PyDict_SetItemString( eval_env , "__builtins__" , PyEval_GetBuiltins() ) ;                                       // Python3.6 does not provide it for us
-				PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
-				if (!py_info) throw Py::err_str() ;
-				Py::Dict info = Py::Object( py_info , true/*clobber*/ ) ;
-				Py_DECREF(eval_env) ;
 				step = "local_admin_dir"  ; local_admin_dir  = Py::String (info[step]) ;
 				step = "remote_admin_dir" ; remote_admin_dir = Py::String (info[step]) ;
 				step = "config"           ; config           = Py::Mapping(info[step]) ;

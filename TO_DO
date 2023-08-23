@@ -36,6 +36,7 @@ items :
 ****************************************************************************************************
 
 * add flags in output of lshow -d/-a/-t
+* add dynamic attributes in output of lshow -i
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * be more consise in console output
 	- and more precise in recorded log

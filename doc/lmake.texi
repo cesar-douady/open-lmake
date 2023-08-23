@@ -863,8 +863,31 @@ While unavoidable for the first purpose (writing @Lmakefile), it is rarely neces
 When imported during job execution, the parts specificly targetted at writing @Lmakefile are not defined.
 These are described in their respective chapters below.
 
-Besides necessary variables, functions and classes to write @Lmakefile config, rules and sources parts that are described in their respective chapters below,
+Besides necessary variables, functions and classes to write @Lmakefile, the config, rules and sources parts are described in their respective chapters below,
 the @lmake module defines a few constants that are of general use.
+
+Some variables fo this module can be defined in @Lmakefile for some specific purposees.
+
+@section specific variables
+
+@subsection @code{lmake.local_admin_dir}
+
+This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
+Actually most of the accesses are made this directory. See @pxref{dir-local_admin_dir}
+
+@subsection @code{lmake.remote_admin_dir}
+
+This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
+See @pxref{dir-remote_admin_dir}
+
+@subsection @code{lmake.exclude_deps}
+
+This variable contains a @code{tuple}/@code{list} of files and directories to exclude when collecting deps during the @Lmakefile reading process.
+
+If an entry ends with a @code{/}, it is a directory and all files inside it are excluded.
+Else it is a file to exclude.
+
+By default, this variable holds a list of standard system directories.
 
 @section @code{class pdict}
 
@@ -990,12 +1013,14 @@ Such disk are typically rather slow, compared to local disks.
 
 So there a possibility to store administration data that do not mandate sharing into local disks.
 
+@anchor{dir-local_admin_dir}
 @section @code{lmake.local_admin_dir}
 
 This variable specifies the directory to use for data that are accessed by the @lmake server only.
 It can be set to a directory mounted on a local disk which may be visible only by the @lmake server (i.e. on the host on which you launch the @lmake command).
 This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
 
+@anchor{dir-remote_admin_dir}
 @section @code{lmake.remote_admin_dir}
 
 This variable specifies the directory to use for data that are accessed by the remote executing hosts only (not shared among them).
