@@ -213,7 +213,7 @@ $(SECCOMP).install.stamp : $(SECCOMP).stamp
 # store
 #
 
-STORE_TEST : $(STORE_LIB)/unit_test.dir/tok
+STORE_TEST : $(STORE_LIB)/unit_test.dir/tok $(STORE_LIB)/big_test.dir/tok
 
 $(STORE_LIB)/unit_test : \
 	$(STORE_LIB)/file$(SAN).o \
@@ -231,6 +231,12 @@ $(STORE_LIB)/unit_test.dir/tok : $(STORE_LIB)/unit_test
 	rm -rf $(@D)
 	mkdir -p $(@D)
 	./$< $(@D)
+	touch $@
+
+$(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
+	mkdir -p $(@D)
+	rm -rf $(@D)/LMAKE
+	PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
 	touch $@
 
 #

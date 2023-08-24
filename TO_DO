@@ -21,7 +21,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* ensure static deps are taken into account for criticality at their dynamic place, not at the beginning
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -35,8 +34,8 @@ items :
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* add flags in output of lshow -d/-a/-t
 * add dynamic attributes in output of lshow -i
+* add flags in output of lshow -d/-a/-t
 * add scheduling info (pressure, ETA, resources) to lshow -i
 * be more consise in console output
 	- and more precise in recorded log
@@ -66,6 +65,8 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add Critical dep flag
+	- and make critical_barrier obsolete
 * split 2 notions
 	- root of lmake repository : where files may be built
 	- root of git repository : where sources are located

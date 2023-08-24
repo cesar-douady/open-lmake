@@ -26,14 +26,15 @@ namespace Store {
 
 	namespace Prefix {
 
-		template<       class Char> using Vec     = ::vector           <       Char >      ;
-		template<       class Char> using VecView = ::vector_view_c    <       Char >      ;
-		template<       class Char> using Str     = ::basic_string     <AsChar<Char>>      ;
-		template<       class Char> using StrView = ::basic_string_view<AsChar<Char>>      ;
-		template<bool S,class Char> using VecStr  = ::conditional_t<S,Str<Char>,Vec<Char>> ;
+		template<       class Char> using Vec      = ::vector           <       Char >         ;
+		template<       class Char> using VecView  = ::vector_view_c    <       Char >         ;
+		template<       class Char> using Str      = ::basic_string     <AsChar<Char>>         ;
+		template<       class Char> using StrView  = ::basic_string_view<AsChar<Char>>         ;
+		template<bool S,class Char> using VecStr   = ::conditional_t<S,Str   <Char>,Vec<Char>> ;
+		template<bool S,class Char> using ItemChar = ::conditional_t<S,AsChar<Char>,    Char > ;
 		//
-		template<class Char> inline void append( ::vector      <Char>& res , Char const* from , size_t sz ) { for( Char const& c : ::vector_view_c<Char>(from,sz) ) res.push_back(c) ; }
-		template<class Char> inline void append( ::basic_string<Char>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
+		template<class Char> inline void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::vector_view_c<Char>(from,sz) ) res.push_back(c) ; }
+		template<class Char> inline void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
 
 		template<bool Reverse,class Char> inline Char const& char_at( VecView<Char> const& name , size_t pos ) {
 			return name[ Reverse ? name.size()-1-pos : pos ] ;
@@ -453,7 +454,7 @@ namespace Store {
 			// data
 			NoVoid<H>           hdr       ;
 			uint8_t             n_saved=0 ;
-			::pair<I,SaveItem_> save[16]  ;                                    // more than enough (~6 is necessary)
+			::pair<I,SaveItem_> save[64]  ;                                    // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
 		} ;
 
 	}
@@ -498,7 +499,8 @@ namespace Store {
 		using Str     = Prefix::Str    <Char> ;
 		using StrView = Prefix::StrView<Char> ;
 		//
-		template<bool S> using VecStr = Prefix::VecStr<S,Char> ;
+		template<bool S> using VecStr   = Prefix::VecStr  <S,Char> ;
+		template<bool S> using ItemChar = Prefix::ItemChar<S,Char> ;
 		//
 		static Char const& _s_char_at( VecView const& name ,                       size_t pos ) { return Item::s_char_at(name,     pos) ; }
 		static Char const& _s_char_at( VecView const& name , VecView const& psfx , size_t pos ) { return Item::s_char_at(name,psfx,pos) ; }
@@ -788,7 +790,7 @@ namespace Store {
 		}
 
 		// ...()->idx->... ==> ...()->...
-		template<bool BuPrev,bool BuI,bool BuNxt> void _erase_prefix(Idx idx) {
+		template<bool BuPrev,bool BuI,bool BuNxt> Idx/*prev*/ _erase_prefix(Idx idx) {
 			Item& item = _at(idx) ;
 			SWEAR( item.kind()==Kind::Prefix && !item.used ) ;
 			Idx  prev  = item.prev       ;
@@ -797,6 +799,7 @@ namespace Store {
 			_unlnk_after<BuI   ,BuNxt>(idx)            ;
 			_pop_item   <BuPrev,false>(idx)            ;                       // idx already backed up
 			_lnk        <false ,false>(prev,is_eq,nxt) ;                       // prev & nxt already backup up
+			return prev ;
 		}
 
 		// before(before_is_eq)->after ==> before(before_is_eq)->idx(is_eq)->after
@@ -877,8 +880,9 @@ namespace Store {
 			_backup<BuNxt_>(nxt) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvv
 			nxt_item.prepend_from(item,0) ;
-			_erase_prefix<BuPrev_,BuI_,false>(idx) ;                           // nxt already backed up
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			idx = _erase_prefix<BuPrev_,BuI_,false>(idx) ;                     // nxt already backed up
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^i^^^^^^^^^^
+			if (+idx) _compress_after<true,false,false>(idx) ;                 // nxt may have some room for the new prev, idx & nxt already backed up, but new prev is not
 			return {true,nxt} ;
 		}
 
@@ -931,10 +935,10 @@ namespace Store {
 			Idx dvg = _emplace( k , used , idx , 0/*start*/ , pos , cmp_val , Item::s_cmp_bit(cmp_val,dvg_val) ) ;
 			item.shorten_by(pos) ;
 			//^^^^^^^^^^^^^^^^^^
+			_insert_before<false,false>(dvg,true/*is_eq*/,idx) ;
 			bool compressed ;
 			::tie(compressed,idx) = _compress_after<false,false,BuNxt_>(idx) ; // idx already backed up
 			if (!compressed) _minimize_sz<false>(idx) ;                        // idx already backed up, minimize if it has not been merged
-			_insert_before<false,false>(dvg,true/*is_eq*/,idx) ;
 			_compress_before<false,false,false>(dvg) ;                         // all already backed up
 			return dvg ;
 		}
@@ -942,7 +946,7 @@ namespace Store {
 		// idx always backed up, others as necessary (max 4 backups)
 		template<bool BuPrev2_,bool BuPrev_,bool BuI,bool BuNxt0_,bool BuNxt1_> Idx _branch( Idx idx , ChunkIdx pos , CharUint dvg_val ) {
 			_backup<BuI>(idx) ;
-			Item& item = _at(idx)  ;
+			Item& item = _at(idx) ;
 			if (pos<item.chunk_sz) return _cut_with<BuPrev2_,BuPrev_,false,BuNxt1_>( idx , pos , Kind::Split , false/*used*/ , Prefix::rep(item.chunk(pos)) , dvg_val ) ; // idx already backed up
 			//
 			Kind kind = item.kind() ;
@@ -1196,7 +1200,7 @@ namespace Store {
 			if (!Reverse) {
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) res.push_back(item.chunk(i)) ; // chunk is stored in reverse order
+					for( int i=0 ; i<it->second ; i++ ) res.push_back(ItemChar<S>(item.chunk(i))) ; // chunk is stored in reverse order
 				}
 			}
 			return res ;

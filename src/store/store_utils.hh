@@ -7,9 +7,11 @@
 
 namespace Store {
 
+	template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
+
 	template<class Item> concept IsTrivial = ::is_trivially_copyable_v<Item>                      ;
 	template<class Item> concept IsChar    = ::is_trivial_v<Item> && ::is_standard_layout_v<Item> ;
-	template<class Item> using AsChar = ::conditional_t<IsChar<Item>,Item,char> ; // for use when Item is not yet known to be a Char
+	template<class Item> using AsChar = ::conditional_t<IsChar<Item>,Item,conditional_t<sizeof(Item)==1,char,Uint<sizeof(Item)*8>>> ; // for use when Item is not yet known to be a Char
 
 	template<class T>                              struct NGuardBitsHelper    { static constexpr uint8_t NGuardBits = T::NGuardBits ; } ;
 	template<class T> requires(::is_integral_v<T>) struct NGuardBitsHelper<T> { static constexpr uint8_t NGuardBits = 0             ; } ;

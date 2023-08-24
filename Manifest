@@ -93,6 +93,7 @@ src/rpc_job.cc
 src/rpc_job.hh
 src/serialize.hh
 src/store/alloc.hh
+src/store/big_test.py
 src/store/file.cc
 src/store/file.hh
 src/store/prefix.hh
