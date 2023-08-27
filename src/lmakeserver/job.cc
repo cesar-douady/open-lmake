@@ -49,8 +49,8 @@ namespace Engine {
 		::vector_view_c_s sts = match_.static_targets() ;
 		for( VarIdx t=0 ; t<sts.size() ; t++ ) {
 			Node target{sts[t]} ;
-			if (target->crc==Crc::None             ) continue ;                        // no interest to wash file if it does not exist
-			if (rule->flags(t)[TFlag::Incremental] ) continue ;                        // keep file for incremental targets
+			if (target->crc==Crc::None            ) continue ;                 // no interest to wash file if it does not exist
+			if (rule->flags(t)[TFlag::Incremental]) continue ;                 // keep file for incremental targets
 			//
 			if ( !target->has_actual_job(*this) && target->has_actual_job() ) {
 				if (rule->flags(t)[TFlag::Warning]) report_unlink.push_back(target) ;
@@ -121,8 +121,8 @@ namespace Engine {
 		::vector_s  targets = match_.targets() ;
 		auto const& deps    = (*this)->deps    ;
 		//
-		if (r->stdout_idx!=Rule::NoVar) jrr.stdout =                       targets[r->stdout_idx]                       ;
-		if (r->stdin_idx !=Rule::NoVar) jrr.stdin  = +deps[r->stdin_idx] ? deps   [r->stdin_idx ].name() : "/dev/null"s ;
+		if ( r->stdout_idx!=Rule::NoVar                        ) jrr.stdout = targets[r->stdout_idx]        ;
+		if ( r->stdin_idx !=Rule::NoVar && +deps[r->stdin_idx] ) jrr.stdin  = deps   [r->stdin_idx ].name() ;
 		::pair<vmap_ss,vmap_s<vmap_ss>> ctx = r.eval_ctx( r->cmd_ctx , match_.stems , targets , deps , rsrcs ) ;
 		if (r->is_python) {
 			for( auto const& [var,str] : ctx.first ) append_to_string( jrr.script , var ," = ", mk_py_str(str) ,'\n') ;
@@ -234,9 +234,9 @@ namespace Engine {
 		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
-			(*this)->tokens = rule_tgt->create_none_attrs.eval(*this).tokens ;
+			(*this)->tokens1 = rule_tgt->create_none_attrs.eval(*this).tokens1 ;
 		} catch (::string const& e) {
-			(*this)->tokens = rule_tgt->create_none_attrs.spec.tokens ;
+			(*this)->tokens1 = rule_tgt->create_none_attrs.spec.tokens1 ;
 			req->audit_job(Color::Note,"dynamic",*this) ;
 			req->audit_stderr({{rule_tgt->create_none_attrs.s_exc_msg(true/*using_static*/),{}}},e,-1,1) ;
 		}
@@ -260,13 +260,13 @@ namespace Engine {
 	}
 
 	::vector<Req> Job::running_reqs() const {                                               // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_reqs_by_start.size()) ;                      // pessimistic, so no realloc
+		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                  // pessimistic, so no realloc
 		for( Req r : Req::s_reqs_by_start ) if (c_req_info(r).running()) res.push_back(r) ;
 		return res ;
 	}
 
 	::vector<Req> Job::old_done_reqs() const {                                 // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_reqs_by_start.size()) ;         // pessimistic, so no realloc
+		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                     // pessimistic, so no realloc
 		for( Req r : Req::s_reqs_by_start ) {
 			if (c_req_info(r).running()) break ;
 			if (c_req_info(r).done()   ) res.push_back(r) ;
@@ -305,7 +305,7 @@ namespace Engine {
 					for( Req req : reqs ) {
 						// we need to compute crc if it can be done immediately, as is done in make
 						// or there is a risk that the job is not rerun if dep is remade steady and leave a bad crc leak to the job
-						dep.make( dep.c_req_info(req) , RunAction::Status ) ;  // XXX : avoid actually launching jobs if it was beind a critical_barrier (add an arg)
+						dep.make( dep.c_req_info(req) , RunAction::Status ) ;  // XXX : avoid actually launching jobs if it is behind a critical modif
 						trace("dep_info",dep,req) ;
 					}
 					Bool3 ok ;
@@ -324,7 +324,7 @@ namespace Engine {
 					for( Req req : reqs ) {
 						// we do not need dep for our purpose, but it will soon be necessary, it is simpler just to call plain make()
 						// use Dsk as we promess file is available
-						NodeReqInfo const& cdri = dep.make( dep.c_req_info(req) , RunAction::Dsk ) ; // XXX : avoid actually launching jobs if it was beind a critical_barrier (add an arg)
+						NodeReqInfo const& cdri = dep.make( dep.c_req_info(req) , RunAction::Dsk ) ; // XXX : avoid actually launching jobs if it is behind a critical modif
 						// if dep is waiting for any req, stop analysis as it is complicated what we want to rebuild after
 						// and there is no loss of parallelism as we do not wait for completion before doing a full analysis in make()
 						if (cdri.waiting()) { trace("waiting",dep) ; return {proc,Maybe} ; }
@@ -553,7 +553,7 @@ namespace Engine {
 			//
 			for( auto const& [dn,dd] : digest.deps ) {                         // static deps are guaranteed to appear first
 				Node d{dn} ;
-				Dep dep{ d , dd.flags , dd.order } ;
+				Dep dep{ d , dd.flags , dd.parallel } ;
 				dep.known = old_deps.contains(d) ;
 				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ;       } // garbage : force unknown crc
 				else            { dep.crc_date(dd) ; SWEAR( !(dd.flags&AccessDFlags) || dd.is_date!=Maybe ) ; } // date will be transformed into crc in make if possible
@@ -603,7 +603,7 @@ namespace Engine {
 		if (report_stats) {
 			SWEAR(+digest.stats.total) ;
 			(*this)->exec_time = digest.stats.total ;
-			rule.new_job_exec_time( digest.stats.total , (*this)->tokens ) ;
+			rule.new_job_exec_time( digest.stats.total , (*this)->tokens1 ) ;
 		}
 		for( Req req : running_reqs_ ) req_info(req).lvl = JobLvl::End ;       // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 		for( Req req : running_reqs_ ) {
@@ -633,8 +633,8 @@ namespace Engine {
 					::string jaf = ancillary_file() ;
 					try {
 						IFStream is{jaf} ;
-						auto report_start = deserialize<::pair<JobRpcReq,JobRpcReply>>(is) ;
-						auto report_end   = deserialize<JobRpcReq                    >(is) ;
+						auto report_start = deserialize<JobInfoStart>(is) ;
+						auto report_end   = deserialize<JobInfoEnd  >(is) ;
 						//
 						report_end.digest.analysis_err = ae ;
 						//
@@ -696,15 +696,14 @@ namespace Engine {
 	}
 
 	void Job::_set_pressure_raw(ReqInfo& ri , CoarseDelay pressure ) const {
-		using Lvl = ReqInfo::Lvl ;
 		Trace("set_pressure",*this,ri,pressure) ;
-		Req         req          = ri.req ;
+		Req         req          = ri.req                                        ;
 		CoarseDelay dep_pressure = ri.pressure + (*this)->best_exec_time().first ;
 		switch (ri.lvl) {
-			//                                                                                                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case Lvl::Dep    : for( Dep const& d : (*this)->deps.subvec(ri.dep_lvl) ) { if (d.order==DepOrder::Critical) break ; d.set_pressure(d.req_info(req),dep_pressure) ; } break ;
-			case Lvl::Queued :                                                          Backend::s_set_pressure( ri.backend , +*this , +req , dep_pressure ) ;                    break ;
-			//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case ReqInfo::Lvl::Dep    : for( Dep const& d : (*this)->deps.subvec(ri.dep_lvl) ) d.         set_pressure( d.req_info(req) ,                            dep_pressure  ) ; break ;
+			case ReqInfo::Lvl::Queued :                                                        Backend::s_set_pressure( ri.backend      , +*this , +req , {.pressure=dep_pressure} ) ; break ;
+			//                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			default : ;
 		}
 	}
@@ -766,10 +765,9 @@ namespace Engine {
 					if (JobData::s_frozen(status)) break ;
 				/*fall through*/
 				case Lvl::Dep : {
-					bool restarted = false                              ;
-					bool is_static = true                               ;
-					Dep  sentinel  { Node() , {} , DepOrder::Critical } ;
-					NodeIdx i_dep  = ri.dep_lvl                         ;
+					bool    restarted = false      ;
+					bool    is_static = true       ;
+					NodeIdx i_dep     = ri.dep_lvl ;
 				RestartAnalysis :
 					if (i_dep==0) {                                            // process command like a dep in parallel with static_deps
 						if ( !(*this)->exec_ok() ) {
@@ -779,26 +777,31 @@ namespace Engine {
 							trace("new_cmd") ;
 						}
 					}
+					bool critical = false ;
+					Dep  sentinel ;
 					for (;;) {
 						SWEAR(i_dep<=n_deps) ;
-						Dep& d         = i_dep<n_deps ? (*this)->deps[i_dep] : sentinel ;
-						if ( is_static && ! d.flags[DFlag::Static] && sure ) (*this)->mk_sure() ; // improve sure on last static dep (sure is pessimistic)
+						bool seen_all = i_dep==n_deps ;
+						Dep& d = seen_all ? sentinel : (*this)->deps[i_dep] ;                    // use empty dep as sentinel
+						if ( is_static && !d.flags[DFlag::Static] && sure ) (*this)->mk_sure() ; // improve sure on last static dep (sure is pessimistic)
 						is_static = d.flags[DFlag::Static] ;
 						//
-						if ( DepOrder cdo=d.order ; cdo!=DepOrder::Parallel ) {
+						if (!d.parallel) {
 							if (dep_state==DepState::DanglingModif) dep_state = DepState::Modif ;
-							if (cdo==DepOrder::Critical) {
+							if ( critical || seen_all ) {
 								// if we restarted, deps before current criticity level will just be regenerated if necessary
 								// so they will not change and in particular will not change the list of deps at lower criticity level, so we can analyse them all at once
-								if ( !restarted && ri.waiting() ) break ;      // unless restarted, stop analysis if something *may* change at a given criticity level
+								if ( !restarted && ri.waiting() ) break ;      // if restarted, deps have already been shortened if necessary because of critical modif
 								if (dep_state!=DepState::Ok) {
 									if (dep_state==DepState::Modif) {
-										(*this)->deps.shorten_by(n_deps-i_dep) ; // critical modif : ignore non-critical
-										n_deps = i_dep ;
+										if (!seen_all) {
+											(*this)->deps.shorten_by(n_deps-i_dep) ; // critical modif : ignore following deps
+											n_deps = i_dep ;
+										}
 										// we may have to restart dep analysis as we now have to ensure dep presence on disk
 										// check before checking for waiting() as if we are waiting a dep, this does not prevent to regenerate another one if necessary
 										// and waiting the same dep twice is harmless
-										SWEAR(ri.action>RunAction::Makable) ;  // there is no critical sections in static deps and Makable only looks at static deps
+										SWEAR(ri.action>RunAction::Makable) ;  // Makable only looks at static deps which are parallel
 										ri.action = RunAction::Run ;
 										if (dep_action<RunAction::Dsk) {
 											dep_action = RunAction::Dsk ;
@@ -812,9 +815,9 @@ namespace Engine {
 									break ;                                    // in all cases, stop analysis if something *did* change at a fiven criticity level
 								}
 								if (!ri.waiting()) ri.dep_lvl = i_dep ;        // all is ok at this criticity level, next time, restart analysis after this
-								if (i_dep==n_deps) break              ;        // we are done
 							}
 							if ( !is_static && ri.action==RunAction::Makable ) break ; // whether we are makable only depends on static deps
+							if ( seen_all                                    ) break ; // we are done
 						}
 						i_dep++ ;
 						//
@@ -840,7 +843,7 @@ namespace Engine {
 							reason |= {JobReasonTag::DepOutOfDate,+d} ;
 							Node::ReqInfo& dri = d.req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 							d.add_watcher(dri,*this,ri,dep_pressure) ;
-							goto Continue ;
+							goto Critical ;
 						}
 						SWEAR(d.done(*cdri)) ;                                 // after having called make, d must be either waiting or done
 						d.acquire_crc() ;                                      // 2nd chance : after having called make as if dep is steady (typically a source), crc may have been computed
@@ -908,7 +911,14 @@ namespace Engine {
 							trace("overwritten",d,d->db_date(),req->start) ;
 							mark = Maybe ; goto MarkDep ;
 						}
-						if (!d.crc_ok()) { dep_state = DepState::DanglingModif ; reason |= {JobReasonTag::DepChanged,+d} ; }
+						if (!d.crc_ok()) {
+							dep_state  = DepState::DanglingModif       ;
+							reason    |= {JobReasonTag::DepChanged,+d} ;
+							goto Critical ;
+						}
+						goto Continue ;
+					Critical :
+						critical |= d.flags[DFlag::Critical] && !restarted ;   // after restart, we just rebuild missing files, no new content
 						goto Continue ;
 					MarkDep :
 						{	Node::ReqInfo& dri = d.req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
@@ -957,9 +967,9 @@ namespace Engine {
 		if ( auto it = req->missing_audits.find(*this) ; it!=req->missing_audits.end() && !req->zombie ) {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
-			IFStream job_stream   { ancillary_file() }                                     ;
-			auto     report_start = deserialize<::pair<JobRpcReq,JobRpcReply>>(job_stream) ; // useless
-			auto     report_end   = deserialize<       JobRpcReq             >(job_stream) ;
+			IFStream job_stream   { ancillary_file() }                    ;
+			/**/                    deserialize<JobInfoStart>(job_stream) ;
+			auto     report_end   = deserialize<JobInfoEnd  >(job_stream) ;
 			//
 			if (!ja.hit) {
 				SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
@@ -1199,7 +1209,7 @@ namespace Engine {
 			ri.n_wait++ ;
 			ri.lvl = cri.lvl ;                                                   // Exec or Queued, same as other reqs
 			if (ri.lvl==Lvl::Exec) req->audit_job(Color::Note,"started",*this) ;
-			Backend::s_add_pressure( ri.backend , +*this , +req , pressure , ri.live_out ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			Backend::s_add_pressure( ri.backend , +*this , +req , {.pressure=pressure,.live_out=ri.live_out} ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
 			trace("other_req",r,ri) ;
 			return false/*may_new_deps*/ ;
 		}
@@ -1243,9 +1253,9 @@ namespace Engine {
 		ri.n_wait++ ;                                                          // set before calling submit call back as in case of flash execution, we must be clean
 		ri.lvl = Lvl::Queued ;
 		try {
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( ri.backend , +*this , +req , pressure , ri.live_out , submit_rsrcs_attrs.rsrcs , reason ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( ri.backend , +*this , +req , {.pressure=pressure,.live_out=ri.live_out,.reason=reason} , submit_rsrcs_attrs.rsrcs ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			ri.n_wait-- ;                                                      // restore n_wait as we prepared to wait
 			(*this)->status = Status::Err ;

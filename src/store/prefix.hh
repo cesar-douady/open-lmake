@@ -445,7 +445,7 @@ namespace Store {
 				n_saved = 0 ;
 			}
 			void backup( I idx , Item_ const& item ) {
-				SWEAR( n_saved < sizeof(save)/sizeof(save[0]) ) ;
+				SWEAR( n_saved < ::size(save) ) ;
 				save[n_saved].first = idx ;
 				save[n_saved].second.save(item) ;
 				fence() ;

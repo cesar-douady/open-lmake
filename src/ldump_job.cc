@@ -22,8 +22,16 @@ void _print_vector(::vector_s const& v) {
 	for( ::string const& x : v ) ::cout <<'\t'<< x <<'\n' ;
 }
 
-void print_req(::istream & s) {
-	auto jrr = deserialize<JobRpcReq>(s) ;
+void print_submit_attrs(SubmitAttrs const& sa) {
+	::cout << "--submit attrs--\n" ;
+	//
+	::cout << "backend  : "  << mk_snake(sa.tag)        <<'\n' ;
+	::cout << "pressure : "  << sa.pressure.short_str() <<'\n' ;
+	::cout << "live_out : "  << sa.live_out             <<'\n' ;
+	::cout << "reason   : "  << sa.reason               <<'\n' ;
+}
+
+void print_pre_start(JobRpcReq const& jrr) {
 	SWEAR(jrr.proc==JobProc::Start) ;
 	::cout << "--req--\n" ;
 	//
@@ -32,30 +40,28 @@ void print_req(::istream & s) {
 	::cout << "host   : " << jrr.host   <<'\n' ;
 }
 
-void print_start(::istream & s) {
-	auto jrr = deserialize<JobRpcReply>(s) ;
+void print_start(JobRpcReply const& jrr) {
 	SWEAR(jrr.proc==JobProc::Start) ;
 	::cout << "--start--\n" ;
 	//
-	::cout << "addr        : "  << hex<<jrr.addr          <<dec <<'\n' ;
-	::cout << "auto_mkdir  : "  <<      jrr.auto_mkdir          <<'\n' ;
-	::cout << "ignore_stat : "  <<      jrr.ignore_stat         <<'\n' ;
-	::cout << "chroot      : "  <<      jrr.chroot              <<'\n' ;
-	::cout << "cwd_s       : "  <<      jrr.cwd_s               <<'\n' ;
-	::cout << "hash_algo   : "  <<      jrr.hash_algo           <<'\n' ;
-	::cout << "interpreter : "  <<      jrr.interpreter         <<'\n' ;
-	::cout << "is_python   : "  <<      jrr.is_python           <<'\n' ;
-	::cout << "kill_sigs   : "  <<      jrr.kill_sigs           <<'\n' ;
-	::cout << "live_out    : "  <<      jrr.live_out            <<'\n' ;
-	::cout << "lnk_support : "  <<      jrr.lnk_support         <<'\n' ;
-	::cout << "method      : "  <<      jrr.method              <<'\n' ;
-	::cout << "reason      : "  <<      jrr.reason              <<'\n' ;
-	::cout << "root_dir    : "  <<      jrr.root_dir            <<'\n' ;
-	::cout << "small_id    : "  <<      jrr.small_id            <<'\n' ;
-	::cout << "stdin       : "  <<      jrr.stdin               <<'\n' ;
-	::cout << "stdout      : "  <<      jrr.stdout              <<'\n' ;
-	::cout << "targets     : "  <<      jrr.targets             <<'\n' ;
-	::cout << "timeout     : "  <<      jrr.timeout             <<'\n' ;
+	::cout << "addr        : "  << hex<<jrr.addr       <<dec <<'\n' ;
+	::cout << "auto_mkdir  : "  <<      jrr.auto_mkdir       <<'\n' ;
+	::cout << "ignore_stat : "  <<      jrr.ignore_stat      <<'\n' ;
+	::cout << "chroot      : "  <<      jrr.chroot           <<'\n' ;
+	::cout << "cwd_s       : "  <<      jrr.cwd_s            <<'\n' ;
+	::cout << "hash_algo   : "  <<      jrr.hash_algo        <<'\n' ;
+	::cout << "interpreter : "  <<      jrr.interpreter      <<'\n' ;
+	::cout << "is_python   : "  <<      jrr.is_python        <<'\n' ;
+	::cout << "kill_sigs   : "  <<      jrr.kill_sigs        <<'\n' ;
+	::cout << "live_out    : "  <<      jrr.live_out         <<'\n' ;
+	::cout << "lnk_support : "  <<      jrr.lnk_support      <<'\n' ;
+	::cout << "method      : "  <<      jrr.method           <<'\n' ;
+	::cout << "root_dir    : "  <<      jrr.root_dir         <<'\n' ;
+	::cout << "small_id    : "  <<      jrr.small_id         <<'\n' ;
+	::cout << "stdin       : "  <<      jrr.stdin            <<'\n' ;
+	::cout << "stdout      : "  <<      jrr.stdout           <<'\n' ;
+	::cout << "targets     : "  <<      jrr.targets          <<'\n' ;
+	::cout << "timeout     : "  <<      jrr.timeout          <<'\n' ;
 	//
 	::cout << "rsrcs :\n"       ; _print_map   (jrr.rsrcs      )      ;
 	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)      ;
@@ -63,10 +69,9 @@ void print_start(::istream & s) {
 	::cout << "script :\n"      ; ::cout << indent(jrr.script) <<'\n' ;
 }
 
-void print_end(::istream & s) {
-	auto             jrr = deserialize<JobRpcReq>(s) ;
-	JobDigest const& jd  = jrr.digest                ;
-	JobStats  const& st  = jd.stats                  ;
+void print_end(JobRpcReq const& jrr) {
+	JobDigest const& jd  = jrr.digest ;
+	JobStats  const& st  = jd.stats   ;
 	SWEAR(jrr.proc==JobProc::End) ;
 	//
 	::cout << "--end--\n" ;
@@ -91,10 +96,16 @@ int main( int argc , char* argv[] ) {
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	//
 	IFStream job_stream{argv[1]} ;
-	//
-	print_req  (job_stream) ;
-	print_start(job_stream) ;
-	print_end  (job_stream) ;
-	//
+	try {
+		auto report_start = deserialize<JobInfoStart>(job_stream) ;
+		::cout << "eta : "  << report_start.eta <<'\n' ;
+		print_submit_attrs(report_start.submit_attrs) ;
+		print_pre_start   (report_start.pre_start   ) ;
+		print_start       (report_start.start       ) ;
+	} catch(...) {}
+	try {
+		auto report_end = deserialize<JobInfoEnd  >(job_stream) ;
+		print_end(report_end) ;
+	} catch(...) {}
 	return 0 ;
 }

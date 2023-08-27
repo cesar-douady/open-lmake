@@ -13,6 +13,8 @@ native_version = (1,0)
 import sys     as _sys
 import os.path as _osp
 
+_reading_makefiles = getattr(_sys,'reading_makefiles',False)
+
 from clmake import *                                                           # if not in an lmake repo, root_dir is not set to current dir
 
 Kilo = 1_000                           # convenient constants
@@ -35,7 +37,7 @@ class pdict(dict) :
 		try             : del self[attr]
 		except KeyError : raise AttributeError(attr)
 
-if getattr(_sys,'reading_makefiles',False) :
+if _reading_makefiles :
 	#
 	# read lmakefile
 	#
@@ -60,17 +62,7 @@ if getattr(_sys,'reading_makefiles',False) :
 	# - rules   : no default, must be set by user as the list of classes representing rules (use Rule & AntiRule base classes to help)
 	# - sources : defaults to files listed in Manifest or by searching git
 
-	exclude_deps = (
-		'/bin/'
-	,	'/boot/'
-	,	'/dev/'
-	,	'/etc/'
-	,	'/lib/'
-	,	'/proc/'
-	,	'/run/'
-	,	'/usr/'
-	,	'/var/'
-	)
+	source_dirs = []                                       # files in this list of directorie are deemed to be sources (only apply to reading Lmakefile.py for now)
 
 	#
 	# config
@@ -263,7 +255,7 @@ if getattr(_sys,'reading_makefiles',False) :
 	# sources
 	#
 
-#sources = ()      # this variable may be set by Lmakefile.py to provide the list of sources, if it is not, auto_sources() is called to fill it
+	#sources = ()  # this variable may be set by Lmakefile.py to provide the list of sources, if it is not, auto_sources() is called to fill it
 
 	def manifest_sources(manifest='Manifest',**kwds) :
 		'''
@@ -276,37 +268,49 @@ if getattr(_sys,'reading_makefiles',False) :
 		'''
 		import re
 		line_re = re.compile(r'\s*(?P<file>[^#\s](.*\S)?)?\s+(#.*)?\n?')
-		return [ f for f in ( line_re.fullmatch(l).group('file') for l in open(manifest) ) if f ]
+		srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in open(manifest) ) if f ]
+		if 'Lmakefile.py' not in srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
+		return srcs
 
+	_git = 'git'                                                                 # overridden by installation configuration
 	def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		'''
 			gather git controled files.
 			recurse to sub-modules if recurse is True
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
-		git_top = _osp.isdir('.git')
-
-		git_cmd = ['git','ls-files']
-		if recurse : git_cmd.append('--recurse-submodules')
-		try :
-			srcs = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-		except :
-			if recurse : return git_sources(False)
-			else       : raise
-		if not srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
-		if git_top : srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources if .git is in repo as they are read by git ls-files
-
+		root_dir = _os.getcwd()
+		#
+		git_dir = root_dir
+		while git_dir and not _osp.isdir(_osp.join(git_dir,'.git')) : git_dir = _osp.dirname(git_dir)
+		if not git_dir : raise FileNotFoundError('not in git repository')
+		#
+		repo_dir = root_dir[len(git_dir)+1:]
+		if repo_dir : repo_dir += '/'
+		# old versions of git do not support --recurse-submodules when not launched from top
+		git_cmd  = [_git,'ls-files']
+		if recurse  : git_cmd.append('--recurse-submodules')
+		if repo_dir : git_cmd.append(repo_dir[:-1]         )
+		try                           : srcs = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		except _sp.CalledProcessError : return git_sources(False)              # dont support sub-modules if --recurse-submodules option is not supported
+		srcs = [ s[len(repo_dir):] for s in srcs ]
+		#
+		if not repo_dir :
+			srcs += [_osp.join('.git',f) for f in ('HEAD','config','index') ]  # not listed by git, but actually sources as they are read by git ls-files
 		if recurse :
-			git_cmd    = ('git','submodule','--quiet','foreach','--recursive','echo $displaypath')
-			submodules = _sp.run( git_cmd , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			# old versions of git do not support submodule command when not launched from top
+			git_cmd    = (_git,'submodule','--quiet','foreach','--recursive','echo $name')
+			submodules = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
 			for submodule in submodules :
-				if submodule.startswith('../') : continue
-				sub_git = _osp.join(submodule,'.git')
+				if not submodule.startswith(repo_dir) : continue
+				submodule = submodule[len(repo_dir):]
+				sub_git   = _osp.join(submodule,'.git')
 				# XXX : fix using 'git submodule status' to detect and handle cases where submodules are not loaded but this creates more dependencies
-				if not _osp.exists(sub_git) and not ignore_missing_submodules : raise FileNotFoundError(f'cannot find git submodule {submodule}')
+				if not _osp.exists(sub_git) and not ignore_missing_submodules : raise RuntimeError(f'cannot find git submodule {submodule}')
 				git_dir      = open(sub_git).readline().split()[1]
 				sub_git_dir  = _osp.normpath(_osp.join(_osp.dirname(sub_git),git_dir))
-				srcs        += ( sub_git , *( _osp.join(sub_git_dir,f) for f in ('HEAD','config','index') ) ) # not listed by git, but actually a source as it is read by git ls-files
+				srcs        += ( sub_git , *( _osp.join(sub_git_dir,f) for f in ('HEAD','config','index') ) ) # not listed by git, but actually sources as they are read by git ls-files
+		if git_dir not in source_dirs : source_dirs.append(git_dir)
 		return srcs
 
 	def auto_sources(**kwds) :
@@ -315,8 +319,8 @@ if getattr(_sys,'reading_makefiles',False) :
 			kwds can be passed to underlying source control
 		'''
 		for ctl in ( manifest_sources , git_sources ) :
-			try    : return ctl(**kwds)
-			except : pass
+			try                      : return ctl(**kwds)
+			except FileNotFoundError : pass
 		raise FileNotFoundError(f'no source control found')
 
 #
@@ -367,3 +371,8 @@ def fix_imports() :
 			break
 	else :
 		_sys.meta_path.append(Depend)
+
+#
+# system configuration computed at installation time
+#
+

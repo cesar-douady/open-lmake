@@ -19,13 +19,13 @@ if getattr(sys,'reading_makefiles',False) :
 	class Test1(lmake.Rule):
 		targets = { 'GOOD' : ('good','Phony') }
 		def cmd():
-			if step==1 : lmake.depend('bad')
+			if step==1 : lmake.depend('bad',required=True)
 
 	class Test2(lmake.Rule):
 		target = 'tgt'
 		def cmd():
-			lmake.depend('good')
-			if step==1 : lmake.depend('bad')
+			lmake.depend('good',required=True)
+			if step==1 : lmake.depend('bad',required=True)
 
 else :
 

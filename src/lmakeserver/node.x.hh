@@ -166,8 +166,9 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base ;
 		// services
-		bool crc_ok     () const ;
-		void acquire_crc() ;
+		bool crc_ok       () const ;
+		void acquire_crc  () ;
+		::string flags_str() const ;
 	} ;
 
 }
@@ -241,11 +242,11 @@ namespace Engine {
 		Date db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Date() ; }
 		//
 		bool read(DFlags dfs) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in dfs
-			if (crc==Crc::None  ) return false           ;                     // file does not exist, cannot perceive difference
-			if (dfs[DFlag::Stat]) return true            ;                     // if file exists, stat is different
-			if (is_lnk          ) return dfs[DFlag::Lnk] ;
-			if (!crc            ) return +dfs            ;                     // dont know if file is a link, any access may have perceived a difference
-			/**/                  return dfs[DFlag::Reg] ;
+			if (crc==Crc::None  ) return false               ;                 // file does not exist, cannot perceive difference
+			if (dfs[DFlag::Stat]) return true                ;                 // if file exists, stat is different
+			if (is_lnk          ) return dfs[DFlag::Lnk]     ;
+			if (!crc            ) return +(dfs&AccessDFlags) ;                 // dont know if file is a link, any access may have perceived a difference
+			/**/                  return dfs[DFlag::Reg]     ;
 			return +dfs ;
 		}
 		// data
@@ -429,7 +430,7 @@ namespace Engine {
 
 	inline Deps::Deps(::vmap<Node,DFlags> const& static_deps) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,f] : static_deps ) { SWEAR(f[DFlag::Static]) ; ds.emplace_back( d , f , DepOrder::Parallel ) ; }
+		for( auto const& [d,f] : static_deps ) { SWEAR(f[DFlag::Static]) ; ds.emplace_back( d , f , true/*parallel*/ ) ; }
 		*this = Deps(ds) ;
 	}
 

@@ -10,6 +10,7 @@
 ENUM(Key,None)
 ENUM(Flag
 ,	Unlink
+,	NoFollow
 ,	Crc                                // generate a crc for this target (compulsery if Match)
 ,	Dep                                // reads not followed by writes trigger dependencies
 ,	Essential                          // show when generating user oriented graphs
@@ -30,23 +31,24 @@ ENUM(Flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::Unlink      , { .short_name='u' , .has_arg=false , .doc="report an unlink"                                                       } }
-	,	{ Flag::Crc         , { .short_name='c' , .has_arg=false , .doc="generate a crc for this target (compulsery if Match)"                   } }
-	,	{ Flag::Dep         , { .short_name='d' , .has_arg=false , .doc="reads not followed by writes trigger dependencies"                      } }
-	,	{ Flag::Essential   , { .short_name='e' , .has_arg=false , .doc="show when generating user oriented graphs"                              } }
-	,	{ Flag::ManualOk    , { .short_name='m' , .has_arg=false , .doc="ok to overwrite manual files"                                           } }
-	,	{ Flag::Phony       , { .short_name='p' , .has_arg=false , .doc="unlinks are allowed (possibly followed by reads which are ignored)"     } }
-	,	{ Flag::SourceOk    , { .short_name='s' , .has_arg=false , .doc="ok to overwrite source files"                                           } }
-	,	{ Flag::Stat        , { .short_name='t' , .has_arg=false , .doc="inode accesses (stat-like) are not ignored"                             } }
-	,	{ Flag::Write       , { .short_name='w' , .has_arg=false , .doc="writes are allowed (possibly followed by reads which are ignored)"      } }
-	,	{ Flag::NoCrc       , { .short_name='C' , .has_arg=false , .doc="do not generate a crc for this target (compulsery if Match)"            } }
-	,	{ Flag::NoDep       , { .short_name='D' , .has_arg=false , .doc="reads not followed by writes do not trigger dependencies"               } }
-	,	{ Flag::NoEssential , { .short_name='E' , .has_arg=false , .doc="do not show when generating user oriented graphs"                       } }
-	,	{ Flag::NoManualOk  , { .short_name='M' , .has_arg=false , .doc="not ok to overwrite manual files"                                       } }
-	,	{ Flag::NoPhony     , { .short_name='P' , .has_arg=false , .doc="unlinks are not allowed (possibly followed by reads which are ignored)" } }
-	,	{ Flag::NoSourceOk  , { .short_name='S' , .has_arg=false , .doc="not ok to overwrite source files"                                       } }
-	,	{ Flag::NoStat      , { .short_name='T' , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                 } }
-	,	{ Flag::NoWrite     , { .short_name='W' , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)"  } }
+		{ Flag::Unlink      , { .short_name='u' , .has_arg=false , .doc="report an unlink"                                                      } }
+	,	{ Flag::NoFollow    , { .short_name='P' , .has_arg=false , .doc="Physical view, do noe follow symbolic links."                          } }
+	,	{ Flag::Crc         , { .short_name='c' , .has_arg=false , .doc="generate a crc for this target (compulsery if Match)"                  } }
+	,	{ Flag::Dep         , { .short_name='d' , .has_arg=false , .doc="reads not followed by writes trigger dependencies"                     } }
+	,	{ Flag::Essential   , { .short_name='e' , .has_arg=false , .doc="show when generating user oriented graphs"                             } }
+	,	{ Flag::ManualOk    , { .short_name='m' , .has_arg=false , .doc="ok to overwrite manual files"                                          } }
+	,	{ Flag::Phony       , { .short_name='f' , .has_arg=false , .doc="phony, file is deemed to exist even if unlinked"                       } }
+	,	{ Flag::SourceOk    , { .short_name='s' , .has_arg=false , .doc="ok to overwrite source files"                                          } }
+	,	{ Flag::Stat        , { .short_name='t' , .has_arg=false , .doc="inode accesses (stat-like) are not ignored"                            } }
+	,	{ Flag::Write       , { .short_name='w' , .has_arg=false , .doc="writes are allowed (possibly followed by reads which are ignored)"     } }
+	,	{ Flag::NoCrc       , { .short_name='C' , .has_arg=false , .doc="do not generate a crc for this target (compulsery if Match)"           } }
+	,	{ Flag::NoDep       , { .short_name='D' , .has_arg=false , .doc="reads not followed by writes do not trigger dependencies"              } }
+	,	{ Flag::NoEssential , { .short_name='E' , .has_arg=false , .doc="do not show when generating user oriented graphs"                      } }
+	,	{ Flag::NoManualOk  , { .short_name='M' , .has_arg=false , .doc="not ok to overwrite manual files"                                      } }
+	,	{ Flag::NoPhony     , { .short_name='F' , .has_arg=false , .doc="not phony, file is not deemed to exist if unlinked"                    } }
+	,	{ Flag::NoSourceOk  , { .short_name='S' , .has_arg=false , .doc="not ok to overwrite source files"                                      } }
+	,	{ Flag::NoStat      , { .short_name='T' , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
+	,	{ Flag::NoWrite     , { .short_name='W' , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv } ;
 	bool              unlink    = false              ;
@@ -76,7 +78,12 @@ int main( int argc , char* argv[]) {
 	if ( +(neg_flags&pos_flags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_flags&pos_flags)) ;
 	if ( unlink && (+neg_flags||+pos_flags) ) syntax.usage(          "cannot unlink and set/reset flags"s                               ) ;
 	//
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( ::move(cmd_line.args) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} ) ) ;
+	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
+		::move(cmd_line.args)
+	,	{.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink}
+	,	cmd_line.flags[Flag::NoFollow]
+	,	"ltarget"
+	) ) ;
 	//
 	return 0 ;
 }

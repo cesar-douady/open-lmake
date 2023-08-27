@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* margin is no more used, normal ?!?
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -34,16 +35,11 @@ items :
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* add dynamic attributes in output of lshow -i
-* add flags in output of lshow -d/-a/-t
-* add scheduling info (pressure, ETA, resources) to lshow -i
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
 	- e.g. 'dep changed' on screen and actual dates (before, after) in log
 	- same for manual, etc.
-? consider using a single command check_deps/critical_barrier
-	* a priori they serve the same purpose
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
@@ -65,8 +61,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* add Critical dep flag
-	- and make critical_barrier obsolete
 * split 2 notions
 	- root of lmake repository : where files may be built
 	- root of git repository : where sources are located

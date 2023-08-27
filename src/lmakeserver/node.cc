@@ -455,6 +455,14 @@ namespace Engine {
 	// Dep
 	//
 
-	::ostream& operator<<( ::ostream& os , Dep const& d ) { return os << static_cast<DepDigestBase<Node> const&>(d) ; }
+	::ostream& operator<<( ::ostream& os , Dep const& d ) {
+		return os << static_cast<DepDigestBase<Node> const&>(d) ;
+	}
+
+	::string Dep::flags_str() const {
+		::string res ; res.reserve(+DFlag::N) ;
+		for( DFlag f : DFlag::N ) res.push_back( flags[f] ? DFlagChars[+f] : '-' ) ;
+		return res ;
+	}
 
 }

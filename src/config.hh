@@ -35,7 +35,7 @@ using DepDepth = uint16_t ;
 using Prio = double ;
 
 // job tokens
-using Tokens = uint8_t ;
+using Tokens1 = uint8_t ;              // store number of tokens-1 (so tokens can go from 1 to 256)
 
 // if crc's differ on only by that many bits, then we are close to crc clashes. If that happen, we will have to increase CRC size.
 static constexpr uint8_t NCrcGuardBits = 8 ;
@@ -44,13 +44,13 @@ static constexpr uint8_t NCrcGuardBits = 8 ;
 // minimum is 2 : we need a value for bad and ok
 // Node's store a generation, so this must not be too high
 // also, there are 2 shared Node's for each generation
-static constexpr size_t NMatchGen = 127 ;
+static constexpr size_t NMatchGen = 255 ;
 static_assert(NMatchGen>=2) ;
 
 // maximum number of cmd/rsrcs generation before a Job/Node clean up is necessary
 // minimum is 3 : we need a value for bad cmd, bad rsrcs and ok
 // Job's store a generation, so this must not be too high
-static constexpr size_t NExecGen = 127 ;
+static constexpr size_t NExecGen = 255 ;
 static_assert(NExecGen>=3) ;
 
 // weight associated to rule when a job completes

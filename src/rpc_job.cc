@@ -6,6 +6,27 @@
 #include "rpc_job.hh"
 
 //
+// JobReason
+//
+
+::ostream& operator<<( ::ostream& os , JobReason const& jr ) {
+	os << "JobReason(" << jr.tag ;
+	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
+	return os << ')' ;
+}
+
+//
+// SubmitAttrs
+//
+
+::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
+	/**/                             os << "SubmitAttrs("  ;
+	if (sa.tag!=BackendTag::Unknown) os << sa.tag    <<',' ;
+	if (sa.live_out                ) os << "live_out,"     ;
+	return                           os << sa.reason <<')' ;
+}
+
+//
 // JobRpcReq
 //
 
@@ -39,12 +60,6 @@
 // JobRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , JobReason const& jr ) {
-	os << "JobReason(" << jr.tag ;
-	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
-	return os << ')' ;
-}
-
 ::ostream& operator<<( ::ostream& os , TargetSpec const& tf ) {
 	return os << "TargetSpec(" << tf.pattern <<','<< tf.flags <<','<< tf.conflicts <<')' ;
 }
@@ -67,7 +82,6 @@
 			/**/                          os <<',' << jrr.kill_sigs        ;
 			if (jrr.live_out            ) os <<',' << "live_out"           ;
 			/**/                          os <<',' << jrr.method           ;
-			/**/                          os <<',' << jrr.reason           ;
 			/**/                          os <<',' << jrr.remote_admin_dir ;
 			/**/                          os <<',' << jrr.rsrcs            ;
 			/**/                          os <<',' << jrr.small_id         ;
@@ -128,6 +142,7 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 	os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
 	if (jerr.sync            ) os << ",sync"            ;
 	if (jerr.auto_date       ) os << ",auto_date"       ;
+	if (jerr.no_follow       ) os << ",no_follow"       ;
 	/**/                       os <<',' << jerr.info    ;
 	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
 	if (jerr.has_files()) {
@@ -154,4 +169,12 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 		default : ;
 	}
 	return os << ')' ;
+}
+
+//
+// JobInfoStart
+//
+
+::ostream& operator<<( ::ostream& os , JobInfoStart const& jis ) {
+	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }

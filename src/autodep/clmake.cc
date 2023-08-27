@@ -20,11 +20,6 @@ using Proc = JobExecRpcProc ;
 
 static AutodepSupport _g_autodep_support ;
 
-static PyObject* critical_barrier( PyObject* /*null*/ , PyObject* /*null*/ ) {
-	JobExecRpcReply reply = _g_autodep_support.req(JobExecRpcReq(Proc::CriticalBarrier,true/*sync*/)) ; // we must be sync to be sure that subsequent deps are after this call
-	Py_RETURN_NONE ;
-}
-
 static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_args = PyTuple_GET_SIZE(args) + (kw?PyDict_Size(kw):0) ;
 	if (n_args>1) { PyErr_SetString(PyExc_TypeError,"too many args") ; return nullptr ; }
@@ -68,12 +63,11 @@ static ::vector_s _get_files( PyObject* args ) {
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
 	bool    verbose   = false                    ;
+	bool    no_follow = false                    ;
 	DFlags  flags     = DfltDFlags               ;
 	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose") ) {
-			n_kw_args-- ;
-			verbose = PyObject_IsTrue(py_v) ;
-		}
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose"        ) ) { n_kw_args-- ; verbose   =  PyObject_IsTrue(py_v) ; }
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
 		for( DFlag df : DFlag::N) {
 			if (df>=DFlag::Private) break ;
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) {
@@ -108,7 +102,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		}
 		return res ;
 	} else {
-		_g_autodep_support.req( JobExecRpcReq( ::move(files) , {.dfs=flags} , "depend" ) ) ;
+		_g_autodep_support.req( JobExecRpcReq( ::move(files) , {.dfs=flags} , no_follow , "depend" ) ) ;
 		Py_RETURN_NONE ;
 	}
 }
@@ -116,13 +110,12 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
 	bool    unlink    = false                    ;
+	bool    no_follow = false                    ;
 	TFlags  neg_flags ;
 	TFlags  pos_flags ;
 	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink") ) {
-			n_kw_args-- ;
-			unlink = PyObject_IsTrue(py_v) ;
-		}
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
 		for( TFlag tf : TFlag::N) {
 			if (tf>=TFlag::RuleOnly) break ;
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
@@ -137,8 +130,8 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq  jerr   = JobExecRpcReq( ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                           ;
+	JobExecRpcReq  jerr   = JobExecRpcReq( ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} , no_follow , "target" ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                  ;
 	//
 	Py_RETURN_NONE ;
 }
@@ -178,12 +171,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 }
 
 static PyMethodDef funcs[] = {
-	{	"critical_barrier"
-	,	critical_barrier
-	,	METH_NOARGS
-	,	"critical_barrier(). Mark following deps as less critical than previous ones"
-	}
-,	{	"check_deps"
+	{	"check_deps"
 	,	reinterpret_cast<PyCFunction>(chk_deps)
 	,	METH_VARARGS|METH_KEYWORDS
 	,	"check_deps(verbose=False). Ensure that all previously seen deps are up-to-date"

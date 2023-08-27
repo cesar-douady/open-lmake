@@ -509,7 +509,7 @@ if hasattr(lmake,'sources') : srcs = lmake.sources
 else                        : srcs = lmake.auto_sources()
 
 print(repr({
-	'exclude_deps'     : lmake.exclude_deps
+	'source_dirs'      : tuple(lmake.source_dirs)
 ,	'local_admin_dir'  : lmake.local_admin_dir
 ,	'remote_admin_dir' : lmake.remote_admin_dir
 ,	'config'           : lmake.config

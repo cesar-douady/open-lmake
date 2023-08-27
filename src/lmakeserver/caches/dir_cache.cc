@@ -170,14 +170,19 @@ namespace Caches {
 		//
 		try {
 			for( ::string const& r : lst_dir(dfd) ) {
-				::uset<Node> nds  ;
-				auto         deps = deserialize<::vmap_s<pair<bool/*critical_barrier*/,Crc>>>(IFStream(to_string(dir,'/',jn,'/',r,"/deps"))) ;
+				::uset<Node> nds      ;
+				auto         deps     = deserialize<::vmap_s<DepDigest>>(IFStream(to_string(dir,'/',jn,'/',r,"/deps"))) ;
+				bool         critical = false ;
 				//
-				for( auto const& [dn,cb_crc] : deps ) {
-					if ( !nds.empty() && cb_crc.first ) break ;                // if a dep needs reconstruction, do not cross critical barriers as we are not sure further deps are necessary
+				for( auto const& [dn,dd] : deps ) {
+					if ( critical && !dd.parallel ) break ;                    // if a critical dep needs reconstruction, do not proceed past parallel deps
 					Node d{dn} ;
-					if      (!d.done(req)                ) nds.insert(d) ;
-					else if (!cb_crc.second.match(d->crc)) goto Miss ;
+					if (!d.done(req)) {
+						nds.insert(d) ;
+						if (dd.flags[DFlag::Critical]) critical = true ;                // note critical flag to stop processing once parallel deps are exhausted
+					} else if ( +(dd.flags&AccessDFlags) && !dd.crc().match(d->crc) ) {
+						goto Miss ;
+					}
 				}
 				if (nds.empty()) {
 					Trace trace("match","hit",job,r) ;
@@ -191,7 +196,7 @@ namespace Caches {
 						if (nds.contains(*it))                it++  ;
 						else                   new_deps.erase(it++) ;          // /!\ be careful with erasing while iterating : increment it before erasing is done at it before increment
 				}
-			Miss : ;
+			Miss : ;                                                           // missed for this entry, try next one
 			}
 		} catch (::string const&) {}                                           // if directory does not exist, it is as it was empty
 		if (!found) {
@@ -213,12 +218,12 @@ namespace Caches {
 		::string    jn         = _unique_name(job,id)       ;
 		AutoCloseFd dfd        = open_read(dir_fd,jn)       ;
 		::vector_s  copied     ;
-		JobRpcReq   report_end ;
+		JobInfoEnd  report_end ;
 		try {
-			{	LockedFd lock         { dfd , false/*exclusive*/ }                     ; // because we read the data , shared is ok
-				IFStream is           { to_string(dir,'/',jn,"/data") }                ;
-				auto     report_start = deserialize<::pair<JobRpcReq,JobRpcReply>>(is) ;
-				/**/     report_end   = deserialize<JobRpcReq                    >(is) ;
+			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;      // because we read the data , shared is ok
+				IFStream is           { to_string(dir,'/',jn,"/data") } ;
+				auto     report_start = deserialize<JobInfoStart>(is)   ;
+				/**/     report_end   = deserialize<JobRpcReq   >(is)   ;
 				//
 				for( NodeIdx ti=0 ; ti<report_end.digest.targets.size() ; ti++ ) {
 					::string const& tn = report_end.digest.targets[ti].first ;
@@ -260,11 +265,11 @@ namespace Caches {
 		unlink_inside(dfd) ;
 		//
 		try {
-			IFStream is           { job.ancillary_file() }                         ;
-			auto     report_start = deserialize<::pair<JobRpcReq,JobRpcReply>>(is) ;
-			auto     report_end   = deserialize<JobRpcReq                    >(is) ;
+			IFStream is           { job.ancillary_file() }        ;
+			auto     report_start = deserialize<JobInfoStart>(is) ;
+			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
 			// transform date into crc
-			::vmap_s<pair<bool/*critical_barrier*/,Crc>> deps ;
+			::vmap_s<DepDigest> deps ;
 			for( auto& [dn,dd] : report_end.digest.deps ) {
 				Node d{dn} ;
 				switch (dd.is_date) {
@@ -273,7 +278,7 @@ namespace Caches {
 					case Maybe : SWEAR(!(dd.flags&AccessDFlags)) ;                  break ; // ., and if we have accessed the dep, we must have a date or a crc
 					default    : FAIL(dd.is_date) ;
 				}
-				deps.emplace_back( dn , ::pair(dd.order==DepOrder::Critical,d->crc) ) ;
+				deps.emplace_back(dn,dd) ;
 			}
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;

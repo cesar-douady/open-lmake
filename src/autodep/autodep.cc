@@ -68,23 +68,18 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "deps :\n" ;
 	::string prev_dep      ;
 	bool     prev_parallel = false ;
-	NodeIdx  indent_lvl    = 0     ;
-	auto send = [&]( ::string const& dep={} , DepOrder order=DepOrder::Critical ) {                   // process deps with a delay of 1 because we need next order for ascii art
-		bool parallel = order==DepOrder::Parallel ;
-		bool critical = order==DepOrder::Critical ;
+	auto send = [&]( ::string const& dep={} , bool parallel=false ) {          // process deps with a delay of 1 because we need next entry for ascii art
 		if (!prev_dep.empty()) {
-			deps_stream << setw(indent_lvl*2)<<"" ;
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
 			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
 			else if (  prev_parallel &&  parallel ) deps_stream << "| "  ;
 			else                                    deps_stream << "\\ " ;
 			deps_stream << prev_dep << '\n' ;
 		}
-		prev_parallel  = parallel ;
-		indent_lvl    += critical ;
-		prev_dep       = dep      ;
+		prev_parallel = parallel ;
+		prev_dep      = dep      ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.order) ;
-	/**/                                                                   send(            ) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.parallel) ;
+	/**/                                                                   send(               ) ; // send last
 	return status!=Status::Ok ;
 }

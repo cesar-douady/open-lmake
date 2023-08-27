@@ -8,6 +8,8 @@ __pycache__
 !/unit_tests/git.dir/hello
 !/unit_tests/git.dir/world
 *.dir
+/bin/
+/lib/
 
 # doc
 /doc/lmake.html
@@ -29,7 +31,6 @@ __pycache__
 /_bin/ldump_job
 /_bin/lmakeserver
 /_bin/read_makefiles
-/bin/
 
 # tests
 tok

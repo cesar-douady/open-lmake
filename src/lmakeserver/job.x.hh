@@ -238,9 +238,9 @@ namespace Engine {
 		Deps             deps                     ;                                                         // 31<=32 bits, owned
 		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
 		CoarseDelay      exec_time                ;                                                         //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 7 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 7 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens           tokens                   = 1                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens for eta computation
+		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
 		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
 		Status           status    :4             = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
 	private :

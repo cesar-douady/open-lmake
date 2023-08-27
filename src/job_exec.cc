@@ -108,7 +108,7 @@ int main( int argc , char* argv[] ) {
 	Fd       child_stdout = Child::Pipe                     ;
 	::uset_s static_deps  = mk_uset(start_info.static_deps) ;                               // copy to uset before moving with new_deps
 	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
-	if (!start_info.stdin .empty()) {
+	if (!start_info.stdin.empty()) {
 		child_stdin = open_read(start_info.stdin ) ;
 		child_stdin.no_std() ;
 		DiskDate dd = file_date(start_info.stdin) ;
@@ -157,7 +157,7 @@ int main( int argc , char* argv[] ) {
 			}
 			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
 			if ( ai.idle() && tfs[TFlag::Dep] ) {
-				DepDigest dd{dfs,info.order} ;
+				DepDigest dd{dfs,info.parallel} ;
 				if (+(dfs&AccessDFlags)) {
 					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
@@ -187,7 +187,7 @@ int main( int argc , char* argv[] ) {
 			break ;
 			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.dfs,DepOrder::Parallel,date) ) ;
+				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.dfs,true/*parallel*/,date) ) ;
 				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , host_ , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;

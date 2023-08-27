@@ -83,9 +83,10 @@ namespace Engine {
 
 	static ::pair<vector_s/*deps*/,string/*stdout*/> _read_makefiles() {
 		Py::Gil     gil           ;
-		Py::Pattern pyc_re        { "(P?<dir>([^/]+/)*)__pycache__/(P?<module>\\w+)\\.\\w+-\\d+\\.pyc"} ;
-		GatherDeps  gather_deps   { New }                                                               ;
-		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
+		Py::Pattern pyc_re1       { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         } ;
+		Py::Pattern pyc_re2       { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" } ;
+		GatherDeps  gather_deps   { New }                                                             ;
+		::string    makefile_data = AdminDir + "/makefile_data.py"s                                   ;
 		Trace trace("_read_makefiles",ProcessDate::s_now()) ;
 		gather_deps.autodep_env.report_ext = true ;
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv   // redirect stdout to stderr ...
@@ -97,7 +98,8 @@ namespace Engine {
 		::vector_s deps ; deps.reserve(gather_deps.accesses.size()) ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
 			if (!ai.info.idle()) continue ;
-			Py::Match m = pyc_re.match(d) ;
+			Py::Match m = pyc_re1.match(d) ;
+			if (!m) m = pyc_re2.match(d) ;
 			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
 			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }
 		}
@@ -128,12 +130,15 @@ namespace Engine {
 			PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
 			Py_DECREF(eval_env) ;
 			if (!py_info) exit( 2 , "error while reading makefile digest :\n" , Py::err_str() ) ;
-			Py::Dict   info     = Py::Object( py_info , true/*clobber*/ ) ;
-			::vector_s excludes ;
-			if (info.hasKey("exclude_deps"))
-				for( auto py_ed : Py::Sequence(info["exclude_deps"]) ) {
-					::string ed = py_ed.str() ;
-					if (!ed.empty()) excludes.push_back(ed) ;
+			Py::Dict   info       = Py::Object( py_info , true/*clobber*/ ) ;
+			::vector_s src_dirs   { {*g_root_dir} }                         ;
+			::string   root_dir_s = *g_root_dir+'/'                         ;
+			if (info.hasKey("source_dirs"))
+				for( auto py_sd : Py::Sequence(info["source_dirs"]) ) {
+					::string sd = py_sd.str() ;
+					if (sd.empty()                      ) throw "empty source dir"s                                                   ;
+					if ((sd+'/').starts_with(root_dir_s)) throw to_string("source dir ",sd,"must be outside repository ",*g_root_dir) ;
+					src_dirs.push_back(sd) ;
 				}
 			// we should write deps once makefiles info is correctly stored as this implies that makefiles will not be read again unless they are modified
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
@@ -141,15 +146,17 @@ namespace Engine {
 			do {
 				OFStream no_makefiles_stream{s_no_makefiles} ;                 // create marker
 				OFStream makefiles_stream   {s_makefiles   } ;
-				for( ::string const& f : deps ) {
-					for( ::string const& ed : excludes ) {
-						if (ed.back()=='/') { if (f.starts_with(ed)) goto Skip ; }
-						else                { if (f==           ed ) goto Skip ; }
+				for( ::string const& d : deps ) {
+					SWEAR(!d.empty()) ;
+					if (d[0]=='/') {
+						for( ::string const& sd : src_dirs )
+							if ((d+'/').starts_with(sd+'/')) goto RecordDep ;
+						continue ;
 					}
-					makefiles_stream << (+FileInfo(f)?'+':'!') << f <<'\n' ;
-				Skip : ;
+				RecordDep :
+					makefiles_stream << (+FileInfo(d)?'+':'!') << d <<'\n' ;
 				}
-			} while (file_date(s_makefiles)<=latest_makefile) ;                                          // ensure date comparison with < (as opposed to <=) will lead correct result
+			} while (file_date(s_makefiles)<=latest_makefile) ;                // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
 			::string             local_admin_dir  ;
 			::string             remote_admin_dir ;

@@ -19,7 +19,6 @@ static constexpr int AT_BACKDOOR = Fd::Cwd.fd==-200 ? -300 : -200 ;            /
 struct Record {
 	using Proc       = JobExecRpcProc                                    ;
 	using DD         = Time::DiskDate                                    ;
-	using DFs        = DFlags                                            ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
 	// init
@@ -68,20 +67,20 @@ private :
 		_report(JobExecRpcReq(proc,sync,comment)) ;
 	}
 	//
-	void _report_dep( ::string&& f , DD d , DFs dfs , bool update , ::string const& c={} ) const {
+	void _report_dep( ::string&& f , DD d , DFlags dfs , bool update , ::string const& c={} ) const {
 		SWEAR(!f.empty()) ;
 		SWEAR(+dfs      ) ;                                                    // if no DFlags, we have accessed nothing
 		//
-		_report( JobExecRpcReq( {{::forward<string>(f),d}} , { .dfs=HiddenDFlags|dfs , .write=update } , c ) ) ;
+		_report( JobExecRpcReq( {{::move(f),d}} , { .dfs=dfs , .write=update } , c ) ) ;
 	}
-	void _report_dep       ( ::string&& f , DD dd , DFs dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , false , c ) ; }
-	void _report_dep       ( ::string&& f ,         DFs dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , Disk::file_date(s_get_root_fd(),f) , dfs , false , c ) ; }
-	void _report_dep_update( ::string&& f , DD dd , DFs dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , true  , c ) ; }
+	void _report_dep       ( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , false , c ) ; }
+	void _report_dep       ( ::string&& f ,         DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , Disk::file_date(s_get_root_fd(),f) , dfs , false , c ) ; }
+	void _report_dep_update( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , true  , c ) ; }
 	//
-	void _report_deps( ::vmap_s<DD>&& fs , DFs dfs , bool unlink , ::string const& c={} ) const {
-		_report( JobExecRpcReq( ::forward<vmap_s<DD>>(fs) , { .dfs=HiddenDFlags|dfs , .unlink=unlink } , c ) ) ;
+	void _report_deps( ::vmap_s<DD>&& fs , DFlags dfs , bool unlink , ::string const& c={} ) const {
+		_report( JobExecRpcReq( ::forward<vmap_s<DD>>(fs) , { .dfs=dfs , .unlink=unlink } , c ) ) ;
 	}
-	void _report_deps( ::vector_s const& fs , DFs dfs , bool u , ::string const& c={} ) const {
+	void _report_deps( ::vector_s const& fs , DFlags dfs , bool u , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_get_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , dfs , u , c ) ;

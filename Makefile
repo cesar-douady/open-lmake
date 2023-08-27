@@ -17,6 +17,8 @@ CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc')
 OPT_FLAGS := -O3
 #OPT_FLAGS := -O3 -DNDEBUG                                                     # better, as there are numerous asserts that have a perf impact, but too early for now
 
+GIT := $(shell bash -c 'type -p git')
+
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 
@@ -71,30 +73,31 @@ WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2
 
 endif
 
-SAN_FLAGS          := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
-SAN                := $(if $(SAN_FLAGS),.san,)
-PREPROCESS         := $(CC)             -E                     -ftabstop=4
-COMPILE            := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
-LINK_LIB_PATH      := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH= | cut -d= -f2 | sed 's/:/ /g' | xargs realpath | uniq | sed s/^/-Wl,-rpath=/)
-LINK_O             := $(CC) $(COVERAGE) -r
-LINK_SO            := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread -shared-libgcc -shared
-LINK_BIN           := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread
-LINK_LIB           := -ldl -lstdc++ -lm
-PYTHON_INCLUDE_DIR := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
-PYTHON_LIB_BASE    := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
-PYTHON_LIB_DIR     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
-PYTHON_VERSION     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
-CFLAGS             := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
-CXXFLAGS           := $(CFLAGS) -std=$(LANG)
-ROOT               := $(shell pwd)
-LIB                := lib
-SLIB               := _lib
-BIN                := bin
-SBIN               := _bin
-DOC                := doc
-SRC                := src
-LMAKE_ENV          := lmake_env
-STORE_LIB          := $(SRC)/store
+SAN_FLAGS           := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
+SAN                 := $(if $(SAN_FLAGS),.san,)
+PREPROCESS          := $(CC)             -E                     -ftabstop=4
+COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
+LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH= | cut -d= -f2 | sed 's/:/ /g' | xargs realpath | uniq | sed s/^/-Wl,-rpath=/)
+LINK_O              := $(CC) $(COVERAGE) -r
+LINK_SO             := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread -shared-libgcc -shared
+LINK_BIN            := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread
+LINK_LIB            := -ldl -lstdc++ -lm
+PYTHON_INCLUDE_DIR  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
+PYTHON_LIB_BASE     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
+PYTHON_LIB_DIR      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
+PYTHON_LINK_OPTIONS := -L$(PYTHON_LIB_DIR) -Wl,-rpath=$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE)
+PYTHON_VERSION      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
+CFLAGS              := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
+CXXFLAGS            := $(CFLAGS) -std=$(LANG)
+ROOT                := $(shell pwd)
+LIB                 := lib
+SLIB                := _lib
+BIN                 := bin
+SBIN                := _bin
+DOC                 := doc
+SRC                 := src
+LMAKE_ENV           := lmake_env
+STORE_LIB           := $(SRC)/store
 
 # PYCXX
 PYCXX             := ext/pycxx-7.1.7.patched
@@ -130,7 +133,6 @@ LMAKE_FILES = \
 	$(LIB)/clmake.so              \
 	$(BIN)/autodep                \
 	$(BIN)/lcheck_deps            \
-	$(BIN)/lcritical_barrier      \
 	$(BIN)/ldepend                \
 	$(BIN)/lforget                \
 	$(BIN)/lfreeze                \
@@ -178,6 +180,15 @@ ext/%.patched.h : ext/%.h ext/%.patch_script
 # LMAKE
 #
 
+# add system configuration to lmake.py :
+# Sense git bin dir at install time so as to be independent of it at run time.
+# Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
+$(LIB)/lmake.py : $(SLIB)/lmake.src.py
+	mkdir -p $(@D)
+	cp $<    $@
+	echo "_git = '$(GIT)'" >>$@
+	[ '$(LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(LD_LIBRARY_PATH)'" >>$@
+
 LMAKE : $(LMAKE_FILES)
 
 #
@@ -204,9 +215,7 @@ $(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx
 #
 
 $(SECCOMP).install.stamp : $(SECCOMP).stamp
-	cd $(SECCOMP_ROOT) ; \
-	./configure ; \
-	MAKEFLAGS= make
+	cd $(SECCOMP_ROOT) ; ./configure ; MAKEFLAGS= make
 	touch $@
 
 #
@@ -228,14 +237,14 @@ $(STORE_LIB)/unit_test : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(STORE_LIB)/unit_test.dir/tok : $(STORE_LIB)/unit_test
-	rm -rf $(@D)
+	rm -rf   $(@D)
 	mkdir -p $(@D)
-	./$< $(@D)
-	touch $@
+	./$<     $(@D)
+	touch    $@
 
 $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 	mkdir -p $(@D)
-	rm -rf $(@D)/LMAKE
+	rm -rf   $(@D)/LMAKE
 	PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
 	touch $@
 
@@ -297,7 +306,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \
@@ -324,7 +333,7 @@ $(SBIN)/ldump : \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/ldump$(SAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(SRC)/app$(SAN).o     \
@@ -338,7 +347,7 @@ $(SBIN)/ldump_job : \
 	$(SRC)/utils$(SAN).o   \
 	$(SRC)/ldump_job$(SAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/job_exec : \
 	$(PYCXX_LIB)/pycxx$(SAN).o         \
@@ -357,7 +366,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/job_exec$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lmake : \
 	$(SRC)/app$(SAN).o        \
@@ -431,22 +440,6 @@ $(BIN)/xxhsum : \
 #
 
 # ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
-$(BIN)/lcritical_barrier : \
-	$(SRC)/app.o                     \
-	$(SRC)/disk.o                    \
-	$(SRC)/hash.o                    \
-	$(SRC)/lib.o                     \
-	$(SRC)/non_portable.o            \
-	$(SRC)/rpc_job.o                 \
-	$(SRC)/time.o                    \
-	$(SRC)/trace.o                   \
-	$(SRC)/utils.o                   \
-	$(SRC)/autodep/autodep_support.o \
-	$(SRC)/autodep/record.o          \
-	$(SRC)/autodep/lcritical_barrier.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
-
 $(BIN)/ldepend : \
 	$(SRC)/app.o                     \
 	$(SRC)/disk.o                    \
@@ -552,7 +545,7 @@ $(LIB)/clmake.so : \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/clmake.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ -L$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 #
 # Manifest

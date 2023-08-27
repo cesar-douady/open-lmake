@@ -26,7 +26,7 @@ namespace Backends {
 	ThreadQueue<Backend::DeferredLostEntry  > Backend::_s_deferred_lost_queue   ;
 
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry const& ste ) {
-		return os << "StartTabEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs << ')' ;
+		return os << "StartTabEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry::Conn const& c ) {
@@ -96,6 +96,8 @@ namespace Backends {
 		StartRsrcsAttrs start_rsrcs_attrs ;
 		StartNoneAttrs  start_none_attrs  ;
 		::string        start_exc_txt     ;
+		ProcessDate     eta               ;
+		SubmitAttrs     submit_attrs      ;
 		Trace trace("_s_handle_job_req",jrr) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab") ; return false ; }
@@ -103,7 +105,8 @@ namespace Backends {
 			trace("entry",entry) ;
 			switch (jrr.proc) {
 				case JobProc::Start : {
-					job_exec.start = Date::s_now() ;
+					job_exec.start = Date::s_now()      ;
+					submit_attrs   = entry.submit_attrs ;
 					//            vvvvvvvvvvvvvvvvvvvvvvv
 					entry.reqs  = s_start(entry.tag,+job) ;
 					entry.start = job_exec.start          ;
@@ -115,7 +118,15 @@ namespace Backends {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
 					}
-					bool cmd_passed = false ;
+					bool cmd_passed = false                     ;
+					bool keep_tmp   = start_none_attrs.keep_tmp ;
+					{	::unique_lock lock{Req::s_reqs_mutex} ;                // ensure Req::s_store is not reallocated while we walk
+						for( ReqIdx r : entry.reqs ) {
+							Req req{r} ;
+							keep_tmp |= req->options.flags[ReqFlag::KeepTmp]              ;
+							eta       = +eta ? ::min(eta,req->stats.eta) : req->stats.eta ;
+						}
+					}
 					try {
 						start_cmd_attrs   = rule->start_cmd_attrs  .eval(job) ;
 						cmd_passed        = true                              ;
@@ -134,8 +145,8 @@ namespace Backends {
 						,	e
 						) ;
 						{	OFStream ofs { dir_guard(job.ancillary_file()) } ;
-							serialize( ofs , ::pair(jrr,reply)                                                  ) ;
-							serialize( ofs , JobRpcReq(JobProc::End,jrr.job,Status::EarlyErr,::string(err_str)) ) ;
+							serialize( ofs , JobInfoStart({.eta=eta,.submit_attrs=submit_attrs,.pre_start=jrr,.start=reply}) ) ;
+							serialize( ofs , JobInfoEnd  (JobProc::End,jrr.job,Status::EarlyErr,::string(err_str))           ) ;
 						}
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , start_exc_txt , false/*deferred_start_report*/ ) ;
@@ -148,7 +159,6 @@ namespace Backends {
 					Rule::SimpleMatch match    = job.simple_match()     ;
 					in_addr_t         job_addr = fd.peer_addr()         ;
 					SmallId           small_id = _s_small_ids.acquire() ;
-					bool              keep_tmp = start_none_attrs.keep_tmp ; for( ReqIdx r : entry.reqs ) if (Req(r)->options.flags[ReqFlag::KeepTmp]) keep_tmp = true ;
 					::string          tmp_dir  = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
 					//
 					job.fill_rpc_reply( reply , match , entry.rsrcs ) ;
@@ -170,10 +180,9 @@ namespace Backends {
 				//	reply.job_id                                            // directly filled in job_exec
 					reply.keep_tmp         = keep_tmp                    ;
 					reply.kill_sigs        = start_none_attrs.kill_sigs  ;
-					reply.live_out         = entry.live_out              ;
+					reply.live_out         = entry.submit_attrs.live_out ;
 					reply.lnk_support      = g_config.lnk_support        ;
 					reply.local_mrkr       = start_cmd_attrs.local_mrkr  ;
-					reply.reason           = entry.reason                ;
 					reply.root_dir         = *g_root_dir                 ;
 					reply.rsrcs            = ::move(entry.rsrcs)         ;
 				//	reply.script                                            // from job.fill_rpc_reply above
@@ -212,7 +221,8 @@ namespace Backends {
 				//vvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
-				serialize( OFStream(dir_guard(job.ancillary_file())) , ::pair(jrr,reply) ) ;
+				serialize( OFStream(dir_guard(job.ancillary_file())) , JobInfoStart({.eta=eta,.submit_attrs=submit_attrs,.pre_start=jrr,.start=reply}) ) ;
+				//
 				bool deferred_start_report = Delay(job->exec_time)<start_none_attrs.start_delay && report_unlink.empty() && start_exc_txt.empty() ; // dont defer if we must report info at start time
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , start_exc_txt , !deferred_start_report ) ;
@@ -337,16 +347,15 @@ namespace Backends {
 		s_service_ready.wait() ;
 	}
 
-	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , bool live_out , ::vmap_ss&& rsrcs , JobReason reason ) {
-		Trace trace("acquire_cmd_line",tag,job,reason) ;
+	::vector_s Backend::acquire_cmd_line( Tag tag , JobIdx job , ::vmap_ss&& rsrcs , SubmitAttrs const& submit_attrs ) {
+		Trace trace("acquire_cmd_line",tag,job,submit_attrs) ;
 		SWEAR(!_s_mutex.try_lock()       ) ;
 		SWEAR(!_s_start_tab.contains(job)) ;
 		StartTabEntry& entry = _s_start_tab[job] ;
 		entry.open() ;
-		entry.tag      = tag           ;
-		entry.rsrcs    = ::move(rsrcs) ;
-		entry.live_out = live_out      ;
-		entry.reason   = reason        ;
+		entry.tag          = tag           ;
+		entry.rsrcs        = ::move(rsrcs) ;
+		entry.submit_attrs = submit_attrs  ;
 		trace("create_start_tab",job,entry) ;
 		return { s_executable , s_server_fd.service(g_config.backends[+tag].addr) , ::to_string(entry.conn.seq_id) , ::to_string(job) , ::to_string(s_tab[+tag].is_remote) } ;
 	}

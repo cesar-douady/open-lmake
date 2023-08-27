@@ -16,10 +16,11 @@ namespace Engine {
 	// Req
 	//
 
+	::mutex           Req::s_reqs_mutex    ;
 	SmallIds<ReqIdx > Req::s_small_ids     ;
-	::vector<Req    > Req::s_reqs_by_start ;
-	::vector<Req    > Req::s_reqs_by_eta   ;
 	::vector<ReqData> Req::s_store(1)      ;
+	::vector<Req    > Req::s_reqs_by_start ;
+	::vector<Req    > Req::_s_reqs_by_eta  ;
 
 	::ostream& operator<<( ::ostream& os , Req const r ) {
 		return os << "Rq(" << int(+r) << ')' ;
@@ -28,7 +29,10 @@ namespace Engine {
 	Req::Req( Fd fd , ::vector<Node> const& targets , ReqOptions const& options ) : Base{s_small_ids.acquire()} {
 		SWEAR(+*this<=s_store.size()) ;
 		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
-		if (+*this>=s_store.size()) s_store.emplace_back() ;
+		if (+*this>=s_store.size()) {
+			::unique_lock lock{s_reqs_mutex} ;                                 // emplace_back may reallocate
+			s_store.emplace_back() ;
+		}
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {
@@ -48,7 +52,7 @@ namespace Engine {
 			break ;
 		}
 		//
-		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags) ;
+		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags|AccessDFlags) ;
 		//
 		data.idx_by_start = s_n_reqs()           ;
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
@@ -61,8 +65,7 @@ namespace Engine {
 		data.stats.start  = ProcessDate::s_now() ;
 		//
 		s_reqs_by_start.push_back(*this) ;
-		s_reqs_by_eta  .push_back(*this) ;
-		_adjust_eta() ;
+		_adjust_eta(true/*push_self*/) ;
 		Backend::s_open_req(+*this,options.n_jobs) ;
 		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
@@ -91,18 +94,26 @@ namespace Engine {
 		Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
-		for( Idx i=(*this)->idx_by_start ; i<n_reqs-1 ; i++ ) { s_reqs_by_start[i] = s_reqs_by_start[i+1] ; s_reqs_by_start[i]->idx_by_start = i ; }
-		for( Idx i=(*this)->idx_by_eta   ; i<n_reqs-1 ; i++ ) { s_reqs_by_eta  [i] = s_reqs_by_eta  [i+1] ; s_reqs_by_eta  [i]->idx_by_eta   = i ; }
+		for( Idx i=(*this)->idx_by_start ; i<n_reqs-1 ; i++ ) {
+			s_reqs_by_start[i]               = s_reqs_by_start[i+1] ;
+			s_reqs_by_start[i]->idx_by_start = i                    ;
+		}
 		s_reqs_by_start.pop_back() ;
-		s_reqs_by_eta  .pop_back() ;
+		{	::unique_lock lock{s_reqs_mutex} ;
+			for( Idx i=(*this)->idx_by_eta ; i<n_reqs-1 ; i++ ) {
+				_s_reqs_by_eta[i]             = _s_reqs_by_eta[i+1] ;
+				_s_reqs_by_eta[i]->idx_by_eta = i                   ;
+			}
+			_s_reqs_by_eta.pop_back() ;
+		}
 		(*this)->clear() ;
 		s_small_ids.release(+*this) ;
 	}
 
-	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens tokens ) {
+	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {
 			auto it = (*this)->ete_n_rules.find(rule) ;
 			if (it==(*this)->ete_n_rules.end()) return ;
-			(*this)->ete += delta * it->second * tokens / rule->n_tokens ;     // adjust req ete's that are computed after this exec_time, accounting for parallel execution
+			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ;    // adjust req ete's that are computed after this exec_time, accounting for parallel execution
 			_adjust_eta() ;
 	}
 	void Req::new_exec_time( Job job , bool remove_old , bool add_new , Delay old_exec_time ) {
@@ -118,28 +129,30 @@ namespace Engine {
 			if (+job->exec_time) { delta += job ->exec_time ;                                   }
 			else                 { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
 		}
-		(*this)->ete += delta * job->tokens / rule->n_tokens ;                 // account for parallel execution when computing ete
+		(*this)->ete += delta * (job->tokens1+1) / rule->n_tokens ;            // account for parallel execution when computing ete
 		_adjust_eta() ;
 	}
-	void Req::_adjust_eta() {
+	void Req::_adjust_eta(bool push_self) {
 			ProcessDate now = ProcessDate::s_now() ;
-			(*this)->stats.eta = now + (*this)->ete ;
-			Trace trace("_adjust_eta",now,(*this)->ete,(*this)->stats.eta) ;
-			// reorder s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			Idx idx_by_eta = (*this)->idx_by_eta ;
+			Trace trace("_adjust_eta",now,(*this)->ete) ;
+			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed = false ;
-			if (!changed)
-				while ( idx_by_eta>0 && s_reqs_by_eta[idx_by_eta-1]->stats.eta>(*this)->stats.eta ) {
-					( s_reqs_by_eta[idx_by_eta  ] = s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
-					( s_reqs_by_eta[idx_by_eta-1] = *this                       )->idx_by_eta = idx_by_eta-1 ; // .
+			{	::unique_lock lock       { s_reqs_mutex }      ;
+				Idx           idx_by_eta = (*this)->idx_by_eta ;
+				(*this)->stats.eta = now + (*this)->ete ;
+				if (push_self) _s_reqs_by_eta.push_back(*this) ;
+				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->stats.eta>(*this)->stats.eta ) {           // if eta is decreased
+					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
+					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ; // .
 					changed = true ;
 				}
-			if (!changed)
-				while ( idx_by_eta+1<s_n_reqs() && s_reqs_by_eta[idx_by_eta+1]->stats.eta<(*this)->stats.eta ) {
-					( s_reqs_by_eta[idx_by_eta  ] = s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
-					( s_reqs_by_eta[idx_by_eta+1] = *this                       )->idx_by_eta = idx_by_eta+1 ; // .
-					changed = true ;
-				}
+				if (!changed)
+					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->stats.eta<(*this)->stats.eta ) { // if eta is increased
+						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ;  // swap w/ next entry
+						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ;  // .
+						changed = true ;
+					}
+			}
 			if (changed) Backend::s_new_req_eta(+*this) ;                      // tell backends that req priority order has changed
 	}
 
@@ -266,10 +279,9 @@ namespace Engine {
 				try {
 					// show first stderr
 					EndNoneAttrs end_none_attrs = job->rule->end_none_attrs.eval(job)  ;
-					IFStream     job_stream     { job.ancillary_file() }               ;
-					auto         report_req     = deserialize<JobRpcReq  >(job_stream) ;
-					auto         report_start   = deserialize<JobRpcReply>(job_stream) ;
-					auto         report_end     = deserialize<JobRpcReq  >(job_stream) ;
+					IFStream     job_stream { job.ancillary_file() }                ;
+					/**/                      deserialize<JobInfoStart>(job_stream) ;
+					auto         report_end = deserialize<JobInfoEnd  >(job_stream) ;
 					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;

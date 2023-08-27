@@ -62,12 +62,16 @@ namespace Engine {
 			return res ;
 		}
 		//
-		static Idx s_n_reqs() { return s_reqs_by_start.size() ; }
+		static Idx           s_n_reqs     () {                                    return s_reqs_by_start.size() ; }
+		static ::vector<Req> s_reqs_by_eta() { ::unique_lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
 		// static data
-		static SmallIds<ReqIdx > s_small_ids ;
-		static ::vector<ReqData> s_store     ;
-		static ::vector<Req    > s_reqs_by_start ;         // INVARIANT : ordered by item->start
-		static ::vector<Req    > s_reqs_by_eta   ;         // INVARIANT : ordered by item->stats.eta
+		static SmallIds<ReqIdx > s_small_ids     ;
+		static ::vector<Req>     s_reqs_by_start ;         // INVARIANT : ordered by item->start
+		//
+		static ::mutex           s_reqs_mutex ;            // protects s_store, _s_reqs_by_eta as a whole
+		static ::vector<ReqData> s_store      ;
+	private :
+		static ::vector<Req> _s_reqs_by_eta ;              // INVARIANT : ordered by item->stats.eta
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -83,10 +87,10 @@ namespace Engine {
 		void close  () ;
 		void chk_end() ;
 		//
-		void inc_rule_exec_time( Rule ,                                 Delay delta     , Tokens ) ;
-		void new_exec_time     ( Job , bool remove_old , bool add_new , Delay old_exec_time      ) ;
+		void inc_rule_exec_time( Rule ,                                 Delay delta     , Tokens1 ) ;
+		void new_exec_time     ( Job , bool remove_old , bool add_new , Delay old_exec_time       ) ;
 	private :
-		void _adjust_eta() ;
+		void _adjust_eta(bool push_self=false) ;
 		//
 		template<class... A> ::string _title    (A&&...) const ;
 		/**/                 ::string _color_pfx(Color ) const ;
@@ -280,7 +284,6 @@ namespace Engine {
 				,	                                          " running:" , stats.cur  (JobLvl::Exec    )
 				,	                                          " queued:"  , stats.cur  (JobLvl::Queued  )
 				,	                                          " waiting:" , stats.cur  (JobLvl::Dep     )
-				,	                                          " -- ETA = ", stats.eta.str()
 				) ) ) ;
 			} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 		}

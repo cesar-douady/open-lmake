@@ -20,11 +20,11 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
-	os << "AutodepEnv(" << ade.service <<','<< ade.root_dir <<',' ;
-	if (ade.auto_mkdir ) os <<",auto_mkdir"  ;
-	if (ade.ignore_stat) os <<",ignore_stat" ;
-	if (ade.report_ext ) os <<",report_ext"  ;
-	return os <<','<< ade.lnk_support <<')' ;
+	/**/                 os << "AutodepEnv(" << ade.service <<','<< ade.root_dir <<',' ;
+	if (ade.auto_mkdir ) os <<",auto_mkdir"                                            ;
+	if (ade.ignore_stat) os <<",ignore_stat"                                           ;
+	if (ade.report_ext ) os <<",report_ext"                                            ;
+	return               os <<','<< ade.lnk_support <<')'                              ;
 }
 
 //
@@ -32,19 +32,19 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
-	os << "GatherDeps(" << gd.accesses ;
-	if (!gd.critical_barriers.empty()) os <<','<< gd.critical_barriers ;
-	if (gd.seen_tmp                  ) os <<",seen_tmp"                ;
-	return os << ')' ;
+	/**/             os << "GatherDeps(" << gd.accesses ;
+	if (gd.seen_tmp) os <<",seen_tmp" ;
+	return           os << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	os << "AccessInfo(" ;
+	/**/                 os << "AccessInfo("             ;
 	if (+ai.info.dfs   ) os << "R:"<<ai.read_date  <<',' ;
 	if (!ai.info.idle()) os << "W:"<<ai.write_date <<',' ;
-	os << ai.info ;
-	if (+ai.file_date) os <<','<< "F:"<<ai.file_date ;
-	return os <<','<< ai.order <<')' ;
+	/**/                 os << ai.info                   ;
+	if (+ai.file_date  ) os <<','<< "F:"<<ai.file_date   ;
+	if (ai.parallel    ) os <<','<< "parallel"           ;
+	return               os <<')'                        ;
 }
 
 bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , bool force_new , ::string const& comment ) {
@@ -55,8 +55,8 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobE
 	if (is_new) {
 		access_map[file] = accesses.size() ;
 		accesses.emplace_back(file,AccessInfo()) ;
-		info_        = &accesses.back().second                   ;
-		info_->order = parallel?DepOrder::Parallel:DepOrder::Seq ;             // Critical is managed at the end, by comparing dates with critical_barriers
+		info_           = &accesses.back().second ;
+		info_->parallel = parallel                ;
 	} else {
 		info_ = &accesses[it->second].second ;
 	}
@@ -251,16 +251,15 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					JobExecRpcReply sync_reply ;
 					sync_reply.proc = proc ;                                   // this may be incomplete and will be completed or sync_ will be made false
 					switch (proc) {
-						case Proc::None            :                                                                   goto Close ;
-						case Proc::Tmp             : seen_tmp = true                        ; trace("slave",fd,jerr) ; break      ;
-						case Proc::CriticalBarrier : critical_barriers.push_back(jerr.date) ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat       :                                                                   goto Close ; // no reply, accept & read is enough to acknowledge
-						//                           vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill            : kill_job(Status::Killed) ;                                        goto Close ; // .
-						//                           ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access          : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ; break ;
-						case Proc::DepInfos        : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ;
-						//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						case Proc::None      :                                            goto Close ;
+						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ; break      ;
+						case Proc::Heartbeat :                                            goto Close ; // no reply, accept & read is enough to acknowledge
+						//                     vvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Kill      : kill_job(Status::Killed) ;                 goto Close ; // .
+						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ; break ;
+						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ;
+						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
@@ -299,20 +298,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 
 void GatherDeps::reorder() {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what it expects
-	::stable_sort(                                                             // reorder by date, keeping entries marked parallel after their first items
-		accesses.begin()+n_statics , accesses.end()                            // keep the first n_statics entries in original order
+	::stable_sort(                                                                    // reorder by date, keeping entries marked parallel after their first items
+		accesses.begin()+n_statics , accesses.end()                                   // keep the first n_statics entries in original order
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return ::pair(a.second.read_date,a.second.order==DepOrder::Parallel) < ::pair(b.second.read_date,b.second.order==DepOrder::Parallel) ;
+			return ::pair(a.second.read_date,a.second.parallel) < ::pair(b.second.read_date,b.second.parallel) ;
 		}
 	) ;
-	sort( critical_barriers ) ;
-	// ensure critical barrier crossing are reported as Critical
-	auto it = critical_barriers.cbegin() ;
-	for( auto& [_,ai] : accesses )
-		switch (ai.order) {
-			case DepOrder::Parallel : SWEAR(!( it!=critical_barriers.cend() && *it<ai.read_date )) ;                                    break ; // parallel accesses cannot cross critical barriers
-			case DepOrder::Seq      :                                                                                                           // report critical barrier crossing
-			case DepOrder::Critical : for ( ; it!=critical_barriers.cend() && *it<ai.read_date ; it++ ) ai.order = DepOrder::Critical ; break ; // just update it if already critical
-			default                 : SWEAR(!ai.info.idle()) ;                                                                                  // if only reading, we must have an order
-		}
 }

@@ -1246,3 +1246,4 @@ private :
 	T& _ref ;
 } ;
 template<class T> using FenceSave = Save<T,true> ;
+

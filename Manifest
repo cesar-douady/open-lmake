@@ -5,6 +5,7 @@ Manifest
 README.md
 TO_DO
 _bin/ut_launch
+_lib/lmake.src.py
 _lib/read_makefiles.py
 _lib/serialize.py
 _lib/ut.py
@@ -18,7 +19,6 @@ ext/pycxx-7.1.7.patch_script
 ext/pycxx-7.1.7.tar.gz
 ext/xxhash.h
 ext/xxhash.patch_script
-lib/lmake.py
 lmake_env/Lmakefile.py
 lmake_env/ext_lnk
 src/app.cc
@@ -34,7 +34,6 @@ src/autodep/clmake.cc
 src/autodep/gather_deps.cc
 src/autodep/gather_deps.hh
 src/autodep/lcheck_deps.cc
-src/autodep/lcritical_barrier.cc
 src/autodep/ldepend.cc
 src/autodep/ltarget.cc
 src/autodep/ptrace.cc
@@ -119,7 +118,7 @@ unit_tests/cache.py
 unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/conflict.py
-unit_tests/critical_barrier.py
+unit_tests/critical.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
 unit_tests/dynamic.py

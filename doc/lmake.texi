@@ -485,7 +485,6 @@ This progression status line contains :
 @item the number of executed jobs (split between useful, rerun and hit)
 @item the number of queued jobs, i.e. jobs that are waiting for resources to be run
 @item the number of waiting jobs, i.e. jbos that are waiting for dependencies to be run
-@item the ETA of the command, i.e. as estimation of when this command will be done.
 @end itemize
 
 At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
@@ -559,10 +558,14 @@ else it may be the jobs that actually generated the target.
 Options :
 @itemize @bullet
 @item @code{-a}|@code{--all-deps} : output the list of all the deps of the jobs.
-The first character of each line indicates if dep is a static one ('S') or a hidden one (' ').
-And the second character is a rudimentary ascii art to show parallel deps (the ones that are generated in a single call).
-Criticality is shown with indentation.
-If a dep does not exist, it is deemed secondary information.
+Each line is composed of 4 fields  separated by spaces :
+@itemize .
+@item Flags : each flag is either a letter (same is in @code{ldepend} options) if set, or a @code{-} if not.
+@item Key : the key if the dep is static, else blank.
+@item Ascii art showing parallel deps (deps coming from a single call to @code{ldepend} or @code{lmake.depend} are considered parallel).
+@item Name of the dep.
+@end itemize
+If a dep does not exist, it is deemed secondary information and is shown in gray.
 @item @code{-d}|@code{--deps} : same as @code{-a} except that only existing deps are shown.
 @item @code{-D}|@code{--inv-deps} : show jobs that depend on targets.
 @item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, execution time, host that executed it, ...
@@ -571,7 +574,19 @@ If a dep does not exist, it is deemed secondary information.
 @item @code{-E}|@code{--env} : show the environment used to run the script
 @item @code{-e}|@code{--stderr} : show the stderr of the jobs.
 @item @code{-o}|@code{--stdout} : show the stdout of the jobs.
-@item @code{-t}|@code{--targets} : show the non-dirty targets of the jobs.
+@item @code{-t}|@code{--targets} : show the targets of the jobs.
+Each line is composed of 3 fields  separated by spaces :
+@itemize @minus
+@item flags : each flag is either a letter if set, or a @code{-} if not.
+Flags are :
+@itemize .
+@item @code{U} : Target is incremental (for static targets) or has been read before written (for star targets).
+@item @code{!} : Target has not been written or has been unlinked.
+@item @code{*} : Target is a star target.
+@end itemize
+@item key : the key if the dep is static, else blank.
+@item the name of the target.
+@end itemize
 @end itemize
 
 @section @code{lfreeze}
@@ -649,7 +664,7 @@ A full digestion to mimic @lmake would require a whole lot of information that w
 Accesses are split into 2 categories :
 @itemize @minus
 @item Targets : a prefix mention the type of target, unlink versus write, preceded by a read or not.
-@item Deps : a kind of ascii art render parallel accesses and lines are indented for each critical barrier crossing.
+@item Deps : a kind of ascii art render parallel accesses.
 @end itemize
 
 Options :
@@ -703,7 +718,7 @@ The commands listed hereafter are meant to be executed from within a job, not as
 
 @section @code{ldepend}
 
-Usage : @code{ldepend [--no-error|-e] [--no-required|-r] [--no-essential|-s] [--verbose|-v] files ...}
+Usage : @code{ldepend [--no-follow|-P] [--no-error|-e] [--no-required|-r] [--no-essential|-s] [--verbose|-v] files ...}
 
 @code{ldepend} may be used to inform @lmake that some files must be deemed as read as if you called the @code{open} system call on each of them.
 To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faste since @code{files} are not really accessed).
@@ -723,10 +738,12 @@ Also, if for some reasons you run with autodep method @code{none}, this is the w
 
 The following options are supported :
 @itemize @bullet
-@item @code{-e}|@code{--no-error}    : ignore the error status of the passed dependencies.
-@item @code{-r}|@code{--no-required} : if passed dependencies are not buildable, this does not prevent this job from being run (as it is for dependencies automatically generated after accesses).
-@item @code{-s}|@code{--no-esential} : passed dependencies will not appear in the flow shown with a graphical tool.
-@item @code{-v}|@code{--verbose}     : write lines composed of the crc and the name separated by a space for each required dependency.
+@item @code{-P}|@code{--no-follow} : do not follow the last level symbolic link.
+@item @code{-c}|@code{--critical}  : create critical deps (see @pxref{critical-deps}).
+@item @code{-e}|@code{--no-error}  : ignore the error status of the passed dependencies.
+@item @code{-r}|@code{--required}  : if passed dependencies are not buildable, this does not prevent this job from being run (as it is for dependencies automatically generated after accesses).
+@item @code{-s}|@code{--esential}  : passed dependencies will not appear in the flow shown with a graphical tool.
+@item @code{-v}|@code{--verbose}   : write lines composed of the crc and the name separated by a space for each required dependency.
 @end itemize
 
 @section @code{lcheck_deps}
@@ -762,67 +779,9 @@ so @code{lcheck_deps} has a (minor) adverse effect leading to an overall time of
 
 Despite these remarks, there are case where @code{lcheck_deps} is very welcome.
 
-@section @code{lcritical_barrier}
-
-Usage : @code{lcritical_barrier}
-
-@code{lcritical_barrier} inserts a critical barrier in the list of dependencies.
-
-During dependency analysis, @lmake consider them by groups (called criticality levels) separated by critical barriers and considers the next group only when the previous group is up-to-date.
-
-Typical use of criticality levels is when you have a report that is built from the results of tests provided by a list of tests (a test suite).
-
-For example, let's say you have :
-@itemize @minus
-@item 2 tests whose reports are built in @file{test1.rpt} and @file{test2.rpt} by some rather heavy means
-@item a test suite @file{test_suite.lst} listing these reports
-@item a rule that builds @file{test_suite.rpts} by collating reports listed in @file{test_suite.lst}
-@end itemize
-
-In such a situation, the rule building @file{test_suite.rpts} typically has @file{test_suite.lst} as a static dependency but the actual reports @file{test1.rpt} and @file{test2.rpt} are
-hidden dependencies, i.e. automatically discovered when building @file{test_suite.rpts}.
-
-Suppose now that you make a modification that makes @file{test2.rpt} very heavy to generate. Knowing that, you change your test_suite so list a lighter @file{test3.rpt} instead.
-The succession of jobs would then be the following :
-@itemize @minus
-@item @file{test1.rpt} and @file{test2.rpt} are rebuilt as they are out-of-date after your modification.
-@item @file{test_suite.rpts} is rebuilt to collate theses reports.
-@item @lmake then sees that @file{test3.rpt} is needed instead of @file{test2.rpt}.
-@item Hence, @file{test3.rpt} is (re)built.
-@item @file{test_suite.rpts} is finally built from @file{test1.rpt} and @file{test3.rpt}.
-@end itemize
-
-There are 2 losses of performance here :
-@itemize @minus
-@item @file{test2.rpt} is unnecessarily rebuilt.
-@item @file{test1.rpt} and @file{test3.rpt} are rebuilt sequentially.
-@end itemize
-
-The problem lies in the fact that @file{test1.rpt} and @file{test2.rpt} are rebuilt before @lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
-Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
-launching a job is the right option.
-But here, because collating is very light (something like just executing @code{cat} on the reports), it is better to check @file{tests_suilte.lst} first,
-and if it changed, rerun the collation before ensuring (old) tests have run.
-This is the purpose of @code{lcritical_barrier}.
-The collating rule would look like :
-@itemize @minus
-@item read @file{test_suite.lst}
-@item call @code{lcritical_barrier}
-@item call @code{ldepend} on the report listed in @file{test_suite.lst}. This is optional, just to generate parallel dependencies instead of automatic sequential dependencies.
-@item collate reports listed in @file{test_suite.lst}
-@end itemize
-
-And the succession of job would be :
-@itemize @minus
-@item @file{test_suite.rpts} is rebuilt before analyzing @file{test1.rpt} and @file{test2.rpt} because @file{test_suite.lst} has changed.
-@item @lmake sees that @file{test3.rpt} is needed instead of @file{test2.rpt}.
-@item Hence, @file{test1.rpt} and @file{test3.rpt} are (re)built in parallel.
-@item @file{test_suite.rpts} is finally built from @file{test1.rpt} and @file{test3.rpt}.
-@end itemize
-
 @section @code{ltarget}
 
-Usage : @code{ltarget [-<short-option>|<--<long-option>]... files ...}
+Usage : @code{ltarget [-<short-option>|--<long-option>]... files ...}
 
 @code{ltarget} may be used to inform @lmake that some files must be deemed as written as if you called the @code{open} system call on each of them.
 If for some reasons you run with autodep method @code{none}, this is the way to report targets.
@@ -832,19 +791,20 @@ It is possible to alter the target flags for these targets which, by default, ha
 The following options are supported :
 @itemize @bullet
 @item @code{-u} or @code{--unlink}       : report an unlink rather than writing
+@item @code{-P} or @code{--no-follow}    : do not follow the last level symbolic link
 @item @code{-c} or @code{--crc}          : generate a crc for this target (compulsery if Match)
 @item @code{-d} or @code{--dep}          : reads not followed by writes trigger dependencies
 @item @code{-e} or @code{--essential}    : show when generating user oriented graphs
+@item @code{-f} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
 @item @code{-m} or @code{--manual-ok}    : ok to overwrite manual files
-@item @code{-p} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
 @item @code{-s} or @code{--source-ok}    : ok to overwrite source files
 @item @code{-t} or @code{--stat}         : inode accesses (stat-like) are not ignored
 @item @code{-w} or @code{--write}        : writes are allowed (possibly followed by reads which are ignored)
 @item @code{-C} or @code{--no-crc}       : do not generate a crc for this target (compulsery if Match)
 @item @code{-D} or @code{--no-dep}       : reads not followed by writes do not trigger dependencies
 @item @code{-E} or @code{--no-essential} : do not show when generating user oriented graphs
+@item @code{-F} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
 @item @code{-M} or @code{--no-manual-ok} : not ok to overwrite manual files
-@item @code{-P} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
 @item @code{-S} or @code{--no-source-ok} : not ok to overwrite source files
 @item @code{-T} or @code{--no-stat}      : inode accesses (stat-like) are ignored
 @item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
@@ -880,14 +840,16 @@ Actually most of the accesses are made this directory. See @pxref{dir-local_admi
 This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
 See @pxref{dir-remote_admin_dir}
 
-@subsection @code{lmake.exclude_deps}
+@subsection @code{lmake.source_dirs}
 
-This variable contains a @code{tuple}/@code{list} of files and directories to exclude when collecting deps during the @Lmakefile reading process.
+This variable contains a @code{list} of directories that contain source files.
 
-If an entry ends with a @code{/}, it is a directory and all files inside it are excluded.
-Else it is a file to exclude.
+In the current version, @lmake only handle this variable when reading @Lmakefile, so as to allow the @lmake root directory (as determined by the presence of @Lmakefile) to be a
+sub-directory of the @code{git} root directory.
 
-By default, this variable holds a list of standard system directories.
+In a future version, @lmake will consider all files in these directories that are not in @lmake root directory as sources and will track any modifications to them.
+
+By default, this variable is empty, but gathering sources from @code{git} (as is done by default in absence of file @file{Manifest}) will add the @code{git} root directory to it.
 
 @section @code{class pdict}
 
@@ -997,11 +959,15 @@ The correspondance is :
 @code{lcheck_deps}
 @item @code{def critical_barrier()}
 @code{lcritical_barrier}
-@item @code{def depend(*files,error=True,required=True,essential=True)} or @code{def depend(files,error=True,required=True,essential=True)}
+@item @code{def depend(*files,follow_symlinks=True,error=True,required=True,essential=True,verbose=False)}
 @code{ldepend}
-@item @code{def target(*files,unlink=False,crc,dep,essential,phony,source_ok,stat,write)} or @code{def target(files,unlink=False,crc,dep,essential,phony,source_ok,stat,write)}
+@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
+@item @code{def target(*files,unlink=False,follow_symlinks=True,crc,dep,essential,phony,source_ok,stat,write)}
 @code{ltarget}.
 When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
+@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
 @end table
 
 @chapter Directories
@@ -2041,7 +2007,7 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 @item Type
 @tab @code{str} or @code{int}
 @item Constraint
-@tab >=0 and <256
+@tab >=1 and <256
 @item Default
 @tab @code{1}
 @item Dynamic
@@ -2061,7 +2027,7 @@ It is only used to estimate the ETA (@pxref{eta-estimation}).
 @item Type
 @tab @code{int} ()
 @item Constraint
-@tab >0
+@tab >=1
 @item Default
 @tab @code{1}
 @item Dynamic
@@ -2362,6 +2328,81 @@ the file is deemed buildable, but if required to run, no job will be executed an
 @item If the file matches some rules as a non-sure target (i.e. a star target without the @code{phony} flag), the corresponding jobs are run.
 If no such jobs generate the file, next group is analyzed.
 If several of them generate the file, the file is buildable and in error.
+@end itemize
+
+@anchor{critical-deps}
+@section Critical deps
+
+The question of critical deps is a performance only question. Semantically, whether a dep is critical or not has no impact on the content of the files built by @lmake.
+
+During dependency analysis, when a dep (call it @file{dep1}) has been used and turns out to be out-of-date, @lmake must choose between 2 strategies regarding the deps that follow :
+@itemize @bullet
+@item
+One possibility is to anticipate that the modification of @file{dep1} has no impact on the list of following deps.
+With such an anticipation, @lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, @lmake will launch all necessary jobs to rebuild
+all dependencies in parallel, even if the deps have been explicitely declared parallel.
+@item
+Another possivility is to anticipate that such a modification of @file{dep1} will drastically change the list of following deps.
+With such an anticipation, as soone as @lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of @file{dep1} is meaningless.
+@end itemize
+
+The first strategy is speculative : launch everything you hear about, and we will see later what is useful.
+The second strategy is conservative : build only what is certain to be required.
+
+Generally speaking, a speculative approach is much better, but there are exceptions.
+
+Typical use of critical deps is when you have a report that is built from the results of tests provided by a list of tests (a test suite).
+
+For example, let's say you have :
+@itemize @minus
+@item 2 tests whose reports are built in @file{test1.rpt} and @file{test2.rpt} by some rather heavy means
+@item a test suite @file{test_suite.lst} listing these reports
+@item a rule that builds @file{test_suite.rpts} by collating reports listed in @file{test_suite.lst}
+@end itemize
+
+In such a situation, the rule building @file{test_suite.rpts} typically has @file{test_suite.lst} as a static dependency but the actual reports @file{test1.rpt} and @file{test2.rpt} are
+hidden dependencies, i.e. automatically discovered when building @file{test_suite.rpts}.
+
+Suppose now that you make a modification that makes @file{test2.rpt} very heavy to generate. Knowing that, you change your test_suite so list a lighter @file{test3.rpt} instead.
+The succession of jobs would then be the following :
+@itemize @minus
+@item @file{test1.rpt} and @file{test2.rpt} are rebuilt as they are out-of-date after your modification.
+@item @file{test_suite.rpts} is rebuilt to collate theses reports.
+@item @lmake then sees that @file{test3.rpt} is needed instead of @file{test2.rpt}.
+@item Hence, @file{test3.rpt} is (re)built.
+@item @file{test_suite.rpts} is finally built from @file{test1.rpt} and @file{test3.rpt}.
+@end itemize
+
+There are 2 losses of performance here :
+@itemize @minus
+@item @file{test2.rpt} is unnecessarily rebuilt.
+@item @file{test1.rpt} and @file{test3.rpt} are rebuilt sequentially.
+@end itemize
+
+The problem lies in the fact that @file{test1.rpt} and @file{test2.rpt} are rebuilt before @lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
+Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
+launching a job is the right option.
+But here, because collating is very light (something like just executing @code{cat} on the reports), it is better to check @file{tests_suilte.lst} first,
+and if it changed, rerun the collation before ensuring (old) tests have run.
+
+This is the purpose of the @code{critical} flag.
+Such a flag can either be passed when declaring static deps in a rule, or dynamically using @code{lmake.depend} or @code{ldepend}.
+
+The collating rule would look like :
+@itemize @minus
+@item Set the @code{critial} flag on @file{test_suite.lst} (before or after actually reading it, this has no impact).
+@item Read @file{test_suite.lst}.
+@item Call @code{ldepend} on the reports listed in @file{test_suite.lst}.
+This is optional, just to generate parallel dependencies instead of automatic sequential dependencies (but if done, it must be before actually reading the reports).
+@item Collate reports listed in @file{test_suite.lst}.
+@end itemize
+
+And the succession of job would be :
+@itemize @minus
+@item @file{test_suite.rpts} is rebuilt before analyzing @file{test1.rpt} and @file{test2.rpt} because @file{test_suite.lst} has changed.
+@item @lmake sees that @file{test3.rpt} is needed instead of @file{test2.rpt}.
+@item Hence, @file{test1.rpt} and @file{test3.rpt} are (re)built in parallel.
+@item @file{test_suite.rpts} is finally built from @file{test1.rpt} and @file{test3.rpt}.
 @end itemize
 
 @anchor{hierarchical-repositories}

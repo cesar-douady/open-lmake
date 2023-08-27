@@ -14,11 +14,6 @@ namespace Engine {
 	struct Config        ;
 	struct EngineClosure ;
 
-	ENUM_1( BackendTag
-	,	Dflt = Local
-	,	Local                                                                  // PER_BACKEND : add a tag for each backend
-	)
-
 	ENUM( CacheTag                                                             // PER_CACHE : add a tag for each cache method
 	,	None
 	,	Dir

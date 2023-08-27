@@ -25,13 +25,11 @@ if getattr(sys,'reading_makefiles',False) :
 		target = 'bad{:\d+}'
 		cmd = 'exit 1'
 
-	class CriticalBarrier(lmake.Rule) :
+	class Critical(lmake.Rule) :
 		target = 'tgt'
 		def cmd() :
-			lmake.depend('src1','src2')
-			lmake.critical_barrier()
-			lmake.depend(*(f'good{i}' for i in range(n_good)))
-			lmake.critical_barrier()
+			lmake.depend('src1','src2',critical=True)
+			lmake.depend(*(f'good{i}' for i in range(n_good)),critical=True)
 			lmake.depend('src1','bad0','bad0','bad1')
 
 else :

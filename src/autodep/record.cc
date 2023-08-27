@@ -82,7 +82,7 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		::string           c           = jerr.comment+".lnk" ;
 		::vmap_s<DiskDate> files       ;
 		for( auto const& [f,dd] : jerr.files ) {
-			::pair_s<bool/*in_tmp*/> sr = _solve(AT_FDCWD,f.c_str(),false/*no_follow*/,c) ;
+			::pair_s<bool/*in_tmp*/> sr = _solve( AT_FDCWD , f.c_str() , jerr.no_follow , c ) ;
 			if (!sr.first.empty()) files.emplace_back( sr.first , file_date(s_get_root_fd(),sr.first) ) ;
 			some_in_tmp |= sr.second ;
 		}
@@ -123,7 +123,7 @@ int Record::Lnk::operator()( Record& r , int rc , int errno_ ) {
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	bool ok = rc>=0 ;
 	//
-	DFs dfs = DFlag::Reg ; if (no_follow) dfs |= DFlag::Lnk ;                                                      // if no_follow, the sym link may be hard linked
+	DFlags dfs = DFlag::Reg ; if (no_follow) dfs |= DFlag::Lnk ;                                                      // if no_follow, the sym link may be hard linked
 	if ( !old_real.empty() && (ok||s_no_file(errno_)) ) r._report_dep( ::move(old_real) , dfs , comment+".src" ) ; // if no_follow, the symlink can be linked
 	//
 	if (new_real.empty()) { if ( ok && in_tmp ) r._report       ( Proc::Tmp                         ) ; }

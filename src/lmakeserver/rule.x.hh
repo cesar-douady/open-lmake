@@ -55,7 +55,7 @@ namespace Engine {
 		// acesses
 		::string job_sfx() const ;
 		// services
-		void new_job_exec_time( Delay , Tokens ) ;
+		void new_job_exec_time( Delay , Tokens1 ) ;
 		::pair<vmap_ss,vmap_s<vmap_ss>> eval_ctx(
 			::vmap<CmdVar,VarIdx> const& ctx
 		,	::vector_s            const& stems
@@ -118,10 +118,14 @@ namespace Engine {
 	struct CreateNoneAttrs : Attrs {
 		static constexpr const char* Msg = "tokens" ;
 		void update(PyObject* py_src) {
+			size_t tokens ;
 			s_acquire_from_dct(tokens,py_src,"job_tokens") ;
+			if (tokens==0)                                    tokens1 = 0                                ;
+			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
+			else                                              tokens1 = tokens-1                         ;
 		}
 		// data
-		Tokens tokens = 1 ;
+		Tokens1 tokens1 = 0 ;
 	} ;
 
 	// used at submit time, participate in resources

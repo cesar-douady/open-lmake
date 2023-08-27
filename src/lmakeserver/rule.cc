@@ -190,11 +190,11 @@ namespace Engine {
 		return os << ')' ;
 	}
 
-	void Rule::new_job_exec_time( Delay exec_time , Tokens tokens ) {
+	void Rule::new_job_exec_time( Delay exec_time , Tokens1 tokens1 ) {
 		if((*this)->stats_weight<RuleWeight) (*this)->stats_weight++ ;
 		Delay delta = (exec_time-(*this)->exec_time) / (*this)->stats_weight ;
 		(*this)->exec_time += delta ;
-		for( Req req : Req::s_reqs_by_start ) req.inc_rule_exec_time(*this,delta,tokens) ;
+		for( Req req : Req::s_reqs_by_start ) req.inc_rule_exec_time(*this,delta,tokens1) ;
 	}
 
 	//
@@ -875,7 +875,7 @@ namespace Engine {
 	}
 	::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
 		::vmap_ss entries ;
-		if  (sna.tokens!=1) entries.emplace_back( "job_tokens" , to_string(sna.tokens) ) ;
+		if  (sna.tokens1!=0) entries.emplace_back( "job_tokens" , to_string(sna.tokens1+1) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 	::string _pretty( size_t i , CacheNoneAttrs const& cna ) {

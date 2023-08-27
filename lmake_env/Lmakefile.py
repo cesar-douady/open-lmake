@@ -301,7 +301,6 @@ class TarLmake(BaseRule) :
 	,	'LMAKESERVER'        : '_bin/lmakeserver'
 	,	'LMAKE_PY'           : 'lib/lmake.py'
 	,	'CLMAKE'             : 'lib/clmake.so'
-	,	'LCRITICAL_BARRIER'  : 'bin/lcritical_barrier'
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
 	,	'LDEPEND'            : 'bin/ldepend'
 	,	'LTARGET'            : 'bin/ltarget'
@@ -313,6 +312,11 @@ class TarLmake(BaseRule) :
 	,	'DOC'                : 'doc/lmake.html'
 	}
 	cmd = f"tar -cz {' '.join(deps.values())}"
+
+class LmakePy(BaseRule) :
+	target = 'lib/lmake.py'
+	dep    = '_lib/lmake.src.py'
+	cmd    = 'cat'
 
 opt_tab.update({
 	r'.*'                        : ( '-I'      , sysconfig.get_path("include")                                            )
@@ -460,10 +464,6 @@ class LinkLdepend(LinkJobSupport) :
 class LinkLtarget(LinkJobSupport) :
 	targets = { 'TARGET' : 'bin/ltarget'           }
 	deps    = { 'MAIN'   : 'src/autodep/ltarget.o' }
-
-class LinkLcriticalBarrier(LinkJobSupport) :
-	targets = { 'TARGET' : 'bin/lcritical_barrier'           }
-	deps    = { 'MAIN'   : 'src/autodep/lcritical_barrier.o' }
 
 class LinkLChkDeps(LinkJobSupport) :
 	targets = { 'TARGET' : 'bin/lcheck_deps'           }

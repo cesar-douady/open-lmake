@@ -200,9 +200,9 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 	FILE* freopen64( const char* pth , const char* mode , FILE* fp ) { ORIG(freopen64) ; LCK ; Audit::Fopen r{pth,mode,"freopen64"} ; return r(orig(pth,mode,fp)) ; }
 
 	// fork
-	pid_t fork       () { ORIG(fork       ) ; LCK ; return orig()   ; }        // a simple way to do this is to take the lock before calling, so that it will be freed in both the parent and the child
-	pid_t __fork     () { ORIG(__fork     ) ; LCK ; return orig()   ; }        // a simple way to do this is to take the lock before calling, so that it will be freed in both the parent and the child
-	pid_t __libc_fork() { ORIG(__libc_fork) ; LCK ; return orig()   ; }        // .
+	pid_t fork       () { ORIG(fork       ) ; LCK ; return orig()   ; }        // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated...
+	pid_t __fork     () { ORIG(__fork     ) ; LCK ; return orig()   ; }        //     a simple way to stay coherent is to take the lock before fork and to release it after
+	pid_t __libc_fork() { ORIG(__libc_fork) ; LCK ; return orig()   ; }        //     both in parent & child
 	pid_t vfork      () {                           return fork  () ; }        // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
 	pid_t __vfork    () {                           return __fork() ; }        // .
 	//
