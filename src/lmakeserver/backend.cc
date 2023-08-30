@@ -345,15 +345,31 @@ namespace Backends {
 					g_engine_queue.emplace( JobProc::End   , ::move(je) , Status::Lost                   ) ; // signal jobs that have disappeared so they can be relaunched
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
-				for( auto& [j,e] : _s_start_tab )
+				for( auto& [j,e] : _s_start_tab ) {
+					if (!e.start) continue ;                                   // if job has not started yet, it is the responsibility of the sub-backend to monitor it
 					if (e.old) to_wakeup[j] = e.conn ;                         // make a shadow to avoid too long a lock
 					else       e.old        = true   ;                         // no reason to check newer jobs, so save resources
+				}
 			}
 			// check jobs that have already started
 			//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			for( auto const& [j,c] : to_wakeup ) _s_wakeup_remote(j,c,JobExecRpcProc::Heartbeat) ;
 			//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
+	}
+
+	::vector<JobIdx> Backend::s_heartbeat() {
+		::vector<JobIdx> res  ;
+		::unique_lock    lock { _s_mutex } ;
+		//
+		Trace trace("s_heartbeat") ;
+		for( Tag t : Tag::N ) {
+			if (!s_tab[+t]) continue ;                                                   // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
+			if (res.empty()) res =           s_tab[+t]->heartbeat() ;                    // fast path
+			else             for( JobIdx j : s_tab[+t]->heartbeat() ) res.push_back(j) ;
+		}
+		trace("jobs",res) ;
+		return res ;
 	}
 
 	void Backend::s_config(Config::Backend const config[]) {
@@ -372,7 +388,7 @@ namespace Backends {
 		Trace trace("acquire_cmd_line",tag,job,submit_attrs) ;
 		SWEAR(!_s_mutex.try_lock()       ) ;
 		SWEAR(!_s_start_tab.contains(job)) ;
-		StartTabEntry& entry = _s_start_tab[job] ;
+		StartTabEntry& entry = _s_start_tab[job] ;                             // create entry
 		entry.open() ;
 		entry.tag          = tag           ;
 		entry.rsrcs        = ::move(rsrcs) ;
@@ -409,7 +425,7 @@ namespace Backends {
 					if (e.reqs.size()>1) {
 						e.reqs.erase(it) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Continue , JobExec(j,now) , Req(req) ) ; // job is necessary for some other req
+						g_engine_queue.emplace( JobProc::Continue , JobExec(j,now) , Req(req) ) ; // job is necessarly for some other req
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						continue ;
 					}

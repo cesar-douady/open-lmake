@@ -179,20 +179,6 @@ namespace Backends {
 	//
 	inline ::uset<ReqIdx> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j) ; }
 	inline void           Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ;        s_tab[+t]->end  (j) ; }
-	//
-	inline ::vector<JobIdx> Backend::s_heartbeat() {
-		::vector<JobIdx> res  ;
-		::unique_lock    lock { _s_mutex } ;
-		//
-		Trace trace("s_heartbeat") ;
-		for( Tag t : Tag::N ) {
-			if (!s_tab[+t]) continue ;                                                   // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
-			if (res.empty()) res =           s_tab[+t]->heartbeat() ;                    // fast path
-			else             for( JobIdx j : s_tab[+t]->heartbeat() ) res.push_back(j) ;
-		}
-		trace("jobs",res) ;
-		return res ;
-	}
 
 }
 
