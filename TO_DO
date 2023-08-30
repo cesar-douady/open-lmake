@@ -12,7 +12,10 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* margin is no more used, normal ?!?
+* static dep flags are left after job execution with the flags they have obtained during the execution
+	- this is history leaking
+	- rebuild fresh static deps when launching a job
+	- no more need for special treatment of static deps
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -35,6 +38,9 @@ items :
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
+* Ensure we have a proper error message when job_exec cannot contact server
+	- must work with both local and slurm backends
+	- generally speaking, when job is lost, we want to know why if possible
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen

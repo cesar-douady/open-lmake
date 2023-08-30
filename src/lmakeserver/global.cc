@@ -36,7 +36,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
-		return os << "Backend(" << be.margin <<','<< ::hex<<be.addr<<::dec <<','<< be.dct << ')' ;
+		return os << "Backend(" << ::hex<<be.addr<<::dec <<','<< (be.is_local?"local":"remote") <<','<< be.dct << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Config::Cache const& c ) {
@@ -59,18 +59,18 @@ namespace Engine {
 		return os<<')' ;
 	}
 
-	Config::Backend::Backend( Py::Mapping const& py_map , bool is_local ) {
+	Config::Backend::Backend( Py::Mapping const& py_map , bool il ) {
 		::string field ;
+		is_local = il ;
 		try {
 			bool found_addr = false ;
 			for( auto const& [k,v] : Py::Mapping(py_map) ) {
 				field = Py::String(k) ;
-				if      (field=="margin"   ) { margin = Time::Delay         (Py::Float (v)) ;                     }
-				else if (field=="interface") { addr   = ServerSockFd::s_addr(Py::String(v)) ; found_addr = true ; }
-				else                         { dct.emplace_back(field,v.str()) ;                                  }
+				if (field=="address") { addr = ServerSockFd::s_addr(Py::String(v)) ; found_addr = true ; }
+				else                  { dct.emplace_back(field,v.str()) ;                                }
 			}
-			field = "interface" ;
-			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(host()) ;
+			field = "address" ;
+			if (!found_addr) addr = is_local ? SockFd::LoopBackAddr : ServerSockFd::s_addr(host()) ;
 		} catch(::string const& e) {
 			throw to_string("while processing ",field,e) ;
 		}
@@ -132,7 +132,7 @@ namespace Engine {
 				::string ts = mk_snake(t) ;
 				field = "backends."+ts ;
 				if (!py_backends.hasKey(ts)) throw "not found"s ;
-				backends[+t] = Backend( Py::Mapping(py_backends[ts]) , t!=BackendTag::Local ) ;
+				backends[+t] = Backend( Py::Mapping(py_backends[ts]) , t<=BackendTag::IsLocal ) ;
 			}
 			//
 			field = "caches" ;
@@ -192,11 +192,11 @@ namespace Engine {
 		res << "backends :\n" ;
 		for( BackendTag t : BackendTag::N ) {
 			Backend const& be = backends[+t] ;
-			size_t         w  = 7            ;                                 // room for margin/address
+			size_t         w  = 7            ;                                 // room for address
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"margin"  <<" : "<< be.margin.short_str()             <<'\n' ;
 			/**/                              res <<"\t\t"<< ::setw(w)<<"address" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"local"   <<" : "<< be.is_local                       <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k         <<" : "<< v                                 <<'\n' ;
 		}
 		if (!caches.empty()) {

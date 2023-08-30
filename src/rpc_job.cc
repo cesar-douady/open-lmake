@@ -83,13 +83,12 @@
 			if (jrr.live_out            ) os <<',' << "live_out"           ;
 			/**/                          os <<',' << jrr.method           ;
 			/**/                          os <<',' << jrr.remote_admin_dir ;
-			/**/                          os <<',' << jrr.rsrcs            ;
 			/**/                          os <<',' << jrr.small_id         ;
 			if (!jrr.stdin .empty()     ) os <<'<' << jrr.stdin            ;
 			if (!jrr.stdout.empty()     ) os <<'>' << jrr.stdout           ;
 			/**/                          os <<"*>"<< jrr.targets          ;
 			if (+jrr.timeout            ) os <<',' << jrr.timeout          ;
-			/**/                          os <<',' << jrr.script           ; // last as it is most probably multi-line
+			/**/                          os <<',' << jrr.cmd              ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
@@ -176,5 +175,5 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 //
 
 ::ostream& operator<<( ::ostream& os , JobInfoStart const& jis ) {
-	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.pre_start <<','<< jis.start <<')' ;
+	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }

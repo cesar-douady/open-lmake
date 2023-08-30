@@ -28,7 +28,7 @@ if getattr(sys,'reading_makefiles',False) :
 
 	class Mrkr(lmake.Rule):
 		targets = { 'MRKR' : r'{__dir__}mrkr{Wait:\d}' }
-		cmd     = 'sleep $Wait ; echo > $MRKR'                                 # just create output
+		cmd     = 'sleep {Wait} ; echo > {MRKR}'                               # just create output
 
 	class Res1(lmake.PyRule):
 		target = 'res1'

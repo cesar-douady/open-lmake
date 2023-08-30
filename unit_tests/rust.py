@@ -19,7 +19,7 @@ if getattr(sys,'reading_makefiles',False) :
 	class CompileRust(lmake.RustRule) :
 		targets = { 'EXE' : '{File:.*}' }
 		deps    = { 'SRC' : '{File}.rs' }
-		cmd     = 'rustc -g -o $EXE $SRC'
+		cmd     = 'rustc -g -o {EXE} {SRC}'
 
 	class AntiRustRust(lmake.AntiRule) :
 		target = '{:.*}.rs.rs'
@@ -27,7 +27,7 @@ if getattr(sys,'reading_makefiles',False) :
 	class RunRust(lmake.RustRule) :
 		targets = { 'OUT' : '{File:.*}.out' }
 		deps    = { 'EXE' : '{File}'        }
-		cmd     = './$EXE $File.in $OUT'
+		cmd     = './{EXE} {File}.in {OUT}'
 
 	class Cmp(lmake.Rule) :
 		target = '{File:.*}.ok'
@@ -35,7 +35,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'OUT' : '{File}.out'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff $REF $OUT>&2'
+		cmd = 'diff {REF} {OUT}>&2'
 
 else :
 

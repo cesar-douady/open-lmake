@@ -350,6 +350,50 @@ namespace Engine {
 		return res ;
 	}
 
+	::vmap_s<pair<Node,DFlags>> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
+		if (!is_dynamic) return spec.mk(r,stems) ;
+		SWEAR( !need_deps && !need_rsrcs ) ;
+		Py::Gil   gil ;
+		PyObject* d   ;
+		if (need_targets) d = _mk_dict( r , stems , Rule::SimpleMatch(r,stems).targets() ) ;
+		else              d = _mk_dict( r , stems                                        ) ;
+		::vmap_s<pair<Node,DFlags>> res = spec.mk(r,stems,d) ;
+		Py_DECREF(d) ;
+		return res  ;
+	}
+
+	//
+	// Cmd
+	//
+
+	::string DynamicCmd::eval( Job j , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs ) const {
+		if (!spec.is_python) return Base::eval(j,match_,rsrcs).cmd ;
+		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ ;
+		if ( need_stems || need_targets ) {
+			if (!match_) match_ = Rule::SimpleMatch{j} ;
+			if (need_targets) ctx_ = j->rule.eval_ctx( ctx , match_.stems , match_.targets() , j->deps , rsrcs ) ;
+			else              ctx_ = j->rule.eval_ctx( ctx , match_.stems , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute targets
+		} else {
+			/**/              ctx_ = j->rule.eval_ctx( ctx , {}/*stems*/  , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute match_
+		}
+		::string res ;
+		for( auto const& [k ,v ] : ctx_.first  ) res += to_string(k," = ",mk_py_str(v),'\n') ;
+		for( auto const& [k1,v1] : ctx_.second ) {
+			res += to_string(k1," = {\n") ;
+			bool first = true ;
+			for( auto const& [k2,v2] : v1 ) {
+				if (!first) res += ',' ;
+				res += to_string('\t', mk_py_str(k2) ," : ", mk_py_str(v2) ,'\n') ;
+				first = false ;
+			}
+			res += "}\n" ;
+		}
+		/**/                       res += spec.cmd ;
+		if (spec.cmd.back()!='\n') res += '\n'                                                                  ;
+		/**/                       res += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
+		return res ;
+	}
+
 	//
 	// RuleData
 	//
@@ -636,26 +680,25 @@ namespace Engine {
 			/**/                                                            var_idxs["deps"                               ] = { CmdVar::Deps , 0 } ;
 			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { CmdVar::Dep  , d } ;
 			//
-			if (dct.hasKey("create_none_attrs" )) create_none_attrs  = { Py::Object(dct["create_none_attrs" ]).ptr() , var_idxs } ;
-			if (dct.hasKey("cache_none_attrs"  )) cache_none_attrs   = { Py::Object(dct["cache_none_attrs"  ]).ptr() , var_idxs } ;
-			if (dct.hasKey("submit_rsrcs_attrs")) submit_rsrcs_attrs = { Py::Object(dct["submit_rsrcs_attrs"]).ptr() , var_idxs } ;
+			field = "create_none_attrs"  ; if (dct.hasKey(field)) create_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "cache_none_attrs"   ; if (dct.hasKey(field)) cache_none_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "submit_rsrcs_attrs" ; if (dct.hasKey(field)) submit_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			//
 			/**/                                                             var_idxs["resources"                           ] = { CmdVar::Rsrcs , 0 } ;
 			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
 			//
-			if (dct.hasKey("start_cmd_attrs"  )) start_cmd_attrs   = { Py::Object(dct["start_cmd_attrs"  ]).ptr() , var_idxs } ;
-			if (dct.hasKey("start_rsrcs_attrs")) start_rsrcs_attrs = { Py::Object(dct["start_rsrcs_attrs"]).ptr() , var_idxs } ;
-			if (dct.hasKey("start_none_attrs" )) start_none_attrs  = { Py::Object(dct["start_none_attrs" ]).ptr() , var_idxs } ;
-			if (dct.hasKey("end_cmd_attrs"    )) end_cmd_attrs     = { Py::Object(dct["end_cmd_attrs"    ]).ptr() , var_idxs } ;
-			if (dct.hasKey("end_none_attrs"   )) end_none_attrs    = { Py::Object(dct["end_none_attrs"   ]).ptr() , var_idxs } ;
+			field = "start_cmd_attrs"   ; if (dct.hasKey(field)) start_cmd_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "cmd"               ; if (dct.hasKey(field)) cmd               = { Py::Object(dct[field]).ptr() , var_idxs } ; else throw "not found"s ;
+			field = "start_rsrcs_attrs" ; if (dct.hasKey(field)) start_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "start_none_attrs"  ; if (dct.hasKey(field)) start_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "end_cmd_attrs"     ; if (dct.hasKey(field)) end_cmd_attrs     = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs } ;
 
 			//
 			// now process fields linked to execution
 			//
-			field = "ete"       ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
-			field = "force"     ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
-			field = "is_python" ; if (dct.hasKey(field)) is_python =       Py::Object(dct[field]).as_bool() ; else throw "not found"s ;
-			field = "cmd"       ; if (dct.hasKey(field)) cmd       =       Py::String(dct[field])           ; else throw "not found"s ;
+			field = "ete"   ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
+			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
 				if (targets[t].first!="<stdout>") continue ;
 				if (targets[t].second.flags[TFlag::Star]) throw "<stdout> must be a static target"s ;
@@ -667,11 +710,6 @@ namespace Engine {
 				stdin_idx = d ;
 				break ;
 			}
-			field = "cmd_ctx" ;
-			if (dct.hasKey(field))
-				for( Py::Object v : Py::Sequence(dct[field]) )
-					cmd_ctx.push_back(var_idxs.at(Py::String(v))) ;
-			::sort(cmd_ctx) ;                                                  // stabilize cmd crc
 		}
 		catch(::string const& e) { throw to_string("while processing ",user_name(),'.',field," :\n"  ,indent(e)     ) ; }
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name(),'.',field," :\n\t",e.errorValue()) ; }
@@ -716,6 +754,7 @@ namespace Engine {
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
 			start_cmd_attrs   .compile() ;
+			cmd               .compile() ;
 			start_rsrcs_attrs .compile() ;
 			start_none_attrs  .compile() ;
 			end_cmd_attrs     .compile() ;
@@ -789,34 +828,6 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	static ::string _pretty_cmd( size_t i , ::string const& cmd ) {
-		::string res ;
-		if (!cmd.empty()) {
-			res += indent(cmd,i) ;
-			if (cmd.back()!='\n') res += '\n' ;
-		}
-		return res ;
-	}
-	static ::string _pretty_ctx( RuleData const& rd , ::vector<pair<CmdVar,VarIdx>> const& ctx ) {
-		::string    res ;
-		const char* sep = "" ;
-		for( auto [cmd_var,idx] : ctx ) {
-			res += sep ;
-			sep = " , " ;
-			switch (cmd_var) {
-				case CmdVar::Stem    : res += rd.stems                        .at(idx).first ; break ;
-				case CmdVar::Target  : res += rd.targets                      .at(idx).first ; break ;
-				case CmdVar::Dep     : res += rd.create_match_attrs.spec.deps .at(idx).first ; break ;
-				case CmdVar::Rsrc    : res += rd.submit_rsrcs_attrs.spec.rsrcs.at(idx).first ; break ;
-				case CmdVar::Stems   : res += "stems"                                        ; break ;
-				case CmdVar::Targets : res += "targets"                                      ; break ;
-				case CmdVar::Deps    : res += "deps"                                         ; break ;
-				case CmdVar::Rsrcs   : res += "resources"                                    ; break ;
-				default : FAIL(cmd_var) ;
-			}
-		}
-		return res ;
-	}
 	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
 		::string        res  ;
 		::uset<uint8_t> seen ;
@@ -839,7 +850,7 @@ namespace Engine {
 		return rd.job_name ;
 	}
 
-	::string _pretty( size_t i , CreateMatchAttrs const& ms , ::vmap_ss const& stems ) {
+	static ::string _pretty( size_t i , CreateMatchAttrs const& ms , ::vmap_ss const& stems ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
@@ -873,29 +884,29 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
+	static ::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
 		::vmap_ss entries ;
 		if  (sna.tokens1!=0) entries.emplace_back( "job_tokens" , to_string(sna.tokens1+1) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
+	static ::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
 		if (!cna.key.empty()) return to_string(::string(i,'\t'),"key : ",cna.key,'\n') ;
 		else                  return {}                                               ;
 	}
-	::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
+	static ::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
 		::vmap_ss entries ;
-		if  (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (sra.backend) ) ;
-		for (auto const& [k,v] : sra.rsrcs ) entries.emplace_back( k           , v                    ) ;
+		/**/                                 if (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (sra.backend) ) ;
+		for (auto const& [k,v] : sra.rsrcs ) if (!v.empty()                    ) entries.emplace_back( k           , v                    ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , StartCmdAttrs const& sca ) {
+	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
 		OStringStream res    ;
 		int           pass   ;
 		//
 		auto do_field = [&](::string const& key , ::string const& val )->void {
 			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                 // during 1st pass, compute max key size ;
-			else         res <<::string(i,'\t')<< ::setw(key_sz)<<key <<" : "<< val <<'\n' ;
+			else         res << indent( to_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
 		} ;
 		for( pass=1 ; pass<=2 ; pass++ ) {                                          // on 1st pass we compute key size, on 2nd pass we do the job
 			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"   , to_string(sca.auto_mkdir ) ) ;
@@ -914,7 +925,12 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
+	static ::string _pretty( size_t i , Cmd const& c ) {
+		::string cmd = c.cmd ;
+		if ( !cmd.empty() && cmd.back()!='\n' ) cmd += '\n' ;
+		return indent(cmd,i) ;
+	}
+	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
@@ -922,7 +938,7 @@ namespace Engine {
 		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sra.env ) ;
 		return res.str() ;
 	}
-	::string _pretty( size_t i , StartNoneAttrs const& sna ) {
+	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		if ( sna.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
@@ -932,24 +948,25 @@ namespace Engine {
 		if (!sna.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sna.env ) ;
 		return res.str() ;
 	}
-	::string _pretty( size_t i , EndCmdAttrs const& eca ) {
+	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
 		::vmap_ss entries ;
 		if  (eca.allow_stderr) entries.emplace_back( "allow_stderr" , to_string(eca.allow_stderr) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
-	::string _pretty( size_t i , EndNoneAttrs const& ena ) {
+	static ::string _pretty( size_t i , EndNoneAttrs const& ena ) {
 		::vmap_ss entries ;
 		if  (ena.stderr_len!=size_t(-1)) entries.emplace_back( "stderr_len" , to_string(ena.stderr_len) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 
-	template<class T,class... A> ::string _pretty( size_t i , ::string const& key , Dynamic<T> const& d , A&&... args ) {
+	template<class T,class... A> ::string RuleData::_pretty_str( size_t i , Dynamic<T> const& d , A&&... args ) const {
 		OStringStream res ;
 		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
-		if ( !s.empty() || d.is_dynamic ) res << indent(key+" :\n",i) << s ;
+		if ( !s.empty() || d.is_dynamic ) res << indent(to_string(T::Msg," :\n"),i) << s ;
 		if (d.is_dynamic) {
-			if (!d.glbs_str.empty()) { res << indent("<context> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n') res << '\n' ; }
-			/**/                     { res << indent("<dynamic> :\n",i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n') res << '\n' ; }
+			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
+			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n') res << '\n' ;     }
+			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n') res << '\n' ;     }
 		}
 		return res.str() ;
 	}
@@ -965,29 +982,43 @@ namespace Engine {
 		/**/                entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
 		if (!cwd_s.empty()) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
 		if (!anti) {
-			if (force)            entries.emplace_back( "force"       , to_string(force   )        ) ;
-			/**/                  entries.emplace_back( "n_tokens"    , to_string(n_tokens)        ) ;
-			if (!cmd_ctx.empty()) entries.emplace_back( "cmd_context" , _pretty_ctx(*this,cmd_ctx) ) ;
+			if (force) entries.emplace_back( "force"    , to_string(force   ) ) ;
+			/**/       entries.emplace_back( "n_tokens" , to_string(n_tokens) ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;
 		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
 		if (!anti) {
-			// new
-			res << _pretty(1,"match (create)"    ,create_match_attrs,stems) ;
-			res << _pretty(1,"cmd (start)"       ,start_cmd_attrs         ) ;
-			res << _pretty(1,"cmd (end)"         ,end_cmd_attrs           ) ;
-			res << _pretty(1,"resources (submit)",submit_rsrcs_attrs      ) ;
-			res << _pretty(1,"resources (start)" ,start_rsrcs_attrs       ) ;
-			res << _pretty(1,"ancillary (create)",create_none_attrs       ) ;
-			res << _pretty(1,"ancillary (start)" ,start_none_attrs        ) ;
-			res << _pretty(1,"ancillary (end)"   ,end_none_attrs          ) ;
-			res << _pretty(1,"ancillary (cache)" ,cache_none_attrs        ) ;
-			//
-			res << indent("cmd :\n",1) << _pretty_cmd(2,cmd) ;
+			res << _pretty_str(1,create_match_attrs,stems) ;
+			res << _pretty_str(1,create_none_attrs       ) ;
+			res << _pretty_str(1,cache_none_attrs        ) ;
+			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
+			res << _pretty_str(1,start_none_attrs        ) ;
+			res << _pretty_str(1,start_cmd_attrs         ) ;
+			res << _pretty_str(1,cmd                     ) ;
+			res << _pretty_str(1,start_rsrcs_attrs       ) ;
+			res << _pretty_str(1,end_cmd_attrs           ) ;
+			res << _pretty_str(1,end_none_attrs          ) ;
 		}
 		//
 		return res.str() ;
+	}
+
+	::vector_s RuleData::list_ctx(::vmap<CmdVar,VarIdx> const& ctx) const {
+		::vector_s res ;
+		for( auto const& [k,i] : ctx )
+			switch (k) {
+				case CmdVar::Stem    : res.push_back(stems                        [i].first) ; break ;
+				case CmdVar::Target  : res.push_back(targets                      [i].first) ; break ;
+				case CmdVar::Dep     : res.push_back(create_match_attrs.spec.deps [i].first) ; break ;
+				case CmdVar::Rsrc    : res.push_back(submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
+				case CmdVar::Stems   : res.push_back("stems"                               ) ; break ;
+				case CmdVar::Targets : res.push_back("targets"                             ) ; break ;
+				case CmdVar::Deps    : res.push_back("deps"                                ) ; break ;
+				case CmdVar::Rsrcs   : res.push_back("resources"                           ) ; break ;
+				default : FAIL(k) ;
+			}
+		return res ;
 	}
 
 	::pair<vmap_ss,vmap_s<vmap_ss>> Rule::eval_ctx(
@@ -1081,11 +1112,9 @@ namespace Engine {
 			h.update(job_name          ) ;
 			h.update(targets           ) ;
 			h.update(force             ) ;
-			h.update(is_python         ) ;
-			h.update(cmd_ctx           ) ;
-			h.update(cmd               ) ;
 			h.update(create_match_attrs) ;
 			h.update(start_cmd_attrs   ) ;
+			h.update(cmd               ) ;
 			h.update(end_cmd_attrs     ) ;
 			cmd_crc = h.digest() ;
 		}

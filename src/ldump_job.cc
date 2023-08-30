@@ -51,7 +51,6 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "cwd_s       : "  <<      jrr.cwd_s            <<'\n' ;
 	::cout << "hash_algo   : "  <<      jrr.hash_algo        <<'\n' ;
 	::cout << "interpreter : "  <<      jrr.interpreter      <<'\n' ;
-	::cout << "is_python   : "  <<      jrr.is_python        <<'\n' ;
 	::cout << "kill_sigs   : "  <<      jrr.kill_sigs        <<'\n' ;
 	::cout << "live_out    : "  <<      jrr.live_out         <<'\n' ;
 	::cout << "lnk_support : "  <<      jrr.lnk_support      <<'\n' ;
@@ -63,10 +62,9 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "targets     : "  <<      jrr.targets          <<'\n' ;
 	::cout << "timeout     : "  <<      jrr.timeout          <<'\n' ;
 	//
-	::cout << "rsrcs :\n"       ; _print_map   (jrr.rsrcs      )      ;
-	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)      ;
-	::cout << "env :\n"         ; _print_map   (jrr.env        )      ;
-	::cout << "script :\n"      ; ::cout << indent(jrr.script) <<'\n' ;
+	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)   ;
+	::cout << "env :\n"         ; _print_map   (jrr.env        )   ;
+	::cout << "cmd :\n"         ; ::cout << indent(jrr.cmd) ; if ( !jrr.cmd.empty() && jrr.cmd.back()!='\n' ) ::cout<<'\n' ;
 }
 
 void print_end(JobRpcReq const& jrr) {
@@ -100,6 +98,7 @@ int main( int argc , char* argv[] ) {
 		auto report_start = deserialize<JobInfoStart>(job_stream) ;
 		::cout << "eta : "  << report_start.eta <<'\n' ;
 		print_submit_attrs(report_start.submit_attrs) ;
+		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;
 		print_start       (report_start.start       ) ;
 	} catch(...) {}

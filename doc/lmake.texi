@@ -575,17 +575,19 @@ If a dep does not exist, it is deemed secondary information and is shown in gray
 @item @code{-e}|@code{--stderr} : show the stderr of the jobs.
 @item @code{-o}|@code{--stdout} : show the stdout of the jobs.
 @item @code{-t}|@code{--targets} : show the targets of the jobs.
-Each line is composed of 3 fields  separated by spaces :
+Each line is composed of 4 fields  separated by spaces :
 @itemize @minus
-@item flags : each flag is either a letter if set, or a @code{-} if not.
-Flags are :
+@item Info : composed of 4 letters :
 @itemize .
-@item @code{U} : Target is incremental (for static targets) or has been read before written (for star targets).
-@item @code{!} : Target has not been written or has been unlinked.
-@item @code{*} : Target is a star target.
+@item match  : @code{-} if target can be matched (as a dep by another rule), @code{#} if it cannot.
+@item exists : @code{-} if target exists, @code{!} if it does not (it may have been unlinked after having been written).
+@item access : @code{-} if target was neither read nor written, @code{R} if it was only read, @code{W} if it was only written, @code{U} if it was both read and written.
+@item star   : @code{-} if target is static, @code{*} if it is a star target.
 @end itemize
-@item key : the key if the dep is static, else blank.
-@item the name of the target.
+@item Flags : composed of one letter for each flag that may appear in the @code{ltarget} command.
+The letter is the short option name if set, else @code{-}.
+@item Key : key under which target has been recognized, or @code{<unexpected>} if it has not been recognized.
+@item The name of the target.
 @end itemize
 @end itemize
 
@@ -738,12 +740,12 @@ Also, if for some reasons you run with autodep method @code{none}, this is the w
 
 The following options are supported :
 @itemize @bullet
+@item @code{-v}|@code{--verbose}   : write lines composed of the crc and the name separated by a space for each required dependency.
 @item @code{-P}|@code{--no-follow} : do not follow the last level symbolic link.
 @item @code{-c}|@code{--critical}  : create critical deps (see @pxref{critical-deps}).
 @item @code{-e}|@code{--no-error}  : ignore the error status of the passed dependencies.
 @item @code{-r}|@code{--required}  : if passed dependencies are not buildable, this does not prevent this job from being run (as it is for dependencies automatically generated after accesses).
 @item @code{-s}|@code{--esential}  : passed dependencies will not appear in the flow shown with a graphical tool.
-@item @code{-v}|@code{--verbose}   : write lines composed of the crc and the name separated by a space for each required dependency.
 @end itemize
 
 @section @code{lcheck_deps}
@@ -796,7 +798,6 @@ The following options are supported :
 @item @code{-d} or @code{--dep}          : reads not followed by writes trigger dependencies
 @item @code{-e} or @code{--essential}    : show when generating user oriented graphs
 @item @code{-f} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
-@item @code{-m} or @code{--manual-ok}    : ok to overwrite manual files
 @item @code{-s} or @code{--source-ok}    : ok to overwrite source files
 @item @code{-t} or @code{--stat}         : inode accesses (stat-like) are not ignored
 @item @code{-w} or @code{--write}        : writes are allowed (possibly followed by reads which are ignored)
@@ -804,7 +805,6 @@ The following options are supported :
 @item @code{-D} or @code{--no-dep}       : reads not followed by writes do not trigger dependencies
 @item @code{-E} or @code{--no-essential} : do not show when generating user oriented graphs
 @item @code{-F} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
-@item @code{-M} or @code{--no-manual-ok} : not ok to overwrite manual files
 @item @code{-S} or @code{--no-source-ok} : not ok to overwrite source files
 @item @code{-T} or @code{--no-stat}      : inode accesses (stat-like) are ignored
 @item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
@@ -1084,16 +1084,6 @@ The attributes are described in the caches section below.
 
 @multitable @columnfractions 0.1 0.07 0.83
 @headitem Attribute @tab Default @tab Description
-@item @code{backends.*.margin}
-@tab @code{0}
-@tab Special case of backends attribute is the @code{margin} entry, that must be present for all backends, that provide the minimum age (i.e. the difference between its ctime and the access time)
-for a freshly discovered dependency after which it is deemed acceptable.
-This margin may be necessary as some network file systems (for example some versions of NFS) do not @strong{always} respect their promise of close-to-open consistency in heavy workload situations.
-When a dependency is known before job execution, @lmake can insert code to check the file is actually accessible in its last version, but if a dependency is discovered during the execution,
-there is nothing @lmake can do. As a work around, @lmake only trusts such dependencies if the file is old enough that its update has had a chance to propagate.
-This value is to be determined empirically.
-Too small a value and you have (exceptionnally but not never) files with wrong content (or not existing at all).
-Too large a value, you have more jobs being rerun while they went perfectly fine.
 @item @code{backends.*.address}
 @tab best guess
 @tab
@@ -1708,9 +1698,9 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 @item Default
 @tab -
 @item Dynamic
-@tab No.
+@tab Yes. Environment includes stems, targets, deps and resources. See description, though, if it is defined as a function.
 @item Example1
-@tab @code{'gcc -c -o $OBJ $SRC'}
+@tab @code{'gcc -c -o @{OBJ@} @{SRC@}'}
 @item Example2
 @tab @code{def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))}
 @end multitable
@@ -1788,13 +1778,7 @@ For such a base class, the solution is to define @code{cmd} as a @code{function}
 If several definitions exist along the MRO, They must all be @code{str}'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.
 
-During evaluation, when the job runs, its environment is augmented with :
-@itemize @minus
-@item The @code{stems}, @code{targets}, @code{deps}, @code{resources} as named in their respective @code{dict}.
-@item The @code{job_tokens} variable contains the associated value.
-@end itemize
-
-Such variables must appear in the core of one of the definitions as a whole word.
+As for other attributes that may be dynamic, @code{cmd} is interpreted as an f-string.
 
 The job is deemed to be successful if the return code of the overall process is @code{0}.
 

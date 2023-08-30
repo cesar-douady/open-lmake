@@ -65,11 +65,6 @@ namespace Backends {
 			JobIdx job    ;
 		} ;
 
-		struct BackendDescr {
-			Backend* be        = nullptr ;
-			bool     is_remote = false   ;
-		} ;
-
 		// statics
 		static void s_config(Config::Backend const config[]) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
@@ -92,8 +87,8 @@ namespace Backends {
 		static ::vector<JobIdx> s_heartbeat() ;
 		//
 	protected :
-		static void s_register( Tag t , Backend& be , bool is_remote ) {
-			s_tab[+t] = { &be , is_remote } ;
+		static void s_register( Tag t , Backend& be ) {
+			s_tab[+t] = &be ;
 		}
 	private :
 		static void            _s_kill_req                   ( ReqIdx=0                                             ) ; // kill all if req==0
@@ -107,7 +102,7 @@ namespace Backends {
 	public :
 		static ::latch      s_service_ready    ;
 		static ::string     s_executable       ;
-		static BackendDescr s_tab[/*+Tag::N*/] ;
+		static Backend*     s_tab[/*+Tag::N*/] ;
 		static ServerSockFd s_server_fd        ;
 	private :
 		static ::mutex                          _s_mutex                 ;
@@ -116,9 +111,9 @@ namespace Backends {
 		static SmallId                          _s_max_small_id          ;
 		static ThreadQueue<DeferredReportEntry> _s_deferred_report_queue ;
 		static ThreadQueue<DeferredLostEntry  > _s_deferred_lost_queue   ;
+	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-	public :
 		virtual void config(Config::Backend const&) {}
 		//
 		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}    // called before any operation on req , n_jobs is the maximum number of jobs that can be launched (lmake -j option)
@@ -149,15 +144,15 @@ namespace Backends {
 #ifdef IMPL
 namespace Backends {
 
-	inline void Backend::s_open_req ( ReqIdx r , JobIdx n_jobs ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,r) ; for( Tag t : Tag::N ) s_tab[+t].be->open_req (r,n_jobs) ; }
-	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) s_tab[+t].be->close_req(r       ) ; }
+	inline void Backend::s_open_req ( ReqIdx r , JobIdx n_jobs ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,r) ; for( Tag t : Tag::N ) s_tab[+t]->open_req (r,n_jobs) ; }
+	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) s_tab[+t]->close_req(r       ) ; }
 	//
 	inline void Backend::s_submit( Tag t , JobIdx j , ReqIdx r , SubmitAttrs&& sa , ::vmap_ss const& rs ) {
 		::unique_lock lock{_s_mutex} ;
 		//
 		sa.tag = t ;
 		Trace trace("s_submit",t,j,r,sa,rs) ;
-		s_tab[+t].be->submit(j,r,sa,rs) ;
+		s_tab[+t]->submit(j,r,sa,rs) ;
 	}
 	//
 	inline void Backend::s_add_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
@@ -165,7 +160,7 @@ namespace Backends {
 		Trace trace("s_add_pressure",t,j,r,sa) ;
 		auto it = _s_start_tab.find(j) ;
 		if (it==_s_start_tab.end()) {
-			s_tab[+t].be->add_pressure(j,r,sa) ;                               // if job is not started, ask sub-backend to raise its priority
+			s_tab[+t]->add_pressure(j,r,sa) ;                               // if job is not started, ask sub-backend to raise its priority
 		} else {
 			it->second.reqs.insert(r) ;                                        // else, job is already started, note the new Req as we maintain the list of Req's associated to each job
 			it->second.submit_attrs |= sa ;                                    // and update submit_attrs in case job was not actually started
@@ -174,17 +169,16 @@ namespace Backends {
 	inline void Backend::s_set_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_set_pressure",t,j,r,sa) ;
-		s_tab[+t].be->set_pressure(j,r,sa) ;
+		s_tab[+t]->set_pressure(j,r,sa) ;
 		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) s_tab[+t].be->set_pressure(j,r,sa) ;       // if job is not started, ask sub-backend to raise its priority
+		if (it==_s_start_tab.end()) s_tab[+t]->set_pressure(j,r,sa) ;       // if job is not started, ask sub-backend to raise its priority
 		else                        it->second.submit_attrs |= sa ;            // and update submit_attrs in case job was not actually started
 	}
 	//
-	inline void Backend::s_new_req_eta(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",req) ; for( Tag t : Tag::N ) s_tab[+t].be->new_req_eta(req) ; }
-	inline void Backend::s_launch     (          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_launch"         ) ; for( Tag t : Tag::N ) s_tab[+t].be->launch     (   ) ; }
+	inline void Backend::s_new_req_eta(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",req) ; for( Tag t : Tag::N ) s_tab[+t]->new_req_eta(req) ; }
 	//
-	inline ::uset<ReqIdx> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t].be->start(j) ; }
-	inline void           Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ;        s_tab[+t].be->end  (j) ; }
+	inline ::uset<ReqIdx> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j) ; }
+	inline void           Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ;        s_tab[+t]->end  (j) ; }
 	//
 	inline ::vector<JobIdx> Backend::s_heartbeat() {
 		::vector<JobIdx> res  ;
@@ -192,9 +186,9 @@ namespace Backends {
 		//
 		Trace trace("s_heartbeat") ;
 		for( Tag t : Tag::N ) {
-			if (!s_tab[+t].be) continue ;                                                   // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
-			if (res.empty()) res =           s_tab[+t].be->heartbeat() ;                    // fast path
-			else             for( JobIdx j : s_tab[+t].be->heartbeat() ) res.push_back(j) ;
+			if (!s_tab[+t]) continue ;                                                   // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
+			if (res.empty()) res =           s_tab[+t]->heartbeat() ;                    // fast path
+			else             for( JobIdx j : s_tab[+t]->heartbeat() ) res.push_back(j) ;
 		}
 		trace("jobs",res) ;
 		return res ;

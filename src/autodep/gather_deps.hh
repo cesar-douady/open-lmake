@@ -131,7 +131,7 @@ public :
 	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function used to contact server when necessary, by default, return error
 	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void {             } ; // function used to report live output, by default dont report
 	ServerSockFd                                  master_sock  ;
-	in_addr_t                                     addr         = 0x7f000001                                     ; // local addr to which we can be contacted by running job
+	in_addr_t                                     addr         = SockFd::LoopBackAddr                           ; // local addr to which we can be contacted by running job
 	bool                                          create_group = false                                          ; // if true <=> process is launched in its own group
 	AutodepMethod                                 method       = AutodepMethod::Dflt                            ;
 	AutodepEnv                                    autodep_env  ;

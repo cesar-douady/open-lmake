@@ -116,41 +116,6 @@ namespace Engine {
 		return report_unlink ;
 	}
 
-	void Job::fill_rpc_reply( JobRpcReply& jrr , Rule::SimpleMatch const& match_ , ::vmap_ss const& rsrcs ) const {
-		Rule        r       = (*this)->rule    ;
-		::vector_s  targets = match_.targets() ;
-		auto const& deps    = (*this)->deps    ;
-		//
-		if ( r->stdout_idx!=Rule::NoVar                        ) jrr.stdout = targets[r->stdout_idx]        ;
-		if ( r->stdin_idx !=Rule::NoVar && +deps[r->stdin_idx] ) jrr.stdin  = deps   [r->stdin_idx ].name() ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> ctx = r.eval_ctx( r->cmd_ctx , match_.stems , targets , deps , rsrcs ) ;
-		if (r->is_python) {
-			for( auto const& [var,str] : ctx.first ) append_to_string( jrr.script , var ," = ", mk_py_str(str) ,'\n') ;
-			for( auto const& [var,dct] : ctx.second ) {
-				const char* sep = "" ;
-				/**/                             append_to_string( jrr.script , var ," = {"                                      ) ;
-				for( auto const& [k,v] : dct ) { append_to_string( jrr.script , '\n',sep,'\t', mk_py_str(k) ," : ", mk_py_str(v) ) ; sep = "," ; }
-				/**/                             append_to_string( jrr.script ,"\n}\n"                                           ) ;
-			}
-		} else {
-			for( auto const& [var,str] : ctx.first ) jrr.env.emplace_back(var,str) ;
-			// XXX : dont know how to pass a dict in environment
-		}
-		jrr.script += r->cmd ;
-		if (r->is_python) {
-			if (r->cmd.back()!='\n') jrr.script += '\n'                                                                  ;
-			/**/                     jrr.script += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
-		}
-		jrr.targets.reserve(targets.size()) ;
-		for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) jrr.targets.emplace_back( targets[t] , false/*is_native_star:dont_care*/ , r->flags(t) ) ;
-		//
-		for( Dep d : deps ) {
-			if (!d.flags[DFlag::Static]) break    ;
-			if (!d                     ) continue ;
-			jrr.static_deps.push_back(d.name()) ;
-		}
-	}
-
 	void Job::end_exec() const {
 		::unique_lock lock(_s_target_dirs_mutex) ;
 		for( ::string const& d : match().target_dirs() ) {
@@ -234,7 +199,7 @@ namespace Engine {
 		//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
-			(*this)->tokens1 = rule_tgt->create_none_attrs.eval(*this).tokens1 ;
+			(*this)->tokens1 = rule_tgt->create_none_attrs.eval(*this,match_).tokens1 ;
 		} catch (::string const& e) {
 			(*this)->tokens1 = rule_tgt->create_none_attrs.spec.tokens1 ;
 			req->audit_job(Color::Note,"dynamic",*this) ;
@@ -383,23 +348,24 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( JobDigest const& digest ) {
-		Status         status           = digest.status                                      ; // status will be modified, need to make a copy
-		bool           err              = status>=Status::Err                                ;
-		bool           killed           = status<=Status::Killed                             ;
-		JobReason      local_reason     = killed ? JobReasonTag::Killed : JobReasonTag::None ;
-		bool           any_modified     = false                                              ;
-		Rule           rule             = (*this)->rule                                      ;
-		::vector<Req>  running_reqs_    = running_reqs()                                     ;
-		AnalysisErr    analysis_err     ;
-		CacheNoneAttrs cache_none_attrs ;
-		EndCmdAttrs    end_cmd_attrs    ;
+	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest ) {
+		Status            status           = digest.status                                      ; // status will be modified, need to make a copy
+		bool              err              = status>=Status::Err                                ;
+		bool              killed           = status<=Status::Killed                             ;
+		JobReason         local_reason     = killed ? JobReasonTag::Killed : JobReasonTag::None ;
+		bool              any_modified     = false                                              ;
+		Rule              rule             = (*this)->rule                                      ;
+		::vector<Req>     running_reqs_    = running_reqs()                                     ;
+		AnalysisErr       analysis_err     ;
+		CacheNoneAttrs    cache_none_attrs ;
+		EndCmdAttrs       end_cmd_attrs    ;
+		Rule::SimpleMatch match_           ;
 		//
 		SWEAR( status!=Status::New && !JobData::s_frozen(status) ) ;           // we just executed the job, it can be neither new nor frozen
 		SWEAR(!rule.is_special()) ;
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
-			cache_none_attrs = rule->cache_none_attrs.eval(*this) ;
+			cache_none_attrs = rule->cache_none_attrs.eval(*this,match_) ;
 		} catch (::string const& e) {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
 			for( Req req : running_reqs_ ) {
@@ -408,7 +374,7 @@ namespace Engine {
 			}
 		}
 		try {
-			end_cmd_attrs = rule->end_cmd_attrs.eval(*this) ;
+			end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match_) ;
 		} catch (::string const& e) {
 			analysis_err.emplace_back( to_string("cannot compute",EndCmdAttrs::Msg) , 0 ) ;
 		}
@@ -465,7 +431,7 @@ namespace Engine {
 				//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
 				if (flags   [TFlag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
 				if (aj_flags[TFlag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
-					Rule::Match aj_match = aj.simple_match() ;
+					Rule::SimpleMatch aj_match{aj} ;
 					for( Req r : reqs() ) {
 						ReqInfo& ajri = aj.req_info(r) ;
 						ajri.done_ = ajri.done_ & RunAction::Status ;                             // whether there is clash or not, this job must be rerun if we need the actual files
@@ -521,7 +487,7 @@ namespace Engine {
 			trace("target",target,td,STR(modified),status) ;
 		}
 		if (seen_static_targets.size()<rule->n_static_targets) {               // some static targets have not been seen
-			Rule::Match       match_         = simple_match()          ;       // match_ must stay alive as long as we use static_targets
+			Rule::SimpleMatch match_         { *this }                 ;       // match_ must stay alive as long as we use static_targets
 			::vector_view_c_s static_targets = match_.static_targets() ;
 			for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
 				::string const&  tn = static_targets[t] ;
@@ -581,7 +547,7 @@ namespace Engine {
 		EndNoneAttrs end_none_attrs   ;
 		::string     analysis_err_txt ;
 		try {
-			end_none_attrs = rule->end_none_attrs.eval(*this) ;
+			end_none_attrs = rule->end_none_attrs.eval(*this,match_,rsrcs) ;
 		} catch (::string const& e) {
 			end_none_attrs = rule->end_none_attrs.spec ;
 			analysis_err.emplace_back(rule->end_none_attrs.s_exc_msg(true/*using_static*/),0) ;
@@ -882,7 +848,7 @@ namespace Engine {
 								}
 							}
 						}
-						if ( !d.flags[DFlag::IgnoreError] && d->err() ) {
+						if ( !d.flags[DFlag::NoError] && d->err() ) {
 							trace("dep_err",d) ;
 							mark = Yes ; goto Err ;
 						}
@@ -983,7 +949,13 @@ namespace Engine {
 			bool         no_info        = false ;
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			try {
-				end_none_attrs = rule->end_none_attrs.eval(*this) ;
+				Rule::SimpleMatch match_ ;
+				::vmap_ss         rsrcs  ;
+				if (rule->end_none_attrs.need_rsrcs) {
+					try         { rsrcs = deserialize<JobInfoStart>(IFStream(ancillary_file())).rsrcs ; }
+					catch (...) {}                                                                        // ignore error as it is purely for cosmetic usage
+				}
+				end_none_attrs = rule->end_none_attrs.eval(*this,match_,rsrcs) ;
 			} catch (::string const& e) {
 				end_none_attrs = rule->end_none_attrs.spec ;
 				req->audit_job(Color::Note,"dynamic",*this) ;
@@ -1063,7 +1035,7 @@ namespace Engine {
 		switch ((*this)->rule.special()) {
 			case Special::Plain : {
 				SWEAR((*this)->frozen()) ;                                     // only case where we are here without special rule
-				Rule::SimpleMatch match_         = simple_match()          ;   // match_ lifetime must be at least as long as static_targets lifetime
+				Rule::SimpleMatch match_         { *this }                 ;   // match_ lifetime must be at least as long as static_targets lifetime
 				::vector_view_c_s static_targets = match_.static_targets() ;
 				SpecialStep       special_step   = SpecialStep::Idle       ;
 				Node              worst_target   ;
@@ -1179,14 +1151,15 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ Job::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
 		using Lvl = ReqInfo::Lvl ;
-		Req              req                = ri.req        ;
-		Rule             rule               = (*this)->rule ;
-		SubmitRsrcsAttrs submit_rsrcs_attrs ;
-		CacheNoneAttrs   cache_none_attrs   ;
+		Req               req                = ri.req        ;
+		Rule              rule               = (*this)->rule ;
+		SubmitRsrcsAttrs  submit_rsrcs_attrs ;
+		CacheNoneAttrs    cache_none_attrs   ;
+		Rule::Match       match_             { *this }       ;
 		Trace trace("submit_plain",*this,ri,reason,pressure) ;
 		SWEAR(!ri.waiting()) ;
 		try {
-			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval(*this) ;
+			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval(*this,match_) ;
 		} catch (::string const& e) {
 			req->audit_job ( Color::Err  , "failed" , *this                                                                 ) ;
 			req->audit_info( Color::Note , to_string(rule->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/),'\n',e) , 1 ) ;
@@ -1196,7 +1169,7 @@ namespace Engine {
 		}
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
-			cache_none_attrs = rule->cache_none_attrs.eval(*this) ;
+			cache_none_attrs = rule->cache_none_attrs.eval(*this,match_) ;
 		} catch (::string const& e) {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
 			req->audit_job(Color::Note,"no_dynamic",*this) ;
@@ -1214,7 +1187,6 @@ namespace Engine {
 			return false/*may_new_deps*/ ;
 		}
 		//
-		Rule::Match match_ = match() ;
 		if (!_targets_ok(req,match_)) return false /*may_new_deps*/ ;
 		//
 		if (!cache_none_attrs.key.empty()) {
@@ -1232,7 +1204,7 @@ namespace Engine {
 						ri.lvl = Lvl::Hit ;
 						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
-						bool modified = je.end(digest) ;
+						bool modified = je.end({},digest) ;                      // no resources available for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[*this] = { true/*hit*/ , modified , {} } ;
 						return true/*maybe_new_deps*/ ;

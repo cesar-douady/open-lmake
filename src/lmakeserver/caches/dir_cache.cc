@@ -266,7 +266,7 @@ namespace Caches {
 		//
 		try {
 			IFStream is           { job.ancillary_file() }        ;
-			auto     report_start = deserialize<JobInfoStart>(is) ;
+			auto     report_start = deserialize<JobInfoStart>(is) ; report_start.rsrcs.clear() ; // caching resources is meaningless as they have no impact on content
 			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
 			// transform date into crc
 			::vmap_s<DepDigest> deps ;

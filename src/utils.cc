@@ -36,16 +36,16 @@
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
-			case ' '  : res += c ;               break ;
-			case '\\' :
-			case '\'' : res += '\\' ; res += c ; break ;
-			case '\a' : res += "\\a" ;           break ;
-			case '\b' : res += "\\b" ;           break ;
-			case '\f' : res += "\\f" ;           break ;
-			case '\n' : res += "\\n" ;           break ;
-			case '\r' : res += "\\r" ;           break ;
-			case '\t' : res += "\\t" ;           break ;
-			case '\v' : res += "\\v" ;           break ;
+			case '\\' :                                 // must be escaped
+			case '\'' : res += '\\'  ; /*fall through*/ // .
+			case ' '  : res += c     ; break ;          // not recognized by ::isprint
+			case '\a' : res += "\\a" ; break ;          // special case
+			case '\b' : res += "\\b" ; break ;          // .
+			case '\f' : res += "\\f" ; break ;          // .
+			case '\n' : res += "\\n" ; break ;          // .
+			case '\r' : res += "\\r" ; break ;          // .
+			case '\t' : res += "\\t" ; break ;          // .
+			case '\v' : res += "\\v" ; break ;          // .
 			default :
 				if ( ::isprint(c) && !::isspace(c) ) {
 					res += c ;
@@ -67,6 +67,25 @@
 	res += '\'' ;
 	return res ;
 }
+
+::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {
+	if (sub.empty()) return txt ;
+	size_t pos = txt.find(sub) ;
+	if (pos==Npos) return txt ;
+	::string_view sv  = txt                ;
+	::string      res { sv.substr(0,pos) } ; res.reserve(sv.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
+	while (pos!=Npos) {
+		size_t p = pos+sub.size() ;
+		pos  = sv.find(sub,p)   ;
+		res += repl             ;
+		res += sv.substr(p,pos) ;
+	}
+	return res ;
+}
+
+//
+// assert
+//
 
 void set_sig_handler( int sig_num , void (*handler)(int) ) {
 sigset_t empty ; ::sigemptyset(&empty) ;

@@ -363,6 +363,8 @@ template<::integral I> static inline void from_int( char* p , I x ) {
 	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;             // little endian
 }
 
+::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) ;
+
 //
 // assert
 //
@@ -638,9 +640,9 @@ namespace std {
 		static bool        inited [[maybe_unused]] = (_enum_split(tab,cvals,+E::N),true) ; \
 		return tab[+e] ;                                                                   \
 	} \
-	[[maybe_unused]] static inline ::ostream&      operator<<  ( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os                    ; } \
-	[[maybe_unused]] static inline EnumIterator<E> begin       (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E(0)) ; } \
-	[[maybe_unused]] static inline EnumIterator<E> end         (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E::N) ; }
+	[[maybe_unused]] static inline ::ostream&      operator<<( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os                    ; } \
+	[[maybe_unused]] static inline EnumIterator<E> begin     (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E(0)) ; } \
+	[[maybe_unused]] static inline EnumIterator<E> end       (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E::N) ; }
 
 template<class E> concept StdEnum  = ::is_enum_v<E> && ::is_unsigned_v<underlying_type_t<E>> && requires() { E::N ; } ;
 
@@ -1246,4 +1248,3 @@ private :
 	T& _ref ;
 } ;
 template<class T> using FenceSave = Save<T,true> ;
-

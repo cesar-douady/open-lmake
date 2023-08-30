@@ -63,7 +63,7 @@ class Centos7Rule(BaseRule) :
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
-	cmd     = 'texi2any --html --no-split -o $HTML $TEXI'
+	cmd     = 'texi2any --html --no-split -o {HTML} {TEXI}'
 
 class Unpack(BaseRule) :
 	targets = {
@@ -154,7 +154,7 @@ class ConfigH(BaseRule) :
 	,	'SCRATCHPAD' : ( 'ext/{DirS}{File*}'  , '-Match' )
 	}
 	deps = { 'CONFIGURE' : 'ext/{DirS}configure' }
-	cmd  = 'cd ext/$DirS ; ./configure'
+	cmd  = 'cd ext/{DirS} ; ./configure'
 
 class SysConfigH(Centos7Rule) :
     targets = {
@@ -162,7 +162,7 @@ class SysConfigH(Centos7Rule) :
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
     deps = { 'EXE' : 'sys_config' }
-    cmd  = f'CC={gcc} PYTHON={sys.executable} ./$EXE 2>&1  >$H'
+    cmd  = 'CC={gcc} PYTHON={sys.executable} ./{EXE} 2>&1  >{H}'
 
 opt_tab = {}
 class GenOpts(BaseRule) :
@@ -275,7 +275,7 @@ class InstallSeccomp(BaseRule) :
 	deps         = { 'CONFIGURE' : f'{install_dir}/configure' }
 	allow_stderr = True
 	autodep      = 'ld_preload'
-	cmd          = ' cd $(dirname $CONFIGURE) ; ./configure ; make '
+	cmd          = ' cd $(dirname {CONFIGURE}) ; ./configure ; make '
 
 pycxx = 'pycxx-7.1.7'
 objs = ('cxxsupport','cxx_extensions','cxx_exceptions','cxxextensions','IndirectPythonInterface')
@@ -311,7 +311,7 @@ class TarLmake(BaseRule) :
 	,	'XXHSUM'             : 'bin/xxhsum'
 	,	'DOC'                : 'doc/lmake.html'
 	}
-	cmd = f"tar -cz {' '.join(deps.values())}"
+	cmd = "tar -cz {' '.join(deps.values())}"
 
 class LmakePy(BaseRule) :
 	target = 'lib/lmake.py'

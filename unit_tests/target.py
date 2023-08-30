@@ -19,16 +19,16 @@ if getattr(sys,'reading_makefiles',False) :
 	)
 
 	class Base(lmake.Rule) :
-		stems        = {
+		stems = {
 			'File'  : r'.*'
 		,	'YesNo' : r'[yn]'
 		}
-		dep          = '{File}'
-		autodep      = 'none'
+		dep     = '{File}'
+		autodep = 'none'
 
 	class ShCpy(Base) :
 		targets = { 'DST' : '{File}.sh.{YesNo}.cpy' }
-		cmd     = '[ $YesNo = y ] && ltarget $DST ; cat>$DST ; ltarget -w -s side.sh ; echo side > side.sh'
+		cmd     = '[ {YesNo} = y ] && ltarget {DST} ; cat>{DST} ; ltarget -w -s side.sh ; echo side > side.sh'
 
 	class PyCpy(Base) :
 		targets = { 'DST' : '{File}.py.{YesNo}.cpy' }

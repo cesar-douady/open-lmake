@@ -93,14 +93,13 @@ namespace Engine {
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
 			// services
 			template<IsStream T> void serdes(T& s) {
-				::serdes(s,margin) ;
-				::serdes(s,addr  ) ;
-				::serdes(s,dct   ) ;
+				::serdes(s,addr) ;
+				::serdes(s,dct ) ;
 			}
 			// data
-			Time::Delay margin ;
-			in_addr_t   addr   = ServerSockFd::LoopBackAddr ;
-			::vmap_ss   dct    ;
+			in_addr_t addr     = ServerSockFd::LoopBackAddr ;
+			bool      is_local = false                      ;
+			::vmap_ss dct  ;
 		} ;
 
 		struct Cache {
@@ -218,14 +217,15 @@ namespace Engine {
 		} ;
 		struct Job {
 			friend ::ostream& operator<<( ::ostream& , Job const& ) ;
-			JP       proc          = JP::None ;
-			JE       exec          = {}       ;
-			bool     report        = false    ;            // if proc==Start
-			VN       report_unlink = {}       ;            // if proc==Start
-			::string txt           = {}       ;            // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
-			Req_     req           = {}       ;            // if proc==Continue
-			JD       digest        = {}       ;            // if proc==End
-			Fd       reply_fd      = {}       ;            // if proc==ChkDeps
+			JP        proc          = JP::None ;
+			JE        exec          = {}       ;
+			bool      report        = false    ;            // if proc==Start
+			VN        report_unlink = {}       ;            // if proc==Start
+			::string  txt           = {}       ;            // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
+			Req_      req           = {}       ;            // if proc==Continue
+			::vmap_ss rsrcs         = {}       ;
+			JD        digest        = {}       ;            // if proc==End
+			Fd        reply_fd      = {}       ;            // if proc==ChkDeps
 		} ;
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
@@ -238,9 +238,10 @@ namespace Engine {
 		//
 		EngineClosure( JP p , JE&& je , ::string const& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=t             } { SWEAR( p==JP::LiveOut                          ) ; }
 		EngineClosure( JP p , JE&& je , Req_            r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }
-		EngineClosure( JP p , JE&& je , Status          s ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.status=s}} { SWEAR( p==JP::End && s<=Status::Garbage        ) ; }
-		EngineClosure( JP p , JE&& je , JD&& jd           ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest=::move(jd) } { SWEAR( p==JP::End                              ) ; }
 		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
+		//
+		EngineClosure( JP p , JE&& je , Status s                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je),            .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
+		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.rsrcs=::move(r),.digest=::move(jd)  } { SWEAR( p==JP::End                       ) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.deps{::move(dds)}},.reply_fd=rfd} {
 			SWEAR( p==JP::DepInfos || p==JP::ChkDeps ) ;

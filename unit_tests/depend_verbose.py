@@ -44,8 +44,8 @@ if getattr(sys,'reading_makefiles',False) :
 			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
 			autodep = ad
 			cmd = '''
-				from_server=$(ldepend -v $File | awk '{print $2}')
-				expected=$(   xxhsum     $File                   )
+				from_server=$(ldepend -v {File} | awk '{{print $2}}')
+				expected=$(   xxhsum     {File}                     )
 				echo $from_server
 				[ $from_server = $expected ] || echo expected $expected got $from_server >&2
 			'''

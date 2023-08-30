@@ -204,8 +204,17 @@ namespace Engine {
 					continue ;
 				}
 			}
-			Rule rule = jt->rule ;
 			trace("target",target,jt) ;
+			Rule             rule         = jt->rule              ;
+			::ifstream       job_stream   { jt.ancillary_file() } ;
+			JobInfoStart     report_start ;
+			JobInfoEnd       report_end   ;
+			bool             has_start    = false                 ;
+			bool             has_end      = false                 ;
+			JobDigest const& digest       = report_end.digest     ;
+			try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
+			try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
+		Go :
 			switch (ro.key) {
 				case ReqKey::Env        :
 				case ReqKey::ExecScript :
@@ -229,16 +238,6 @@ namespace Engine {
 							default : FAIL(ro.key) ;
 						}
 					} else {
-						::ifstream job_stream{ jt.ancillary_file() } ;
-						//
-						JobInfoStart     report_start ;
-						JobInfoEnd       report_end   ;
-						bool             has_start    = false             ;
-						bool             has_end      = false             ;
-						JobDigest const& digest       = report_end.digest ;
-						try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
-						try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
-					Go :
 						switch (ro.key) {
 							case ReqKey::Env : {
 								size_t w = 0 ;
@@ -248,16 +247,17 @@ namespace Engine {
 							} break ;
 							case ReqKey::ExecScript : {
 								if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
+								::string abs_cwd = *g_root_dir ; if (!report_start.start.cwd_s.empty()) { append_to_string(abs_cwd,'/',report_start.start.cwd_s) ; abs_cwd.pop_back() ; }
 								::string script = "exec env -i\\\n" ;
-								for( auto const& [k,v] : report_start.start.env ) append_to_string(script,'\t',k,'=',mk_shell_str(v),"\\\n") ;
+								for( auto const& [k,v] : report_start.start.env ) append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,report_start.start.local_mrkr,abs_cwd)),"\\\n") ;
 								//
 								append_to_string( script , "\tTMPDIR="      , mk_shell_str(report_start.start.job_tmp_dir) , "\\\n" ) ;
 								append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir                   ) , "\\\n" ) ;
 								append_to_string( script , "\tSEQUENCE_ID=" , to_string   (report_start.pre_start.seq_id ) , "\\\n" ) ;
 								append_to_string( script , "\tSMALL_ID="    , to_string   (report_start.start.small_id   ) , "\\\n" ) ;
 								//
-								for( ::string const& c : report_start.start.interpreter ) append_to_string(script,      mk_shell_str(c                        ),' ') ;
-								/**/                                                      append_to_string(script,"-c ",mk_shell_str(report_start.start.script)    ) ;
+								for( ::string const& c : report_start.start.interpreter ) append_to_string(script,      mk_shell_str(c                     ),' ') ;
+								/**/                                                      append_to_string(script,"-c ",mk_shell_str(report_start.start.cmd)    ) ;
 								audit( fd , ro , Color::None , 0 , script ) ;
 							} break ;
 							case ReqKey::Script : {
@@ -265,8 +265,8 @@ namespace Engine {
 								::string hdr = "#!" ;
 								::string sep ; sep.reserve(1) ;
 								for( ::string const& c : report_start.start.interpreter ) { hdr+=sep ; hdr+=c ; sep=" " ; } hdr+='\n' ;
-								audit( fd , ro , Color::None , lvl , hdr                       ) ;
-								audit( fd , ro , Color::None , lvl , report_start.start.script ) ;
+								audit( fd , ro , Color::None , lvl , hdr                    ) ;
+								audit( fd , ro , Color::None , lvl , report_start.start.cmd ) ;
 							} break ;
 							case ReqKey::Stdout :
 								if (!has_end ) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
@@ -324,11 +324,12 @@ namespace Engine {
 									audit( fd , ro , Color::None , lvl+1 , to_string("memory         : ",      digest.stats.mem  /1'000'000,"MB") ) ;
 								}
 								//
-								if ( has_start && !report_start.start.rsrcs.empty() ) {
+								if ( has_start && !report_start.rsrcs.empty() ) {
 									SubmitRsrcsAttrs rsrcs_attrs ;
 									bool             no_rsrcs    = false ;
 									try {
-										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt) ;
+										Rule::SimpleMatch match_ ;
+										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt,match_) ;
 									} catch(::string const& e) {
 										audit( fd , ro , Color::Err , lvl+1 , "resources : cannot compute" ) ;
 										audit( fd , ro , Color::Err , lvl+2 , e                            ) ;
@@ -339,7 +340,7 @@ namespace Engine {
 										size_t kw = 0 ;
 										for( auto const& [k,_] : rsrcs_attrs.rsrcs ) kw = ::max(kw,k.size()) ;
 										for( size_t r=0 ; r<rsrcs_attrs.rsrcs.size() ; r++ )
-											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_attrs.rsrcs[r].first," : ",report_start.start.rsrcs[r]) ) ;
+											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_attrs.rsrcs[r].first," : ",report_start.rsrcs[r]) ) ;
 									}
 								}
 							} break ;
@@ -366,24 +367,29 @@ namespace Engine {
 					if (rule.is_special()) {
 						_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target , lvl ) ;
 					} else {
-						Rule::Match       match      = jt.match()             ;
-						::vector_view_c_s sts        = match.static_targets() ;
-						size_t            wk         = 0                      ;
-						::string          unexpected = "unexpected"           ;
-						for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
-						for( Target t : jt->star_targets       ) if (match.idx(t.name())==Rule::NoVar) wk = ::max(wk,unexpected.size()) ;
-						auto send_target = [&]( VarIdx ti , bool star , Target t )->void {
-							TFlags tfs = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti) ;
-							bool   m   = tfs[TFlag::Match]                                    ;
-							char   iu  = star ? t.is_update() : tfs[TFlag::Incremental]       ;
-							char   mc  = m    ? '-'           : '!'                           ;
-							char   sc  = star ? '*'           : '-'                           ;
-							char   iuc = iu   ? 'U'           : '-'                           ;
-							if (ti==Rule::NoVar) _send_node( fd , ro , true/*always*/ , Yes     /*hide*/ , to_string( mc,iuc,sc ,' ', ::setw(wk) , unexpected              ) , t , lvl ) ;
-							else                 _send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( mc,iuc,sc ,' ', ::setw(wk) , rule->targets[ti].first ) , t , lvl ) ;
-						} ;
-						for( VarIdx ti=0 ; ti<sts.size() ; ti++ ) send_target( ti                   , false/*star*/ , Target(sts[ti]) ) ;
-						for( Target t : jt->star_targets        ) send_target( match.idx(t.name())  , true /*star*/ , t               ) ;
+						Rule::Match match_     = jt.match()     ;
+						::string    unexpected = "<unexpected>" ;
+						size_t      wk         = 0              ;
+						for( auto const& [tn,td] : report_end.digest.targets ) {
+							VarIdx ti = match_.idx(tn) ;
+							wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;
+						}
+						for( auto const& [tn,td] : report_end.digest.targets ) {
+							VarIdx ti   = match_.idx(tn)                                       ;
+							TFlags stfs = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti) ;
+							bool   m    = stfs[TFlag::Match]                                   ;
+							::string flags_str ;
+							flags_str += m                      ? '-'                : '#'                ;
+							flags_str += td.crc==Crc::None      ? '!'                : '-'                ;
+							flags_str += +(td.dfs&AccessDFlags) ? (td.write?'U':'R') : (td.write?'W':'-') ;
+							flags_str += stfs[TFlag::Star]      ? '*'                : '-'                ;
+							flags_str += ' ' ;
+							for( TFlag f : TFlag::N ) {
+								if (f>=TFlag::RuleOnly) break ;
+								flags_str += td.tfs[f]?TFlagChars[+f]:'-' ;
+							}
+							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , rule->targets[ti].first ) , tn , lvl ) ;
+						}
 					}
 				break ;
 				case ReqKey::InvDeps :

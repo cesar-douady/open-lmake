@@ -563,9 +563,10 @@ include Manifest.stamp                                                         #
 UT_DIR      := unit_tests
 UT_BASE_DIR := $(UT_DIR)/base
 
-UNIT_TESTS : Manifest \
-	$(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) ) \
-	$(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
+UNIT_TESTS1 : Manifest $(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) )
+UNIT_TESTS2 : Manifest $(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
+
+UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 
 %.dir/tok : %.script $(LMAKE_FILES) $(UT_BASE) Manifest
 	mkdir -p $(@D)

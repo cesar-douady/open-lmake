@@ -25,7 +25,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		cmd = 'cat $FIRST $SECOND'
+		cmd = 'cat {FIRST} {SECOND}'
 
 else :
 

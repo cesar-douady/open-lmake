@@ -33,7 +33,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'TEST' : 'test'
 		,	'REF'  : 'ref'
 		}
-		cmd = 'diff $REF $TEST'
+		cmd = 'diff {REF} {TEST}'
 
 else :
 

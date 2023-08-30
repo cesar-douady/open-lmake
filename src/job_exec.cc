@@ -23,21 +23,6 @@ using namespace Time ;
 static constexpr uint8_t TraceNameSz = JobHistorySz<= 10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
 static_assert(JobHistorySz<=10000) ;                                                       // above, we need to make hierarchical names
 
-::string _glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {
-	if (sub.empty()) return txt ;
-	size_t pos = txt.find(sub) ;
-	if (pos==Npos) return txt ;
-	::string_view sv  = txt                ;
-	::string      res { sv.substr(0,pos) } ; res.reserve(sv.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
-	while (pos!=Npos) {
-		size_t p = pos+sub.size() ;
-		pos  = sv.find(sub,p)   ;
-		res += repl             ;
-		res += sv.substr(p,pos) ;
-	}
-	return res ;
-}
-
 int main( int argc , char* argv[] ) {
 	using Date = ProcessDate ;
 
@@ -50,7 +35,7 @@ int main( int argc , char* argv[] ) {
 	::string service   =      argv[1]         ;
 	SeqId    seq_id    = atol(argv[2])        ;
 	JobIdx   job       = atol(argv[3])        ;
-	bool     is_remote = atol(argv[4])        ;
+	bool     is_remote = argv[4]=="remote"s   ; if (!is_remote) SWEAR(argv[4]=="local"s) ;
 	::string host_     = is_remote?host():""s ;
 	//
 	GatherDeps gather_deps{ New }                                                                    ;
@@ -94,15 +79,19 @@ int main( int argc , char* argv[] ) {
 	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
 	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
 	//
-	::string cwd_    = start_info.cwd_s ; if (!cwd_.empty()) cwd_.pop_back() ;
-	::string abs_cwd = cwd_.empty() ? *g_root_dir : to_string(*g_root_dir,'/',cwd_) ;
+	::string cwd_    = start_info.cwd_s ;
+	::string abs_cwd = *g_root_dir      ;
+	if (!start_info.cwd_s.empty()) {
+		cwd_.pop_back() ;
+		append_to_string(abs_cwd,'/',cwd_) ;
+	}
 	::map_ss cmd_env ;
-	/**/                                      cmd_env["PWD"        ] =           abs_cwd                           ;
-	/**/                                      cmd_env["ROOT_DIR"   ] =           *g_root_dir                       ;
-	/**/                                      cmd_env["SEQUENCE_ID"] = to_string(seq_id             )              ;
-	/**/                                      cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)              ;
-	/**/                                      cmd_env["TMPDIR"     ] =           *g_tmp_dir                        ; // TMPDIR is the standard environment variable to specify the temporary area
-	for( auto const& [k,v] : start_info.env ) cmd_env[k            ] = _glb_subst(v,start_info.local_mrkr,abs_cwd) ;
+	/**/                                      cmd_env["PWD"        ] =           abs_cwd                          ;
+	/**/                                      cmd_env["ROOT_DIR"   ] =           *g_root_dir                      ;
+	/**/                                      cmd_env["SEQUENCE_ID"] = to_string(seq_id             )             ;
+	/**/                                      cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)             ;
+	/**/                                      cmd_env["TMPDIR"     ] =           *g_tmp_dir                       ; // TMPDIR is the standard environment variable to specify the temporary area
+	for( auto const& [k,v] : start_info.env ) cmd_env[k            ] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
 	//
 	Fd       child_stdin  = Child::None                     ;
 	Fd       child_stdout = Child::Pipe                     ;
@@ -121,8 +110,8 @@ int main( int argc , char* argv[] ) {
 	}
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
-	args.emplace_back("-c"             ) ;
-	args.push_back   (start_info.script) ;
+	args.emplace_back("-c"          ) ;
+	args.push_back   (start_info.cmd) ;
 	//
 	::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 	for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {

@@ -26,12 +26,12 @@ if getattr(sys,'reading_makefiles',False) :
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
-		cmd     = 'cd  $Dir$Module ; cargo build 2>&1'
+		cmd     = 'cd  {Dir}{Module} ; cargo build 2>&1'
 
 	class RunRust(lmake.RustRule) :
 		targets = { 'OUT' : '{Dir:.+/|}{Module:[^/]+}.out' }
 		deps    = { 'EXE' : '{Dir}{Module}/target/debug/{Module}' }
-		cmd     = './$EXE'
+		cmd     = './{EXE}'
 
 	class Cmp(lmake.Rule) :
 		target = '{File:.*}.ok'
@@ -39,7 +39,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'OUT' : '{File}.out'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff $REF $OUT'
+		cmd = 'diff {REF} {OUT}'
 
 else :
 

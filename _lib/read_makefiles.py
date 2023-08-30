@@ -260,20 +260,19 @@ class Handle :
 		if sv : self.static_val [key] = sv
 		if dv : self.dynamic_val[key] = dv
 
-	def _handle_str(self,key,rep_key=None) :
-		if not rep_key               : rep_key = key
-		if rep_key not in self.attrs : return
-		s = self.attrs[rep_key]
-		if   callable(s)          : self.dynamic_val[key] = s
-		elif SimpleStrRe.match(s) : self.static_val [key] = static_fstring(s)  # s has no variable parts, make it a static value
-		else                      : self.dynamic_val[key] = f_str(s)           # mark s so it is generated as an f-string
-
-	def _handle_any(self,key,rep_key=None) :
+	def _handle_val(self,typ,key,rep_key=None) :
 		if not rep_key               : rep_key = key
 		if rep_key not in self.attrs : return
 		x = self.attrs[rep_key]
-		if callable(x) : self.dynamic_val[key] = x
-		else           : self.static_val [key] = x
+		if callable(x) :
+			self.dynamic_val[key] = x
+		else :
+			if typ : x = typ(x)                                                # convert x if asked to do so
+			if typ==str :
+				if SimpleStrRe.match(x) : self.static_val [key] = static_fstring(x) # x has no variable parts, make it a static value
+				else                    : self.dynamic_val[key] = f_str         (x) # mark x so it is generated as an f-string
+			else :
+				self.static_val [key] = x
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -346,12 +345,12 @@ class Handle :
 
 	def handle_create_none(self) :
 		self._init()
-		self._handle_any('job_tokens')
+		self._handle_val(int,'job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
 
 	def handle_cache_none(self) :
 		self._init()
-		self._handle_any('key','cache')
+		self._handle_val(str,'key','cache')
 		self.rule_rep.cache_none_attrs = self._finalize()
 
 	def handle_create_match(self) :
@@ -382,7 +381,7 @@ class Handle :
 
 	def handle_submit_rsrcs(self) :
 		self._init()
-		self._handle_str ('backend'            )
+		self._handle_val (str,'backend'            )
 		self._handle_dict('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.per_job.add('resources')
@@ -391,45 +390,45 @@ class Handle :
 
 	def handle_start_cmd(self) :
 		self._init()
-		self._handle_any ('auto_mkdir'                )
-		self._handle_any ('ignore_stat'               )
-		self._handle_str ('autodep'                   )
-		self._handle_str ('chroot'                    )
-		self._handle_any ('interpreter'               )
-		self._handle_str ('local_mrkr' ,'local_marker')
-		self._handle_dict('env'        ,'environ_cmd' )
+		self._handle_val (bool ,'auto_mkdir'                )
+		self._handle_val (bool ,'ignore_stat'               )
+		self._handle_val (str  ,'autodep'                   )
+		self._handle_val (str  ,'chroot'                    )
+		self._handle_val (tuple,'interpreter'               )
+		self._handle_val (str  ,'local_mrkr' ,'local_marker')
+		self._handle_dict(      'env'        ,'environ_cmd' )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_dict('env'    ,'environ_resources')
-		self._handle_any ('timeout'                    )
+		self._handle_dict(      'env'    ,'environ_resources')
+		self._handle_val (float,'timeout'                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_any ('keep_tmp'                       )
-		self._handle_any ('start_delay'                    )
-		self._handle_any ('kill_sigs'                      )
-		self._handle_dict('env'        ,'environ_ancillary')
+		self._handle_val (bool ,'keep_tmp'                       )
+		self._handle_val (float,'start_delay'                    )
+		self._handle_val (tuple,'kill_sigs'                      )
+		self._handle_dict(      'env'        ,'environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
 
 	def handle_end_cmd(self) :
 		self._init()
-		self._handle_any('allow_stderr')
+		self._handle_val(bool,'allow_stderr')
 		self.rule_rep.end_cmd_attrs = self._finalize()
 
 	def handle_end_none(self) :
 		self._init()
-		self._handle_any('stderr_len')
+		self._handle_val(int,'stderr_len')
 		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
-		cmd_ctx       = set()
-		serialize_ctx = (self.per_job,*self.glbs)
-		cmd           = self.attrs.cmd
 		if self.rule_rep.is_python :
+			cmd_ctx       = set()
+			serialize_ctx = (self.per_job,*self.glbs)
+			cmd   = self.attrs.cmd
 			multi = len(cmd)>1
 			if multi :
 				cmd_lst = []
@@ -452,13 +451,13 @@ class Handle :
 					x = '' if c.__code__.co_argcount==0 else 'None' if i==0 else 'x'
 					if i<len(self.attrs.cmd)-1 : cmd += f'\tx =    {c.__name__}({x})\n'
 					else                       : cmd += f'\treturn {c.__name__}({x})\n'
+			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , '' , '' , tuple(cmd_ctx) )
 		else :
-			cmd = '\n'.join(cmd)
-			for v in self.per_job :
-				if re.search(f'\\b{v}\\b',cmd) :                               # if {v} is mentioned in cmd as a word, put it in the context
-					cmd_ctx.add(v)
-		self.rule_rep.cmd_ctx = tuple(cmd_ctx)
-		self.rule_rep.cmd     = cmd
+			self.attrs.cmd = '\n'.join(self.attrs.cmd)
+			self._init()
+			self._handle_val(str ,'cmd')
+			self.static_val.is_python = False
+			self.rule_rep.cmd = self._finalize()
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class

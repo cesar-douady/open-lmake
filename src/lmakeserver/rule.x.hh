@@ -61,7 +61,7 @@ namespace Engine {
 		,	::vector_s            const& stems
 		,	::vector_s            const& targets
 		,	::vector_view_c<Dep>  const& deps
-		,	::vmap_ss             const& rsrcs
+		,	::vmap_ss             const& rsrcs   = {}
 		) const ;
 	} ;
 
@@ -167,21 +167,22 @@ namespace Engine {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,auto_mkdir ) ;
-			::serdes(s,ignore_stat) ;
-			::serdes(s,method     ) ;
 			::serdes(s,chroot     ) ;
+			::serdes(s,env        ) ;
+			::serdes(s,ignore_stat) ;
 			::serdes(s,interpreter) ;
 			::serdes(s,local_mrkr ) ;
-			::serdes(s,env        ) ;
+			::serdes(s,method     ) ;
 		}
 		void update(PyObject* py_src) {
 			s_acquire_from_dct(auto_mkdir ,py_src,"auto_mkdir" ) ;
-			s_acquire_from_dct(ignore_stat,py_src,"ignore_stat") ;
-			s_acquire_from_dct(method     ,py_src,"autodep"    ) ;
 			s_acquire_from_dct(chroot     ,py_src,"chroot"     ) ;
+			s_acquire_from_dct(env        ,py_src,"env"        ) ;
+			s_acquire_from_dct(ignore_stat,py_src,"ignore_stat") ;
 			s_acquire_from_dct(interpreter,py_src,"interpreter") ;
 			s_acquire_from_dct(local_mrkr ,py_src,"local_mrkr" ) ;
-			s_acquire_from_dct(env        ,py_src,"env"        ) ;
+			s_acquire_from_dct(method     ,py_src,"autodep"    ) ;
+			//
 			switch (method) {
 				case AutodepMethod::None      :                                                                                 break ;
 				case AutodepMethod::Ptrace    : if (!HAS_PTRACE  ) throw to_string(method," is not supported on this system") ; break ;
@@ -194,11 +195,27 @@ namespace Engine {
 		// data
 		bool          auto_mkdir  = false               ;
 		bool          ignore_stat = false               ;
-		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      chroot      ;
+		::vmap_ss     env         ;
 		::vector_s    interpreter ;
 		::string      local_mrkr  ;
-		::vmap_ss     env         ;
+		AutodepMethod method      = AutodepMethod::Dflt ;
+	} ;
+
+	struct Cmd : Attrs {
+		static constexpr const char* Msg = "execution command" ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,cmd      ) ;
+			::serdes(s,is_python) ;
+		}
+		void update(PyObject* py_src) {
+			s_acquire_from_dct(cmd        ,py_src,"cmd"       ) ;
+			s_acquire_from_dct(is_python  ,py_src,"is_python" ) ;
+		}
+		// data
+		bool     is_python = false/*garbage*/ ;
+		::string cmd       ;
 	} ;
 
 	// used at start time, participate in resources
@@ -311,7 +328,7 @@ namespace Engine {
 		using Base::Base ;
 		Dynamic           (Dynamic const& src) : Base{       src } , glbs{Py::boost(src.glbs)} , code{Py::boost(src.code)} {                                           } // mutex is not copiable
 		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{          src.glbs } , code{          src.code } { src.glbs = nullptr ; src.code = nullptr ; } // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                                          // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                                         // .
 			Base::operator=(src) ;
 			Py_XDECREF(glbs) ; glbs = src.glbs ; Py_XINCREF(glbs) ;
 			Py_XDECREF(code) ; code = src.code ; Py_XINCREF(code) ;
@@ -322,18 +339,19 @@ namespace Engine {
 			Py_XDECREF(glbs) ; glbs = src.glbs ; src.glbs = nullptr ;
 			Py_XDECREF(code) ; code = src.code ; src.code = nullptr ;
 			return *this ;
-		}             // .
+		}
 		// services
-		void compile(                                ) ;
-		T    eval   (Job , ::vmap_ss const& rsrcs={} ) const ;
+		void compile(                                                      ) ;
+		T    eval   ( Job , Rule::SimpleMatch& , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
 	protected :
 		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vmap_ss const& rsrcs={} ) const ;
 		// data
+	private :
+		mutable ::mutex _glbs_mutex ;  // ensure glbs is not used for several jobs simultaneously
+	public :
 		// not stored on disk
 		PyObject* glbs = nullptr ;     // if is_dynamic <=> dict to use as globals when executing code
 		PyObject* code = nullptr ;     // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
-	private :
-		mutable ::mutex _glbs_mutex ;  // ensure glbs is not used for several jobs simultaneously
 	} ;
 
 	struct DynamicCreateMatchAttrs : Dynamic<CreateMatchAttrs> {
@@ -346,6 +364,18 @@ namespace Engine {
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
 		::vmap_s<pair<Node,DFlags>> eval( Rule , ::vector_s const& stems ) const ;
+	} ;
+
+	struct DynamicCmd : Dynamic<Cmd> {
+		using Base = Dynamic<Cmd> ;
+		// cxtors & casts
+		using Base::Base ;
+		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
+		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                 // .
+		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
+		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		// services
+		::string eval( Job , Rule::SimpleMatch& , ::vmap_ss const& rsrcs ) const ; // SimpleMatch is lazy evaluated from Job
 	} ;
 
 	struct RuleData {
@@ -377,6 +407,7 @@ namespace Engine {
 		void _acquire_py(Py::Dict const&) ;
 		void _compile   (               ) ;
 		//
+		template<class T,class... A> ::string _pretty_str( size_t i , Dynamic<T> const& d , A&&... args ) const ;
 	public :
 		::string pretty_str() const ;
 
@@ -404,6 +435,7 @@ namespace Engine {
 			else if (cwd_s.empty()) return ::move(file)   ;                    // fast path
 			else                    return cwd_s+file     ;
 		}
+		::vector_s list_ctx(::vmap<CmdVar,VarIdx> const& ctx) const ;
 	private :
 		void _set_crcs() ;
 
@@ -424,14 +456,12 @@ namespace Engine {
 		Dynamic<CacheNoneAttrs  >     cache_none_attrs   ;                     // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs>     submit_rsrcs_attrs ;                     // in rsrcs crc, evaluated at submit time
 		Dynamic<StartCmdAttrs   >     start_cmd_attrs    ;                     // in cmd   crc, evaluated before execution
+		DynamicCmd                    cmd                ;
 		Dynamic<StartRsrcsAttrs >     start_rsrcs_attrs  ;                     // in rsrcs crc, evaluated before execution
 		Dynamic<StartNoneAttrs  >     start_none_attrs   ;                     // in no    crc, evaluated before execution
 		Dynamic<EndCmdAttrs     >     end_cmd_attrs      ;                     // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    >     end_none_attrs     ;                     // in no    crc, evaluated after  execution
-		::vector<pair<CmdVar,VarIdx>> cmd_ctx            ;                     // a list of stems, targets, deps, rsrcs & tokens accessed by cmd
 		bool                          force              = false ;
-		bool                          is_python          = false ;             // if true <=> cmd is a Python script
-		::string                      cmd                ;
 		size_t                        n_tokens           = 1     ;             // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
 		bool    has_stars        = false ;
@@ -645,29 +675,34 @@ namespace Engine {
 			::pair<CmdVar,VarIdx> idx = var_idxs.at(PyUnicode_AsUTF8(p[i])) ;
 			ctx.push_back(idx) ;
 			switch (idx.first) {
-				case CmdVar::Stems   : case CmdVar::Stem   : need_stems   = true ; break ;
-				case CmdVar::Targets : case CmdVar::Target : need_targets = true ; break ;
-				case CmdVar::Deps    : case CmdVar::Dep    : need_deps    = true ; break ;
-				case CmdVar::Rsrcs   : case CmdVar::Rsrc   : need_rsrcs   = true ; break ;
+				case CmdVar::Stems   : case CmdVar::Stem   : need_stems             = true ; break ;
+				case CmdVar::Targets : case CmdVar::Target : need_targets           = true ; break ;
+				case CmdVar::Deps    :                       need_stems = need_deps = true ; break ; // stems are needed to compute deps dict
+				case CmdVar::Dep     :                       need_deps              = true ; break ;
+				case CmdVar::Rsrcs   : case CmdVar::Rsrc   : need_rsrcs             = true ; break ;
 				default : FAIL(idx.first) ;
 			}
 		}
+		::sort(ctx) ;                                                          // stabilize crc's
 	}
 
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
-		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
-		//
-		glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
-		PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
-		PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
-		PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
-		//
-		PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
-		if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
-		Py_DECREF(val) ;
+		if (!code_str.empty()) {
+			code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
+			if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
+			glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
+			if (!glbs_str.empty()) {
+				PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
+				PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
+				PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
+				//
+				PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
+				if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
+				Py_DECREF(val) ;
+			}
+		}
 	}
 
 	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vmap_ss const& rsrcs ) const {
@@ -704,14 +739,14 @@ namespace Engine {
 		return d ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job j , ::vmap_ss const& rsrcs ) const {
+	template<class T> T Dynamic<T>::eval( Job j , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
 		//
 		Py::Gil   gil ;
 		PyObject* d   = nullptr/*garbage*/ ;
 		//
 		if ( need_stems || need_targets ) {
-			Rule::SimpleMatch match_{j} ;
+			if (!match_) match_ = Rule::SimpleMatch{j} ;
 			if (need_targets) d = _mk_dict( j->rule , match_.stems , match_.targets() , j->deps , rsrcs ) ;
 			else              d = _mk_dict( j->rule , match_.stems , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute targets
 		} else {
@@ -719,18 +754,6 @@ namespace Engine {
 		}
 		T res = spec ;
 		res.update(d) ;
-		Py_DECREF(d) ;
-		return res  ;
-	}
-
-	inline ::vmap_s<pair<Node,DFlags>> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
-		if (!is_dynamic) return spec.mk(r,stems) ;
-		SWEAR( !need_deps && !need_rsrcs ) ;
-		Py::Gil   gil ;
-		PyObject* d   ;
-		if (need_targets) d = _mk_dict( r , stems , Rule::SimpleMatch(r,stems).targets() ) ;
-		else              d = _mk_dict( r , stems                                        ) ;
-		::vmap_s<pair<Node,DFlags>> res = spec.mk(r,stems,d) ;
 		Py_DECREF(d) ;
 		return res  ;
 	}
@@ -760,14 +783,12 @@ namespace Engine {
 			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;
 			::serdes(s,start_cmd_attrs   ) ;
+			::serdes(s,cmd               ) ;
 			::serdes(s,start_rsrcs_attrs ) ;
 			::serdes(s,start_none_attrs  ) ;
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
-			::serdes(s,cmd_ctx           ) ;
 			::serdes(s,force             ) ;
-			::serdes(s,is_python         ) ;
-			::serdes(s,cmd               ) ;
 			::serdes(s,n_tokens          ) ;
 			::serdes(s,cmd_gen           ) ;
 			::serdes(s,rsrcs_gen         ) ;

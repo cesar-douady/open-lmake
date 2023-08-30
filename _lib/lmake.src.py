@@ -74,7 +74,6 @@ if _reading_makefiles :
 	config = pdict(
 		hash_algo       = 'Xxh'                            # algorithm to use to compute checksums on files, one of 'Xxh' or 'Md5'
 	,	heartbeat       = 60                               # delay between heartbeat checks of running jobs
-	,	interface       = ''                               # network interface that connect to remote hosts executing jobs
 	,	link_support    = 'Full'                           # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 	,	max_dep_depth   = 1000                             # used to detect infinite recursions and loops
 #	,	max_error_lines = 30                               # used to limit the number of error lines when not reasonably limited otherwise
@@ -88,15 +87,14 @@ if _reading_makefiles :
 		,	has_exec_time  = True                          # if True, output the exec_time field
 		)
 	,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
-			local = pdict(                                 # besides margin, other entries mention the total availability of resources
-				margin  = 0                                # compulsery in all backends, the margin to take (in seconds) to consider a newly discovered dep as reliable
+			local = pdict(                                 # entries mention the total availability of resources
 		#	,	address = socket.getfqdn()                 # address at which lmake can be contacted from jobs launched by this backend, can be :
 				#                                            - ''                     : loop-back address (127.0.0.1)
 				#                                            - standard dot notation  : for example '192.168.0.1'
 				#                                            - network interface name : the address of the host on this interface (as shown by ifconfig)
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
-			,	cpu     = len(_os.sched_getaffinity(0))    # total number of cpus available for the process, and hence for all jobs launched locally
+				cpu     = len(_os.sched_getaffinity(0))    # total number of cpus available for the process, and hence for all jobs launched locally
 			,	mem     = _physical_mem//Mega              # total available memory (in MB)
 			)
 		)

@@ -24,7 +24,7 @@ if getattr(sys,'reading_makefiles',False) :
 		,	'TRIGGER' : '{File}.tgzdir.trigger'
 		}
 		deps = { 'TGZ' : '{File}.tgz' }
-		cmd  = 'tar -xvf $TGZ -C $File.tgzdir >$TRIGGER'
+		cmd  = 'tar -xvf {TGZ} -C {File}.tgzdir >{TRIGGER}'
 
 else :
 

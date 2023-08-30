@@ -42,12 +42,12 @@ if getattr(sys,'reading_makefiles',False) :
 			name    = f'cpy-sh-acc-{ad}'
 			autodep = ad
 			target  = f'{{File}}.sh.acc.{ad}.{step.link_support}.cpy'
-			cmd     = 'cat $File'
+			cmd     = 'cat {File}'
 		class CpyShDep(Base) :
 			name    = f'cpy-sh-dep-{ad}'
 			autodep = ad
 			target  = f'{{File}}.sh.dep.{ad}.{step.link_support}.cpy'
-			cmd     = 'ldepend $File ; echo yes'
+			cmd     = 'ldepend {File} ; echo yes'
 		class CpyPyAcc(Base) :
 			name    = f'cpy-py-acc-{ad}'
 			autodep = ad

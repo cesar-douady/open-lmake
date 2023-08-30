@@ -13,8 +13,9 @@
 #include "serialize.hh"
 #include "time.hh"
 
-ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
-,	Dflt = Local
+ENUM_2( BackendTag                     // PER_BACKEND : add a tag for each backend
+,	Dflt    = Local
+,	IsLocal = Local                    // <=IsLocal means backend launches jobs locally
 ,	Local
 )
 
@@ -23,7 +24,7 @@ ENUM_1( DFlag                          // flags for deps
 //
 ,	Critical                           // if modified, ignore following deps
 ,	Essential                          // show when generating user oriented graphs
-,	IgnoreError                        // propagate error if dep is in error (Error instead of Err because name is visible from user)
+,	NoError                            // propagate error if dep is in error (Error instead of Err because name is visible from user)
 ,	Required                           // do not accept if dep cannot be built
 //
 ,	Static                             // dep is static
@@ -33,13 +34,14 @@ ENUM_1( DFlag                          // flags for deps
 )
 static constexpr char DFlagChars[] = {
 	'c'                                // Critical
-,	'e'                                // Essential
-,	'i'                                // IgnoreError
+,	's'                                // Essential
+,	'e'                                // NoError
 ,	'r'                                // Required
+//
 ,	'S'                                // Static
 ,	'L'                                // Lnk
 ,	'R'                                // Reg
-,	'S'                                // Stat
+,	'T'                                // Stat
 } ;
 static_assert(::size(DFlagChars)==+DFlag::N) ;
 using DFlags = BitMap<DFlag> ;
@@ -96,7 +98,7 @@ static constexpr char TFlagChars[] = {
 	'c'                                // Crc
 ,	'd'                                // Dep
 ,	'e'                                // Essential
-,	'p'                                // Phony
+,	'f'                                // Phony
 ,	's'                                // SourceOk
 ,	't'                                // Stat
 ,	'w'                                // Write
@@ -343,10 +345,10 @@ struct TargetDigest {
 	TargetDigest(                                       ) = default ;
 	TargetDigest( DFlags d , bool w , TFlags t , bool u ) : dfs{d} , write{w} , tfs{t} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
-	DFlags dfs    ;                    // how target was accessed before it was written
-	bool   write  = false ;            // if true <=> file was written (and possibly further unlinked)
-	TFlags tfs    ;
-	Crc    crc    ;                    // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	DFlags dfs   ;                     // how target was accessed before it was written
+	bool   write = false ;             // if true <=> file was written (and possibly further unlinked)
+	TFlags tfs   ;
+	Crc    crc   ;                     // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
 using AnalysisErr = ::vector<pair_s<NodeIdx>> ;
@@ -471,12 +473,12 @@ struct JobRpcReply {
 				::serdes(s,addr            ) ;
 				::serdes(s,auto_mkdir      ) ;
 				::serdes(s,chroot          ) ;
+				::serdes(s,cmd             ) ;
 				::serdes(s,cwd_s           ) ;
 				::serdes(s,env             ) ;
 				::serdes(s,hash_algo       ) ;
 				::serdes(s,ignore_stat     ) ;
 				::serdes(s,interpreter     ) ;
-				::serdes(s,is_python       ) ;
 				::serdes(s,job_tmp_dir     ) ;
 				::serdes(s,keep_tmp        ) ;
 				::serdes(s,kill_sigs       ) ;
@@ -486,8 +488,6 @@ struct JobRpcReply {
 				::serdes(s,method          ) ;
 				::serdes(s,remote_admin_dir) ;
 				::serdes(s,root_dir        ) ;
-				::serdes(s,rsrcs           ) ;
-				::serdes(s,script          ) ;
 				::serdes(s,small_id        ) ;
 				::serdes(s,static_deps     ) ;
 				::serdes(s,stdin           ) ;
@@ -503,12 +503,12 @@ struct JobRpcReply {
 	in_addr_t                 addr             = 0                   ;         // proc == Start   , the address at which server can contact job, it is assumed that it can be used by subprocesses
 	bool                      auto_mkdir       = false               ;         // proc == Start   , if true <=> auto mkdir in case of chdir
 	::string                  chroot           ;                               // proc == Start
+	::string                  cmd              ;                               // proc == Start
 	::string                  cwd_s            ;                               // proc == Start
 	::vmap_ss                 env              ;                               // proc == Start
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
 	bool                      ignore_stat      = false               ;         // proc == Start   , if true <=> stat-like syscalls do not trigger dependencies
-	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute script
-	bool                      is_python        = false               ;         // proc == Start   , if true <=> script is a Python script
+	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute cmd
 	::string                  job_tmp_dir      ;                               // proc == Start
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
@@ -518,8 +518,6 @@ struct JobRpcReply {
 	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	::string                  root_dir         ;                               // proc == Start
-	::vmap_ss                 rsrcs            ;                               // proc == Start   , for recording only, not used in job_exec, values only, keys can be gathered from rule
-	::string                  script           ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
 	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
@@ -581,24 +579,39 @@ private :
 public :
 	JobExecRpcReq(                ::string const& c={} ) :                     comment{c} {                       }
 	JobExecRpcReq( P p , bool s , ::string const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(!has_files()) ; }
-	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p}           , comment{c} { SWEAR(!has_files()) ; }
+	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p} ,           comment{c} { SWEAR(!has_files()) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , DFlags dfs , ::string const& c={} ) : proc{p},sync{true},                files{          ::move(fs) },info{.dfs=dfs},comment{c} {SWEAR(p==P::DepInfos);}
-	JobExecRpcReq( P p , ::vector_s  && fs , DFlags dfs , ::string const& c={} ) : proc{p},sync{true},auto_date{true},files{_s_mk_mdd(::move(fs))},info{.dfs=dfs},comment{c} {SWEAR(p==P::DepInfos);}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , DFlags dfs , bool nf , ::string const& c={} ) :
+		proc     {p         }
+	,	sync     {true      }
+	,	no_follow{nf        }
+	,	files    {::move(fs)}
+	,	info     {.dfs=dfs  }
+	,	comment  {c         }
+	{ SWEAR(p==P::DepInfos) ; }
+	JobExecRpcReq( P p , ::vector_s  && fs , DFlags dfs , bool nf , ::string const& c={} ) :
+		proc     {p                    }
+	,	sync     {true                 }
+	,	auto_date{true                 }
+	,	no_follow{nf                   }
+	,	files    {_s_mk_mdd(::move(fs))}
+	,	info     {.dfs=dfs             }
+	,	comment  {c                    }
+	{ SWEAR(p==P::DepInfos) ; }
 	//
-	JobExecRpcReq( ::vmap_s<DD>&& fs , bool ad , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) :
-		proc     {P::Access }
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) :
+		proc     {p         }
 	,	sync     {s         }
 	,	auto_date{ad        }
 	,	no_follow{nf        }
 	,	files    {::move(fs)}
 	,	info     {ai        }
 	,	comment  {c         }
-	{}
-	JobExecRpcReq( ::vmap_s<DD>&& fs , AccessInfo const& ai ,           bool s , ::string const& c={} ) : JobExecRpcReq{          ::move(fs) ,false/*audo_date*/,ai,false,s    ,c} {}
-	JobExecRpcReq( ::vmap_s<DD>&& fs , AccessInfo const& ai ,                    ::string const& c={} ) : JobExecRpcReq{          ::move(fs) ,false/*audo_date*/,ai,false,false,c} {}
-	JobExecRpcReq( ::vector_s  && fs , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,s    ,c} {}
-	JobExecRpcReq( ::vector_s  && fs , AccessInfo const& ai , bool nf ,          ::string const& c={} ) : JobExecRpcReq{_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,false,c} {}
+	{ SWEAR(p==P::Access) ; }
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessInfo const& ai ,           bool s , ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ai,false,s    ,c} {}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessInfo const& ai ,                    ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ai,false,false,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,s    ,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AccessInfo const& ai , bool nf ,          ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,false,c} {}
 	//
 	bool has_files() const { return proc==P::DepInfos || proc==P::Access ; }
 	// services
@@ -665,12 +678,14 @@ struct JobInfoStart {
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,eta         ) ;
 		::serdes(s,submit_attrs) ;
+		::serdes(s,rsrcs       ) ;
 		::serdes(s,pre_start   ) ;
 		::serdes(s,start       ) ;
 	}
 	// data
 	Time::ProcessDate eta          = {} ;
 	SubmitAttrs       submit_attrs = {} ;
+	::vmap_ss         rsrcs        = {} ;
 	JobRpcReq         pre_start    = {} ;
 	JobRpcReply       start        = {} ;
 } ;

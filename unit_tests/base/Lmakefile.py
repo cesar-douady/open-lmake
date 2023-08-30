@@ -31,7 +31,7 @@ class PyRule(BaseRule,lmake.PyRule) : pass
 
 class Auto(BaseRule) :
 	target = 'auto{Digit}'
-	cmd    = "echo '#auto'$Digit"
+	cmd    = "echo '#auto'{Digit}"
 
 class Cpy(BaseRule) :
 	target = '{File}.cpy'
@@ -45,7 +45,7 @@ class Mv(BaseRule) :
 	}
 	dep     = '{File}'
 	autodep = 'ld_preload'
-	cmd     = 'cat >$TARGET ; mv $TARGET $TT ; cp $TT $TARGET'
+	cmd     = 'cat >{TARGET} ; mv {TARGET} {TT} ; cp {TT} {TARGET}'
 
 class Par(BaseRule) :
 	target = '{{{SubExpr}}}'
@@ -55,7 +55,7 @@ class Par(BaseRule) :
 class Hide(BaseRule) :
 	target       = '{File}.hide'
 	allow_stderr = True
-	cmd          = 'cat $File || :'
+	cmd          = 'cat {File} || :'
 
 class Version(BaseRule) :
 	target = '{File}.version'
@@ -89,7 +89,7 @@ class Cat(BaseRule) :
 		'FIRST'  : '{Expr1}'
 	,	'SECOND' : '{Expr2}'
 	}
-	cmd = 'cat $FIRST $SECOND'
+	cmd = 'cat {FIRST} {SECOND}'
 
 class Dup(BaseRule) :
 	targets = {
@@ -116,7 +116,7 @@ class Cmp(BaseRule) :
 		'DUT' : '{File}'
 	,	'REF' : '{File}.ref'
 	}
-	cmd = 'diff $REF $DUT'
+	cmd = 'diff {REF} {DUT}'
 
 class Inf(BaseRule) :
 	target = '{File}.inf'

@@ -9,12 +9,12 @@ cat <<"EOF" >>Lmakefile.py
 
 class NewDep(BaseRule) :
 	target = 'new_dir/dep{Digit}'
-	cmd    = 'echo dep$Digit'
+	cmd    = 'echo dep{Digit}'
 class Chdir(BaseRule) :
 	target = 'chdir{Digit}'
 	cmd = '''
 		cd new_dir
-		cat dep$Digit
+		cat dep{Digit}
 	'''
 
 EOF

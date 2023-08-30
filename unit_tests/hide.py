@@ -16,12 +16,12 @@ if getattr(sys,'reading_makefiles',False) :
 
 	class Auto(lmake.Rule) :
 		target = r'auto{Digit:\d}'
-		cmd    = "echo '#auto'$Digit"
+		cmd    = "echo '#auto'{Digit}"
 
 	class Hide(lmake.Rule) :
 		target       = r'{File:.*}.hide'
 		allow_stderr = True
-		cmd          = 'cat $File || :'
+		cmd          = 'cat {File} || :'
 
 	class Cat(lmake.Rule) :
 		prio = 1
@@ -34,7 +34,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		cmd = 'cat $FIRST $SECOND'
+		cmd = 'cat {FIRST} {SECOND}'
 
 else :
 

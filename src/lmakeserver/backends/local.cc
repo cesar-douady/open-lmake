@@ -195,7 +195,7 @@ namespace Backends::Local {
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
 			LocalBackend& self = *new LocalBackend ;
-			s_register(MyTag,self,false/*is_remote*/) ;
+			s_register(MyTag,self) ;
 		}
 
 		// services

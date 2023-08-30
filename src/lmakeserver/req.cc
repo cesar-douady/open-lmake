@@ -278,10 +278,11 @@ namespace Engine {
 			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
 				try {
 					// show first stderr
-					EndNoneAttrs end_none_attrs = job->rule->end_none_attrs.eval(job)  ;
-					IFStream     job_stream { job.ancillary_file() }                ;
-					/**/                      deserialize<JobInfoStart>(job_stream) ;
-					auto         report_end = deserialize<JobInfoEnd  >(job_stream) ;
+					Rule::SimpleMatch match_         ;
+					IFStream          job_stream     { job.ancillary_file() }                                        ;
+					auto              report_start   = deserialize<JobInfoStart>(job_stream)                         ;
+					auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                         ;
+					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match_,report_start.rsrcs) ;
 					seen_stderr |= (*this)->audit_stderr( report_end.digest.analysis_err , report_end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;

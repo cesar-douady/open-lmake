@@ -81,8 +81,7 @@ namespace Engine {
 		bool active() const ;
 		//
 		//services
-		void                            fill_rpc_reply( JobRpcReply& , Rule::SimpleMatch const& , ::vmap_ss const& rsrcs ) const ; // thread-safe
-		::vector<Node>/*report_unlink*/ wash          ( Rule::SimpleMatch const&                                         ) const ; // thread-safe
+		::vector<Node>/*report_unlink*/ wash(Rule::SimpleMatch const&) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -162,7 +161,7 @@ namespace Engine {
 		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                                            ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          (  JobDigest const&                                                          ) ;       // hit indicates that result comes from a cache hit
+		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const&                                  ) ;       // hit indicates that result comes from a cache hit
 		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job is necessary for some other req
 		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//

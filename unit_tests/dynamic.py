@@ -38,7 +38,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'DUT' : '{File}'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff $REF $DUT'
+		cmd = 'diff {REF} {DUT}'
 
 	def file_func () :
 		if step==1 : raise RuntimeError
@@ -91,7 +91,7 @@ if getattr(sys,'reading_makefiles',False) :
 	class Resources(lmake.Rule) :
 		target    = r'resources.{File:\w*}'
 		resources = { 'cpu' : file_func }
-		cmd       = 'echo $cpu'
+		cmd       = 'echo {cpu}'
 
 	class StderrLen(lmake.Rule) :
 		target = r'stderr_len.{File:\w*}'

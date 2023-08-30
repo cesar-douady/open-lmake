@@ -83,7 +83,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
 	if (verbose) {
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , flags ) ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , flags , no_follow , "depend" ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                            ;
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
 		PyObject* res = PyDict_New() ;
@@ -102,7 +102,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		}
 		return res ;
 	} else {
-		_g_autodep_support.req( JobExecRpcReq( ::move(files) , {.dfs=flags} , no_follow , "depend" ) ) ;
+		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {.dfs=flags} , no_follow , "depend" ) ) ;
 		Py_RETURN_NONE ;
 	}
 }
@@ -130,7 +130,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq  jerr   = JobExecRpcReq( ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} , no_follow , "target" ) ;
+	JobExecRpcReq  jerr   = JobExecRpcReq( Proc::Access , ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} , no_follow , "target" ) ;
 	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                  ;
 	//
 	Py_RETURN_NONE ;

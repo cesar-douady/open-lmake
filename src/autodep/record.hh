@@ -71,26 +71,26 @@ private :
 		SWEAR(!f.empty()) ;
 		SWEAR(+dfs      ) ;                                                    // if no DFlags, we have accessed nothing
 		//
-		_report( JobExecRpcReq( {{::move(f),d}} , { .dfs=dfs , .write=update } , c ) ) ;
+		_report( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .dfs=dfs , .write=update } , c ) ) ;
 	}
 	void _report_dep       ( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , false , c ) ; }
 	void _report_dep       ( ::string&& f ,         DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , Disk::file_date(s_get_root_fd(),f) , dfs , false , c ) ; }
 	void _report_dep_update( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , true  , c ) ; }
 	//
 	void _report_deps( ::vmap_s<DD>&& fs , DFlags dfs , bool unlink , ::string const& c={} ) const {
-		_report( JobExecRpcReq( ::forward<vmap_s<DD>>(fs) , { .dfs=dfs , .unlink=unlink } , c ) ) ;
+		_report( JobExecRpcReq( JobExecRpcProc::Access , ::forward<vmap_s<DD>>(fs) , { .dfs=dfs , .unlink=unlink } , c ) ) ;
 	}
 	void _report_deps( ::vector_s const& fs , DFlags dfs , bool u , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_get_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , dfs , u , c ) ;
 	}
-	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( {{::forward<string>(f),DD()}} , {.write =true} , c ) ) ; }
-	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( {{::forward<string>(f),DD()}} , {.unlink=true} , c ) ) ; }
+	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.write =true} , c ) ) ; }
+	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.unlink=true} , c ) ) ; }
 	void _report_targets( ::vector_s&& fs , ::string const& c={} ) const {
 		vmap_s<DD> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),DD()) ;
-		_report( JobExecRpcReq( ::move(mdd) , {.write =true} , c ) ) ;
+		_report( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write =true} , c ) ) ;
 	}
 	//
 	//

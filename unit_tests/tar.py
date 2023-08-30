@@ -18,7 +18,7 @@ if getattr(sys,'reading_makefiles',False) :
 	class Tar(lmake.Rule) :
 		targets = { 'TARGET' : '{File:.*}.tardir/{*:.*}' }
 		deps    = { 'TAR'    : '{File}.tar'              }
-		cmd     = 'tar mxaf $TAR -C $File.tardir'
+		cmd     = 'tar mxaf {TAR} -C {File}.tardir'
 
 else :
 

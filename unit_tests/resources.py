@@ -16,7 +16,7 @@ if getattr(sys,'reading_makefiles',False) :
 	lmake.config.backends.local.gnat = 4
 
 	class Test(lmake.Rule) :
-		cmd = 'echo $gnat'
+		cmd = 'echo {gnat}'
 	class Test1(Test) :
 		target    = r'test1.{Tokens:\d}'
 		resources = { 'gnat': '1<2' }

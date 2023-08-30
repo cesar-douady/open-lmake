@@ -31,7 +31,7 @@ if getattr(sys,'reading_makefiles',False) :
 		target       = r'{File:.*}.hide'
 		allow_stderr = True
 		cache        = 'dir'
-		cmd          = 'cat $File || :'
+		cmd          = 'cat {File} || :'
 
 	class Cat(lmake.Rule) :
 		prio = 1
@@ -45,7 +45,7 @@ if getattr(sys,'reading_makefiles',False) :
 		,	'SECOND' : '{File2}'
 		}
 		cache = 'dir'
-		cmd   = 'cat $FIRST $SECOND'
+		cmd   = 'cat {FIRST} {SECOND}'
 
 else :
 

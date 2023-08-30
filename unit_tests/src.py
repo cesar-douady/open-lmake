@@ -20,7 +20,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'HELLO' :   'hello'
 		,	'WORLD' : ( 'world' , 'SourceOk' )
 		}
-		cmd = 'echo hello >$HELLO ; echo world > $WORLD'
+		cmd = 'echo hello >{HELLO} ; echo world > {WORLD}'
 
 	class Cmp(lmake.Rule) :
 		target = '{File:.*}.ok'
@@ -28,7 +28,7 @@ if getattr(sys,'reading_makefiles',False) :
 			'ACTUAL' : '{File}'
 		,	'REF'    : '{File}.ref'
 		}
-		cmd = 'diff $REF $ACTUAL >&2'
+		cmd = 'diff {REF} {ACTUAL} >&2'
 
 
 else :
