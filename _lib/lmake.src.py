@@ -88,14 +88,14 @@ if _reading_makefiles :
 		)
 	,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
 			local = pdict(                                 # entries mention the total availability of resources
-		#	,	address = socket.getfqdn()                 # address at which lmake can be contacted from jobs launched by this backend, can be :
-				#                                            - ''                     : loop-back address (127.0.0.1)
+		#	,	interface = socket.getfqdn()               # address at which lmake can be contacted from jobs launched by this backend, can be :
+				#                                            - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
 				#                                            - standard dot notation  : for example '192.168.0.1'
 				#                                            - network interface name : the address of the host on this interface (as shown by ifconfig)
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
-				cpu     = len(_os.sched_getaffinity(0))    # total number of cpus available for the process, and hence for all jobs launched locally
-			,	mem     = _physical_mem//Mega              # total available memory (in MB)
+				cpu = len(_os.sched_getaffinity(0))        # total number of cpus available for the process, and hence for all jobs launched locally
+			,	mem = _physical_mem//Mega                  # total available memory (in MB)
 			)
 		)
 	,	caches = pdict(                                    # PER_CACHE : provide an explanation for each cache method
@@ -179,8 +179,8 @@ if _reading_makefiles :
 		#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','-Essential')}, flags may be :
 		#                                                  #   flag         | default | description
 		#                                                  #   -------------+---------+--------------------------------------------------------------------------------------------
+		#                                                  #   Critical     |         | following deps are ignored if this dep is modified
 		#                                                  #   Essential    | x       | show in graphic flow
-		#                                                  #   Required     | x       | requires that dep is buildable
 	#	dep                                                # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
 		ete          = 0                                   # Estimated Time Enroute, initial guess for job exec time (in s)
 		force        = False                               # if set, jobs are never up-to-date, they are rebuilt every time they are needed
@@ -277,37 +277,58 @@ if _reading_makefiles :
 			recurse to sub-modules if recurse is True
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
+		# some old versions of git (e.g. 1.8) do not support submodule command when not launched from top
+		# also git ls-files --recurse-submodules may not be supported as well
+		def git_ls_files() :
+			git_cmd = [_git,'ls-files']
+			if repo_dir : git_cmd.append(repo_dir[:-1])
+			srcs = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			if not repo_dir : srcs += [_osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources as they are read by git ls-files
+			#
+			if not recurse : return srcs
+			#
+			srcs_set = set(srcs)
+			for sm in submodules :                                             # proceed top-down so that srcs_set includes its sub-modules
+				if sm not in srcs_set :  continue
+				srcs_set.remove(sm)
+				sub_srcs = _sp.run( (_git,'ls-files') , cwd=git_dir+'/'+sm , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+				git_file = _osp.join(sm,'.git')
+				srcs_set.add(git_file)
+				for line in open(git_file).readlines() :
+					l = line.split()
+					sm_dir = l[1]
+					if l[0]=='gitdir:' : break
+				else :
+					raise FileNotFoundError(f"cannot find gitdir line in {_osp.join(sm,'.git')}")
+				sm_dir = _osp.relpath(_osp.join(sm,sm_dir))
+				if sm_dir.startswith(repo_dir) :
+					sm_dir = sm_dir[len(repo_dir):]
+					srcs_set.update( _osp.join(sm_dir,f) for f in ('HEAD','config','index') ) # not listed by git, but actually sources as they are read by git ls-files
+				for f in sub_srcs : srcs_set.add(_osp.join(sm,f))
+			srcs = list(srcs_set)
+			srcs.sort()                                                        # avoid random order
+			return srcs
+		def git_submodules() :
+			# old versions of git do not support submodule command when not launched from top
+			git_cmd    = (_git,'submodule','status','--recursive')   # much faster than the foreach sub-command
+			lines      = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			submodules = [ l.split()[1] for l in lines]
+			submodules = [ sm for sm in submodules if _osp.join(sm,'').startswith(repo_dir) ]
+			submodules.sort()                                                                 # ensure submodules are in top-down order (order is not documented)
+			return submodules
 		root_dir = _os.getcwd()
 		#
 		git_dir = root_dir
 		while git_dir and not _osp.isdir(_osp.join(git_dir,'.git')) : git_dir = _osp.dirname(git_dir)
 		if not git_dir : raise FileNotFoundError('not in git repository')
 		#
-		repo_dir = root_dir[len(git_dir)+1:]
-		if repo_dir : repo_dir += '/'
+		repo_dir = _osp.join(root_dir[len(git_dir)+1:],'')
+		if recurse :
+			submodules = git_submodules()
 		# old versions of git do not support --recurse-submodules when not launched from top
-		git_cmd  = [_git,'ls-files']
-		if recurse  : git_cmd.append('--recurse-submodules')
-		if repo_dir : git_cmd.append(repo_dir[:-1]         )
-		try                           : srcs = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-		except _sp.CalledProcessError : return git_sources(False)              # dont support sub-modules if --recurse-submodules option is not supported
+		srcs = git_ls_files()
 		srcs = [ s[len(repo_dir):] for s in srcs ]
 		#
-		if not repo_dir :
-			srcs += [_osp.join('.git',f) for f in ('HEAD','config','index') ]  # not listed by git, but actually sources as they are read by git ls-files
-		if recurse :
-			# old versions of git do not support submodule command when not launched from top
-			git_cmd    = (_git,'submodule','--quiet','foreach','--recursive','echo $name')
-			submodules = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-			for submodule in submodules :
-				if not submodule.startswith(repo_dir) : continue
-				submodule = submodule[len(repo_dir):]
-				sub_git   = _osp.join(submodule,'.git')
-				# XXX : fix using 'git submodule status' to detect and handle cases where submodules are not loaded but this creates more dependencies
-				if not _osp.exists(sub_git) and not ignore_missing_submodules : raise RuntimeError(f'cannot find git submodule {submodule}')
-				git_dir      = open(sub_git).readline().split()[1]
-				sub_git_dir  = _osp.normpath(_osp.join(_osp.dirname(sub_git),git_dir))
-				srcs        += ( sub_git , *( _osp.join(sub_git_dir,f) for f in ('HEAD','config','index') ) ) # not listed by git, but actually sources as they are read by git ls-files
 		if git_dir not in source_dirs : source_dirs.append(git_dir)
 		return srcs
 

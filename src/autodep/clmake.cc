@@ -179,12 +179,12 @@ static PyMethodDef funcs[] = {
 ,	{	"depend"
 	,	reinterpret_cast<PyCFunction>(depend)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"depend(dep1,dep2,...,verbose=False,essential=True,error=True,required=True). Mark all arguments as parallel dependencies"
+	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,critical=False,ignore_error=False,essential=False). Mark all arguments as parallel dependencies"
 	}
 ,	{	"target"
 	,	reinterpret_cast<PyCFunction>(target)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"target(target1,target2,...,unlink=False). Mark all arguments as targets"
+	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets"
 	}
 ,	{	"search_sub_root_dir"
 	,	reinterpret_cast<PyCFunction>(search_sub_root_dir)

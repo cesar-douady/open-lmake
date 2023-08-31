@@ -12,10 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* static dep flags are left after job execution with the flags they have obtained during the execution
-	- this is history leaking
-	- rebuild fresh static deps when launching a job
-	- no more need for special treatment of static deps
+* git-submodule support is broken
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -25,6 +22,8 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* improve f-string management to avoid cmd to have need_deps in simple cases
+	- do the same as for deps
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -38,14 +37,14 @@ items :
 * COSMETIC (not implemented and ugly as long as not implemented)
 ****************************************************************************************************
 
-* Ensure we have a proper error message when job_exec cannot contact server
-	- must work with both local and slurm backends
-	- generally speaking, when job is lost, we want to know why if possible
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
 	- e.g. 'dep changed' on screen and actual dates (before, after) in log
 	- same for manual, etc.
+! Ensure we have a proper error message when job_exec cannot contact server
+	- must work with both local and slurm backends
+	- generally speaking, when job is lost, we want to know why if possible
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
@@ -67,6 +66,8 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* implement a compilation rule py->pyc
+	- and user python -B
 * split 2 notions
 	- root of lmake repository : where files may be built
 	- root of git repository : where sources are located
@@ -80,8 +81,6 @@ items :
 			- frequently updated tools
 	- system files are actually tracked by using chroot : create a new chroot for each new system
 	- this may be implemented by prefixing all node names with an id (1 to 255) identifying the root
-* implement a compilation rule py->pyc
-	- and user python -B
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy

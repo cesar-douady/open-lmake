@@ -13,9 +13,9 @@ ENUM(Key,None)
 ENUM(Flag
 ,	NoFollow
 ,	Critical
-,	NoError
 ,	Essential
-,	Required
+,	IgnoreError
+,	NoRequired
 ,	Verbose
 )
 
@@ -24,19 +24,19 @@ int main( int argc , char* argv[]) {
 		{ Flag::Verbose   , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                    } }
 	,	{ Flag::NoFollow  , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links"  } }
 	//
-	,	{ Flag::Critical  , { .short_name=DFlagChars[+DFlag::Critical ] , .has_arg=false , .doc="report critical deps"                    } }
-	,	{ Flag::Essential , { .short_name=DFlagChars[+DFlag::Essential] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
-	,	{ Flag::NoError   , { .short_name=DFlagChars[+DFlag::NoError  ] , .has_arg=false , .doc="accept that deps are in error"           } }
-	,	{ Flag::Required  , { .short_name=DFlagChars[+DFlag::Required ] , .has_arg=false , .doc="accept that deps cannot be generated"    } }
+	,	{ Flag::Critical    , { .short_name=DFlagChars[+DFlag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
+	,	{ Flag::Essential   , { .short_name=DFlagChars[+DFlag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
+	,	{ Flag::IgnoreError , { .short_name=DFlagChars[+DFlag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"           } }
+	,	{ Flag::NoRequired  , { .short_name=DFlagChars[+DFlag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"        } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv }             ;
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
 	DFlags            flags     = DfltDFlags                    ;
-	if (cmd_line.flags[Flag::Critical ]) flags |= DFlag::Critical  ;
-	if (cmd_line.flags[Flag::Essential]) flags |= DFlag::Essential ;
-	if (cmd_line.flags[Flag::NoError  ]) flags |= DFlag::NoError   ;
-	if (cmd_line.flags[Flag::Required ]) flags |= DFlag::Required  ;
+	if (cmd_line.flags[Flag::Critical   ]) flags |=  DFlag::Critical    ;
+	if (cmd_line.flags[Flag::Essential  ]) flags |=  DFlag::Essential   ;
+	if (cmd_line.flags[Flag::IgnoreError]) flags |=  DFlag::IgnoreError ;
+	if (cmd_line.flags[Flag::NoRequired ]) flags &= ~DFlag::Required    ;
 	//
 	if (verbose) {
 		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags , no_follow , "ldepend" ) ;

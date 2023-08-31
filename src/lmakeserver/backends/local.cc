@@ -146,7 +146,6 @@ namespace Backends::Local {
 			WaitingEntry( Rsrcs2 const& rs2 , SubmitAttrs const& sa ) : rsrcs2{rs2} , n_reqs{1} , submit_attrs{sa} {}
 			// data
 			Rsrcs2      rsrcs2       ;
-			JobReason   reason       ;
 			ReqIdx      n_reqs       = 0 ;                 // number of reqs waiting for this job
 			SubmitAttrs submit_attrs ;
 		} ;

@@ -180,15 +180,18 @@ template<class M> ::vector<               VT(M)::second_type >       mk_val_vect
 
 // support container arg to standard utility functions
 using std::sort          ; // keep std definitions
+using std::stable_sort   ; // .
 using std::binary_search ; // .
 using std::min           ; // .
 using std::max           ; // .
 #define CMP ::function<bool(VT(T) const&,VT(T) const&)>
 template<class T> void  sort         ( T      & x ,                  CMP cmp ) {                                             ::sort         ( x.begin() , x.end() ,     cmp ) ; }
+template<class T> void  stable_sort  ( T      & x ,                  CMP cmp ) {                                             ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
 template<class T> bool  binary_search( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
 template<class T> VT(T) min          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end() ,     cmp ) ; }
 template<class T> VT(T) max          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end() ,     cmp ) ; }
 template<class T> void  sort         ( T      & x                            ) {                                             ::sort         ( x.begin() , x.end()           ) ; }
+template<class T> void  stable_sort  ( T      & x                            ) {                                             ::stable_sort  ( x.begin() , x.end()           ) ; }
 template<class T> bool  binary_search( T const& x , VT(T) const& v           ) {                                     return  ::binary_search( x.begin() , x.end() , v       ) ; }
 template<class T> VT(T) min          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end()           ) ; }
 template<class T> VT(T) max          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end()           ) ; }

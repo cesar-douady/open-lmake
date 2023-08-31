@@ -29,10 +29,10 @@ namespace Engine {
 	}
 
 	// str has the same syntax as Python f-strings
-	// cb is called on each stem found
-	// return str with stems substituted with the return value of cb
+	// cb_fixed is called on each fixed part found
+	// cb_stem  is called on each stem       found
 	// stems are of the form {<identifier>\*?} or {<identifier>?\*?:.*} (where .* after : must have matching {})
-	// cb is called with :
+	// cb_stem is called with :
 	// - the <identifier>
 	// - true if <identifier> is followed by a *
 	// - the regular expression that follows the : or nullptr for the first case
@@ -268,7 +268,7 @@ namespace Engine {
 			flag_str += neg ;
 			if (!can_mk_enum<DFlag>(flag_str)) throw to_string("unexpected flag ",flag_str," for dep ",key) ;
 			DFlag flag = mk_enum<DFlag>(flag_str) ;
-			if (flag>=DFlag::Private) throw to_string("unexpected flag ",flag_str," for dep ",key) ;
+			if (flag>=DFlag::NotInRule) throw to_string("unexpected flag ",flag_str," for dep ",key) ;
 			if (neg) flags &= ~flag ;
 			else     flags |=  flag ;
 		}

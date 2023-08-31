@@ -201,7 +201,6 @@ namespace Engine {
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
 					for( auto const& [k,df] : static_deps ) {
-						if ( !df.second[DFlag::Required]                                          ) continue ;
 						if ( search_non_buildable ? df.first->buildable!=No : df.first->makable() ) continue ;
 						missing_key = k        ;
 						missing_dep = df.first ;

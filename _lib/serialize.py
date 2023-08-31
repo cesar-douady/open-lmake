@@ -68,6 +68,14 @@ def get_code_ctx(*args,no_imports=(),ctx=()) :
 		for glb_var in s.get_glbs(a) : s.gather_ctx(glb_var)
 	return s.get_src()
 
+def _mk_f_string(s) :
+	if not s                         : return "f''"
+	if not "'''" in s and s[-1]!="'" : return "f'''"+s+"'''"
+	if not '"""' in s and s[-1]!='"' : return 'f"""'+s+'"""'
+	if not "'''" in s and s[-1]=="'" : return "f'''"+s[:-1]+"\\''''"           # this \ is certainly outside {}, hence f-string is still valid
+	if not '"""' in s and s[-1]=='"' : return 'f"""'+s[:-1]+'\\""""'           # .
+	else                             : return 'f'+repr(s)                      # hope that repr will not insert \ within {}
+
 end_liness = {}
 srcs       = {}
 def _analyze(file_name) :
@@ -198,8 +206,12 @@ class Serialize :
 		if isinstance(val,set  ) : return f"{{ {' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} }}" if len(val) else "set()"
 		if isinstance(val,dict ) : return f"{{ {' , '.join(f'{self.expr_src(k,**kwds)}:{self.expr_src(v,**kwds)}' for k,v in val.items())} }}"
 		if isinstance(val,f_str) :
-			fs = 'f'+repr(val)
-			for glb_var in self.get_glbs(compile(fs,'','eval')) : self.gather_ctx(glb_var)
+			fs = _mk_f_string(val)
+			try :
+				cfs = compile(fs,'','eval')
+			except SyntaxError as e :
+				raise SyntaxError(f'{e} : {val!r}')
+			for glb_var in self.get_glbs(cfs) : self.gather_ctx(glb_var)
 			return fs
 		if val.__class__.__module__ not in self.by_values :
 			# by default, use the broadest serializer available : pickle

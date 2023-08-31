@@ -93,9 +93,9 @@ int main( int argc , char* argv[] ) {
 	/**/                                      cmd_env["TMPDIR"     ] =           *g_tmp_dir                       ; // TMPDIR is the standard environment variable to specify the temporary area
 	for( auto const& [k,v] : start_info.env ) cmd_env[k            ] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
 	//
-	Fd       child_stdin  = Child::None                     ;
-	Fd       child_stdout = Child::Pipe                     ;
-	::uset_s static_deps  = mk_uset(start_info.static_deps) ;                               // copy to uset before moving with new_deps
+	Fd       child_stdin  = Child::None                         ;
+	Fd       child_stdout = Child::Pipe                         ;
+	::uset_s static_deps  = mk_key_uset(start_info.static_deps) ;                           // copy to uset before moving with new_deps
 	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
 	if (!start_info.stdin.empty()) {
 		child_stdin = open_read(start_info.stdin ) ;
@@ -127,6 +127,7 @@ int main( int argc , char* argv[] ) {
 	//
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
+		NodeIdx prev_parallel_id = 0 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
 			TFlags                           tfs = UnexpectedTFlags ;
 			JobExecRpcReq::AccessInfo const& ai  = info.info        ;
@@ -146,7 +147,9 @@ int main( int argc , char* argv[] ) {
 			}
 			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
 			if ( ai.idle() && tfs[TFlag::Dep] ) {
-				DepDigest dd{dfs,info.parallel} ;
+				bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
+				DepDigest dd       { dfs , parallel }                                       ;
+				prev_parallel_id = info.parallel_id ;
 				if (+(dfs&AccessDFlags)) {
 					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
@@ -154,7 +157,7 @@ int main( int argc , char* argv[] ) {
 				//vvvvvvvvvvvvvvvvvvvvvvvv
 				deps.emplace_back(file,dd) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^
-				trace("dep   ",dfs,tfs,file,dd) ;
+				trace("dep   ",dd,tfs,file) ;
 			} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                           ) dfs = DFlags::None ;
 				if ( ai.write && !ai.unlink && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation

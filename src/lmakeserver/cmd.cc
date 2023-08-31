@@ -289,7 +289,7 @@ namespace Engine {
 								if (has_start) {
 									::pair_s<Node> reason = Job::s_reason_str(report_start.submit_attrs.reason) ;
 									if (+reason.second) {
-										bool err = report_start.submit_attrs.reason.has_err() ;
+										bool err = report_start.submit_attrs.reason.err() ;
 										_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason         : ",reason.first," :") , reason.second.name() , lvl+1 ) ;
 									} else {
 										audit( fd , ro , Color::None , lvl+1 , "reason         : "+reason.first ) ;

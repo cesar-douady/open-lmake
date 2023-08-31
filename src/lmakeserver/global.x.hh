@@ -93,8 +93,9 @@ namespace Engine {
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
 			// services
 			template<IsStream T> void serdes(T& s) {
-				::serdes(s,addr) ;
-				::serdes(s,dct ) ;
+				::serdes(s,addr    ) ;
+				::serdes(s,is_local) ;
+				::serdes(s,dct     ) ;
 			}
 			// data
 			in_addr_t addr     = ServerSockFd::LoopBackAddr ;

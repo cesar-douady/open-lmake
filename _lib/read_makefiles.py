@@ -428,8 +428,8 @@ class Handle :
 		if self.rule_rep.is_python :
 			cmd_ctx       = set()
 			serialize_ctx = (self.per_job,*self.glbs)
-			cmd   = self.attrs.cmd
-			multi = len(cmd)>1
+			cmd           = self.attrs.cmd
+			multi         = len(cmd)>1
 			if multi :
 				cmd_lst = []
 				cmd_idx = 0

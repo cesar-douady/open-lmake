@@ -18,10 +18,6 @@ template<class A> void _print_attrs(::vmap_s<A> const& m) {
 	for( auto const& [k,v] : m ) ::cout <<'\t'<< ::setw(w)<<to_string(v) <<" : "<< k <<'\n' ;
 }
 
-void _print_vector(::vector_s const& v) {
-	for( ::string const& x : v ) ::cout <<'\t'<< x <<'\n' ;
-}
-
 void print_submit_attrs(SubmitAttrs const& sa) {
 	::cout << "--submit attrs--\n" ;
 	//
@@ -62,8 +58,8 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "targets     : "  <<      jrr.targets          <<'\n' ;
 	::cout << "timeout     : "  <<      jrr.timeout          <<'\n' ;
 	//
-	::cout << "static_deps :\n" ; _print_vector(jrr.static_deps)   ;
-	::cout << "env :\n"         ; _print_map   (jrr.env        )   ;
+	::cout << "static_deps :\n" ; _print_map(jrr.static_deps) ;
+	::cout << "env :\n"         ; _print_map(jrr.env        ) ;
 	::cout << "cmd :\n"         ; ::cout << indent(jrr.cmd) ; if ( !jrr.cmd.empty() && jrr.cmd.back()!='\n' ) ::cout<<'\n' ;
 }
 

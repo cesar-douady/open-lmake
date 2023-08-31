@@ -720,7 +720,7 @@ The commands listed hereafter are meant to be executed from within a job, not as
 
 @section @code{ldepend}
 
-Usage : @code{ldepend [--no-follow|-P] [--no-error|-e] [--no-required|-r] [--no-essential|-s] [--verbose|-v] files ...}
+Usage : @code{ldepend [--no-follow|-P] [--critical|-c] [--ignore-error|-e] [--no-required|-r] [--essential|-s] [--verbose|-v] files ...}
 
 @code{ldepend} may be used to inform @lmake that some files must be deemed as read as if you called the @code{open} system call on each of them.
 To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faste since @code{files} are not really accessed).
@@ -740,12 +740,12 @@ Also, if for some reasons you run with autodep method @code{none}, this is the w
 
 The following options are supported :
 @itemize @bullet
-@item @code{-v}|@code{--verbose}   : write lines composed of the crc and the name separated by a space for each required dependency.
-@item @code{-P}|@code{--no-follow} : do not follow the last level symbolic link.
-@item @code{-c}|@code{--critical}  : create critical deps (see @pxref{critical-deps}).
-@item @code{-e}|@code{--no-error}  : ignore the error status of the passed dependencies.
-@item @code{-r}|@code{--required}  : if passed dependencies are not buildable, this does not prevent this job from being run (as it is for dependencies automatically generated after accesses).
-@item @code{-s}|@code{--esential}  : passed dependencies will not appear in the flow shown with a graphical tool.
+@item @code{-v}|@code{--verbose}     : write lines composed of the crc and the name separated by a space for each required dependency.
+@item @code{-P}|@code{--no-follow}   : do not follow the last level symbolic link.
+@item @code{-c}|@code{--critical}    : create critical deps (see @pxref{critical-deps}).
+@item @code{-e}|@code{--no-error}    : ignore the error status of the passed dependencies.
+@item @code{-r}|@code{--no-required} : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok)
+@item @code{-s}|@code{--esential}    : passed dependencies will not appear in the flow shown with a graphical tool.
 @end itemize
 
 @section @code{lcheck_deps}
@@ -957,8 +957,6 @@ The correspondance is :
 @table @asis
 @item @code{def check_deps()}
 @code{lcheck_deps}
-@item @code{def critical_barrier()}
-@code{lcritical_barrier}
 @item @code{def depend(*files,follow_symlinks=True,error=True,required=True,essential=True,verbose=False)}
 @code{ldepend}
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
@@ -1084,15 +1082,16 @@ The attributes are described in the caches section below.
 
 @multitable @columnfractions 0.1 0.07 0.83
 @headitem Attribute @tab Default @tab Description
-@item @code{backends.*.address}
+@item @code{backends.*.interface}
 @tab best guess
 @tab
-When job are launched remotely, they must connect to @lmake when they start and when they complete.
-This is done by connecting to a socket @lmake has open for listening, which requires that we must have a means to determine an IP address to connect to.
+When jobs are launched remotely, they must connect to @lmake when they start and when they complete.
+This is done by connecting to a socket @lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
 The host running @lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
-There is no generic way to determine this address, so in general, @lmake cannot determine it automatically.@*
-This address may be empty (loop-back), given in standard dot notation, the name of an interface (as shown by @code{ifconfig}) or the name of a host (looked up as for @code{ping}).
-By default, loop-back is used for the local backend and the hostname (as given by @code{hostname}) for the others.
+There is no generic way to determine this address, so in general, @lmake cannot determine it automatically.
+
+This value may be empty (loop-back for local backend, @code{hostname} look up for remote backends), given in standard dot notation, as the name of an interface (as shown by @code{ifconfig})
+or the name of a host (looked up as for @code{ping}).
 @item @code{backends.local.cpu}
 @tab number of physical CPU's
 @tab This is a normal resource rules can require (which is the case if resources are defaulted)
@@ -1477,9 +1476,9 @@ The flags may be any combination of the following flags, optionally preceded by 
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
-@item Error @tab error @tab Yes @tab This dependency must not be in error for this job to run.
-@item Essential @tab essential @tab Yes @tab This dependency will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
-@item Required @tab required @tab Yes @tab This dependency must be buildable for this job to run.
+@item Critical           @tab critical        @tab No      @tab This dep is critial (see @pxref{critical-deps}).
+@item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
+@item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @end multitable
 
 Flag order and dependency order are not significative.

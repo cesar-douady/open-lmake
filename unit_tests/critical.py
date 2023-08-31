@@ -10,27 +10,31 @@ n_good = 20
 if getattr(sys,'reading_makefiles',False) :
 
 	import lmake
+	from step import step
 
 	lmake.sources = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'src1'
 	,	'src2'
 	)
 
 	class Good(lmake.Rule) :
-		target = 'good{:\d+}'
-		cmd = 'exit 0'
+		target = 'good{Digit:\d+}'
+		def cmd() :
+			if int(Digit)==0 : print(step)
 
 	class Bad(lmake.Rule) :
 		target = 'bad{:\d+}'
-		cmd = 'exit 1'
+		cmd = 'exit {step}'
 
 	class Critical(lmake.Rule) :
 		target = 'tgt'
 		def cmd() :
 			lmake.depend('src1','src2',critical=True)
 			lmake.depend(*(f'good{i}' for i in range(n_good)),critical=True)
-			lmake.depend('src1','bad0','bad0','bad1')
+			if step==1 : lmake.depend('src1','bad0','bad0','bad1')
+			else       : lmake.depend('src1'                     )
 
 else :
 
@@ -39,7 +43,11 @@ else :
 	print('1',file=open('src1','w'))
 	print('2',file=open('src2','w'))
 
-	ut.lmake( 'tgt' , may_rerun=2 , was_dep_err=1 , done=n_good , failed=2 , new=2 , rc=1 )
+	print('step=1',file=open('step.py','w'))
+	ut.lmake( 'tgt' , may_rerun=2 , was_dep_err=1 , done=n_good , failed=2 , new=2 , rc=1 ) # must discover good_*, then bad_*
 
 	print('new 1',file=open('src1','w'))
-	ut.lmake( 'tgt' , dep_err=1 , new=1 , rc=1 )
+	ut.lmake( 'tgt' , dep_err=1 , new=1 , rc=1 )                               # src* are not critical, so error fires immediately
+
+	print('step=2',file=open('step.py','w'))
+	ut.lmake( 'tgt' , steady=n_good-1+1 , done=1 , rc=0 )                      # modified critical good_0 implies that bad_* are not remade

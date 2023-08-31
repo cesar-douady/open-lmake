@@ -99,20 +99,21 @@ namespace Backends {
 			case JobProc::DepInfos :              break        ;
 			default : FAIL(jrr.proc) ;
 		}
-		Job             job               { jrr.job                } ;
-		JobExec         job_exec          { job , ::move(jrr.host) } ;
-		Rule            rule              = job->rule                ;
-		JobRpcReply     reply             { JobProc::Start         } ;
-		::vector<Node>  report_unlink     ;
-		StartCmdAttrs   start_cmd_attrs   ;
-		::string        cmd               ;
-		StartRsrcsAttrs start_rsrcs_attrs ;
-		StartNoneAttrs  start_none_attrs  ;
-		::string        start_exc_txt     ;
-		ProcessDate     eta               ;
-		SubmitAttrs     submit_attrs      ;
-		::vmap_ss       rsrcs             ;
-		Trace trace("_s_handle_job_req",jrr) ;
+		Job                         job                { jrr.job                } ;
+		JobExec                     job_exec           { job , ::move(jrr.host) } ;
+		Rule                        rule               = job->rule                ;
+		JobRpcReply                 reply              { JobProc::Start         } ;
+		::vector<Node>              report_unlink      ;
+		StartCmdAttrs               start_cmd_attrs    ;
+		::string                    cmd                ;
+		::vmap_s<pair<Node,DFlags>> create_match_attrs ;
+		StartRsrcsAttrs             start_rsrcs_attrs  ;
+		StartNoneAttrs              start_none_attrs   ;
+		::string                    start_exc_txt      ;
+		ProcessDate                 eta                ;
+		SubmitAttrs                 submit_attrs       ;
+		::vmap_ss                   rsrcs              ;
+		Trace trace("_s_handle_job_req",jrr,job_exec) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab") ; return false ; }
 			StartTabEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id") ; return false ; }
@@ -133,10 +134,11 @@ namespace Backends {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
 					}
-					bool cmd_attrs_passed = false                     ;
-					bool cmd_passed       = false                     ;
-					bool keep_tmp         = start_none_attrs.keep_tmp ;
-					{	::unique_lock lock{Req::s_reqs_mutex} ;                // ensure Req::s_store is not reallocated while we walk
+					bool create_match_attrs_passed = false                     ;
+					bool cmd_attrs_passed          = false                     ;
+					bool cmd_passed                = false                     ;
+					bool keep_tmp                  = start_none_attrs.keep_tmp ;
+					{	::unique_lock lock{Req::s_reqs_mutex} ;                  // ensure Req::s_store is not reallocated while we walk
 						for( ReqIdx r : entry.reqs ) {
 							Req req{r} ;
 							keep_tmp |= req->options.flags[ReqFlag::KeepTmp]              ;
@@ -144,9 +146,10 @@ namespace Backends {
 						}
 					}
 					try {
-						start_cmd_attrs   = rule->start_cmd_attrs  .eval(job,match_,entry.rsrcs) ; cmd_attrs_passed = true ;
-						cmd               = rule->cmd              .eval(job,match_,entry.rsrcs) ; cmd_passed       = true ;
-						start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(job,match_,entry.rsrcs) ;
+						create_match_attrs = rule->create_match_attrs.eval(rule,match_.stems       ) ; create_match_attrs_passed = true ;
+						start_cmd_attrs    = rule->start_cmd_attrs   .eval(job  ,match_,entry.rsrcs) ; cmd_attrs_passed          = true ;
+						cmd                = rule->cmd               .eval(job  ,match_,entry.rsrcs) ; cmd_passed                = true ;
+						start_rsrcs_attrs  = rule->start_rsrcs_attrs .eval(job  ,match_,entry.rsrcs) ;
 					} catch (::string const& e) {
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,STR(cmd_attrs_passed),STR(cmd_passed),e) ;
@@ -155,9 +158,10 @@ namespace Backends {
 						_s_start_tab.erase(it) ;
 						job_exec.host.clear() ;
 						::string err_str = to_string(
-								cmd_passed       ? rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/)
-							:	cmd_attrs_passed ? rule->cmd              .s_exc_msg(false/*using_static*/)
-							:	                   rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/)
+								cmd_passed                ? rule->start_rsrcs_attrs .s_exc_msg(false/*using_static*/)
+							:	cmd_attrs_passed          ? rule->cmd               .s_exc_msg(false/*using_static*/)
+							:	create_match_attrs_passed ? rule->start_cmd_attrs   .s_exc_msg(false/*using_static*/)
+							:	                            rule->create_match_attrs.s_exc_msg(false/*using_static*/)
 						,	'\n'
 						,	e
 						) ;
@@ -206,15 +210,15 @@ namespace Backends {
 					reply.remote_admin_dir = *g_remote_admin_dir         ;
 					reply.job_tmp_dir      = ::move(tmp_dir)             ;
 					// fancy attrs
-					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = job->deps[rule->stdin_idx ].name() ;
-					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets  [rule->stdout_idx]        ;
+					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = create_match_attrs[rule->stdin_idx ].second.first.name() ;
+					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets           [rule->stdout_idx]                     ;
+					//
 					reply.targets.reserve(targets.size()) ;
 					for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) reply.targets.emplace_back( targets[t] , false/*is_native_star:garbage*/ , rule->flags(t) ) ;
-					for( Dep d : job->deps ) {
-						if (!d.flags[DFlag::Static]) break    ;
-						if (!d                     ) continue ;
-						reply.static_deps.push_back(d.name()) ;
-					}
+					//
+					DFlags access_dflags = rule->cmd_need_deps() ? AccessDFlags : DFlags() ;                                                        // in case we need deps to compute cmd
+					reply.static_deps.reserve(create_match_attrs.size()) ;
+					for( auto const& [k,dfs] : create_match_attrs ) reply.static_deps.emplace_back( dfs.first.name() , dfs.second|access_dflags ) ;
 					//
 					report_unlink       = job.wash(match_) ;
 					entry.conn.job_addr = job_addr         ;

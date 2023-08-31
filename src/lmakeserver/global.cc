@@ -66,10 +66,10 @@ namespace Engine {
 			bool found_addr = false ;
 			for( auto const& [k,v] : Py::Mapping(py_map) ) {
 				field = Py::String(k) ;
-				if (field=="address") { addr = ServerSockFd::s_addr(Py::String(v)) ; found_addr = true ; }
-				else                  { dct.emplace_back(field,v.str()) ;                                }
+				if (field=="interface") { addr = ServerSockFd::s_addr(Py::String(v)) ; found_addr = true ; }
+				else                    { dct.emplace_back(field,v.str()) ;                                }
 			}
-			field = "address" ;
+			field = "interface" ;
 			if (!found_addr) addr = is_local ? SockFd::LoopBackAddr : ServerSockFd::s_addr(host()) ;
 		} catch(::string const& e) {
 			throw to_string("while processing ",field,e) ;
@@ -192,12 +192,12 @@ namespace Engine {
 		res << "backends :\n" ;
 		for( BackendTag t : BackendTag::N ) {
 			Backend const& be = backends[+t] ;
-			size_t         w  = 7            ;                                 // room for address
+			size_t         w  = 9            ;                                 // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"address" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"local"   <<" : "<< be.is_local                       <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k         <<" : "<< v                                 <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< be.is_local                       <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
 		if (!caches.empty()) {
 			res << "caches :\n" ;

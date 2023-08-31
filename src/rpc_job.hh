@@ -19,13 +19,15 @@ ENUM_2( BackendTag                     // PER_BACKEND : add a tag for each backe
 ,	Local
 )
 
-ENUM_1( DFlag                          // flags for deps
-,	Private = Static                   // >=Private means flag cannot be seen in Lmakefile.py
+ENUM_2( DFlag                          // flags for deps
+,	Private   = Static                 // >=Private   means flag cannot be handled manually (in Lmakefile.py or with lmake.depend/ldepend)
+,	NotInRule = Required               // >=NotInRule means flag cannot be mentioned in Lmakefile.py
 //
 ,	Critical                           // if modified, ignore following deps
 ,	Essential                          // show when generating user oriented graphs
-,	NoError                            // propagate error if dep is in error (Error instead of Err because name is visible from user)
-,	Required                           // do not accept if dep cannot be built
+,	IgnoreError                        // propagate error if dep is in error (Error instead of Err because name is visible from user)
+//
+,	Required                           // dep must be buildable or job is in error
 //
 ,	Static                             // dep is static
 ,	Lnk                                // syscall sees link    content if dep is a link
@@ -35,7 +37,7 @@ ENUM_1( DFlag                          // flags for deps
 static constexpr char DFlagChars[] = {
 	'c'                                // Critical
 ,	's'                                // Essential
-,	'e'                                // NoError
+,	'e'                                // IgnoreError
 ,	'r'                                // Required
 //
 ,	'S'                                // Static
@@ -48,7 +50,7 @@ using DFlags = BitMap<DFlag> ;
 constexpr DFlags StaticDFlags { DFlag::Essential , DFlag::Required , DFlag::Static } ; // used for static deps
 constexpr DFlags AccessDFlags { DFlag::Lnk       , DFlag::Reg      , DFlag::Stat   } ;
 constexpr DFlags DataDFlags   { DFlag::Lnk       , DFlag::Reg                      } ;
-constexpr DFlags DfltDFlags   = AccessDFlags                                         ; // used with ldepend
+constexpr DFlags DfltDFlags   = AccessDFlags | DFlag::Required                       ; // used with ldepend
 
 ENUM( JobProc
 ,	None
@@ -135,7 +137,7 @@ ENUM_1( JobReasonTag                   // see explanations in table below
 ,	Killed
 ,	Lost
 ,	New
-,	OldError
+,	OldErr
 ,	Rsrcs
 // with node
 ,	ClashTarget
@@ -160,7 +162,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was killed"                                       // Killed
 ,	"job was lost"                                         // Lost
 ,	"job was never run"                                    // New
-,	"job was in error"                                     // OldError
+,	"job was in error"                                     // OldErr
 ,	"resources changed and job was in error"               // Rsrcs
 // with node
 ,	"multiple simultaneous writes"                         // ClashTarget
@@ -187,13 +189,13 @@ struct JobReason {
 	// accesses
 	bool operator+() const { return +tag              ; }
 	bool operator!() const { return !tag              ; }
-	bool has_err  () const { return tag>=Tag::DepErr  ; }
+	bool err      () const { return tag>=Tag::DepErr  ; }
 	// services
 	JobReason operator|(JobReason jr) const {
-		if (   has_err()) return *this ;
-		if (jr.has_err()) return jr    ;
-		if (+*this      ) return *this ;
-		/**/              return jr    ;
+		if (   err()) return *this ;
+		if (jr.err()) return jr    ;
+		if (+*this  ) return *this ;
+		/**/          return jr    ;
 	}
 	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
 	// data
@@ -288,17 +290,18 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,flags   ) ;
-		::serdes(s,parallel) ;
+		::serdes(s,flags) ;
 		if (::is_base_of_v<::istream,T>) {
 			clear_crc_date() ;
-			bool  kn ; ::serdes(s,kn) ; known   = kn ;
-			bool  g  ; ::serdes(s,g ) ; garbage = g  ;
-			Bool3 id ; ::serdes(s,id) ; is_date = id ;
+			bool  p  ; ::serdes(s,p ) ; parallel = p  ;
+			bool  kn ; ::serdes(s,kn) ; known    = kn ;
+			bool  g  ; ::serdes(s,g ) ; garbage  = g  ;
+			Bool3 id ; ::serdes(s,id) ; is_date  = id ;
 		} else {
-			bool  kn = known   ; ::serdes(s,kn) ;
-			bool  g  = garbage ; ::serdes(s,g ) ;
-			Bool3 id = is_date ; ::serdes(s,id) ;
+			bool  p  = parallel ; ::serdes(s,p ) ;
+			bool  kn = known    ; ::serdes(s,kn) ;
+			bool  g  = garbage  ; ::serdes(s,g ) ;
+			Bool3 id = is_date  ; ::serdes(s,id) ;
 		}
 		switch (is_date) {
 			case No    : ::serdes(s,_crc ) ; break ;
@@ -309,7 +312,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	DFlags flags      ;                // 8<=8 bits
-	bool   parallel   = false ;        // 1<=8 bits
+	bool   parallel:1 = false ;        //    1 bit
 	bool   known   :1 = false ;        //    1 bit , dep was known (and thus done) before starting execution
 	bool   garbage :1 = false ;        //    1 bit , if true <= file was not the same between the first and last access
 	Bool3  is_date :2 = Maybe ;        //    2 bits, Maybe means no access : no date, no crc
@@ -401,11 +404,11 @@ struct JobRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
-			case P::Start    : ::serdes(s,host) ; ::serdes(s,port) ; break ;
-			case P::LiveOut  : ::serdes(s,txt) ;                     break ;
+			case P::Start    : ::serdes(s,host) ; ::serdes(s,port)   ; break ;
+			case P::LiveOut  : ::serdes(s,txt) ;                       break ;
 			case P::ChkDeps  :
 			case P::DepInfos :
-			case P::End      : ::serdes(s,digest) ;                  break ;
+			case P::End      : ::serdes(s,host) ; ::serdes(s,digest) ; break ;
 			default          : ;
 		}
 	}
@@ -413,7 +416,7 @@ struct JobRpcReq {
 	P         proc   = P::None ;
 	SI        seq_id = 0       ;
 	JI        job    = 0       ;
-	::string  host   ;                 // if proc==Start
+	::string  host   ;                 // if proc==Start   ||             End
 	in_port_t port   = 0       ;       // if proc==Start
 	JobDigest digest ;                 // if proc==ChkDeps || DepInfos || End
 	::string  txt    ;                 // if proc==LiveOut
@@ -519,7 +522,7 @@ struct JobRpcReply {
 	::string                  remote_admin_dir ;                               // proc == Start
 	::string                  root_dir         ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
-	::vector_s                static_deps      ;                               // proc == Start   , deps that may clash with targets
+	::vmap_s<DFlags>          static_deps      ;                               // proc == Start   , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start
 	::vector<TargetSpec>      targets          ;                               // proc == Start

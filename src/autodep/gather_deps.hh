@@ -72,15 +72,14 @@ struct GatherDeps {
 	using DD   = Time::DiskDate    ;
 	using PD   = Time::ProcessDate ;
 	using FI   = Disk::FileInfo    ;
-	using S    = ::string          ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		PD                        read_date  = {}    ;     // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
-		PD                        write_date = {}    ;     // if !info.idle(), first write date
-		JobExecRpcReq::AccessInfo info       = {}    ;
-		DD                        file_date  = {}    ;     // if +info.dfs   , date of file when read as first access
-		bool                      parallel   = false ;
+		PD                        read_date   = {}    ;    // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
+		PD                        write_date  = {}    ;    // if !info.idle(), first write date
+		JobExecRpcReq::AccessInfo info        = {}    ;
+		DD                        file_date   = {}    ;    // if +info.dfs   , date of file when read as first access
+		NodeIdx                   parallel_id = 0     ;
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -90,23 +89,27 @@ struct GatherDeps {
 	}
 	// services
 private :
-	bool/*new*/ _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , bool parallel , bool force_new=false , ::string const& comment={} ) ;
+	bool/*new*/ _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , NodeIdx parallel_id , ::string const& comment={} ) ;
 	//
-	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
-		bool parallel = false ;
-		for( auto const& f : files ) parallel |= _new_access(pd,f,{},info,parallel,force_new,comment) ;
+	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+		parallel_id++ ;
+		for( auto const& f : files ) _new_access(pd,f,{},info,parallel_id,comment) ;
 	}
-	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , bool force_new=false , ::string const& comment={} ) {
-		bool parallel = false ;
-		for( auto const& [f,dd] : dds ) parallel |= _new_access(pd,f,dd,info,parallel,force_new,comment) ;
+	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+		parallel_id++ ;
+		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,parallel_id,comment) ;
 	}
 public :
-	void new_target( PD pd , S const& t         , TFlags n , TFlags p , S const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tfs=n,.pos_tfs=p},false/*parallel*/,false/*force_new*/,c) ; }
-	void new_dep   ( PD pd , S const& d , DD dd , DFlags dfs          , S const& c="dep"    ) { _new_access(pd,d,dd,{.dfs=dfs}                         ,false/*parallel*/,false/*force_new*/,c) ; }
-	void new_static_deps( PD pd , vector_s const& ds , ::string const& c="static_deps" ) {
-		SWEAR(accesses.empty()) ;                                                          // ensure we do not insert static deps after hidden ones
-		_new_accesses( pd , ds  , {.dfs=StaticDFlags} , true/*force_new*/ , c ) ;          // ensure there is one entry for each static dep
-		n_statics = accesses.size() ;                                                      // ensure static deps are kept in original order
+	void new_target( PD pd , ::string const& t         , TFlags n , TFlags p , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tfs=n,.pos_tfs=p},0/*parallel_id*/,c) ; }
+	void new_dep   ( PD pd , ::string const& d , DD dd , DFlags dfs          , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.dfs=dfs}                         ,0/*parallel_id*/,c) ; }
+	//
+	void new_static_deps( PD pd , ::vmap_s<DFlags> const& ds , ::string const& c="static_deps" ) {
+		SWEAR(accesses.empty()) ;                                                                  // ensure we do not insert static deps after hidden ones
+		parallel_id++ ;
+		for( auto const& [f,dfs] : ds ) {
+			DD fd ; if (+(dfs&AccessDFlags)) fd = Disk::file_date(f) ;
+			_new_access(pd,f,fd,{.dfs=dfs},parallel_id,c) ;
+		}
 	}
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
@@ -142,9 +145,9 @@ public :
 	 ::map_ss const*                              env          = nullptr                                        ;
 	vmap_s<AccessInfo>                            accesses     ;
 	umap_s<NodeIdx   >                            access_map   ;
+	NodeIdx                                       parallel_id  = 0                                              ; // id to identify parallel deps
 	bool                                          seen_tmp     = false                                          ;
 	int                                           wstatus      = 0                                              ;
 	::string                                      stdout       ;                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr       ;                                                  // contains child stderr if child_stderr==Pipe
-	NodeIdx                                       n_statics    = 0                                              ; // the first n_static entries are kept in original order
 } ;

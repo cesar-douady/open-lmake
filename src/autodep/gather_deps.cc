@@ -43,20 +43,18 @@ using namespace Hash ;
 	if (!ai.info.idle()) os << "W:"<<ai.write_date <<',' ;
 	/**/                 os << ai.info                   ;
 	if (+ai.file_date  ) os <<','<< "F:"<<ai.file_date   ;
-	if (ai.parallel    ) os <<','<< "parallel"           ;
-	return               os <<')'                        ;
+	return               os <<','<< ai.parallel_id <<')' ;
 }
 
-bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , bool parallel , bool force_new , ::string const& comment ) {
+bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , NodeIdx parallel_id_ , ::string const& comment ) {
 	SWEAR(!file.empty()) ;
-	AccessInfo* info_  = nullptr/*garbage*/                                   ;
-	auto        it     = force_new ? access_map.end() : access_map.find(file) ;
-	bool        is_new = it==access_map.end()                                 ;
+	AccessInfo* info_  = nullptr/*garbage*/    ;
+	auto        it     = access_map.find(file) ;
+	bool        is_new = it==access_map.end()  ;
 	if (is_new) {
 		access_map[file] = accesses.size() ;
 		accesses.emplace_back(file,AccessInfo()) ;
-		info_           = &accesses.back().second ;
-		info_->parallel = parallel                ;
+		info_ = &accesses.back().second ;
 	} else {
 		info_ = &accesses[it->second].second ;
 	}
@@ -66,16 +64,16 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobE
 	:	+info_->info.dfs    && pd>info_->read_date  ? Maybe
 	:	                                              No
 	;
-	//
-	if ( +ai.dfs || ai.idle() ) {                                                                     // if we do not write, do book-keeping as read, even if we do not access the file
-		if      (after==No                      ) { info_->file_date = dd ; info_->read_date = pd ; } // update read info if we are first to read
-		else if (!(info_->info.dfs&AccessDFlags)) { info_->file_date = dd ;                         } // if previous accesses did not actually access the file, record our date
+	// if we do not write, do book-keeping as read, even if we do not access the file
+	if ( +ai.dfs || ai.idle() ) {
+		if      (after==No                      ) { info_->file_date = dd ; info_->read_date = pd ; info_->parallel_id = parallel_id_ ; } // update read info if we are first to read
+		else if (!(info_->info.dfs&AccessDFlags)) { info_->file_date = dd ;                                                             } // if no previous access, record our date
 	}
 	if ( !ai.idle() && after!=Yes ) info_->write_date = pd ;
 	//
-	JobExecRpcReq::AccessInfo old_ai = info_->info  ;                                                                                // for trace only
-	info_->info.update(ai,after) ;                                                                                                   // execute actions in actual order as provided by dates
-	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", pd , after , *info_ , ai , STR(parallel) , file , dd , comment ) ; // only trace if something changes
+	JobExecRpcReq::AccessInfo old_ai = info_->info  ;                                                                // for trace only
+	info_->info.update(ai,after) ;                                                                                   // execute actions in actual order as provided by dates
+	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", pd , after , *info_ , ai , file , dd , comment ) ; // only trace if something changes
 	return is_new ;
 }
 
@@ -256,10 +254,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 						case Proc::Heartbeat :                                            goto Close ; // no reply, accept & read is enough to acknowledge
 						//                     vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill      : kill_job(Status::Killed) ;                 goto Close ; // .
-						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ; break ;
-						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , false/*force_new*/ , jerr.comment ) ;
-						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; break ;
+						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ;
+						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
@@ -297,11 +295,11 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 }
 
 void GatherDeps::reorder() {
-	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what it expects
-	::stable_sort(                                                                    // reorder by date, keeping entries marked parallel after their first items
-		accesses.begin()+n_statics , accesses.end()                                   // keep the first n_statics entries in original order
+	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
+	::stable_sort(                                                             // reorder by date, keeping parallel entries together (which must have the same date)
+		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return ::pair(a.second.read_date,a.second.parallel) < ::pair(b.second.read_date,b.second.parallel) ;
+			return ::pair(a.second.read_date,a.second.parallel_id) < ::pair(b.second.read_date,b.second.parallel_id) ;
 		}
 	) ;
 }

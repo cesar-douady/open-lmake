@@ -425,8 +425,8 @@ namespace Engine {
 			+	sizeof(RuleIdx)                                                // Rule index
 			;
 		}
-		bool cmd_need_deps() const {                                           // if deps are needed for cmd computation, then static deps are deemed to be read...
-			return start_cmd_attrs.need_deps | end_cmd_attrs.need_deps ;       // as deps are not recorded and we need to be pessimistic
+		bool cmd_need_deps() const {                                                     // if deps are needed for cmd computation, then static deps are deemed to be read...
+			return start_cmd_attrs.need_deps | cmd.need_deps | end_cmd_attrs.need_deps ; // as deps are not recorded and we need to be pessimistic
 		}
 
 		// services
@@ -493,7 +493,7 @@ namespace Engine {
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
 		::vector_s const& targets       () const { if (!_has_targets) { _compute_targets() ; _has_targets = true ; } return _targets ; }
-		::vector_view_c_s static_targets() const { return {targets(),0,rule->n_static_targets} ;}
+		::vector_view_c_s static_targets() const { return {targets(),0,rule->n_static_targets} ;                                       }
 	protected :
 		void _compute_targets() const ;
 		// services

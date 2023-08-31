@@ -136,7 +136,7 @@ namespace Engine {
 
 	void Node::_set_buildable_raw( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",*this,lvl) ;
-		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,{}}}) ; // infinite dep path
+		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,SpecialDFlags}}) ; // infinite dep path
 		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
 		if (!shared()) {
 			UNode un{*this} ;

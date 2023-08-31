@@ -44,8 +44,8 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx         = -1                                                   ;
-		static constexpr DFlags  SpecialDFlags { DFlag::Essential , DFlag::Required , DFlag::Static } ;
+		static constexpr RuleIdx NoIdx         = -1           ;
+		static constexpr DFlags  SpecialDFlags = StaticDFlags ;
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
