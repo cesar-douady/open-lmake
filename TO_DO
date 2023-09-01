@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* git-submodule support is broken
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -67,7 +66,7 @@ items :
 ****************************************************************************************************
 
 * implement a compilation rule py->pyc
-	- and user python -B
+	- and use python -B
 * split 2 notions
 	- root of lmake repository : where files may be built
 	- root of git repository : where sources are located

@@ -266,8 +266,10 @@ if _reading_makefiles :
 		'''
 		import re
 		line_re = re.compile(r'\s*(?P<file>[^#\s](.*\S)?)?\s+(#.*)?\n?')
-		srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in open(manifest) ) if f ]
-		if 'Lmakefile.py' not in srcs : raise FileNotFoundError(f'cannot find Lmakefile.py in git files')
+		try                      : stream = open(manifest)
+		except FileNotFoundError : raise NotImplementedError(f'cannot find {manifest}')
+		srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in stream ) if f ]
+		if 'Lmakefile.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py in git files')
 		return srcs
 
 	_git = 'git'                                                                 # overridden by installation configuration
@@ -277,57 +279,72 @@ if _reading_makefiles :
 			recurse to sub-modules if recurse is True
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
-		# some old versions of git (e.g. 1.8) do not support submodule command when not launched from top
-		# also git ls-files --recurse-submodules may not be supported as well
-		def git_ls_files() :
-			git_cmd = [_git,'ls-files']
-			if repo_dir : git_cmd.append(repo_dir[:-1])
-			srcs = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-			if not repo_dir : srcs += [_osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources as they are read by git ls-files
-			#
-			if not recurse : return srcs
-			#
-			srcs_set = set(srcs)
-			for sm in submodules :                                             # proceed top-down so that srcs_set includes its sub-modules
-				if sm not in srcs_set :  continue
-				srcs_set.remove(sm)
-				sub_srcs = _sp.run( (_git,'ls-files') , cwd=git_dir+'/'+sm , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-				git_file = _osp.join(sm,'.git')
-				srcs_set.add(git_file)
-				for line in open(git_file).readlines() :
-					l = line.split()
-					sm_dir = l[1]
-					if l[0]=='gitdir:' : break
-				else :
-					raise FileNotFoundError(f"cannot find gitdir line in {_osp.join(sm,'.git')}")
-				sm_dir = _osp.relpath(_osp.join(sm,sm_dir))
-				if sm_dir.startswith(repo_dir) :
-					sm_dir = sm_dir[len(repo_dir):]
-					srcs_set.update( _osp.join(sm_dir,f) for f in ('HEAD','config','index') ) # not listed by git, but actually sources as they are read by git ls-files
-				for f in sub_srcs : srcs_set.add(_osp.join(sm,f))
-			srcs = list(srcs_set)
-			srcs.sort()                                                        # avoid random order
-			return srcs
-		def git_submodules() :
-			# old versions of git do not support submodule command when not launched from top
-			git_cmd    = (_git,'submodule','status','--recursive')   # much faster than the foreach sub-command
-			lines      = _sp.run( git_cmd , cwd=git_dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
-			submodules = [ l.split()[1] for l in lines]
-			submodules = [ sm for sm in submodules if _osp.join(sm,'').startswith(repo_dir) ]
-			submodules.sort()                                                                 # ensure submodules are in top-down order (order is not documented)
-			return submodules
+		def run( cmd , dir=None ) :
+			return _sp.run( cmd , cwd=dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+		#
+		# compute directories
+		#
 		root_dir = _os.getcwd()
-		#
-		git_dir = root_dir
+		git_dir  = root_dir
 		while git_dir and not _osp.isdir(_osp.join(git_dir,'.git')) : git_dir = _osp.dirname(git_dir)
-		if not git_dir : raise FileNotFoundError('not in git repository')
-		#
+		if not git_dir : raise NotImplementedError('not in git repository')
+		assert root_dir.startswith(git_dir),f'found git dir {git_dir} is not a prefix of root dir {root_dir}'
 		repo_dir = _osp.join(root_dir[len(git_dir)+1:],'')
+		#
+		# compute submodules
+		#
+		# old versions of git (e.g. 1.8) do not support submodule command when not launched from top
 		if recurse :
-			submodules = git_submodules()
-		# old versions of git do not support --recurse-submodules when not launched from top
-		srcs = git_ls_files()
-		srcs = [ s[len(repo_dir):] for s in srcs ]
+			lines      = run( (_git,'submodule','status','--recursive') , git_dir ) # faster than the foreach sub-command
+			submodules = [ l.split()[1] for l in lines]
+			submodules = [ sm[len(repo_dir):] for sm in submodules if _osp.join(sm,'').startswith(repo_dir) ]
+			submodules.sort()                                                                                 # ensure submodules are in top-down order (order is not documented)
+		#
+		# compute file lists
+		#
+		def git_ls_files(with_admins,recurse) :
+			git_cmd = [_git,'ls-files']
+			if recurse : git_cmd.append('--recurse-submodules')
+			srcs = run(git_cmd)
+			if with_admins : srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources as they are read by git ls-files
+			return srcs
+		def get_sm_admins(sm) :
+			admins = [_osp.join(sm,'.git')]                                    # not listed by git, but actually sources as they are read by git ls-files
+			try :
+				lines = open(admins[0]).readlines()
+			except FileNotFoundError :
+				if not ignore_missing_submodules : raise
+				return []
+			for line in lines :
+				l = line.split()
+				if l[0]!='gitdir:' : continue
+				sm_dir = _osp.relpath(_osp.join(sm,l[1]))
+				break
+			else :
+				raise ValueError(f"cannot find gitdir line in {_osp.join(sm,'.git')}")
+			if not sm_dir.startswith('../') : admins += [ _osp.join(sm_dir,f) for f in ('HEAD','config','index') ]
+			return admins
+		try :
+			srcs = git_ls_files(not repo_dir,recurse)
+			if recurse :
+				for sm in submodules :                                         # proceed top-down so that srcs_set includes its sub-modules
+					srcs += get_sm_admins(sm)
+		except _sp.CalledProcessError :
+			srcs = git_ls_files(not repo_dir,False)                            # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
+			if recurse :
+				srcs_set = set(srcs)
+				for sm in submodules :                                         # proceed top-down so that srcs_set includes its sub-modules
+					srcs_set.remove(sm)
+					try :
+						sub_srcs = run( (_git,'ls-files') , _osp.join(root_dir,sm) )
+						srcs_set.update( _osp.join(sm,f) for f in sub_srcs )
+						srcs_set.update( get_sm_admins(sm)                 )
+					except _sp.CalledProcessError :
+						if not ignore_missing_submodules : raise
+				srcs = list(srcs_set)
+				srcs.sort()                                                    # avoid random order
+		#
+		#  update global source_dirs
 		#
 		if git_dir not in source_dirs : source_dirs.append(git_dir)
 		return srcs
@@ -338,9 +355,9 @@ if _reading_makefiles :
 			kwds can be passed to underlying source control
 		'''
 		for ctl in ( manifest_sources , git_sources ) :
-			try                      : return ctl(**kwds)
-			except FileNotFoundError : pass
-		raise FileNotFoundError(f'no source control found')
+			try                        : return ctl(**kwds)
+			except NotImplementedError : pass
+		raise RuntimeError(f'no source control found')
 
 #
 # job execution, available in rules to have full access when writing rule cmd's

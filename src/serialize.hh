@@ -13,21 +13,32 @@ template<class S> concept IsStream    =                                         
 template<class T> concept HasSerdes   =                  requires( T x , ::istream& is , ::ostream& os ) { x.serdes(os)                ;  x.serdes(is)                ; } ;
 template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::istream& is , ::ostream& os ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;
 
+template<class T> concept Serializable = HasSerdes<T> || HasSerdeser<T> ;
+
 // serdes method should be const when serializing but is not because C++ does not let constness be template arg dependent
 template<HasSerdes   T> static inline void serdes( ::ostream& os , T const& x ) { const_cast<T&>(x).serdes(os) ; }
 template<HasSerdes   T> static inline void serdes( ::istream& is , T      & x ) {                x .serdes(is) ; }
 template<HasSerdeser T> static inline void serdes( ::ostream& os , T const& x ) { Serdeser<T>::s_serdes(os,x)  ; }
 template<HasSerdeser T> static inline void serdes( ::istream& is , T      & x ) { Serdeser<T>::s_serdes(is,x)  ; }
 //
-template<class T> static inline void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
-template<class T> static inline ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
-template<class T> static inline void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                    }
-template<class T> static inline T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res       ; }
+template<Serializable T> static inline void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
+template<Serializable T> static inline ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
+template<Serializable T> static inline void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                    }
+template<Serializable T> static inline T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res       ; }
 //
-template<class T> static inline void serialize  ( ::ostream&&     os , T const& x ) {        serialize  <T>(os              ,x) ; }
-template<class T> static inline void deserialize( ::istream&&     is , T      & x ) {        deserialize<T>(is              ,x) ; }
-template<class T> static inline T    deserialize( ::istream&&     is              ) { return deserialize<T>(is                ) ; }
-template<class T> static inline T    deserialize( ::string const& s               ) { return deserialize<T>(IStringStream(s)  ) ; }
+template<Serializable T> static inline void serialize  ( ::ostream&&     os , T const& x ) {        serialize  <T>(os              ,x) ; }
+template<Serializable T> static inline void deserialize( ::istream&&     is , T      & x ) {        deserialize<T>(is              ,x) ; }
+template<Serializable T> static inline T    deserialize( ::istream&&     is              ) { return deserialize<T>(is                ) ; }
+template<Serializable T> static inline T    deserialize( ::string const& s               ) { return deserialize<T>(IStringStream(s)  ) ; }
+
+// make objects hashable as soon as they define serdes(::ostream) &&  serdes(::istream)
+// as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>
+// /!\ : not ideal in terms of performances, but easy to use.
+template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL("");return serialize(a)== serialize(b) ; } // cannot define this for Serializable as it creates conflicts
+template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL("");return serialize(a)<=>serialize(b) ; } // .
+namespace std {
+	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL("");return hash<::string>()(serialize(x)) ; } } ; // .
+}
 
 template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
 	// compiler should be able to avoid copy when using bit_cast, even with an intermediate buf
