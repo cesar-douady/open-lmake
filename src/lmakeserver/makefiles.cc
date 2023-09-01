@@ -130,15 +130,25 @@ namespace Engine {
 			PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
 			Py_DECREF(eval_env) ;
 			if (!py_info) exit( 2 , "error while reading makefile digest :\n" , Py::err_str() ) ;
-			Py::Dict   info       = Py::Object( py_info , true/*clobber*/ ) ;
-			::vector_s src_dirs   { {*g_root_dir} }                         ;
-			::string   root_dir_s = *g_root_dir+'/'                         ;
+			Py::Dict   info            = Py::Object( py_info , true/*clobber*/ ) ;
+			::string   root_dir_s      = *g_root_dir+'/'                         ;
+			::vector_s glb_src_dirs ;
+			::vector_s lcl_src_dirs ;
 			if (info.hasKey("source_dirs"))
 				for( auto py_sd : Py::Sequence(info["source_dirs"]) ) {
 					::string sd = py_sd.str() ;
-					if (sd.empty()                      ) throw "empty source dir"s                                                   ;
-					if ((sd+'/').starts_with(root_dir_s)) throw to_string("source dir ",sd,"must be outside repository ",*g_root_dir) ;
-					src_dirs.push_back(sd) ;
+					if (sd.empty()) throw "empty source dir"s ;
+					if (sd.back()!='/') sd.push_back('/') ;
+					if (sd[0]=='/') {
+						if (sd.starts_with(root_dir_s)) {
+							sd.pop_back() ;
+							if (sd==root_dir_s) throw to_string("local source dir ",sd," cannot be root dir"                                 ) ;
+							else                throw to_string("local source dir ",sd," must be expressed relative to root dir ",*g_root_dir) ;
+						}
+						glb_src_dirs.push_back(sd) ;
+					} else {
+						lcl_src_dirs .push_back(sd) ;
+					}
 				}
 			// we should write deps once makefiles info is correctly stored as this implies that makefiles will not be read again unless they are modified
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
@@ -149,8 +159,7 @@ namespace Engine {
 				for( ::string const& d : deps ) {
 					SWEAR(!d.empty()) ;
 					if (d[0]=='/') {
-						for( ::string const& sd : src_dirs )
-							if ((d+'/').starts_with(sd+'/')) goto RecordDep ;
+						for( ::string const& sd : glb_src_dirs ) if (d.starts_with(sd)) goto RecordDep ;
 						continue ;
 					}
 				RecordDep :
@@ -174,7 +183,16 @@ namespace Engine {
 				step = "rules"   ; rules = _gather_rules( Py::Sequence(info[step  ]) ) ;
 				step = "sources" ; srcs  = _gather_srcs ( Py::Sequence(info["srcs"]) ) ;
 				{	::uset_s src_set = mk_uset(srcs) ;
-					for( ::string const& f : deps ) if ( f[0]!='/' && !src_set.contains(f) && +FileInfo(f) ) throw to_string("dangling makefile : ",f) ;
+					for( ::string const& f : deps ) {
+						/**/                                      if (f[0]=='/'          ) continue       ;
+						/**/                                      if (src_set.contains(f)) continue       ;
+						/**/                                      if (!FileInfo(f)       ) continue       ;
+						for ( ::string const& sd : lcl_src_dirs ) if (f.starts_with(sd)  ) goto RecordSrc ;
+						throw to_string("dangling makefile : ",f) ;
+					RecordSrc :                                                // record as source any file needed in recorded source dirs
+						srcs.push_back(f) ;
+						src_set.insert(f) ;
+					}
 				}
 			} catch(::string& e) {
 				if (!step.empty()) e = to_string("while processing ",step," :\n",indent(e)) ;

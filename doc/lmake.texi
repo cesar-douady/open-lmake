@@ -2167,6 +2167,12 @@ The @lmake backend also provides the current ETA (@pxref{eta-estimation}) of the
 
 As of now, the only existing backend is the local backend, but a Slurm backend is scheduled shortly.
 
+In addition to dedicated resources, all backends manage the following 2 resources :
+@itemize @minus
+@item @code{cpu} : The number of threads the job is expected to run in parallel. The backend is expected to reserve enough resources for such a number of threads to run smoothly.
+@item @code{mem} : The memory size in MB the job is expected to need to run smoothly. The backend is expected to ensure that such memory is available for the job.
+@end itemize
+
 @anchor{local-backend}
 @section Local backend
 
@@ -2190,8 +2196,12 @@ The variable available to the job as global variables (python case) or environme
 
 The local backend ensures that the sum of all the resources of the running jobs never overshoot the configured available quantity.
 
-By default, the configuration contains 2 resources : @code{cpu} and @code{mem} configured respectively as the overall number of available cpus and the overall available memory (in MB).
-Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu} and the corresponding share of @code{mem}.
+By default, the configuration contains the 2 generic resources : @code{cpu} and @code{mem} configured respectively as the overall number of available cpus and the overall available memory (in MB).
+@itemize @minus
+@item @code{cpu} : The number of cpu as returned by @code{os.wched_getaffinity(0)}.
+@item @code{mem} : The physical memory size as returned by @code{s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')}
+@end itemize
+Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu} and a share of @code{mem} computed by dividing the physical memory size by the number of cpus.
 
 @anchor{autodep}
 @section Autodep

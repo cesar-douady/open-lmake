@@ -23,17 +23,17 @@ using namespace Disk ;
 		case 1 : root_s_dir = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
-			for( ::string const& c : candidates ) if (is_dir(root_s_dir+"/LMAKE")) candidates2.push_back(c) ;
+			for( ::string const& c : candidates ) if (is_dir(c+"/LMAKE")) candidates2.push_back(c) ;
 			switch (candidates2.size()) {
 				case 0 : {
 					::string msg = "ambiguous root dir, disambiguate by executing one of :\n" ;
-					for( ::string const& c : candidates ) msg += to_string("\tmkdir ",c,"/LMAKE") ;
+					for( ::string const& c : candidates ) msg += to_string("\tmkdir ",c,"/LMAKE\n") ;
 					throw msg ;
 				}
 				case 1 : root_s_dir = candidates2[0] ; break ;
 				default : {
 					::string msg = to_string("ambiguous root dir, disambiguate by executing ",candidates2.size()-1," of :\n") ;
-					for( ::string const& c : candidates2 ) msg += to_string("\trm -r ",c,"/LMAKE") ;
+					for( ::string const& c : candidates2 ) msg += to_string("\trm -r ",c,"/LMAKE\n") ;
 					throw msg ;
 				}
 			}

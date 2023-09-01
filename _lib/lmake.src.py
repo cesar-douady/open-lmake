@@ -276,11 +276,12 @@ if _reading_makefiles :
 	def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		'''
 			gather git controled files.
-			recurse to sub-modules if recurse is True
+			recurse to sub-modules    if recurse                   is True
+			ignore missing submodules if ignore_missing_submodules is True
 			kwds are ignored which simplifies the usage of auto_sources
 		'''
 		def run( cmd , dir=None ) :
-			return _sp.run( cmd , cwd=dir , check=True , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
+			return _sp.run( cmd , cwd=dir , check=True , stdin=_sp.DEVNULL , stdout=_sp.PIPE , stderr=_sp.DEVNULL , universal_newlines=True ).stdout.splitlines()
 		#
 		# compute directories
 		#
@@ -295,58 +296,34 @@ if _reading_makefiles :
 		#
 		# old versions of git (e.g. 1.8) do not support submodule command when not launched from top
 		if recurse :
-			lines      = run( (_git,'submodule','status','--recursive') , git_dir ) # faster than the foreach sub-command
-			submodules = [ l.split()[1] for l in lines]
-			submodules = [ sm[len(repo_dir):] for sm in submodules if _osp.join(sm,'').startswith(repo_dir) ]
-			submodules.sort()                                                                                 # ensure submodules are in top-down order (order is not documented)
+			submodules = run( (_git,'submodule','--quiet','foreach','--recursive','echo $sm_path') , git_dir )              # less file accesses than git submodule status
+			if repo_dir : submodules = [ sm[len(repo_dir):] for sm in submodules if _osp.join(sm,'').startswith(repo_dir) ]
 		#
 		# compute file lists
 		#
-		def git_ls_files(with_admins,recurse) :
-			git_cmd = [_git,'ls-files']
-			if recurse : git_cmd.append('--recurse-submodules')
-			srcs = run(git_cmd)
-			if with_admins : srcs += [ _osp.join('.git',f) for f in ('HEAD','config','index') ] # not listed by git, but actually sources as they are read by git ls-files
-			return srcs
-		def get_sm_admins(sm) :
-			admins = [_osp.join(sm,'.git')]                                    # not listed by git, but actually sources as they are read by git ls-files
+		if recurse :
 			try :
-				lines = open(admins[0]).readlines()
-			except FileNotFoundError :
-				if not ignore_missing_submodules : raise
-				return []
-			for line in lines :
-				l = line.split()
-				if l[0]!='gitdir:' : continue
-				sm_dir = _osp.relpath(_osp.join(sm,l[1]))
-				break
-			else :
-				raise ValueError(f"cannot find gitdir line in {_osp.join(sm,'.git')}")
-			if not sm_dir.startswith('../') : admins += [ _osp.join(sm_dir,f) for f in ('HEAD','config','index') ]
-			return admins
-		try :
-			srcs = git_ls_files(not repo_dir,recurse)
-			if recurse :
-				for sm in submodules :                                         # proceed top-down so that srcs_set includes its sub-modules
-					srcs += get_sm_admins(sm)
-		except _sp.CalledProcessError :
-			srcs = git_ls_files(not repo_dir,False)                            # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
-			if recurse :
+				srcs = run((_git,'ls-files','--recurse-submodules'))
+				for sm in submodules : srcs.append(_osp.join(sm,'.git'))
+			except _sp.CalledProcessError :
+				srcs = run((_git,'ls-files'))                                  # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
 				srcs_set = set(srcs)
 				for sm in submodules :                                         # proceed top-down so that srcs_set includes its sub-modules
 					srcs_set.remove(sm)
 					try :
 						sub_srcs = run( (_git,'ls-files') , _osp.join(root_dir,sm) )
 						srcs_set.update( _osp.join(sm,f) for f in sub_srcs )
-						srcs_set.update( get_sm_admins(sm)                 )
+						srcs_set.add   ( _osp.join(sm,'.git')              )
 					except _sp.CalledProcessError :
 						if not ignore_missing_submodules : raise
 				srcs = list(srcs_set)
 				srcs.sort()                                                    # avoid random order
+		else :
+			srcs = run((_git,'ls-files'))
 		#
 		#  update global source_dirs
 		#
-		if git_dir not in source_dirs : source_dirs.append(git_dir)
+		source_dirs.append(_osp.join( (git_dir if repo_dir else '') ,'.git'))
 		return srcs
 
 	def auto_sources(**kwds) :

@@ -425,8 +425,14 @@ namespace Engine {
 			+	sizeof(RuleIdx)                                                // Rule index
 			;
 		}
-		bool cmd_need_deps() const {                                                     // if deps are needed for cmd computation, then static deps are deemed to be read...
-			return start_cmd_attrs.need_deps | cmd.need_deps | end_cmd_attrs.need_deps ; // as deps are not recorded and we need to be pessimistic
+		bool cmd_need_deps() const {                                           // if deps are needed for cmd computation, then static deps are deemed to be read...
+			return                                                             // as accesses are not recorded and we need to be pessimistic
+				submit_rsrcs_attrs.is_dynamic
+			||	start_cmd_attrs   .is_dynamic
+			||	cmd               .is_dynamic
+			||	start_rsrcs_attrs .is_dynamic
+			||	end_cmd_attrs     .is_dynamic
+			;
 		}
 
 		// services
