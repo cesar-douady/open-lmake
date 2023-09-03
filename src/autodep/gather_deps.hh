@@ -75,11 +75,11 @@ struct GatherDeps {
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// data
-		PD                        read_date   = {}    ;    // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
-		PD                        write_date  = {}    ;    // if !info.idle(), first write date
-		JobExecRpcReq::AccessInfo info        = {}    ;
-		DD                        file_date   = {}    ;    // if +info.dfs   , date of file when read as first access
-		NodeIdx                   parallel_id = 0     ;
+		PD                        read_date   = {} ;       // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
+		PD                        write_date  = {} ;       // if !info.idle(), first write date
+		JobExecRpcReq::AccessInfo info        = {} ;
+		DD                        file_date   = {} ;       // if +info.dfs   , date of file when read as first access
+		NodeIdx                   parallel_id = 0  ;
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;

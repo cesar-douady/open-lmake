@@ -55,7 +55,7 @@ bool/*crashed*/ start_server() {
 	Trace trace("start_server",_g_server_mrkr,host_,pid) ;
 	dir_guard(_g_server_mrkr) ;
 	if ( int mrkr_pid = _get_mrkr_pid() ) {
-		if (::kill(mrkr_pid,0)==0) {                                           // another server exists
+		if (kill_process(mrkr_pid,0)==0) {                                     // another server exists
 			trace("already_existing",mrkr_pid) ;
 			return false/*unused*/ ;
 		}

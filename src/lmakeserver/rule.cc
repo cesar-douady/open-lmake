@@ -129,25 +129,19 @@ namespace Engine {
 	// cb is called on each stem found
 	// return str with stems substituted with the return value of cb and special characters outside stems escaped if escape==true
 	using SubstTargetFunc = ::function<string( FileNameIdx pos , VarIdx stem )> ;
-	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , bool escape=false , VarIdx stop_above=-1 ) {
-		::string res   ;
-		uint8_t  state = 0 ;                                                   // may never be above 72
-		VarIdx   stem  = 0 ;
-		for( char c : str ) {                                                  // XXX : change loop and use to_int to determine stems
-			if (state>0) {
-				stem |= VarIdx(uint8_t(c))<<((state-1)*8) ;
-				if (state<sizeof(VarIdx)) { state++ ; continue ; }
+	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , bool escape=false , VarIdx stop_above=Rule::NoVar ) {
+		::string res ;
+		for( size_t i=0 ; i<str.size() ; i++ ) {
+			char c = str[i] ;
+			if (c==Rule::StemMrkr) {
+				VarIdx stem = to_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
 				if (stem>=stop_above) return res ;
 				res += cb(res.size(),stem) ;
-				state = 0 ;
-				stem  = 0 ;
 			} else {
-				if (c==Rule::StemMrkr) { state = 1 ; continue ; }
 				if ( escape && _g_specials.find(c)!=Npos ) res += '\\' ;
-				res += c ;
+				/**/                                       res += c    ;
 			}
 		}
-		SWEAR(state==0) ;
 		return res ;
 	}
 	// provide shortcut when pos is unused
@@ -218,7 +212,7 @@ namespace Engine {
 	}
 
 	void Attrs::s_acquire( Time::Delay& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,{})) return ;
+		if (s_easy(dst,py_src)) return ;
 		//
 		if (PyFloat_Check(py_src)) {
 			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
@@ -238,13 +232,35 @@ namespace Engine {
 	}
 
 	void Attrs::s_acquire( ::string& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,{})) return ;
+		if (s_easy(dst,py_src)) return ;
 		//
 		bool is_str = PyUnicode_Check(py_src) ;
 		if (!is_str) py_src = PyObject_Str(py_src) ;
 		if (!py_src) throw "cannot convert to str"s ;
 		dst = PyUnicode_AsUTF8(py_src) ;
 		if (!is_str) Py_DECREF(py_src) ;
+	}
+
+	::string Attrs::s_subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
+		::string res ;
+		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
+			[&]( ::string const& fixed )->void {
+				res.append(fixed) ;
+			}
+		,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
+				SWEAR( var_idxs.contains(k) && !star && !def ) ;
+				size_t sz = res.size() ;
+				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
+				char* p = res.data()+sz ;
+				auto it = var_idxs.find(k)    ;
+				p[0] = Rule::StemMrkr ;
+				need |= it->second.bucket ;
+				from_enum( p+1                , it->second.bucket ) ;
+				from_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
+				n_unnamed += unnamed ;
+			}
+		) ;
+		return res ;
 	}
 
 	//
@@ -275,90 +291,73 @@ namespace Engine {
 		return { PyUnicode_AsUTF8(p[0]) , flags } ;
 	}
 
-	void CreateMatchAttrs::update( PyObject* py_src , RuleData const& rd , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) {
-		if (py_src==Py_None) {
-			full_dynamic = true ;
-			return ;
-		}
-		full_dynamic = false ;
+	BitMap<VarCmd> CreateMatchAttrs::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+		full_dynamic = py_src==Py_None ;
+		if (full_dynamic) return {} ;
+		//
 		SWEAR(PyDict_Check(py_src)) ;
+		BitMap<VarCmd>   need   ;
 		PyObject*        py_key = nullptr/*garbage*/ ;
 		PyObject*        py_val = nullptr/*garbage*/ ;
 		Py_ssize_t       pos    = 0                  ;
-		::map_s<DepSpec> map    ;                                              // use a sorted map so deps are sorted, which makes them more stable
 		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
 			SWEAR(PyUnicode_Check(py_key)) ;
 			::string key = PyUnicode_AsUTF8(py_key) ;
 			if (py_val==Py_None) {
-				map[key] ;                                                     // create empty entry to allow dynamic deps to use key
-			} else {
-				auto     [dep,flags]  = s_split_dflags(key,py_val) ;
-				::string parsed_dep   ;
-				VarIdx   seen_unnamed = 0                      ;
-				_parse_py( dep , nullptr/*unnamed_star_idx*/ ,
-					[&]( ::string const& fixed )->void {
-						parsed_dep.append(fixed) ;
-					}
-				,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
-						SWEAR( static_stem_idxs.contains(k) && !star && !def ) ;
-						size_t res_sz = parsed_dep.size() ;
-						parsed_dep.resize(parsed_dep.size()+1+sizeof(VarIdx)) ;
-						char* p = parsed_dep.data()+res_sz ;
-						p[0] = Rule::StemMrkr ;
-						from_int( p+1 , static_stem_idxs.at(k) ) ;
-						seen_unnamed += unnamed ;
-					}
-				) ;
-				if ( seen_unnamed && seen_unnamed!=n_static_unnamed_stems ) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
-				map[key] = { rd.add_cwd(::move(parsed_dep)) , flags } ;
+				deps.emplace_back(key,DepSpec()) ;
+				continue ;
 			}
+			VarIdx n_unnamed = 0                          ;
+			auto [dep,flags] = s_split_dflags(key,py_val) ;
+			::string parsed_dep = s_subst_fstr(dep,var_idxs,n_unnamed,need) ;
+			if (n_unnamed) {
+				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
+				if (n_unnamed) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
+			}
+			deps.emplace_back( key , DepSpec( rd.add_cwd(::move(parsed_dep)) , flags ) ) ;
 		}
-		if (map.size()>Rule::NoVar) throw "too many static deps"s ;
-		deps = mk_vmap(map) ;
+		if (deps.size()>Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
+		return need ;
 	}
 
-	::vmap_s<pair<Node,DFlags>> CreateMatchAttrs::mk( Rule rule , ::vector_s const& stems , PyObject* py_src ) const {
-		auto subst = [&](::string const& d)->::string {
-			return _subst_target( d , [&](VarIdx s)->::string { return stems[s] ; } ) ;
-		} ;
-		::vmap_s<pair<Node,DFlags>> res ;
-		for( auto const& [k,ds] : deps ) res.emplace_back( k , ::pair(Node(subst(ds.pattern)),ds.flags) ) ;
-		if (!s_easy(res,py_src,{})) {
-			::map_s<pair<Node,DFlags>> map ;
-			for( size_t d=0 ; d<deps.size() ; d++ ) map[deps[d].first] = res[d].second ;
-			PyObject*  py_key = nullptr/*garbage*/ ;
-			PyObject*  py_val = nullptr/*garbage*/ ;
-			Py_ssize_t pos    = 0                  ;
-			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
-				if (!PyUnicode_Check(py_key)) {
-					PyObject* py_key_str = PyObject_Str(py_key) ;
-					if (!py_key_str) throw "a dep has a non printable key"s ;
-					::string key_str = PyUnicode_AsUTF8(py_key_str) ;
-					Py_DECREF(py_key_str) ;
-					throw to_string("a dep has a non str key : ",key_str) ;
+	::vmap_s<pair_s<DFlags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
+		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
+		//
+		DFlags                   access_dflags = match.rule->cmd_need_deps() ? AccessDFlags : DFlags() ;
+		::vmap_s<pair_s<DFlags>> res ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , ::pair( parse_fstr(ds.pattern,match) , ds.flags|access_dflags ) ) ;
+		//
+		if (is_dynamic) {
+			Py::Gil   gil    ;
+			PyObject* py_dct = _mk_dct(match) ;
+			if (!Attrs::s_easy(res,py_dct)) {
+				::map_s<VarIdx> dep_idxs ;
+				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
+				PyObject*  py_key = nullptr/*garbage*/ ;
+				PyObject*  py_val = nullptr/*garbage*/ ;
+				Py_ssize_t pos    = 0                  ;
+				while (PyDict_Next( py_dct , &pos , &py_key , &py_val )) {
+					if (py_val==Py_None) continue ;
+					if (!PyUnicode_Check(py_key)) {
+						PyObject* py_key_str = PyObject_Str(py_key) ;
+						Py_DECREF(py_dct) ;
+						if (!py_key_str) throw "a dep has a non printable key"s ;
+						::string key_str = PyUnicode_AsUTF8(py_key_str) ;
+						Py_DECREF(py_key_str) ;
+						throw to_string("a dep has a non str key : ",key_str) ;
+					}
+					::string key = PyUnicode_AsUTF8(py_key)                     ;
+					auto     it  = dep_idxs.find(key)                           ;
+					auto     dfs = CreateMatchAttrs::s_split_dflags(key,py_val) ;
+					dfs.first   = match.rule->add_cwd(::move(dfs.first)) ;
+					dfs.second |= access_dflags                          ;
+					if (it==dep_idxs.end()) { SWEAR(spec.full_dynamic                   ) ; res.emplace_back(key,dfs) ;    } // if not full_dynamic, all deps must be listed in spec
+					else                    { SWEAR(res[it->second].second.first.empty()) ; res[it->second].second = dfs ; } // dep cannot be both static and dynamic
 				}
-				::string key = PyUnicode_AsUTF8(py_key) ;
-				if (py_val==Py_None) { map.erase(key) ; continue ; }
-				//
-				auto [dep,flags] = s_split_dflags(key,py_val) ;
-				if (!full_dynamic) SWEAR(map.contains(key)) ;
-				map[key] = { rule->add_cwd(::move(dep)) , flags } ;
 			}
-			if (full_dynamic) res = mk_vmap(map) ;
-			else              for( size_t d=0 ; d<deps.size() ; d++ ) res[d] = { deps[d].first , map[deps[d].first] } ;
+			Py_DECREF(py_dct) ;
 		}
-		return res ;
-	}
-
-	::vmap_s<pair<Node,DFlags>> DynamicCreateMatchAttrs::eval( Rule r , ::vector_s const& stems ) const {
-		if (!is_dynamic) return spec.mk(r,stems) ;
-		SWEAR( !need_deps && !need_rsrcs ) ;
-		Py::Gil   gil ;
-		PyObject* d   ;
-		if (need_targets) d = _mk_dict( r , stems , Rule::SimpleMatch(r,stems).targets() ) ;
-		else              d = _mk_dict( r , stems                                        ) ;
-		::vmap_s<pair<Node,DFlags>> res = spec.mk(r,stems,d) ;
-		Py_DECREF(d) ;
+		//
 		return res  ;
 	}
 
@@ -366,32 +365,56 @@ namespace Engine {
 	// Cmd
 	//
 
-	::string DynamicCmd::eval( Job j , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs ) const {
-		if (!spec.is_python) return Base::eval(j,match_,rsrcs).cmd ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ ;
-		if ( need_stems || need_targets ) {
-			if (!match_) match_ = Rule::SimpleMatch{j} ;
-			if (need_targets) ctx_ = j->rule.eval_ctx( ctx , match_.stems , match_.targets() , j->deps , rsrcs ) ;
-			else              ctx_ = j->rule.eval_ctx( ctx , match_.stems , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute targets
+	BitMap<VarCmd> Cmd::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
+		BitMap<VarCmd> need    ;
+		::string       raw_cmd ;
+		s_acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
+		s_acquire_from_dct(is_python,py_src,"is_python") ;
+		if (is_python) {
+			cmd = ::move(raw_cmd) ;
 		} else {
-			/**/              ctx_ = j->rule.eval_ctx( ctx , {}/*stems*/  , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute match_
+			VarIdx n_unnamed = 0 ;
+			cmd = s_subst_fstr(raw_cmd,var_idxs,n_unnamed,need) ;
+			SWEAR(!n_unnamed) ;
 		}
-		::string res ;
-		for( auto const& [k ,v ] : ctx_.first  ) res += to_string(k," = ",mk_py_str(v),'\n') ;
-		for( auto const& [k1,v1] : ctx_.second ) {
-			res += to_string(k1," = {\n") ;
-			bool first = true ;
-			for( auto const& [k2,v2] : v1 ) {
-				if (!first) res += ',' ;
-				res += to_string('\t', mk_py_str(k2) ," : ", mk_py_str(v2) ,'\n') ;
-				first = false ;
-			}
-			res += "}\n" ;
+		return need ;
+	}
+
+	void Cmd::update( PyObject* py_src ) {
+		s_acquire_from_dct(cmd  ,py_src,"cmd") ;
+	}
+
+	::string DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+		if (spec.is_python) {
+			::string res ;
+			eval_ctx( job , match , rsrcs
+			,	[&]( ::string const& key , ::string const& val ) -> void {
+					res += to_string(key," = ",mk_py_str(val),'\n') ;
+				}
+			,	[&]( ::string const& key , ::vmap_ss const& val ) -> void {
+					res += to_string(key," = {\n") ;
+					bool first = true ;
+					for( auto const& [k,v] : val ) {
+						if (!first) res += ',' ;
+						res += to_string('\t',mk_py_str(k)," : ",mk_py_str(v),'\n') ;
+						first = false ;
+					}
+					res += "}\n" ;
+				}
+			) ;
+			/**/                       res += spec.cmd                                                              ;
+			if (spec.cmd.back()!='\n') res += '\n'                                                                  ;
+			/**/                       res += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
+			return res ;
+		} else {
+			if (!is_dynamic) return parse_fstr(spec.cmd,job,match,rsrcs) ;
+			::string  cmd ;
+			Py::Gil   gil ;
+			PyObject* d   = _mk_dct(job,match,rsrcs) ;
+			Cmd::s_acquire_from_dct(cmd,d,"cmd") ;
+			Py_DECREF(d)  ;
+			return cmd ;
 		}
-		/**/                       res += spec.cmd ;
-		if (spec.cmd.back()!='\n') res += '\n'                                                                  ;
-		/**/                       res += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
-		return res ;
 	}
 
 	//
@@ -611,18 +634,18 @@ namespace Engine {
 			SWEAR(found_matching) ;                                            // we should not have come until here without a clean target
 			field = "" ;
 			if (targets.size()>NoVar) throw to_string("too many targets : ",targets.size()," > ",NoVar) ;
-			::umap_s<VarIdx>              stem_idxs ;
-			::umap_s<pair<CmdVar,VarIdx>> var_idxs  ;
+			::umap_s<VarIdx> stem_idxs ;
+			::umap_s<CmdIdx> var_idxs  ;
 			for( Bool3 star : {No,Yes} ) { // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_map )
 					if (v.second==star) {
-						/**/          stem_idxs[k] =               VarIdx(stems.size())  ;
+						stem_idxs[k] = VarIdx(stems.size()) ;
 						stems.emplace_back(k,v.first) ;
 					}
 				if (star==No) {
 					n_static_stems = stems.size() ;
-					/**/                                     var_idxs["stems"       ] = {CmdVar::Stems,0} ;
-					for( VarIdx s=0 ; s<stems.size() ; s++ ) var_idxs[stems[s].first] = {CmdVar::Stem ,s} ;
+					/**/                                     var_idxs["stems"       ] = {VarCmd::Stems,0} ;
+					for( VarIdx s=0 ; s<stems.size() ; s++ ) var_idxs[stems[s].first] = {VarCmd::Stem ,s} ;
 				}
 			}
 			if (stems.size()>NoVar) throw to_string("too many stems : ",stems.size()," > ",NoVar) ;
@@ -669,23 +692,19 @@ namespace Engine {
 				if (n_tokens==0) throw "value must be positive"s ;
 			}
 
-			/**/                                       var_idxs["targets"       ] = {CmdVar::Targets,0} ;
-			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {CmdVar::Target ,t} ;
-			// new
-			{	::umap_s<VarIdx> static_stem_idxs ;
-				for( auto const& [k,i] : var_idxs ) if (i.first==CmdVar::Stem) static_stem_idxs[k] = i.second ;
-				if (dct.hasKey("create_match_attrs")) create_match_attrs = { Py::Object(dct["create_match_attrs"]).ptr() , var_idxs , *this , static_stem_idxs , n_static_unnamed_stems } ;
-			}
+			/**/                                       var_idxs["targets"       ] = {VarCmd::Targets,0} ;
+			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {VarCmd::Target ,t} ;
+			if (dct.hasKey("create_match_attrs")) create_match_attrs = { Py::Object(dct["create_match_attrs"]).ptr() , var_idxs , *this } ;
 			//
-			/**/                                                            var_idxs["deps"                               ] = { CmdVar::Deps , 0 } ;
-			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { CmdVar::Dep  , d } ;
+			/**/                                                            var_idxs["deps"                               ] = { VarCmd::Deps , 0 } ;
+			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
 			field = "create_none_attrs"  ; if (dct.hasKey(field)) create_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "cache_none_attrs"   ; if (dct.hasKey(field)) cache_none_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.hasKey(field)) submit_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			//
-			/**/                                                             var_idxs["resources"                           ] = { CmdVar::Rsrcs , 0 } ;
-			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { CmdVar::Rsrc  , r } ;
+			/**/                                                             var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
+			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
 			field = "start_cmd_attrs"   ; if (dct.hasKey(field)) start_cmd_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "cmd"               ; if (dct.hasKey(field)) cmd               = { Py::Object(dct[field]).ptr() , var_idxs } ; else throw "not found"s ;
@@ -773,10 +792,30 @@ namespace Engine {
 		//
 		return res.str() ;
 	}
-	static ::string _pretty_pattern( ::string const& target , ::vmap_ss const& stems , VarIdx n_static_stems ) {
-		return _subst_target( target , [&](VarIdx t)->::string {
-			return to_string( '{' , stems[t].first , t<n_static_stems?"":"*" , '}' ) ;
-		} ) ;
+	static ::string _pretty_fstr( ::string const& fstr , RuleData const& rd ) {
+			::string res ;
+			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
+				char c = fstr[ci] ;
+				switch (c) {
+					case Rule::StemMrkr : {
+						VarCmd k = to_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
+						VarIdx i = to_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
+						res += '{' ;
+						switch (k) {
+							case VarCmd::Stem   : res += rd.stems                        [i].first ; break ;
+							case VarCmd::Target : res += rd.targets                      [i].first ; break ;
+							case VarCmd::Dep    : res += rd.create_match_attrs.spec.deps [i].first ; break ;
+							case VarCmd::Rsrc   : res += rd.submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
+							default : FAIL(k) ;
+						}
+						res += '}' ;
+					} break ;
+					case '{' : res += "{{" ; break ;
+					case '}' : res += "}}" ; break ;
+					default  : res += c    ; break ;
+				}
+			}
+			return res ;
 	}
 	static ::string _pretty_targets( RuleData const& rd , size_t i , ::vmap_s<TargetSpec> const& targets ) {
 		OStringStream res      ;
@@ -785,7 +824,9 @@ namespace Engine {
 		::umap_ss     patterns ;
 		//
 		for( auto const& [k,tf] : targets ) {
-			::string p = _pretty_pattern( tf.pattern , rd.stems , rd.n_static_stems ) ;
+			::string p = _subst_target( tf.pattern ,
+				[&](VarIdx t)->::string { return to_string( '{' , rd.stems[t].first , t<rd.n_static_stems?"":"*" , '}' ) ; }
+			) ;
 			wk          = ::max(wk,k.size()) ;
 			wt          = ::max(wt,p.size()) ;
 			patterns[k] = ::move(p)          ;
@@ -850,7 +891,7 @@ namespace Engine {
 		return rd.job_name ;
 	}
 
-	static ::string _pretty( size_t i , CreateMatchAttrs const& ms , ::vmap_ss const& stems ) {
+	static ::string _pretty( size_t i , CreateMatchAttrs const& ms , RuleData const& rd ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
@@ -858,7 +899,7 @@ namespace Engine {
 		//
 		for( auto const& [k,ds] : ms.deps ) {
 			if (ds.pattern.empty()) continue ;
-			::string p = _subst_target( ds.pattern , [&](VarIdx s)->::string { return to_string('{',stems[s].first,'}') ; } ) ;
+			::string p = _pretty_fstr(ds.pattern,rd) ;
 			wk          = ::max(wk,k.size()) ;
 			wd          = ::max(wd,p.size()) ;
 			patterns[k] = ::move(p)          ;
@@ -925,8 +966,8 @@ namespace Engine {
 		}
 		return res.str() ;
 	}
-	static ::string _pretty( size_t i , Cmd const& c ) {
-		::string cmd = c.cmd ;
+	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
+		::string cmd = _pretty_fstr(c.cmd,rd) ;
 		if ( !cmd.empty() && cmd.back()!='\n' ) cmd += '\n' ;
 		return indent(cmd,i) ;
 	}
@@ -964,9 +1005,9 @@ namespace Engine {
 		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
 		if ( !s.empty() || d.is_dynamic ) res << indent(to_string(T::Msg," :\n"),i) << s ;
 		if (d.is_dynamic) {
-			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
-			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n') res << '\n' ;     }
-			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n') res << '\n' ;     }
+			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1)                           ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
+			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n')                                res << '\n' ; }
+			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n')                                res << '\n' ; }
 		}
 		return res.str() ;
 	}
@@ -989,13 +1030,13 @@ namespace Engine {
 		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;
 		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
 		if (!anti) {
-			res << _pretty_str(1,create_match_attrs,stems) ;
+			res << _pretty_str(1,create_match_attrs,*this) ;
 			res << _pretty_str(1,create_none_attrs       ) ;
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
 			res << _pretty_str(1,start_none_attrs        ) ;
 			res << _pretty_str(1,start_cmd_attrs         ) ;
-			res << _pretty_str(1,cmd                     ) ;
+			res << _pretty_str(1,cmd               ,*this) ;
 			res << _pretty_str(1,start_rsrcs_attrs       ) ;
 			res << _pretty_str(1,end_cmd_attrs           ) ;
 			res << _pretty_str(1,end_none_attrs          ) ;
@@ -1004,81 +1045,18 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	::vector_s RuleData::list_ctx(::vmap<CmdVar,VarIdx> const& ctx) const {
+	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {
 		::vector_s res ;
-		for( auto const& [k,i] : ctx )
-			switch (k) {
-				case CmdVar::Stem    : res.push_back(stems                        [i].first) ; break ;
-				case CmdVar::Target  : res.push_back(targets                      [i].first) ; break ;
-				case CmdVar::Dep     : res.push_back(create_match_attrs.spec.deps [i].first) ; break ;
-				case CmdVar::Rsrc    : res.push_back(submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
-				case CmdVar::Stems   : res.push_back("stems"                               ) ; break ;
-				case CmdVar::Targets : res.push_back("targets"                             ) ; break ;
-				case CmdVar::Deps    : res.push_back("deps"                                ) ; break ;
-				case CmdVar::Rsrcs   : res.push_back("resources"                           ) ; break ;
-				default : FAIL(k) ;
-			}
-		return res ;
-	}
-
-	::pair<vmap_ss,vmap_s<vmap_ss>> Rule::eval_ctx(
-		::vmap<CmdVar,VarIdx> const& ctx
-	,	::vector_s            const& stems_
-	,	::vector_s            const& targets_
-	,	::vector_view_c<Dep>  const& deps
-	,	::vmap_ss             const& rsrcs
-	) const {
-		auto const&                     stems_spec   = (*this)->stems                         ;
-		auto const&                     targets_spec = (*this)->targets                       ;
-		auto const&                     deps_spec    = (*this)->create_match_attrs.spec.deps  ;
-		auto const&                     rsrcs_spec   = (*this)->submit_rsrcs_attrs.spec.rsrcs ;
-		::umap_ss                       rsrcs_map    = mk_umap(rsrcs)                         ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> res          ;
-		//
-		for( auto const& [k,i] : ctx ) {
-			::string  var ;
-			::string  str ;
-			::vmap_ss dct ;
-			switch (k) {
-				case CmdVar::Stem   : var = stems_spec  [i].first ; str =            stems_  [i]              ; goto Str ;
-				case CmdVar::Target : var = targets_spec[i].first ; str =            targets_[i]              ; goto Str ;
-				case CmdVar::Dep    : var = deps_spec   [i].first ; str = +deps[i] ? deps    [i].name() : ""s ; goto Str ;
-				case CmdVar::Rsrc   : {
-					var = rsrcs_spec[i].first ;
-					auto it = rsrcs_map.find(var) ;
-					if (it==rsrcs_map.end()) continue ;                        // if resource is not found, do not set corresponding variable
-					str = it->second ;
-					goto Str ;
-				}
-				//
-				case CmdVar::Stems :
-					var = "stems" ;
-					for( VarIdx j=0 ; j<(*this)->n_static_stems ; j++ ) dct.emplace_back( stems_spec[j].first , stems_[j] ) ;
-					goto Dct ;
-				case CmdVar::Targets :
-				var = "targets" ;
-				for( VarIdx j=0 ; j<targets_spec.size() ; j++ ) if (!targets_[j].empty()) dct.emplace_back( targets_spec[j].first , targets_[j] ) ;
-				goto Dct ;
-				case CmdVar::Deps :
-					var = "deps" ;
-					if ((*this)->create_match_attrs.spec.full_dynamic) {
-						for( auto const& [k,df] : (*this)->create_match_attrs.eval(*this,stems_) ) dct.emplace_back( k , df.first.name() ) ;
-					} else {
-						for( VarIdx j=0 ; j<deps_spec.size() ; j++ ) if (+deps[j]) dct.emplace_back( deps_spec[j].first , deps[j].name() ) ;
-					}
-					goto Dct ;
-				case CmdVar::Rsrcs :
-					var = "resources" ;
-					dct = rsrcs       ;
-					goto Dct ;
-				default : FAIL(k) ;
-			}
-		Str :
-			res.first.emplace_back( ::move(var) , ::move(str) ) ;
-			continue ;
-		Dct :
-			res.second.emplace_back( ::move(var) , ::move(dct) ) ;
-			continue ;
+		for( auto [k,i] : ctx ) switch (k) {
+			case VarCmd::Stem    : res.push_back(stems                        [i].first) ; break ;
+			case VarCmd::Target  : res.push_back(targets                      [i].first) ; break ;
+			case VarCmd::Dep     : res.push_back(create_match_attrs.spec.deps [i].first) ; break ;
+			case VarCmd::Rsrc    : res.push_back(submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
+			case VarCmd::Stems   : res.push_back("stems"                               ) ; break ;
+			case VarCmd::Targets : res.push_back("targets"                             ) ; break ;
+			case VarCmd::Deps    : res.push_back("deps"                                ) ; break ;
+			case VarCmd::Rsrcs   : res.push_back("resources"                           ) ; break ;
+			default : FAIL(k) ;
 		}
 		return res ;
 	}
@@ -1206,11 +1184,11 @@ namespace Engine {
 	}
 
 	//
-	// Rule::Match
+	// Rule::FUllMatch
 	//
 
-	Rule::Match::Match( RuleTgt rt , ::string const& target ) {
-		Trace trace("Match",rt,target) ;
+	Rule::FullMatch::FullMatch( RuleTgt rt , ::string const& target ) {
+		Trace trace("FullMatch",rt,target) ;
 		Py::Gil   gil ;
 		Py::Match m   = rt.pattern().match(target) ;
 		if (!m) { trace("no_match") ; return ; }
@@ -1229,19 +1207,19 @@ namespace Engine {
 		trace("stems",stems) ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Rule::Match const& m ) {
+	::ostream& operator<<( ::ostream& os , Rule::FullMatch const& m ) {
 		os << "RM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
 	}
 
-	Py::Pattern const& Rule::Match::_target_pattern(VarIdx t) const {
+	Py::Pattern const& Rule::FullMatch::_target_pattern(VarIdx t) const {
 		if (_target_patterns.empty()) _target_patterns.resize(rule->targets.size()) ;
 		SWEAR(_targets.size()>t) ;                                                    // _targets must have been computed up to t at least
 		if (!*_target_patterns[t]) _target_patterns[t] = _targets[t] ;
 		return _target_patterns[t] ;
 	}
 
-	bool Rule::Match::_match( VarIdx t , ::string const& target ) const {
+	bool Rule::FullMatch::_match( VarIdx t , ::string const& target ) const {
 		Py::Gil gil ;
 		SWEAR(_targets.size()>t) ;                                                  // _targets must have been computed up to t at least
 		if (rule->flags(t)[TFlag::Star]) return +_target_pattern(t).match(target) ;

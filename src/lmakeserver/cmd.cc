@@ -328,8 +328,8 @@ namespace Engine {
 									SubmitRsrcsAttrs rsrcs_attrs ;
 									bool             no_rsrcs    = false ;
 									try {
-										Rule::SimpleMatch match_ ;
-										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt,match_) ;
+										Rule::SimpleMatch match ;
+										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt,match) ;
 									} catch(::string const& e) {
 										audit( fd , ro , Color::Err , lvl+1 , "resources : cannot compute" ) ;
 										audit( fd , ro , Color::Err , lvl+2 , e                            ) ;
@@ -367,18 +367,19 @@ namespace Engine {
 					if (rule.is_special()) {
 						_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target , lvl ) ;
 					} else {
-						Rule::Match match_     = jt.match()     ;
-						::string    unexpected = "<unexpected>" ;
-						size_t      wk         = 0              ;
+						Rule::FullMatch match      = jt.full_match() ;
+						::string        unexpected = "<unexpected>"  ;
+						size_t          wk         = 0               ;
 						for( auto const& [tn,td] : report_end.digest.targets ) {
-							VarIdx ti = match_.idx(tn) ;
+							VarIdx ti = match.idx(tn) ;
 							wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;
 						}
 						for( auto const& [tn,td] : report_end.digest.targets ) {
-							VarIdx ti   = match_.idx(tn)                                       ;
-							TFlags stfs = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti) ;
-							bool   m    = stfs[TFlag::Match]                                   ;
-							::string flags_str ;
+							VarIdx   ti         = match.idx(tn)                                          ;
+							TFlags   stfs       = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti)   ;
+							bool     m          = stfs[TFlag::Match]                                     ;
+							::string flags_str  ;
+							::string target_key = ti==Rule::NoVar ? unexpected : rule->targets[ti].first ;
 							flags_str += m                      ? '-'                : '#'                ;
 							flags_str += td.crc==Crc::None      ? '!'                : '-'                ;
 							flags_str += +(td.dfs&AccessDFlags) ? (td.write?'U':'R') : (td.write?'W':'-') ;
@@ -388,7 +389,7 @@ namespace Engine {
 								if (f>=TFlag::RuleOnly) break ;
 								flags_str += td.tfs[f]?TFlagChars[+f]:'-' ;
 							}
-							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , rule->targets[ti].first ) , tn , lvl ) ;
+							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 						}
 					}
 				break ;

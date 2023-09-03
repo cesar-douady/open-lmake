@@ -114,7 +114,10 @@ namespace Engine {
 		for( RuleTgt const& rt : rule_tgts ) {
 			if (rt->prio<prio) goto Done ;
 			n++ ;
-			if ( rt->anti && +Rule::Match(rt,name_) ) { SWEAR(jts.empty()) ; clear = true ; goto Return ; }
+			if (rt->anti) {
+				if (+Rule::FullMatch(rt,name_)) { SWEAR(jts.empty()) ; clear = true ; goto Return ; }
+				else                            {                                     continue    ; }
+			}
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -12,12 +12,31 @@
 #include "store/struct.hh"
 
 #ifdef STRUCT_DECL
+
 namespace Engine {
 
 	struct Rule     ;
 	struct RuleData ;
 
 	struct RuleTgt ;
+
+	ENUM( VarCmd
+	,	Stems   , Stem
+	,	Targets , Target
+	,	Deps    , Dep
+	,	Rsrcs   , Rsrc
+	)
+	constexpr BitMap<VarCmd> NeedStems   { VarCmd::Stems   , VarCmd::Stem   } ;
+	constexpr BitMap<VarCmd> NeedTargets { VarCmd::Targets , VarCmd::Target } ;
+	constexpr BitMap<VarCmd> NeedDeps    { VarCmd::Deps    , VarCmd::Dep    } ;
+	constexpr BitMap<VarCmd> NeedRsrcs   { VarCmd::Rsrcs   , VarCmd::Rsrc   } ;
+
+	ENUM_1( EnvFlag
+	,	Dflt = Rsrc
+	,	None                           // ignore variable
+	,	Rsrc                           // consider variable as a resource : upon modification, rebuild job if it was in error
+	,	Cmd                            // consider variable as a cmd      : upon modification, rebuild job
+	)
 
 	ENUM( Special
 	,	Plain      //  must be 0, a marker to say that rule is not special
@@ -27,27 +46,28 @@ namespace Engine {
 	,	Infinite
 	)
 
-	ENUM_1( EnvFlag
-	,	Dflt = Rsrc
-	,	None                           // ignore variable
-	,	Rsrc                           // consider variable as a resource : upon modification, rebuild job if it was in error
-	,	Cmd                            // consider variable as a cmd      : upon modification, rebuild job
-	)
-
 }
 #endif
 #ifdef STRUCT_DEF
 namespace Engine {
 
+	struct CmdIdx {
+		// services
+		::strong_ordering operator<=>(CmdIdx const&) const = default ;
+		// data
+		VarCmd bucket ;
+		VarIdx idx    ;
+	} ;
+
 	struct Rule : RuleBase {
 		friend ::ostream& operator<<( ::ostream& os , Rule const r ) ;
 		static constexpr char JobMrkr  = 0 ;                                   // ensure no ambiguity between job names and node names
 		static constexpr char StarMrkr = 0 ;                                   // signal a star stem in job_name
-		static constexpr char StemMrkr = 0 ;                                   // signal a stem in job_name & targets & deps
+		static constexpr char StemMrkr = 0 ;                                   // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar = -1 ;
 		//
 		struct SimpleMatch ;
-		struct Match       ;
+		struct FullMatch   ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                  } {                                      }
@@ -56,13 +76,6 @@ namespace Engine {
 		::string job_sfx() const ;
 		// services
 		void new_job_exec_time( Delay , Tokens1 ) ;
-		::pair<vmap_ss,vmap_s<vmap_ss>> eval_ctx(
-			::vmap<CmdVar,VarIdx> const& ctx
-		,	::vector_s            const& stems
-		,	::vector_s            const& targets
-		,	::vector_view_c<Dep>  const& deps
-		,	::vmap_ss             const& rsrcs   = {}
-		) const ;
 	} ;
 
 }
@@ -71,7 +84,8 @@ namespace Engine {
 namespace Engine {
 
 	struct Attrs {
-		template<class T> static bool s_easy( T& dst , PyObject* py_src , T const& dflt ) {
+		// statics
+		template<class T> static bool s_easy( T& dst , PyObject* py_src , T const& dflt={} ) {
 			if (!py_src        ) {              return true ; }
 			if (py_src==Py_None) { dst = dflt ; return true ; }
 			return false ;
@@ -87,6 +101,8 @@ namespace Engine {
 		template<class      T> static void s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
 		template<::integral I> static void s_acquire( I          & dst , PyObject* py_src ) ;
 		template<StdEnum    E> static void s_acquire( E          & dst , PyObject* py_src ) ;
+		//
+		static ::string s_subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) ;
 	} ;
 
 	// used at match time
@@ -101,14 +117,13 @@ namespace Engine {
 			DFlags   flags   ;
 		} ;
 		// statics
-		static ::pair<string,DFlags> s_split_dflags( ::string const& key , PyObject* py_dep ) ;
+		static ::pair_s<DFlags> s_split_dflags( ::string const& key , PyObject* py_dep ) ;
 		// services
-		void update( PyObject* , RuleData const& , ::umap_s<VarIdx> const& static_stem_idxs , VarIdx n_static_unnamed_stems ) ;
+		BitMap<VarCmd> init( PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,full_dynamic) ;
-			::serdes(s,deps) ;
+			::serdes(s,deps        ) ;
 		}
-		::vmap_s<pair<Node,DFlags>> mk( Rule , ::vector_s const& stems , PyObject* py_src=nullptr ) const ;
 		// data
 		bool              full_dynamic = false ;           // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
 		::vmap_s<DepSpec> deps         ;
@@ -117,9 +132,10 @@ namespace Engine {
 	// used at match time, but participate in nothing
 	struct CreateNoneAttrs : Attrs {
 		static constexpr const char* Msg = "tokens" ;
-		void update(PyObject* py_src) {
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
 			size_t tokens ;
-			s_acquire_from_dct(tokens,py_src,"job_tokens") ;
+			s_acquire_from_dct(tokens,py_dct,"job_tokens") ;
 			if (tokens==0)                                    tokens1 = 0                                ;
 			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
 			else                                              tokens1 = tokens-1                         ;
@@ -136,9 +152,10 @@ namespace Engine {
 			::serdes(s,backend) ;
 			::serdes(s,rsrcs  ) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(backend,py_src,"backend") ;
-			s_acquire_from_dct(rsrcs  ,py_src,"rsrcs"  ) ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(backend,py_dct,"backend") ;
+			s_acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ;
 			::sort(rsrcs) ;                                                    // stabilize rsrcs crc
 		}
 		// data
@@ -153,8 +170,9 @@ namespace Engine {
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,key) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(key,py_src,"key") ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(key,py_dct,"key") ;
 			if ( !key.empty() && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
 		// data
@@ -174,14 +192,15 @@ namespace Engine {
 			::serdes(s,local_mrkr ) ;
 			::serdes(s,method     ) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(auto_mkdir ,py_src,"auto_mkdir" ) ;
-			s_acquire_from_dct(chroot     ,py_src,"chroot"     ) ;
-			s_acquire_from_dct(env        ,py_src,"env"        ) ;
-			s_acquire_from_dct(ignore_stat,py_src,"ignore_stat") ;
-			s_acquire_from_dct(interpreter,py_src,"interpreter") ;
-			s_acquire_from_dct(local_mrkr ,py_src,"local_mrkr" ) ;
-			s_acquire_from_dct(method     ,py_src,"autodep"    ) ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir" ) ;
+			s_acquire_from_dct(chroot     ,py_dct,"chroot"     ) ;
+			s_acquire_from_dct(env        ,py_dct,"env"        ) ;
+			s_acquire_from_dct(ignore_stat,py_dct,"ignore_stat") ;
+			s_acquire_from_dct(interpreter,py_dct,"interpreter") ;
+			s_acquire_from_dct(local_mrkr ,py_dct,"local_mrkr" ) ;
+			s_acquire_from_dct(method     ,py_dct,"autodep"    ) ;
 			//
 			switch (method) {
 				case AutodepMethod::None      :                                                                                 break ;
@@ -209,10 +228,8 @@ namespace Engine {
 			::serdes(s,cmd      ) ;
 			::serdes(s,is_python) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(cmd        ,py_src,"cmd"       ) ;
-			s_acquire_from_dct(is_python  ,py_src,"is_python" ) ;
-		}
+		BitMap<VarCmd> init  ( PyObject* , ::umap_s<CmdIdx> const& ) ;
+		void           update( PyObject*                           ) ;
 		// data
 		bool     is_python = false/*garbage*/ ;
 		::string cmd       ;
@@ -225,9 +242,10 @@ namespace Engine {
 			::serdes(s,timeout) ;
 			::serdes(s,env    ) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(timeout,py_src,"timeout") ;
-			s_acquire_from_dct(env    ,py_src,"env"    ) ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(timeout,py_dct,"timeout") ;
+			s_acquire_from_dct(env    ,py_dct,"env"    ) ;
 			if (timeout<Delay()) throw "timeout must be positive or null (no timeout if null)"s ;
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
@@ -246,11 +264,12 @@ namespace Engine {
 			::serdes(s,kill_sigs  ) ;
 			::serdes(s,env        ) ;
 		}
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(keep_tmp   ,py_src,"keep_tmp"   ) ;
-			s_acquire_from_dct(start_delay,py_src,"start_delay") ;
-			s_acquire_from_dct(kill_sigs  ,py_src,"kill_sigs"  ) ;
-			s_acquire_from_dct(env        ,py_src,"env"        ) ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(keep_tmp   ,py_dct,"keep_tmp"   ) ;
+			s_acquire_from_dct(start_delay,py_dct,"start_delay") ;
+			s_acquire_from_dct(kill_sigs  ,py_dct,"kill_sigs"  ) ;
+			s_acquire_from_dct(env        ,py_dct,"env"        ) ;
 			::sort(env) ;                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
@@ -264,8 +283,9 @@ namespace Engine {
 	struct EndCmdAttrs : Attrs {
 		static constexpr const char* Msg = "allow stderr" ;
 		// services
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(allow_stderr,py_src,"allow_stderr") ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(allow_stderr,py_dct,"allow_stderr") ;
 		}
 		// data
 		bool allow_stderr = false ;    // if true <=> non empty stderr does not imply job error
@@ -275,8 +295,9 @@ namespace Engine {
 	struct EndNoneAttrs : Attrs {
 		static constexpr const char* Msg = "max stderr length" ;
 		// services
-		void update(PyObject* py_src) {
-			s_acquire_from_dct(stderr_len,py_src,"stderr_len") ;
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(stderr_len,py_dct,"stderr_len") ;
 		}
 		// data
 		size_t stderr_len = -1 ;       // max lines when displaying stderr (full content is shown with lshow -e)
@@ -289,39 +310,32 @@ namespace Engine {
 		static ::string s_exc_msg   (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
-		template<class... A> DynamicDsk( PyObject* , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... ) ;
+		template<class... A> DynamicDsk( PyObject* , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,is_dynamic  ) ;
-			::serdes(s,need_stems  ) ;
-			::serdes(s,need_targets) ;
-			::serdes(s,need_deps   ) ;
-			::serdes(s,need_rsrcs  ) ;
-			::serdes(s,spec        ) ;
-			::serdes(s,glbs_str    ) ;
-			::serdes(s,code_str    ) ;
-			::serdes(s,ctx         ) ;
+			::serdes(s,is_dynamic) ;
+			::serdes(s,spec      ) ;
+			::serdes(s,need      ) ;
+			::serdes(s,glbs_str  ) ;
+			::serdes(s,code_str  ) ;
+			::serdes(s,ctx       ) ;
 		}
 		// data
-		bool                          is_dynamic   = false ;
-		bool                          need_stems   = false ;
-		bool                          need_targets = false ;
-		bool                          need_deps    = false ;
-		bool                          need_rsrcs   = false ;
-		T                             spec         ;                           // contains default values when code does not provide the necessary entries
-		::string                      glbs_str     ;                           // if is_dynamic <=> contains string to run to get the glbs below
-		::string                      code_str     ;                           // if is_dynamic <=> contains string to compile to code object below
-		::vector<pair<CmdVar,VarIdx>> ctx          ;                           // a list of stems, targets & deps, accessed by code
+		bool             is_dynamic   = false ;
+		T                spec         ;                    // contains default values when code does not provide the necessary entries
+		BitMap<VarCmd>   need         ;
+		::string         glbs_str     ;                    // if is_dynamic <=> contains string to run to get the glbs below
+		::string         code_str     ;                    // if is_dynamic <=> contains string to compile to code object below
+		::vector<CmdIdx> ctx          ;                    // a list of stems, targets & deps, accessed by code
 	} ;
 	template<class T> struct Dynamic : DynamicDsk<T> {
 		using Base = DynamicDsk<T> ;
-		using Base::is_dynamic   ;
-		using Base::need_stems   ;
-		using Base::need_targets ;
-		using Base::spec         ;
-		using Base::glbs_str     ;
-		using Base::code_str     ;
-		using Base::ctx          ;
+		using Base::is_dynamic ;
+		using Base::need       ;
+		using Base::spec       ;
+		using Base::glbs_str   ;
+		using Base::code_str   ;
+		using Base::ctx        ;
 		// statics
 		static bool s_is_dynamic(PyObject*) ;
 		// cxtors & casts
@@ -341,10 +355,25 @@ namespace Engine {
 			return *this ;
 		}
 		// services
-		void compile(                                                      ) ;
-		T    eval   ( Job , Rule::SimpleMatch& , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
+		void compile   (                              ) ;
+		Rule solve_lazy( Job j , Rule::SimpleMatch& m ) const ;
+		//
+		T eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                                                                   // SimpleMatch is lazy evaluated from Job
+		T eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; } // cannot lazy evaluate w/o a job
+		//
+		using EvalCtxFuncStr = ::function<void( string const& key , string val  )> ;
+		using EvalCtxFuncDct = ::function<void( string const& key , vmap_ss val )> ;
+		void eval_ctx( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ; // SimpleMatch is lazy evaluated from Job
+		void eval_ctx(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
+			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                        // cannot lazy evaluate w/o a job
+		}
+		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
+		::string parse_fstr( ::string const& fstr ,       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
+			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                   // cannot lazy evaluate w/o a job
+		}
 	protected :
-		PyObject* _mk_dict( Rule , ::vector_s const& stems , ::vector_s const& targets={} , ::vector_view_c<Dep> const& deps={} , ::vmap_ss const& rsrcs={} ) const ;
+		PyObject* _mk_dct( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
+		PyObject* _mk_dct(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { return _mk_dct( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; } // cannot lazy evaluate w/o a job
 		// data
 	private :
 		mutable ::mutex _glbs_mutex ;  // ensure glbs is not used for several jobs simultaneously
@@ -363,7 +392,7 @@ namespace Engine {
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap_s<pair<Node,DFlags>> eval( Rule , ::vector_s const& stems ) const ;
+		::vmap_s<pair_s<DFlags>> eval( Rule::SimpleMatch const& ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -375,7 +404,10 @@ namespace Engine {
 		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::string eval( Job , Rule::SimpleMatch& , ::vmap_ss const& rsrcs ) const ; // SimpleMatch is lazy evaluated from Job
+		::string eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
+		::string eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
+			return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; // m cannot be lazy evaluated w/o a job
+		}
 	} ;
 
 	struct RuleData {
@@ -437,12 +469,13 @@ namespace Engine {
 
 		// services
 		::string add_cwd(::string&& file) const {
-			if      (file[0]=='/' ) return file.substr(1) ;
+			if      (file.empty() ) return {}             ;                    // we have no file, leave slot empty
+			else if (file[0]=='/' ) return file.substr(1) ;
 			else if (cwd_s.empty()) return ::move(file)   ;                    // fast path
 			else                    return cwd_s+file     ;
 		}
-		::vector_s list_ctx(::vmap<CmdVar,VarIdx> const& ctx) const ;
 	private :
+		::vector_s _list_ctx(::vector<CmdIdx> const& ctx) const ;
 		void _set_crcs() ;
 
 		// user data
@@ -457,18 +490,18 @@ namespace Engine {
 		VarIdx               stdout_idx = NoVar ;                              // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar ;                              // index of dep used as stdin
 		// following is only if !anti
-		DynamicCreateMatchAttrs       create_match_attrs ;                     // in match crc, evaluated at job creation time
-		Dynamic<CreateNoneAttrs >     create_none_attrs  ;                     // in no    crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  >     cache_none_attrs   ;                     // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsAttrs>     submit_rsrcs_attrs ;                     // in rsrcs crc, evaluated at submit time
-		Dynamic<StartCmdAttrs   >     start_cmd_attrs    ;                     // in cmd   crc, evaluated before execution
-		DynamicCmd                    cmd                ;
-		Dynamic<StartRsrcsAttrs >     start_rsrcs_attrs  ;                     // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneAttrs  >     start_none_attrs   ;                     // in no    crc, evaluated before execution
-		Dynamic<EndCmdAttrs     >     end_cmd_attrs      ;                     // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    >     end_none_attrs     ;                     // in no    crc, evaluated after  execution
-		bool                          force              = false ;
-		size_t                        n_tokens           = 1     ;             // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
+		DynamicCreateMatchAttrs   create_match_attrs ;                         // in match crc, evaluated at job creation time
+		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
+		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs crc, evaluated at submit time
+		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd   crc, evaluated before execution
+		DynamicCmd                cmd                ;
+		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs crc, evaluated before execution
+		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no    crc, evaluated before execution
+		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd   crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no    crc, evaluated after  execution
+		bool                      force              = false ;
+		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
 		bool    has_stars        = false ;
 		VarIdx  n_static_stems   = 0     ;
@@ -498,8 +531,9 @@ namespace Engine {
 		bool operator+ (                  ) const { return +rule ; }
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
-		::vector_s const& targets       () const { if (!_has_targets) { _compute_targets() ; _has_targets = true ; } return _targets ; }
-		::vector_view_c_s static_targets() const { return {targets(),0,rule->n_static_targets} ;                                       }
+		::vector_s               const& targets() const { if (!_has_targets) { _compute_targets()                           ; _has_targets = true ; } return _targets ; }
+		::vmap_s<pair_s<DFlags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
+		::vector_view_c_s        static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                                 }
 	protected :
 		void _compute_targets() const ;
 		// services
@@ -513,11 +547,12 @@ namespace Engine {
 		::vector_s stems ;             // static stems only of course
 		// cache
 	protected :
-		mutable bool _has_targets = false ; mutable ::vector_s _targets ;
+		mutable bool _has_targets = false ; mutable ::vector_s               _targets ;
+		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<DFlags>> _deps    ;
 	} ;
 
-	struct Rule::Match : SimpleMatch {
-		friend ::ostream& operator<<( ::ostream& , Match const& ) ;
+	struct Rule::FullMatch : SimpleMatch {
+		friend ::ostream& operator<<( ::ostream& , FullMatch const& ) ;
 		// helper functions
 	private :
 		static ::string _group( Py::Object match_object , ::string const& key ) {
@@ -529,8 +564,8 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using SimpleMatch::SimpleMatch ;
-		Match( SimpleMatch const& sm            ) : SimpleMatch(sm) {}
-		Match( RuleTgt , ::string const& target ) ;
+		FullMatch( SimpleMatch const& sm            ) : SimpleMatch(sm) {}
+		FullMatch( RuleTgt , ::string const& target ) ;
 		// accesses
 	private :
 		Py::Pattern const& _target_pattern(VarIdx) const ;                     // solve lazy evaluation
@@ -612,7 +647,7 @@ namespace Engine {
 	}
 
 	template<class T> void Attrs::s_acquire( ::vector<T>& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,{})) return ;
+		if (s_easy(dst,py_src)) return ;
 		//
 		if (!PySequence_Check(py_src)) throw "not a sequence"s ;
 		PyObject* fast_val = PySequence_Fast(py_src,"") ;
@@ -629,7 +664,7 @@ namespace Engine {
 	}
 
 	template<class T> void Attrs::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,{})) return ;
+		if (s_easy(dst,py_src)) return ;
 		//
 		::map_s<T> map = mk_map(dst) ;
 		if (!PyDict_Check(py_src)) throw "not a dict";
@@ -666,28 +701,21 @@ namespace Engine {
 		}
 	}
 
-	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( PyObject* py_src , ::umap_s<pair<CmdVar,VarIdx>> const& var_idxs , A&&... args ) :
+	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) :
 		is_dynamic{ s_is_dynamic(py_src)                                           }
 	,	glbs_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,1)) : "" }
 	,	code_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,2)) : "" }
 	{
-		spec.update( PyTuple_GET_ITEM(py_src,0) , ::forward<A>(args)... ) ;
+		need = spec.init( PyTuple_GET_ITEM(py_src,0) , var_idxs , ::forward<A>(args)... ) ;
 		if (!is_dynamic) return ;
 		PyObject* fast_val = PySequence_Fast(PyTuple_GET_ITEM(py_src,3),"") ;
 		SWEAR(fast_val) ;
 		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
 		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
 		for( size_t i=0 ; i<n ; i++ ) {
-			::pair<CmdVar,VarIdx> idx = var_idxs.at(PyUnicode_AsUTF8(p[i])) ;
-			ctx.push_back(idx) ;
-			switch (idx.first) {
-				case CmdVar::Stems   : case CmdVar::Stem   : need_stems             = true ; break ;
-				case CmdVar::Targets : case CmdVar::Target : need_targets           = true ; break ;
-				case CmdVar::Deps    :                       need_stems = need_deps = true ; break ; // stems are needed to compute deps dict
-				case CmdVar::Dep     :                       need_deps              = true ; break ;
-				case CmdVar::Rsrcs   : case CmdVar::Rsrc   : need_rsrcs             = true ; break ;
-				default : FAIL(idx.first) ;
-			}
+			CmdIdx ci = var_idxs.at(PyUnicode_AsUTF8(p[i])) ;
+			ctx.push_back(ci) ;
+			need |= ci.bucket ;
 		}
 		::sort(ctx) ;                                                          // stabilize crc's
 	}
@@ -711,56 +739,111 @@ namespace Engine {
 		}
 	}
 
-	template<class T> PyObject* Dynamic<T>::_mk_dict( Rule r , ::vector_s const& stems , ::vector_s const& targets , ::vector_view_c<Dep> const& deps , ::vmap_ss const& rsrcs ) const {
-		::pair<vmap_ss,vmap_s<vmap_ss>> ctx_ = r.eval_ctx( ctx , stems , targets , deps , rsrcs ) ;
+	template<class T> inline Rule Dynamic<T>::solve_lazy( Job j , Rule::SimpleMatch& m ) const {
+		SWEAR( +j || +m ) ;
+		if (+m                ) return m.rule ;
+		if (+(need&~NeedRsrcs)) m = Rule::SimpleMatch(j) ;                     // fast path : when no need to compute match (resources do not come from match)
+		/**/                    return j->rule ;
+	}
+
+	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
+		::string                        res        ;
+		::vector_s                      empty1     ;
+		::vmap_s<pair_s<DFlags>>        empty2     ;
+		Rule                            r          = solve_lazy(job,match)                          ;
+		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
+		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;     // fast path : when no need to compute match
+		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;     // fast path : when no need to compute targets
+		::vmap_s<pair_s<DFlags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;     // fast path : when no need to compute deps
+		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
+		for( auto [k,i] : ctx ) {
+			::vmap_ss dct ;
+			switch (k) {
+				case VarCmd::Stem   :                                                                                      cb_str(r->stems  [i].first,stems[i]             ) ;   break ;
+				case VarCmd::Target :                                                   if (!tgts[i].empty()             ) cb_str(r->targets[i].first,tgts [i]             ) ;   break ;
+				case VarCmd::Dep    :                                                   if (!deps[i].second.first.empty()) cb_str(deps      [i].first,deps [i].second.first) ;   break ;
+				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()          ) cb_str(it->first          ,it->second           ) ; } break ;
+				//
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                        dct.emplace_back(r->stems  [j].first,stems[j]) ; cb_dct("stems"    ,dct  ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (!tgts[j] .empty()) dct.emplace_back(r->targets[j].first,tgts [j]) ; cb_dct("targets"  ,dct  ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,df] : deps              ) if (!df.first.empty()) dct.emplace_back(k                  ,df.first) ; cb_dct("deps"     ,dct  ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                                       cb_dct("resources",rsrcs) ; break ;
+				default : FAIL(k) ;
+			}
+		}
+	}
+
+	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+		::string                        res        ;
+		::vector_s                      empty1     ;
+		::vmap_s<pair_s<DFlags>>        empty2     ;
+		Rule                            r          = solve_lazy(job,match)                          ;
+		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
+		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
+		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
+		::vmap_s<pair_s<DFlags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
+		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
+			char c = fstr[ci] ;
+			if (c==Rule::StemMrkr) {
+				VarCmd k = to_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
+				VarIdx i = to_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
+				switch (k) {
+					case VarCmd::Stem   :                                                                                      res += stems[i]              ;   break ;
+					case VarCmd::Target :                                                                                      res += tgts [i]              ;   break ;
+					case VarCmd::Dep    :                                                   if (!deps[i].second.first.empty()) res += deps [i].second.first ;   break ;
+					case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()          ) res += it->second            ; } break ;
+					default : FAIL(k) ;
+				}
+			} else {
+				res += c ;
+			}
+		}
+		return res ;
+	}
+
+	template<class T> PyObject* Dynamic<T>::_mk_dct( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not...
 		// be seen by these functions, which is the whole purpose of such dynamic values
-		::unique_lock lock{_glbs_mutex} ;                                      // ensure glbs is not used simultaneously for several jobs
-		//
-		for( auto const& [key,str] : ctx_.first ) {
-			PyObject* py_str = PyUnicode_FromString(str.c_str()) ;
-			SWEAR(py_str) ;                                                    // else, we are in trouble
-			swear(PyDict_SetItemString( glbs , key.c_str() , py_str )==0) ;    // else, we are in trouble
-			Py_DECREF(py_str) ;                                                // py_v is not stolen by PyDict_SetItemString
-		}
-		for( auto const& [key,dct] : ctx_.second ) {
-			PyObject* py_dct = PyDict_New() ; SWEAR(py_dct) ;
-			for( auto const& [k,v] : dct ) {
-				PyObject* py_v = PyUnicode_FromString(v.c_str()) ;
-				SWEAR(py_v) ;                                                  // else, we are in trouble
-				swear(PyDict_SetItemString( py_dct , k.c_str() , py_v )==0) ;  // else, we are in trouble
-				Py_DECREF(py_v) ;                                              // py_v is not stolen by PyDict_SetItemString
+		::vector_s to_del ;
+		eval_ctx( job , match , rsrcs
+		,	[&]( ::string const& key , ::string const& val ) -> void {
+				PyObject* py_str = PyUnicode_FromString(val.c_str()) ;
+				SWEAR(py_str) ;                                                 // else, we are in trouble
+				swear(PyDict_SetItemString( glbs , key.c_str() , py_str )==0) ; // else, we are in trouble
+				Py_DECREF(py_str) ;                                             // py_v is not stolen by PyDict_SetItemString
+				to_del.push_back(key) ;
 			}
-			swear(PyDict_SetItemString( glbs , key.c_str() , py_dct )==0) ;    // else, we are in trouble
-			Py_DECREF(py_dct) ;                                                // py_v is not stolen by PyDict_SetItemString
-		}
+		,	[&]( ::string const& key , ::vmap_ss const& val ) -> void {
+				PyObject* py_dct = PyDict_New() ; SWEAR(py_dct) ;
+				for( auto const& [k,v] : val ) {
+					PyObject* py_v = PyUnicode_FromString(v.c_str()) ;
+					SWEAR(py_v) ;                                                 // else, we are in trouble
+					swear(PyDict_SetItemString( py_dct , k.c_str() , py_v )==0) ; // else, we are in trouble
+					Py_DECREF(py_v) ;                                             // py_v is not stolen by PyDict_SetItemString
+				}
+				swear(PyDict_SetItemString( glbs , key.c_str() , py_dct )==0) ; // else, we are in trouble
+				Py_DECREF(py_dct) ;                                             // py_v is not stolen by PyDict_SetItemString
+				to_del.push_back(key) ;
+			}
+		) ;
 		//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		PyObject* d = PyEval_EvalCode( code , glbs , nullptr ) ;
 		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( auto const& [key,_] : ctx_.first  ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs...
-		for( auto const& [key,_] : ctx_.second ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, but otherwise, this is not necessary
+		for( ::string const& key : to_del ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs...
 		//
 		if (!d) throw Py::err_str() ;
 		SWEAR(PyDict_Check(d)) ;
 		return d ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job j , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs ) const {
+	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
-		//
+		T         res = spec                           ;
 		Py::Gil   gil ;
-		PyObject* d   = nullptr/*garbage*/ ;
-		//
-		if ( need_stems || need_targets ) {
-			if (!match_) match_ = Rule::SimpleMatch{j} ;
-			if (need_targets) d = _mk_dict( j->rule , match_.stems , match_.targets() , j->deps , rsrcs ) ;
-			else              d = _mk_dict( j->rule , match_.stems , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute targets
-		} else {
-			/**/              d = _mk_dict( j->rule , {}/*stems*/  , {}/*targets*/    , j->deps , rsrcs ) ; // fast path : no need to compute match_
-		}
-		T res = spec ;
+		PyObject* d   = _mk_dct( job , match , rsrcs ) ;
 		res.update(d) ;
-		Py_DECREF(d) ;
+		Py_DECREF(d)  ;
 		return res  ;
 	}
 
@@ -805,10 +888,10 @@ namespace Engine {
 	}
 
 	//
-	// Rule::Match
+	// Rule::FullMatch
 	//
 
-	inline VarIdx Rule::Match::idx(::string const& target) const {
+	inline VarIdx Rule::FullMatch::idx(::string const& target) const {
 		targets() ;                                                                       // ensure _targets is populated
 		for( VarIdx t=0 ; t<rule->targets.size() ; t++ ) if (_match(t,target)) return t ;
 		return NoVar ;

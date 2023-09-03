@@ -29,6 +29,7 @@ lmake.version = (1,0)
 lmake.local_admin_dir  = 'LMAKE_LOCAL'
 lmake.remote_admin_dir = 'LMAKE_REMOTE'
 
+config.heartbeat    = 5
 config.link_support = 'full'
 
 config.backends.local.cpu = int(os.cpu_count()*1.5)
@@ -319,11 +320,10 @@ class LmakePy(BaseRule) :
 	cmd    = 'cat'
 
 opt_tab.update({
-	r'.*'                        : ( '-I'      , sysconfig.get_path("include")                                            )
-,	r'src/.*'                    : ( '-iquote' , f'ext_lnk/{pycxx}.patched_dir/{pycxx}'           , '-iquote' , 'ext_lnk' )
-,	r'src/autodep/clmake'        : (             '-Wno-cast-function-type'                        ,                       )
-,	r'src/autodep/ptrace'        : ( '-iquote' , f'ext_lnk/{libseccomp}.dir/{libseccomp}/include'                         )
-,	r'src/lmakeserver/makefiles' : ( '-D'      , f'PYTHON="{sys.executable}"'                                             )
+	r'.*'                 : ( '-I'      , sysconfig.get_path("include")                                            )
+,	r'src/.*'             : ( '-iquote' , f'ext_lnk/{pycxx}.patched_dir/{pycxx}'           , '-iquote' , 'ext_lnk' )
+,	r'src/autodep/clmake' : (             '-Wno-cast-function-type'                        ,                       )
+,	r'src/autodep/ptrace' : ( '-iquote' , f'ext_lnk/{libseccomp}.dir/{libseccomp}/include'                         )
 })
 
 class Link(BaseRule) :

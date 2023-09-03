@@ -19,13 +19,6 @@ namespace Engine {
 	,	Dir
 	)
 
-	ENUM( CmdVar
-	,	Stems   , Stem
-	,	Targets , Target
-	,	Deps    , Dep
-	,	Rsrcs   , Rsrc
-	)
-
 	ENUM( Color
 	,	None
 	,	HiddenNote

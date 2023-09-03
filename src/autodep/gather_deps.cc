@@ -302,4 +302,5 @@ void GatherDeps::reorder() {
 			return ::pair(a.second.read_date,a.second.parallel_id) < ::pair(b.second.read_date,b.second.parallel_id) ;
 		}
 	) ;
+	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map[accesses[i].first] = i ; // reconstruct access_map as reorder may be called during execution (DepInfos or ChkDeps)
 }

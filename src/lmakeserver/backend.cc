@@ -99,20 +99,20 @@ namespace Backends {
 			case JobProc::DepInfos :              break        ;
 			default : FAIL(jrr.proc) ;
 		}
-		Job                         job                { jrr.job                } ;
-		JobExec                     job_exec           { job , ::move(jrr.host) } ;
-		Rule                        rule               = job->rule                ;
-		JobRpcReply                 reply              { JobProc::Start         } ;
-		::vector<Node>              report_unlink      ;
-		StartCmdAttrs               start_cmd_attrs    ;
-		::string                    cmd                ;
-		::vmap_s<pair<Node,DFlags>> create_match_attrs ;
-		StartRsrcsAttrs             start_rsrcs_attrs  ;
-		StartNoneAttrs              start_none_attrs   ;
-		::string                    start_exc_txt      ;
-		ProcessDate                 eta                ;
-		SubmitAttrs                 submit_attrs       ;
-		::vmap_ss                   rsrcs              ;
+		Job                      job                { jrr.job                } ;
+		JobExec                  job_exec           { job , ::move(jrr.host) } ;
+		Rule                     rule               = job->rule                ;
+		JobRpcReply              reply              { JobProc::Start         } ;
+		::vector<Node>           report_unlink      ;
+		StartCmdAttrs            start_cmd_attrs    ;
+		::string                 cmd                ;
+		::vmap_s<pair_s<DFlags>> create_match_attrs ;
+		StartRsrcsAttrs          start_rsrcs_attrs  ;
+		StartNoneAttrs           start_none_attrs   ;
+		::string                 start_exc_txt      ;
+		ProcessDate              eta                ;
+		SubmitAttrs              submit_attrs       ;
+		::vmap_ss                rsrcs              ;
 		Trace trace("_s_handle_job_req",jrr,job_exec) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab") ; return false ; }
@@ -129,7 +129,7 @@ namespace Backends {
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 					Rule::SimpleMatch match_ = job.simple_match() ;
 					try {
-						start_none_attrs = rule->start_none_attrs.eval(job,match_,entry.rsrcs) ;
+						start_none_attrs = rule->start_none_attrs.eval(match_,entry.rsrcs) ;
 					} catch (::string const& e) {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
@@ -146,10 +146,10 @@ namespace Backends {
 						}
 					}
 					try {
-						create_match_attrs = rule->create_match_attrs.eval(rule,match_.stems       ) ; create_match_attrs_passed = true ;
-						start_cmd_attrs    = rule->start_cmd_attrs   .eval(job  ,match_,entry.rsrcs) ; cmd_attrs_passed          = true ;
-						cmd                = rule->cmd               .eval(job  ,match_,entry.rsrcs) ; cmd_passed                = true ;
-						start_rsrcs_attrs  = rule->start_rsrcs_attrs .eval(job  ,match_,entry.rsrcs) ;
+						create_match_attrs = rule->create_match_attrs.eval(match_            ) ; create_match_attrs_passed = true ;
+						start_cmd_attrs    = rule->start_cmd_attrs   .eval(match_,entry.rsrcs) ; cmd_attrs_passed          = true ;
+						cmd                = rule->cmd               .eval(match_,entry.rsrcs) ; cmd_passed                = true ;
+						start_rsrcs_attrs  = rule->start_rsrcs_attrs .eval(match_,entry.rsrcs) ;
 					} catch (::string const& e) {
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,STR(cmd_attrs_passed),STR(cmd_passed),e) ;
@@ -210,15 +210,13 @@ namespace Backends {
 					reply.remote_admin_dir = *g_remote_admin_dir         ;
 					reply.job_tmp_dir      = ::move(tmp_dir)             ;
 					// fancy attrs
-					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = create_match_attrs[rule->stdin_idx ].second.first.name() ;
-					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets           [rule->stdout_idx]                     ;
+					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = create_match_attrs[rule->stdin_idx ].second.first ;
+					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets           [rule->stdout_idx]              ;
 					//
 					reply.targets.reserve(targets.size()) ;
 					for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) reply.targets.emplace_back( targets[t] , false/*is_native_star:garbage*/ , rule->flags(t) ) ;
 					//
-					DFlags access_dflags = rule->cmd_need_deps() ? AccessDFlags : DFlags() ;                                                        // in case we need deps to compute cmd
-					reply.static_deps.reserve(create_match_attrs.size()) ;
-					for( auto const& [k,dfs] : create_match_attrs ) reply.static_deps.emplace_back( dfs.first.name() , dfs.second|access_dflags ) ;
+					reply.static_deps = ::mk_val_vector(create_match_attrs) ;
 					//
 					report_unlink       = job.wash(match_) ;
 					entry.conn.job_addr = job_addr         ;
@@ -327,13 +325,13 @@ namespace Backends {
 		Trace::t_key = 'H' ;
 		Trace trace("_heartbeat_thread_func") ;
 		for(;;) {
-			trace("sleep") ;
+			trace("sleep",g_config.heartbeat,ProcessDate::s_now()) ;
 			if (!g_config.heartbeat.sleep_for(stop)) {
 				trace("done") ;
 				return ;
 			}
 			DiskDate::s_refresh_now() ;                                        // we have waited, refresh now
-			trace("slept") ;
+			trace("slept",ProcessDate::s_now()) ;
 			::umap<JobIdx,StartTabEntry::Conn> to_wakeup ;
 			::vector<JobIdx>                   missings  = s_heartbeat() ;     // check jobs that have been submitted but have not started yet
 			{	::unique_lock lock { _s_mutex }    ;                           // lock _s_start_tab for minimal time to avoid dead-locks

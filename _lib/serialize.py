@@ -70,6 +70,8 @@ def get_code_ctx(*args,no_imports=(),ctx=()) :
 
 def _mk_f_string(s) :
 	if not s                         : return "f''"
+	if not "'"   in s                : return "f'"  +s+"'"
+	if not '"'   in s                : return 'f"'  +s+'"'
 	if not "'''" in s and s[-1]!="'" : return "f'''"+s+"'''"
 	if not '"""' in s and s[-1]!='"' : return 'f"""'+s+'"""'
 	if not "'''" in s and s[-1]=="'" : return "f'''"+s[:-1]+"\\''''"           # this \ is certainly outside {}, hence f-string is still valid

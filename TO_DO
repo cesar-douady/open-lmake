@@ -21,8 +21,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve f-string management to avoid cmd to have need_deps in simple cases
-	- do the same as for deps
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -65,7 +63,11 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement a compilation rule py->pyc
+*1 allow dep flags to have arbitrary sequences of sequences
+	- simplify dynamic functions
+	- alternatively, enclose them in a single sequence
+		- and accept dynamic functions to only return a sequence of flags
+*3 implement a compilation rule py->pyc
 	- and use python -B
 * split 2 notions
 	- root of lmake repository : where files may be built
@@ -88,12 +90,11 @@ items :
 		- because exec bit is part of crc
 * ldebug
 	- low priority (wait for user experience)
+! record deps during attribute computation
+	- when dynamic
 ! implement slurm interface
 	- and implement lmake -l (--local) to force local backend for all jobs
-	- for heavy rules
-	- implement job resources
 	- implement job postlude
-	- record deps during resources computation
 * implement a ref/check mechanism
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
@@ -175,8 +176,7 @@ items :
 * TESTS
 ****************************************************************************************************
 
-* add a unit test for sub-Lmakefile.py
-* improve unit_test/dynamic.py to include more dynamic features
+*2 add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lcheck_deps, ...
 * gcov

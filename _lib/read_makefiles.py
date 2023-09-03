@@ -66,9 +66,9 @@ StdExecAttrs = {
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
-SimpleStemRe = re.compile(r'{\w+}')
-SimpleDepRe  = re.compile(r'^([^{}]|{{|}})*({\w+}([^{}]|{{|}})*)*$')           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
-SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$')                                 # this means string can be interpreted
+SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      # include {{ and }} to exclude them being recognized as stem, as in '{{foo}}'
+SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
+SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                           # this means string has no variable parts
 
 def update_dct(acc,new) :
 	for k,v in new.items() :
@@ -284,20 +284,20 @@ class Handle :
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val : return (static_val,)
-		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
+		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
 		return ( static_val , ctx , code , tuple(names) )
 
 	def handle_targets(self) :
 		def fmt(key,entry) :
-			if       isinstance(entry,str         ) : flags = ()
-			elif not isinstance(entry,(tuple,list)) : raise TypeError(f'bad format for target {key} of type {entry.__class__.__name__}')
-			elif not entry                          : raise TypeError(f'cannot find target {key} in empty entry')
-			elif not isinstance(entry[0],str)       : raise TypeError(f'bad format for target {key} of type {entry[0].__class__.__name__}')
-			else                                    : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
+			if       isinstance(entry   ,str         ) : flags = ()
+			elif not isinstance(entry   ,(tuple,list)) : raise TypeError(f'bad format for target {key} of type {entry.__class__.__name__}'   )
+			elif not entry                             : raise TypeError(f'cannot find target {key} in empty entry'                          )
+			elif not isinstance(entry[0],str         ) : raise TypeError(f'bad format for target {key} of type {entry[0].__class__.__name__}')
+			else                                       : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
 			return (entry,*flags)
-		if   'target' in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
-		if   'target'      in self.attrs                            : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
-		elif 'post_target' in self.attrs                            : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
+		if   'target'      in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
+		if   'target'      in self.attrs                                 : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
+		elif 'post_target' in self.attrs                                 : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
 		bad_keys = set(self.attrs.targets) & set(self.attrs.post_targets)
 		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
 		#
@@ -322,9 +322,10 @@ class Handle :
 
 	def prepare_jobs(self) :
 		self.static_stems = find_static_stems(self.rule_rep.job_name)
+		self.aggregate_per_job = {'stems','targets'}
 		self.per_job = {
-			'stems'   , *self.static_stems
-		,	'targets' , *( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
+			*self.static_stems
+		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
 		if 'cwd'   in self.attrs : self.rule_rep.cwd      = self.attrs.cwd
 		else                     : self.rule_rep.cwd      = self.local_root
@@ -353,11 +354,14 @@ class Handle :
 		self._handle_val(str,'key','cache')
 		self.rule_rep.cache_none_attrs = self._finalize()
 
+	def _is_simple_fstr(self,fstr) :
+		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
+
 	def handle_create_match(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
 		if callable(self.attrs.deps) :
-			self.static_val  = None                                                   # for deps, a None static value means all keys are allowed
+			self.static_val  = None                                            # for deps, a None static value means all keys are allowed
 			self.dynamic_val = self.attrs.deps
 		else :
 			for k,d in self.attrs.deps.items() :
@@ -365,7 +369,7 @@ class Handle :
 				if isinstance(d,str) : d = (d,)
 				if callable(d) :
 					self.dynamic_val[k] = d
-				elif not any(callable(x) for x in d) and SimpleDepRe.match(d[0]) and all( k[1:-1] in self.static_stems for k in SimpleStemRe.findall(d[0]) ) :
+				elif not any(callable(x) for x in d) and self._is_simple_fstr(d[0]) :
 					self.static_val[k] = d
 				else :
 					l = []
@@ -376,15 +380,15 @@ class Handle :
 					self.dynamic_val[k] = l
 		self.rule_rep.create_match_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
-		self.per_job.add('deps')
+		self.aggregate_per_job.add('deps')
 		if self.rule_rep.create_match_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()
 		self._handle_val (str,'backend'            )
-		self._handle_dict('rsrcs'  ,'resources')
+		self._handle_dict(    'rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
-		self.per_job.add('resources')
+		self.aggregate_per_job.add('resources')
 		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
@@ -427,7 +431,7 @@ class Handle :
 	def handle_cmd(self) :
 		if self.rule_rep.is_python :
 			cmd_ctx       = set()
-			serialize_ctx = (self.per_job,*self.glbs)
+			serialize_ctx = (self.per_job,self.aggregate_per_job,*self.glbs)
 			cmd           = self.attrs.cmd
 			multi         = len(cmd)>1
 			if multi :
@@ -453,11 +457,14 @@ class Handle :
 					else                       : cmd += f'\treturn {c.__name__}({x})\n'
 			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , '' , '' , tuple(cmd_ctx) )
 		else :
-			self.attrs.cmd = '\n'.join(self.attrs.cmd)
-			self._init()
-			self._handle_val(str ,'cmd')
-			self.static_val.is_python = False
-			self.rule_rep.cmd = self._finalize()
+			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
+			if self._is_simple_fstr(cmd) :
+				self.rule_rep.cmd = ( {'cmd':cmd,'is_python':False} ,)
+			else :
+				self._init()
+				self._handle_val(str,'cmd')
+				self.rule_rep.cmd = self._finalize()
+				assert len(self.rule_rep.cmd)==4,'cmd should be dynamic here'
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class

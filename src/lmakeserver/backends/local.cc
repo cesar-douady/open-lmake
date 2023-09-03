@@ -305,14 +305,28 @@ namespace Backends::Local {
 			launch() ;
 		}
 		virtual ::vector<JobIdx> heartbeat() {
-			::vector<JobIdx> res ;
 			// as soon as jobs are started, top-backend handles heart beat
-			for( auto& [job,entry] : running_map ) {
-				if      (entry.started         ) {}                           // we do not manage started jobs
-				else if (entry.old             ) res.push_back(job) ;         // job still not started after a heartbeat period ? probably in bad shape
-				else if (::kill(entry.pid,0)!=0) res.push_back(job) ;         // job has disappeared, report it so it can be restarted
-				else                             entry.old = true   ;
+			::vector<JobIdx> res ;
+			Trace trace("Local::hearbeat") ;
+			for( auto it = running_map.begin() ; it!=running_map.end() ; ) {   // /!\ we delete entries in running_map, beware of iterator management
+				RunningEntry& entry = it->second ;
+				if (entry.started) { it++ ; continue ; }                       // we do not manage started jobs
+				if (entry.old) {
+					trace("kill_old",entry.pid) ;
+					kill_process(entry.pid,SIGKILL) ;                          // kill job in case it is still alive (it has not started yet, so just kill job_exec)
+				} else if (::waitpid(entry.pid,nullptr,WNOHANG)==0) {          // job still exists but should start soon, mark it for next turn
+					trace("exists",entry.pid) ;
+					entry.old = true ;
+					it++ ;
+					continue ;
+				} else {
+					trace("vanished",entry.pid) ;
+				}
+				res.push_back(it->first) ;
+				_wait_job(entry) ;
+				running_map.erase(it++) ;                                      // /!\ erase must be called with it before ++, but it must be incremented before erase
 			}
+			if (!res.empty()) launch() ;
 			return res ;
 		}
 		// kill all if req==0
@@ -324,10 +338,10 @@ namespace Backends::Local {
 			if ( !req || req_map.size()==1 ) {                                 // fast path if req_map.size()==1
 				for( auto const& [j,we] : waiting_map ) res.insert(j) ;
 				for( auto const& [j,re] : running_map ) {
-					//                                 vvvvvvvvvvvvvvvvvvvvvvv
-					if (!re.started) { res.insert(j) ; ::killpg(re.pid,SIGHUP) ; } // if started, not our responsibility to kill it
-					/**/                               _wait_job(re) ;             // but we still must wait for process, defer in case job_exec process does some time consuming book-keeping
-					//                                 ^^^^^^^^^^^^^^^^^^^^^^^
+					//                                 vvvvvvvvvvvvvvvvvvvvvvvvv
+					if (!re.started) { res.insert(j) ; kill_group(re.pid,SIGHUP) ; } // if started, not our responsibility to kill it
+					/**/                               _wait_job(re) ;               // but we still must wait for process, defer in case job_exec process does some time consuming book-keeping
+					//                                 ^^^^^^^^^^^^^
 					if (!re.started) trace("killed",re.pid,"avail_rsrcs",'+',avail) ;
 					else             trace(                "avail_rsrcs",'+',avail) ;
 				}
@@ -343,13 +357,14 @@ namespace Backends::Local {
 				}
 				for( JobIdx j : req_entry.starting_jobs ) {
 					RunningEntry& re = running_map.at(j) ;
-					SWEAR(!re.started) ;                                           // when job starts, it is not in starting_jobs any more
+					SWEAR(!re.started) ;                                       // when job starts, it is not in starting_jobs any more
 					if (--re.n_reqs) continue ;
 					res.insert(j) ;
-					//vvvvvvvvvvvvvvvvvvvvv
-					::killpg(re.pid,SIGHUP) ;
+					SWEAR(re.pid>1) ;                                          // values -1, or 1 are unexpected
+					//vvvvvvvvvvvvvvvvvvvvvvv
+					kill_group(re.pid,SIGHUP) ;
 					_wait_job(re) ;
-					//^^^^^^^^^^^^^^^^^^^^^
+					//^^^^^^^^^^^^^
 					trace("killed",re.pid,"avail_rsrcs",'+',avail) ;
 					running_map.erase(j) ;
 				}
@@ -387,13 +402,13 @@ namespace Backends::Local {
 					Child child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
 					//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("child",req,job,pressure_first->pressure,child.pid,cmd_line) ;
-					child.mk_daemon() ;                                                  // we have recorded the pid to wait and there is no fd to close
 					avail -= *rsrcs ;
 					trace("avail_rsrcs",'-',avail) ;
 					{	auto wit = waiting_map.find(job) ;
 						running_map[job] = { rsrcs , child.pid , wit->second.n_reqs } ;
 						waiting_map.erase(wit) ;
 					}
+					child.mk_daemon() ;                                        // we have recorded the pid to wait and there is no fd to close
 					//
 					for( auto& [r,re] : req_map ) {
 						if (r!=+req) {

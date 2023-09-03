@@ -372,13 +372,9 @@ template<::integral I> static inline void from_int( char* p , I x ) {
 // assert
 //
 
-static inline void kill_self(int sig_num) {
-	::kill(::getpid(),sig_num) ;                                               // raise kills the thread, not the process
-}
-
-void set_sig_handler( int sig_num , void (*handler)(int) ) ;
-
-void write_backtrace( ::ostream& os , int hide_cnt ) ;
+static bool/*done*/ kill_self      ( int sig_num                        ) ;
+/**/   void         set_sig_handler( int sig_num , void (*handler)(int) ) ;
+/**/   void         write_backtrace( ::ostream& os , int hide_cnt       ) ;
 
 template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
 	OStringStream err ;
@@ -643,11 +639,36 @@ namespace std {
 		static bool        inited [[maybe_unused]] = (_enum_split(tab,cvals,+E::N),true) ; \
 		return tab[+e] ;                                                                   \
 	} \
-	[[maybe_unused]] static inline ::ostream&      operator<<( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os                    ; } \
-	[[maybe_unused]] static inline EnumIterator<E> begin     (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E(0)) ; } \
-	[[maybe_unused]] static inline EnumIterator<E> end       (                 E e ) { SWEAR(e==E::N) ;                                                return EnumIterator<E>(E::N) ; }
+	[[maybe_unused]] static inline ::ostream&      operator<<( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os ; } \
+	\
+	[[maybe_unused]] static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }                                                                     \
+	[[maybe_unused]] static inline EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
 
 template<class E> concept StdEnum  = ::is_enum_v<E> && ::is_unsigned_v<underlying_type_t<E>> && requires() { E::N ; } ;
+
+template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
+template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
+
+template<StdEnum E> static inline constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
+template<StdEnum E> static inline constexpr bool        operator!(E e) { return !+e            ; }
+//
+template<StdEnum E> static inline constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> static inline constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> static inline constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> static inline constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
+template<StdEnum E> static inline constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> static inline constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
+template<StdEnum E> static inline constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
+template<StdEnum E> static inline constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
+template<StdEnum E> static inline constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
+//
+template<StdEnum E> static inline constexpr E  operator& (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::min(e,o) ; }
+template<StdEnum E> static inline constexpr E  operator| (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::max(e,o) ; }
+template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o                                     ; return e          ; }
+template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o                                     ; return e          ; }
+//
+template<StdEnum E> static inline E    to_enum  ( const char* p ) { return E(to_int<EnumUint<E>>(p)) ; }
+template<StdEnum E> static inline void from_enum( char* p , E e ) { from_int(p,+e) ;                   }
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
@@ -690,28 +711,8 @@ private :
 } ;
 template<StdEnum E> constexpr BitMap<E> BitMap<E>::None =  BitMap<E>() ;
 template<StdEnum E> constexpr BitMap<E> BitMap<E>::All  = ~BitMap<E>() ;
-
-template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
-template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
 //
-template<StdEnum E> static inline constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
-template<StdEnum E> static inline constexpr bool        operator!(E e) { return !+e            ; }
 template<StdEnum E> static inline constexpr BitMap<E>   operator~(E e) { return ~BitMap<E>(e)  ; }
-//
-template<StdEnum E> static inline constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> static inline constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> static inline constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
-template<StdEnum E> static inline constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
-template<StdEnum E> static inline constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
-//
-template<StdEnum E> static inline constexpr E  operator& (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::min(e,o) ; }
-template<StdEnum E> static inline constexpr E  operator| (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::max(e,o) ; }
-template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o                                     ; return e          ; }
-template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o                                     ; return e          ; }
 
 static inline void _enum_split( const char** tab , char* str , size_t n ) {
 	const char* start = nullptr ;
@@ -1074,6 +1075,10 @@ private :
 // processes
 //
 
+static inline bool/*done*/ kill_process(pid_t pid,int sig_num) { swear_prod(pid>1,"killing process ",pid," !") ; return ::kill  (pid,sig_num)==0 ;         } // ensure no system wide catastrophe !
+static inline bool/*done*/ kill_group  (pid_t pid,int sig_num) { swear_prod(pid>1,"killing process ",pid," !") ; return ::killpg(pid,sig_num)==0 ;         } // .
+static inline bool/*done*/ kill_self   (          int sig_num) {                                                 return kill_process(::getpid(),sig_num) ; } // raise kills the thread, not the process
+
 struct Pipe {
 	// cxtors & casts
 	Pipe(       ) = default ;
@@ -1193,10 +1198,10 @@ struct Child {
 		int wstatus = wait() ;
 		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
 	}
-	void kill(int sig) {
-		if (!sig) return ;
-		if (as_group) ::kill(-pid,sig) ;                                       // kill group
-		else          ::kill( pid,sig) ;                                       // kill process
+	bool/*done*/ kill(int sig) {
+		if (!sig) return true ;
+		if (as_group) return kill_group  (pid,sig) ;
+		else          return kill_process(pid,sig) ;
 	}
 	//data
 	pid_t       pid      = -1    ;

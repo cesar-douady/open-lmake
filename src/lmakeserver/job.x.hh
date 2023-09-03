@@ -90,7 +90,7 @@ namespace Engine {
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
-		Rule::Match       match         () const ;
+		Rule::FullMatch   full_match    () const ;
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -111,7 +111,7 @@ namespace Engine {
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( Req                                                                                                     ) ;
-		bool                   _targets_ok      ( Req      , Rule::Match const&                                                                           ) ;
+		bool                   _targets_ok      ( Req      , Rule::FullMatch const&                                                                       ) ;
 		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
 		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
 		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
@@ -334,7 +334,7 @@ namespace Engine {
 	inline void     Job::audit_end_special( Req req , SpecialStep step ) const { return audit_end_special(req,step,{}) ; }
 
 	inline Rule::SimpleMatch Job::simple_match() const { return Rule::SimpleMatch(*this) ; }
-	inline Rule::Match       Job::match       () const { return Rule::Match      (*this) ; }
+	inline Rule::FullMatch   Job::full_match  () const { return Rule::FullMatch  (*this) ; }
 
 	inline void Job::invalidate_old() {
 		if ( +(*this)->rule && (*this)->rule.old() ) pop() ;
