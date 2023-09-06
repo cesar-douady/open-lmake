@@ -25,15 +25,19 @@ namespace Engine {
 		::umap<Crc,RuleData> rules ;
 		::uset_s             names ;
 		for( Py::Object py_obj : py_rules ) {
-			RuleData rule = Py::Dict(py_obj) ;
-			Crc      crc  = rule.match_crc   ;
-			if (names.contains(rule.name)) {
-				if ( rules.contains(crc) && rules.at(crc).name==rule.name ) throw to_string("rule " , rule.name , " appears twice"     ) ;
-				else                                                        throw to_string("two rules have the same name " , rule.name ) ;
+			RuleData rd  = Py::Dict(py_obj) ;
+			Crc      crc = rd.match_crc     ;
+			if (names.contains(rd.name)) {
+				if ( rules.contains(crc) && rules.at(crc).name==rd.name ) throw to_string("rule " , rd.name , " appears twice"     ) ;
+				else                                                      throw to_string("two rules have the same name " , rd.name ) ;
 			}
-			if (rules.contains(crc)) throw to_string( "rule " , rule.name , " and rule " , rules.at(crc).name , " match identically and are redundant" ) ;
-			names.insert(rule.name) ;
-			rules[crc] = ::move(rule) ;
+			if (rules.contains(crc)) throw to_string( "rule " , rd.name , " and rule " , rules.at(crc).name , " match identically and are redundant" ) ;
+			names.insert(rd.name) ;
+			rules[crc] = ::move(rd) ;
+		}
+		for (::string const& sd_s : g_config.src_dirs_s ) {
+			RuleData rd { Special::GenericSrc , sd_s } ;
+			rules[rd.match_crc] = ::move(rd) ;
 		}
 		return rules ;
 	}
@@ -59,12 +63,12 @@ namespace Engine {
 	}
 
 	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles(DiskDate& latest_makefile) {
-		DiskDate   makefiles_date   = file_date(s_makefiles) ;              // ensure we gather correct date with NFS
+		DiskDate   makefiles_date   = file_date(s_makefiles) ;                             // ensure we gather correct date with NFS
 		::ifstream makefiles_stream { s_makefiles }          ;
 		Trace trace("_s_chk_makefiles",makefiles_date) ;
 		if (is_reg(s_no_makefiles)) { trace("found"    ,s_no_makefiles) ; return "last makefiles read process was interrupted" ; } // s_no_makefile_file is a marker that says s_makefiles is invalid
 		if (!makefiles_stream     ) { trace("not_found",s_makefiles   ) ; return "makefiles were never read"                   ; }
-		char line[PATH_MAX+1] ;                                                            // account for first char (+ or !)
+		char line[PATH_MAX+1] ;                                                                                                    // account for first char (+ or !)
 		while (makefiles_stream.getline(line,sizeof(line))) {
 			SWEAR( line[0]=='+' || line[0]=='!' ) ;
 			bool         exists    = line[0]=='+' ;
@@ -83,23 +87,23 @@ namespace Engine {
 
 	static ::pair<vector_s/*deps*/,string/*stdout*/> _read_makefiles() {
 		Py::Gil     gil           ;
-		Py::Pattern pyc_re1       { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         } ;
-		Py::Pattern pyc_re2       { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" } ;
-		GatherDeps  gather_deps   { New }                                                             ;
-		::string    makefile_data = AdminDir + "/makefile_data.py"s                                   ;
+		Py::Pattern pyc_re1       { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         }   ;
+		Py::Pattern pyc_re2       { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" }   ;
+		GatherDeps  gather_deps   { New }                                                               ;
+		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
+		::vector_s  cmd_line      = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } ;
 		Trace trace("_read_makefiles",ProcessDate::s_now()) ;
-		gather_deps.autodep_env.report_ext = true ;
-		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv   // redirect stdout to stderr ...
-		Status status = gather_deps.exec_child( { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // as our stdout may be used ...
-		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // communicate with client
+		gather_deps.autodep_env.src_dirs_s = {"/"} ;
+		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used communicate with client
+		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (status!=Status::Ok) throw "cannot read makefiles"s ;
 		//
 		::string content = read_content(makefile_data) ;
 		::vector_s deps ; deps.reserve(gather_deps.accesses.size()) ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
 			if (!ai.info.idle()) continue ;
-			Py::Match m = pyc_re1.match(d) ;
-			if (!m) m = pyc_re2.match(d) ;
+			Py::Match m = pyc_re1.match(d) ; if (!m) m = pyc_re2.match(d) ;
 			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
 			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }
 		}
@@ -130,68 +134,70 @@ namespace Engine {
 			PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
 			Py_DECREF(eval_env) ;
 			if (!py_info) exit( 2 , "error while reading makefile digest :\n" , Py::err_str() ) ;
-			Py::Dict   info            = Py::Object( py_info , true/*clobber*/ ) ;
-			::string   root_dir_s      = *g_root_dir+'/'                         ;
-			::vector_s glb_src_dirs ;
-			::vector_s lcl_src_dirs ;
-			if (info.hasKey("source_dirs"))
-				for( auto py_sd : Py::Sequence(info["source_dirs"]) ) {
-					::string sd = py_sd.str() ;
-					if (sd.empty()) throw "empty source dir"s ;
-					if (sd.back()!='/') sd.push_back('/') ;
-					if (sd[0]=='/') {
-						if (sd.starts_with(root_dir_s)) {
-							sd.pop_back() ;
-							if (sd==root_dir_s) throw to_string("local source dir ",sd," cannot be root dir"                                 ) ;
-							else                throw to_string("local source dir ",sd," must be expressed relative to root dir ",*g_root_dir) ;
-						}
-						glb_src_dirs.push_back(sd) ;
-					} else {
-						lcl_src_dirs .push_back(sd) ;
-					}
-				}
+			Py::Dict   info         = Py::Object( py_info , true/*clobber*/ ) ;
+			::string   root_dir_s   = *g_root_dir+'/'                         ;
+			// compile config early as we need it to generate the list of makefiles
+			Config config ;
+			try                      { config = Py::Mapping(info["config"]) ;                     }
+			catch(::string const& e) { throw to_string("while processing config :\n",indent(e)) ; }
+			::vmap_s<bool/*is_abs*/> glb_src_dirs_s ;                                               // source dirs outside repo in an absolute form
+			::vector_s               lcl_src_dirs_s ;                                               // source dirs inside  repo
+			for( ::string const& sd_s : config.src_dirs_s ) {
+				if (is_lcl_s(sd_s)) lcl_src_dirs_s.push_back   (       sd_s                            ) ;
+				else                glb_src_dirs_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
+			}
 			// we should write deps once makefiles info is correctly stored as this implies that makefiles will not be read again unless they are modified
 			// but because file date grantularity is a few ms, it is better to write this info as early as possible to have a better date check to detect modifications.
 			// so we create a no_makefiles file that we unlink once everything is ok.
 			do {
 				OFStream no_makefiles_stream{s_no_makefiles} ;                 // create marker
 				OFStream makefiles_stream   {s_makefiles   } ;
+				auto gen_deps = [&](::string const& d)->void { makefiles_stream << (+FileInfo(d)?'+':'!') << d <<'\n' ; } ;
 				for( ::string const& d : deps ) {
 					SWEAR(!d.empty()) ;
-					if (d[0]=='/') {
-						for( ::string const& sd : glb_src_dirs ) if (d.starts_with(sd)) goto RecordDep ;
+					if (!is_abs(d)) {
+						gen_deps(d) ;
 						continue ;
 					}
-				RecordDep :
-					makefiles_stream << (+FileInfo(d)?'+':'!') << d <<'\n' ;
+					for( auto const& [sd_s,ia] : glb_src_dirs_s )
+						if ((d+'/').starts_with(sd_s)) {
+							if (ia) gen_deps(       d            ) ;
+							else    gen_deps(mk_rel(d,root_dir_s)) ;
+							break ;
+						}
 				}
 			} while (file_date(s_makefiles)<=latest_makefile) ;                // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
 			::string             local_admin_dir  ;
 			::string             remote_admin_dir ;
-			Config               config           ;
 			::umap<Crc,RuleData> rules            ;
 			::vector_s           srcs             ;
 			::string             step             ;
 			try {
 				step = "local_admin_dir"  ; local_admin_dir  = Py::String (info[step]) ;
 				step = "remote_admin_dir" ; remote_admin_dir = Py::String (info[step]) ;
-				step = "config"           ; config           = Py::Mapping(info[step]) ;
 				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				EngineStore::s_new_config( local_admin_dir , remote_admin_dir , ::move(config) , chk ) ;
 				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				step = "rules"   ; rules = _gather_rules( Py::Sequence(info[step  ]) ) ;
 				step = "sources" ; srcs  = _gather_srcs ( Py::Sequence(info["srcs"]) ) ;
+				for( ::string const& f : srcs ) {
+					::string f_s = f+'/' ;
+					for ( ::string const& sd_s : lcl_src_dirs_s ) {
+						if (!f_s.starts_with(sd_s)) continue ;
+						if (f_s.size()==sd_s.size()) throw to_string(f," is both a source and a source dir"                                           ) ;
+						else                         throw to_string("source ",f," is withing source dir ",sd_s=="/"?sd_s:sd_s.substr(0,sd_s.size()-1)) ;
+					}
+				}
+				// check deps are not dangling
 				{	::uset_s src_set = mk_uset(srcs) ;
 					for( ::string const& f : deps ) {
-						/**/                                      if (f[0]=='/'          ) continue       ;
-						/**/                                      if (src_set.contains(f)) continue       ;
-						/**/                                      if (!FileInfo(f)       ) continue       ;
-						for ( ::string const& sd : lcl_src_dirs ) if (f.starts_with(sd)  ) goto RecordSrc ;
+						/**/                                          if (is_abs(f)          ) goto Continue ;
+						/**/                                          if (src_set.contains(f)) goto Continue ;
+						/**/                                          if (!FileInfo(f)       ) goto Continue ;
+						for ( ::string const& sd_s : lcl_src_dirs_s ) if (f.starts_with(sd_s)) goto Continue ;
 						throw to_string("dangling makefile : ",f) ;
-					RecordSrc :                                                // record as source any file needed in recorded source dirs
-						srcs.push_back(f) ;
-						src_set.insert(f) ;
+					Continue : ;
 					}
 				}
 			} catch(::string& e) {

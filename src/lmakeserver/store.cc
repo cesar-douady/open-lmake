@@ -130,10 +130,8 @@ namespace Engine {
 
 	void _keep_dir( const char* name , ::string*& g_dir , bool& g_has_dir ) {
 		::string dir{read_lnk(to_string(AdminDir,'/',name))} ;
-		if      (dir.empty()           ) { g_dir = new ::string{AdminDir     } ; g_has_dir = false ; }
-		else if (dir[0]=='/'           ) { g_dir = new ::string{dir          } ; g_has_dir = true  ; }
-		else if (dir.starts_with("../")) { g_dir = new ::string{dir.substr(3)} ; g_has_dir = true  ; }
-		else                             FAIL(dir) ;
+		if ((g_has_dir=!dir.empty())) { SWEAR(!is_lcl(dir)) ; g_dir = new ::string{mk_glb(dir,AdminDir+"/"s)} ; }
+		else                          {                       g_dir = new ::string{AdminDir                 } ; }
 	}
 	void _keep_dirs() {
 		_keep_dir( "local"  , g_local_admin_dir  , g_has_local_admin_dir  ) ;
@@ -156,8 +154,7 @@ namespace Engine {
 		g_has_dir = !dir.empty() ;
 		if (g_has_dir) {
 			g_dir = new ::string{dir} ;
-			if (dir[0]=='/') lnk( admin_dir ,       dir ) ;
-			else             lnk( admin_dir , "../"+dir ) ;
+			lnk( admin_dir , mk_lcl(dir,AdminDir+"/"s) ) ;
 			make_dir(dir) ;
 		} else {
 			g_dir = new ::string{AdminDir} ;
@@ -201,10 +198,10 @@ namespace Engine {
 	}
 
 	void EngineStore::_compile_rule_datas() {
-		::vector<Rule> rules   = rule_lst()                                        ;
-		RuleIdx        n_rules = ::max( +::max(rules) , RuleIdx(+Special::N) ) + 1 ;
-		rule_datas.clear() ; rule_datas.resize(n_rules) ;                            // clearing before resize ensure all unused entries are clean
-		for( Special s : Special::N ) if (+s) rule_datas[+s] = RuleData(s) ;
+		::vector<Rule> rules   = rule_lst()                                             ;
+		RuleIdx        n_rules = ::max( +::max(rules) , RuleIdx(+Special::Shared) ) + 1 ;
+		rule_datas.clear() ; rule_datas.resize(n_rules) ;                                            // clearing before resize ensure all unused entries are clean
+		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) rule_datas[+s] = RuleData(s) ;
 		RuleData::s_name_sz = 0 ;
 		for( Rule r : rules ) {
 			rule_datas[+r] = r.str() ;
@@ -266,7 +263,7 @@ namespace Engine {
 						// finally    : any stable sort is fine, just to avoid random order
 						::string a_tgt = a.target() ; size_t a_psfx_sz = parse_prefix(a_tgt).size() + parse_suffix(a_tgt).size() ;
 						::string b_tgt = b.target() ; size_t b_psfx_sz = parse_prefix(b_tgt).size() + parse_suffix(b_tgt).size() ;
-						return ::tuple(a->prio,a->anti,a_psfx_sz,a->name) > ::tuple(b->prio,b->anti,b_psfx_sz,b->name) ;
+						return ::tuple(a->prio,a->special,a_psfx_sz,a->name) > ::tuple(b->prio,b->special,b_psfx_sz,b->name) ;
 					}
 				) ;
 				pfxs.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;
@@ -372,6 +369,7 @@ namespace Engine {
 			} ) ;
 			bool first = true ;
 			for( Rule rule : rules ) {
+				if (!rule->user_defined()) continue ;
 				if (first) first = false ;
 				else       rules_stream << '\n' ;
 				rules_stream<<rule->pretty_str() ;
@@ -473,7 +471,7 @@ namespace Engine {
 		Trace trace("s_invalidate_exec") ;
 		Trace trace2 ;
 		for( Job j : g_store.job_lst() ) {
-			if (j->rule.is_special()) continue ;
+			if (j->rule.is_shared()) continue ;
 			auto [yes,cmd_gen] = keep_cmd_gens[+j->rule] ;
 			if (!yes) continue ;
 			ExecGen old_exec_gen = j->exec_gen ;

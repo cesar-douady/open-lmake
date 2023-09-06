@@ -24,11 +24,8 @@ using namespace Time         ;
 // Record
 //
 
-bool       Record::s_auto_mkdir  = false               ;
-bool       Record::s_ignore_stat = false               ;
-LnkSupport Record::s_lnk_support = LnkSupport::Unknown ;
-bool       Record::s_report_ext  = false               ;
-Fd         Record::s_root_fd     ;
+AutodepEnv* Record::s_autodep_env = nullptr ;                                  // declare as pointer to avoid late initialization
+Fd          Record::s_root_fd     ;
 
 void Record::_report( JobExecRpcReq const& jerr ) const {
 	if ( jerr.proc==JobExecRpcProc::Access && !jerr.sync ) {
@@ -56,8 +53,7 @@ void Record::_report( JobExecRpcReq const& jerr ) const {
 	if (!file) return {{},false/*in_tmp*/} ;
 	RealPath::SolveReport rp = real_path.solve(at,file,no_follow) ;
 	for( ::string& real : rp.lnks ) _report_dep( ::move(real) , file_date(s_get_root_fd(),real) , DFlag::Lnk , comment+".lnk"  ) ;
-	if ( rp.in_repo || s_report_ext ) return {rp.real,rp.in_tmp} ;
-	else                              return {{}     ,rp.in_tmp} ;
+	return {rp.real,rp.in_tmp} ;
 }
 
 void Record::read( int at , const char* file , bool no_follow , ::string const& comment ) {
@@ -71,7 +67,7 @@ void Record::exec( int at , const char* exe , bool no_follow , ::string const& c
 		DFlags fs ;
 		if (a.as_lnk) fs |= DFlag::Lnk ;
 		if (a.as_reg) fs |= DFlag::Reg ;
-		if ( file[0]!='/' || s_report_ext ) _report_dep( ::move(file) , fs , comment ) ;
+		_report_dep( ::move(file) , fs , comment ) ;
 	}
 }
 
@@ -98,9 +94,9 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 }
 
 Record::Chdir::Chdir( bool active , Record& r , int at , const char* dir ) {
-	if (!active             ) return ;
-	if (!dir                ) return ;
-	if (Record::s_auto_mkdir) Disk::make_dir(at,dir,false/*unlink_ok*/) ;
+	if (!active                         ) return ;
+	if (!dir                            ) return ;
+	if (Record::s_autodep_env->auto_mkdir) Disk::make_dir(at,dir,false/*unlink_ok*/) ;
 	r._solve( at , dir , true/*no_follow*/ , "chdir" ) ;
 }
 int Record::Chdir::operator()( Record& r , int rc , int pid ) {

@@ -141,9 +141,22 @@ namespace Disk {
 		else               return res ;
 	}
 
-	static inline bool is_abs_path(::string const& name) { return name.empty() || ( name.front()=='/' && name.back()!='/' ) ; } // empty represent / when used as abs path
-	::string localize ( ::string const& file_name , ::string const& dir_s ) ;                                                   // return passed global file name as seen from dir_s
-	::string globalize( ::string const& file_name , ::string const& dir_s ) ;                                                   // return passed local  file name as seen from root
+	static inline bool is_abs  (::string const& name  ) { return name.empty() || name  [0]=='/'   ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
+	static inline bool is_abs_s(::string const& name_s) { return                 name_s[0]=='/'   ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
+	//
+	static inline bool is_lcl  (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ; }
+	static inline bool is_lcl_s(::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ; }
+	//
+	/**/          ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
+	/**/          ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
+	static inline ::string mk_abs( ::string const& file , ::string const& dir_s ) { // return file (passed as from dir_s       ) as absolute
+		SWEAR(is_abs_s(dir_s)) ;
+		return mk_glb(file,dir_s) ;
+	}
+	static inline ::string mk_rel( ::string const& file , ::string const& dir_s ) {
+		if (is_abs(file)==is_abs_s(dir_s)) return mk_lcl(file,dir_s) ;
+		else                               return file               ;
+	}
 
 	struct FileMap {
 		FileMap( Fd , ::string const&   ) ;
@@ -210,31 +223,26 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		RealPath (                           ) = default ;
-		RealPath ( LnkSupport ls , pid_t p=0 ) { init(ls,p) ; }
-		void init( LnkSupport ls , pid_t p=0 ) {
-			SWEAR( is_abs_path(*g_root_dir) && is_abs_path(*g_tmp_dir) ) ;
-			_admin_dir   = to_string(*g_root_dir,'/',AdminDir)                ;
-			cwd_         = p ? read_lnk(to_string("/proc/",p,"/cwd")) : cwd() ;
-			pid          = p                                                  ;
-			_lnk_support = ls                                                 ;
-		}
+		RealPath (                                                        ) = default ;
+		RealPath ( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) { init(ls,sds_s,p) ; } // sds_s may be either absolute or relative, but must be canonic
+		void init( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) ;                      // .
 		// services
 		SolveReport          solve( Fd at , ::string const&      , bool no_follow=false , bool root_ok=false ) ;
 		SolveReport          solve( Fd at , const char*     file , bool no_follow=false , bool root_ok=false ) { return solve(at     ,::string(file),no_follow,root_ok) ; } // ensure proper types
 		SolveReport          solve(         ::string const& file , bool no_follow=false , bool root_ok=false ) { return solve(Fd::Cwd,         file ,no_follow,root_ok) ; }
 		SolveReport          solve( Fd at ,                        bool no_follow=false , bool root_ok=false ) { return solve(at     ,         {}   ,no_follow,root_ok) ; }
 		::vmap_s<ExecAccess> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
-
-		// data
-		::string cwd_      ;
-		pid_t    pid       = 0 ;
 	private :
-		::string _admin_dir ;
-		// cache a mapping real -> info where info is :
-		// - target : target of the link if real is     a symlink
-		// - exists : true if it exists  if real is not a symlink
-		LnkSupport                                     _lnk_support = LnkSupport::Unknown ;
+		::string _find_src( ::string const& real , bool in_repo ) const ;
+		// data
+	public :
+		::string   cwd_           ;
+		pid_t      pid            = 0 ;
+		::vector_s abs_src_dirs_s ;      // this is an absolute version of src_dirs
+		::vector_s src_dirs_s     ;
+	private :
+		::string   _admin_dir   ;
+		LnkSupport _lnk_support = LnkSupport::Unknown ;
 
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;

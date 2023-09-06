@@ -68,14 +68,12 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose"        ) ) { n_kw_args-- ; verbose   =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
-		for( DFlag df : DFlag::N) {
-			if (df>=DFlag::Private) break ;
+		for( DFlag df=DFlag::HiddenMin ; df<DFlag::HiddenMax1 ; df++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) {
 				n_kw_args-- ;
 				if (PyObject_IsTrue(py_v)) flags |=  df ;
 				else                       flags &= ~df ;
 			}
-		}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
 	::vector_s files ;
@@ -116,14 +114,12 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
-		for( TFlag tf : TFlag::N) {
-			if (tf>=TFlag::RuleOnly) break ;
+		for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
 				n_kw_args-- ;
 				if (PyObject_IsTrue(py_v)) pos_flags |= tf ;
 				else                       neg_flags |= tf ;
 			}
-		}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
 	if ( unlink && (+neg_flags||+pos_flags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
@@ -211,6 +207,7 @@ PyMODINIT_FUNC PyInit_clmake() {
 	PyObject* mod = PyModule_Create(&lmake_module) ;
 	//
 	_g_autodep_support = New ;
+	if (!has_env("LMAKE_AUTODEP_ENV")) _g_autodep_support.root_dir = search_root_dir().first ;
 	lib_init(_g_autodep_support.root_dir) ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	PyModule_AddStringConstant( mod , "root_dir"       , g_root_dir->c_str()               ) ;

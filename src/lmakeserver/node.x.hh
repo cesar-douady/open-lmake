@@ -49,6 +49,7 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
+		Node(::string const& n) ;
 		// accesses
 		Bool3 manual_ok(FileInfoDate const&) const ;
 		Bool3 manual_ok(                   ) const { return manual_ok(FileInfoDate(name())) ; } // ensure we gather the correct date with NFS
@@ -196,9 +197,16 @@ namespace Engine {
 			job_tgts.pop() ;
 		}
 		// accesses
+		bool is_src() const {
+			if (job_tgts.empty()) return false ;
+			switch (job_tgts[0]->rule->special) {
+				case Special::Src        :
+				case Special::GenericSrc : return true  ;
+				default                  : return false ;
+			}
+		}
 		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                   ; }
 		Idx  shared_idx        (         ) const {                          return s_shared_idx( match_gen , buildable )                          ; }
-		bool is_src            (         ) const {                          return !job_tgts.empty() && job_tgts[0]->rule.special()==Special::Src ; }
 		bool has_actual_job    (         ) const {                          return +actual_job_tgt && !actual_job_tgt->rule.old()                 ; }
 		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return actual_job_tgt==j                                              ; }
 		bool has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return actual_job_tgt==jt                                             ; }
@@ -215,6 +223,7 @@ namespace Engine {
 			&&	(SWEAR(!uphill                 ),true)                         // if no job _tgts, it cannot be uphill
 			&&	(SWEAR(!is_lnk                 ),true)                         // if crc is None, it cannot be a link
 			&&	!multi                                                         // exceptional, does not justify to double the number of shared nodes
+			&&	!external
 			;
 		}
 		bool makable(bool uphill_ok=false) const {
@@ -250,27 +259,28 @@ namespace Engine {
 			return +dfs ;
 		}
 		// data
-		Date     date                         ;                      // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
-		Crc      crc                          = Crc::None      ;     // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
-		RuleTgts rule_tgts                    ;                      // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-		JobTgts  job_tgts                     ;                      //      32 bits, owned , ordered by prio, valid if match_ok
-		JobTgt   actual_job_tgt               ;                      //  31<=32 bits, shared, job that generated node
-		RuleIdx  conform_idx                  = Node::NoIdx    ;     //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		MatchGen match_gen     :NMatchGenBits = 0              ;     //       7 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		bool     uphill        :1             = false          ;     //       1 bit ,         if true <=> node is produced by uphill
-		Bool3    buildable     :2             = Bool3::Unknown ;     //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
-		bool     is_lnk        :1             = false          ;     //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
-		bool     multi         :1             = false          ;     //       1 bit ,         if true <=> several jobs generate this node
-		bool     unlinked      :1             = false          ;     //       1 bit ,         if true <=> node as been unlinked by another rule
+		Date     date                    ;                  // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		RuleTgts rule_tgts               ;                  // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+		JobTgts  job_tgts                ;                  //      32 bits, owned , ordered by prio, valid if match_ok
+		JobTgt   actual_job_tgt          ;                  //  31<=32 bits, shared, job that generated node
+		RuleIdx  conform_idx             = Node::NoIdx    ; //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		MatchGen match_gen:NMatchGenBits = 0              ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		bool     uphill   :1             = false          ; //       1 bit ,         if true <=> node is produced by uphill
+		Bool3    buildable:2             = Bool3::Unknown ; //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
+		bool     is_lnk   :1             = false          ; //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
+		bool     multi    :1             = false          ; //       1 bit ,         if true <=> several jobs generate this node
+		bool     unlinked :1             = false          ; //       1 bit ,         if true <=> node as been unlinked by another rule
+		bool     external :1             = false          ; //       1 bit ,         if true <=> node is outside repo
 	} ;
 	static_assert(sizeof(NodeData)==32) ;                                      // check expected size
 
 	ENUM( NodeLvl
-	,	None                           // reserve value 0 as they are not counted in n_total
-	,	Zombie                         // req is zombie but node not marked done yet
-	,	Uphill                         // first level set at init, uphill directory
-	,	NoJob                          // job candidates are exhausted
-	,	Plain                          // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
+	,	None       // reserve value 0 as they are not counted in n_total
+	,	Zombie     // req is zombie but node not marked done yet
+	,	Uphill     // first level set at init, uphill directory
+	,	NoJob      // job candidates are exhausted
+	,	Plain      // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
 	)
 
 	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
@@ -302,6 +312,10 @@ namespace Engine {
 	//
 	// Node
 	//
+
+	inline Node::Node(::string const& n) : NodeBase{n} {
+		if (!Disk::is_lcl(n)) UNode(*this)->external = true ;
+	}
 
 	inline bool Node::err (ReqInfo const& cri) const { return cri.err!=No || (*this)->err() ;      }
 	inline bool Node::done(ReqInfo const& cri) const { return cri.done || (*this)->buildable==No ; }

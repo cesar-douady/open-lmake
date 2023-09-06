@@ -117,7 +117,7 @@ namespace Engine {
 			_adjust_eta() ;
 	}
 	void Req::new_exec_time( Job job , bool remove_old , bool add_new , Delay old_exec_time ) {
-		SWEAR(!job->rule.is_special()) ;
+		SWEAR(!job->rule->is_special()) ;
 		if ( !remove_old && !add_new ) return ;                                // nothing to do
 		Delay delta ;
 		Rule  rule  = job->rule ;
@@ -173,8 +173,8 @@ namespace Engine {
 		//
 		for( RuleTgt rt : rrts ) {                                             // first pass to gather info : matching rules in mrts and number of them missing deps in n_missing
 			Rule::FullMatch match{rt,name} ;
-			if (!match  ) {            continue ; }
-			if (rt->anti) { art = rt ; break    ; }
+			if (!match       ) {            continue ; }
+			if (rt->is_anti()) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match) ;
 			if ( JobTgt jt{rt,name} ; +jt ) {                                                                               // do not pass *this as req to avoid generating error message at cxtor time
 				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
@@ -275,7 +275,7 @@ namespace Engine {
 			bool overflow = (*this)->_send_err( intermediate , job->rule->name , dep , n_err , lvl ) ;
 			if (overflow) {
 				return true ;
-			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule.is_special() ) {
+			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule->is_special() ) {
 				try {
 					// show first stderr
 					Rule::SimpleMatch match          ;

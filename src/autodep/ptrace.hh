@@ -14,7 +14,7 @@
 		// statics
 		static void s_prepare_child() ;                    // must be called from child
 		// static data
-		static AutodepEnv s_autodep_env ;
+		static AutodepEnv* s_autodep_env ;                 // declare as pointer to avoid static late initialization
 		// cxtors & casts
 		AutodepPtrace(        ) = default ;
 		AutodepPtrace(pid_t cp) { _init(cp) ; }
@@ -44,7 +44,7 @@
 		[[noreturn]] static void bad() { fail_prod("autodep method ptrace not supported") ; }
 		static void s_prepare_child() { bad() ; }
 		// static data
-		static AutodepEnv s_autodep_env ;                  // useless but needed so that compilation cant be carried out
+		static AutodepEnv* s_autodep_env ;                  // useless but needed so that compilation cant be carried out
 		// cxtors & casts
 		AutodepPtrace() = default ;
 		AutodepPtrace(int /*child_pid*/) { bad() ; }

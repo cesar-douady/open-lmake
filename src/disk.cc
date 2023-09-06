@@ -193,25 +193,32 @@ namespace Disk {
 		return file ;
 	}
 
-	::string localize( ::string const& file , ::string const& dir_s ) {
-		if (is_abs_path(file)                    ) return file                      ;
-		if (file.compare(0,dir_s.size(),dir_s)==0) return file.substr(dir_s.size()) ;
-		size_t last_slash = Npos  ;
-		size_t n_slash    = 0     ;
-		bool   dvg        = false ;
-		for( size_t i=0 ; i<dir_s.size() ; i++ ) {
-			if      (dvg              ) { if (dir_s[i]=='/') n_slash++ ;         }
-			else if (file[i]==dir_s[i]) { if (dir_s[i]=='/') last_slash = i    ; }
-			else                        {                    dvg        = true ; }
+	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
+		SWEAR( is_abs(file) == is_abs_s(dir_s)    ) ;
+		SWEAR( dir_s.empty() || dir_s.back()=='/' ) ;
+		size_t last_slash1 = 0 ;
+		for( size_t i=0 ; i<file.size() ; i++ ) {
+			if (file[i]!=dir_s[i]) break ;
+			if (file[i]=='/'     ) last_slash1 = i+1 ;
 		}
-		// fast path's to avoid copies
-		if (n_slash) { ::string res ; for( size_t i=0 ; i<n_slash ; i++ ) res += "../" ; if (last_slash==Npos) res += file ; else res += file.substr(last_slash+1) ; return res ; }
-		else         {                                                                   if (last_slash==Npos) return file ; else return file.substr(last_slash+1) ;              }
+		::string res ;
+		for( char c : ::string_view(dir_s).substr(last_slash1) ) if (c=='/') res += "../" ;
+		res += ::string_view(file).substr(last_slash1) ;
+		return res ;
 	}
 
-	::string globalize( ::string const& file , ::string const& dir_s ) {
-		if (is_abs_path(file)) return                          file  ;
-		else                   return beautify_file_name(dir_s+file) ;
+	::string mk_glb( ::string const& file , ::string const& dir_s ) {
+		if (is_abs(file)) return file ;
+		::string_view d_sv = dir_s ;
+		::string_view f_v  = file  ;
+		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
+			SWEAR(!d_sv.empty()) ;
+			d_sv = d_sv.substr(0,d_sv.size()-1) ;                              // suppress ending /
+			size_t last_slash = d_sv.rfind('/') ;
+			if (last_slash==Npos) { SWEAR(!d_sv.empty()) ; d_sv = d_sv.substr(0,0           ) ; }
+			else                  {                        d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
+		}
+		return to_string(d_sv,f_v) ;
 	}
 
 	//
@@ -223,6 +230,26 @@ namespace Disk {
 		if (sr.in_repo) os << ",repo" ;
 		if (sr.in_tmp ) os << ",tmp"  ;
 		return os <<')' ;
+	}
+
+	void RealPath::init( LnkSupport ls , ::vector_s const& sds_s , pid_t p ) {
+		SWEAR( is_abs(*g_root_dir) && is_abs(*g_tmp_dir) ) ;
+		_admin_dir   = to_string(*g_root_dir,'/',AdminDir)                ;
+		cwd_         = p ? read_lnk(to_string("/proc/",p,"/cwd")) : cwd() ;
+		pid          = p                                                  ;
+		_lnk_support = ls                                                 ;
+		src_dirs_s   = sds_s                                              ;
+		for ( ::string const& sd_s : sds_s ) abs_src_dirs_s.push_back(mk_glb(sd_s,*g_root_dir)) ;
+	}
+
+	::string RealPath::_find_src( ::string const& real , bool in_repo ) const {
+		if (in_repo) {
+			/**/                                              if (real.size()==g_root_dir->size()    ) return {}                                                    ;
+			/**/                                              else                                     return real.substr(g_root_dir->size()+1)                     ;
+		} else {
+			for( size_t i=0 ; i<abs_src_dirs_s.size() ; i++ ) if (real.starts_with(abs_src_dirs_s[i])) return src_dirs_s[i] + real.substr(abs_src_dirs_s[i].size()) ;
+			/**/                                                                                       return {}                                                    ;
+		}
 	}
 
 	// strong performance efforts have been made :
@@ -252,7 +279,7 @@ namespace Disk {
 			if      (at==Fd::Cwd) real = cwd_                                            ;
 			else if (pid        ) real = read_lnk(to_string(*proc,'/',pid,"/fd/",at.fd)) ;
 			else                  real = read_lnk(to_string(*proc,"/self/fd/"   ,at.fd)) ;
-			if (!is_abs_path(real)) return {} ;                                            // user code might use the strangest at, it will be an error but we must support it
+			if (!is_abs(real)) return {} ;                                                 // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
 		}
 		_Dvg in_repo ( *g_root_dir                         , real ) ;          // keep track of where we are w.r.t. repo       , track symlinks according to _lnk_support policy
@@ -306,9 +333,12 @@ namespace Disk {
 			// for example if a/b/c is a link to d/e and we access a/b/c/f, we generate the link a/b/c :
 			// - a & a/b will be indirectly depended on through a/b/c
 			// - d & d/e will be indrectly depended on through caller depending on d/e/f (the real accessed file returned as the result)
-			if ( lnk_ok!=Yes            ) continue ;
-			if ( !in_tmp && in_repo     ) lnks.emplace_back( real.substr(g_root_dir->size()+1) ) ;
-			if ( n_lnks++>=s_n_max_lnks ) return {{},::move(lnks),false,false} ; // link loop detected, same check as system
+			if (lnk_ok!=Yes) continue ;
+			if (!in_tmp) {
+				::string rel_real = _find_src(real,in_repo) ;
+				if (!rel_real.empty()) lnks.push_back(rel_real) ;
+			}
+			if (n_lnks++>=s_n_max_lnks) return {{},::move(lnks),false,false} ; // link loop detected, same check as system
 			// avoiding the following copy is very complex (would require to manage a stack) and links to dir are uncommon
 			if (!last) {                                                       // append unprocessed part
 				local_file[pong].push_back('/'          ) ;
@@ -321,10 +351,8 @@ namespace Disk {
 			real.resize(prev_real_size) ;                                      // links are relative to containing dir, suppress last component
 		}
 		// admin is typically in repo, tmp might be, repo root is in_repo
-		if ( in_tmp || in_admin || in_proc   ) return { {}                                , ::move(lnks) , false   , in_tmp } ;
-		if ( !in_repo                        ) return { ::move(real)                      , ::move(lnks) , false   , false  } ;
-		if ( real.size()<=g_root_dir->size() ) return { {}                                , ::move(lnks) , root_ok , false  } ;
-		/**/                                   return { real.substr(g_root_dir->size()+1) , ::move(lnks) , true    , false  } ;
+		if ( in_tmp || in_admin || in_proc ) return { {}                      , ::move(lnks) , false                                              , in_tmp } ;
+		else                                 return { _find_src(real,in_repo) , ::move(lnks) , in_repo&&(root_ok||real.size()>g_root_dir->size()) , false  } ;
 	}
 
 	::vmap_s<RealPath::ExecAccess> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {

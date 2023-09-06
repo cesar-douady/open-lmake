@@ -40,8 +40,11 @@ namespace Backends {
 			try {
 				s_tab[+t]->launch() ;
 			} catch (::vmap<JobIdx,pair<vmap_ss/*rsrcs*/,string/*msg*/>>& err_list) {
-				for( auto& [ji,re] : err_list )
-					g_engine_queue.emplace( JobProc::End , JobExec(ji,ProcessDate::s_now()) , ::move(re.first) , JobDigest{.status=Status::EarlyErr,.stderr=::move(re.second)} ) ;
+				for( auto& [ji,re] : err_list ) {
+					JobExec je{ji,ProcessDate::s_now()} ;
+					g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report*/                                                                  ) ;
+					g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(re.first) , JobDigest{.status=Status::EarlyErr,.stderr=::move(re.second)} ) ;
+				}
 			}
 	}
 
@@ -170,7 +173,7 @@ namespace Backends {
 							serialize( ofs , JobInfoEnd  (JobProc::End,jrr.job,Status::EarlyErr,::string(err_str))           ) ;
 						}
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , report_unlink , start_exc_txt , false/*deferred_start_report*/              ) ;
+						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , report_unlink , start_exc_txt                         ) ;
 						s_end(tag,+job)                                                                                                                           ;
 						g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , JobDigest{.status=Status::EarlyErr,.stderr=::move(err_str)} ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -186,29 +189,30 @@ namespace Backends {
 					for( ::pair_ss const& kv : start_rsrcs_attrs.env ) reply.env.push_back(kv) ;
 					for( ::pair_ss const& kv : start_none_attrs .env ) reply.env.push_back(kv) ;
 					// simple attrs
-					reply.addr             = job_addr                    ;
-					reply.method           = start_cmd_attrs.method      ;
-					reply.auto_mkdir       = start_cmd_attrs.auto_mkdir  ;
-					reply.chroot           = start_cmd_attrs.chroot      ;
-					reply.cmd              = ::move(cmd)                 ;
-					reply.cwd_s            = rule->cwd_s                 ;
-				//	reply.env                                               // done above
-					reply.hash_algo        = g_config.hash_algo          ;
-				//	reply.host                                              // directly filled in job_exec
-					reply.ignore_stat      = start_cmd_attrs.ignore_stat ;
-					reply.interpreter      = start_cmd_attrs.interpreter ;
-				//	reply.job_id                                            // directly filled in job_exec
-					reply.keep_tmp         = keep_tmp                    ;
-					reply.kill_sigs        = start_none_attrs.kill_sigs  ;
-					reply.live_out         = entry.submit_attrs.live_out ;
-					reply.lnk_support      = g_config.lnk_support        ;
-					reply.local_mrkr       = start_cmd_attrs.local_mrkr  ;
-					reply.root_dir         = *g_root_dir                 ;
-				//	reply.seq_id                                            // directly filled in job_exec
-					reply.small_id         = small_id                    ;
-					reply.timeout          = start_rsrcs_attrs.timeout   ;
-					reply.remote_admin_dir = *g_remote_admin_dir         ;
-					reply.job_tmp_dir      = ::move(tmp_dir)             ;
+					reply.addr                    = job_addr                    ;
+					reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir  ;
+					reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat ;
+					reply.autodep_env.lnk_support = g_config.lnk_support        ;
+					reply.autodep_env.src_dirs_s  = g_config.src_dirs_s         ;
+					reply.autodep_env.root_dir    = *g_root_dir                 ;
+					reply.chroot                  = start_cmd_attrs.chroot      ;
+					reply.cmd                     = ::move(cmd)                 ;
+					reply.cwd_s                   = rule->cwd_s                 ;
+				//	reply.env                                                      // done above
+					reply.hash_algo               = g_config.hash_algo          ;
+				//	reply.host                                                     // directly filled in job_exec
+					reply.interpreter             = start_cmd_attrs.interpreter ;
+				//	reply.job_id                                                   // directly filled in job_exec
+					reply.keep_tmp                = keep_tmp                    ;
+					reply.kill_sigs               = start_none_attrs.kill_sigs  ;
+					reply.live_out                = entry.submit_attrs.live_out ;
+					reply.local_mrkr              = start_cmd_attrs.local_mrkr  ;
+					reply.method                  = start_cmd_attrs.method      ;
+				//	reply.seq_id                                                   // directly filled in job_exec
+					reply.small_id                = small_id                    ;
+					reply.timeout                 = start_rsrcs_attrs.timeout   ;
+					reply.remote_admin_dir        = *g_remote_admin_dir         ;
+					reply.job_tmp_dir             = ::move(tmp_dir)             ;
 					// fancy attrs
 					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = create_match_attrs[rule->stdin_idx ].second.first ;
 					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets           [rule->stdout_idx]              ;
@@ -248,7 +252,7 @@ namespace Backends {
 				//
 				bool deferred_start_report = Delay(job->exec_time)<start_none_attrs.start_delay && report_unlink.empty() && start_exc_txt.empty() ; // dont defer if we must report info at start time
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_unlink , start_exc_txt , !deferred_start_report ) ;
+				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , !deferred_start_report , report_unlink , start_exc_txt ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (deferred_start_report) _s_deferred_report_queue.emplace( job_exec.start+start_none_attrs.start_delay , jrr.seq_id , ::move(job_exec) ) ;
 				trace("started",reply) ;
@@ -342,10 +346,10 @@ namespace Backends {
 					trace("erase_start_tab",j,it->second) ;
 					_s_start_tab.erase(it) ;
 					JobExec je{j,now} ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , ::move(je) , ::vector<Node>() , ""s , false ) ;
-					g_engine_queue.emplace( JobProc::End   , ::move(je) , Status::Lost                   ) ; // signal jobs that have disappeared so they can be relaunched
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::Start , ::move(je) , false/*report_now*/ , ::vector<Node>() ) ;
+					g_engine_queue.emplace( JobProc::End   , ::move(je) , Status::Lost                           ) ; // signal jobs that have disappeared so they can be relaunched
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				for( auto& [j,e] : _s_start_tab ) {
 					if (!e.start) continue ;                                   // if job has not started yet, it is the responsibility of the sub-backend to monitor it

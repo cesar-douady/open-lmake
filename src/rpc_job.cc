@@ -71,7 +71,7 @@
 		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
 		case JobProc::Start :
 			/**/                          os       << hex<<jrr.addr<<dec   ;
-			if (jrr.auto_mkdir          ) os <<',' << "auto_mkdir"         ;
+			/**/                          os <<',' << jrr.autodep_env      ;
 			if (!jrr.chroot.empty()     ) os <<',' << jrr.chroot           ;
 			if (!jrr.cwd_s .empty()     ) os <<',' << jrr.cwd_s            ;
 			/**/                          os <<',' << jrr.env              ;
@@ -84,8 +84,8 @@
 			/**/                          os <<',' << jrr.method           ;
 			/**/                          os <<',' << jrr.remote_admin_dir ;
 			/**/                          os <<',' << jrr.small_id         ;
-			if (!jrr.stdin .empty()     ) os <<'<' << jrr.stdin            ;
-			if (!jrr.stdout.empty()     ) os <<'>' << jrr.stdout           ;
+			if (!jrr.stdin   .empty()   ) os <<'<' << jrr.stdin            ;
+			if (!jrr.stdout  .empty()   ) os <<'>' << jrr.stdout           ;
 			/**/                          os <<"*>"<< jrr.targets          ;
 			if (+jrr.timeout            ) os <<',' << jrr.timeout          ;
 			/**/                          os <<',' << jrr.cmd              ; // last as it is most probably multi-line

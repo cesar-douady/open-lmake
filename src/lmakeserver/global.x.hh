@@ -127,6 +127,7 @@ namespace Engine {
 			::serdes(s,network_delay        ) ;
 			::serdes(s,trace_sz             ) ;
 			::serdes(s,path_max             ) ;
+			::serdes(s,src_dirs_s           ) ;
 			::serdes(s,sub_prio_boost       ) ;
 			::serdes(s,backends             ) ;
 			::serdes(s,caches               ) ;
@@ -148,6 +149,7 @@ namespace Engine {
 		Time::Delay    network_delay                                   ;
 		size_t         trace_sz                                        = 0                ;
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
+		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
 		Backend        backends[+BackendTag::N]                        ;
 		::map_s<Cache> caches                                          ;
@@ -228,7 +230,7 @@ namespace Engine {
 		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                        } { SWEAR(p==RP::Kill )      ; }
 		EngineClosure(RP p,Req_ r                                 ) : kind{K::Req},req{.proc=p,.req=r                                        } { SWEAR(p==RP::Close)      ; }
 		//
-		EngineClosure( JP p , JE&& je , VN const& ru , ::string const& t , bool r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=r,.report_unlink=ru,.txt=t} { SWEAR(p==JP::Start) ; }
+		EngineClosure( JP p , JE&& je , bool r , VN const& ru={} , ::string const& t={} ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=r,.report_unlink=ru,.txt=t} { SWEAR(p==JP::Start) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::string const& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=t             } { SWEAR( p==JP::LiveOut                          ) ; }
 		EngineClosure( JP p , JE&& je , Req_            r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }

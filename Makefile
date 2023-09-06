@@ -174,7 +174,7 @@ ext/%.patched.h : ext/%.h ext/%.patch_script
 
 .SECONDARY :
 
-%.html : %.texi ; texi2any --html --no-split --output=$@ $<
+%.html : %.texi ; LANGUAGE= LC_ALL= LANG= texi2any --html --no-split --output=$@ $<
 
 #
 # LMAKE
@@ -256,7 +256,7 @@ INCLUDE_SECCOMP := -I $(SECCOMP_INCLUDE_DIR)
 INSTALL_SECCOMP := $(SECCOMP).install.stamp
 
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils          )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_ld autodep_support gather_deps ptrace record                                                      )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_env autodep_ld autodep_support gather_deps ptrace record                                          )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                        )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x )
 
@@ -289,6 +289,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/utils$(SAN).o                        \
 	$(SRC)/store/file$(SAN).o                   \
+	$(SRC)/autodep/autodep_env$(SAN).o          \
 	$(SRC)/autodep/gather_deps$(SAN).o          \
 	$(SRC)/autodep/ptrace$(SAN).o               \
 	$(SRC)/autodep/record$(SAN).o               \
@@ -321,6 +322,7 @@ $(SBIN)/ldump : \
 	$(SRC)/time$(SAN).o                         \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/utils$(SAN).o                        \
+	$(SRC)/autodep/autodep_env$(SAN).o          \
 	$(SRC)/store/file$(SAN).o                   \
 	$(SRC)/lmakeserver/backend$(SAN).o          \
 	$(SRC)/lmakeserver/cache$(SAN).o            \
@@ -336,15 +338,16 @@ $(SBIN)/ldump : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
-	$(SRC)/app$(SAN).o     \
-	$(SRC)/disk$(SAN).o    \
-	$(SRC)/hash$(SAN).o    \
-	$(SRC)/lib$(SAN).o     \
-	$(SRC)/non_portable.o  \
-	$(SRC)/rpc_job$(SAN).o \
-	$(SRC)/time$(SAN).o    \
-	$(SRC)/trace$(SAN).o   \
-	$(SRC)/utils$(SAN).o   \
+	$(SRC)/app$(SAN).o                 \
+	$(SRC)/disk$(SAN).o                \
+	$(SRC)/hash$(SAN).o                \
+	$(SRC)/lib$(SAN).o                 \
+	$(SRC)/non_portable.o              \
+	$(SRC)/rpc_job$(SAN).o             \
+	$(SRC)/time$(SAN).o                \
+	$(SRC)/trace$(SAN).o               \
+	$(SRC)/utils$(SAN).o               \
+	$(SRC)/autodep/autodep_env$(SAN).o \
 	$(SRC)/ldump_job$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
@@ -361,6 +364,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/time$(SAN).o                \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/utils$(SAN).o               \
+	$(SRC)/autodep/autodep_env$(SAN).o \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
@@ -451,6 +455,7 @@ $(BIN)/ldepend : \
 	$(SRC)/trace.o                   \
 	$(SRC)/utils.o                   \
 	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/autodep_env.o     \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/ldepend.o
 	mkdir -p $(BIN)
@@ -467,6 +472,7 @@ $(BIN)/ltarget : \
 	$(SRC)/trace.o                   \
 	$(SRC)/utils.o                   \
 	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/autodep_env.o     \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/ltarget.o
 	mkdir -p $(BIN)
@@ -483,6 +489,7 @@ $(BIN)/lcheck_deps : \
 	$(SRC)/trace.o                   \
 	$(SRC)/utils.o                   \
 	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/autodep_env.o     \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/lcheck_deps.o
 	mkdir -p $(BIN)
@@ -498,6 +505,7 @@ $(BIN)/autodep : \
 	$(SRC)/time$(SAN).o                \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/utils$(SAN).o               \
+	$(SRC)/autodep/autodep_env$(SAN).o \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
@@ -507,28 +515,30 @@ $(BIN)/autodep : \
 
 $(SRC)/autodep/autodep_ld_preload.o : $(SRC)/autodep/autodep_ld.cc
 $(SLIB)/autodep_ld_preload.so : \
-	$(SRC)/disk.o           \
-	$(SRC)/hash.o           \
-	$(SRC)/lib.o            \
-	$(SRC)/non_portable.o   \
-	$(SRC)/rpc_job.o        \
-	$(SRC)/time.o           \
-	$(SRC)/utils.o          \
-	$(SRC)/autodep/record.o \
+	$(SRC)/disk.o                \
+	$(SRC)/hash.o                \
+	$(SRC)/lib.o                 \
+	$(SRC)/non_portable.o        \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/time.o                \
+	$(SRC)/utils.o               \
+	$(SRC)/autodep/autodep_env.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/autodep_ld_preload.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SRC)/autodep/autodep_ld_audit.o : $(SRC)/autodep/autodep_ld.cc
 $(SLIB)/autodep_ld_audit.so : \
-	$(SRC)/disk.o               \
-	$(SRC)/hash.o               \
-	$(SRC)/lib.o                \
-	$(SRC)/non_portable.o       \
-	$(SRC)/rpc_job.o            \
-	$(SRC)/time.o               \
-	$(SRC)/utils.o              \
-	$(SRC)/autodep/record.o     \
+	$(SRC)/disk.o                \
+	$(SRC)/hash.o                \
+	$(SRC)/lib.o                 \
+	$(SRC)/non_portable.o        \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/time.o                \
+	$(SRC)/utils.o               \
+	$(SRC)/autodep/autodep_env.o \
+	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/autodep_ld_audit.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
@@ -542,6 +552,7 @@ $(LIB)/clmake.so : \
 	$(SRC)/time.o                    \
 	$(SRC)/utils.o                   \
 	$(SRC)/autodep/autodep_support.o \
+	$(SRC)/autodep/autodep_env.o     \
 	$(SRC)/autodep/record.o          \
 	$(SRC)/autodep/clmake.o
 	mkdir -p $(@D)

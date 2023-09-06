@@ -222,7 +222,7 @@ namespace Engine {
 				case ReqKey::Script     :
 				case ReqKey::Stderr     :
 				case ReqKey::Stdout     : {
-					if (rule.is_special()) {
+					if (rule->is_special()) {
 						switch (ro.key) {
 							case ReqKey::Info :
 							case ReqKey::Stderr : {
@@ -307,13 +307,13 @@ namespace Engine {
 									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                   ) ) ;
 									audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str(),'-',rs.submit_attrs.pressure.short_str()) ) ;
 									//
-									if ( rs.submit_attrs.live_out) audit( fd , ro , Color::None , lvl+1 , to_string("live_out       : true"                              ) ) ;
-									if ( rs.start.auto_mkdir     ) audit( fd , ro , Color::None , lvl+1 , to_string("auto_mkdir     : true"                              ) ) ;
-									if ( rs.start.ignore_stat    ) audit( fd , ro , Color::None , lvl+1 , to_string("ignore_stat    : true"                              ) ) ;
-									if (!rs.start.chroot.empty() ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot         : ",rs.start.chroot                  ) ) ;
-									if (!rs.start.cwd_s .empty() ) audit( fd , ro , Color::None , lvl+1 , to_string("cwd            : ",rs.start.cwd_s.substr(0,cwd_sz-1)) ) ;
-									if ( rs.start.method!=AdMD   ) audit( fd , ro , Color::None , lvl+1 , to_string("autodep        : ",mk_snake(rs.start.method)        ) ) ;
-									if (+rs.start.timeout        ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout        : ",rs.start.timeout.short_str()     ) ) ;
+									if ( rs.submit_attrs.live_out        ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out       : true"                              ) ) ;
+									if (!rs.start.chroot.empty()         ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot         : ",rs.start.chroot                  ) ) ;
+									if (!rs.start.cwd_s .empty()         ) audit( fd , ro , Color::None , lvl+1 , to_string("cwd            : ",rs.start.cwd_s.substr(0,cwd_sz-1)) ) ;
+									if ( rs.start.autodep_env.auto_mkdir ) audit( fd , ro , Color::None , lvl+1 , to_string("auto_mkdir     : true"                              ) ) ;
+									if ( rs.start.autodep_env.ignore_stat) audit( fd , ro , Color::None , lvl+1 , to_string("ignore_stat    : true"                              ) ) ;
+									if ( rs.start.method!=AdMD           ) audit( fd , ro , Color::None , lvl+1 , to_string("autodep        : ",mk_snake(rs.start.method)        ) ) ;
+									if (+rs.start.timeout                ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout        : ",rs.start.timeout.short_str()     ) ) ;
 								}
 								if (has_end) {
 									audit( fd , ro , Color::None , lvl+1 , to_string("end date       : ",digest.end_date.str()                  ) ) ;
@@ -364,7 +364,7 @@ namespace Engine {
 					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , jt ) ; // actual job is output last as this is what user views first
 				} break ;
 				case ReqKey::Targets :
-					if (rule.is_special()) {
+					if (rule->is_special()) {
 						_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target , lvl ) ;
 					} else {
 						Rule::FullMatch match      = jt.full_match() ;
@@ -385,10 +385,7 @@ namespace Engine {
 							flags_str += +(td.dfs&AccessDFlags) ? (td.write?'U':'R') : (td.write?'W':'-') ;
 							flags_str += stfs[TFlag::Star]      ? '*'                : '-'                ;
 							flags_str += ' ' ;
-							for( TFlag f : TFlag::N ) {
-								if (f>=TFlag::RuleOnly) break ;
-								flags_str += td.tfs[f]?TFlagChars[+f]:'-' ;
-							}
+							for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ ) flags_str += td.tfs[tf]?TFlagChars[+tf]:'-' ;
 							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 						}
 					}

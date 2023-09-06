@@ -237,15 +237,20 @@ bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
 	::umap<Fd,Req                      > req_tab ;                             // indexed by out_fd
 	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab  ;
-	 bool                                empty   = false/*garbage*/ ;
-	 while ( !(empty=!g_engine_queue) || _g_is_daemon || Req::s_n_reqs() || !_g_done ) {
-		if (empty) {                                                                     // we are about to block, do some book-keeping
+	 for (;;) {
+		bool empty = !g_engine_queue ;
+		if (empty) {                                                           // we are about to block, do some book-keeping
 			trace("wait") ;
-			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;
-			if ( !_g_is_daemon && !Req::s_n_reqs() && _g_done ) break ;
+			//vvvvvvvvvvvvvvvvv
+			Backend::s_launch() ;                                              // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
+			//^^^^^^^^^^^^^^^^^
+			if ((empty=!g_engine_queue)) {                                     // s_launch may have queued jobs in case of error
+				for( auto const& [fd,req] : req_tab ) req->audit_stats() ;
+				if ( _g_done && !Req::s_n_reqs() ) break ;
+			}
 		}
 		EngineClosure closure = g_engine_queue.pop() ;
-		DiskDate::s_refresh_now() ;                                            // we may have waited, refresh now
+		if (empty) DiskDate::s_refresh_now() ;                                 // we may have waited, refresh now
 		switch (closure.kind) {
 			case EngineClosureKind::Global : {
 				switch (closure.global_proc) {
@@ -285,8 +290,7 @@ bool/*interrupted*/ engine_loop() {
 						trace("new_req",r) ;
 						//vvvvvv
 						r.make() ;
-						Backend::s_launch() ;                                  // tell backend a bunch of submit's may be finished as backend may wait until then before actually launching jobs
-						//^^^^^^^^^^^^^^^^^
+						//^^^^^^
 					} break ;
 					// there is exactly one Kill and one Close for each Req created by Make but unordered :
 					// - there may be spurious Kill w/o corresponding Req if lmake is interrupted before sending its Req
@@ -322,13 +326,13 @@ bool/*interrupted*/ engine_loop() {
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
 					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt) ;                       break ;
-					case JobProc::ReportStart : je.report_start (                                    ) ;                       break ;
-					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ;                       break ;
-					case JobProc::Continue    : je.premature_end(job.req                             ) ;                       break ;
-					case JobProc::NotStarted  : je.not_started  (                                    ) ;          /*vvvvvv*/   break ;
-					case JobProc::End         : je.end          (job.rsrcs,job.digest                ) ; Backend::s_launch() ; break ; // backends may defer job launch to have a complete view
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^            ^^^^^^^^^^
+					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt) ; break ;
+					case JobProc::ReportStart : je.report_start (                                    ) ; break ;
+					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ; break ;
+					case JobProc::Continue    : je.premature_end(job.req                             ) ; break ;
+					case JobProc::NotStarted  : je.not_started  (                                    ) ; break ;
+					case JobProc::End         : je.end          (job.rsrcs,job.digest                ) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;

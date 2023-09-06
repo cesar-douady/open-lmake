@@ -90,8 +90,8 @@ namespace Engine {
 	template<IsIdxed T> struct Owned : T {
 		using T::T ;
 		//
-		Owned           (Owned const&) = delete ;                                  // cannot duplicate ownership
-		Owned& operator=(Owned const&) = delete ;                                  // .
+		Owned           (Owned const&) = delete ;                              // cannot duplicate ownership
+		Owned& operator=(Owned const&) = delete ;                              // .
 		//
 		Owned           (Owned && t) : T{::move(t)} {                                                 t.clear() ;                }
 		Owned& operator=(T     && t)                { T::pop() ; static_cast<T&>(*this) = ::move(t) ;             return *this ; }
@@ -428,9 +428,8 @@ namespace Engine {
 		RuleData const& operator* () const ;
 		RuleData const* operator->() const { return &**this ; }
 		//
-		constexpr bool    is_special() const { return +*this<=+Special::N                                             ; }
-		/**/      Special special   () const { SWEAR(+*this) ; return is_special() ? Special(+*this) : Special::Plain ; }
-		/**/      bool    old       () const ;
+		constexpr bool    is_shared() const { return +*this<=+Special::Shared ; }
+		/**/      bool    old      () const ;
 		//
 		::string_view str() const ;
 		// services
@@ -532,7 +531,7 @@ namespace Engine {
 		JobFile    ::Lst job_lst () const { return job_file     .lst() ; }
 		::vector<Rule>   rule_lst() const {
 			::vector<Rule> res ; res.reserve(rule_file.size()) ;
-			for( Rule r : rule_file.lst() ) if ( !r.is_special() && !r.old() ) res.push_back(r) ;
+			for( Rule r : rule_file.lst() ) if ( !r.is_shared() && !r.old() ) res.push_back(r) ;
 			return res ;
 		}
 		// services
@@ -859,17 +858,17 @@ namespace Engine {
 	// RuleBase
 	//
 	//statics
-	inline ::vector<Rule>  RuleBase::s_lst         ()       {                        return g_store.rule_lst()                      ;               }
+	inline ::vector<Rule> RuleBase::s_lst() { return g_store.rule_lst() ; }
 	// cxtors & casts
-	inline void            RuleBase::invalidate_old()       { if (old()) g_store.rule_file.pop(Rule(*this))                         ;               }
+	inline void RuleBase::invalidate_old() { if (old()) g_store.rule_file.pop(Rule(*this)) ; }
 	// accesses
-	inline RuleData      & RuleBase::rule_data     ()       {                        return g_store.rule_datas[+*this]              ;               }
-	inline RuleData const& RuleBase::operator*     () const {                        return g_store.rule_datas[+*this]              ;               }
-	inline bool            RuleBase::old           () const {                        return !is_special() && !_str()                ;               }
-	inline ::string_view   RuleBase::str           () const {                        return g_store.rule_str_file.str_view(+_str()) ;               }
-	inline RuleStr         RuleBase::_str          () const { SWEAR(!is_special()) ; return g_store.rule_file.c_at(Rule(*this))     ;               }
+	inline RuleData      & RuleBase::rule_data()       {                       return g_store.rule_datas[+*this]              ; }
+	inline RuleData const& RuleBase::operator*() const {                       return g_store.rule_datas[+*this]              ; }
+	inline bool            RuleBase::old      () const {                       return !is_shared() && !_str()                 ; }
+	inline ::string_view   RuleBase::str      () const {                       return g_store.rule_str_file.str_view(+_str()) ; }
+	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return g_store.rule_file.c_at(Rule(*this))     ; }
 	// services
-	inline void            RuleBase::stamp         () const { g_store.rule_file.at(*this) = g_store.rule_str_file.assign(_str(),::string(**this)) ; }
+	inline void RuleBase::stamp() const { g_store.rule_file.at(*this) = g_store.rule_str_file.assign(_str(),::string(**this)) ; }
 
 }
 #endif

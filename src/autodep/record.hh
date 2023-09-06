@@ -21,41 +21,32 @@ struct Record {
 	using DD         = Time::DiskDate                                    ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
-	// init
-	static void s_init( AutodepEnv const& ade ) {
-		s_auto_mkdir  = ade.auto_mkdir  ;
-		s_ignore_stat = ade.ignore_stat ;
-		s_lnk_support = ade.lnk_support ;
-		s_report_ext  = ade.report_ext  ;
-	}
 	// statics
+	static void s_init( AutodepEnv const& ade ) { s_autodep_env = new AutodepEnv{ade} ; }
 	static Fd s_get_root_fd() {
 		if (!s_root_fd) {
-			s_root_fd = Disk::open_read(*g_root_dir) ;
+			s_root_fd = Disk::open_read(s_autodep_env->root_dir) ;
+			SWEAR(+s_root_fd) ;
 			s_root_fd.no_std() ;                                               // avoid poluting standard descriptors
 		}
 		return s_root_fd ;
 	}
-	// cxtors & casts
-	Record() = default ;
-	//
-	Record   ( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) { init(rcb,grcb,pid) ; }
-	void init( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) {
-		real_path.init(s_lnk_support,pid) ;
-		report_cb    = rcb  ;
-		get_reply_cb = grcb ;
-	}
-	// statics
 	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
 	static bool s_do_read (int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_WRONLY && !(flags&O_TRUNC) ; }
 	static bool s_do_write(int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_RDONLY                     ; }
 	static bool s_no_file (int errno_) { return errno_==EISDIR || errno_==ENOENT || errno_==ENOTDIR                  ; }
 	// static data
-	static bool       s_auto_mkdir  ;
-	static bool       s_ignore_stat ;
-	static LnkSupport s_lnk_support ;
-	static bool       s_report_ext  ;
-	static Fd         s_root_fd     ;
+	static AutodepEnv* s_autodep_env ;
+	static Fd          s_root_fd     ;
+	// cxtors & casts
+	Record() = default ;
+	//
+	Record   ( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) { init(rcb,grcb,pid) ; }
+	void init( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) {
+		real_path.init(s_autodep_env->lnk_support,s_autodep_env->src_dirs_s,pid) ;
+		report_cb    = rcb  ;
+		get_reply_cb = grcb ;
+	}
 	// services
 private :
 	void _report( JobExecRpcReq const& jerr ) const ;
@@ -169,7 +160,7 @@ public :
 	}
 	void stat ( int at , const char* file , bool no_follow=false , ::string const& comment="stat" ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
-		if ( !s_ignore_stat && !real.empty() ) _report_dep( ::move(real) , DFlag::Stat , comment ) ;
+		if ( !s_autodep_env->ignore_stat && !real.empty() ) _report_dep( ::move(real) , DFlag::Stat , comment ) ;
 	}
 	JobExecRpcReply backdoor(JobExecRpcReq&& jerr) ;
 	//
@@ -196,13 +187,13 @@ struct RecordSock : Record {
 		return _t_report_fd ;
 	}
 	static void s_init(AutodepEnv const& ade) {
+		Record::s_init(ade) ;
 		lib_init(ade.root_dir) ;
 		_s_service = new ::string{ade.service} ;
 		if (_s_service->back()==':') {
 			*_s_service        = to_string(*g_root_dir,'/',_s_service->substr(0,_s_service->size()-1)) ; // for debugging purpose, log to a file
 			_s_service_is_file = true                                                                  ;
 		}
-		Record::s_init(ade) ;
 	}
 	static void s_init() {
 		if (!has_env("LMAKE_AUTODEP_ENV")) throw "dont know where to report deps"s ;

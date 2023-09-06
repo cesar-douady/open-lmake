@@ -559,8 +559,18 @@ Options :
 @itemize @bullet
 @item @code{-a}|@code{--all-deps} : output the list of all the deps of the jobs.
 Each line is composed of 4 fields  separated by spaces :
-@itemize .
-@item Flags : each flag is either a letter (same is in @code{ldepend} options) if set, or a @code{-} if not.
+@itemize @minus
+@item Flags : each flag is either a letter if set, or a @code{-} if not :
+	@itemize .
+	@item @code{c} : dep is critical (see @pxref{critical-deps}).
+	@item @code{s} : dep is essential, i.e. dep is show in a future graphical tool.
+	@item @code{e} : ignore errors on dep, i.e. job can be run even if this dep is built in error.
+	@item @code{r} : dep is required, i.e. job is in error if dep is not buildable. For static deps, job is not even tried if dep is not buildable (and another rule is used if possible).
+	@item @code{S} : dep is static.
+	@item @code{L} : dep has been accessed as a symbolic link.
+	@item @code{R} : dep has been accessed as a regular file.
+	@item @code{T} : dep has been accessed with a stat-like system call (i.e. its inode has been accessed).
+	@end itemize
 @item Key : the key if the dep is static, else blank.
 @item Ascii art showing parallel deps (deps coming from a single call to @code{ldepend} or @code{lmake.depend} are considered parallel).
 @item Name of the dep.
@@ -840,17 +850,6 @@ Actually most of the accesses are made this directory. See @pxref{dir-local_admi
 This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
 See @pxref{dir-remote_admin_dir}
 
-@subsection @code{lmake.source_dirs}
-
-This variable contains a @code{list} of directories that contain source files.
-
-In the current version, @lmake only handle this variable when reading @Lmakefile, so as to allow the @lmake root directory (as determined by the presence of @Lmakefile) to be a
-sub-directory of the @code{git} root directory.
-
-In a future version, @lmake will consider all files in these directories that are not in @lmake root directory as sources and will track any modifications to them.
-
-By default, this variable is empty, but gathering sources from @code{git} (as is done by default in absence of file @file{Manifest}) will add the @code{git} root directory to it.
-
 @section @code{class pdict}
 
 This is a helpful tiny @code{class} deriving from @code{dict} that allows item access as attribute.
@@ -875,7 +874,13 @@ This @code{class} is used as a base @code{class} for rules.
 This @code{class} is used as a base @code{class} for anti-rules.
 
 Anti-rules specify that target files that are not buildable.
-They have not dependencies and no execution.
+They have no dependencies nor execution.
+
+@subsection @code{class SourceRule}
+This @code{class} is used as a base @code{class} for sources defined by a pattern.
+
+Source-rules specify that if a matching target exists, it is considered a source.
+They have no dependencies nor execution.
 
 @subsection @code{class PyRule}
 
@@ -898,12 +903,6 @@ This @code{class} may be used as a base @code{class} to execute executable writt
 
 Rust uses a special link mechanism which defeats the default @code{ld_audit} autodep mechanism.
 This base @code{class} merely sets the autodep method to @code{ld_preload} which works around this problem.
-
-@subsection @code{class GitRule}
-This @code{class} may be used to ignore all git management files. This files can be  recognized as they lie in a directory named @file{.git}.
-
-By itself, it is a dangerous @code{class} and must be used with care.
-User must ensure that all modifications to such git management files are reflected to the actual visible files outside these @file{.git} directories.
 
 @subsection @code{class HomelessRule}
 This @code{class} copies the @code{TMPDIR} environment variable the @code{HOME} one.
@@ -1017,6 +1016,16 @@ This attribute provides the interval in seconds between such heartbeats.
 @tab @code{'Full'}
 @tab @lmake has several levels of symbolic link support (@pxref{link-support}).
 This attribute specifies the used level.
+@item @code{source_dirs}
+
+This variable contains a @code{list} of directories that contain source files.
+
+Such source directories can be provided absolute or relative.
+This has no impact as long the repository is not moved.
+But in case it is, relative source directories must be moved accordingly or these dependencies will be lost (as if they had been deleted).
+
+By default, this variable is empty, but gathering sources from @code{git} (as is done by default in absence of file @file{Manifest}) will add the @code{git} root directory to it.
+
 @item @code{max_dep_depth}
 @tab @code{1000}
 @tab The rule selection process is a recursive one (@pxref{rule-selection}).
@@ -1172,13 +1181,15 @@ It raises a @code{FileNotFoundError} exception if none succeeds.
 
 @chapter Rules
 
-Rules are described as Python @code{class}'es inheriting from @code{lmake.Rule} or @code{lmake.AntiRule}.
+Rules are described as Python @code{class}'es inheriting from @code{lmake.Rule}, @code{lmake.AntiRule} or @code{SourceRule}.
 
 Inheriting from @code{lmake.Rule} is used to define production rules that allows deriving targets from dependencies.
 
 Inheriting from @code{lmake.AntiRule} is (rarely) used to define rules that specify that matching targets @strong{cannot} be built.
 Anti-rules only require the @code{targets} attribute (or those that translate into it, @code{target}, @code{post_targets} and @code{post_target}) and may usefully have a @code{prio} attribute.
 Other ones are useless and ignored.
+
+Inheriting from @code{lmake.SourceRule} may be used to define sources by patterns rather than as a list of files controlled by some sort of source-control (typically @code{git}).
 
 Rules are described by a series of attribute as follows.
 
@@ -1372,6 +1383,7 @@ The flags may be any combination of the following flags, optionally preceded by 
 This may occur if another target is required or if this target is a star target (otherwise, the rule will not be executed as target will be recognized as a source).
 @item Star @tab star @tab if star stem present @tab Target is a star target, even if no star stem is present (which means next rule will be tried if file is not generated).
 @item Stat @tab stat @tab Yes @tab @code{inode} accesses (e.g. stat) are deeemed to be read (else they are ignored).
+@item Top @tab top @tab No @tab target pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @item Warning @tab warning @tab No @tab Warning is reported if a target is unlinked before job execution while generated by another job.
 @item Write @tab write @tab Yes @tab Job is allowed to write to this target.
 @end multitable
@@ -1381,11 +1393,8 @@ All matching targets must have the same set of static stems (i.e. stems with no 
 Matching is done by first trying to match static targets (i.e. which are not star) then star targets.
 The first match will provide the associated stem definitions and flags.
 
-In order to support hierarchical repository (@pxref{hierarchical-repositories}) :
-@itemize @minus
-@item if target regular expression starts with a @code{/}, it is removed
-@item else target is prepended with the @code{cwd} attribute.
-@end itemize
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to suppor hierarchical repository (@pxref{hierarchical-repositories}).
+
 
 @section @code{target}
 
@@ -1473,21 +1482,19 @@ Accessible variables when evaluating the f-string include the @code{stems}, the 
 Alternatively, values can also be @code{list} or @code{tuple} whose first item is as described above, followed by flags.
 
 The flags may be any combination of the following flags, optionally preceded by - to turn it off when it is present by default.
+Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
 @item Critical           @tab critical        @tab No      @tab This dep is critial (see @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
 @item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
+@item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
 Flag order and dependency order are not significative.
 
-In order to support hierarchical repository (@pxref{hierarchical-repositories}) :
-@itemize @minus
-@item if dep starts with a @code{/}, it is removed
-@item else dep is prepended with the @code{cwd} attribute.
-@end itemize
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the dep pattern in order to suppor hierarchical repository (@pxref{hierarchical-repositories}).
 
 @section @code{dep}
 
@@ -2105,7 +2112,7 @@ It is meant to be the target of cross-references.
 @anchor{rule-inheritance}
 @section Rule inheritance
 
-Rules are Python @code{class}'es that inherit from @code{lmake.Rule} (or @code{lmake.AntiRule} for anti-rules).
+Rules are Python @code{class}'es that inherit from @code{lmake.Rule} (or @code{lmake.AntiRule} or @code{lmake.SourceRule}).
 
 However, Python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base @code{class} such as :
 @itemize @minus
@@ -2288,8 +2295,8 @@ The first step is to see if a up-hill directory (i.e. one of the dirtory along t
 
 If it is the case, the rule selection process stops here and the file is not buildable. Else the process continue.
 
-The rules are split into groups. Each group has either @code{Rule}'s or @code{AntiRule}'s and contain all of them which share a given @code{prio}.
-Groups are ordered with higher @code{prio} first and within each @code{prio}, the @code{AntiRule} group before the @code{Rule} group.
+The rules are split into groups. Each group has either @code{Rule}'s, @code{AntiRule}'s  or @code{SourceRule}'s and contain all of them which share a given @code{prio}.
+Groups are ordered with higher @code{prio} first and within each @code{prio}, @code{SourceRule}'s come first, then @code{AntiRule}'s then @code{Rule}'s.
 
 The following steps is executed for each group in order, until a rule is found or the file declared not buildable.
 
@@ -2407,8 +2414,8 @@ In that situation, it is reasonable to assume that the @Lmakefile are made to ha
 
 To support this situation, @lmake allow you to simply import these @Lmakefile and the @code{cwd} attributes will automatically be set to the right value so that :
 @itemize
-@item Targets on match within the sub-repo (and escape is possibly by prepending a @code{/} to the target to provide global rules.
-@item The same is applied to deps
+@item Targets only match within the sub-repo (and escape is possibly by setting the @code{top} flag to the target to provide global rules).
+@item The same applies to deps.
 @item @code{cmd} is run from this sub-repository, i.e. its cwd is set accordingly.
 @item The priority of the rule is boosted by adding to it the directory depth of the sub-repository times @code{lmake.config.sub_prio_boost}.
 @end itemize

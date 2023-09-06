@@ -24,6 +24,8 @@ lmake_env/ext_lnk
 src/app.cc
 src/app.hh
 src/autodep/autodep.cc
+src/autodep/autodep_env.cc
+src/autodep/autodep_env.hh
 src/autodep/autodep_ld.cc
 src/autodep/autodep_ld.hh
 src/autodep/autodep_ld_audit.cc
@@ -110,6 +112,7 @@ src/utils.cc
 src/utils.hh
 src/xxhsum.cc
 sys_config
+unit_tests/admin.py
 unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py
 unit_tests/base/src1
@@ -139,6 +142,7 @@ unit_tests/py_rule.py
 unit_tests/resources.py
 unit_tests/rust.py
 unit_tests/scratchpad.py
+unit_tests/sources.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/tar.py

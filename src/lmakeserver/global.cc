@@ -15,9 +15,9 @@ namespace Engine {
 		::string report_txt = color_pfx(ro,c) ;
 		::string trace_txt  ;
 		//
-		if (!pfx .empty()) {                                                                report_txt += pfx                                           ; trace_txt += pfx                 ; }
-		if (!name.empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += mk_printable(localize(name,ro.startup_dir_s)) ; trace_txt += mk_printable(name ) ; }
-		if (!sfx .empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += sfx                                           ; trace_txt += sfx                 ; }
+		if (!pfx .empty()) {                                                                report_txt += pfx                                         ; trace_txt += pfx                 ; }
+		if (!name.empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += mk_printable(mk_rel(name,ro.startup_dir_s)) ; trace_txt += mk_printable(name ) ; }
+		if (!sfx .empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += sfx                                         ; trace_txt += sfx                 ; }
 		//
 		if (trace_txt.empty()     ) return ;
 		if (trace_txt.back()=='\n') { report_txt.pop_back() ; trace_txt.pop_back() ; } // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
@@ -50,12 +50,13 @@ namespace Engine {
 			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
-		if (sc.max_dep_depth  ) os <<','<< sc.max_dep_depth  ;
-		if (sc.max_err_lines  ) os <<','<< sc.max_err_lines  ;
-		if (sc.path_max       ) os <<','<< sc.path_max       ;
-		if (sc.sub_prio_boost ) os <<','<< sc.sub_prio_boost ;
-		if (!sc.caches.empty()) os <<','<< sc.caches         ;
-		for( Tag t : Tag::N ) os <<','<< t <<':'<< sc.backends[+t] ;
+		if (sc.max_dep_depth      ) os <<','<< sc.max_dep_depth          ;
+		if (sc.max_err_lines      ) os <<','<< sc.max_err_lines          ;
+		if (sc.path_max           ) os <<','<< sc.path_max               ;
+		if (sc.sub_prio_boost     ) os <<','<< sc.sub_prio_boost         ;
+		if (!sc.caches.empty()    ) os <<','<< sc.caches                 ;
+		for( Tag t : Tag::N       ) os <<','<< t <<':'<< sc.backends[+t] ;
+		if (!sc.src_dirs_s.empty()) os <<','<< sc.src_dirs_s             ;
 		return os<<')' ;
 	}
 
@@ -164,6 +165,20 @@ namespace Engine {
 					}
 				}
 			}
+			field = "source_dirs" ;
+			if (py_map.hasKey(field)) {
+				::string root_dir_s = *g_root_dir+'/'            ;
+				RealPath rp         { LnkSupport::Full , {"/"} } ;
+				for( auto const& py_sd : Py::Sequence(py_map[field]) ) {
+					::string sd = Py::String(py_sd) ;
+					if (sd.empty()    ) throw "empty source dir"s ;
+					if (sd.back()=='/') sd.pop_back() ;
+					RealPath::SolveReport sr = rp.solve(sd) ;
+					sr.real += '/' ;
+					if (!sr.in_repo && !is_abs(sd) ) src_dirs_s.push_back(mk_rel(sr.real,root_dir_s)) ; // keep source dir relative if asked so
+					else                             src_dirs_s.push_back(::move(sr.real           )) ;
+				}
+			}
 		} catch(::string& e) {
 			e = to_string("while processing config.",field," :\n",indent(e)) ;
 			throw ;
@@ -207,6 +222,13 @@ namespace Engine {
 				res <<'\t'<< key <<" :\n" ;
 				/**/                                 res <<"\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
 				for( auto const& [k,v] : cache.dct ) res <<"\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
+			}
+		}
+		if (!src_dirs_s.empty()) {
+			res << "source_dirs :\n" ;
+			for( ::string const& sd_s : src_dirs_s ) {
+				SWEAR(!sd_s.empty()) ;
+				res <<'\t'<< ::string_view(sd_s).substr(0,sd_s.size()-1) <<'\n' ;
 			}
 		}
 		return res.str() ;

@@ -60,12 +60,38 @@
 }
 
 ::string mk_shell_str(::string const& s) {
-	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
+	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + quotes
 	for( char c : s )
-		if (c=='\'') res += "'\\''" ;
-		else         res += c       ;
+		switch (c) {
+			case '\'' : res += "\'\\\'\'" ; break ;                            // no way to escape a ' in a shell '-string, you have to exit, insert the ', and enter back, i.e. : '\''
+			default   : res += c          ;
+		}
 	res += '\'' ;
 	return res ;
+}
+
+::string mk_c_str(::string const& s) {
+	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + quotes
+	for( char c : s )
+		switch (c) {
+			case '\\' :                                // must be escaped
+			case '\'' : res += '\\' ; /*fall through*/ // .
+			default   : res += c    ;
+		}
+	res += '"' ;
+	return res ;
+}
+
+size_t parse_c_str( ::string const& s , size_t start ) {
+	if (s[start]!='"') return Npos ;                                           // cannot find initial "
+	for ( size_t n=start+1 ; n<s.size() ; n++ ) {
+		switch (s[n]) {
+			case '"'  :       return n+1-start ;                               // account for final "
+			case '\\' : n++ ; break            ;                               // escape
+			default : ;
+		}
+	}
+	return Npos ;                                                              // cannot find final "
 }
 
 ::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {

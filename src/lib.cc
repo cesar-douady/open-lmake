@@ -46,7 +46,7 @@ using namespace Disk ;
 ::pair_ss search_root_dir() { return search_root_dir(cwd()) ; }
 
 void lib_init(::string const& root_dir) {
-	SWEAR( is_abs_path(root_dir) ) ;                                           // root_dir is a successtion of components prefixed by /, if at root, it must be empty
-	if (!g_tmp_dir) g_tmp_dir   = new ::string{get_env("TMPDIR",DfltTmp)} ;
-	g_root_dir = new ::string{root_dir} ;
+	SWEAR( is_abs(root_dir) ) ;                                                // root_dir is a successtion of components prefixed by /, if at root, it must be empty
+	if (!g_tmp_dir) g_tmp_dir  = new ::string{get_env("TMPDIR",DfltTmp)} ;
+	/**/            g_root_dir = new ::string{root_dir} ;
 }

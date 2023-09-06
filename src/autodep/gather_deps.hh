@@ -11,54 +11,7 @@
 #include "rpc_job.hh"
 #include "time.hh"
 
-struct AutodepEnv {
-	friend ::ostream& operator<<( ::ostream& , AutodepEnv const& ) ;
-	// cxtors & casts
-	AutodepEnv() = default ;
-	// env format : server:port:options:root_dir
-	//if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
-	AutodepEnv( ::string const& env ) {
-		if (env.empty()) return ;
-		size_t pos1 = env.find(':'       ) ; if (pos1==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
-		/**/   pos1 = env.find(':',pos1+1) ; if (pos1==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
-		size_t pos2 = env.find(':',pos1+1) ; if (pos2==Npos) fail_prod( "bad autodep env format : " , env.empty()?"(not found)"s:env ) ;
-		//
-		service   = env.substr(0     ,pos1) ;
-		root_dir  = env.substr(pos2+1     ) ;
-		for( char c : ::string_view(env).substr(pos1+1,pos2-pos1-1) )
-			switch (c) {
-				case 'd' : auto_mkdir  = true             ; break ;
-				case 'i' : ignore_stat = true             ; break ;
-				case 'e' : report_ext  = true             ; break ;
-				case 'n' : lnk_support = LnkSupport::None ; break ;
-				case 'f' : lnk_support = LnkSupport::File ; break ;
-				case 'a' : lnk_support = LnkSupport::Full ; break ;
-				default : FAIL(c) ;
-			}
-	}
-	operator ::string() const {
-		::string res = service + ':' ;
-		if (auto_mkdir ) res += 'd' ;
-		if (ignore_stat) res += 'i' ;
-		if (report_ext ) res += 'e' ;
-		switch (lnk_support) {
-			case LnkSupport::None : res += 'n' ; break ;
-			case LnkSupport::File : res += 'f' ; break ;
-			case LnkSupport::Full : res += 'a' ; break ;
-			default : FAIL(lnk_support) ;
-		}
-		res += ':'      ;
-		res += root_dir ;
-		return res ;
-	}
-	// data
-	::string   service     ;
-	::string   root_dir    ;
-	bool       auto_mkdir  = false            ;
-	bool       ignore_stat = false            ;
-	bool       report_ext  = false            ;
-	LnkSupport lnk_support = LnkSupport::Full ;
-} ;
+#include "autodep_env.hh"
 
 // When several sockets are opened to send depend & target data, we are not sure of the order between these reports because of system buffers.
 // We could have decided to synchronize each report, which may be expensive in performance.
@@ -113,12 +66,12 @@ public :
 	}
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
-		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support).exec(Fd::Cwd,exe) ) {
+		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support,autodep_env.src_dirs_s).exec(Fd::Cwd,exe) ) {
 			DD     dd = Disk::file_date(file) ;
 			DFlags fs ;
 			if (a.as_lnk) fs |= DFlag::Lnk ;
 			if (a.as_reg) fs |= DFlag::Reg ;
-			if ( file[0]!='/' || autodep_env.report_ext ) new_dep( pd , ::move(file) , dd , fs , c ) ;
+			new_dep( pd , ::move(file) , dd , fs , c ) ;
 		}
 	}
 
@@ -130,7 +83,7 @@ public :
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
 	void reorder() ;                                                           // reorder accesses by first read access
-	// data
+	// date
 	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function used to contact server when necessary, by default, return error
 	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void {             } ; // function used to report live output, by default dont report
 	ServerSockFd                                  master_sock  ;

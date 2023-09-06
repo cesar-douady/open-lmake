@@ -64,7 +64,12 @@ class Centos7Rule(BaseRule) :
 class Html(BaseRule) :
 	targets = { 'HTML' : '{File}.html' }
 	deps    = { 'TEXI' : '{File}.texi' }
-	cmd     = 'texi2any --html --no-split -o {HTML} {TEXI}'
+	environ_cmd = {
+		'LANGUAGE' : ''
+	,	'LC_ALL'   : ''
+	,	'LANG'     : ''
+	}
+	cmd = 'texi2any --html --no-split -o {HTML} {TEXI}'
 
 class Unpack(BaseRule) :
 	targets = {
@@ -352,7 +357,10 @@ class LinkClientAppExe(LinkAppExe) :
 	,	'CLIENT'     : 'src/client.o'
 	}
 
-class LinkAutodepAppExe(LinkAppExe) :
+class LinkAutodepEnv(Link) :
+	deps = { 'AUTODEP_ENV' : 'src/autodep/autodep_env.o' }
+
+class LinkAutodep(LinkAutodepEnv) :
 	deps = {
 		'GATHER_DEPS' : 'src/autodep/gather_deps.o'
 	,	'PTRACE'      : 'src/autodep/ptrace.o'
@@ -369,7 +377,7 @@ class LinkPythonAppExe(LinkAppExe) :
 	}
 	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
 
-class LinkAutodepLdSo(LinkLibSo) :
+class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_lib/autodep_ld_{Method:audit|preload}.so' }
 	deps = {
 		'LIB'    : None
@@ -377,7 +385,7 @@ class LinkAutodepLdSo(LinkLibSo) :
 	,	'LD'     : 'src/autodep/autodep_ld_{Method}.o'
 	}
 
-class LinkClmakeSo(LinkLibSo) :
+class LinkClmakeSo(LinkLibSo,LinkAutodep) :
 	targets = { 'TARGET' : 'lib/clmake.so' }
 	deps = {
 		'RECORD'  : 'src/autodep/record.o'
@@ -385,15 +393,15 @@ class LinkClmakeSo(LinkLibSo) :
 	,	'MAIN'    : 'src/autodep/clmake.o'
 	}
 
-class LinkAutodepExe(LinkAutodepAppExe) :
+class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/autodep'          }
 	deps    = { 'MAIN'   : 'src/autodep/autodep.o' }
 
-class LinkJobExecExe(LinkPythonAppExe,LinkAutodepAppExe) :
+class LinkJobExecExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
 	deps    = { 'MAIN'   : 'src/job_exec.o' }
 
-class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodepAppExe) :
+class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
@@ -413,7 +421,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodepAppExe) :
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
 
-class LinkLdumpExe(LinkPythonAppExe) :
+class LinkLdumpExe(LinkPythonAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
@@ -431,7 +439,7 @@ class LinkLdumpExe(LinkPythonAppExe) :
 	,	'MAIN'       : 'src/ldump.o'
 	}
 
-class LinkLdumpJobExe(LinkAppExe) :
+class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
 		'RPC_JOB' : 'src/rpc_job.o'
@@ -457,15 +465,15 @@ class LinkJobSupport(LinkClientAppExe) :
 	,	'RPC_JOB' : 'src/rpc_job.o'
 	}
 
-class LinkLdepend(LinkJobSupport) :
+class LinkLdepend(LinkJobSupport,LinkAutodepEnv) :
 	targets = { 'TARGET' : 'bin/ldepend'           }
 	deps    = { 'MAIN'   : 'src/autodep/ldepend.o' }
 
-class LinkLtarget(LinkJobSupport) :
+class LinkLtarget(LinkJobSupport,LinkAutodepEnv) :
 	targets = { 'TARGET' : 'bin/ltarget'           }
 	deps    = { 'MAIN'   : 'src/autodep/ltarget.o' }
 
-class LinkLChkDeps(LinkJobSupport) :
+class LinkLChkDeps(LinkJobSupport,LinkAutodepEnv) :
 	targets = { 'TARGET' : 'bin/lcheck_deps'           }
 	deps    = { 'MAIN'   : 'src/autodep/lcheck_deps.o' }
 

@@ -48,13 +48,13 @@ int main( int argc , char* argv[] ) {
 		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch(...) { return 2 ; }                                                // if server is dead, give up
 
-	if (::chdir(start_info.root_dir.c_str())!=0) {
+	if (::chdir(start_info.autodep_env.root_dir.c_str())!=0) {
 		JobRpcReq end_report = JobRpcReq(
 			JobProc::End
 		,	seq_id
 		,	job
 		,	host_
-		,	{ .status =Status::Err , .stderr {to_string("cannot chdir to root : ",start_info.root_dir)} }
+		,	{ .status =Status::Err , .stderr {to_string("cannot chdir to root : ",start_info.autodep_env.root_dir)} }
 		) ;
 		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
 		catch (...) {                                                        } // if server is dead, we cant do much about it
@@ -66,8 +66,8 @@ int main( int argc , char* argv[] ) {
 	::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	//
 	// set g_tmp_dir before calling app_init so it does not search TMPDIR env variable
-	if (is_abs_path(start_info.job_tmp_dir)) g_tmp_dir = &start_info.job_tmp_dir                                                 ;
-	else                                     g_tmp_dir = new ::string{to_string(start_info.root_dir,'/',start_info.job_tmp_dir)} ;
+	if (is_abs(start_info.job_tmp_dir)) g_tmp_dir = &start_info.job_tmp_dir                                                             ;
+	else                                g_tmp_dir = new ::string{to_string(start_info.autodep_env.root_dir,'/',start_info.job_tmp_dir)} ;
 	//
 	app_init() ;                                                               // safer to call app_init once we are in repo
 	Py::init() ;
@@ -153,6 +153,7 @@ int main( int argc , char* argv[] ) {
 				if (+(dfs&AccessDFlags)) {
 					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
+if (dd.garbage) ::cerr<<"analyze1 "<<dd<<" "<<file<<" "<<file_date(file)<<" "<<info.file_date<<endl;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvv
 				deps.emplace_back(file,dd) ;
@@ -204,19 +205,17 @@ int main( int argc , char* argv[] ) {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		live_out_buf = live_out_buf.substr(pos) ;
 	} ;
-	/**/                     gather_deps.create_group            = true                   ;
-	/**/                     gather_deps.method                  = start_info.method      ;
-	/**/                     gather_deps.addr                    = start_info.addr        ;
-	/**/                     gather_deps.autodep_env.auto_mkdir  = start_info.auto_mkdir  ;
-	/**/                     gather_deps.autodep_env.ignore_stat = start_info.ignore_stat ;
-	/**/                     gather_deps.autodep_env.lnk_support = start_info.lnk_support ;
-	/**/                     gather_deps.server_cb               = server_cb              ;
-	/**/                     gather_deps.timeout                 = start_info.timeout     ;
-	/**/                     gather_deps.kill_sigs               = start_info.kill_sigs   ;
-	/**/                     gather_deps.chroot                  = start_info.chroot      ;
-	/**/                     gather_deps.cwd                     = cwd_                   ;
-	/**/                     gather_deps.env                     = &cmd_env               ;
-	if (start_info.live_out) gather_deps.live_out_cb             = live_out_cb            ;
+	/**/                     gather_deps.create_group = true                   ;
+	/**/                     gather_deps.method       = start_info.method      ;
+	/**/                     gather_deps.addr         = start_info.addr        ;
+	/**/                     gather_deps.autodep_env  = start_info.autodep_env ;
+	/**/                     gather_deps.server_cb    = server_cb              ;
+	/**/                     gather_deps.timeout      = start_info.timeout     ;
+	/**/                     gather_deps.kill_sigs    = start_info.kill_sigs   ;
+	/**/                     gather_deps.chroot       = start_info.chroot      ;
+	/**/                     gather_deps.cwd          = cwd_                   ;
+	/**/                     gather_deps.env          = &cmd_env               ;
+	if (start_info.live_out) gather_deps.live_out_cb  = live_out_cb            ;
 	//
 	Date start_job = Date::s_now() ;                                                          // as late as possible before child starts
 	//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

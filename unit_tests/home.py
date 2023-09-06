@@ -23,6 +23,10 @@ if getattr(sys,'reading_makefiles',False) :
 
 	class Homeless2(lmake.HomelessRule) :
 		target = 'homeless2'
+		cmd    = '[ {0}$HOME = {0}$TMPDIR ]'                                   # force python execution of f-string
+
+	class Homeless3(lmake.HomelessRule) :
+		target = 'homeless3'
 		def cmd() :
 			assert os.environ['HOME'] == os.environ['TMPDIR']
 
@@ -30,4 +34,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'home','homeless1','homeless2' , done=3 )
+	ut.lmake( 'home','homeless1','homeless2','homeless3' , done=4 )

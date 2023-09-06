@@ -51,6 +51,13 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* split utils.hh into several smaller files in utils directory
+* implement class path_?? (x, n or s)
+	- semantic : path w & w/o / at beginning and end
+	- implement mk_lcl, mk_glb, mk_rel, mk_abs, ...
+	- inherit from ::string
+	- s means w/ /, n means w/o /, x means w/ or w/o /
+	- no actual disk access
 * add a warning when ids reach 15/16 of their limits
 * use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
 ! track disk accesses from server
@@ -63,25 +70,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 allow dep flags to have arbitrary sequences of sequences
-	- simplify dynamic functions
-	- alternatively, enclose them in a single sequence
-		- and accept dynamic functions to only return a sequence of flags
-*3 implement a compilation rule py->pyc
-	- and use python -B
-* split 2 notions
-	- root of lmake repository : where files may be built
-	- root of git repository : where sources are located
-	- LMAKE dir is created in lmake root
-	- Node names are relative to git root
-	- possibly extend to have several git root
-		- this would allow to list directories that are outside lmake repo but for which we want to track modifs
-		- usage examples :
-			- git repo above lmake repo
-			- image data bases
-			- frequently updated tools
-	- system files are actually tracked by using chroot : create a new chroot for each new system
-	- this may be implemented by prefixing all node names with an id (1 to 255) identifying the root
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -105,6 +93,9 @@ items :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr
 	- operate as for star in star_targets
+? implement a compilation rule py->pyc
+	- and use python -B
+	- what about the numerous retries this approach implies ?
 ? consider fuse as an autodep method
 	? unclear it is faster than ptrace
 		? all data traffic goes through it
@@ -176,7 +167,7 @@ items :
 * TESTS
 ****************************************************************************************************
 
-*2 add a unit test for sub-Lmakefile.py
+*1 add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lcheck_deps, ...
 * gcov

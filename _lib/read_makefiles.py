@@ -123,7 +123,7 @@ def qualify(attrs) :
 	for k in attrs.stems       .keys() : qualify_key('stem'       ,k,seen)
 	for k in attrs.targets     .keys() : qualify_key('target'     ,k,seen)
 	for k in attrs.post_targets.keys() : qualify_key('post_target',k,seen)
-	if not attrs.__anti__ :
+	if not attrs.__special__ :
 		for key in ('dep','resource') :
 			dct = attrs[key+'s']
 			if callable(dct) : continue
@@ -135,7 +135,7 @@ def handle_inheritance(rule) :
 	dct     = pdict(cmd=[])                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
-	is_shell = isinstance(getattr(rule,'cmd',None),str)
+	is_shell = isinstance(rule.__dict__.get('cmd'),str)
 	try :
 		for i,r in enumerate(reversed(rule.__mro__)) :
 			d = r.__dict__
@@ -144,9 +144,9 @@ def handle_inheritance(rule) :
 					if k in dct and k not in combine : dct[k] = top(dct[k])    # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
 				combine = update(combine,d['combine'])                         # process combine first so we use the freshest value
 			for k,v in d.items() :
-				if k.startswith('__') and k.endswith('__')                      : continue # do not process standard python attributes
-				if k=='combine'                                                 : continue
-				if k=='cmd' :
+				if k.startswith('__') and k.endswith('__') : continue          # do not process standard python attributes
+				if k=='combine'                            : continue
+				if k=='cmd' :                                                  # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
 					if is_shell and callable(v) :
 						if not hasattr(v,'shell') : raise TypeError(f'{r.__name__}.cmd is callable and has no shell attribute while a shell cmd is needed')
 						v = v.shell
@@ -170,8 +170,8 @@ def handle_inheritance(rule) :
 				try    : v = typ(v)
 				except : raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
 		attrs[k] = v
-	attrs.name     = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
-	attrs.__anti__ = rule.__anti__
+	attrs.name        = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
+	attrs.__special__ = rule.__special__
 	qualify(attrs)
 	return attrs
 
@@ -287,6 +287,10 @@ class Handle :
 		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
 		return ( static_val , ctx , code , tuple(names) )
 
+	def handle_cwd(self) :
+		if 'cwd'   in self.attrs : self.rule_rep.cwd = self.attrs.cwd
+		else                     : self.rule_rep.cwd = self.local_root
+
 	def handle_targets(self) :
 		def fmt(key,entry) :
 			if       isinstance(entry   ,str         ) : flags = ()
@@ -327,8 +331,6 @@ class Handle :
 			*self.static_stems
 		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
-		if 'cwd'   in self.attrs : self.rule_rep.cwd      = self.attrs.cwd
-		else                     : self.rule_rep.cwd      = self.local_root
 		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
 		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
 
@@ -471,6 +473,7 @@ def fmt_rule(rule) :
 	#
 	h = Handle( handle_inheritance(rule) , rule )
 	#
+	h.handle_cwd    ()
 	h.handle_targets()
 	if all(no_match(t) for t in h.rule_rep.targets.values()) :                                                       # if there is no way to match this rule, must be a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no matching target while virtual forced False')
@@ -478,9 +481,10 @@ def fmt_rule(rule) :
 	h.handle_job_name()
 	#
 	# handle cases with no execution
-	if rule.__anti__ :
-		return pdict({ k:v for k,v in h.rule_rep.items() if k in StdAntiAttrs },__anti__=True)
-	if not getattr(h.attrs,'cmd',None) :                                                                 # Rule must have a cmd, or it is a base class
+	if rule.__special__ :
+		return pdict( { k:v for k,v in h.rule_rep.items() if k in StdAntiAttrs } , __special__=rule.__special__ )
+	# plain case
+	if not getattr(h.attrs,'cmd',None) :                                                                          # Rule must have a cmd, or it is a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return
 	#
@@ -515,8 +519,7 @@ if hasattr(lmake,'sources') : srcs = lmake.sources
 else                        : srcs = lmake.auto_sources()
 
 print(repr({
-	'source_dirs'      : tuple(lmake.source_dirs)
-,	'local_admin_dir'  : lmake.local_admin_dir
+	'local_admin_dir'  : lmake.local_admin_dir
 ,	'remote_admin_dir' : lmake.remote_admin_dir
 ,	'config'           : lmake.config
 ,	'srcs'             : srcs

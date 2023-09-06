@@ -15,9 +15,6 @@
 extern ::string* g_startup_dir_s ;     // pointer to avoid init/fini order hazards, relative to g_root_dir, includes final /,  dir from which command was launched
 extern ::string* g_lmake_dir     ;     // pointer to avoid init/fini order hazards, absolute              , installation dir of lmake
 
-static inline ::string localize (::string const& fn) { return Disk::localize (fn,*g_startup_dir_s) ; }
-static inline ::string globalize(::string const& fn) { return Disk::globalize(fn,*g_startup_dir_s) ; }
-
 struct KeySpec {
 	char     short_name = 0 ;
 	::string doc        ;
@@ -57,7 +54,7 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 		Trace trace("files") ;
 		::vector_s res ; res.reserve(args.size()) ;
 		for( ::string const& a : args ) {
-			res.push_back(globalize(a)) ;                                      // translate arg to be relative to repo root dir
+			res.push_back(Disk::mk_glb(a,*g_startup_dir_s)) ;                  // translate arg to be relative to repo root dir
 			trace(a,"->",res.back()) ;
 		}
 		return res ;

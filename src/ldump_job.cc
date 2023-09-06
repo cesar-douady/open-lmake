@@ -40,23 +40,21 @@ void print_start(JobRpcReply const& jrr) {
 	SWEAR(jrr.proc==JobProc::Start) ;
 	::cout << "--start--\n" ;
 	//
-	::cout << "addr        : "  << hex<<jrr.addr       <<dec <<'\n' ;
-	::cout << "auto_mkdir  : "  <<      jrr.auto_mkdir       <<'\n' ;
-	::cout << "ignore_stat : "  <<      jrr.ignore_stat      <<'\n' ;
-	::cout << "chroot      : "  <<      jrr.chroot           <<'\n' ;
-	::cout << "cwd_s       : "  <<      jrr.cwd_s            <<'\n' ;
-	::cout << "hash_algo   : "  <<      jrr.hash_algo        <<'\n' ;
-	::cout << "interpreter : "  <<      jrr.interpreter      <<'\n' ;
-	::cout << "kill_sigs   : "  <<      jrr.kill_sigs        <<'\n' ;
-	::cout << "live_out    : "  <<      jrr.live_out         <<'\n' ;
-	::cout << "lnk_support : "  <<      jrr.lnk_support      <<'\n' ;
-	::cout << "method      : "  <<      jrr.method           <<'\n' ;
-	::cout << "root_dir    : "  <<      jrr.root_dir         <<'\n' ;
-	::cout << "small_id    : "  <<      jrr.small_id         <<'\n' ;
-	::cout << "stdin       : "  <<      jrr.stdin            <<'\n' ;
-	::cout << "stdout      : "  <<      jrr.stdout           <<'\n' ;
-	::cout << "targets     : "  <<      jrr.targets          <<'\n' ;
-	::cout << "timeout     : "  <<      jrr.timeout          <<'\n' ;
+	::cout << "addr        : "  << hex<<jrr.addr<<dec          <<'\n' ;
+	::cout << "auto_mkdir  : "  << jrr.autodep_env.auto_mkdir  <<'\n' ;
+	::cout << "chroot      : "  << jrr.chroot                  <<'\n' ;
+	::cout << "cwd_s       : "  << jrr.cwd_s                   <<'\n' ;
+	::cout << "hash_algo   : "  << jrr.hash_algo               <<'\n' ;
+	::cout << "ignore_stat : "  << jrr.autodep_env.ignore_stat <<'\n' ;
+	::cout << "interpreter : "  << jrr.interpreter             <<'\n' ;
+	::cout << "kill_sigs   : "  << jrr.kill_sigs               <<'\n' ;
+	::cout << "live_out    : "  << jrr.live_out                <<'\n' ;
+	::cout << "method      : "  << jrr.method                  <<'\n' ;
+	::cout << "small_id    : "  << jrr.small_id                <<'\n' ;
+	::cout << "stdin       : "  << jrr.stdin                   <<'\n' ;
+	::cout << "stdout      : "  << jrr.stdout                  <<'\n' ;
+	::cout << "targets     : "  << jrr.targets                 <<'\n' ;
+	::cout << "timeout     : "  << jrr.timeout                 <<'\n' ;
 	//
 	::cout << "static_deps :\n" ; _print_map(jrr.static_deps) ;
 	::cout << "env :\n"         ; _print_map(jrr.env        ) ;
@@ -99,7 +97,7 @@ int main( int argc , char* argv[] ) {
 		print_start       (report_start.start       ) ;
 	} catch(...) {}
 	try {
-		auto report_end = deserialize<JobInfoEnd  >(job_stream) ;
+		auto report_end = deserialize<JobInfoEnd>(job_stream) ;
 		print_end(report_end) ;
 	} catch(...) {}
 	return 0 ;

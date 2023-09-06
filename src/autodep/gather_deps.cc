@@ -15,22 +15,6 @@
 using namespace Time ;
 using namespace Hash ;
 
-//
-// AutodepEnv
-//
-
-::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
-	/**/                 os << "AutodepEnv(" << ade.service <<','<< ade.root_dir <<',' ;
-	if (ade.auto_mkdir ) os <<",auto_mkdir"                                            ;
-	if (ade.ignore_stat) os <<",ignore_stat"                                           ;
-	if (ade.report_ext ) os <<",report_ext"                                            ;
-	return               os <<','<< ade.lnk_support <<')'                              ;
-}
-
-//
-// GatherDeps
-//
-
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
 	/**/             os << "GatherDeps(" << gd.accesses ;
 	if (gd.seen_tmp) os <<",seen_tmp" ;
@@ -73,7 +57,7 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobE
 	//
 	JobExecRpcReq::AccessInfo old_ai = info_->info  ;                                                                // for trace only
 	info_->info.update(ai,after) ;                                                                                   // execute actions in actual order as provided by dates
-	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", pd , after , *info_ , ai , file , dd , comment ) ; // only trace if something changes
+	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", is_new?"new   ":"update" , pd , after , *info_ , ai , file , dd , comment ) ; // only trace if something changes
 	return is_new ;
 }
 
@@ -103,7 +87,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
 		if (!in_parent) {
 			Child grand_child ;
-			AutodepPtrace::s_autodep_env = autodep_env ;
+			AutodepPtrace::s_autodep_env = new AutodepEnv{autodep_env} ;
 			try {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				grand_child.spawn(

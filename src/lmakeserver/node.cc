@@ -44,8 +44,8 @@ namespace Engine {
 		JobTgts jts       = (*this)->job_tgts ;
 		UNode   un        { *this }           ;
 		Bool3   buildable = Yes               ;
-		if ( !jts.empty() && jts.back()->rule.is_special() ) SWEAR(jts.back()->rule.special()==special) ;
-		else                                                 un->job_tgts.append(::vector<JobTgt>({{Job(special,*this,deps),true/*is_sure*/}})) ;
+		if ( !jts.empty() && jts.back()->rule->is_special() ) SWEAR(jts.back()->rule->special==special) ;
+		else                                                  un->job_tgts.append(::vector<JobTgt>({{Job(special,*this,deps),true/*is_sure*/}})) ;
 		for( Dep const& d : (*this)->job_tgts.back()->deps ) {
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
 			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
@@ -104,17 +104,19 @@ namespace Engine {
 		//
 		if (rule_tgts.empty()) return {No,NoIdx} ;                             // fast path : avoid computing name()
 		//
-		::string name_     = name()    ;
-		Prio     prio      = -Infinity ;                                       // initially, we are ready to accept any rule
-		RuleIdx  n         = 0         ;
-		bool     clear     = false     ;
-		Bool3    buildable = No        ;                                       // return if we found a job candidate
+		::string name_     = name()        ;
+		Prio     prio      = -Infinity     ;                                   // initially, we are ready to accept any rule
+		RuleIdx  n         = 0             ;
+		bool     clear     = false         ;
+		Bool3    buildable = No            ;                                   // return if we found a job candidate
+		bool     is_lcl_   = is_lcl(name_) ;
 		//
 		::vector<JobTgt> jts ; jts.reserve(rule_tgts.size()) ;                 // typically, there is a single priority
 		for( RuleTgt const& rt : rule_tgts ) {
 			if (rt->prio<prio) goto Done ;
 			n++ ;
-			if (rt->anti) {
+			if ( !is_lcl_ && !rt->allow_ext ) continue ;
+			if (rt->is_anti()) {
 				if (+Rule::FullMatch(rt,name_)) { SWEAR(jts.empty()) ; clear = true ; goto Return ; }
 				else                            {                                     continue    ; }
 			}
@@ -156,16 +158,19 @@ namespace Engine {
 		// in case of crash, rescue mode is used and ensures all matches are recomputed
 		_set_buildable(Yes) ;
 		try {
-			if ( Node dir_=dir() ; +dir_ ) {
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir_.set_buildable(req,lvl+1) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (dir_->buildable!=No) {
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					set_special(Special::Uphill,{{dir_,SpecialDFlags|DFlag::Lnk}}) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (dir_->buildable==Yes) goto Return   ;
-					else                      goto AllRules ;
+			if (!(*this)->external) {
+				Node dir_=dir() ;
+				if (+dir_) {
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvv
+					dir_.set_buildable(req,lvl+1) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (dir_->buildable!=No) {
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						set_special(Special::Uphill,{{dir_,SpecialDFlags|DFlag::Lnk}}) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						if (dir_->buildable==Yes) goto Return   ;
+						else                      goto AllRules ;
+					}
 				}
 			}
 			//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -331,7 +336,7 @@ namespace Engine {
 			if ((*this)->uphill               ) UNode(*this)->uphill      = false    ;
 			if (prod_idx!=NoIdx) {
 				JobTgt prod_job = (*this)->job_tgts[prod_idx] ;
-				if (prod_job->rule.is_special()) UNode(*this)->uphill = prod_job->rule.special()==Special::Uphill ;
+				if (prod_job->rule->is_special()) UNode(*this)->uphill = prod_job->rule->special==Special::Uphill ;
 			}
 		}
 		ri.done = true ;

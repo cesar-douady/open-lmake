@@ -28,7 +28,7 @@
 
 #include "ptrace.hh"
 
-AutodepEnv AutodepPtrace::s_autodep_env ;
+AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
 
 #if HAS_PTRACE
 
@@ -77,7 +77,7 @@ struct SyscallDescr {
 } ;
 
 void AutodepPtrace::_init(pid_t cp) {
-	RecordSock::s_init(s_autodep_env) ;
+	RecordSock::s_init(*s_autodep_env) ;
 	child_pid = cp ;
 	//
 	pid_t pid     ;
@@ -94,15 +94,15 @@ void AutodepPtrace::_init(pid_t cp) {
 
 void AutodepPtrace::s_prepare_child() {
 	// prepare filter
-	RecordSock::s_init(s_autodep_env) ;
-	SWEAR(RecordSock::s_lnk_support!=LnkSupport::Unknown) ;
+	RecordSock::s_init(*s_autodep_env) ;
+	SWEAR(RecordSock::s_autodep_env->lnk_support!=LnkSupport::Unknown) ;
 	scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ; SWEAR(scmp) ;
 	for( size_t i=0 ; i<SyscallDescr::s_tab.size() ; i++ ) {
 		SyscallDescr const& sc = SyscallDescr::s_tab[i] ;
 		if (
 			!sc.data_access                                                    // non stat-like access are always needed
-		&&	RecordSock::s_lnk_support!=LnkSupport::Full                        // if full link support, we need to analyze uphill dirs
-		&&	RecordSock::s_ignore_stat                                          // else we need to generate deps for stat-like accesses
+		&&	RecordSock::s_autodep_env->lnk_support!=LnkSupport::Full           // if full link support, we need to analyze uphill dirs
+		&&	RecordSock::s_autodep_env->ignore_stat                             // else we need to generate deps for stat-like accesses
 		) continue ;
 		//
 		seccomp_syscall_priority( scmp ,                     sc.syscall , sc.prio ) ;

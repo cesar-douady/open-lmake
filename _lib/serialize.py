@@ -69,14 +69,14 @@ def get_code_ctx(*args,no_imports=(),ctx=()) :
 	return s.get_src()
 
 def _mk_f_string(s) :
-	if not s                         : return "f''"
-	if not "'"   in s                : return "f'"  +s+"'"
-	if not '"'   in s                : return 'f"'  +s+'"'
-	if not "'''" in s and s[-1]!="'" : return "f'''"+s+"'''"
-	if not '"""' in s and s[-1]!='"' : return 'f"""'+s+'"""'
-	if not "'''" in s and s[-1]=="'" : return "f'''"+s[:-1]+"\\''''"           # this \ is certainly outside {}, hence f-string is still valid
-	if not '"""' in s and s[-1]=='"' : return 'f"""'+s[:-1]+'\\""""'           # .
-	else                             : return 'f'+repr(s)                      # hope that repr will not insert \ within {}
+	if not s                            : return "f''"
+	if "'"   not in s and '\n' not in s : return "f'"  +s+"'"
+	if '"'   not in s and '\n' not in s : return 'f"'  +s+'"'
+	if "'''" not in s and s[-1]!="'"    : return "f'''"+s+"'''"
+	if '"""' not in s and s[-1]!='"'    : return 'f"""'+s+'"""'
+	if "'''" not in s and s[-1]=="'"    : return "f'''"+s[:-1]+"\\''''"           # this \ is certainly outside {}, hence f-string is still valid
+	if '"""' not in s and s[-1]=='"'    : return 'f"""'+s[:-1]+'\\""""'           # .
+	else                                : return 'f'+repr(s)                      # hope that repr will not insert \ within {}
 
 end_liness = {}
 srcs       = {}

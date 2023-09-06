@@ -298,9 +298,11 @@ static inline bool is_identifier(::string const& s) {
 	/**/                                                     return true  ;
 }
 
-::string mk_printable(::string const&) ;
-::string mk_py_str   (::string const&) ;
-::string mk_shell_str(::string const&) ;
+::string mk_printable( ::string const&                  ) ;
+::string mk_py_str   ( ::string const&                  ) ;
+::string mk_shell_str( ::string const&                  ) ;
+::string mk_c_str    ( ::string const&                  ) ;
+size_t   parse_c_str ( ::string const& , size_t start=0 ) ;                    // the size of the initial part that is a c str
 
 // split into space separated words
 static inline ::vector_s split(::string_view const& path) {

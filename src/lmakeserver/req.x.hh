@@ -301,9 +301,6 @@ namespace Engine {
 			audit_info( Color::None , stderr , lvl ) ;
 			return true ;
 		}
-		::string localize(::string const& file) const {
-			return Disk::localize(file,options.startup_dir_s) ;
-		}
 	private :
 		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , size_t& n_err , DepDepth lvl ) ;
 		// data

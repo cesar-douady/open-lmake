@@ -110,7 +110,7 @@ namespace Engine {
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		//
 	private :
-		bool/*maybe_new_deps*/ _submit_special  ( Req                                                                                                     ) ;
+		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
 		bool                   _targets_ok      ( Req      , Rule::FullMatch const&                                                                       ) ;
 		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
 		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
@@ -180,6 +180,7 @@ namespace Engine {
 	,	Err = TargetErr                // >=Err means job is in error before even starting
 	,	Complete                       // job was run
 	,	NoDep                          // job was not run because of missing static dep
+	,	NoFile                         // job was not run because it is a missing file in a source dir
 	,	TargetErr                      // job was not run because of a manual static target
 	,	DepErr                         // job was not run because of dep error
 	,	RsrcsErr                       // job was not run because of resources could not be computed
@@ -196,7 +197,7 @@ namespace Engine {
 			exec_gen = NExecGen ;                                              // special jobs are always exec_ok
 		}
 		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
-			SWEAR(!rule.is_special()) ;
+			SWEAR(!rule.is_shared()) ;
 		}
 		//
 		JobData           (JobData&& jd) : JobData(jd) {                                 jd.star_targets.forget() ; jd.deps.forget() ;                }
@@ -210,15 +211,15 @@ namespace Engine {
 		bool cmd_ok    () const { return exec_gen >=                     rule->cmd_gen                  ; }
 		bool exec_ok   () const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
 		bool frozen    () const { return s_frozen(status)                                               ; }
-		bool is_special() const { return rule.is_special() || frozen()                                  ; }
+		bool is_special() const { return rule->is_special() || frozen()                                 ; }
 		//
-		void exec_ok(bool ok) { SWEAR(!rule.is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
+		void exec_ok(bool ok) { SWEAR(!rule->is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
 		//
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
-			if (rule.is_special()) return { {}              , false } ;
-			if (+exec_time       ) return {       exec_time , false } ;
-			else                   return { rule->exec_time , true  } ;
+			if (rule->is_special()) return { {}              , false } ;
+			if (+exec_time        ) return {       exec_time , false } ;
+			else                    return { rule->exec_time , true  } ;
 		}
 		//
 		bool sure   () const ;
@@ -359,7 +360,7 @@ namespace Engine {
 	}
 
 	inline bool/*maybe_new_deps*/ Job::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		if ((*this)->is_special()) return _submit_special(ri.req            ) ;
+		if ((*this)->is_special()) return _submit_special(ri                ) ;
 		else                       return _submit_plain  (ri,reason,pressure) ;
 	}
 
@@ -376,10 +377,10 @@ namespace Engine {
 	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
 
 	inline Bool3 JobTgt::produces(Node t) const {
-		if ( (*this)->run_status==RunStatus::NoDep ) return No    ;
-		if ( is_sure()                             ) return Yes   ;
-		if ( (*this)->err()                        ) return Maybe ;            // if job is in error, we do not trust actual star targets
-		if ( t->has_actual_job_tgt(*this)          ) return Yes   ;            // fast path
+		if ( (*this)->run_status==RunStatus::NoDep || (*this)->run_status==RunStatus::NoFile ) return No    ;
+		if ( is_sure()                                                                       ) return Yes   ;
+		if ( (*this)->err()                                                                  ) return Maybe ; // if job is in error, we do not trust actual star targets
+		if ( t->has_actual_job_tgt(*this)                                                    ) return Yes   ; // fast path
 		//
 		return No | ::binary_search( (*this)->star_targets , t ) ;
 	}
@@ -389,15 +390,18 @@ namespace Engine {
 	//
 
 	inline bool JobData::sure() const {
-		if (match_gen>=Rule::s_match_gen) return _sure ;
-		_sure     = false             ;
-		match_gen = Rule::s_match_gen ;
-		for( Dep const& d : deps ) {
-			if (!d.flags[DFlag::Static]) break ;
-			if (d->buildable!=Yes      ) return false ;
+		if (match_gen<Rule::s_match_gen) {
+			_sure     = false             ;
+			match_gen = Rule::s_match_gen ;
+			if (!rule->is_sure()) goto Return ;
+			for( Dep const& d : deps ) {
+				if (!d.flags[DFlag::Static]) continue    ;                     // we are only interested in static targets, other ones may not exist and do not prevent job from being built
+				if (d->buildable!=Yes      ) goto Return ;
+			}
+			_sure = true ;
 		}
-		_sure = true ;
-		return true ;
+	Return :
+		return _sure ;
 	}
 
 	//

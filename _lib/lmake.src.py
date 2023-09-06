@@ -62,8 +62,6 @@ if _reading_makefiles :
 	# - rules   : no default, must be set by user as the list of classes representing rules (use Rule & AntiRule base classes to help)
 	# - sources : defaults to files listed in Manifest or by searching git
 
-	source_dirs = []                                       # files in this list of directorie are deemed to be sources (only apply to reading Lmakefile.py for now)
-
 	#
 	# config
 	#
@@ -80,6 +78,7 @@ if _reading_makefiles :
 	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
+	,	source_dirs     = []                               # files in these directories are deemed to be sources # XXX : only apply to reading Lmakefile.py for now
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 	,	console = pdict(                                   # tailor output lines
 			date_precision = None                          # number of second decimals in the timestamp field
@@ -167,7 +166,7 @@ if _reading_makefiles :
 
 	class Rule(_RuleBase) :
 		allow_stderr = False                               # if set, writing to stderr is not an error but a warning
-		__anti__     = False                               # plain Rule
+		__special__  = None                                # plain Rule
 		auto_mkdir   = False                               # auto mkdir directory in case of chdir
 		backend      = 'local'                             # may be set anywhere in the inheritance hierarchy if execution must be remote
 		chroot       = ''                                  # chroot directory to execute cmd (if empty, chroot cmd is not done)
@@ -214,12 +213,12 @@ if _reading_makefiles :
 		)
 
 	class AntiRule(_RuleBase) :
-		__anti__ = True                                    # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected
-		prio     = float('inf')                            # default to high prio as the goal of AntiRule's is to hide other rules
+		__special__ = 'anti'                               # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected
+		prio        = float('inf')                         # default to high prio as the goal of AntiRule's is to hide other rules
 
-	class GitRule(Rule) :
-		'base rule that ignores read accesses (and forbid writes) to git administrative files'
-		post_targets = { '__GIT__' : ( '{__dir__*}.git/{__file__*}' , '-Dep','Incremental','-Match','-Write' ) }
+	class SourceRule(_RuleBase) :
+		__special__ = 'generic_src'
+		prio        = float('inf')
 
 	class HomelessRule(Rule) :
 		'base rule to redirect the HOME environment variable to TMPDIR'
@@ -286,9 +285,12 @@ if _reading_makefiles :
 		#
 		# compute directories
 		#
-		root_dir = _os.getcwd()
-		git_dir  = root_dir
-		while git_dir!='/' and not _osp.isdir(_osp.join(git_dir,'.git')) : git_dir = _osp.dirname(git_dir)
+		root_dir    = _os.getcwd()
+		git_dir     = root_dir
+		rel_git_dir = ''
+		while git_dir!='/' and not _osp.isdir(_osp.join(git_dir,'.git')) :
+			git_dir      = _osp.dirname(git_dir)
+			rel_git_dir += '../'
 		if git_dir =='/' : raise NotImplementedError('not in a git repository')
 		git_dir_s  = _osp.join(git_dir ,'')
 		root_dir_s = _osp.join(root_dir,'')
@@ -325,9 +327,9 @@ if _reading_makefiles :
 		else :
 			srcs = run((_git,'ls-files'))
 		#
-		#  update global source_dirs
+		#  update source_dirs
 		#
-		source_dirs.append( (git_dir_s if repo_dir_s else '')+'.git' )
+		config.source_dirs.append( rel_git_dir+'.git' )
 		return srcs
 
 	def auto_sources(**kwds) :

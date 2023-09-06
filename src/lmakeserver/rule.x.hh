@@ -33,17 +33,24 @@ namespace Engine {
 
 	ENUM_1( EnvFlag
 	,	Dflt = Rsrc
+	//
 	,	None                           // ignore variable
 	,	Rsrc                           // consider variable as a resource : upon modification, rebuild job if it was in error
 	,	Cmd                            // consider variable as a cmd      : upon modification, rebuild job
 	)
 
-	ENUM( Special
-	,	Plain      //  must be 0, a marker to say that rule is not special
+	ENUM_1( Special
+	,	Shared = Infinite              // <=Shared means there is a single such rule
+	//
+	,	None                           // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
 	,	Src
 	,	Req
 	,	Uphill
 	,	Infinite
+	// ordered by decreasing matching priority within each prio
+	,	GenericSrc
+	,	Anti
+	,	Plain
 	)
 
 }
@@ -116,8 +123,6 @@ namespace Engine {
 			::string pattern ;
 			DFlags   flags   ;
 		} ;
-		// statics
-		static ::pair_s<DFlags> s_split_dflags( ::string const& key , PyObject* py_dep ) ;
 		// services
 		BitMap<VarCmd> init( PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		template<IsStream S> void serdes(S& s) {
@@ -421,8 +426,8 @@ namespace Engine {
 		static size_t s_name_sz ;
 
 		// cxtors & casts
-		RuleData(                        ) = default ;
-		RuleData(Special                 ) ;
+		RuleData(                                                       ) = default ;
+		RuleData(Special                 , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
 		RuleData(::string_view const& str) {
 			IStringStream is{::string(str)} ;
 			serdes(static_cast<::istream&>(is)) ;
@@ -444,8 +449,13 @@ namespace Engine {
 		::string pretty_str() const ;
 
 		// accesses
-		TFlags flags(VarIdx t) const { return t==NoVar ? UnexpectedTFlags : targets[t].second.flags ; }
-		bool   sure (VarIdx t) const { return s_sure(flags(t))                                      ; }
+		bool   is_anti     (        ) const { return special==Special::Anti || special==Special::Uphill    ; }
+		bool   is_special  (        ) const { return special!=Special::Plain                               ; }
+		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc ; }
+		bool   is_sure     (        ) const { return special!=Special::GenericSrc                          ; } // GenericSrc targets are only buildable if file actually exists
+		bool   user_defined(        ) const { return !allow_ext                                            ; } // used to decide to print in LMAKE/rules
+		TFlags flags       (VarIdx t) const { return t==NoVar ? UnexpectedTFlags : targets[t].second.flags ; }
+		bool   sure        (VarIdx t) const { return s_sure(flags(t))                                      ; }
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
@@ -468,11 +478,8 @@ namespace Engine {
 		}
 
 		// services
-		::string add_cwd(::string&& file) const {
-			if      (file.empty() ) return {}             ;                    // we have no file, leave slot empty
-			else if (file[0]=='/' ) return file.substr(1) ;
-			else if (cwd_s.empty()) return ::move(file)   ;                    // fast path
-			else                    return cwd_s+file     ;
+		void add_cwd( ::string& file , bool top ) const {
+			if (!( top || file.empty() || cwd_s.empty() )) file.insert(0,cwd_s) ;
 		}
 	private :
 		::vector_s _list_ctx(::vector<CmdIdx> const& ctx) const ;
@@ -480,16 +487,17 @@ namespace Engine {
 
 		// user data
 	public :
-		bool                 anti       = false ;                              // this is an anti-rule
-		Prio                 prio       = 0     ;                              // the priority of the rule
+		Special              special    = Special::None ;
+		Prio                 prio       = 0             ;                      // the priority of the rule
 		::string             name       ;                                      // the short message associated with the rule
 		::vmap_ss            stems      ;                                      // stems   are ordered : statics then stars
 		::string             cwd_s      ;                                      // cwd in which to interpret targets & deps and execute cmd (with ending /)
 		::string             job_name   ;                                      // used to show in user messages, same format as a target
 		::vmap_s<TargetSpec> targets    ;                                      // keep user order, except static targets before star targets
-		VarIdx               stdout_idx = NoVar ;                              // index of target used as stdout
-		VarIdx               stdin_idx  = NoVar ;                              // index of dep used as stdin
-		// following is only if !anti
+		VarIdx               stdout_idx = NoVar         ;                      // index of target used as stdout
+		VarIdx               stdin_idx  = NoVar         ;                      // index of dep used as stdin
+		bool                 allow_ext   = false        ;                      // if true <=> rule may match outside repo
+		// following is only if plain rules
 		DynamicCreateMatchAttrs   create_match_attrs ;                         // in match crc, evaluated at job creation time
 		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
 		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
@@ -853,8 +861,7 @@ namespace Engine {
 
 	template<IsStream S> void RuleData::serdes(S& s) {
 		if (::is_base_of_v<::istream,S>) *this = {} ;
-		::serdes(s,anti) ;
-		//
+		::serdes(s,special         ) ;
 		::serdes(s,prio            ) ;
 		::serdes(s,name            ) ;
 		::serdes(s,stems           ) ;
@@ -863,10 +870,11 @@ namespace Engine {
 		::serdes(s,targets         ) ;
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
+		::serdes(s,allow_ext       ) ;
 		::serdes(s,has_stars       ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
-		if (!anti) {
+		if (special==Special::Plain) {
 			::serdes(s,create_match_attrs) ;
 			::serdes(s,create_none_attrs ) ;
 			::serdes(s,cache_none_attrs  ) ;
