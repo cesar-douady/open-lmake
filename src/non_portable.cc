@@ -5,7 +5,10 @@
 
 #include "sys_config.h"
 
+#include <sys/ptrace.h>
+
 #include "non_portable.hh"
+#include "utils.hh"
 
 using namespace std ;
 
@@ -14,18 +17,67 @@ int np_get_fd(::filebuf& fb) {
 	return static_cast<FileBuf&>(fb).fd() ;
 }
 
-int np_get_errno(struct user_regs_struct const& regs) {
+
+// Check : https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
+static inline int _get_errno(struct user_regs_struct const& regs) {
 	#ifdef __x86_64__
-		return -regs.rax ;
+		return -regs.rax    ;
+	#elif __arm__
+		return -regs.r0     ;
+	#elif __aarch64__
+		return -regs.regs[0];
 	#else
 		#error "errno not implemented for this architecture"                   // if situation arises, please provide the adequate code using x86_64 case as a template
 	#endif
 }
 
-void np_clear_syscall(struct user_regs_struct& regs) {
+static inline void _clear_syscall(struct user_regs_struct& regs) {
+	// Clear the system call number
 	#ifdef __x86_64__
 		regs.orig_rax = -1 ;
+	#elif __arm__
+		regs.r7       = -1 ;
+	#elif __aarch64__
+		regs.regs[8]  = -1 ;
 	#else
 		#error "clear_syscall not implemented for this architecture"           // if situation arises, please provide the adequate code using x86_64 case as a template
+	#endif
+}
+
+int np_get_errno(int pid) {
+	errno = 0;
+	struct ::user_regs_struct regs ;
+	#ifdef __x86_64__
+		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+	#elif __aarch64__ || __arm__
+		struct iovec  iov;
+		iov.iov_base = &regs;
+		iov.iov_len  = sizeof(unsigned long long); //read only the 1st register
+		long ret = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov);
+		SWEAR(ret != -1);
+	#endif
+	SWEAR(!errno) ;
+	return _get_errno(regs) ;
+}
+
+void np_clear_syscall(int pid) {
+	errno = 0 ;
+	struct ::user_regs_struct regs ;
+	#ifdef __x86_64__
+		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		if (errno) throw 0 ;
+		_clear_syscall(regs) ;
+		ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		if (errno) throw 0 ;
+	#elif __aarch64__ || __arm__
+		long          ret;
+		struct iovec  iov;
+		iov.iov_base = &regs;
+		iov.iov_len  = 9 * sizeof(unsigned long long); //read/write only 9 registers
+		ret = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov);
+		if (ret==-1 || errno) throw 0 ;
+		_clear_syscall(regs) ;
+		ret = ptrace(PTRACE_SETREGSET, pid, (void*)NT_PRSTATUS, &iov);
+		if (ret==-1 || errno) throw 0 ;
 	#endif
 }

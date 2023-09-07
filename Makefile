@@ -108,10 +108,10 @@ PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
 PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 
 # SECCOMP
-SECCOMP             := ext/libseccomp-2.1.0.dir
-SECCOMP_ROOT        := $(SECCOMP)/libseccomp-2.1.0
+SECCOMP             := ext/libseccomp-2.5.4.dir
+SECCOMP_ROOT        := $(SECCOMP)/libseccomp-2.5.4
 SECCOMP_INCLUDE_DIR := $(SECCOMP_ROOT)/include
-SECCOMP_LIB_DIR     := $(SECCOMP_ROOT)/src
+SECCOMP_LIB_DIR     := $(SECCOMP_ROOT)/src/.libs
 
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver
@@ -131,6 +131,20 @@ LMAKE_FILES = \
 	$(SBIN)/ldump_job             \
 	$(LIB)/lmake.py               \
 	$(LIB)/clmake.so              \
+	$(BIN)/autodep                \
+	$(BIN)/lcheck_deps            \
+	$(BIN)/ldepend                \
+	$(BIN)/lforget                \
+	$(BIN)/lfreeze                \
+	$(BIN)/lmake                  \
+	$(BIN)/lshow                  \
+	$(BIN)/ltarget                \
+	$(BIN)/xxhsum
+
+LMAKE_CLIENT_FILES = \
+	$(SBIN)/job_exec              \
+	$(SLIB)/autodep_ld_audit.so   \
+	$(SLIB)/autodep_ld_preload.so \
 	$(BIN)/autodep                \
 	$(BIN)/lcheck_deps            \
 	$(BIN)/ldepend                \
@@ -190,6 +204,7 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	[ '$(LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(LD_LIBRARY_PATH)'" >>$@
 
 LMAKE : $(LMAKE_FILES)
+LMAKE_CLIENT : $(LMAKE_CLIENT_FILES)
 
 #
 # PYCXX
@@ -215,7 +230,7 @@ $(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx
 #
 
 $(SECCOMP).install.stamp : $(SECCOMP).stamp
-	cd $(SECCOMP_ROOT) ; ./configure ; MAKEFLAGS= make
+	cd $(SECCOMP_ROOT) ; ./autogen.sh ; ./configure ; MAKEFLAGS= make
 	touch $@
 
 #

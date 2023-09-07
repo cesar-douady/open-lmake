@@ -11,5 +11,5 @@
 
 int np_get_fd(std::filebuf& fb) ;
 
-int   np_get_errno    (struct user_regs_struct const&) ;
-void  np_clear_syscall(struct user_regs_struct      &) ;
+int  np_get_errno    (int pid) ;
+void np_clear_syscall(int pid) ;
