@@ -211,11 +211,12 @@ namespace Engine {
 			JobInfoEnd       report_end   ;
 			bool             has_start    = false                 ;
 			bool             has_end      = false                 ;
-			JobDigest const& digest       = report_end.digest     ;
+			JobDigest const& digest       = report_end.end.digest ;
 			try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
 			try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
 		Go :
 			switch (ro.key) {
+				case ReqKey::Backend    :
 				case ReqKey::Env        :
 				case ReqKey::ExecScript :
 				case ReqKey::Info       :
@@ -279,6 +280,11 @@ namespace Engine {
 								for( auto const& [pfx,ni] : digest.analysis_err ) audit( fd , ro , Color::Note , lvl+1 , pfx , ni?Node(ni).name():""s ) ;
 								/**/                                              audit( fd , ro , Color::None , lvl+1 , digest.stderr                ) ;
 							break ;
+							case ReqKey::Backend :
+								if (!has_end ) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
+								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl ) ;
+								audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
+							break ;
 							case ReqKey::Info : {
 								int      ws       = digest.wstatus                                                                                                                     ;
 								::string rc       = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s  ;
@@ -299,12 +305,13 @@ namespace Engine {
 								if (has_start) {
 									static constexpr AutodepMethod AdMD = AutodepMethod::Dflt ;
 									//
-									JobInfoStart const& rs     = report_start          ;
-									size_t              cwd_sz = rs.start.cwd_s.size() ;
+									JobInfoStart const& rs     = report_start                                                             ;
+									size_t              cwd_sz = rs.start.cwd_s.size()                                                    ;
+									::string            bem    = rs.backend_msg.empty() ? ::string() : to_string(" (",rs.backend_msg,')') ;
 									//
-									audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag)                          ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                    ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                   ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag),bem                    ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                  ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                 ) ) ;
 									audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str(),'-',rs.submit_attrs.pressure.short_str()) ) ;
 									//
 									if ( rs.submit_attrs.live_out        ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out       : true"                              ) ) ;
@@ -370,11 +377,11 @@ namespace Engine {
 						Rule::FullMatch match      = jt.full_match() ;
 						::string        unexpected = "<unexpected>"  ;
 						size_t          wk         = 0               ;
-						for( auto const& [tn,td] : report_end.digest.targets ) {
+						for( auto const& [tn,td] : digest.targets ) {
 							VarIdx ti = match.idx(tn) ;
 							wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;
 						}
-						for( auto const& [tn,td] : report_end.digest.targets ) {
+						for( auto const& [tn,td] : digest.targets ) {
 							VarIdx   ti         = match.idx(tn)                                          ;
 							TFlags   stfs       = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti)   ;
 							bool     m          = stfs[TFlag::Match]                                     ;

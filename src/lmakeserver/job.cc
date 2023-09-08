@@ -386,7 +386,7 @@ namespace Engine {
 			case Status::Lost    : local_reason = JobReasonTag::Lost    ; break ;
 			case Status::Killed  : local_reason = JobReasonTag::Killed  ; break ;
 			case Status::ChkDeps : local_reason = JobReasonTag::ChkDeps ; break ;
-			case Status::Garbage :                                        break ; // Garbage is caught as a default message is none else is available
+			case Status::Garbage :                                        break ; // Garbage is caught as a default message if none other ones is available
 			default              : SWEAR(status>Status::Garbage) ;                // ensure we have not forgotten a case
 		}
 		//
@@ -609,7 +609,7 @@ namespace Engine {
 						auto report_start = deserialize<JobInfoStart>(is) ;
 						auto report_end   = deserialize<JobInfoEnd  >(is) ;
 						//
-						report_end.digest.analysis_err = ae ;
+						report_end.end.digest.analysis_err = ae ;
 						//
 						OFStream os{jaf} ;
 						serialize(os,report_start) ;
@@ -726,8 +726,8 @@ namespace Engine {
 				//
 				switch (ri.lvl) {
 					case Lvl::None :
-						if (ri.action>=RunAction::Status) {                                                    // only once, not in case of analysis restart
-							if ( rule->force || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status==Status::Err) ) {
+						if (ri.action>=RunAction::Status) {                                                                      // only once, not in case of analysis restart
+							if ( rule->force || (req->options.flags[ReqFlag::ForgetOldErrors]&&(*this)->status>=Status::Err) ) {
 								ri.action   = RunAction::Run                                           ;
 								dep_action  = RunAction::Dsk                                           ;
 								reason     |= rule->force ? JobReasonTag::Force : JobReasonTag::OldErr ;
@@ -973,8 +973,8 @@ namespace Engine {
 					req->audit_stderr({{rule->end_none_attrs.s_exc_msg(true/*using_static*/),{}}},e,-1,1) ;
 				}
 				analysis_err.push_back(s_reason_str(reason)) ;
-				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , analysis_err    , end_none_attrs.stderr_len , ja.modified ) ;
-				else                           audit_end( ja.hit?"hit_":"was_" , ri , report_end.digest.stderr , ja.analysis_err , end_none_attrs.stderr_len , ja.modified ) ;
+				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.end.digest.stderr , analysis_err    , end_none_attrs.stderr_len , ja.modified ) ;
+				else                           audit_end( ja.hit?"hit_":"was_" , ri , report_end.end.digest.stderr , ja.analysis_err , end_none_attrs.stderr_len , ja.modified ) ;
 				req->missing_audits.erase(it) ;
 			}
 			trace("wakeup",ri) ;
@@ -1019,27 +1019,24 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	static SpecialStep _update_frozen_target( Bool3 is_src , Job j , UNode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
+	static ::pair<SpecialStep,bool/*modified*/> _update_frozen_target( Bool3 is_src , Job j , UNode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
 		Rule         r   = j->rule ;
 		FileInfoDate fid { tn }    ;
-		if ( +fid && fid.date==t->date && +t->crc ) return SpecialStep::Idle ;
+		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,false/*modified*/} ;
 		Trace trace("src",fid.date,t->date) ;
-		Crc      crc    { tn , g_config.hash_algo } ;
-		bool     steady = crc.match(t->crc)         ;
-		DiskDate don    = fid.date_or_now()         ;
+		Crc      crc      { tn , g_config.hash_algo } ;
+		bool     modified = !crc.match(t->crc)        ;
+		DiskDate don      = fid.date_or_now()         ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		t.refresh( fid.tag==FileTag::Lnk , crc , don ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (!steady && (+fid||is_src!=No) ) j->db_date = don ;
-		if (!fid) {
-			if ( is_src!=No                 ) {                             return is_src==Maybe ? SpecialStep::NoFile : SpecialStep::ErrNoFile ; }
-			if ( ti==VarIdx(-1)             ) { t->actual_job_tgt.clear() ; return SpecialStep::Idle                                            ; } // unlink of a star target is nothing
-			if ( r->flags(ti)[TFlag::Phony] ) {                             return SpecialStep::NoFile                                          ; }
-			else                              {                             return SpecialStep::ErrNoFile                                       ; }
-		} else {
-			if (steady                      ) {                             return SpecialStep::Steady                                          ; }
-			else                              {                             return SpecialStep::Modified                                        ; }
-		}
+		if ( modified && (+fid||is_src!=No) ) { j->db_date = don ;                                                         }
+		if ( +fid                           ) {                             return { SpecialStep::Ok        , modified } ; }
+		if ( ti==VarIdx(-1)                 ) { t->actual_job_tgt.clear() ; return { SpecialStep::Idle      , modified } ; } // unlink of a star target is nothing
+		if ( is_src==Maybe                  ) {                             return { SpecialStep::NoFile    , modified } ; }
+		if ( is_src==Yes                    ) {                             return { SpecialStep::ErrNoFile , modified } ; }
+		if ( r->flags(ti)[TFlag::Phony]     ) {                             return { SpecialStep::NoFile    , modified } ; }
+		else                                  {                             return { SpecialStep::ErrNoFile , modified } ; }
 	}
 	bool/*may_new_dep*/ Job::_submit_special(ReqInfo& ri) {
 		Trace trace("submit_special",*this,ri) ;
@@ -1055,37 +1052,40 @@ namespace Engine {
 				::vector_view_c_s static_targets = match.static_targets() ;
 				SpecialStep       special_step   = SpecialStep::Idle      ;
 				Node              worst_target   ;
+				bool              modified       = false                  ;
 				for( VarIdx ti=0 ; ti<static_targets.size() ; ti++ ) {
-					::string const& tn = static_targets[ti]                                             ;
-					UNode           t  { tn }                                                           ;
-					SpecialStep     ss = _update_frozen_target( No/*is_src*/ , *this , t , tn , ti ) ;
+					::string const& tn     = static_targets[ti]                                          ;
+					UNode           t      { tn }                                                        ;
+					auto            [ss,m] = _update_frozen_target( No/*is_src*/ , *this , t , tn , ti ) ;
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
+					modified |= m ;
 				}
 				for( UNode t : (*this)->star_targets ) {
-					SpecialStep ss = _update_frozen_target( No/*is_src*/ , *this , t , t.name() ) ;
+					auto [ss,m] = _update_frozen_target( No/*is_src*/ , *this , t , t.name() ) ;
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
+					modified |= m ;
 				}
-				(*this)->status = special_step<SpecialStep::Err ? Status::Frozen : Status::ErrFrozen ;
-				audit_end_special( req , special_step , worst_target ) ;
+				(*this)->status = special_step<SpecialStep::HasErr ? Status::Frozen : Status::ErrFrozen ;
+				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 			case Special::Src        :
 			case Special::GenericSrc : {
-				::string    tn          = name()                                                       ;
-				UNode       un          { tn }                                                         ;
-				bool        is_true_src = special==Special::Src                                        ;
-				SpecialStep ss          = _update_frozen_target( Maybe|is_true_src , *this , un , tn ) ;
+				::string    tn          = name()                                                                 ;
+				UNode       un          { tn }                                                                   ;
+				bool        is_true_src = special==Special::Src                                                  ;
+				auto        [ss,m]      = _update_frozen_target( Maybe|is_true_src , *this , un , tn , 0/*ti*/ ) ;
 				un->actual_job_tgt = {*this,is_true_src/*is_sure*/} ;
-				if ((*this)->frozen()) (*this)->status = ss<SpecialStep::Err ? Status::Frozen : Status::ErrFrozen ;
-				else                   (*this)->status = ss<SpecialStep::Err ? Status::Ok     : Status::Err       ;
+				if ((*this)->frozen()) (*this)->status = ss<SpecialStep::HasErr ? Status::Frozen : Status::ErrFrozen ;
+				else                   (*this)->status = ss<SpecialStep::HasErr ? Status::Ok     : Status::Err       ;
 				if (ss==SpecialStep::NoFile) (*this)->run_status = RunStatus::NoFile ;
-				audit_end_special(req,ss) ;
+				audit_end_special(req,ss,m) ;
 			} break ;
 			case Special::Req :
 				(*this)->status = Status::Ok ;
 			break ;
 			case Special::Infinite :
 				(*this)->status = Status::Err ;
-				audit_end_special( req , SpecialStep::Err ) ;
+				audit_end_special( req , SpecialStep::Err , false/*modified*/ ) ;
 			break ;
 			case Special::Uphill :
 				for( Dep const& d : (*this)->deps ) {
@@ -1171,6 +1171,7 @@ namespace Engine {
 		Req               req                = ri.req        ;
 		Rule              rule               = (*this)->rule ;
 		SubmitRsrcsAttrs  submit_rsrcs_attrs ;
+		SubmitNoneAttrs   submit_none_attrs  ;
 		CacheNoneAttrs    cache_none_attrs   ;
 		Rule::FullMatch   match              { *this }       ;
 		Trace trace("submit_plain",*this,ri,reason,pressure) ;
@@ -1186,6 +1187,13 @@ namespace Engine {
 		}
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
+			submit_none_attrs = rule->submit_none_attrs.eval(*this,match) ;
+		} catch (::string const& e) {
+			submit_none_attrs = rule->submit_none_attrs.spec ;
+			req->audit_job(Color::Note,"no_dynamic",*this) ;
+			req->audit_stderr({{rule->submit_none_attrs.s_exc_msg(true/*using_static*/),{}}},e,-1,1) ;
+		}
+		try {
 			cache_none_attrs = rule->cache_none_attrs.eval(*this,match) ;
 		} catch (::string const& e) {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
@@ -1199,7 +1207,7 @@ namespace Engine {
 			ri.n_wait++ ;
 			ri.lvl = cri.lvl ;                                                   // Exec or Queued, same as other reqs
 			if (ri.lvl==Lvl::Exec) req->audit_job(Color::Note,"started",*this) ;
-			Backend::s_add_pressure( ri.backend , +*this , +req , {.pressure=pressure,.live_out=ri.live_out} ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			Backend::s_add_pressure( ri.backend , +*this , +req , {.live_out=ri.live_out,.pressure=pressure} ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
 			trace("other_req",r,ri) ;
 			return false/*may_new_deps*/ ;
 		}
@@ -1242,9 +1250,15 @@ namespace Engine {
 		ri.n_wait++ ;                                                          // set before calling submit call back as in case of flash execution, we must be clean
 		ri.lvl = Lvl::Queued ;
 		try {
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( ri.backend , +*this , +req , {.pressure=pressure,.live_out=ri.live_out,.reason=reason} , submit_rsrcs_attrs.rsrcs ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			SubmitAttrs sa = {
+				.live_out  = ri.live_out
+			,	.n_retries = submit_none_attrs.n_retries
+			,	.pressure  = pressure
+			,	.reason    = reason
+			} ;
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( ri.backend , +*this , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			ri.n_wait-- ;                                                      // restore n_wait as we prepared to wait
 			(*this)->status = Status::Err ;
@@ -1257,7 +1271,7 @@ namespace Engine {
 		return true/*maybe_new_deps*/ ;
 	}
 
-	void Job::audit_end_special( Req req , SpecialStep step , Node node ) const {
+	void Job::audit_end_special( Req req , SpecialStep step , bool modified , Node node ) const {
 		Status status = (*this)->status                                                                          ;
 		Color  color  = status==Status::Ok ? Color::HiddenOk : status>=Status::Err ? Color::Err : Color::Warning ;
 		bool   frozen = JobData::s_frozen(status)                                                                ;
@@ -1268,11 +1282,11 @@ namespace Engine {
 		::string    stderr   = special_stderr(node) ;
 		const char* step_str = nullptr              ;
 		switch (step) {
-			case SpecialStep::Idle      : step_str = frozen ? "frozen"         : nullptr     ; break ;
-			case SpecialStep::NoFile    : step_str = frozen ? "no_file_frozen" : "no_file"   ; break ;
-			case SpecialStep::Steady    : step_str = frozen ? "steady_frozen"  : "steady"    ; break ;
-			case SpecialStep::Modified  : step_str = frozen ? "new_frozen"     : "new"       ; break ;
-			case SpecialStep::ErrNoFile : step_str = frozen ? "err_frozen"     : "failed"    ; break ;
+			case SpecialStep::Idle      : step_str = frozen ? "frozen"                                : nullptr                       ; break ;
+			case SpecialStep::NoFile    : step_str = frozen ? "no_file_frozen"                        : (modified?"no_file":nullptr ) ; break ;
+			case SpecialStep::Ok        : step_str = frozen ? (modified?"new_frozen":"steady_frozen") : (modified?"new"    :"steady") ; break ;
+			case SpecialStep::Err       :
+			case SpecialStep::ErrNoFile : step_str = frozen ? "err_frozen"                            : "failed"                      ; break ;
 			default : FAIL(step) ;
 		}
 		if (step_str) {

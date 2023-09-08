@@ -193,6 +193,8 @@ static constexpr const char* JobReasonTagStrs[] = {
 } ;
 static_assert(::size(JobReasonTagStrs)==+JobReasonTag::N) ;
 
+static const ::string EnvPassMrkr {1,0} ;                                            // special illegal value to ask for value from environment
+
 struct JobReason {
 	friend ::ostream& operator<<( ::ostream& , JobReason const& ) ;
 	using Tag = JobReasonTag ;
@@ -223,9 +225,11 @@ struct SubmitAttrs {
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		if      (      tag==BackendTag::Unknown) tag = other.tag ;
 		else if (other.tag!=BackendTag::Unknown) SWEAR(tag==other.tag) ;
-		pressure  = ::max(pressure,other.pressure) ;
-		live_out |= other.live_out                 ;
-		reason   |= other.reason                   ;
+		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries ) ; // n_retries does not depend on req, but may not be always passed
+		n_retries  = ::max(n_retries,other.n_retries) ;
+		pressure   = ::max(pressure ,other.pressure ) ;
+		live_out  |= other.live_out                   ;
+		reason    |= other.reason                     ;
 		return *this ;
 	}
 	SubmitAttrs operator|(SubmitAttrs const& other) const {
@@ -234,10 +238,11 @@ struct SubmitAttrs {
 		return res ;
 	}
 	// data
-	BackendTag        tag      = BackendTag::Unknown ;
-	Time::CoarseDelay pressure = {}                  ;
-	bool              live_out = false               ;
-	JobReason         reason   = {}                  ;
+	BackendTag        tag       = BackendTag::Unknown ;
+	bool              live_out  = false               ;
+	uint8_t           n_retries = 0                   ;
+	Time::CoarseDelay pressure  = {}                  ;
+	JobReason         reason    = {}                  ;
 } ;
 
 struct JobStats {
@@ -459,10 +464,7 @@ struct TargetSpec {
 
 ENUM_2( AutodepMethod
 ,	Ld   = LdAudit                                         // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
-,	Dflt =                                                 // by default, use most reliable available method
-		HAS_PTRACE   ? AutodepMethod::Ptrace
-	:	HAS_LD_AUDIT ? AutodepMethod::LdAudit
-	:	               AutodepMethod::LdPreload
+,	Dflt = AutodepMethod::LdPreload                        // by default, use  a compromize between speed an reliability, might sens HAS_LD_AUDIT and HAS_PTRACE if necessary
 ,	None
 ,	Ptrace
 ,	LdAudit
@@ -692,6 +694,7 @@ struct JobInfoStart {
 		::serdes(s,rsrcs       ) ;
 		::serdes(s,pre_start   ) ;
 		::serdes(s,start       ) ;
+		::serdes(s,backend_msg ) ;
 	}
 	// data
 	Time::ProcessDate eta          = {} ;
@@ -699,6 +702,17 @@ struct JobInfoStart {
 	::vmap_ss         rsrcs        = {} ;
 	JobRpcReq         pre_start    = {} ;
 	JobRpcReply       start        = {} ;
+	::string          backend_msg  = {} ;
 } ;
 
-using JobInfoEnd = JobRpcReq ;
+struct JobInfoEnd {
+	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
+	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,end        ) ;
+		::serdes(s,backend_msg) ;
+	}
+	// data
+	JobRpcReq end         = {} ;
+	::string  backend_msg = {} ;
+} ;

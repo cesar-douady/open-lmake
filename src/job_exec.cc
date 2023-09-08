@@ -86,12 +86,16 @@ int main( int argc , char* argv[] ) {
 		append_to_string(abs_cwd,'/',cwd_) ;
 	}
 	::map_ss cmd_env ;
-	/**/                                      cmd_env["PWD"        ] =           abs_cwd                          ;
-	/**/                                      cmd_env["ROOT_DIR"   ] =           *g_root_dir                      ;
-	/**/                                      cmd_env["SEQUENCE_ID"] = to_string(seq_id             )             ;
-	/**/                                      cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)             ;
-	/**/                                      cmd_env["TMPDIR"     ] =           *g_tmp_dir                       ; // TMPDIR is the standard environment variable to specify the temporary area
-	for( auto const& [k,v] : start_info.env ) cmd_env[k            ] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
+	cmd_env["PWD"        ] =           abs_cwd              ;
+	cmd_env["ROOT_DIR"   ] =           *g_root_dir          ;
+	cmd_env["SEQUENCE_ID"] = to_string(seq_id             ) ;
+	cmd_env["SMALL_ID"   ] = to_string(start_info.small_id) ;
+	cmd_env["TMPDIR"     ] =           *g_tmp_dir           ;                  // TMPDIR is the standard environment variable to specify the temporary area
+	for( auto const& [k,v] : start_info.env ) {
+		::string val = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
+		if (val==EnvPassMrkr) val = get_env(k) ;                               // if value is special illegal value, use value from environement (typically from slurm)
+		cmd_env[k] = ::move(val) ;
+	}
 	//
 	Fd       child_stdin  = Child::None                         ;
 	Fd       child_stdout = Child::Pipe                         ;
@@ -153,7 +157,6 @@ int main( int argc , char* argv[] ) {
 				if (+(dfs&AccessDFlags)) {
 					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
-if (dd.garbage) ::cerr<<"analyze1 "<<dd<<" "<<file<<" "<<file_date(file)<<" "<<info.file_date<<endl;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvv
 				deps.emplace_back(file,dd) ;

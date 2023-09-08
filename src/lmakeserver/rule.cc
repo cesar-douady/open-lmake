@@ -89,8 +89,8 @@ namespace Engine {
 					with_re = true ;
 				Call :
 					// trim key
-					size_t start = 0          ; while( start<key.size() && ::isspace(key[start]) ) start++ ;
-					size_t end   = key.size() ; while( end>start        && ::isspace(key[end-1]) ) end  -- ;
+					size_t start = 0          ; while( start<key.size() && is_space(key[start]) ) start++ ;
+					size_t end   = key.size() ; while( end>start        && is_space(key[end-1]) ) end  -- ;
 					if (end<=start) key.clear() ;
 					else            key = key.substr(start,end-start) ;
 					bool star = !key.empty() && key.back()=='*' ;
@@ -552,7 +552,6 @@ namespace Engine {
 			field = "name" ; if (dct.hasKey(field)) name  = Py::String(dct[field]) ; else throw "not found"s ;
 			field = "prio" ; if (dct.hasKey(field)) prio  = Py::Float (dct[field]) ;
 			field = "cwd"  ; if (dct.hasKey(field)) cwd_s = Py::String(dct[field]) ;
-			if ( !is_special() && !::isfinite(prio) ) throw to_string("plain rules must have finite prio, not ",prio) ;
 			if (!cwd_s.empty()) {
 				if (cwd_s.back ()!='/') cwd_s += '/' ;
 				if (cwd_s.front()=='/') {
@@ -750,6 +749,7 @@ namespace Engine {
 			field = "create_none_attrs"  ; if (dct.hasKey(field)) create_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "cache_none_attrs"   ; if (dct.hasKey(field)) cache_none_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "submit_rsrcs_attrs" ; if (dct.hasKey(field)) submit_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "submit_none_attrs"  ; if (dct.hasKey(field)) submit_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			//
 			/**/                                                             var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
@@ -820,6 +820,7 @@ namespace Engine {
 			create_none_attrs .compile() ;
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
+			submit_none_attrs .compile() ;
 			start_cmd_attrs   .compile() ;
 			cmd               .compile() ;
 			start_rsrcs_attrs .compile() ;
@@ -986,6 +987,11 @@ namespace Engine {
 		for (auto const& [k,v] : sra.rsrcs ) if (!v.empty()                    ) entries.emplace_back( k           , v                    ) ;
 		return _pretty_vmap(i,entries) ;
 	}
+	static ::string _pretty( size_t i , SubmitNoneAttrs const& sna ) {
+		::vmap_ss entries ;
+		if (sna.n_retries!=0) entries.emplace_back( "n_retries" , mk_snake (sna.n_retries) ) ;
+		return _pretty_vmap(i,entries) ;
+	}
 	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
 		OStringStream res    ;
@@ -1084,6 +1090,7 @@ namespace Engine {
 			res << _pretty_str(1,create_none_attrs       ) ;
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
+			res << _pretty_str(1,submit_none_attrs       ) ;
 			res << _pretty_str(1,start_none_attrs        ) ;
 			res << _pretty_str(1,start_cmd_attrs         ) ;
 			res << _pretty_str(1,cmd               ,*this) ;

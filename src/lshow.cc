@@ -22,6 +22,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::ExecScript , { .short_name='S' , .doc="show a sh-executable script"                } }
 	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                                } }
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
+	,	{ ReqKey::Backend    , { .short_name='b' , .doc="show messages from backend"                 } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;

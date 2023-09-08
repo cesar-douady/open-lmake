@@ -96,7 +96,7 @@ class Untar(Unpack) :
 					dir_guard(f'{dir}/{member.name}/')
 				else :
 					tf.extract(member,dir,set_attrs=False)
-					if ('/'+member.name).endswith('/configure') :
+					if osp.basename(member.name) in ('configure','autogen.sh','arch-gperf-generate') :
 						os.chmod(f'{dir}/{member.name}',0o755)
 						print('make executable :',f'{dir}/{member.name}',file=sys.stderr)
 					print(member.name,file=manifest)
@@ -264,25 +264,6 @@ class LinkExe(GccRule) :
 # ext libraries
 #
 
-libseccomp = 'libseccomp-2.1.0'
-class InstallSeccomp(BaseRule) :
-	stems       = { 'Version' : r'[0-9]+(\.[0-9]+)*' }
-	install_dir = 'ext/libseccomp-{Version}.dir/libseccomp-{Version}'
-	targets = {
-		'SO'         : ( f'{install_dir}/src/libseccomp.so.{{Version}}' )
-	,	'A'          : ( f'{install_dir}/src/libseccomp.a'              )
-	,	'INCLUDE'    : ( f'{install_dir}/include/seccomp.h'             )
-	,	'I386'       : ( f'{install_dir}/{{*:.*-i386.*}}.o'             , '-Match' , 'Incremental' , '-Write' ) # i386 info is delivered as binary
-	,	'MAKE_DEPS'  : ( f'{install_dir}/{{File*}}.d'                   , '-Match' , 'Incremental' , '-Dep'   )
-	,	'OBJ'        : ( f'{install_dir}/{{File*}}.o'                   , '-Match' , 'Incremental' , '-Dep'   )
-	,	'TOOLS'      : ( f'{install_dir}/tools/{{File*}}'               , '-Match' , 'Incremental' , '-Dep'   )
-	,	'SCRATCHPAD' : ( f'{install_dir}/{{File*}}'                     , '-Match' , 'Incremental'            )
-	}
-	deps         = { 'CONFIGURE' : f'{install_dir}/configure' }
-	allow_stderr = True
-	autodep      = 'ld_preload'
-	cmd          = ' cd $(dirname {CONFIGURE}) ; ./configure ; make '
-
 pycxx = 'pycxx-7.1.7'
 objs = ('cxxsupport','cxx_extensions','cxx_exceptions','cxxextensions','IndirectPythonInterface')
 class LinkPycxx(LinkO) :
@@ -325,10 +306,11 @@ class LmakePy(BaseRule) :
 	cmd    = 'cat'
 
 opt_tab.update({
-	r'.*'                 : ( '-I'      , sysconfig.get_path("include")                                            )
-,	r'src/.*'             : ( '-iquote' , f'ext_lnk/{pycxx}.patched_dir/{pycxx}'           , '-iquote' , 'ext_lnk' )
-,	r'src/autodep/clmake' : (             '-Wno-cast-function-type'                        ,                       )
-,	r'src/autodep/ptrace' : ( '-iquote' , f'ext_lnk/{libseccomp}.dir/{libseccomp}/include'                         )
+	r'.*'                 : ( '-I'         , sysconfig.get_path("include")                                  )
+,	r'src/.*'             : ( '-iquote'    , f'ext_lnk/{pycxx}.patched_dir/{pycxx}' , '-iquote' , 'ext_lnk' )
+,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'              ,                       )
+	# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
+,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'                                          )
 })
 
 class Link(BaseRule) :
@@ -368,7 +350,8 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_JOB'     : 'src/rpc_job.o'
 	,	'RPC_CLIENT'  : None
 	}
-	rev_post_opts = ( f'-Lext/{libseccomp}.dir/{libseccomp}/src' , '-lseccomp' )
+	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
+	rev_post_opts = ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :
 	deps = {

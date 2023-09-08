@@ -115,12 +115,12 @@ Record::Lnk::Lnk( bool active , Record& r , int old_at , const char* old_file , 
 	::tie(new_real,in_tmp) = r._solve( new_at,new_file , true      , c+".dst" ) ;
 	comment += to_string(::hex,'.',flags) ;
 }
-int Record::Lnk::operator()( Record& r , int rc , int errno_ ) {
+int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	bool ok = rc>=0 ;
 	//
-	DFlags dfs = DFlag::Reg ; if (no_follow) dfs |= DFlag::Lnk ;                                                      // if no_follow, the sym link may be hard linked
-	if ( !old_real.empty() && (ok||s_no_file(errno_)) ) r._report_dep( ::move(old_real) , dfs , comment+".src" ) ; // if no_follow, the symlink can be linked
+	DFlags dfs = DFlag::Reg ; if (no_follow) dfs |= DFlag::Lnk ;                                         // if no_follow, the sym link may be hard linked
+	if ( !old_real.empty() && (ok||no_file) ) r._report_dep( ::move(old_real) , dfs , comment+".src" ) ; // if no_follow, the symlink can be linked
 	//
 	if (new_real.empty()) { if ( ok && in_tmp ) r._report       ( Proc::Tmp                         ) ; }
 	else                  { if ( ok           ) r._report_target( ::move(new_real) , comment+".dst" ) ; }
@@ -142,7 +142,7 @@ Record::Open::Open( bool active , Record& r , int at , const char* file , int fl
 	if ( do_read && do_write && !real.empty() ) date                = file_date(s_get_root_fd(),real)        ; // file date is updated by open if it does not exist, capture date before
 	/**/                                        comment            += to_string(::hex,'.',flags)             ;
 }
-int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , int errno_ ) {
+int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file ) {
 	bool ok = fd_rc>=0 ;
 	//
 	do_write &= ok ;
@@ -151,7 +151,7 @@ int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , int errno_ )
 		return fd_rc ;
 	}
 	if (do_read) {
-		if ( ok || s_no_file(errno_) ) {
+		if ( ok || no_file ) {
 			if      (do_write) r._report_dep_update( ::move(real) , date             , DFlag::Reg , comment+(ok?".upd":".rd"   ) ) ; // file date is updated if created, use original date
 			else if (!ok     ) r._report_dep       ( ::move(real) , DD()             , DFlag::Reg , comment+(          ".rd!"  ) ) ;
 			else if (has_fd  ) r._report_dep       ( ::move(real) , file_date(fd_rc) , DFlag::Reg , comment+(          ".rd"   ) ) ; // else it is not, even if writing
@@ -179,12 +179,12 @@ Record::ReadLnk::ReadLnk( bool active , Record& r , const char* file , char* buf
 	else                      ::memcpy( buf , reply_str.data() , sizeof(MsgBuf::Len) ) ; // if not enough room for data, just report the size we needed
 }
 
-ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len , int errno_ ) {
+ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 	if (real.empty()) return len ;
 	//
-	if      (len>=0           ) r._report_dep( ::move(real)        , DFlag::Lnk , comment     ) ;
-	else if (s_no_file(errno_)) r._report_dep( ::move(real) , DD() , DFlag::Lnk , comment+'!' ) ;
-	else if (errno_==EINVAL   ) r._report_dep( ::move(real)        , DFlag::Lnk , comment+'~' ) ; // file is not a symlink
+	if (len>=0 ) r._report_dep( ::move(real) , DFlag::Lnk , comment     ) ;
+	else         r._report_dep( ::move(real) , DFlag::Lnk , comment+'~' ) ;    // file may be regular, so let _report_dep determine the date ...
+	//                                                                         // optimizing based on no_file (in which case we know date is DD()) is not reliable as no_file may have false positives
 	//
 	return len ;
 }
@@ -208,7 +208,7 @@ Record::Rename::Rename( bool active , Record& r , int old_at_ , const char* old_
 	in_tmp                      = old_in_tmp || new_in_tmp                                           ;
 	comment                    += to_string(::hex,'.',flags)                                         ;
 }
-int Record::Rename::operator()( Record& r , int rc , int errno_ ) {
+int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 	constexpr DFlags DFlagsData = DFlag::Lnk|DFlag::Reg ;                      // rename may move regular files or links
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	if (rc==0) {                                                               // rename has occurred
@@ -231,7 +231,7 @@ int Record::Rename::operator()( Record& r , int rc , int errno_ ) {
 		::string c = comment+(exchange?"<>":"") ;
 		r._report_deps   ( ::move(reads ) , DFlagsData , true/*unlink*/ , c ) ; // do unlink before write so write has priority
 		r._report_targets( ::move(writes) ,                               c ) ;
-	} else if (s_no_file(errno_)) {                                             // rename has not occurred : the read part must still be reported
+	} else if (no_file) {                                                       // rename has not occurred : the read part must still be reported
 		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
 		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
 		::string c = comment+(exchange?"!<>":"!") ;
@@ -266,6 +266,6 @@ int Record::Unlink::operator()( Record& r , int rc ) {
 // RecordSock
 //
 
-thread_local Fd RecordSock::_t_report_fd       ;
-::string*       RecordSock::_s_service         = nullptr ;
-bool            RecordSock::_s_service_is_file = false   ;
+Fd        RecordSock::_s_report_fd       ;
+::string* RecordSock::_s_service         = nullptr ;
+bool      RecordSock::_s_service_is_file = false   ;

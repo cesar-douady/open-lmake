@@ -187,6 +187,7 @@ if _reading_makefiles :
 		keep_tmp     = False                               # keep tmp dir after job execution
 		kill_sigs    = (_signal.SIGKILL,)                  # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 		local_marker = '$CWD'                              # a marker recognized in environ_* attributes and replaced by the cwd of the rule to allow cache effenciency
+	#	n_retries    = 1                                   # number of retries in case of job lost. 1 might be a reasonable value
 		n_tokens     = 1                                   # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 		prio         = 0                                   # in case of ambiguity, rules are selected with highest prio first
 		python       = (_python,)                          # python used for callable cmd

@@ -263,6 +263,24 @@ struct IStringStream : ::istringstream {
 
 static constexpr size_t Npos = ::string::npos ;
 
+// ::isspace is too high level as it accesses environment, which may not be available during static initialization
+static inline bool is_space(char c) {
+	switch (c) {
+		case '\f' :
+		case '\n' :
+		case '\r' :
+		case '\t' :
+		case '\v' :
+		case ' '  : return true  ;
+		default   : return false ;
+	}
+}
+
+// ::isprint is too high level as it accesses environment, which may not be available during static initialization
+static inline bool is_print(char c) {
+	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
+}
+
 template<class... A> ::string to_string(A const&... args) {
 	OStringStream res ;
 	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
@@ -308,10 +326,10 @@ size_t   parse_c_str ( ::string const& , size_t start=0 ) ;                    /
 static inline ::vector_s split(::string_view const& path) {
 	::vector_s res ;
 	for( size_t pos=0 ;;) {
-		for( ; pos<path.size() && ::isspace(path[pos]) ; pos++ ) ;
+		for( ; pos<path.size() && is_space(path[pos]) ; pos++ ) ;
 		if (pos==path.size()) return res ;
 		size_t start = pos ;
-		for( ; pos<path.size() && !::isspace(path[pos]) ; pos++ ) ;
+		for( ; pos<path.size() && !is_space(path[pos]) ; pos++ ) ;
 		res.emplace_back( path.substr(start,pos-start) ) ;
 	}
 	return res ;
@@ -636,8 +654,8 @@ namespace std {
 #define _ENUM( E , vals_str ) \
 	[[maybe_unused]] static inline ::string const& _s_enum_name(E) { static ::string name_str = #E ; return name_str ; } \
 	[[maybe_unused]] static inline const char* _enum_name(E e) { \
-		static char        cvals[     ]    = vals_str                                    ; \
-		static const char* tab  [+E::N]    = {}                                          ; \
+		static char        cvals[     ]            = vals_str                            ; \
+		static const char* tab  [+E::N]            = {}                                  ; \
 		static bool        inited [[maybe_unused]] = (_enum_split(tab,cvals,+E::N),true) ; \
 		return tab[+e] ;                                                                   \
 	} \
@@ -720,8 +738,8 @@ static inline void _enum_split( const char** tab , char* str , size_t n ) {
 	const char* start = nullptr ;
 	size_t      i     = 0       ;
 	for( char* p=str ; *p ; p++ )
-		if ( ::isspace(*p) || *p==',' ) { if ( start) { tab[i++]=start ; *p=0 ; start = nullptr ; } }
-		else                            { if (!start) {                         start = p       ; } }
+		if ( is_space(*p) || *p==',' ) { if ( start) { tab[i++]=start ; *p=0 ; start = nullptr ; } }
+		else                           { if (!start) {                         start = p       ; } }
 	if (start) tab[i++] = start ;
 	SWEAR(i==n) ;
 }

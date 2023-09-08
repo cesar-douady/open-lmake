@@ -39,8 +39,18 @@ namespace Backends {
 			StartTabEntry(NewType) { open() ; }
 			//
 			// services
+			void clear() {                                                     // retain n_retries so counting down number of retries goes on
+				uint8_t nr = submit_attrs.n_retries ;
+				*this = StartTabEntry() ;
+				submit_attrs.n_retries = nr ;
+			}
 			void open() {
 				conn.seq_id = (*Engine::g_seq_id)++ ;
+			}
+			Status lost() {
+				if (submit_attrs.n_retries==0) return Status::EarlyErr ;
+				submit_attrs.n_retries-- ;
+				return Status::Lost ;
 			}
 			// data
 			Conn           conn         ;
@@ -70,21 +80,21 @@ namespace Backends {
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void s_open_req    (                ReqIdx , JobIdx n_jobs                               ) ;
-		static void s_close_req   (                ReqIdx                                               ) ;
-		static void s_submit      ( Tag , JobIdx , ReqIdx , SubmitAttrs     && , ::vmap_ss const& rsrcs ) ;
-		static void s_add_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                          ) ;
-		static void s_set_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                          ) ;
+		static void s_open_req    (                ReqIdx , JobIdx n_jobs                          ) ;
+		static void s_close_req   (                ReqIdx                                          ) ;
+		static void s_submit      ( Tag , JobIdx , ReqIdx , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
+		static void s_add_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                     ) ;
+		static void s_set_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                     ) ;
 		//
 		static void s_kill_all   (          ) {              _s_kill_req(   ) ; }
 		static void s_kill_req   (ReqIdx req) { SWEAR(req) ; _s_kill_req(req) ; }
 		static void s_new_req_eta(ReqIdx    ) ;
 		static void s_launch     (          ) ;
 		// called by job_exec thread
-		static ::uset<ReqIdx> s_start( Tag t , JobIdx j ) ;                    // sub-backend lock must have been takend by caller
-		static void           s_end  ( Tag t , JobIdx j ) ;                    // .
+		static ::pair_s<uset<ReqIdx>> s_start( Tag t , JobIdx j ) ;            // sub-backend lock must have been takend by caller
+		static ::string/*msg*/        s_end  ( Tag t , JobIdx j ) ;            // .
 		// called by heartbeat thread
-		static ::vector<JobIdx> s_heartbeat() ;
+		static ::vmap<JobIdx,pair_s<bool/*err*/>> s_heartbeat() ;
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
@@ -121,16 +131,20 @@ namespace Backends {
 		virtual void           close_req  ( ReqIdx                       ) {}    // called after any operation on req
 		virtual ::uset<JobIdx> kill_req   ( ReqIdx=0                     ) = 0 ; // kill all if req==0, return killed jobs
 		//
-		virtual void submit      ( JobIdx , ReqIdx , SubmitAttrs const& , ::vmap_ss const& /*rsrcs*/ ) = 0 ; // submit a new job
-		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                              ) {}    // add a new req for an already submitted job
-		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                              ) {}    // set a new pressure for an existing req of a job
+		virtual void submit      ( JobIdx , ReqIdx , SubmitAttrs const& , ::vmap_ss&& /*rsrcs*/ ) = 0 ; // submit a new job
+		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // add a new req for an already submitted job
+		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
-		virtual void           launch(      ) {}                               // called to trigger launch of waiting jobs
-		virtual ::uset<ReqIdx> start (JobIdx) = 0 ;                            // inform job actually starts, return reqs for which job has been launched
-		virtual void           end   (JobIdx) {}                               // inform job ended
+		virtual void                   launch(      ) {}                       // called to trigger launch of waiting jobs
+		virtual ::pair_s<uset<ReqIdx>> start (JobIdx) = 0 ;                    // inform job actually starts, return an informative message and reqs for which job has been launched
+		virtual ::string               end   (JobIdx) { return {} ; }          // inform job ended, return a message such as the stdout/stderr from slurm
 		//
-		virtual ::vector<JobIdx> heartbeat() { return {} ; }                   // regularly called (~ every minute) to give opportunity to backend to check jobs (typicallay between launch and start)
-		/**/                                                                   // return lost jobs
+		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() { return {} ; } // regularly called (~ every minute) to give opportunity to backend to check jobs...
+		/**/                                                                   // (typically between launch and start), return lost jobs with error indications (message,is_error)
+		//
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
+		//
+		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
 	protected :
 		::vector_s acquire_cmd_line( Tag , JobIdx , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, return job command line
 		/**/                                                                                   // SubmitAttrs must be the operator| of the submit/add_pressure corresponding values for the job
@@ -147,38 +161,10 @@ namespace Backends {
 	inline void Backend::s_open_req ( ReqIdx r , JobIdx n_jobs ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,r) ; for( Tag t : Tag::N ) s_tab[+t]->open_req (r,n_jobs) ; }
 	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) s_tab[+t]->close_req(r       ) ; }
 	//
-	inline void Backend::s_submit( Tag t , JobIdx j , ReqIdx r , SubmitAttrs&& sa , ::vmap_ss const& rs ) {
-		::unique_lock lock{_s_mutex} ;
-		//
-		sa.tag = t ;
-		Trace trace("s_submit",t,j,r,sa,rs) ;
-		s_tab[+t]->submit(j,r,sa,rs) ;
-	}
-	//
-	inline void Backend::s_add_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
-		::unique_lock lock{_s_mutex} ;
-		Trace trace("s_add_pressure",t,j,r,sa) ;
-		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) {
-			s_tab[+t]->add_pressure(j,r,sa) ;                               // if job is not started, ask sub-backend to raise its priority
-		} else {
-			it->second.reqs.insert(r) ;                                        // else, job is already started, note the new Req as we maintain the list of Req's associated to each job
-			it->second.submit_attrs |= sa ;                                    // and update submit_attrs in case job was not actually started
-		}
-	}
-	inline void Backend::s_set_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
-		::unique_lock lock{_s_mutex} ;
-		Trace trace("s_set_pressure",t,j,r,sa) ;
-		s_tab[+t]->set_pressure(j,r,sa) ;
-		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) s_tab[+t]->set_pressure(j,r,sa) ;       // if job is not started, ask sub-backend to raise its priority
-		else                        it->second.submit_attrs |= sa ;            // and update submit_attrs in case job was not actually started
-	}
-	//
 	inline void Backend::s_new_req_eta(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",req) ; for( Tag t : Tag::N ) s_tab[+t]->new_req_eta(req) ; }
 	//
-	inline ::uset<ReqIdx> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j) ; }
-	inline void           Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ;        s_tab[+t]->end  (j) ; }
+	inline ::pair_s<uset<ReqIdx>> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j) ; }
+	inline ::string/*msg*/        Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ; return s_tab[+t]->end  (j) ; }
 
 }
 

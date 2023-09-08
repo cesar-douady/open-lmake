@@ -12,10 +12,10 @@
 //
 // string
 //
+
 ::string mk_printable(::string const& s) {
 	::string res ; res.reserve(s.size()) ;                                     // typically, all characters are printable and nothing to add
 	for( char c : s ) {
-		if ( ::isprint(c) && c!='\\' ) { res += c ; continue ; }
 		switch (c) {
 			case '\a' : res += "\\a"                       ; break ;
 			case '\b' : res += "\\b"                       ; break ;
@@ -26,7 +26,9 @@
 			case '\t' : res += "\\t"                       ; break ;
 			case '\v' : res += "\\v"                       ; break ;
 			case '\\' : res += "\\\\"                      ; break ;
-			default   : res += to_string("\\x",hex,int(c)) ;
+			default   :
+				if (is_print(c)) res +=                                 c   ;
+				else             res += to_string("\\x",hex,setw(2),int(c)) ;
 		}
 	}
 	return res ;
@@ -38,7 +40,6 @@
 		switch (c) {
 			case '\\' :                                 // must be escaped
 			case '\'' : res += '\\'  ; /*fall through*/ // .
-			case ' '  : res += c     ; break ;          // not recognized by ::isprint
 			case '\a' : res += "\\a" ; break ;          // special case
 			case '\b' : res += "\\b" ; break ;          // .
 			case '\f' : res += "\\f" ; break ;          // .
@@ -47,12 +48,8 @@
 			case '\t' : res += "\\t" ; break ;          // .
 			case '\v' : res += "\\v" ; break ;          // .
 			default :
-				if ( ::isprint(c) && !::isspace(c) ) {
-					res += c ;
-				} else {
-					char buf[5] ; snprintf(buf,sizeof(buf),"\\x%02x",uint8_t(c)) ;
-					res += buf ;
-				}
+				if (is_print(c)) res +=                                 c   ;
+				else             res += to_string("\\x",hex,setw(2),int(c)) ;
 		}
 	}
 	res += '\'' ;

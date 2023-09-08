@@ -26,7 +26,7 @@ def get_src(*args,no_imports=(),ctx=(),force=False) :
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
 		The return value is (source,names) where :
 			- source is the source text that reproduces args
-			- names is the list of names found in sets in ctx
+			- names is the set of names found in sets in ctx
 	'''
 	s = Serialize(no_imports,ctx)
 	for a in args :

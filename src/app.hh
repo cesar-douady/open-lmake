@@ -161,7 +161,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 						//
 						if (!syntax.flags[+f].has_arg) continue ;
 						//
-						if      (p[1]    ) flag_args[+f] = p         ;
+						p++ ;
+						if      (*p      ) flag_args[+f] = p         ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
 						else               throw to_string("no value for option -",*p) ;
 						break ;

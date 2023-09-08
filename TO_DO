@@ -51,6 +51,9 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* put lnk/reg in crc
+	- provide a match(access) method
+	- suppress is_lnk from nodes
 * split utils.hh into several smaller files in utils directory
 * implement class path_?? (x, n or s)
 	- semantic : path w & w/o / at beginning and end
@@ -133,6 +136,9 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* supress dependencies to directory of existing files
+	- this is already the case with lnk_support=Full
+	- these are implied by Uphill
 * gprof
 * get rid of libseccomp
 * get rid of pycxx

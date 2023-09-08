@@ -7,6 +7,7 @@
 #include "serialize.hh"
 
 #include "autodep_support.hh"
+#include "record.hh"
 
 using namespace Hash ;
 

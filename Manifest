@@ -14,7 +14,6 @@ doc/lmake_doc.pptx
 docker/centos7.docker
 docker/ubuntu20.docker
 docker/ubuntu22.docker
-ext/libseccomp-2.5.4.tar.gz
 ext/pycxx-7.1.7.patch_script
 ext/pycxx-7.1.7.tar.gz
 ext/xxhash.h
@@ -132,6 +131,7 @@ unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py
 unit_tests/jobs.py
+unit_tests/link.py
 unit_tests/misc1.py
 unit_tests/misc2.py
 unit_tests/name.py

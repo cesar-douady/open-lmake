@@ -465,7 +465,7 @@ The colors bears a semantic :
 
 @section @lmake
 
-Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] targets...}
+Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] [-l|--local] [-v|--versbose-backend] targets...}
 
 @lmake launches all necessary jobs to ensure that targets are generated following rules specified in @Lmakefile.
 
@@ -516,11 +516,17 @@ However, sometimes it is practical to have the output while jobs are running.
 Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of @lmake.
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
+@item @code{-l}|@code{--local} : with this option, jobs are launched locally (i.e. using the @code{local} backend) instead of the backend mentioned in the rule.
+Note that if 2 @lmake commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.
+The originally targetted backend is in charge of mapping required resources mentioned in the rule to local resources understandable by the local backend.
 @item @code{-s}|@code{--source-ok} : normally, @lmake refuses to launch a job that may overwrite a source.
 With this option, the user instructs @lmake that this is allowed.
 @item @code{-t}|@code{--keep-tmp} : normally, @lmake washes the temporary directory allocated to a job at the end of job execution.
 With this option, the user instructs @lmake to keep the temporary directories, as if the @code{keep_tmp} attribute was set for all rules.
 The kept temporary directory can be retreived with @code{lshow -i}.
+@item @code{-v}|@code{--verbose-backend} : enable the generation of some execution information from backend.
+This is not systematic as this may incur a performance hit.
+Such information is available by using @code{lshow -b}.
 @end itemize
 
 @subsection output
@@ -549,7 +555,8 @@ Once the build process is complete, a summary is generated with :
 
 @section @code{lshow}
 
-Usage : @code{lshow [ [-a|--all-deps] | [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-t|--targets] ] targets...}
+Usage : @code{lshow [ [-a|--all-deps] | [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
+[-t|--targets] ] targets...}
 
 @code{lshow} provides various information about jobs.
 The jobs are those officially generating the targets (i.e. the jobs that would be selected by @lmake if needing to generate it) if any,
@@ -584,6 +591,7 @@ If a dep does not exist, it is deemed secondary information and is shown in gray
 @item @code{-E}|@code{--env} : show the environment used to run the script
 @item @code{-e}|@code{--stderr} : show the stderr of the jobs.
 @item @code{-o}|@code{--stdout} : show the stdout of the jobs.
+@item @code{-b}|@code{--backend} : show some execution information from backend generated when @lmake is run with the @code{-v} flag.
 @item @code{-t}|@code{--targets} : show the targets of the jobs.
 Each line is composed of 4 fields  separated by spaces :
 @itemize @minus
@@ -1589,7 +1597,10 @@ This attribute defines environment variables set during job execution.
 
 The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
 
-The environment in which the @lmake command is run is ignored so as to favor reproducibility.
+The environment in which the @lmake command is run is ignored so as to favor reproducibility, unless explicitely transported by using value from @code{os.environ}.
+
+If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
+This is typically used to access some environment variables set by @code{slurm}.
 
 By default the following environment variables are defined :
 @table @code
@@ -1630,6 +1641,9 @@ The environment in which the @lmake command is run is ignored so as to favor rep
 Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
 although this practice is discouraged and should be used with much care.
 
+If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
+This is typically used to access some environment variables set by @code{slurm}.
+
 @section @code{environ_ancillary}
 
 @multitable @columnfractions 0.1 0.9
@@ -1661,6 +1675,9 @@ The user login name.
 
 Note that the current environment is accessible when @Lmakefile is read, so that it is quite simple to copy some variables from the user environment
 although this practice is discouraged and should be used with much care.
+
+If resulting value is @code{...} (the Python ellipsis), the value from the execution environment is used.
+This is typically used to access some environment variables set by @code{slurm}.
 
 @section @code{python}
 
@@ -2057,7 +2074,7 @@ The consequence is only cosmetic, it has no other impact.
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
-This attributes provide a list of signals to send the job when @lmake decides to kill it.
+This attribute provides a list of signals to send the job when @lmake decides to kill it.
 A job is killed when :
 @itemize @minus
 @item @kbd{^C} is hit if it is not necessary for another running @lmake command which has not received a @kbd{^C}.
@@ -2069,6 +2086,24 @@ The signals listed in this list are sent in turn, once every second. If the list
 Longer interval can be obtained by inserting @code{0}'s. @code{0} signals are not sent and anyway, these would have no impact if they were.
 
 Note: some backends, such as Slurm when it is available, may have other means to manage timeouts. Both mechanisms will be usable.
+
+@section @code{n_retries}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{int}
+@item Default
+@tab @code{0}
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@end multitable
+
+This attribute provides the number of allowed retries before giving up when a job is lost.
+For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called @code{job_exec}) was manually killed.
+
+In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
 
 @chapter The @file{LMAKE} directory
 

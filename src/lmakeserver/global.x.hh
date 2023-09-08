@@ -236,7 +236,7 @@ namespace Engine {
 		EngineClosure( JP p , JE&& je , Req_            r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }
 		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
 		//
-		EngineClosure( JP p , JE&& je , Status s                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je),            .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
+		EngineClosure( JP p , JE&& je , Status s                ) : kind{K::Job} , job{.proc=p,.exec=::move(je),                 .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
 		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.rsrcs=::move(r),.digest=::move(jd)  } { SWEAR( p==JP::End                       ) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.deps{::move(dds)}},.reply_fd=rfd} {

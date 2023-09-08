@@ -34,7 +34,6 @@ struct Record {
 	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
 	static bool s_do_read (int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_WRONLY && !(flags&O_TRUNC) ; }
 	static bool s_do_write(int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_RDONLY                     ; }
-	static bool s_no_file (int errno_) { return errno_==EISDIR || errno_==ENOENT || errno_==ENOTDIR                  ; }
 	// static data
 	static AutodepEnv* s_autodep_env ;
 	static Fd          s_root_fd     ;
@@ -97,7 +96,7 @@ public :
 	struct Lnk {
 		Lnk() = default ;
 		Lnk( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , int flags=0 , ::string const& comment="lnk" ) ;
-		int operator()( Record& , int rc , int errno_ ) ;
+		int operator()( Record& , int rc , bool no_file ) ;                    // no_file is only meaning full if rc is in error
 		::string old_real  ;
 		::string new_real  ;
 		bool     in_tmp    = false ;
@@ -107,7 +106,7 @@ public :
 	struct Open {
 		Open() = default ;
 		Open( bool active , Record& , int at , const char* file , int flags , ::string const& comment="open" ) ;
-		int operator()( Record& , bool has_fd , int fd_rc , int errno_ ) ;
+		int operator()( Record& , bool has_fd , int fd_rc , bool no_file ) ;   // no_file is only meaning full if rc is in error
 		::string real     ;
 		bool     in_tmp   = false ;
 		bool     do_read  = false ;
@@ -119,14 +118,14 @@ public :
 		ReadLnk() = default ;
 		ReadLnk( bool active , Record& , int at , const char* file                         , ::string const& comment="read_lnk" ) ; // for regular
 		ReadLnk( bool active , Record& ,          const char* file , char* buf , size_t sz , ::string const& comment="backdoor" ) ; // for backdoor
-		ssize_t operator()( Record& r , ssize_t len , int errno_ ) ;
+		ssize_t operator()( Record& r , ssize_t len ) ;                        // if file is updated and did not exist, its date must be capture before the actual syscall
 		::string real    ;
 		::string comment ;
 	} ;
 	struct Rename {
 		Rename() = default ;
 		Rename( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , unsigned int flags=0 , ::string const& comment="rename" ) ;
-		int operator()( Record& , int rc , int errno_ ) ;
+		int operator()( Record& , int rc , bool no_file ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
 		int      old_at   ;
 		int      new_at   ;
 		::string old_file ;
@@ -174,17 +173,17 @@ protected :
 } ;
 
 struct RecordSock : Record {
-	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(t_get_report_fd(),jerr) ;                       }
-	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(t_get_report_fd()) ; }
-	static int t_get_report_fd() {
-		if (!_t_report_fd) {
+	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_get_report_fd(),jerr) ;                       }
+	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_get_report_fd()) ; }
+	static int s_get_report_fd() {
+		if (!_s_report_fd) {
 			// establish connection with server
-			if (_s_service_is_file) _t_report_fd = Disk::open_write( *_s_service , true/*append*/ ) ;
-			else                    _t_report_fd = ClientSockFd    ( *_s_service                  ) ;
-			_t_report_fd.no_std() ;                                                                   // avoid poluting standard descriptors
-			swear_prod(+_t_report_fd,"cannot connect to job_exec through ",*_s_service) ;
+			if (_s_service_is_file) _s_report_fd = Disk::open_write( *_s_service , true/*append*/ ) ;
+			else                    _s_report_fd = ClientSockFd    ( *_s_service                  ) ;
+			_s_report_fd.no_std() ;                                                                   // avoid poluting standard descriptors
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",*_s_service) ;
 		}
-		return _t_report_fd ;
+		return _s_report_fd ;
 	}
 	static void s_init(AutodepEnv const& ade) {
 		Record::s_init(ade) ;
@@ -200,9 +199,9 @@ struct RecordSock : Record {
 		s_init(get_env("LMAKE_AUTODEP_ENV")) ;
 	}
 	// static data
-	static thread_local Fd _t_report_fd       ;
-	static ::string        *_s_service        ;            // pointer to avoid init/fin order hazard
-	static bool            _s_service_is_file ;
+	static Fd        _s_report_fd       ;
+	static ::string* _s_service         ;                  // pointer to avoid init/fin order hazard
+	static bool      _s_service_is_file ;
 	// cxtors & casts
 	RecordSock( pid_t p=0 ) : Record{ _s_report , _s_get_reply , p } {}
 } ;

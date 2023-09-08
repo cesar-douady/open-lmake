@@ -244,10 +244,8 @@ bool/*interrupted*/ engine_loop() {
 			//vvvvvvvvvvvvvvvvv
 			Backend::s_launch() ;                                              // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
 			//^^^^^^^^^^^^^^^^^
-			if ((empty=!g_engine_queue)) {                                     // s_launch may have queued jobs in case of error
-				for( auto const& [fd,req] : req_tab ) req->audit_stats() ;
-				if ( _g_done && !Req::s_n_reqs() ) break ;
-			}
+			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
+			if ( _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
 		}
 		EngineClosure closure = g_engine_queue.pop() ;
 		if (empty) DiskDate::s_refresh_now() ;                                 // we may have waited, refresh now

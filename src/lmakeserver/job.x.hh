@@ -34,13 +34,13 @@ namespace Engine {
 	,	PrematureEnd                   //                                         job was killed before starting
 	)
 
-	ENUM_1( SpecialStep
-	,	Err = ErrNoFile                // >=Err means error
+	ENUM_1( SpecialStep                // ordered by increasing importance
+	,	HasErr = ErrNoFile             // >=HasErr means error
 	,	Idle
 	,	NoFile
-	,	Steady
-	,	Modified
+	,	Ok
 	,	ErrNoFile
+	,	Err
 	)
 
 	struct Job : JobBase {
@@ -104,8 +104,8 @@ namespace Engine {
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Node ) const ;
-		void audit_end_special( Req , SpecialStep        ) const ;             // cannot use default Node={} as Node is incomplete
+		void audit_end_special( Req , SpecialStep , bool modified , Node ) const ;
+		void audit_end_special( Req , SpecialStep , bool modified        ) const ; // cannot use default Node={} as Node is incomplete
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		//
@@ -331,8 +331,8 @@ namespace Engine {
 	}
 	inline ::vector<Req> Job::reqs() const { return Req::reqs(*this) ; }
 
-	inline ::string Job::special_stderr   (                            ) const { return special_stderr   (         {}) ; }
-	inline void     Job::audit_end_special( Req req , SpecialStep step ) const { return audit_end_special(req,step,{}) ; }
+	inline ::string Job::special_stderr   (                                ) const { return special_stderr   (      {}) ; }
+	inline void     Job::audit_end_special( Req r , SpecialStep s , bool m ) const { return audit_end_special(r,s,m,{}) ; }
 
 	inline Rule::SimpleMatch Job::simple_match() const { return Rule::SimpleMatch(*this) ; }
 	inline Rule::FullMatch   Job::full_match  () const { return Rule::FullMatch  (*this) ; }

@@ -17,24 +17,19 @@ void* get_libc_handle() {
 }
 
 struct Ctx {
-private :
-	static void* _s_get_orig_errno() {
-		Save  save { g_force_orig , true }                         ;           // avoid loop during dlsym execution
-		void* res  = ::dlsym(get_libc_handle(),"__errno_location") ;           // gather errno from app space // XXX : find a way to stick to documented interfaces
-		swear_prod(res,"cannot find __errno_location in libc") ;
-		return res ;
-	}
-public :
-	int get_errno() const {
-		static int* (*orig)() = reinterpret_cast<int* (*)()>(_s_get_orig_errno()) ;
-		return *orig() ;
-	}
-	void save_errno   () {}
-	void restore_errno() {}
+	// Our errno is not the same as user's errno.
+	// This is practical so our accesses do not interferes with user's ones.
+	// However, accessing user's errno for our own use is a pain and in fact, there are system bugs that makes it impossible on some systems.
+	// So we will assume, when there is an access error, that this is due to a missing file, which should be the case most often and any way is conservative.
+	// For example a failed open because of no file triggers a dep, but if it is because, say, access rights, then we have not accessed the file and no reason to trigger a dep.
+	bool get_no_file  () const { return true ; }
+	void save_errno   ()       {}
+	void restore_errno()       {}
 } ;
 
 struct Lock {
-	static bool s_busy() { return false ; }
+	// no need for protection against recursive call as our accesses are not routed to us
+	static bool t_busy() { return false ; }                                    // there is no recursive call with ld_audit
 	static ::mutex s_mutex ;
 	Lock () { s_mutex.lock  () ; }
 	~Lock() { s_mutex.unlock() ; }
@@ -175,7 +170,7 @@ Qualify :
 }
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
-	Audit::t_audit() ;                                                         // force Audit static init
+	Audit::s_audit() ;                                                         // force Audit static init
 	//
 	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
 	if (*def_cook   ) goto Ignore ;                                            // cookie is used to identify libc (when cookie==0)
@@ -202,7 +197,7 @@ extern "C" {
 	unsigned int la_version(unsigned int /*version*/) { return LAV_CURRENT ; }
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		Audit::t_audit() ;                                                              // force Audit static init
+		Audit::s_audit() ;                                                              // force Audit static init
 		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
 			Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;

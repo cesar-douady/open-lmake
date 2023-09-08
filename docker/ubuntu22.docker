@@ -1,7 +1,9 @@
 FROM ubuntu:22.04
 
 RUN apt-get update
-RUN apt-get install -y build-essential ed g++-12 git python3-dev texinfo python3-numba
+RUN apt-get install -y build-essential
+RUN apt-get install -y ed g++-12 git python3-dev texinfo python3-numba
+RUN apt-get install -y libtool gperf libseccomp-dev
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

@@ -11,5 +11,7 @@
 
 int np_get_fd(std::filebuf& fb) ;
 
-int  np_get_errno    (int pid) ;
-void np_clear_syscall(int pid) ;
+static constexpr char np_errno_symbol_name[] = "__errno_location" ;            // XXX : find a way to stick to documented interfaces
+
+int  np_ptrace_get_errno    (int pid) ;
+void np_ptrace_clear_syscall(int pid) ;

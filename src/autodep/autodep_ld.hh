@@ -17,33 +17,33 @@ void* get_orig(const char*) ;
 
 struct Audit : RecordSock {                                                    // singleton
 	// statics
-	static Audit & t_audit() ;                                                 // access to the unique instance
+	static Audit & s_audit() ;                                                 // access to the unique instance
 private :
-	static Record& _t_record() { return t_audit() ; }                          // idem, as a Record
+	static Record& _s_record() { return s_audit() ; }                          // idem, as a Record
 	// cxtors & casts
 public :
-	template<class Action,bool E=false> struct AuditAction : Action,Ctx {
+	template<class Action,bool NF=false> struct AuditAction : Ctx,Action {
 		// errno must be protected from our auditing actions in cxtor and operator()
 		// more specifically, errno must be the original one before the actual call to libc
 		// and must be the one after the actual call to libc when auditing code finally leave
 		// Ctx contains save_errno in its cxtor and restore_errno in its dxtor
 		// so here, errno must be restored at the end of cxtor and saved at the beginning of operator()
-		template<class... A> AuditAction ( A&&... args ) : Action{ !Lock::s_busy() , _t_record() , ::forward<A>(args)... } { restore_errno() ; }
-		int operator()(            int res) requires(!E) { save_errno() ; if (Lock::s_busy()) return res ; else return Action::operator()(_t_record(),       res            ) ; }
-		int operator()(            int res) requires( E) { save_errno() ; if (Lock::s_busy()) return res ; else return Action::operator()(_t_record(),       res,get_errno()) ; }
-		int operator()(bool has_fd,int res) requires(!E) { save_errno() ; if (Lock::s_busy()) return res ; else return Action::operator()(_t_record(),has_fd,res            ) ; }
-		int operator()(bool has_fd,int res) requires( E) { save_errno() ; if (Lock::s_busy()) return res ; else return Action::operator()(_t_record(),has_fd,res,get_errno()) ; }
+		template<class... A> AuditAction ( A&&... args ) : Action{ !Lock::t_busy() , _s_record() , ::forward<A>(args)... } { restore_errno() ; }
+		int operator()(            int res) requires(!NF) { save_errno() ; if (Lock::t_busy()) return res ; else return Action::operator()(_s_record(),       res              ) ; }
+		int operator()(            int res) requires( NF) { save_errno() ; if (Lock::t_busy()) return res ; else return Action::operator()(_s_record(),       res,get_no_file()) ; }
+		int operator()(bool has_fd,int res) requires(!NF) { save_errno() ; if (Lock::t_busy()) return res ; else return Action::operator()(_s_record(),has_fd,res              ) ; }
+		int operator()(bool has_fd,int res) requires( NF) { save_errno() ; if (Lock::t_busy()) return res ; else return Action::operator()(_s_record(),has_fd,res,get_no_file()) ; }
 	} ;
-	using Chdir   = AuditAction<Record::Chdir  ,false/*errno*/> ;
-	using Lnk     = AuditAction<Record::Lnk    ,true /*errno*/> ;
-	using Open    = AuditAction<Record::Open   ,true /*errno*/> ;
-	using ReadLnk = AuditAction<Record::ReadLnk,true /*errno*/> ;
-	using Rename  = AuditAction<Record::Rename ,true /*errno*/> ;
-	using SymLnk  = AuditAction<Record::SymLnk ,false/*errno*/> ;
-	using Unlink  = AuditAction<Record::Unlink ,false/*errno*/> ;
+	using Chdir   = AuditAction<Record::Chdir  ,false/*no_file*/> ;
+	using Lnk     = AuditAction<Record::Lnk    ,true /*no_file*/> ;
+	using Open    = AuditAction<Record::Open   ,true /*no_file*/> ;
+	using ReadLnk = AuditAction<Record::ReadLnk,false/*no_file*/> ;
+	using Rename  = AuditAction<Record::Rename ,true /*no_file*/> ;
+	using SymLnk  = AuditAction<Record::SymLnk ,false/*no_file*/> ;
+	using Unlink  = AuditAction<Record::Unlink ,false/*no_file*/> ;
 	//
-	struct Fopen : AuditAction<Record::Open,true/*errno*/> {
-		using Base = AuditAction<Record::Open,true/*errno*/> ;
+	struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
+		using Base = AuditAction<Record::Open,true/*no_file*/> ;
 		static int mk_flags(const char* mode) {
 			bool a = false ;
 			bool c = false ;
@@ -72,10 +72,10 @@ public :
 	// services
 	// protect agains recursive calls as Record does accesses which are routed back to us
 	// ctx is useless when ld_audit, hence we have to say maybe_unused
-	static void solve( int at , const char* file , bool no_follow=false , ::string const& c={}     ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().solve(at,file,no_follow,c) ; }
-	static void stat ( int at , const char* file , bool no_follow=false , ::string const& c={}     ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().stat (at,file,no_follow,c) ; }
-	static void read ( int at , const char* file , bool no_follow=false , ::string const& c="read" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().read (at,file,no_follow,c) ; }
-	static void exec ( int at , const char* file , bool no_follow=false , ::string const& c="exec" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::s_busy()) _t_record().exec (at,file,no_follow,c) ; }
+	static void solve( int at , const char* file , bool no_follow=false , ::string const& c={}     ) { Ctx ctx [[maybe_unused]] ; if (!Lock::t_busy()) _s_record().solve(at,file,no_follow,c) ; }
+	static void stat ( int at , const char* file , bool no_follow=false , ::string const& c={}     ) { Ctx ctx [[maybe_unused]] ; if (!Lock::t_busy()) _s_record().stat (at,file,no_follow,c) ; }
+	static void read ( int at , const char* file , bool no_follow=false , ::string const& c="read" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::t_busy()) _s_record().read (at,file,no_follow,c) ; }
+	static void exec ( int at , const char* file , bool no_follow=false , ::string const& c="exec" ) { Ctx ctx [[maybe_unused]] ; if (!Lock::t_busy()) _s_record().exec (at,file,no_follow,c) ; }
 	//
 	static void hide      ( int fd                ) ;                          // note that fd           is  closed or about to be closed
 	static void hide_range( int min , int max=~0u ) ;                          // note that min<=fd<=max are closed or about to be closed

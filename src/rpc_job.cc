@@ -177,3 +177,11 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 ::ostream& operator<<( ::ostream& os , JobInfoStart const& jis ) {
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }
+
+//
+// JobInfoEnd
+//
+
+::ostream& operator<<( ::ostream& os , JobInfoEnd const& jie ) {
+	return os << "JobInfoEnd(" << jie.end <<')' ;
+}

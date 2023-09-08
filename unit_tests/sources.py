@@ -56,12 +56,12 @@ else :
 
 	os.chdir('sub')
 
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' , new=6 , no_file=6  , done=3          )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' , new=6 , no_file=0 , done=3          )
 	os.unlink('local2.src'              )
 	os.unlink('../srcs_rel/ext_rel2.src')
 	os.unlink('../srcs_abs/ext_abs2.src')
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=9  , failed=3 , rc=1 )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=3 , failed=3 , rc=1 )
 	os.unlink('local.src'              )
 	os.unlink('../srcs_rel/ext_rel.src')
 	os.unlink('../srcs_abs/ext_abs.src')
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=12 , done=3          )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=3 , done=3          )

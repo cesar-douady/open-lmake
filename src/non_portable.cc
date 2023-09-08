@@ -17,67 +17,57 @@ int np_get_fd(::filebuf& fb) {
 	return static_cast<FileBuf&>(fb).fd() ;
 }
 
-
 // Check : https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
-static inline int _get_errno(struct user_regs_struct const& regs) {
-	#ifdef __x86_64__
-		return -regs.rax    ;
-	#elif __arm__
-		return -regs.r0     ;
-	#elif __aarch64__
-		return -regs.regs[0];
-	#else
-		#error "errno not implemented for this architecture"                   // if situation arises, please provide the adequate code using x86_64 case as a template
-	#endif
-}
-
-static inline void _clear_syscall(struct user_regs_struct& regs) {
-	// Clear the system call number
-	#ifdef __x86_64__
-		regs.orig_rax = -1 ;
-	#elif __arm__
-		regs.r7       = -1 ;
-	#elif __aarch64__
-		regs.regs[8]  = -1 ;
-	#else
-		#error "clear_syscall not implemented for this architecture"           // if situation arises, please provide the adequate code using x86_64 case as a template
-	#endif
-}
-
-int np_get_errno(int pid) {
-	errno = 0;
+int np_ptrace_get_errno(int pid) {
 	struct ::user_regs_struct regs ;
+	int                       res  ;
+	errno = 0 ;
 	#ifdef __x86_64__
 		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		res = -regs.rax ;
 	#elif __aarch64__ || __arm__
-		struct iovec  iov;
-		iov.iov_base = &regs;
-		iov.iov_len  = sizeof(unsigned long long); //read only the 1st register
-		long ret = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov);
-		SWEAR(ret != -1);
+		struct iovec iov ;
+		iov.iov_base = &regs                      ;
+		iov.iov_len  = sizeof(unsigned long long) ;                            // read only the 1st register
+		long rc = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov) ;
+		SWEAR(rc!=-1) ;
+		#if __arm__
+			res = -regs.r0      ;
+		#elif __aarch64__
+			res = -regs.regs[0] ;
+		#endif
+	#else
+		#error "np_get_errno not implemented for this architecture"            // if situation arises, please provide the adequate code using x86_64 case as a template
 	#endif
 	SWEAR(!errno) ;
-	return _get_errno(regs) ;
+	return res ;
 }
 
-void np_clear_syscall(int pid) {
+void np_ptrace_clear_syscall(int pid) {
 	errno = 0 ;
 	struct ::user_regs_struct regs ;
 	#ifdef __x86_64__
 		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
 		if (errno) throw 0 ;
-		_clear_syscall(regs) ;
+		regs.orig_rax = -1 ;
 		ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
 		if (errno) throw 0 ;
 	#elif __aarch64__ || __arm__
-		long          ret;
-		struct iovec  iov;
-		iov.iov_base = &regs;
-		iov.iov_len  = 9 * sizeof(unsigned long long); //read/write only 9 registers
-		ret = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov);
-		if (ret==-1 || errno) throw 0 ;
+		long          rc  ;
+		struct iovec  iov ;
+		iov.iov_base = &regs ;
+		iov.iov_len  = 9 * sizeof(unsigned long long) ;                        // read/write only 9 registers
+		rc  = ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+		if ( rc==-1 || errno ) throw 0 ;
 		_clear_syscall(regs) ;
-		ret = ptrace(PTRACE_SETREGSET, pid, (void*)NT_PRSTATUS, &iov);
-		if (ret==-1 || errno) throw 0 ;
+		#if __arm__
+			regs.r7       = -1 ;
+		#elif __aarch64__
+			regs.regs[8]  = -1 ;
+		#endif
+		rc = ptrace( PTRACE_SETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+		if ( rc==-1 || errno ) throw 0 ;
+	#else
+		#error "np_clear_syscall not implemented for this architecture"        // if situation arises, please provide the adequate code using x86_64 case as a template
 	#endif
 }

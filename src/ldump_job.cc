@@ -95,10 +95,18 @@ int main( int argc , char* argv[] ) {
 		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;
 		print_start       (report_start.start       ) ;
+		if (!report_start.backend_msg.empty()) {
+			::cout << "backend_msg :\n" << report_start.backend_msg ;
+			if (report_start.backend_msg.back()!='\n') ::cout << '\n' ;
+		}
 	} catch(...) {}
 	try {
 		auto report_end = deserialize<JobInfoEnd>(job_stream) ;
-		print_end(report_end) ;
+		print_end(report_end.end) ;
+		if (!report_end.backend_msg.empty()) {
+			::cout << "backend_msg :\n" << report_end.backend_msg ;
+			if (report_end.backend_msg.back()!='\n') ::cout << '\n' ;
+		}
 	} catch(...) {}
 	return 0 ;
 }

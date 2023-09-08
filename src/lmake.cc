@@ -57,10 +57,12 @@ int main( int argc , char* argv[] ) {
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transcient"            } }
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }
+	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                     } }
 	,	{ ReqFlag::ManualOk        , { .short_name='m' , .has_arg=false , .doc="allow overwrite of manually modified files"  } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
+	,	{ ReqFlag::VerboseBackend  , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;

@@ -107,53 +107,40 @@ PYCXX_LIB         := $(PYCXX_HOME)/lib
 PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
 PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 
-# SECCOMP
-SECCOMP             := ext/libseccomp-2.5.4.dir
-SECCOMP_ROOT        := $(SECCOMP)/libseccomp-2.5.4
-SECCOMP_INCLUDE_DIR := $(SECCOMP_ROOT)/include
-SECCOMP_LIB_DIR     := $(SECCOMP_ROOT)/src/.libs
-
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver
 
 # LMAKE
-LMAKE_FILES = \
-	$(DOC)/lmake_doc.pptx         \
-	$(DOC)/lmake.html             \
-	unit_tests/base/Lmakefile.py  \
-	$(SLIB)/autodep_ld_audit.so   \
-	$(SLIB)/autodep_ld_preload.so \
-	$(SLIB)/read_makefiles.py     \
-	$(SLIB)/serialize.py          \
-	$(SBIN)/job_exec              \
-	$(SBIN)/lmakeserver           \
-	$(SBIN)/ldump                 \
-	$(SBIN)/ldump_job             \
-	$(LIB)/lmake.py               \
-	$(LIB)/clmake.so              \
-	$(BIN)/autodep                \
-	$(BIN)/lcheck_deps            \
-	$(BIN)/ldepend                \
-	$(BIN)/lforget                \
-	$(BIN)/lfreeze                \
-	$(BIN)/lmake                  \
-	$(BIN)/lshow                  \
-	$(BIN)/ltarget                \
+LMAKE_SERVER_FILES = \
+	$(SLIB)/read_makefiles.py \
+	$(SLIB)/serialize.py      \
+	$(SBIN)/lmakeserver       \
+	$(SBIN)/ldump             \
+	$(SBIN)/ldump_job         \
+	$(LIB)/lmake.py           \
+	$(BIN)/autodep            \
+	$(BIN)/lforget            \
+	$(BIN)/lfreeze            \
+	$(BIN)/lmake              \
+	$(BIN)/lshow              \
 	$(BIN)/xxhsum
 
-LMAKE_CLIENT_FILES = \
+
+LMAKE_REMOTE_FILES = \
 	$(SBIN)/job_exec              \
 	$(SLIB)/autodep_ld_audit.so   \
 	$(SLIB)/autodep_ld_preload.so \
-	$(BIN)/autodep                \
 	$(BIN)/lcheck_deps            \
 	$(BIN)/ldepend                \
-	$(BIN)/lforget                \
-	$(BIN)/lfreeze                \
-	$(BIN)/lmake                  \
-	$(BIN)/lshow                  \
 	$(BIN)/ltarget                \
-	$(BIN)/xxhsum
+	$(LIB)/clmake.so
+
+LMAKE_FILES = $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
+
+LMAKE_ALL_FILES = \
+	$(LMAKE_FILES)        \
+	$(DOC)/lmake_doc.pptx \
+	$(DOC)/lmake.html
 
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
@@ -162,7 +149,7 @@ ALL : DFLT STORE_TEST $(DOC)/lmake.html
 sys_config.h : sys_config
 	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
-lmake.tar.gz : $(LMAKE_FILES)
+lmake.tar.gz : $(LMAKE_ALL_FILES)
 	tar -cz -f $@ $^
 
 EXT : $(PYCXX).test.stamp
@@ -203,8 +190,9 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	echo "_git = '$(GIT)'" >>$@
 	[ '$(LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(LD_LIBRARY_PATH)'" >>$@
 
-LMAKE : $(LMAKE_FILES)
-LMAKE_CLIENT : $(LMAKE_CLIENT_FILES)
+LMAKE_SERVER : $(LMAKE_SERVER_FILES)
+LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)
+LMAKE        : LMAKE_SERVER LMAKE_REMOTE
 
 #
 # PYCXX
@@ -224,14 +212,6 @@ $(PYCXX).test.stamp : $(PYCXX).stamp
 	touch $@
 $(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx_extensions cxx_exceptions cxxextensions IndirectPythonInterface )
 	$(LINK_O) $(SAN_FLAGS) -fPIC -o $@ $^
-
-#
-# SECCOMP
-#
-
-$(SECCOMP).install.stamp : $(SECCOMP).stamp
-	cd $(SECCOMP_ROOT) ; ./autogen.sh ; ./configure ; MAKEFLAGS= make
-	touch $@
 
 #
 # store
@@ -267,18 +247,16 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-INCLUDE_SECCOMP := -I $(SECCOMP_INCLUDE_DIR)
-INSTALL_SECCOMP := $(SECCOMP).install.stamp
-
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils          )
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_env autodep_ld autodep_support gather_deps ptrace record                                          )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                        )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x )
 
-ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp $(INSTALL_SECCOMP) ext/xxhash.patched.h
+ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp ext/xxhash.patched.h
 ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
 
-INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) $(INCLUDE_SECCOMP) -I.
+# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
+INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) -I. -idirafter /usr/include/linux
 %.san.i : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS) $(SAN_FLAGS)              $(INCLUDES) -o $@ $<
 %.san.o : %.cc $(ALL_ENGINE_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
 %.i     : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
@@ -288,7 +266,8 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 # lmake
 #
 
-LIB_SECCOMP := -L $(SECCOMP_LIB_DIR) -lseccomp
+# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
+LIB_SECCOMP := -l:libseccomp.so.2
 
 $(SBIN)/lmakeserver : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \
@@ -541,7 +520,7 @@ $(SLIB)/autodep_ld_preload.so : \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/autodep_ld_preload.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(SRC)/autodep/autodep_ld_audit.o : $(SRC)/autodep/autodep_ld.cc
 $(SLIB)/autodep_ld_audit.so : \
@@ -556,7 +535,7 @@ $(SLIB)/autodep_ld_audit.so : \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/autodep_ld_audit.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(LIB)/clmake.so : \
 	$(SRC)/disk.o                    \
@@ -626,7 +605,7 @@ $(LMAKE_ENV)/Manifest : Manifest
 $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
-$(LMAKE_ENV)/stamp : $(LMAKE_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
+$(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
 	mkdir -p $(LMAKE_ENV)-cache
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py

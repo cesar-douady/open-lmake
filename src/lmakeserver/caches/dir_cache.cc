@@ -223,10 +223,10 @@ namespace Caches {
 			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;      // because we read the data , shared is ok
 				IFStream is           { to_string(dir,'/',jn,"/data") } ;
 				auto     report_start = deserialize<JobInfoStart>(is)   ;
-				/**/     report_end   = deserialize<JobRpcReq   >(is)   ;
+				/**/     report_end   = deserialize<JobInfoEnd  >(is)   ;
 				//
-				for( NodeIdx ti=0 ; ti<report_end.digest.targets.size() ; ti++ ) {
-					::string const& tn = report_end.digest.targets[ti].first ;
+				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
+					::string const& tn = report_end.end.digest.targets[ti].first ;
 					copied.push_back(tn) ;
 					_copy( dfd , to_string(ti) , tn , true/*unlink_dst*/ , false/*mk_read_only*/ ) ;
 				}
@@ -244,7 +244,7 @@ namespace Caches {
 			for( ::string const& f : copied ) unlink(f) ;                      // clean up partial job
 			throw e ;
 		}
-		return report_end.digest ;
+		return report_end.end.digest ;
 	}
 
 	bool DirCache::upload( Job job , JobDigest const& digest ) {
@@ -270,7 +270,7 @@ namespace Caches {
 			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
 			// transform date into crc
 			::vmap_s<DepDigest> deps ;
-			for( auto& [dn,dd] : report_end.digest.deps ) {
+			for( auto& [dn,dd] : report_end.end.digest.deps ) {
 				Node d{dn} ;
 				switch (dd.is_date) {
 					case No    : SWEAR(dd.crc ()==d->crc       ) ;                  break ; // when we upload, deps are done & ok, everything should be coherent

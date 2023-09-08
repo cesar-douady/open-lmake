@@ -7,6 +7,8 @@
 
 #include "rpc_job.hh"
 
+#include "autodep_env.hh"
+
 struct Cmd {
 	bool sync     = false ;
 	bool has_args = false ;
@@ -16,18 +18,9 @@ struct Cmd {
 
 extern const umap<JobExecRpcProc,Cmd> g_proc_tab ;
 
-struct Ctx {
-	int get_errno     () const { return errno ; }
-	void save_errno   ()       {                }
-	void restore_errno()       {                }
-} ;
-
 struct Lock {
 	static bool s_busy() { return false ; }
 } ;
-
-#include "autodep_ld.hh"
-#include "gather_deps.hh"
 
 struct AutodepSupport : AutodepEnv {
 	// cxtors & casts

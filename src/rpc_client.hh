@@ -23,6 +23,7 @@ ENUM( ReqProc      // PER_CMD : add a value that represents your command
 ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None           // must stay first
 ,	AllDeps        // if proc==Show
+,	Backend        // if proc==Show
 ,	Deps           // if proc==Show
 ,	Env            // if proc==Show
 ,	ExecScript     // if proc==Show
@@ -46,8 +47,10 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	KeepTmp         // if proc==Make  , keep tmp dir after job execution
 ,	Jobs            // if proc==Make  , max number of jobs
 ,	LiveOut         // if proc==Make  , generate live output for last job
+,	Local           // if proc==Make  , lauch all jobs locally
 ,	ManualOk        // if proc==Make  , allow lmake to overwrite manual files
 ,	SourceOk        // if proc==Make  , allow lmake to overwrite source files
+,	VerboseBackend  // if proc==Make  , generate backend exec information, such as slurm stdout/stderr
 ,	Force           // if proc==Freeze, act if doable, even if awkward
 )
 using ReqFlags = BitMap<ReqFlag> ;

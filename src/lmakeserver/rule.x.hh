@@ -97,17 +97,23 @@ namespace Engine {
 			if (py_src==Py_None) { dst = dflt ; return true ; }
 			return false ;
 		}
-		template<class T> static void s_acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
-			try                       { s_acquire( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
-			catch (::string const& e) { throw to_string("while processing ",key," : ",e) ;            }
+		template<class T,bool Env=false> static void s_acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
+			try {
+				static_assert( !Env || is_same_v<T,::vmap_ss> ) ;
+				if constexpr (Env) s_acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				else               s_acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+			} catch (::string const& e) {
+				throw to_string("while processing ",key," : ",e) ;
+			}
 		}
-		/**/                   static void s_acquire( bool       & dst , PyObject* py_src ) ;
-		/**/                   static void s_acquire( Time::Delay& dst , PyObject* py_src ) ;
-		/**/                   static void s_acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class      T> static void s_acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class      T> static void s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
-		template<::integral I> static void s_acquire( I          & dst , PyObject* py_src ) ;
-		template<StdEnum    E> static void s_acquire( E          & dst , PyObject* py_src ) ;
+		static void s_acquire_env( ::vmap_ss& dst , PyObject* py_dct , ::string const& key ) { s_acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
+		/**/                                  static void s_acquire( bool       & dst , PyObject* py_src ) ;
+		/**/                                  static void s_acquire( Time::Delay& dst , PyObject* py_src ) ;
+		/**/                                  static void s_acquire( ::string   & dst , PyObject* py_src ) ;
+		template<class      T               > static void s_acquire( ::vector<T>& dst , PyObject* py_src ) ;
+		template<class      T,bool Env=false> static void s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
+		template<::integral I               > static void s_acquire( I          & dst , PyObject* py_src ) ;
+		template<StdEnum    E               > static void s_acquire( E          & dst , PyObject* py_src ) ;
 		//
 		static ::string s_subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) ;
 	} ;
@@ -168,6 +174,21 @@ namespace Engine {
 		::vmap_ss  rsrcs   ;
 	} ;
 
+	// used at submit time, participate in resources
+	struct SubmitNoneAttrs : Attrs {
+		static constexpr const char* Msg = "n_retries" ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,n_retries) ;
+		}
+		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
+		void           update( PyObject* py_dct                           ) {
+			s_acquire_from_dct(n_retries,py_dct,"n_retries") ;
+		}
+		// data
+		uint8_t n_retries = 0 ;
+	} ;
+
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
 	struct CacheNoneAttrs : Attrs {
 		static constexpr const char* Msg = "cache key" ;
@@ -201,7 +222,7 @@ namespace Engine {
 		void           update( PyObject* py_dct                           ) {
 			s_acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir" ) ;
 			s_acquire_from_dct(chroot     ,py_dct,"chroot"     ) ;
-			s_acquire_from_dct(env        ,py_dct,"env"        ) ;
+			s_acquire_env     (env        ,py_dct,"env"        ) ;
 			s_acquire_from_dct(ignore_stat,py_dct,"ignore_stat") ;
 			s_acquire_from_dct(interpreter,py_dct,"interpreter") ;
 			s_acquire_from_dct(local_mrkr ,py_dct,"local_mrkr" ) ;
@@ -250,7 +271,7 @@ namespace Engine {
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
 			s_acquire_from_dct(timeout,py_dct,"timeout") ;
-			s_acquire_from_dct(env    ,py_dct,"env"    ) ;
+			s_acquire_env     (env    ,py_dct,"env"    ) ;
 			if (timeout<Delay()) throw "timeout must be positive or null (no timeout if null)"s ;
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
@@ -267,6 +288,7 @@ namespace Engine {
 			::serdes(s,keep_tmp   ) ;
 			::serdes(s,start_delay) ;
 			::serdes(s,kill_sigs  ) ;
+			::serdes(s,n_retries  ) ;
 			::serdes(s,env        ) ;
 		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
@@ -274,13 +296,15 @@ namespace Engine {
 			s_acquire_from_dct(keep_tmp   ,py_dct,"keep_tmp"   ) ;
 			s_acquire_from_dct(start_delay,py_dct,"start_delay") ;
 			s_acquire_from_dct(kill_sigs  ,py_dct,"kill_sigs"  ) ;
-			s_acquire_from_dct(env        ,py_dct,"env"        ) ;
+			s_acquire_from_dct(n_retries  ,py_dct,"n_retries"  ) ;
+			s_acquire_env     (env        ,py_dct,"env"        ) ;
 			::sort(env) ;                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		bool              keep_tmp    = false ;
 		Time::Delay       start_delay ;                    // job duration above which a start message is generated
 		::vector<uint8_t> kill_sigs   ;                    // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint8_t           n_retries   = 0     ;            // max number of retry if job is lost
 		::vmap_ss         env         ;
 	} ;
 
@@ -502,6 +526,7 @@ namespace Engine {
 		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
 		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs crc, evaluated at submit time
+		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                         // in no    crc, evaluated at submit time
 		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd   crc, evaluated before execution
 		DynamicCmd                cmd                ;
 		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs crc, evaluated before execution
@@ -671,7 +696,7 @@ namespace Engine {
 		dst.resize(n) ;
 	}
 
-	template<class T> void Attrs::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+	template<class T,bool Env> void Attrs::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
 		if (s_easy(dst,py_src)) return ;
 		//
 		::map_s<T> map = mk_map(dst) ;
@@ -683,7 +708,12 @@ namespace Engine {
 			if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
 			const char* key = PyUnicode_AsUTF8(py_key) ;
 			if (py_val==Py_None) { map[key] ; continue ; }                     // create empty entry
-			try { s_acquire(map[key],py_val) ; }
+			if constexpr (Env)
+				if (py_val==Py::g_ellipsis) {
+					map[key] = EnvPassMrkr ;                                   // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
+					continue ;
+				}
+			try                       { s_acquire(map[key],py_val) ;               }
 			catch (::string const& e) { throw to_string("for item ",key," : ",e) ; }
 		}
 		dst = mk_vmap(map) ;
@@ -879,6 +909,7 @@ namespace Engine {
 			::serdes(s,create_none_attrs ) ;
 			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;
+			::serdes(s,submit_none_attrs ) ;
 			::serdes(s,start_cmd_attrs   ) ;
 			::serdes(s,cmd               ) ;
 			::serdes(s,start_rsrcs_attrs ) ;

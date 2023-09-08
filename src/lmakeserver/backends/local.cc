@@ -203,10 +203,19 @@ namespace Backends::Local {
 				rsrc_idxs[k] = rsrc_keys.size() ;
 				rsrc_keys.push_back(k) ;
 			}
-			capacity = RsrcsData( *this , config.dct ) ;
-			avail    = capacity                        ;
-			Trace("config",MyTag,"avail_rsrcs",'=',capacity) ;
+			capacity_ = RsrcsData( *this , config.dct ) ;
+			avail     = capacity_                       ;
+			//
+			SWEAR(rsrc_keys.size()==capacity_.size()) ;
+			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
+			Trace("config",MyTag,"capacity",'=',capacity_) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
+		}
+		virtual ::vmap_s<size_t> const& capacity() const {
+			return public_capacity ;
+		}
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ ) const {
+			return ::move(rsrcs) ;
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
 			SWEAR(!req_map.contains(req)) ;
@@ -236,9 +245,9 @@ namespace Backends::Local {
 		}
 	public :
 		// do not launch immediately to have a better view of which job should be launched first
-		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss const& rsrcs ) {
-			Rsrcs2 rs2 { *this , rsrcs } ;                                                                          // compile rsrcs
-			if (!rs2->fit_in(capacity)) throw to_string("not enough resources to launch job ",Job(job).name()) ;
+		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
+			Rsrcs2 rs2 { *this , rsrcs } ;                                                                        // compile rsrcs
+			if (!rs2->fit_in(capacity_)) throw to_string("not enough resources to launch job ",Job(job).name()) ;
 			ReqEntry& entry = req_map.at(req) ;
 			SWEAR(!waiting_map       .contains(job)) ;                           // job must be a new one
 			SWEAR(!entry.waiting_jobs.contains(job)) ;                           // in particular for this req
@@ -284,7 +293,7 @@ namespace Backends::Local {
 			_wait_queue.push(re.pid) ;                                         // defer wait in case job_exec process does some time consuming book-keeping
 		}
 	public :
-		virtual ::uset<ReqIdx> start(JobIdx job) {
+		virtual ::pair_s<uset<ReqIdx>> start(JobIdx job) {
 			::uset<ReqIdx> res ;
 			auto           it  = running_map.find(job) ;
 			if (it==running_map.end()) return {} ;                             // job was killed in the mean time
@@ -292,21 +301,22 @@ namespace Backends::Local {
 			for( auto& [r,re] : req_map ) if (re.starting_jobs.erase(job)) res.insert(r) ;
 			entry.started = true ;
 			entry.n_reqs  = 0    ;
-			return res ;
+			return {to_string("pid:",entry.pid),res} ;
 		}
-		virtual void end(JobIdx job) {
+		virtual ::string/*msg*/ end(JobIdx job) {
 			auto it = running_map.find(job) ;
-			if (it==running_map.end()) return ;                                // job was killed in the mean time
+			if (it==running_map.end()) return {} ;                             // job was killed in the mean time
 			//vvvvvvvvvvvvvvvvvvv
 			_wait_job(it->second) ;
 			//^^^^^^^^^^^^^^^^^^^
 			Trace trace("end","avail_rsrcs",'+',avail) ;
 			running_map.erase(it) ;
 			launch() ;
+			return {} ;
 		}
-		virtual ::vector<JobIdx> heartbeat() {
+		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() {
 			// as soon as jobs are started, top-backend handles heart beat
-			::vector<JobIdx> res ;
+			::vmap<JobIdx,pair_s<bool/*err*/>> res ;
 			Trace trace("Local::hearbeat") ;
 			for( auto it = running_map.begin() ; it!=running_map.end() ; ) {   // /!\ we delete entries in running_map, beware of iterator management
 				RunningEntry& entry = it->second ;
@@ -322,7 +332,7 @@ namespace Backends::Local {
 				} else {
 					trace("vanished",entry.pid) ;
 				}
-				res.push_back(it->first) ;
+				res.emplace_back(it->first,pair("vanished"s,false/*err*/)) ;
 				_wait_job(entry) ;
 				running_map.erase(it++) ;                                      // /!\ erase must be called with it before ++, but it must be incremented before erase
 			}
@@ -413,7 +423,7 @@ namespace Backends::Local {
 					for( auto& [r,re] : req_map ) {
 						if (r!=+req) {
 							auto wit1 = re.waiting_jobs.find(job) ;
-							if (wit1==re.waiting_jobs.end()) continue ;
+							if (wit1==re.waiting_jobs.end()) continue ;        // ignore req if it did not ask for this job
 							auto wit2 = re.waiting_queues.find(rsrcs2) ;
 							::set<PressureEntry>& pes = wit2->second ;
 							PressureEntry         pe  { wit1->second , job } ; // /!\ pressure is job's pressure for r, not for req
@@ -445,13 +455,14 @@ namespace Backends::Local {
 
 		// data
 	public :
-		::umap<ReqIdx,ReqEntry    > req_map     ;
-		::umap<JobIdx,WaitingEntry> waiting_map ;
-		::umap<JobIdx,RunningEntry> running_map ;
-		::umap_s<size_t>            rsrc_idxs   ;
-		::vector_s                  rsrc_keys   ;
-		RsrcsData                   capacity    ;
-		RsrcsData                   avail       ;
+		::umap<ReqIdx,ReqEntry    > req_map         ;
+		::umap<JobIdx,WaitingEntry> waiting_map     ;
+		::umap<JobIdx,RunningEntry> running_map     ;
+		::umap_s<size_t>            rsrc_idxs       ;
+		::vector_s                  rsrc_keys       ;
+		RsrcsData                   capacity_       ;
+		RsrcsData                   avail           ;
+		::vmap_s<size_t>            public_capacity ;
 	private :
 		ThreadQueue<pid_t> _wait_queue ;
 

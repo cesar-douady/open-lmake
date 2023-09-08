@@ -44,7 +44,7 @@ StdExecAttrs = {
 ,	'backend'           : ( str   , True    )
 ,	'chroot'            : ( str   , True    )
 ,	'cache'             : ( str   , True    )
-,	'cmd'               : ( None  , False   )
+,	'cmd'               : ( str   , True    )              # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'cwd'               : ( str   , False   )
 ,	'deps'              : ( dict  , True    )
 ,	'environ_cmd'       : ( dict  , True    )
@@ -55,6 +55,8 @@ StdExecAttrs = {
 ,	'ignore_stat'       : ( bool  , True    )
 ,	'keep_tmp'          : ( bool  , True    )
 ,	'kill_sigs'         : ( tuple , True    )
+,	'local_marker'      : ( str   , True    )
+,	'n_retries'         : ( int   , True    )
 ,	'n_tokens'          : ( int   , False   )
 ,	'python'            : ( tuple , False   )
 ,	'resources'         : ( dict  , True    )
@@ -62,7 +64,7 @@ StdExecAttrs = {
 ,	'start_delay'       : ( float , True    )
 ,	'stderr_len'        : ( int   , True    )
 ,	'timeout'           : ( float , True    )
-,	'job_tokens'        : ( str   , True    )
+,	'job_tokens'        : ( int   , True    )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
@@ -135,7 +137,7 @@ def handle_inheritance(rule) :
 	dct     = pdict(cmd=[])                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
-	is_shell = isinstance(rule.__dict__.get('cmd'),str)
+	is_python = callable(getattr(rule,'cmd',None))                             # first determine if final objective is python or shell by searching the closest cmd definition
 	try :
 		for i,r in enumerate(reversed(rule.__mro__)) :
 			d = r.__dict__
@@ -147,9 +149,11 @@ def handle_inheritance(rule) :
 				if k.startswith('__') and k.endswith('__') : continue          # do not process standard python attributes
 				if k=='combine'                            : continue
 				if k=='cmd' :                                                  # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
-					if is_shell and callable(v) :
-						if not hasattr(v,'shell') : raise TypeError(f'{r.__name__}.cmd is callable and has no shell attribute while a shell cmd is needed')
-						v = v.shell
+					if is_python :
+						if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.__name__}')
+					else :
+						if callable(v) and hasattr(v,'shell') : v = v.shell
+						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.__name__}')
 					dct[k].append(v)
 				elif k in combine :
 					if k in dct : dct[k] = update(dct[k],v)
@@ -163,7 +167,7 @@ def handle_inheritance(rule) :
 	# reformat dct
 	attrs = pdict()
 	for k,v in dct.items() :
-		if k in StdAttrs :
+		if k in StdAttrs and k!='cmd' :                                        # special case cmd
 			if v is None : continue                                            # None is not transported
 			typ,dyn = StdAttrs[k]
 			if typ and not ( dyn and callable(v) ) :
@@ -172,6 +176,7 @@ def handle_inheritance(rule) :
 		attrs[k] = v
 	attrs.name        = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__special__ = rule.__special__
+	attrs.is_python   = is_python
 	qualify(attrs)
 	return attrs
 
@@ -231,14 +236,15 @@ def static_fstring(s) :
 	return res
 
 class Handle :
-	def __init__(self,attrs,rule) :
+	def __init__(self,rule) :
+		attrs           = handle_inheritance(rule)
 		module_name     = rule.__module__
 		module          = sys.modules[module_name]
 		self.rule       = rule
 		self.attrs      = attrs
 		self.glbs       = (attrs,module.__dict__)
 		self.no_imports = {module_name}
-		self.rule_rep   = pdict( name=attrs.name , prio=attrs.prio , stems=attrs.stems )
+		self.rule_rep   = pdict( { k:attrs[k] for k in ('name','prio','stems','is_python') } )
 		try    : self.local_root = lmake.search_sub_root_dir(module.__file__)
 		except : self.local_root = ''                                          # rules defined outside repo (typically standard base rules) are deemed to apply to the whole base
 
@@ -260,19 +266,18 @@ class Handle :
 		if sv : self.static_val [key] = sv
 		if dv : self.dynamic_val[key] = dv
 
-	def _handle_val(self,typ,key,rep_key=None) :
+	def _handle_val(self,key,rep_key=None) :
 		if not rep_key               : rep_key = key
 		if rep_key not in self.attrs : return
-		x = self.attrs[rep_key]
-		if callable(x) :
-			self.dynamic_val[key] = x
+		val = self.attrs[rep_key]
+		if callable(val) :
+			self.dynamic_val[key] = val
 		else :
-			if typ : x = typ(x)                                                # convert x if asked to do so
-			if typ==str :
-				if SimpleStrRe.match(x) : self.static_val [key] = static_fstring(x) # x has no variable parts, make it a static value
-				else                    : self.dynamic_val[key] = f_str         (x) # mark x so it is generated as an f-string
+			if isinstance(val,str) :
+				if SimpleStrRe.match(val) : self.static_val [key] = static_fstring(val) # val has no variable parts, make it a static value
+				else                      : self.dynamic_val[key] = f_str         (val) # mark val so it is generated as an f-string
 			else :
-				self.static_val [key] = x
+				self.static_val [key] = val
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -331,29 +336,18 @@ class Handle :
 			*self.static_stems
 		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
+		self.attrs.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
 		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
 		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
 
-	def handle_interpreter(self) :
-		if all( callable(c) for c in self.attrs.cmd ) :
-			self.rule_rep.is_python   = True
-			self.attrs   .interpreter = self.attrs.python
-		elif all( isinstance(c,str) for c in self.attrs.cmd ) :
-			self.rule_rep.is_python   = False
-			self.attrs   .interpreter = self.attrs.shell
-		elif all( callable(c) or isinstance(c,str) for c in self.attrs.cmd ) :
-			raise TypeError('cannot mix Python & shell along the inheritance hierarchy')
-		else :
-			raise TypeError('bad cmd type')
-
 	def handle_create_none(self) :
 		self._init()
-		self._handle_val(int,'job_tokens')
+		self._handle_val('job_tokens')
 		self.rule_rep.create_none_attrs = self._finalize()
 
 	def handle_cache_none(self) :
 		self._init()
-		self._handle_val(str,'key','cache')
+		self._handle_val('key','cache')
 		self.rule_rep.cache_none_attrs = self._finalize()
 
 	def _is_simple_fstr(self,fstr) :
@@ -387,47 +381,53 @@ class Handle :
 
 	def handle_submit_rsrcs(self) :
 		self._init()
-		self._handle_val (str,'backend'            )
-		self._handle_dict(    'rsrcs'  ,'resources')
+		self._handle_val ('backend'            )
+		self._handle_dict('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
 		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
 		if not callable(rsrcs) : self.per_job.update(set(rsrcs.keys()))
 
+	def handle_submit_none(self) :
+		self._init()
+		self._handle_val ('n_retries')
+		self.rule_rep.submit_none_attrs = self._finalize()
+
 	def handle_start_cmd(self) :
 		self._init()
-		self._handle_val (bool ,'auto_mkdir'                )
-		self._handle_val (bool ,'ignore_stat'               )
-		self._handle_val (str  ,'autodep'                   )
-		self._handle_val (str  ,'chroot'                    )
-		self._handle_val (tuple,'interpreter'               )
-		self._handle_val (str  ,'local_mrkr' ,'local_marker')
-		self._handle_dict(      'env'        ,'environ_cmd' )
+		self._handle_val ('auto_mkdir'                )
+		self._handle_val ('ignore_stat'               )
+		self._handle_val ('autodep'                   )
+		self._handle_val ('chroot'                    )
+		self._handle_val ('interpreter'               )
+		self._handle_val ('local_mrkr' ,'local_marker')
+		self._handle_dict('env'        ,'environ_cmd' )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_dict(      'env'    ,'environ_resources')
-		self._handle_val (float,'timeout'                    )
+		self._handle_dict('env'    ,'environ_resources')
+		self._handle_val ('timeout'                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_val (bool ,'keep_tmp'                       )
-		self._handle_val (float,'start_delay'                    )
-		self._handle_val (tuple,'kill_sigs'                      )
-		self._handle_dict(      'env'        ,'environ_ancillary')
+		self._handle_val ('keep_tmp'                       )
+		self._handle_val ('start_delay'                    )
+		self._handle_val ('kill_sigs'                      )
+		self._handle_val ('n_retries'                      )
+		self._handle_dict('env'        ,'environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
 
 	def handle_end_cmd(self) :
 		self._init()
-		self._handle_val(bool,'allow_stderr')
+		self._handle_val('allow_stderr')
 		self.rule_rep.end_cmd_attrs = self._finalize()
 
 	def handle_end_none(self) :
 		self._init()
-		self._handle_val(int,'stderr_len')
+		self._handle_val('stderr_len')
 		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
@@ -452,11 +452,18 @@ class Handle :
 			,	force      = True
 			)
 			if multi :
+				x = 'x'                                                        # find a non-conflicting name
+				if x in cmd_ctx :
+					for i in range(1000) :
+						x = f'x{i}'
+						if x not in cmd_ctx : break
+					else : assert False,'cannot find available name'
 				cmd += 'def cmd() :\n'
 				for i,c in enumerate(cmd_lst) :
-					x = '' if c.__code__.co_argcount==0 else 'None' if i==0 else 'x'
-					if i<len(self.attrs.cmd)-1 : cmd += f'\tx =    {c.__name__}({x})\n'
-					else                       : cmd += f'\treturn {c.__name__}({x})\n'
+					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
+					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
+					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
+					else                                   : cmd += f'\t{       c.__name__}({a})\n'
 			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , '' , '' , tuple(cmd_ctx) )
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
@@ -464,14 +471,14 @@ class Handle :
 				self.rule_rep.cmd = ( {'cmd':cmd,'is_python':False} ,)
 			else :
 				self._init()
-				self._handle_val(str,'cmd')
+				self._handle_val('cmd')
 				self.rule_rep.cmd = self._finalize()
 				assert len(self.rule_rep.cmd)==4,'cmd should be dynamic here'
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class
 	#
-	h = Handle( handle_inheritance(rule) , rule )
+	h = Handle(rule)
 	#
 	h.handle_cwd    ()
 	h.handle_targets()
@@ -490,11 +497,11 @@ def fmt_rule(rule) :
 	#
 	h.prepare_jobs()
 	#
-	h.handle_interpreter ()
 	h.handle_create_none ()
 	h.handle_cache_none  ()
 	h.handle_create_match()
 	h.handle_submit_rsrcs()
+	h.handle_submit_none ()
 	h.handle_start_cmd   ()
 	h.handle_start_rsrcs ()
 	h.handle_start_none  ()

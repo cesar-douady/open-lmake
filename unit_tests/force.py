@@ -21,15 +21,15 @@ if getattr(sys,'reading_makefiles',False) :
 	class Cat(lmake.Rule) :
 		stems = {
 			'File1' : r'.*'
-		,	'File2' : r'.*'
+		,	'File2' : r'.*?'
 		}
-		target = '{File1}+{File2}'
+		target = r'{File1}+{File2}{Rc:\d*}'
 		deps = {
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
 		force = force
-		cmd = 'cat {FIRST} {SECOND}'
+		cmd = 'cat {FIRST} {SECOND} ; exit {Rc}'
 
 else :
 
@@ -49,3 +49,7 @@ else :
 	print('force=False',file=open('step.py','w'))
 	ut.lmake( 'hello+world' , steady=1 , new=0 )                               # check target is out of date
 	ut.lmake( 'hello+world' , steady=0 , new=0 )                               # check target is remade albeit up-to-date (force)
+
+	ut.lmake(        'hello+world1' , failed=1 , new=0 , rc=1 )
+	ut.lmake(        'hello+world1' , failed=0 , new=0 , rc=1 )
+	ut.lmake( '-e' , 'hello+world1' , failed=1 , new=0 , rc=1 )                # check target is remade when in error

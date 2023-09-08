@@ -68,21 +68,21 @@ extern "C" {
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
-Audit& Audit::t_audit() {
-	static bool                s_inited [[maybe_unused]] = (s_init(),true) ;
-	static thread_local Audit* s_res                     = new Audit       ;
+Audit& Audit::s_audit() {
+	static bool   s_inited [[maybe_unused]] = (s_init(),true) ;
+	static Audit* s_res                     = new Audit       ;
 	return *s_res ;
 }
 
 void Audit::hide(int fd) {
-	if (Lock::s_busy()) return ;
-	if (_t_report_fd.fd==fd) _t_report_fd.detach() ;                           // fd is about to be closed or are already closed, so no need to close
+	if (Lock::t_busy()) return ;
+	if (_s_report_fd.fd==fd) _s_report_fd.detach() ;                           // fd is about to be closed or are already closed, so no need to close
 	if (s_root_fd   .fd==fd) s_root_fd   .detach() ;                           // .
 }
 
 void Audit::hide_range( int min , int max ) {
-	if (Lock::s_busy()) return ;
-	if ( _t_report_fd.fd>=min && _t_report_fd.fd<=max ) _t_report_fd.detach() ; // min<=fd<=max are about to be closed or are already closed, so no need to close
+	if (Lock::t_busy()) return ;
+	if ( _s_report_fd.fd>=min && _s_report_fd.fd<=max ) _s_report_fd.detach() ; // min<=fd<=max are about to be closed or are already closed, so no need to close
 	if ( s_root_fd   .fd>=min && s_root_fd   .fd<=max ) s_root_fd   .detach() ; // .
 }
 
@@ -201,8 +201,8 @@ static void _search( const char* file , bool do_search , bool do_exec , const ch
 
 	// fork
 	pid_t fork       () { ORIG(fork       ) ; LCK ; return orig()   ; }        // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated...
-	pid_t __fork     () { ORIG(__fork     ) ; LCK ; return orig()   ; }        //     a simple way to stay coherent is to take the lock before fork and to release it after
-	pid_t __libc_fork() { ORIG(__libc_fork) ; LCK ; return orig()   ; }        //     both in parent & child
+	pid_t __fork     () { ORIG(__fork     ) ; LCK ; return orig()   ; }        //     imagine the lock is held by another thread while we fork => child will have dead lock
+	pid_t __libc_fork() { ORIG(__libc_fork) ; LCK ; return orig()   ; }        //     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
 	pid_t vfork      () {                           return fork  () ; }        // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
 	pid_t __vfork    () {                           return __fork() ; }        // .
 	//
