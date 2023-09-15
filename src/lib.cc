@@ -48,5 +48,5 @@ using namespace Disk ;
 void lib_init(::string const& root_dir) {
 	SWEAR( is_abs(root_dir) ) ;                                                // root_dir is a successtion of components prefixed by /, if at root, it must be empty
 	if (!g_tmp_dir) g_tmp_dir  = new ::string{get_env("TMPDIR",DfltTmp)} ;
-	/**/            g_root_dir = new ::string{root_dir} ;
+	/**/            g_root_dir = new ::string{root_dir                 } ;
 }

@@ -12,14 +12,26 @@ namespace Disk {
 	using Date   = Time::DiskDate ;
 	using DiskSz = uint64_t       ;
 
+	ENUM(Access
+	,	Lnk        // file is accessed with readlink
+	,	Reg        // file is accessed with open
+	,	Stat       // file is accessed with stat like (read inode)
+	)
+	static constexpr char AccessChars[] = {
+		'L'        // Lnk
+	,	'R'        // Reg
+	,	'T'        // Stat
+	} ;
+	static_assert(::size(AccessChars)==+Access::N) ;
+	using Accesses = BitMap<Access> ;
+	static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
+
 	ENUM_1( FileTag
-	,	Fancy = Dir                                                            // >=Fancy means not an official target
 	,	None
 	,	Reg
 	,	Exe
 	,	Lnk
 	,	Dir
-	,	Other
 	,	Err
 	)
 
@@ -45,7 +57,14 @@ namespace Disk {
 		FileInfo(struct ::stat const&) ;                                       // /!\ errno must be valid and 0 if stat is ok
 		// accesses
 	public :
-		bool operator+() const { return +tag && tag<FileTag::Fancy             ; } // i.e. sz & date are present
+		bool operator+() const {
+			switch (tag) {
+				case FileTag::Reg :
+				case FileTag::Exe :
+				case FileTag::Lnk : return true  ;
+				default           : return false ;
+			}
+		}
 		bool operator!() const { return !+*this                                ; } // i.e. sz & date are not present
 		bool is_reg   () const { return tag==FileTag::Reg || tag==FileTag::Exe ; }
 		// data
@@ -182,11 +201,6 @@ namespace Disk {
 			bool       in_repo = false ;
 			bool       in_tmp  = false ;
 		} ;
-		struct ExecAccess {
-			ExecAccess( bool al , bool ar ) : as_lnk{al} , as_reg{ar} {}
-			bool as_lnk = false ;
-			bool as_reg = false ;
-		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
@@ -227,11 +241,11 @@ namespace Disk {
 		RealPath ( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) { init(ls,sds_s,p) ; } // sds_s may be either absolute or relative, but must be canonic
 		void init( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) ;                      // .
 		// services
-		SolveReport          solve( Fd at , ::string const&      , bool no_follow=false , bool root_ok=false ) ;
-		SolveReport          solve( Fd at , const char*     file , bool no_follow=false , bool root_ok=false ) { return solve(at     ,::string(file),no_follow,root_ok) ; } // ensure proper types
-		SolveReport          solve(         ::string const& file , bool no_follow=false , bool root_ok=false ) { return solve(Fd::Cwd,         file ,no_follow,root_ok) ; }
-		SolveReport          solve( Fd at ,                        bool no_follow=false , bool root_ok=false ) { return solve(at     ,         {}   ,no_follow,root_ok) ; }
-		::vmap_s<ExecAccess> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
+		SolveReport        solve( Fd at , ::string const&      , bool no_follow=false , bool root_ok=false ) ;
+		SolveReport        solve( Fd at , const char*     file , bool no_follow=false , bool root_ok=false ) { return solve(at     ,::string(file),no_follow,root_ok) ; } // ensure proper types
+		SolveReport        solve(         ::string const& file , bool no_follow=false , bool root_ok=false ) { return solve(Fd::Cwd,         file ,no_follow,root_ok) ; }
+		SolveReport        solve( Fd at ,                        bool no_follow=false , bool root_ok=false ) { return solve(at     ,         {}   ,no_follow,root_ok) ; }
+		::vmap_s<Accesses> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
 	private :
 		::string _find_src( ::string const& real , bool in_repo ) const ;
 		// data

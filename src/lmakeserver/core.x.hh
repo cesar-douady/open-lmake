@@ -5,11 +5,11 @@
 
 // included 4 times : with DECL_STRUCT defined, DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
+#include "store.x.hh"
 #include "global.x.hh"
 #include "backend.x.hh"
 #include "cache.x.hh"
 #include "cmd.x.hh"
-#include "store.x.hh"
 #include "rule.x.hh"
 #include "req.x.hh"
 #include "job.x.hh"

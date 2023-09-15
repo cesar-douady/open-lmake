@@ -18,8 +18,6 @@
 #undef PTRACE_SYSCALL                  // .
 #undef PTRACE_TRACEME                  // .
 
-#include "seccomp.h"
-
 #include "disk.hh"
 #include "record.hh"
 
@@ -28,6 +26,8 @@
 AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
 
 #if HAS_PTRACE
+
+#include "seccomp.h"
 
 using namespace Disk ;
 

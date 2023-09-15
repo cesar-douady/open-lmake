@@ -9,9 +9,7 @@ RUN yum install -y python36
 RUN yum install -y python36-devel
 RUN yum install -y autoconf
 RUN yum install -y automake
-RUN yum install -y libtool
-RUN yum install -y gperf
-RUN yum install -y libseccomp
+#RUN yum install -y libseccomp
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

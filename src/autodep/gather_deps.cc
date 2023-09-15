@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
+#include "disk.hh"
 #include "hash.hh"
 #include "trace.hh"
 #include "time.hh"
@@ -12,8 +13,9 @@
 
 #include "gather_deps.hh"
 
-using namespace Time ;
+using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
 	/**/             os << "GatherDeps(" << gd.accesses ;
@@ -22,42 +24,29 @@ using namespace Hash ;
 }
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	/**/                 os << "AccessInfo("             ;
-	if (+ai.info.dfs   ) os << "R:"<<ai.read_date  <<',' ;
-	if (!ai.info.idle()) os << "W:"<<ai.write_date <<',' ;
-	/**/                 os << ai.info                   ;
-	if (+ai.file_date  ) os <<','<< "F:"<<ai.file_date   ;
-	return               os <<','<< ai.parallel_id <<')' ;
+	/**/                   os << "AccessInfo("                               ;
+	if (+ai.info.accesses) os << "R:"<<ai.read_date  <<','                   ;
+	if (!ai.info.idle()  ) os << "W:"<<ai.write_date <<','                   ;
+	/**/                   os << ai.info                                     ;
+	if (+ai.file_date    ) os <<','<< "F:"<<ai.file_date                     ;
+	return                 os <<','<< ai.tflags <<','<< ai.parallel_id <<')' ;
 }
 
 bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , NodeIdx parallel_id_ , ::string const& comment ) {
 	SWEAR(!file.empty()) ;
-	AccessInfo* info_  = nullptr/*garbage*/    ;
+	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
 	bool        is_new = it==access_map.end()  ;
 	if (is_new) {
 		access_map[file] = accesses.size() ;
-		accesses.emplace_back(file,AccessInfo()) ;
-		info_ = &accesses.back().second ;
+		accesses.emplace_back(file,AccessInfo(tflags_cb(file))) ;
+		info = &accesses.back().second ;
 	} else {
-		info_ = &accesses[it->second].second ;
+		info = &accesses[it->second].second ;
 	}
-	//
-	Bool3 after =                                                              // new entries have after==No
-		!info_->info.idle() && pd>info_->write_date ? Yes
-	:	+info_->info.dfs    && pd>info_->read_date  ? Maybe
-	:	                                              No
-	;
-	// if we do not write, do book-keeping as read, even if we do not access the file
-	if ( +ai.dfs || ai.idle() ) {
-		if      (after==No                      ) { info_->file_date = dd ; info_->read_date = pd ; info_->parallel_id = parallel_id_ ; } // update read info if we are first to read
-		else if (!(info_->info.dfs&AccessDFlags)) { info_->file_date = dd ;                                                             } // if no previous access, record our date
-	}
-	if ( !ai.idle() && after!=Yes ) info_->write_date = pd ;
-	//
-	JobExecRpcReq::AccessInfo old_ai = info_->info  ;                                                                // for trace only
-	info_->info.update(ai,after) ;                                                                                   // execute actions in actual order as provided by dates
-	if ( after!=Yes || info_->info!=old_ai ) Trace("_new_access", is_new?"new   ":"update" , pd , after , *info_ , ai , file , dd , comment ) ; // only trace if something changes
+	//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if ( info->update(pd,dd,ai,parallel_id_) ) Trace("_new_access", is_new?"new   ":"update" , pd , *info , file , dd , comment ) ; // only trace if something changes
+	//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return is_new ;
 }
 
@@ -180,9 +169,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 				case Kind::Stderr : {
 					char buf[4096] ;
 					int  cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR(cnt>=0) ;
-					if      (!cnt              ) { epoll.close(fd) ;                                              }
-					else if (kind==Kind::Stderr) { stderr.append(buf,cnt) ;                                       }
-					else                         { stdout.append(buf,cnt) ; live_out_cb(::string_view(buf,cnt)) ; }
+					if (kind==Kind::Stderr) { if (cnt) { stderr.append(buf,cnt) ; } else { trace("close_stderr") ; epoll.close(fd) ; } }
+					else                    { if (cnt) { stdout.append(buf,cnt) ; } else { trace("close_stdout") ; epoll.close(fd) ; } }
 				} break ;
 				case Kind::ChildEnd : {
 					struct signalfd_siginfo child_info ;
@@ -216,7 +204,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					SWEAR(it!=server_replies.end()) ;
 					try         { if (!it->second.buf.receive_step(fd,jrr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
-					trace("server_reply",jrr) ;
+					trace("server_reply",fd,jrr) ;
 					//                                                      vvvvvvvvvvvvvvvvvvvvvvvvv
 					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) kill_job(Status::ChkDeps) ;
 					else if ( +it->second.fd                              ) sync(it->second.fd,JobExecRpcReply(jrr)) ;
@@ -235,7 +223,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					switch (proc) {
 						case Proc::None      :                                            goto Close ;
 						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat :                                            goto Close ; // no reply, accept & read is enough to acknowledge
+						case Proc::Heartbeat :
+							if (!child.is_alive()) {                           // we should have been informed if child died, just in case...
+								trace("vanished") ;
+								status = Status::Lost ;
+								epoll.close(child_fd) ;
+								epoll.cnt-- ;                                  // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
+							}
+							goto Close ;                                       // no reply, accept & read is enough to acknowledge
 						//                     vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill      : kill_job(Status::Killed) ;                 goto Close ; // .
 						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -280,11 +275,43 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 
 void GatherDeps::reorder() {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
+	Trace trace("reorder") ;
 	::stable_sort(                                                             // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
 			return ::pair(a.second.read_date,a.second.parallel_id) < ::pair(b.second.read_date,b.second.parallel_id) ;
 		}
 	) ;
+	// first pass : note stat accesses that are directories of immediately following file accesses as these are ilready mplicit deps (through Uphill rule)
+	::uset<size_t> to_del ;
+	size_t         last   = Npos ;                                            // XXX : replace with a vector to manage parallel deps
+	for( size_t i1=accesses.size() ; i1>0 ; i1-- ) {
+		size_t      i           = i1-1        ;
+		auto const& [file,info] = accesses[i] ;
+		if      ( !info.is_dep()                                                                           ) last = Npos ;
+		else if ( last!=Npos && info.info.accesses==Access::Stat && accesses[last].first.starts_with(file) ) to_del.insert(i) ;
+		else                                                                                                 last = i ;
+	}
+	// second pass : suppress stat accesses that are directories of seen files as these are already implicit deps (through Uphill rule)
+	::uset_s dirs ;
+	size_t   n    = 0     ;
+	bool     cpy  = false ;
+	for( size_t i=0 ; i<accesses.size() ; i++ ) {
+		auto const& [file,info] = accesses[i] ;
+		if (to_del.contains(i)) { trace("skip_from_next",file) ; goto Skip ; }
+		if ( info.is_dep() ) {
+			if ( info.info.accesses==Access::Stat && dirs.contains(file) ) { trace("skip_from_prev",file) ; goto Skip ; } // as soon as an entry is removed, we must copy the following ones
+			for( ::string dir=dir_name(file) ; !dir.empty() ; dir=dir_name(dir) )
+				if (!dirs.insert(dir).second) break ;                             // all uphill dirs are already inserted if a dir has been inserted
+		}
+		if (cpy) accesses[n] = ::move(accesses[i]) ;
+		n++ ;
+		continue ;
+	Skip :
+		cpy = true ;
+	}
+	accesses.resize(n) ;
+	// recompute access_map
+	if (cpy) access_map.clear() ;                                                    // fast path : no need to clear if all elements will be refreshed
 	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map[accesses[i].first] = i ; // reconstruct access_map as reorder may be called during execution (DepInfos or ChkDeps)
 }

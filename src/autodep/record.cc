@@ -52,23 +52,18 @@ void Record::_report( JobExecRpcReq const& jerr ) const {
 ::pair_s<bool/*in_tmp*/> Record::_solve( int at , const char* file , bool no_follow , ::string const& comment ) {
 	if (!file) return {{},false/*in_tmp*/} ;
 	RealPath::SolveReport rp = real_path.solve(at,file,no_follow) ;
-	for( ::string& real : rp.lnks ) _report_dep( ::move(real) , file_date(s_get_root_fd(),real) , DFlag::Lnk , comment+".lnk"  ) ;
+	for( ::string& real : rp.lnks ) _report_dep( ::move(real) , file_date(s_get_root_fd(),real) , Access::Lnk , comment+".lnk"  ) ;
 	return {rp.real,rp.in_tmp} ;
 }
 
 void Record::read( int at , const char* file , bool no_follow , ::string const& comment ) {
 	::string real = _solve(at,file,no_follow,comment).first ;
-	if (!real.empty()) _report_dep( ::move(real) , DFlag::Reg , comment ) ;
+	if (!real.empty()) _report_dep( ::move(real) , Access::Reg , comment ) ;
 }
 
 void Record::exec( int at , const char* exe , bool no_follow , ::string const& comment ) {
 	if (!exe) return ;
-	for( auto&& [file,a] : real_path.exec(at,exe,no_follow) ) {
-		DFlags fs ;
-		if (a.as_lnk) fs |= DFlag::Lnk ;
-		if (a.as_reg) fs |= DFlag::Reg ;
-		_report_dep( ::move(file) , fs , comment ) ;
-	}
+	for( auto&& [file,a] : real_path.exec(at,exe,no_follow) ) _report_dep( ::move(file) , a , comment ) ;
 }
 
 JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
@@ -119,8 +114,8 @@ int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	bool ok = rc>=0 ;
 	//
-	DFlags dfs = DFlag::Reg ; if (no_follow) dfs |= DFlag::Lnk ;                                         // if no_follow, the sym link may be hard linked
-	if ( !old_real.empty() && (ok||no_file) ) r._report_dep( ::move(old_real) , dfs , comment+".src" ) ; // if no_follow, the symlink can be linked
+	Accesses a = Access::Reg ; if (no_follow) a |= Access::Lnk ;                                       // if no_follow, the sym link may be hard linked
+	if ( !old_real.empty() && (ok||no_file) ) r._report_dep( ::move(old_real) , a , comment+".src" ) ; // if no_follow, the symlink can be linked
 	//
 	if (new_real.empty()) { if ( ok && in_tmp ) r._report       ( Proc::Tmp                         ) ; }
 	else                  { if ( ok           ) r._report_target( ::move(new_real) , comment+".dst" ) ; }
@@ -137,28 +132,33 @@ Record::Open::Open( bool active , Record& r , int at , const char* file , int fl
 	if (no_access) { r.stat( at , file , no_follow , c ) ; return ; }          // this actually behaves as a stat
 	//
 	/**/                                        ::tie(real,in_tmp)  = r._solve( at , file , no_follow , c ) ;
-	/**/                                        do_read             = s_do_read (flags)                      ;
-	/**/                                        do_write            = s_do_write(flags)                      ;
-	if ( do_read && do_write && !real.empty() ) date                = file_date(s_get_root_fd(),real)        ; // file date is updated by open if it does not exist, capture date before
-	/**/                                        comment            += to_string(::hex,'.',flags)             ;
+	/**/                                        do_read             = s_do_read (flags)                     ;
+	/**/                                        do_write            = s_do_write(flags)                     ;
+	/**/                                        as_dir              = flags & O_DIRECTORY                   ;
+	if ( do_read && do_write && !real.empty() ) date                = file_date(s_get_root_fd(),real)       ; // file date is updated by open if it does not exist, capture date before
+	/**/                                        comment            += to_string(::hex,'.',flags)            ;
 }
 int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file ) {
 	bool ok = fd_rc>=0 ;
 	//
-	do_write &= ok ;
 	if (real.empty()) {
-		if ( do_write && in_tmp ) r._report(Proc::Tmp) ;
-		return fd_rc ;
-	}
-	if (do_read) {
-		if ( ok || no_file ) {
-			if      (do_write) r._report_dep_update( ::move(real) , date             , DFlag::Reg , comment+(ok?".upd":".rd"   ) ) ; // file date is updated if created, use original date
-			else if (!ok     ) r._report_dep       ( ::move(real) , DD()             , DFlag::Reg , comment+(          ".rd!"  ) ) ;
-			else if (has_fd  ) r._report_dep       ( ::move(real) , file_date(fd_rc) , DFlag::Reg , comment+(          ".rd"   ) ) ; // else it is not, even if writing
-			else               r._report_dep       ( ::move(real) ,                    DFlag::Reg , comment+(          ".rd_ad") ) ; // if no fd available, use auto-date
+		if ( do_write && ok && in_tmp ) r._report(Proc::Tmp) ;
+	} else {
+		if (do_write) {
+			if ( ok && !as_dir ) {
+				if (do_read) r._report_update( ::move(real) , date , Access::Reg , comment+(".upd") ) ; // file date is updated if created, use original date
+				else         r._report_target( ::move(real) ,                      comment+ ".wr"   ) ;
+			}
+		} else if (do_read) {
+			if ( ok || no_file ) {
+				Access a = as_dir ? Access::Stat : Access::Reg ;               // when reading a dir, we are insensitive to content if file is regular or a sym link
+				::string c = comment+".rd" ;
+				if (as_dir) c += ".dir" ;
+				if      (!ok   ) r._report_dep( ::move(real) , DD()             , a , (c+='!',c) ) ;
+				else if (has_fd) r._report_dep( ::move(real) , file_date(fd_rc) , a ,         c  ) ;
+				else             r._report_dep( ::move(real) ,                    a , (c+="*",c) ) ; // if no fd available, use auto-date
+			}
 		}
-	} else if ( do_write && ok ) {
-		r._report_target( ::move(real) , comment+".wr" ) ;
 	}
 	return fd_rc ;
 }
@@ -182,8 +182,8 @@ Record::ReadLnk::ReadLnk( bool active , Record& r , const char* file , char* buf
 ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 	if (real.empty()) return len ;
 	//
-	if (len>=0 ) r._report_dep( ::move(real) , DFlag::Lnk , comment     ) ;
-	else         r._report_dep( ::move(real) , DFlag::Lnk , comment+'~' ) ;    // file may be regular, so let _report_dep determine the date ...
+	if (len>=0 ) r._report_dep( ::move(real) , Access::Lnk , comment     ) ;
+	else         r._report_dep( ::move(real) , Access::Lnk , comment+'~' ) ;   // file may be regular, so let _report_dep determine the date ...
 	//                                                                         // optimizing based on no_file (in which case we know date is DD()) is not reliable as no_file may have false positives
 	//
 	return len ;
@@ -209,7 +209,6 @@ Record::Rename::Rename( bool active , Record& r , int old_at_ , const char* old_
 	comment                    += to_string(::hex,'.',flags)                                         ;
 }
 int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
-	constexpr DFlags DFlagsData = DFlag::Lnk|DFlag::Reg ;                      // rename may move regular files or links
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	if (rc==0) {                                                               // rename has occurred
 		if (in_tmp) r._report(Proc::Tmp) ;
@@ -229,14 +228,14 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 			if ( !old_real.empty() ) for( ::string const& d : sfxs ) writes.push_back( old_real + d ) ;
 		}
 		::string c = comment+(exchange?"<>":"") ;
-		r._report_deps   ( ::move(reads ) , DFlagsData , true/*unlink*/ , c ) ; // do unlink before write so write has priority
-		r._report_targets( ::move(writes) ,                               c ) ;
-	} else if (no_file) {                                                       // rename has not occurred : the read part must still be reported
+		r._report_deps   ( ::move(reads ) , DataAccesses , true/*unlink*/ , c ) ; // do unlink before write so write has priority
+		r._report_targets( ::move(writes) ,                                 c ) ;
+	} else if (no_file) {                                                         // rename has not occurred : the read part must still be reported
 		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
 		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
 		::string c = comment+(exchange?"!<>":"!") ;
-		if ( !old_real.empty()             ) r._report_deps( walk( old_at,old_file , old_real ) , DFlagsData , false/*unlink*/ , c ) ;
-		if ( !new_real.empty() && exchange ) r._report_deps( walk( new_at,new_file , new_real ) , DFlagsData , false/*unlink*/ , c ) ;
+		if ( !old_real.empty()             ) r._report_deps( walk( old_at,old_file , old_real ) , DataAccesses , false/*unlink*/ , c ) ;
+		if ( !new_real.empty() && exchange ) r._report_deps( walk( new_at,new_file , new_real ) , DataAccesses , false/*unlink*/ , c ) ;
 	}
 	return rc ;
 }

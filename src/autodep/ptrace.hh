@@ -39,12 +39,13 @@
 
 #else
 
+	// useless but needed so that compilation can be carried out
 	struct AutodepPtrace {
 		// statics
 		[[noreturn]] static void bad() { fail_prod("autodep method ptrace not supported") ; }
 		static void s_prepare_child() { bad() ; }
 		// static data
-		static AutodepEnv* s_autodep_env ;                  // useless but needed so that compilation cant be carried out
+		static AutodepEnv* s_autodep_env ;
 		// cxtors & casts
 		AutodepPtrace() = default ;
 		AutodepPtrace(int /*child_pid*/) { bad() ; }

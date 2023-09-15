@@ -263,6 +263,12 @@ struct IStringStream : ::istringstream {
 
 static constexpr size_t Npos = ::string::npos ;
 
+::string mk_printable( ::string const&                  ) ;
+::string mk_py_str   ( ::string const&                  ) ;
+::string mk_shell_str( ::string const&                  ) ;
+::string mk_c_str    ( ::string const&                  ) ;
+size_t   parse_c_str ( ::string const& , size_t start=0 ) ;                    // the size of the initial part that is a c str
+
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 static inline bool is_space(char c) {
 	switch (c) {
@@ -281,11 +287,9 @@ static inline bool is_print(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
 
-template<class... A> ::string to_string(A const&... args) {
-	OStringStream res ;
-	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
-	return res.str() ;
-}
+template<class... A> ::string to_string          (A const&... args) { OStringStream res ; [[maybe_unused]] bool _[] = { false , (res<<args,false)... } ; return              res.str()  ; }
+template<class... A> ::string to_printable_string(A const&... args) { OStringStream res ; [[maybe_unused]] bool _[] = { false , (res<<args,false)... } ; return mk_printable(res.str()) ; }
+//
 static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
 static inline ::string to_string(const char*     s) { return  s  ; }           // .
 static inline ::string to_string(char            c) { return {c} ; }           // .
@@ -315,12 +319,6 @@ static inline bool is_identifier(::string const& s) {
 	for( char c : s ) if (!( ::isalnum(c   ) || c   =='_' )) return false ;
 	/**/                                                     return true  ;
 }
-
-::string mk_printable( ::string const&                  ) ;
-::string mk_py_str   ( ::string const&                  ) ;
-::string mk_shell_str( ::string const&                  ) ;
-::string mk_c_str    ( ::string const&                  ) ;
-size_t   parse_c_str ( ::string const& , size_t start=0 ) ;                    // the size of the initial part that is a c str
 
 // split into space separated words
 static inline ::vector_s split(::string_view const& path) {
@@ -1219,9 +1217,12 @@ struct Child {
 		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
 	}
 	bool/*done*/ kill(int sig) {
-		if (!sig) return true ;
+		if (!sig    ) return true                  ;
 		if (as_group) return kill_group  (pid,sig) ;
 		else          return kill_process(pid,sig) ;
+	}
+	bool is_alive() const {
+		return kill_process(pid,0) ;
 	}
 	//data
 	pid_t       pid      = -1    ;

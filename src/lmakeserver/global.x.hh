@@ -122,11 +122,13 @@ namespace Engine {
 			::serdes(s,hash_algo            ) ;
 			::serdes(s,heartbeat            ) ;
 			::serdes(s,lnk_support          ) ;
+			::serdes(s,local_admin_dir      ) ;
 			::serdes(s,max_dep_depth        ) ;
 			::serdes(s,max_err_lines        ) ;
 			::serdes(s,network_delay        ) ;
 			::serdes(s,trace_sz             ) ;
 			::serdes(s,path_max             ) ;
+			::serdes(s,remote_admin_dir     ) ;
 			::serdes(s,src_dirs_s           ) ;
 			::serdes(s,sub_prio_boost       ) ;
 			::serdes(s,backends             ) ;
@@ -144,11 +146,13 @@ namespace Engine {
 		Hash::Algo     hash_algo                                       = Hash::Algo::Xxh  ;
 		Time::Delay    heartbeat                                       ;
 		LnkSupport     lnk_support                                     = LnkSupport::Full ;
+		::string       local_admin_dir                                 ;
 		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
 		size_t         max_err_lines                                   = 0                ; // unlimited
 		Time::Delay    network_delay                                   ;
 		size_t         trace_sz                                        = 0                ;
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
+		::string       remote_admin_dir                                ;
 		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
 		Backend        backends[+BackendTag::N]                        ;

@@ -11,8 +11,8 @@ if getattr(sys,'reading_makefiles',False) :
 
 	lmake.sources = ('Lmakefile.py',)
 
-	lmake.local_admin_dir  = 'LMAKE_LOCAL'
-	lmake.remote_admin_dir = 'LMAKE_REMOTE'
+	lmake.config.local_admin_dir  = 'LMAKE_LOCAL'
+	lmake.config.remote_admin_dir = 'LMAKE_REMOTE'
 
 	class Test(lmake.Rule) :
 		target = 'test'

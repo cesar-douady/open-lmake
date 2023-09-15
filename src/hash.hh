@@ -20,7 +20,9 @@
 
 namespace Hash {
 
-	using FileTag = Disk::FileTag ;
+	using Access   = Disk::Access   ;
+	using Accesses = Disk::Accesses ;
+	using FileTag  = Disk::FileTag  ;
 
 	struct _Md5 ;
 	struct _Xxh ;
@@ -59,16 +61,29 @@ namespace Hash {
 		/**/               Crc( ::string const& file_name , Algo ) ;
 		// accesses
 	public :
-		constexpr bool              operator== (Crc const& other) const { return +*this== +other                                          ; }
-		constexpr ::strong_ordering operator<=>(Crc const& other) const { return +*this<=>+other                                          ; }
-		constexpr uint64_t          operator+  (                ) const { return  _val                                                    ; }
-		constexpr bool              operator!  (                ) const { return !+*this                                                  ; }
-		constexpr bool              valid      (                ) const { return +*this>=+CrcSpecial::Valid                               ; }
-		/**/      void              clear      (                )       { *this = Crc()                                                   ; }
+		constexpr bool              operator== (Crc const& other) const { return +*this== +other            ; }
+		constexpr ::strong_ordering operator<=>(Crc const& other) const { return +*this<=>+other            ; }
+		constexpr uint64_t          operator+  (                ) const { return  _val                      ; }
+		constexpr bool              operator!  (                ) const { return !+*this                    ; }
+		constexpr bool              valid      (                ) const { return +*this>=+CrcSpecial::Valid ; }
+		/**/      void              clear      (                )       { *this = Crc()                     ; }
+		constexpr bool              is_lnk     (                ) const { return _val & uint64_t(1)         ; }
 		// services
-		bool match(Crc other) const {
+		bool match( Crc other , Accesses a=Accesses::All ) const {
+			if ( !a                         ) return true  ;                   // dont even care about validity if there was no access at all
 			if ( !valid() || !other.valid() ) return false ;                   // Unknown & Err never match as they cannot be guaranteed
-			uint64_t diff = +*this ^ +other ;
+			uint64_t t = +*this ;
+			uint64_t o = +other ;
+			if (!a[Access::Stat]) {
+				if      (!a[Access::Lnk]) { if (*this==None) t = ~uint64_t(0) ; if (other==None) o = ~uint64_t(0) ; } // if no stat & no lnk accesses, then no file is like a lnk
+				else if (!a[Access::Reg]) { if (*this==None) t = ~uint64_t(1) ; if (other==None) o = ~uint64_t(1) ; } // if no stat & no reg accesses, then no file is like a reg
+			}
+			// XXX : suppress this test on Stat when there is a working paradigm with pyc files (python stat the py and accesses the pyc, but actually needs the py semantic)
+			if (!a[Access::Stat]) {
+				if (!a[Access::Lnk]) { if (  is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if (  other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no lnk access, ignore lnk value
+				if (!a[Access::Reg]) { if ( !is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if ( !other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no reg access, ignore reg value
+			}
+			uint64_t diff = t ^ o ;
 			if (!diff          ) return true  ;                                           // crc are identical
 			if ( diff & ChkMsk ) return false ;                                           // crc are different
 			fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;

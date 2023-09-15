@@ -12,6 +12,8 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+*4 ensure compilation is ok with no ptrace if libseccomp is not available
+	- check it is ok on centos7
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -21,6 +23,13 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+*2 change "new" into "changed"
+	- job.cc:1284
+	- unit tests
+	- doc
+*1 add tmp space management in local (like cpu & mem)
+	- and put in place a log scale for cpu/mem/tmp
+	- document
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -51,23 +60,22 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* put lnk/reg in crc
-	- provide a match(access) method
-	- suppress is_lnk from nodes
-* split utils.hh into several smaller files in utils directory
-* implement class path_?? (x, n or s)
-	- semantic : path w & w/o / at beginning and end
-	- implement mk_lcl, mk_glb, mk_rel, mk_abs, ...
-	- inherit from ::string
-	- s means w/ /, n means w/o /, x means w/ or w/o /
-	- no actual disk access
+* make a class GenericBackend
+	- as a base class for LocalBackend and SlurmBackend
+*3 use the paradignm of auto [a,b] = object to auto serialize aggregates
 * add a warning when ids reach 15/16 of their limits
-* use the paradignm of auto [a,b] = object to suppress the need for the list of fields in serdes
 ! track disk accesses from server
 	- allow direct read of makefiles
 		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
 	- allow check that dynamic attributes only access what they are allowed to access
 ! find a use case to ensure dates are correctly handled with NFS
+? split utils.hh into several smaller files in utils directory
+? implement class path_?? (x, n or s) in path.hh
+	- semantic : path w/ & w/o / at beginning and end
+	- implement mk_lcl, mk_glb, mk_rel, mk_abs, ...
+	- inherit from ::string
+	- s means w/ /, n means w/o /, x means w/ or w/o /
+	- no actual disk access
 
 ****************************************************************************************************
 * FEATURES (not implemented and can work without)
@@ -84,7 +92,6 @@ items :
 ! record deps during attribute computation
 	- when dynamic
 ! implement slurm interface
-	- and implement lmake -l (--local) to force local backend for all jobs
 	- implement job postlude
 * implement a ref/check mechanism
 	- record a map file:crc under git
@@ -136,11 +143,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* supress dependencies to directory of existing files
-	- this is already the case with lnk_support=Full
-	- these are implied by Uphill
+* make cmd_need_deps a field of RuleData rather than an access method
+* optimize case where depend ask for no dependencies
+	- specially if verbose
+	- avoid waiting for a prectible (empty) answer
 * gprof
-* get rid of libseccomp
 * get rid of pycxx
 ! manage HUGE pages in store
 	- does not work straight forward

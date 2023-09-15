@@ -50,38 +50,38 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::NoStat      , { .short_name=char(::toupper(TFlagChars[+TFlag::Stat     ])) , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
 	,	{ Flag::NoWrite     , { .short_name=char(::toupper(TFlagChars[+TFlag::Write    ])) , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv } ;
-	bool              unlink    = false              ;
-	bool              no_follow = false              ;
-	TFlags            neg_flags ;
-	TFlags            pos_flags ;
+	CmdLine<Key,Flag> cmd_line   { syntax,argc,argv } ;
+	bool              unlink     = false              ;
+	bool              no_follow  = false              ;
+	TFlags            neg_tflags ;
+	TFlags            pos_tflags ;
 	//
 	if (cmd_line.flags[Flag::Unlink  ]) unlink    = true ;
 	if (cmd_line.flags[Flag::NoFollow]) no_follow = true ;
 	//
-	if (cmd_line.flags[Flag::Crc        ]) pos_flags |= TFlag::Crc       ;
-	if (cmd_line.flags[Flag::Dep        ]) pos_flags |= TFlag::Dep       ;
-	if (cmd_line.flags[Flag::Essential  ]) pos_flags |= TFlag::Essential ;
-	if (cmd_line.flags[Flag::Phony      ]) pos_flags |= TFlag::Phony     ;
-	if (cmd_line.flags[Flag::SourceOk   ]) pos_flags |= TFlag::SourceOk  ;
-	if (cmd_line.flags[Flag::Stat       ]) pos_flags |= TFlag::Stat      ;
-	if (cmd_line.flags[Flag::Write      ]) pos_flags |= TFlag::Write     ;
+	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= TFlag::Crc       ;
+	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= TFlag::Dep       ;
+	if (cmd_line.flags[Flag::Essential  ]) pos_tflags |= TFlag::Essential ;
+	if (cmd_line.flags[Flag::Phony      ]) pos_tflags |= TFlag::Phony     ;
+	if (cmd_line.flags[Flag::SourceOk   ]) pos_tflags |= TFlag::SourceOk  ;
+	if (cmd_line.flags[Flag::Stat       ]) pos_tflags |= TFlag::Stat      ;
+	if (cmd_line.flags[Flag::Write      ]) pos_tflags |= TFlag::Write     ;
 	//
-	if (cmd_line.flags[Flag::NoCrc      ]) neg_flags |= TFlag::Crc       ;
-	if (cmd_line.flags[Flag::NoDep      ]) neg_flags |= TFlag::Dep       ;
-	if (cmd_line.flags[Flag::NoEssential]) neg_flags |= TFlag::Essential ;
-	if (cmd_line.flags[Flag::NoPhony    ]) neg_flags |= TFlag::Phony     ;
-	if (cmd_line.flags[Flag::NoSourceOk ]) neg_flags |= TFlag::SourceOk  ;
-	if (cmd_line.flags[Flag::NoStat     ]) neg_flags |= TFlag::Stat      ;
-	if (cmd_line.flags[Flag::NoWrite    ]) neg_flags |= TFlag::Write     ;
+	if (cmd_line.flags[Flag::NoCrc      ]) neg_tflags |= TFlag::Crc       ;
+	if (cmd_line.flags[Flag::NoDep      ]) neg_tflags |= TFlag::Dep       ;
+	if (cmd_line.flags[Flag::NoEssential]) neg_tflags |= TFlag::Essential ;
+	if (cmd_line.flags[Flag::NoPhony    ]) neg_tflags |= TFlag::Phony     ;
+	if (cmd_line.flags[Flag::NoSourceOk ]) neg_tflags |= TFlag::SourceOk  ;
+	if (cmd_line.flags[Flag::NoStat     ]) neg_tflags |= TFlag::Stat      ;
+	if (cmd_line.flags[Flag::NoWrite    ]) neg_tflags |= TFlag::Write     ;
 	//
-	if ( +(neg_flags&pos_flags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_flags&pos_flags)) ;
-	if ( unlink && (+neg_flags||+pos_flags) ) syntax.usage(          "cannot unlink and set/reset flags"s                               ) ;
+	if ( +(neg_tflags&pos_tflags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
+	if ( unlink && (+neg_tflags||+pos_tflags) ) syntax.usage(          "cannot unlink and set/reset flags"s                                 ) ;
 	//
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access
 	,	::move(cmd_line.args)
-	,	{.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink}
+	,	{.write=!unlink,.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.unlink=unlink}
 	,	no_follow
 	,	"ltarget"
 	) ) ;

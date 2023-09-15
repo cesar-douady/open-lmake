@@ -52,7 +52,7 @@ namespace Engine {
 			UNode        un  { t      } ;
 			FileInfoDate fid { tn     } ;
 			t .mk_src() ;
-			un.refresh( fid.tag==FileTag::Lnk , Crc(tn,g_config.hash_algo) , fid.date ) ;
+			un.refresh( Crc(tn,g_config.hash_algo) , fid.date ) ;
 			un->actual_job_tgt->status = Status::Frozen ;
 		} else {
 			t.mk_no_src() ;
@@ -174,13 +174,13 @@ namespace Engine {
 			Dep const& dep = job->deps[d] ;
 			bool       cdp = d  >0                && dep           .parallel ;
 			bool       ndp = d+1<job->deps.size() && job->deps[d+1].parallel ;
-			::string dep_key = dep.flags[DFlag::Static] && !rule->create_match_attrs.spec.full_dynamic ? rule->create_match_attrs.spec.deps[d].first : ""s ;
-			::string pfx     = to_string( dep.flags_str() ,' ', ::setw(w) , dep_key ,' ')                                                                  ;
+			::string dep_key = dep.dflags[DFlag::Static] && !rule->create_match_attrs.spec.full_dynamic ? rule->create_match_attrs.spec.deps[d].first : ""s ;
+			::string pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ::setw(w) , dep_key ,' ')                                                                  ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
 			else                     pfx.push_back('\\') ;
-			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.flags[DFlag::Required])|hide , pfx , dep , lvl+1 ) ;
+			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[DFlag::Required])|hide , pfx , dep , lvl+1 ) ;
 		}
 	}
 
@@ -249,16 +249,34 @@ namespace Engine {
 							case ReqKey::ExecScript : {
 								if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
 								::string abs_cwd = *g_root_dir ; if (!report_start.start.cwd_s.empty()) { append_to_string(abs_cwd,'/',report_start.start.cwd_s) ; abs_cwd.pop_back() ; }
-								::string script = "exec env -i\\\n" ;
-								for( auto const& [k,v] : report_start.start.env ) append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,report_start.start.local_mrkr,abs_cwd)),"\\\n") ;
+								::string script = "exec env -i \\\n" ;
+								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
+								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
+								append_to_string( script , "\tSMALL_ID="          , to_string   (report_start.start.small_id  ) , " \\\n" ) ;
+								append_to_string( script , "\tLMAKE_AUTODEP_ENV=" , "\"$LMAKE_AUTODEP_ENV\""                    , " \\\n" ) ;
+								switch (report_start.start.method) {
+									case AutodepMethod::LdAudit   : append_to_string( script , "\tLD_AUDIT="   , "\"$LD_AUDIT\""   , " \\\n" ) ; break ;
+									case AutodepMethod::LdPreload : append_to_string( script , "\tLD_PRELOAD=" , "\"$LD_PRELOAD\"" , " \\\n" ) ; break ;
+									default : ;
+								}
+								bool seen_tmp_dir = false ;
+								for( auto const& [k,v] : report_start.start.env ) {
+									if (k=="TMPDIR") {
+										if (report_start.start.keep_tmp) continue ;
+										seen_tmp_dir = true ;
+									}
+									if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                                        ," \\\n") ;
+									else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,report_start.start.local_mrkr,abs_cwd))," \\\n") ;
+								}
 								//
-								append_to_string( script , "\tTMPDIR="      , mk_shell_str(report_start.start.job_tmp_dir) , "\\\n" ) ;
-								append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir                   ) , "\\\n" ) ;
-								append_to_string( script , "\tSEQUENCE_ID=" , to_string   (report_start.pre_start.seq_id ) , "\\\n" ) ;
-								append_to_string( script , "\tSMALL_ID="    , to_string   (report_start.start.small_id   ) , "\\\n" ) ;
+								if (!seen_tmp_dir) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(report_start.start.job_tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
 								//
 								for( ::string const& c : report_start.start.interpreter ) append_to_string(script,      mk_shell_str(c                     ),' ') ;
 								/**/                                                      append_to_string(script,"-c ",mk_shell_str(report_start.start.cmd)    ) ;
+								//
+								if (!report_start.start.stdout.empty()) append_to_string(script," > ",mk_shell_str(report_start.start.stdout)) ;
+								if (!report_start.start.stdin .empty()) append_to_string(script," < ",mk_shell_str(report_start.start.stdin )) ;
+								else                                    append_to_string(script," < /dev/null"                               ) ;
 								audit( fd , ro , Color::None , 0 , script ) ;
 							} break ;
 							case ReqKey::Script : {
@@ -286,10 +304,11 @@ namespace Engine {
 								audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
 							break ;
 							case ReqKey::Info : {
-								int      ws       = digest.wstatus                                                                                                                     ;
-								::string rc       = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s  ;
-								::string ids      = to_string( "job=",report_start.pre_start.job , " , seq=",report_start.pre_start.seq_id , " , small=",report_start.start.small_id ) ;
-								bool     has_host = !report_start.pre_start.host.empty()                                                                                               ;
+								int      ws       = digest.wstatus                                                                                                                    ;
+								::string rc       = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s ;
+								::string ids      = to_string( "job=",report_start.pre_start.job , " , small=",report_start.start.small_id )                                          ;
+								bool     has_host = !report_start.pre_start.host.empty()                                                                                              ;
+								if (report_start.pre_start.seq_id) append_to_string(ids," , seq=",report_start.pre_start.seq_id) ; // there may be no seq_id if job hit the cache
 								//
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl ) ;
 								if (has_start) {
@@ -309,10 +328,10 @@ namespace Engine {
 									size_t              cwd_sz = rs.start.cwd_s.size()                                                    ;
 									::string            bem    = rs.backend_msg.empty() ? ::string() : to_string(" (",rs.backend_msg,')') ;
 									//
-									audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag),bem                    ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                  ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                 ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str(),'-',rs.submit_attrs.pressure.short_str()) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag),bem                      ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                    ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                   ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str()," - ",rs.submit_attrs.pressure.short_str()) ) ;
 									//
 									if ( rs.submit_attrs.live_out        ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out       : true"                              ) ) ;
 									if (!rs.start.chroot.empty()         ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot         : ",rs.start.chroot                  ) ) ;
@@ -387,12 +406,12 @@ namespace Engine {
 							bool     m          = stfs[TFlag::Match]                                     ;
 							::string flags_str  ;
 							::string target_key = ti==Rule::NoVar ? unexpected : rule->targets[ti].first ;
-							flags_str += m                      ? '-'                : '#'                ;
-							flags_str += td.crc==Crc::None      ? '!'                : '-'                ;
-							flags_str += +(td.dfs&AccessDFlags) ? (td.write?'U':'R') : (td.write?'W':'-') ;
-							flags_str += stfs[TFlag::Star]      ? '*'                : '-'                ;
+							flags_str += m                 ? '-'                : '#'                ;
+							flags_str += td.crc==Crc::None ? '!'                : '-'                ;
+							flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
+							flags_str += stfs[TFlag::Star] ? '*'                : '-'                ;
 							flags_str += ' ' ;
-							for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ ) flags_str += td.tfs[tf]?TFlagChars[+tf]:'-' ;
+							for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TFlagChars[+tf]:'-' ;
 							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 						}
 					}

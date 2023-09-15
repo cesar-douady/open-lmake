@@ -42,33 +42,27 @@ namespace Engine {
 	// Store
 	//
 
-	SeqId     * g_seq_id           = nullptr            ;
-	EngineStore g_store            { true/*writable*/ } ;
-	Config    & g_config           = g_store.config     ;
-	::string  * g_local_admin_dir  = nullptr            ; bool g_has_local_admin_dir  = false ;
-	::string  * g_remote_admin_dir = nullptr            ; bool g_has_remote_admin_dir = false ;
+	SeqId     * g_seq_id = nullptr            ;
+	EngineStore g_store  { true/*writable*/ } ;
+	Config      g_config ;
 
 	void EngineStore::_s_init_config() {
-		try         { g_config = deserialize<Config>(IFStream(*g_local_admin_dir+"/store/config"s)) ; }
-		catch (...) { return ;                                                                        }
+		try         { g_config = deserialize<Config>(IFStream(AdminDir+"/config_store"s)) ; }
+		catch (...) { return ;                                                              }
 		if (!( g_config.db_version.major==DbVersion.major && g_config.db_version.minor<=DbVersion.minor ))
 			throw to_string( "data base version mismatch : expected : " , DbVersion.major,'.',DbVersion.minor , " found : " , g_config.db_version.major,'.',g_config.db_version.minor , '\n' ) ;
 	}
 
 	void EngineStore::_s_init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",ProcessDate::s_now()) ;
-		::string dir      = *g_local_admin_dir+"/store" ;
-		bool     writable = g_store.writable            ;
+		::string dir      = g_config.local_admin_dir+"/store" ;
+		bool     writable = g_store.writable                  ;
 		//
 		make_dir(dir) ;
 		// jobs
 		g_store.job_file         .init( dir+"/job"          , writable ) ;
 		g_store.deps_file        .init( dir+"/deps"         , writable ) ;
 		g_store.star_targets_file.init( dir+"/star_targets" , writable ) ;
-		if (writable) {
-			g_seq_id = &g_store.job_file.hdr().seq_id ;
-			if (!*g_seq_id) *g_seq_id = 1 ;                                  // avoid 0 (when store is brand new) to decrease possible confusion
-		}
 		// nodes
 		g_store.node_idx_file    .init( dir+"/node_idx"     , writable ) ;
 		g_store.node_data_file   .init( dir+"/node_data"    , writable ) ;
@@ -79,6 +73,11 @@ namespace Engine {
 		g_store.rule_tgts_file   .init( dir+"/rule_tgts"    , writable ) ;
 		// commons
 		g_store.name_file        .init( dir+"/name"         , writable ) ;
+		// misc
+		if (writable) {
+			g_seq_id = &g_store.job_file.hdr().seq_id ;
+			if (!*g_seq_id) *g_seq_id = 1 ;                                    // avoid 0 (when store is brand new) to decrease possible confusion
+		}
 		// memory
 		g_store.sfxs.init(New) ;
 		g_store.pfxs.init(New) ;
@@ -108,16 +107,20 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N ) if (new_config.backends[+t].addr!=old_config.backends[+t].addr) return true  ;
 		/**/                                                                                                return false ;
 	}
-	Config/*old_config*/ EngineStore::_s_set_config(Config&& new_config) {
-		Config   old_config  = g_config                           ;
-		::string config_file = *g_local_admin_dir+"/store/config" ;
+	void EngineStore::_s_set_config(Config&& new_config) {
+		if ( !g_config.local_admin_dir.empty() && new_config.local_admin_dir!=g_config.local_admin_dir ) {
+			if ( ::rename( g_config.local_admin_dir.c_str() , new_config.local_admin_dir.c_str() ) != 0 )
+				// XXX : implement it
+				throw to_string("physically moving local admin dir from ",g_config.local_admin_dir," to ",new_config.local_admin_dir," not yet implemented, please clean repository") ;
+		}
 		g_config            = ::move(new_config) ;
 		g_config.db_version = DbVersion          ;
-		serialize( OFStream(dir_guard(config_file)) , g_config ) ;
+		serialize( OFStream(dir_guard(AdminDir+"/config_store"s)) , g_config ) ;
 		{	OFStream config_stream{AdminDir+"/config"s} ;
 			config_stream << g_config.pretty_str() ;
 		}
-		return old_config ;
+		make_dir( to_string(g_config.local_admin_dir,"/outputs") , true/*unlink_ok*/ ) ;
+		make_dir( AdminDir+"/job_keep_tmp"s                      , true/*unlink_ok*/ ) ;
 	}
 
 	void EngineStore::_s_diff_config(Config const& old_config) {
@@ -128,65 +131,20 @@ namespace Engine {
 		else if ( g_config.path_max      >  old_config.path_max      ) s_invalidate_match()                     ; // .
 	}
 
-	void _keep_dir( const char* name , ::string*& g_dir , bool& g_has_dir ) {
-		::string dir{read_lnk(to_string(AdminDir,'/',name))} ;
-		if ((g_has_dir=!dir.empty())) { SWEAR(!is_lcl(dir)) ; g_dir = new ::string{mk_glb(dir,AdminDir+"/"s)} ; }
-		else                          {                       g_dir = new ::string{AdminDir                 } ; }
-	}
-	void _keep_dirs() {
-		_keep_dir( "local"  , g_local_admin_dir  , g_has_local_admin_dir  ) ;
-		_keep_dir( "remote" , g_remote_admin_dir , g_has_remote_admin_dir ) ;
-	}
-
-	void _new_sub_dir( const char* name , const char* sub_name , ::string const& g_dir , bool g_has_dir ) {
-		::string admin_dir = to_string(AdminDir,'/',sub_name) ;
-		if (g_has_dir) {
-			unlink  ( admin_dir                                 ) ;
-			lnk     ( admin_dir , to_string(name ,'/',sub_name) ) ;
-			make_dir(             to_string(g_dir,'/',sub_name) ) ;
-		} else if (!is_dir(admin_dir)) {
-			make_dir( admin_dir , true/*unlink_ok*/ ) ;
-		}
-	}
-	void _new_dir( const char* name , ::string*& g_dir , bool& g_has_dir , ::string const& dir ) {
-		::string admin_dir = to_string(AdminDir,'/',name) ;
-		::unlink(admin_dir.c_str()) ;
-		g_has_dir = !dir.empty() ;
-		if (g_has_dir) {
-			g_dir = new ::string{dir} ;
-			lnk( admin_dir , mk_lcl(dir,AdminDir+"/"s) ) ;
-			make_dir(dir) ;
-		} else {
-			g_dir = new ::string{AdminDir} ;
-		}
-	}
-	void _new_dirs( ::string const& local_admin_dir , ::string const& remote_admin_dir ) {
-		_new_dir    ( "local"                ,  g_local_admin_dir  , g_has_local_admin_dir  , local_admin_dir  ) ;
-		_new_sub_dir( "local"  , "outputs"   , *g_local_admin_dir  , g_has_local_admin_dir                     ) ;
-		_new_sub_dir( "local"  , "store"     , *g_local_admin_dir  , g_has_local_admin_dir                     ) ;
-		_new_dir    ( "remote"               ,  g_remote_admin_dir , g_has_remote_admin_dir , remote_admin_dir ) ;
-		_new_sub_dir( "remote" , "job_tmp"   , *g_remote_admin_dir , g_has_remote_admin_dir                    ) ;
-		_new_sub_dir( "remote" , "job_trace" , *g_remote_admin_dir , g_has_remote_admin_dir                    ) ;
-		make_dir(AdminDir+"/job_keep_tmp"s) ;
-	}
-
 	void EngineStore::s_keep_config(bool rescue) {
-		_keep_dirs        (      ) ;
 		_s_init_config    (      ) ;
 		g_config.open     (      ) ;
 		_s_init_srcs_rules(rescue) ;
 	}
 
-	void EngineStore::s_keep_makefiles() {}
-
-	void EngineStore::s_new_config( ::string const& local_admin_dir , ::string const& remote_admin_dir , Config&& config , bool rescue ) {
-		Trace trace("s_new_config",ProcessDate::s_now()) ;
-		/**/                _new_dirs         ( local_admin_dir , remote_admin_dir ) ;
-		/**/                _s_init_config    (                                    ) ;
-		Config old_config = _s_set_config     ( ::move(config)                     ) ;
+	void EngineStore::s_new_config( Config&& config , bool rescue ) {
+		Trace trace("s_new_config",ProcessDate::s_now(),STR(rescue)) ;
+		_s_init_config() ;
+		Config old_config = g_config ;
+		_s_set_config(::move(config)) ;
 		g_config.open() ;
-		/**/                _s_init_srcs_rules( rescue                             ) ;
-		/**/                _s_diff_config    ( old_config                         ) ;
+		_s_init_srcs_rules(rescue) ;
+		_s_diff_config(old_config) ;
 		trace("done",ProcessDate::s_now()) ;
 	}
 

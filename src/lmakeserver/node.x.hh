@@ -5,6 +5,8 @@
 
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
+#include "rpc_job.hh"
+
 #ifdef STRUCT_DECL
 namespace Engine {
 
@@ -44,15 +46,18 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx         = -1           ;
-		static constexpr DFlags  SpecialDFlags = StaticDFlags ;
+		static constexpr RuleIdx NoIdx = -1 ;
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
 		Node(::string const& n) ;
 		// accesses
-		Bool3 manual_ok(FileInfoDate const&) const ;
-		Bool3 manual_ok(                   ) const { return manual_ok(FileInfoDate(name())) ; } // ensure we gather the correct date with NFS
+		Bool3 manual_ok        (         FileInfoDate const& ) const ;
+		Bool3 manual_ok_refresh( Req   , FileInfoDate const& ) ;                                                            // refresh date if file was updated but steady
+		Bool3 manual_ok_refresh( Job   , FileInfoDate const& ) ;                                                            // refresh date if file was updated but steady
+		Bool3 manual_ok        (                             ) const { return manual_ok        (  FileInfoDate(name())) ; }
+		Bool3 manual_ok_refresh( Req r                       )       { return manual_ok_refresh(r,FileInfoDate(name())) ; }
+		Bool3 manual_ok_refresh( Job j                       )       { return manual_ok_refresh(j,FileInfoDate(name())) ; }
 		//
 		bool           has_req   (Req           ) const ;
 		ReqInfo const& c_req_info(Req           ) const ;
@@ -77,7 +82,7 @@ namespace Engine {
 		void set_buildable( Req , DepDepth lvl=0               ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& ri , CoarseDelay pressure ) const ;
 		//
-		void set_special( Special , ::vmap<Node,DFlags> const& deps={} ) ;
+		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , DFlags=StaticDFlags , bool parallel=false ) ;
 		//
 		ReqInfo const& make( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
 		ReqInfo const& make( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
@@ -114,8 +119,8 @@ namespace Engine {
 		NodeData const* operator->() const { return &**this ; }
 		NodeData      * operator->()       { return &**this ; }
 		// services
-		bool/*modified*/ refresh( bool is_lnk , Crc , Date ) ;
-		void             refresh(                          ) ;
+		bool/*modified*/ refresh( Crc , Date ) ;
+		void             refresh(            ) ;
 		//
 	} ;
 
@@ -154,7 +159,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps(::vmap<Node,DFlags> const&) ;
+		Deps( ::vmap  <Node,pair<Accesses,DFlags>> const& ,                           bool parallel=false ) ;
+		Deps( ::vmap  <Node,              DFlags > const& , Accesses={} ,             bool parallel=false ) ;
+		Deps( ::vector<Node                      > const& , Accesses={} , DFlags={} , bool parallel=false ) ;
 	} ;
 
 	//
@@ -166,11 +173,14 @@ namespace Engine {
 		using Base = DepDigestBase<Node> ;
 		// cxtors & casts
 		using Base::Base ;
+		// accesses
+		::string accesses_str() const ;
+		::string dflags_str  () const ;
 		// services
-		bool crc_ok       () const ;
-		void acquire_crc  () ;
-		::string flags_str() const ;
+		bool up_to_date () const ;
+		void acquire_crc() ;
 	} ;
+	static_assert(sizeof(Dep)==16) ;
 
 }
 #endif
@@ -221,7 +231,6 @@ namespace Engine {
 			//	match_gen                                                      // handled by shared nodes
 			//	buildable                                                      // handled by shared nodes
 			&&	(SWEAR(!uphill                 ),true)                         // if no job _tgts, it cannot be uphill
-			&&	(SWEAR(!is_lnk                 ),true)                         // if crc is None, it cannot be a link
 			&&	!multi                                                         // exceptional, does not justify to double the number of shared nodes
 			&&	!external
 			;
@@ -250,14 +259,14 @@ namespace Engine {
 		// services
 		Date db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Date() ; }
 		//
-		bool read(DFlags dfs) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in dfs
-			if (crc==Crc::None  ) return false               ;                 // file does not exist, cannot perceive difference
-			if (dfs[DFlag::Stat]) return true                ;                 // if file exists, stat is different
-			if (is_lnk          ) return dfs[DFlag::Lnk]     ;
-			if (!crc            ) return +(dfs&AccessDFlags) ;                 // dont know if file is a link, any access may have perceived a difference
-			/**/                  return dfs[DFlag::Reg]     ;
-			return +dfs ;
+		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in dfs
+			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference
+			if (a[Access::Stat]) return true           ;                       // if file exists, stat is different
+			if (crc.is_lnk()   ) return a[Access::Lnk] ;
+			if (+crc           ) return a[Access::Reg] ;
+			else                 return +a             ;                       // dont know if file is a link, any access may have perceived a difference
 		}
+		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
 		// data
 		Date     date                    ;                  // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
@@ -268,7 +277,6 @@ namespace Engine {
 		MatchGen match_gen:NMatchGenBits = 0              ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		bool     uphill   :1             = false          ; //       1 bit ,         if true <=> node is produced by uphill
 		Bool3    buildable:2             = Bool3::Unknown ; //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
-		bool     is_lnk   :1             = false          ; //       1 bit ,         if true <=> node is a link (in particular, false if crc==None or Unknown)
 		bool     multi    :1             = false          ; //       1 bit ,         if true <=> several jobs generate this node
 		bool     unlinked :1             = false          ; //       1 bit ,         if true <=> node as been unlinked by another rule
 		bool     external :1             = false          ; //       1 bit ,         if true <=> node is outside repo
@@ -413,9 +421,9 @@ namespace Engine {
 	inline void UNode::refresh() {
 		FileInfoDate fid{name()} ;
 		switch (manual_ok(fid)) {
-			case No    : refresh( false/*is_lnk*/ , Crc::Unknown , fid.date          ) ; break ;
-			case Maybe : refresh( false/*is_lnk*/ , Crc::None    , DiskDate::s_now() ) ; break ;
-			case Yes   :                                                                 break ;
+			case No    : refresh( {}        , fid.date          ) ; break ;
+			case Maybe : refresh( Crc::None , DiskDate::s_now() ) ; break ;
+			case Yes   :                                            break ;
 			default : FAIL(fid) ;
 		}
 	}
@@ -442,9 +450,21 @@ namespace Engine {
 	// Deps
 	//
 
-	inline Deps::Deps(::vmap<Node,DFlags> const& static_deps) {
+	inline Deps::Deps( ::vmap<Node,pair<Accesses,DFlags>> const& static_deps , bool p ) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,f] : static_deps ) { SWEAR(f[DFlag::Static]) ; ds.emplace_back( d , f , true/*parallel*/ ) ; }
+		for( auto const& [d,adf] : static_deps ) ds.emplace_back( d , adf.first , adf.second , p ) ;
+		*this = Deps(ds) ;
+	}
+
+	inline Deps::Deps( ::vmap<Node,DFlags> const& static_deps , Accesses a , bool p ) {
+		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
+		for( auto const& [d,df] : static_deps ) { ds.emplace_back( d , a , df , p ) ; }
+		*this = Deps(ds) ;
+	}
+
+	inline Deps::Deps( ::vector<Node> const& deps , Accesses a , DFlags df , bool p ) {
+		::vector<Dep> ds ; ds.reserve(deps.size()) ;
+		for( auto const& d : deps ) ds.emplace_back( d , a , df , p ) ;
 		*this = Deps(ds) ;
 	}
 
@@ -452,17 +472,12 @@ namespace Engine {
 	// Dep
 	//
 
-	inline bool Dep::crc_ok() const {
-		switch (is_date) {
-			case No    : return crc().match((*this)->crc) ;
-			case Yes   : return false                     ;
-			case Maybe : return true                      ;                    // dep was not accessed, always ok
-			default : FAIL(is_date) ;
-		}
+	inline bool Dep::up_to_date() const {
+		return !is_date && crc().match((*this)->crc,accesses) ;
 	}
 
 	inline void Dep::acquire_crc() {
-		if (is_date!=Yes        ) {                  return ; }                // no need
+		if (!is_date            ) {                  return ; }                // no need
 		if (!date()             ) { crc(Crc::None) ; return ; }                // no date means access did not find a file, crc is None, easy
 		if (date()>(*this)->date) {                  return ; }                // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
 		if (date()<(*this)->date) { crc({}       ) ; return ; }                // too late, file has changed

@@ -34,6 +34,7 @@ namespace Hash {
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
+				_val &= ~uint64_t(1) ;
 			} break ;
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(file_name) ;
@@ -44,10 +45,10 @@ namespace Hash {
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
+				_val |= uint64_t(1) ;
 			} break ;
 			case FileTag::None :
-				*this = Crc::None ;
-			break ;
+			case FileTag::Dir  : *this = Crc::None ; break ;                   // directories are deemed not to exist
 			default : ;
 		}
 	}

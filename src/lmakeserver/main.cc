@@ -377,7 +377,7 @@ int main( int argc , char** argv ) {
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                        // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_sz = g_config.trace_sz ;
-	if (g_has_local_admin_dir) Trace::s_new_trace_file(to_string( *g_local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
+	Trace::s_new_trace_file(to_string( g_config.local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
 	//
 	static ::jthread reqs_thread{ reqs_thread_func , int_fd } ;
 	//

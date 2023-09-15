@@ -16,6 +16,8 @@
 #include "trace.hh"
 
 namespace Engine {
+	using Access       = Disk::Access       ;
+	using Accesses     = Disk::Accesses     ;
 	using FileInfo     = Disk::FileInfo     ;
 	using FileInfoDate = Disk::FileInfoDate ;
 	using FileTag      = Disk::FileTag      ;

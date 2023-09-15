@@ -4,10 +4,13 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
+#include "disk.hh"
 
 #include "autodep_support.hh"
 
 #include "rpc_job.hh"
+
+using namespace Disk ;
 
 ENUM(Key,None)
 ENUM(Flag
@@ -32,15 +35,15 @@ int main( int argc , char* argv[]) {
 	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv }             ;
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
-	DFlags            flags     = DfltDFlags                    ;
-	if (cmd_line.flags[Flag::Critical   ]) flags |=  DFlag::Critical    ;
-	if (cmd_line.flags[Flag::Essential  ]) flags |=  DFlag::Essential   ;
-	if (cmd_line.flags[Flag::IgnoreError]) flags |=  DFlag::IgnoreError ;
-	if (cmd_line.flags[Flag::NoRequired ]) flags &= ~DFlag::Required    ;
+	DFlags            dflags    = DfltDFlags                    ;
+	if (cmd_line.flags[Flag::Critical   ]) dflags |=  DFlag::Critical    ;
+	if (cmd_line.flags[Flag::Essential  ]) dflags |=  DFlag::Essential   ;
+	if (cmd_line.flags[Flag::IgnoreError]) dflags |=  DFlag::IgnoreError ;
+	if (cmd_line.flags[Flag::NoRequired ]) dflags &= ~DFlag::Required    ;
 	//
 	if (verbose) {
-		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , flags , no_follow , "ldepend" ) ;
-		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                     ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , Accesses::All , dflags , no_follow , "ldepend" ) ;
+		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                                     ;
 		//
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
 		//
@@ -57,7 +60,7 @@ int main( int argc , char* argv[]) {
 		//
 		return err ? 1 : 0 ;
 	} else {
-		AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {.dfs=flags} , no_follow , "ldepend" ) ) ;
+		AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {.accesses=Accesses::All,.dflags=dflags} , no_follow , "ldepend" ) ) ;
 		return 0 ;
 	}
 }

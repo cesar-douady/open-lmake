@@ -38,7 +38,7 @@ int main( int argc , char* argv[] ) {
 	bool     is_remote = argv[4]=="remote"s   ; if (!is_remote) SWEAR(argv[4]=="local"s) ;
 	::string host_     = is_remote?host():""s ;
 	//
-	GatherDeps gather_deps{ New }                                                                    ;
+	GatherDeps gather_deps{ New                                                                    } ;
 	JobRpcReq req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
 	try {
 		ClientSockFd fd{service} ;
@@ -60,58 +60,43 @@ int main( int argc , char* argv[] ) {
 		catch (...) {                                                        } // if server is dead, we cant do much about it
 		return 2 ;
 	}
-
-	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
 	//
+	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
 	::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	//
-	// set g_tmp_dir before calling app_init so it does not search TMPDIR env variable
-	if (is_abs(start_info.job_tmp_dir)) g_tmp_dir = &start_info.job_tmp_dir                                                             ;
-	else                                g_tmp_dir = new ::string{to_string(start_info.autodep_env.root_dir,'/',start_info.job_tmp_dir)} ;
-	//
-	app_init() ;                                                               // safer to call app_init once we are in repo
-	Py::init() ;
-
-	Trace trace("main",service,seq_id,job) ;
-	trace("start_overhead",start_overhead) ;
-	trace(start_info) ;
-	//
-	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
-	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
-	//
 	::string cwd_    = start_info.cwd_s ;
-	::string abs_cwd = *g_root_dir      ;
+	::string abs_cwd = start_info.autodep_env.root_dir ;
 	if (!start_info.cwd_s.empty()) {
 		cwd_.pop_back() ;
 		append_to_string(abs_cwd,'/',cwd_) ;
 	}
 	::map_ss cmd_env ;
-	cmd_env["PWD"        ] =           abs_cwd              ;
-	cmd_env["ROOT_DIR"   ] =           *g_root_dir          ;
-	cmd_env["SEQUENCE_ID"] = to_string(seq_id             ) ;
-	cmd_env["SMALL_ID"   ] = to_string(start_info.small_id) ;
-	cmd_env["TMPDIR"     ] =           *g_tmp_dir           ;                  // TMPDIR is the standard environment variable to specify the temporary area
+	cmd_env["PWD"        ] = abs_cwd                         ;
+	cmd_env["ROOT_DIR"   ] = start_info.autodep_env.root_dir ;
+	cmd_env["SEQUENCE_ID"] = to_string(seq_id             )  ;
+	cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)  ;
 	for( auto const& [k,v] : start_info.env ) {
 		::string val = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
-		if (val==EnvPassMrkr) val = get_env(k) ;                               // if value is special illegal value, use value from environement (typically from slurm)
+		if ( val==EnvPassMrkr && has_env(k) ) val = get_env(k) ;               // if value is special illegal value, use value from environement (typically from slurm)
 		cmd_env[k] = ::move(val) ;
 	}
+	if ( !cmd_env.contains("TMPDIR") || start_info.keep_tmp )
+		cmd_env["TMPDIR"] = mk_abs( start_info.job_tmp_dir , start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
+	g_tmp_dir = new ::string{cmd_env["TMPDIR"]} ;
 	//
-	Fd       child_stdin  = Child::None                         ;
-	Fd       child_stdout = Child::Pipe                         ;
-	::uset_s static_deps  = mk_key_uset(start_info.static_deps) ;                           // copy to uset before moving with new_deps
-	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
-	if (!start_info.stdin.empty()) {
-		child_stdin = open_read(start_info.stdin ) ;
-		child_stdin.no_std() ;
-		DiskDate dd = file_date(start_info.stdin) ;
-		gather_deps.new_dep( start_overhead , start_info.stdin , dd , DFlag::Reg , "<stdin>" ) ;
-	}
-	if (!start_info.stdout.empty()) {
-		child_stdout = open_write(start_info.stdout) ;
-		child_stdout.no_std() ;
-		gather_deps.new_target( start_overhead , start_info.stdout , TFlags() , TFlags() , "<stdout>" ) ;
-	}
+	app_init() ;                                                               // safer to call app_init once we are in repo and once g_tmp_dir is set
+	Py::init() ;
+	//
+	Trace trace("main",service,seq_id,job) ;
+	trace("start_overhead",start_overhead) ;
+	trace("start_info"    ,start_info    ) ;
+	trace("cmd_env"       ,cmd_env       ) ;
+	//
+	try                     { unlink_inside(*g_tmp_dir) ; }                    // be certain that tmp dir is clean
+	catch (::string const&) { make_dir     (*g_tmp_dir) ; }                    // and that it exists
+	//
+	Fd child_stdin  = Child::None ;
+	Fd child_stdout = Child::Pipe ;
 	//
 	::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
 	args.emplace_back("-c"          ) ;
@@ -120,52 +105,39 @@ int main( int argc , char* argv[] ) {
 	::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 	for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 		TargetSpec const& tf = start_info.targets[t] ;
-		if (tf.flags[TFlag::Star]) target_patterns.emplace_back(tf.pattern) ;
-		else                       target_patterns.emplace_back(          ) ;
+		if (tf.tflags[TFlag::Star]) target_patterns.emplace_back(tf.pattern) ;
+		else                        target_patterns.emplace_back(          ) ;
 	}
 	//
-	::vmap_s<TargetDigest>              targets     ;
-	::vmap_s<DepDigest   >              deps        ;
-	ThreadQueue<::pair<NodeIdx,string>> crc_queue   ;
-	::string                            err_str     ;
+	::vmap_s<TargetDigest>              targets   ;
+	::vmap_s<DepDigest   >              deps      ;
+	ThreadQueue<::pair<NodeIdx,string>> crc_queue ;
+	::string                            err_str   ;
 	//
 	auto analyze = [&](bool at_end)->void {
 		trace("analyze",STR(at_end)) ;
 		NodeIdx prev_parallel_id = 0 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
-			TFlags                           tfs = UnexpectedTFlags ;
-			JobExecRpcReq::AccessInfo const& ai  = info.info        ;
-			if (!static_deps.contains(file)) {
-				for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
-					TargetSpec const& spec = start_info.targets[t] ;
-					if (spec.flags[TFlag::Star]) { if (+target_patterns[t].match(file)) { tfs = spec.flags ; break ; } }
-					else                         { if (file==spec.pattern             ) { tfs = spec.flags ; break ; } }
-				}
-				try {
-					TFlags tfs_cooked = (tfs&~ai.neg_tfs)|ai.pos_tfs ;
-					chk(tfs_cooked) ;
-					tfs = tfs_cooked ;
-				} catch(::string const& e) {
-					append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ;
-				}
-			}
-			DFlags dfs = ai.dfs ; if (!tfs[TFlag::Stat]) dfs &= ~DFlag::Stat ;
-			if ( ai.idle() && tfs[TFlag::Dep] ) {
+			JobExecRpcReq::AccessInfo const& ai = info.info   ;
+			Accesses                         a  = ai.accesses ;  if (!info.tflags[TFlag::Stat]) a &= ~Access::Stat ;
+			try                       { chk(info.tflags) ;                                               ;            }
+			catch (::string const& e) { append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ; continue ; } // dont know what to do with such an access
+			if (info.is_dep()) {
 				bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
-				DepDigest dd       { dfs , parallel }                                       ;
+				DepDigest dd       { a , ai.dflags , parallel }                             ;
 				prev_parallel_id = info.parallel_id ;
-				if (+(dfs&AccessDFlags)) {
+				if (+a) {
 					dd.date(info.file_date) ;
 					dd.garbage = file_date(file)!=info.file_date ;             // file date is not coherent from first access to end of job, we do not know what we have read
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvv
 				deps.emplace_back(file,dd) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^
-				trace("dep   ",dd,tfs,file) ;
-			} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
-				if ( !info.file_date                           ) dfs = DFlags::None ;
-				if ( ai.write && !ai.unlink && tfs[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
-				TargetDigest td{dfs,ai.write,tfs,ai.unlink} ;
+				trace("dep   ",dd,info.tflags,file) ;
+			} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
+				if ( !info.file_date                                   ) a = Accesses::None ;
+				if ( ai.write && !ai.unlink && info.tflags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				TargetDigest td{a,ai.write,info.tflags,ai.unlink} ;
 				targets.emplace_back( file , td ) ;
 				trace("target",td,info.file_date,file) ;
 			}
@@ -183,7 +155,7 @@ int main( int argc , char* argv[] ) {
 			break ;
 			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.dfs,true/*parallel*/,date) ) ;
+				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.accesses,jerr.info.dflags,true/*parallel*/,date) ) ;
 				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , host_ , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;
@@ -196,6 +168,19 @@ int main( int argc , char* argv[] ) {
 		catch (...) { return {} ; }                                            // server is dead, do as if there is no server
 		return fd ;
 	} ;
+	//
+	::uset_s static_deps = mk_key_uset(start_info.static_deps) ;
+	auto     tflags_cb   = [&](::string const& file)->TFlags {
+		if (static_deps.contains(file)) return UnexpectedTFlags ;
+		//
+		for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
+			TargetSpec const& spec = start_info.targets[t] ;
+			if (spec.tflags[TFlag::Star]) { if (+target_patterns[t].match(file)) return spec.tflags ; }
+			else                          { if (file==spec.pattern             ) return spec.tflags ; }
+		}
+		return UnexpectedTFlags ;
+	} ;
+	//
 	::string live_out_buf ;                                                    // used to store incomplete last line to have line coherent chunks
 	auto live_out_cb = [&](::string_view const& txt)->void {
 		// could be slightly optimized, but when generating live output, we have a single job, no need to optimize
@@ -208,17 +193,33 @@ int main( int argc , char* argv[] ) {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		live_out_buf = live_out_buf.substr(pos) ;
 	} ;
+	//
+	/**/                     gather_deps.server_cb    = server_cb              ;
+	/**/                     gather_deps.tflags_cb    = tflags_cb              ;
+	if (start_info.live_out) gather_deps.live_out_cb  = live_out_cb            ;
 	/**/                     gather_deps.create_group = true                   ;
 	/**/                     gather_deps.method       = start_info.method      ;
 	/**/                     gather_deps.addr         = start_info.addr        ;
 	/**/                     gather_deps.autodep_env  = start_info.autodep_env ;
-	/**/                     gather_deps.server_cb    = server_cb              ;
 	/**/                     gather_deps.timeout      = start_info.timeout     ;
 	/**/                     gather_deps.kill_sigs    = start_info.kill_sigs   ;
 	/**/                     gather_deps.chroot       = start_info.chroot      ;
 	/**/                     gather_deps.cwd          = cwd_                   ;
 	/**/                     gather_deps.env          = &cmd_env               ;
-	if (start_info.live_out) gather_deps.live_out_cb  = live_out_cb            ;
+	//
+	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
+	if (start_info.stdin.empty()) {
+		child_stdin = open_read("/dev/null") ;
+	} else {
+		child_stdin = open_read(start_info.stdin) ;
+		gather_deps.new_dep( start_overhead , start_info.stdin , file_date(start_info.stdin) , Access::Reg , {}/*dflags*/ , "<stdin>" ) ;
+	}
+	child_stdin.no_std() ;
+	if (!start_info.stdout.empty()) {
+		child_stdout = open_write(start_info.stdout) ;
+		gather_deps.new_target( start_overhead , start_info.stdout , {}/*neg_tflags*/ , {}/*pos_tflags*/ , "<stdout>" ) ;
+		child_stdout.no_std() ;
+	}
 	//
 	Date start_job = Date::s_now() ;                                                          // as late as possible before child starts
 	//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

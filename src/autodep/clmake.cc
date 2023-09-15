@@ -61,18 +61,25 @@ static ::vector_s _get_files( PyObject* args ) {
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool    verbose   = false                    ;
-	bool    no_follow = false                    ;
-	DFlags  flags     = DfltDFlags               ;
+	ssize_t  n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool     verbose   = false                    ;
+	bool     no_follow = false                    ;
+	Accesses accesses  = Accesses::All            ;
+	DFlags   dflags    = DfltDFlags               ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose"        ) ) { n_kw_args-- ; verbose   =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
+		for( Access a : Access::N )
+			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a).c_str())) {
+				n_kw_args-- ;
+				if (PyObject_IsTrue(py_v)) accesses |=  a ;
+				else                       accesses &= ~a ;
+			}
 		for( DFlag df=DFlag::HiddenMin ; df<DFlag::HiddenMax1 ; df++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) {
 				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) flags |=  df ;
-				else                       flags &= ~df ;
+				if (PyObject_IsTrue(py_v)) dflags |=  df ;
+				else                       dflags &= ~df ;
 			}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
@@ -81,7 +88,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
 	if (verbose) {
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , flags , no_follow , "depend" ) ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                            ;
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
 		PyObject* res = PyDict_New() ;
@@ -100,34 +107,34 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		}
 		return res ;
 	} else {
-		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {.dfs=flags} , no_follow , "depend" ) ) ;
+		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {.accesses=accesses,.dflags=dflags} , no_follow , "depend" ) ) ;
 		Py_RETURN_NONE ;
 	}
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool    unlink    = false                    ;
-	bool    no_follow = false                    ;
-	TFlags  neg_flags ;
-	TFlags  pos_flags ;
+	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
+	bool    unlink     = false                    ;
+	bool    no_follow  = false                    ;
+	TFlags  neg_tflags ;
+	TFlags  pos_tflags ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
 		for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
 				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) pos_flags |= tf ;
-				else                       neg_flags |= tf ;
+				if (PyObject_IsTrue(py_v)) pos_tflags |= tf ;
+				else                       neg_tflags |= tf ;
 			}
 		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
-	if ( unlink && (+neg_flags||+pos_flags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
+	if ( unlink && (+neg_tflags||+pos_tflags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	JobExecRpcReq  jerr   = JobExecRpcReq( Proc::Access , ::move(files) , {.write=!unlink,.neg_tfs=neg_flags,.pos_tfs=pos_flags,.unlink=unlink} , no_follow , "target" ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                  ;
+	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.write=!unlink,.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.unlink=unlink} , no_follow , "target" ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
 	//
 	Py_RETURN_NONE ;
 }

@@ -5,7 +5,6 @@
 
 #include "pycxx.hh"
 
-#include "hash.hh"
 #include "serialize.hh"
 
 #include "core.hh"
@@ -312,15 +311,15 @@ namespace Engine {
 				continue ;
 			}
 			VarIdx   n_unnamed  = 0                                         ;
-			DFlags   flags      = StaticDFlags                              ;
-			::string dep        = _split_flags(flags,"dep "+key,py_val)     ;
+			DFlags   df         = StaticDFlags                              ;
+			::string dep        = _split_flags(df,"dep "+key,py_val)        ;
 			::string parsed_dep = s_subst_fstr(dep,var_idxs,n_unnamed,need) ;
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
 				if (n_unnamed) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
 			}
-			rd.add_cwd( parsed_dep , flags[DFlag::Top] ) ;
-			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , flags ) ) ;
+			rd.add_cwd( parsed_dep , df[DFlag::Top] ) ;
+			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , df ) ) ;
 		}
 		if (deps.size()>Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 		return need ;
@@ -329,9 +328,8 @@ namespace Engine {
 	::vmap_s<pair_s<DFlags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
 		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
 		//
-		DFlags                   access_dflags = match.rule->cmd_need_deps() ? AccessDFlags : DFlags() ;
 		::vmap_s<pair_s<DFlags>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , ::pair( parse_fstr(ds.pattern,match) , ds.flags|access_dflags ) ) ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , ::pair( parse_fstr(ds.pattern,match) , ds.dflags ) ) ;
 		//
 		if (is_dynamic) {
 			Py::Gil   gil    ;
@@ -352,14 +350,13 @@ namespace Engine {
 						Py_DECREF(py_key_str) ;
 						throw to_string("a dep has a non str key : ",key_str) ;
 					}
-					::string key   = PyUnicode_AsUTF8(py_key)              ;
-					auto     it    = dep_idxs.find(key)                    ;
-					DFlags   flags = StaticDFlags                          ;
-					::string dep   = _split_flags(flags,"dep "+key,py_val) ;
-					match.rule->add_cwd( dep , flags[DFlag::Top] ) ;
-					flags |= access_dflags ;
-					if (it==dep_idxs.end()) { SWEAR(spec.full_dynamic                   ) ; res.emplace_back(key,::pair(dep,flags)) ;    } // if not full_dynamic, all deps must be listed in spec
-					else                    { SWEAR(res[it->second].second.first.empty()) ; res[it->second].second = ::pair(dep,flags) ; } // dep cannot be both static and dynamic
+					::string key = PyUnicode_AsUTF8(py_key)           ;
+					auto     it  = dep_idxs.find(key)                 ;
+					DFlags   df  = StaticDFlags                       ;
+					::string dep = _split_flags(df,"dep "+key,py_val) ;
+					match.rule->add_cwd( dep , df[DFlag::Top] ) ;
+					if (it==dep_idxs.end()) { SWEAR(spec.full_dynamic                   ) ; res.emplace_back(key,::pair(dep,df)) ;    } // if not full_dynamic, all deps must be listed in spec
+					else                    { SWEAR(res[it->second].second.first.empty()) ; res[it->second].second = ::pair(dep,df) ; } // dep cannot be both static and dynamic
 				}
 			}
 			Py_DECREF(py_dct) ;
@@ -768,7 +765,7 @@ namespace Engine {
 			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
 				if (targets[t].first!="<stdout>") continue ;
-				if (targets[t].second.flags[TFlag::Star]) throw "<stdout> must be a static target"s ;
+				if (targets[t].second.tflags[TFlag::Star]) throw "<stdout> must be a static target"s ;
 				stdout_idx = t ;
 				break ;
 			}
@@ -883,18 +880,18 @@ namespace Engine {
 		for( auto const& [k,tf] : targets ) {
 			TFlags        dflt_flags = DfltTFlags ;                            // flags in effect if no special user info
 			OStringStream flags      ;
-			if ( tf.is_native_star     ) dflt_flags |= TFlag::Star ;
-			if (!tf.flags[TFlag::Match]) dflt_flags |= TFlag::Dep  ;
+			if ( tf.is_native_star      ) dflt_flags |= TFlag::Star ;
+			if (!tf.tflags[TFlag::Match]) dflt_flags |= TFlag::Dep  ;
 			//
 			bool first = true ;
 			for( TFlag f=TFlag::RuleMin ; f<TFlag::RuleMax1 ; f++ ) {
-				if (tf.flags[f]==dflt_flags[f]) continue ;
+				if (tf.tflags[f]==dflt_flags[f]) continue ;
 				//
 				if (first) { flags <<" : " ; first = false ; }
 				else       { flags <<" , " ;                 }
 				//
-				if (!tf.flags[f]) flags << '-'         ;
-				/**/              flags << mk_snake(f) ;
+				if (!tf.tflags[f]) flags << '-'         ;
+				/**/               flags << mk_snake(f) ;
 			}
 			bool first_conflict = true ;
 			for( VarIdx c : tf.conflicts ) {
@@ -957,18 +954,18 @@ namespace Engine {
 			::string flags ;
 			bool     first = true ;
 			for( DFlag f=DFlag::RuleMin ; f<DFlag::RuleMax1 ; f++ ) {
-				if (ds.flags[f]==StaticDFlags[f]) continue ;
+				if (ds.dflags[f]==StaticDFlags[f]) continue ;
 				//
 				if (first) { flags += " : " ; first = false ; }
 				else       { flags += " , " ;                 }
 				//
-				if (!ds.flags[f]) flags += '-'         ;
-				/**/              flags += mk_snake(f) ;
+				if (!ds.dflags[f]) flags += '-'         ;
+				/**/               flags += mk_snake(f) ;
 			}
-			res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
+			/**/               res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
 			if (flags.empty()) res <<             patterns[k]          ;
 			else               res << ::setw(wd)<<patterns[k] << flags ;
-			res <<'\n' ;
+			/**/               res <<'\n' ;
 		}
 		return res.str() ;
 	}
@@ -1128,9 +1125,9 @@ namespace Engine {
 		{	::vector<TargetSpec> targets_ ;
 			static constexpr TFlags MatchFlags{ TFlag::Star , TFlag::Match , TFlag::Dep } ;
 			for( auto const& [k,t] : targets ) {
-				if (!t.flags[TFlag::Match]) continue ;                         // no influence on matching if not matching, only on execution
+				if (!t.tflags[TFlag::Match]) continue ;                        // no influence on matching if not matching, only on execution
 				TargetSpec t_ = t ;
-				t_.flags &= MatchFlags ;                                       // only these flags are important for matching, others are for execution only
+				t_.tflags &= MatchFlags ;                                      // only these flags are important for matching, others are for execution only
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
 			Hash::Xxh h ;

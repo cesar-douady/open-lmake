@@ -124,10 +124,10 @@ namespace Engine {
 		struct DepSpec {
 			template<IsStream S> void serdes(S& s) {
 				::serdes(s,pattern) ;
-				::serdes(s,flags  ) ;
+				::serdes(s,dflags ) ;
 			}
 			::string pattern ;
-			DFlags   flags   ;
+			DFlags   dflags  ;
 		} ;
 		// services
 		BitMap<VarCmd> init( PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
@@ -350,12 +350,12 @@ namespace Engine {
 			::serdes(s,ctx       ) ;
 		}
 		// data
-		bool             is_dynamic   = false ;
-		T                spec         ;                    // contains default values when code does not provide the necessary entries
-		BitMap<VarCmd>   need         ;
-		::string         glbs_str     ;                    // if is_dynamic <=> contains string to run to get the glbs below
-		::string         code_str     ;                    // if is_dynamic <=> contains string to compile to code object below
-		::vector<CmdIdx> ctx          ;                    // a list of stems, targets & deps, accessed by code
+		bool             is_dynamic = false ;
+		T                spec       ;                      // contains default values when code does not provide the necessary entries
+		BitMap<VarCmd>   need       ;
+		::string         glbs_str   ;                      // if is_dynamic <=> contains string to run to get the glbs below
+		::string         code_str   ;                      // if is_dynamic <=> contains string to compile to code object below
+		::vector<CmdIdx> ctx        ;                      // a list of stems, targets & deps, accessed by code
 	} ;
 	template<class T> struct Dynamic : DynamicDsk<T> {
 		using Base = DynamicDsk<T> ;
@@ -445,13 +445,13 @@ namespace Engine {
 		static constexpr VarIdx NoVar = Rule::NoVar ;
 
 		// statics
-		static bool s_sure(TFlags flags) { return !flags[TFlag::Star] || flags[TFlag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
+		static bool s_sure(TFlags tf) { return !tf[TFlag::Star] || tf[TFlag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
 		// static data
 		static size_t s_name_sz ;
 
 		// cxtors & casts
-		RuleData(                                                       ) = default ;
-		RuleData(Special                 , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
+		RuleData(                                        ) = default ;
+		RuleData( Special , ::string const& src_dir_s={} ) ;                   // src_dir in case Special is SrcDir
 		RuleData(::string_view const& str) {
 			IStringStream is{::string(str)} ;
 			serdes(static_cast<::istream&>(is)) ;
@@ -473,13 +473,13 @@ namespace Engine {
 		::string pretty_str() const ;
 
 		// accesses
-		bool   is_anti     (        ) const { return special==Special::Anti || special==Special::Uphill    ; }
-		bool   is_special  (        ) const { return special!=Special::Plain                               ; }
-		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc ; }
-		bool   is_sure     (        ) const { return special!=Special::GenericSrc                          ; } // GenericSrc targets are only buildable if file actually exists
-		bool   user_defined(        ) const { return !allow_ext                                            ; } // used to decide to print in LMAKE/rules
-		TFlags flags       (VarIdx t) const { return t==NoVar ? UnexpectedTFlags : targets[t].second.flags ; }
-		bool   sure        (VarIdx t) const { return s_sure(flags(t))                                      ; }
+		bool   is_anti     (        ) const { return special==Special::Anti || special==Special::Uphill     ; }
+		bool   is_special  (        ) const { return special!=Special::Plain                                ; }
+		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc  ; }
+		bool   is_sure     (        ) const { return special!=Special::GenericSrc                           ; } // GenericSrc targets are only buildable if file actually exists
+		bool   user_defined(        ) const { return !allow_ext                                             ; } // used to decide to print in LMAKE/rules
+		TFlags flags       (VarIdx t) const { return t==NoVar ? UnexpectedTFlags : targets[t].second.tflags ; }
+		bool   sure        (VarIdx t) const { return s_sure(flags(t))                                       ; }
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
@@ -729,10 +729,13 @@ namespace Engine {
 		switch (sz) {
 			case 1  :
 				return false ;
+			case 2  :
+				SWEAR(PySequence_Check(PyTuple_GET_ITEM(py_src,1))) ;
+				return false ;
 			case 4  :
-				SWEAR(PyUnicode_Check (PyTuple_GET_ITEM(py_src,1))) ;
+				SWEAR(PySequence_Check(PyTuple_GET_ITEM(py_src,1))) ;
 				SWEAR(PyUnicode_Check (PyTuple_GET_ITEM(py_src,2))) ;
-				SWEAR(PySequence_Check(PyTuple_GET_ITEM(py_src,3))) ;
+				SWEAR(PyUnicode_Check (PyTuple_GET_ITEM(py_src,3))) ;
 				return true ;
 			default :
 				FAIL(sz) ;
@@ -741,12 +744,12 @@ namespace Engine {
 
 	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) :
 		is_dynamic{ s_is_dynamic(py_src)                                           }
-	,	glbs_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,1)) : "" }
-	,	code_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,2)) : "" }
+	,	glbs_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,2)) : "" }
+	,	code_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,3)) : "" }
 	{
 		need = spec.init( PyTuple_GET_ITEM(py_src,0) , var_idxs , ::forward<A>(args)... ) ;
-		if (!is_dynamic) return ;
-		PyObject* fast_val = PySequence_Fast(PyTuple_GET_ITEM(py_src,3),"") ;
+		if (PyTuple_GET_SIZE(py_src)<=1) return ;
+		PyObject* fast_val = PySequence_Fast(PyTuple_GET_ITEM(py_src,1),"") ;
 		SWEAR(fast_val) ;
 		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
 		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
@@ -761,19 +764,17 @@ namespace Engine {
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		if (!code_str.empty()) {
-			code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
-			if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
-			glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
-			if (!glbs_str.empty()) {
-				PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
-				PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
-				PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
-				//
-				PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
-				if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
-				Py_DECREF(val) ;
-			}
+		code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
+		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
+		glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
+		if (!glbs_str.empty()) {
+			PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
+			PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
+			PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
+			//
+			PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
+			if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
+			Py_DECREF(val) ;
 		}
 	}
 

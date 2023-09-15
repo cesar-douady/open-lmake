@@ -36,9 +36,9 @@ namespace Engine {
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {
-			::string trace_file      = "outputs/"+ProcessDate::s_now().str(i)       ;
-			::string fast_trace_file = to_string(*g_local_admin_dir,'/',trace_file) ;
-			if (is_reg(fast_trace_file)) { SWEAR(i<=9) ; continue ; }                 // at ns resolution, it impossible to have a conflict
+			::string trace_file      = "outputs/"+ProcessDate::s_now().str(i)             ;
+			::string fast_trace_file = to_string(g_config.local_admin_dir,'/',trace_file) ;
+			if (is_reg(fast_trace_file)) { SWEAR(i<=9) ; continue ; }                       // at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
@@ -52,17 +52,18 @@ namespace Engine {
 			break ;
 		}
 		//
-		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags|AccessDFlags) ;
+		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags) ;
 		//
 		data.idx_by_start = s_n_reqs()           ;
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
 		data.start        = DiskDate   ::s_now() ;
-		data.job          = Job(Special::Req,ts) ;
 		data.options      = options              ;
 		data.audit_fd     = fd                   ;
 		data.stats.start  = ProcessDate::s_now() ;
+		//
+		data.job = Job( Special::Req , Deps(targets,Accesses::All,StaticDFlags,true/*parallel*/) ) ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -260,10 +261,10 @@ namespace Engine {
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri = dep.c_req_info(*this) ;
 		if (!dep->makable()) {
-			if      (dep.err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
-			else if (dep.flags[DFlag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
+			if      (dep.err(cri)               ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
+			else if (dep.dflags[DFlag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
 		} else if (dep->multi) {
-			/**/                                 return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
+			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
 		}
 		for( Job job : dep.conform_job_tgts(cri) ) {
 			if (seen_jobs.contains(job)) return false ;

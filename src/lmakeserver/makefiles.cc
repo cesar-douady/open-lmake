@@ -117,10 +117,9 @@ namespace Engine {
 		::string reason = _s_chk_makefiles(latest_makefile) ;
 		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_keep_config   (chk) ;
-			EngineStore::s_keep_makefiles(   ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			EngineStore::s_keep_config(chk) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			::cerr << "read makefiles because " << reason << '\n' ;
 			//                     vvvvvvvvvvvvvvvvv
@@ -168,17 +167,13 @@ namespace Engine {
 				}
 			} while (file_date(s_makefiles)<=latest_makefile) ;                // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
-			::string             local_admin_dir  ;
-			::string             remote_admin_dir ;
 			::umap<Crc,RuleData> rules            ;
 			::vector_s           srcs             ;
 			::string             step             ;
 			try {
-				step = "local_admin_dir"  ; local_admin_dir  = Py::String (info[step]) ;
-				step = "remote_admin_dir" ; remote_admin_dir = Py::String (info[step]) ;
-				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				EngineStore::s_new_config( local_admin_dir , remote_admin_dir , ::move(config) , chk ) ;
-				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				EngineStore::s_new_config( ::move(config) , chk ) ;
+				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				step = "rules"   ; rules = _gather_rules( Py::Sequence(info[step  ]) ) ;
 				step = "sources" ; srcs  = _gather_srcs ( Py::Sequence(info["srcs"]) ) ;
 				for( ::string const& f : srcs ) {

@@ -26,8 +26,8 @@ lmake.config.caches.dir = {
 
 lmake.version = (1,0)
 
-lmake.local_admin_dir  = 'LMAKE_LOCAL'
-lmake.remote_admin_dir = 'LMAKE_REMOTE'
+lmake.config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
+lmake.config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
 
 config.heartbeat    = 5
 config.link_support = 'full'
@@ -220,7 +220,6 @@ for ext,basic_opts in basic_opts_tab.items() :
 			lmake.check_deps()
 			cmd_line = (
 				gcc , '-fdiagnostics-color=always' , '-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
-			,	f'-DHAS_PTRACE={int(lmake.has_ptrace)}' ,  f'-DHAS_LD_AUDIT={int(lmake.has_ld_audit)}'
 			,	*basic_opts
 			,	*add_flags
 			,	'-o',OBJ , SRC
@@ -351,7 +350,8 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_CLIENT'  : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-	rev_post_opts = ('-l:libseccomp.so.2',)
+	if run((gcc,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2')).returncode==0 :
+		rev_post_opts = ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :
 	deps = {

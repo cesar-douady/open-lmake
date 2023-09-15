@@ -17,18 +17,18 @@
 	::string res ; res.reserve(s.size()) ;                                     // typically, all characters are printable and nothing to add
 	for( char c : s ) {
 		switch (c) {
-			case '\a' : res += "\\a"                       ; break ;
-			case '\b' : res += "\\b"                       ; break ;
-			case 0x1b : res += "\\e"                       ; break ;
-			case '\f' : res += "\\f"                       ; break ;
-			case '\n' : res += "\\n"                       ; break ;
-			case '\r' : res += "\\r"                       ; break ;
-			case '\t' : res += "\\t"                       ; break ;
-			case '\v' : res += "\\v"                       ; break ;
-			case '\\' : res += "\\\\"                      ; break ;
+			case '\a' : res += "\\a"  ; break ;
+			case '\b' : res += "\\b"  ; break ;
+			case 0x1b : res += "\\e"  ; break ;
+			case '\f' : res += "\\f"  ; break ;
+			case '\n' : res += "\\n"  ; break ;
+			case '\r' : res += "\\r"  ; break ;
+			case '\t' : res += "\\t"  ; break ;
+			case '\v' : res += "\\v"  ; break ;
+			case '\\' : res += "\\\\" ; break ;
 			default   :
-				if (is_print(c)) res +=                                 c   ;
-				else             res += to_string("\\x",hex,setw(2),int(c)) ;
+				if (is_print(c)) res +=                                                            c   ;
+				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	return res ;
@@ -38,18 +38,18 @@
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
-			case '\\' :                                 // must be escaped
-			case '\'' : res += '\\'  ; /*fall through*/ // .
-			case '\a' : res += "\\a" ; break ;          // special case
-			case '\b' : res += "\\b" ; break ;          // .
-			case '\f' : res += "\\f" ; break ;          // .
-			case '\n' : res += "\\n" ; break ;          // .
-			case '\r' : res += "\\r" ; break ;          // .
-			case '\t' : res += "\\t" ; break ;          // .
-			case '\v' : res += "\\v" ; break ;          // .
+			case '\\' :                                  // must be escaped
+			case '\'' : res += '\\'  ; [[fallthrough]] ; // .
+			case '\a' : res += "\\a" ; break ;           // special case
+			case '\b' : res += "\\b" ; break ;           // .
+			case '\f' : res += "\\f" ; break ;           // .
+			case '\n' : res += "\\n" ; break ;           // .
+			case '\r' : res += "\\r" ; break ;           // .
+			case '\t' : res += "\\t" ; break ;           // .
+			case '\v' : res += "\\v" ; break ;           // .
 			default :
-				if (is_print(c)) res +=                                 c   ;
-				else             res += to_string("\\x",hex,setw(2),int(c)) ;
+				if (is_print(c)) res +=                                                            c   ;
+				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	res += '\'' ;

@@ -15,15 +15,15 @@ using namespace filesystem ;
 namespace Disk {
 
 	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
-		os<< "FileInfo("<<fi.tag ;
-		if ( fi.tag!=FileTag::None && fi.tag!=FileTag::Err ) os<<','<<fi.sz ;
-		return os<<')' ;
+		/**/     os<< "FileInfo("<<fi.tag ;
+		if (+fi) os<<','<<fi.sz           ;
+		return   os<<')'                  ;
 	}
 
 	::ostream& operator<<( ::ostream& os , FileInfoDate const& fid ) {
-		os<< "FileInfoDate("<<fid.tag ;
-		if ( fid.tag!=FileTag::None && fid.tag!=FileTag::Err ) os <<','<< fid.sz <<','<< fid.date ;
-		return os<<')' ;
+		/**/      os << "FileInfoDate("<< fid.tag    ;
+		if (+fid) os <<','<< fid.sz <<','<< fid.date ;
+		return    os <<')'                           ;
 	}
 
 	FileInfo::FileInfo(struct ::stat const& st) {
@@ -36,7 +36,7 @@ namespace Disk {
 		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;          }
 		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;          }
 		else if (S_ISDIR(st.st_mode)) { tag =                      FileTag::Dir                ; return ; } // no reliable info
-		else                          { tag =                      FileTag::Other              ; return ; } // .
+		else                          { tag =                      FileTag::Err                ; return ; } // .
 		sz = st.st_size ;
 	}
 
@@ -355,16 +355,17 @@ namespace Disk {
 		else                                 return { _find_src(real,in_repo) , ::move(lnks) , in_repo&&(root_ok||real.size()>g_root_dir->size()) , false  } ;
 	}
 
-	::vmap_s<RealPath::ExecAccess> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {
-		::vmap_s<ExecAccess> res         ;
-		::string             interpreter ;
-		const char*          cur_file    = exe.c_str() ;
+	::vmap_s<Accesses> RealPath::exec( Fd at , ::string const& exe , bool no_follow ) {
+		::vmap_s<Accesses> res         ;
+		::string           interpreter ;
+		const char*        cur_file    = exe.c_str() ;
 		for( int i=0 ; i<=4 ; i++ ) {                                              // interpret #!<interpreter> recursively (4 levels as per man execve)
 			SolveReport real = solve(at,cur_file,no_follow) ;
-			for( ::string& l : real.lnks ) res.emplace_back(::move(l),ExecAccess(true/*as_lnk*/,false/*as_reg*/)) ;
+			for( ::string& l : real.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			if (real.real.empty()) break ;
 			::ifstream real_stream{ real.real[0]=='/' ? real.real : to_string(*g_root_dir,'/',real.real) } ;
-			res.emplace_back(::move(real.real),ExecAccess(!no_follow/*as_lnk*/,true/*as_reg*/)) ;
+			Accesses a = Access::Reg ; if (!no_follow) a |= Access::Lnk ;
+			res.emplace_back(::move(real.real),a) ;
 			char hdr[2] ;
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;
 			if (strncmp(hdr,"#!",2)!=0            ) break ;

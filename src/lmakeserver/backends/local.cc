@@ -183,7 +183,7 @@ namespace Backends::Local {
 			::umap<Rsrcs2,set<PressureEntry>> waiting_queues ;
 			::umap<JobIdx,CoarseDelay       > waiting_jobs   ;
 			::uset<JobIdx                   > starting_jobs  ;
-			JobIdx                            n_jobs         = 0 ;
+			JobIdx                            n_jobs         = 0 ;             // manage -j option (no more than n_jobs can be launched on behalf of this req)
 		} ;
 
 		// init

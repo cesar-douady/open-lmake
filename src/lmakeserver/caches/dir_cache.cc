@@ -179,8 +179,8 @@ namespace Caches {
 					Node d{dn} ;
 					if (!d.done(req)) {
 						nds.insert(d) ;
-						if (dd.flags[DFlag::Critical]) critical = true ;                // note critical flag to stop processing once parallel deps are exhausted
-					} else if ( +(dd.flags&AccessDFlags) && !dd.crc().match(d->crc) ) {
+						critical |= dd.dflags[DFlag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
+					} else if (!d->up_to_date(dd)) {
 						goto Miss ;
 					}
 				}
@@ -224,6 +224,8 @@ namespace Caches {
 				IFStream is           { to_string(dir,'/',jn,"/data") } ;
 				auto     report_start = deserialize<JobInfoStart>(is)   ;
 				/**/     report_end   = deserialize<JobInfoEnd  >(is)   ;
+				// update some info
+				report_start.pre_start.job    = +job ;                         // this id does not come cached entry since it may not be the same value in the original repo
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
 					::string const& tn = report_end.end.digest.targets[ti].first ;
@@ -266,18 +268,18 @@ namespace Caches {
 		//
 		try {
 			IFStream is           { job.ancillary_file() }        ;
-			auto     report_start = deserialize<JobInfoStart>(is) ; report_start.rsrcs.clear() ; // caching resources is meaningless as they have no impact on content
+			auto     report_start = deserialize<JobInfoStart>(is) ;
 			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
+			// update some specific info
+			report_start.pre_start.seq_id = 0 ;                                // no seq_id since no execution
+			report_start.pre_start.job    = 0 ;                                // job_id may not be the same in the destination repo
+			report_start.rsrcs.clear() ;                                       // caching resources is meaningless as they have no impact on content
 			// transform date into crc
 			::vmap_s<DepDigest> deps ;
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {
 				Node d{dn} ;
-				switch (dd.is_date) {
-					case No    : SWEAR(dd.crc ()==d->crc       ) ;                  break ; // when we upload, deps are done & ok, everything should be coherent
-					case Yes   : SWEAR(dd.date()==d->date      ) ; dd.crc(d->crc) ; break ; // .
-					case Maybe : SWEAR(!(dd.flags&AccessDFlags)) ;                  break ; // ., and if we have accessed the dep, we must have a date or a crc
-					default    : FAIL(dd.is_date) ;
-				}
+				if (dd.is_date) { SWEAR(dd.date()==d->date) ; dd.crc(d->crc) ; }
+				else            { SWEAR(d->up_to_date(dd)  ) ;                 }
 				deps.emplace_back(dn,dd) ;
 			}
 			// store meta-data

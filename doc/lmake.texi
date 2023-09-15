@@ -565,7 +565,7 @@ else it may be the jobs that actually generated the target.
 Options :
 @itemize @bullet
 @item @code{-a}|@code{--all-deps} : output the list of all the deps of the jobs.
-Each line is composed of 4 fields  separated by spaces :
+Each line is composed of 5 fields  separated by spaces :
 @itemize @minus
 @item Flags : each flag is either a letter if set, or a @code{-} if not :
 	@itemize .
@@ -574,6 +574,9 @@ Each line is composed of 4 fields  separated by spaces :
 	@item @code{e} : ignore errors on dep, i.e. job can be run even if this dep is built in error.
 	@item @code{r} : dep is required, i.e. job is in error if dep is not buildable. For static deps, job is not even tried if dep is not buildable (and another rule is used if possible).
 	@item @code{S} : dep is static.
+	@end itemize
+@item Accesses : each kind of accesses is either a letter if done, or a @code{-} if not :
+	@itemize .
 	@item @code{L} : dep has been accessed as a symbolic link.
 	@item @code{R} : dep has been accessed as a regular file.
 	@item @code{T} : dep has been accessed with a stat-like system call (i.e. its inode has been accessed).
@@ -848,16 +851,6 @@ Some variables fo this module can be defined in @Lmakefile for some specific pur
 
 @section specific variables
 
-@subsection @code{lmake.local_admin_dir}
-
-This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
-Actually most of the accesses are made this directory. See @pxref{dir-local_admin_dir}
-
-@subsection @code{lmake.remote_admin_dir}
-
-This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
-See @pxref{dir-remote_admin_dir}
-
 @section @code{class pdict}
 
 This is a helpful tiny @code{class} deriving from @code{dict} that allows item access as attribute.
@@ -1011,6 +1004,18 @@ After @lmake has been run (at least once), the configuration, as understood by @
 Recognized attributes are :
 @multitable @columnfractions 0.1 0.07 0.83
 @headitem Attribute @tab Default @tab Description
+
+@item @code{local_admin_dir}
+@tab @code{LMAKE}
+@tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
+Actually most of the accesses are made in this directory.
+See @pxref{dir-local_admin_dir}.
+
+@item @code{remote_admin_dir}
+@tab @code{LMAKE}
+@tab This variable contains a directory to be used for remote execution administration.
+See @pxref{dir-remote_admin_dir}.
+
 @item @code{heartbeat}
 @tab @code{60}
 @tab @lmake launches job through a batcher, one of them being the @code{local} batcher that launches jobs locally.
@@ -1519,7 +1524,7 @@ Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the 
 
 This attribute defines an unnamed static dependency.
 
-During execution, @code{cmd} stdin will be redirected to this dependency.
+During execution, @code{cmd} stdin will be redirected to this dependency, else it is @file{/dev/null}.
 
 @section @code{chroot}
 
@@ -2109,7 +2114,7 @@ In that case, the job is retried, but a maximum number of retry attemps are allo
 
 This directory contains numerous information that may be useful to the user.
 
-There are other files than those described here which are for @lmake own management
+There are other files than those described here which are for @lmake own management.
 
 @section @file{LMAKE/config}
 

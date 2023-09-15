@@ -1,9 +1,12 @@
 FROM ubuntu:22.04
 
+# the following 2 lines should not be necessary but was necessary today, for me
+# RUN cp /etc/apt/sources.list /etc/apt/sources.list-bak
+# RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: /etc/apt/sources.list-bak > /etc/apt/sources.list
+
 RUN apt-get update
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed g++-12 git python3-dev texinfo python3-numba
-RUN apt-get install -y libtool gperf libseccomp-dev
+RUN apt-get install -y ed g++-12 git python3-dev texinfo python3-numba libseccomp-dev
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

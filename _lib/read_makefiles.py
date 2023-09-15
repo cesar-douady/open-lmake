@@ -290,7 +290,7 @@ class Handle :
 		del self.dynamic_val
 		if not dynamic_val : return (static_val,)
 		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
-		return ( static_val , ctx , code , tuple(names) )
+		return ( static_val , tuple(names) , ctx , code )
 
 	def handle_cwd(self) :
 		if 'cwd'   in self.attrs : self.rule_rep.cwd = self.attrs.cwd
@@ -464,7 +464,7 @@ class Handle :
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
 					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
 					else                                   : cmd += f'\t{       c.__name__}({a})\n'
-			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , '' , '' , tuple(cmd_ctx) )
+			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , tuple(cmd_ctx) )
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			if self._is_simple_fstr(cmd) :

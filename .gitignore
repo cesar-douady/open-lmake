@@ -25,6 +25,7 @@ __pycache__
 /ext/**.patched*
 *.stamp
 */stamp
+*.inc_stamp
 /_bin/autodep
 /_bin/job_exec
 /_bin/ldump

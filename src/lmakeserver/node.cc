@@ -34,18 +34,41 @@ namespace Engine {
 		return os ;
 	}
 
+	static inline ::pair<Bool3,bool/*refreshed*/> _manual_ok_refresh( Node n , FileInfoDate const& fid ) {
+		Bool3 mok = n.manual_ok(fid) ;
+		if (mok!=No          ) return {mok,false/*refreshed*/} ;               // file was not modified
+		if (n->crc==Crc::None) return {mok,false/*refreshed*/} ;               // file appeared, it cannot be steady
+		//
+		::string nm  = n.name()                  ;
+		Crc      crc { nm , g_config.hash_algo } ;
+		if (!n->crc.match(Crc(nm,g_config.hash_algo))) return {No,false/*refreshed*/} ; // real modif
+		//
+		UNode(n)->date = file_date(nm) ;                                       // file is steady
+		return {Yes,true/*refreshed*/} ;
+	}
+	Bool3 Node::manual_ok_refresh( Req req , FileInfoDate const& fid ) {
+		auto [mok,refreshed] = _manual_ok_refresh(*this,fid) ;
+		if (refreshed) req->audit_node(Color::Note,"manual_steady",*this) ;
+		return mok ;
+	}
+	Bool3 Node::manual_ok_refresh( Job job , FileInfoDate const& fid ) {
+		auto [mok,refreshed] = _manual_ok_refresh(*this,fid) ;
+		if (refreshed) for( Req r : job.reqs() ) r->audit_node(Color::Note,"manual_steady",*this) ;
+		return mok ;
+	}
+
 	void Node::_set_pressure_raw( ReqInfo& ri ) const {
 		Trace trace("set_pressure","propagate",*this,ri) ;
 		for( Job job : conform_job_tgts(ri) ) job.set_pressure(job.req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
-	void Node::set_special( Special special , ::vmap<Node,DFlags> const& deps ) {
+	void Node::set_special( Special special , ::vector<Node> const& deps , Accesses a , DFlags df , bool p ) {
 		Trace trace("set_special",*this,special,deps) ;
 		JobTgts jts       = (*this)->job_tgts ;
 		UNode   un        { *this }           ;
 		Bool3   buildable = Yes               ;
 		if ( !jts.empty() && jts.back()->rule->is_special() ) SWEAR(jts.back()->rule->special==special) ;
-		else                                                  un->job_tgts.append(::vector<JobTgt>({{Job(special,*this,deps),true/*is_sure*/}})) ;
+		else                                                  un->job_tgts.append(::vector<JobTgt>({{ Job(special,*this,Deps(deps,a,df,p)) , true/*is_sure*/ }})) ;
 		for( Dep const& d : (*this)->job_tgts.back()->deps ) {
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
 			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
@@ -141,7 +164,7 @@ namespace Engine {
 
 	void Node::_set_buildable_raw( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",*this,lvl) ;
-		if (lvl>=g_config.max_dep_depth) throw ::vmap<Node,DFlags>({{*this,SpecialDFlags}}) ; // infinite dep path
+		if (lvl>=g_config.max_dep_depth) throw ::vector<Node>({*this}) ; // infinite dep path
 		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
 		if (!shared()) {
 			UNode un{*this} ;
@@ -165,9 +188,9 @@ namespace Engine {
 					dir_.set_buildable(req,lvl+1) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (dir_->buildable!=No) {
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						set_special(Special::Uphill,{{dir_,SpecialDFlags|DFlag::Lnk}}) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						set_special( Special::Uphill , ::vector<Node>({dir_}) , Access::Lnk ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if (dir_->buildable==Yes) goto Return   ;
 						else                      goto AllRules ;
 					}
@@ -185,11 +208,11 @@ namespace Engine {
 				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			}
-		} catch (::vmap<Node,DFlags>& e) {
+		} catch (::vector<Node>& e) {
 			//vvvvvvvvvvvvvv
 			_set_buildable() ;                                                 // restore Unknown as we do not want to appear as having been analyzed
 			//^^^^^^^^^^^^^^
-			e.emplace_back(*this,SpecialDFlags) ;
+			e.push_back(*this) ;
 			throw ;
 		}
 	AllRules :
@@ -210,18 +233,18 @@ namespace Engine {
 		Job     regenerate_job ;
 		Trace trace("Nmake",*this,cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
-		//                                     vvvvvvvvvvvvvvvvvv
-		try                                  { set_buildable(req) ;               }
-		//                                     ^^^^^^^^^^^^^^^^^^
-		catch (::vmap<Node,DFlags> const& e) { set_special(Special::Infinite,e) ; }
-		if ((*this)->buildable==No) {                                               // avoid allocating ReqInfo for non-buildable Node's
+		//                                 vvvvvvvvvvvvvvvvvv
+		try                              { set_buildable(req) ;                                          }
+		//                                 ^^^^^^^^^^^^^^^^^^
+		catch (::vector<Node> const& e) { set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ; }
+		if ((*this)->buildable==No) {                                                                      // avoid allocating ReqInfo for non-buildable Node's
 			SWEAR(make_action<MakeAction::Dec) ;
 			SWEAR(!cri.has_watchers()        ) ;
 			trace("not_buildable",cri) ;
 			if ( (*this)->crc!=Crc::None && manual_ok()==Maybe ) {             // if file has been removed, everything is ok again : file is not buildable and does not exist
 				UNode un{*this} ;
-				un.refresh( false/*is_lnk*/ , Crc::None , DiskDate::s_now() ) ;
-				un.share() ;                                                    // now that there is no more crc, maybe node is sharable
+				un.refresh( Crc::None , DiskDate::s_now() ) ;
+				un.share() ;                                                   // now that there is no more crc, maybe node is sharable
 			}
 			return cri ;
 		}
@@ -267,8 +290,8 @@ namespace Engine {
 					if (shorten_by==NoIdx) { if (!shared()) { UNode(*this)->rule_tgts.clear()                ; share() ; } }
 					else                   {                  UNode(*this)->rule_tgts.shorten_by(shorten_by) ;             }
 					if (ri.prio_idx>=(*this)->job_tgts.size()) break ;                                                       // fast path
-				} catch (::vmap<Node,DFlags> const& e) {
-					set_special(Special::Infinite,e) ;
+				} catch (::vector<Node> const& e) {
+					set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ;
 					break ;
 				}
 			}
@@ -295,9 +318,12 @@ namespace Engine {
 						case RunAction::Dsk     :
 							if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
 							else {
-								if      ( clean==Maybe                                           ) clean  = No | (manual_ok()==Yes) ; // solve lazy evaluation
-								if      ( clean==Yes                                             ) action = RunAction::Status       ;
-								else if ( !it->c_req_info(req).done() || it->produces(*this)!=No ) action = RunAction::Run          ; // else, we know job does not produce us, no reason to run it
+								if (clean==Maybe) {                                                             // solve lazy evaluation
+									if ((*it)->rule->is_special()) clean = No | (manual_ok        (   )==Yes) ; // special rules handle manual targets specially
+									else                           clean = No | (manual_ok_refresh(req)==Yes) ;
+								}
+								if      ( clean==Yes                                             ) action = RunAction::Status ;
+								else if ( !it->c_req_info(req).done() || it->produces(*this)!=No ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
 							}
 						break ;
 						default : FAIL(ri.action) ;
@@ -400,7 +426,7 @@ namespace Engine {
 		un->job_tgts      .clear() ;
 		un->actual_job_tgt.clear() ;
 		un->match_gen = NMatchGen ;                                            // sources are locked match_ok
-		un.refresh( false/*is_lnk*/ , Crc::None , DiskDate::s_now() ) ;
+		un.refresh( Crc::None , DiskDate::s_now() ) ;
 		share() ;
 	}
 
@@ -422,12 +448,11 @@ namespace Engine {
 		return os<<'U'<<Node(n) ;
 	}
 
-	bool/*modified*/ UNode::refresh( bool is_lnk , Crc crc , DiskDate date ) {
-		if (is_lnk) SWEAR(crc!=Crc::None) ;                                    // cannot be a link without existing
+	bool/*modified*/ UNode::refresh( Crc crc , DiskDate date ) {
 		bool steady = (*this)->crc.match(crc) ;
-		Trace trace("refresh",*this,STR(steady),STR((*this)->is_lnk),"->",STR(is_lnk),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
-		if (steady) {                               SWEAR((*this)->is_lnk==is_lnk) ; (*this)->date = date ;                                } // regulars and links cannot have the same crc
-		else        { (*this)->crc = {} ; fence() ;       (*this)->is_lnk = is_lnk ; (*this)->date = date ; fence() ; (*this)->crc = crc ; } // ensure crc is never associated with a wrong date
+		Trace trace("refresh",*this,STR(steady),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
+		if (steady) {                               (*this)->date = date ;                                } // regulars and links cannot have the same crc
+		else        { (*this)->crc = {} ; fence() ; (*this)->date = date ; fence() ; (*this)->crc = crc ; } // ensure crc is never associated with a wrong date
 		//
 		if ((*this)->unlinked) trace("!unlinked") ;
 		(*this)->unlinked = false ;                                            // dont care whether file exists, it have been generated according to its job
@@ -439,16 +464,14 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
-		os << '(' << nd.is_lnk ;
-		os << ',' << nd.crc    ;
-		os << ',' << nd.date   ;
-		os << ',' ;
-		if (!nd.match_ok()) os << '~' ;
-		os << "job:" ;
-		os << +Job(nd.actual_job_tgt) ;
-		if (nd.actual_job_tgt.is_sure()) os << '+' ;
-		os << ")" ;
-		return os ;
+		/**/                             os << '(' << nd.crc           ;
+		/**/                             os << ',' << nd.date          ;
+		/**/                             os << ','                     ;
+		if (!nd.match_ok()             ) os << '~'                     ;
+		/**/                             os << "job:"                  ;
+		/**/                             os << +Job(nd.actual_job_tgt) ;
+		if (nd.actual_job_tgt.is_sure()) os << '+'                     ;
+		return                           os << ")"                     ;
 	}
 
 	//
@@ -467,9 +490,15 @@ namespace Engine {
 		return os << static_cast<DepDigestBase<Node> const&>(d) ;
 	}
 
-	::string Dep::flags_str() const {
+	::string Dep::accesses_str() const {
+		::string res ; res.reserve(+Access::N) ;
+		for( Access a : Access::N ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ;
+		return res ;
+	}
+
+	::string Dep::dflags_str() const {
 		::string res ; res.reserve(+DFlag::N) ;
-		for( DFlag f : DFlag::N ) res.push_back( flags[f] ? DFlagChars[+f] : '-' ) ;
+		for( DFlag df : DFlag::N ) res.push_back( dflags[df] ? DFlagChars[+df] : '-' ) ;
 		return res ;
 	}
 

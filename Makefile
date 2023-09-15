@@ -33,8 +33,6 @@ COVERAGE := --coverage                                                         #
 endif
 
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
-ifeq ($(strip $(CC)),clang)
-endif
 
 LANG := c++20
 
@@ -145,6 +143,9 @@ LMAKE_ALL_FILES = \
 DFLT : LMAKE UNIT_TESTS LMAKE_TEST lmake.tar.gz
 
 ALL : DFLT STORE_TEST $(DOC)/lmake.html
+
+%.inc_stamp : %                                                                # prepare a stamp to be included, so as to force availability of a file w/o actually including it
+	>$@
 
 sys_config.h : sys_config
 	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
@@ -266,8 +267,13 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 # lmake
 #
 
+include sys_config.h.inc_stamp                                                 # sys_config.h is used in this makefile
+HAS_PTRACE := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
+
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
+ifeq ($(HAS_PTRACE),1)
 LIB_SECCOMP := -l:libseccomp.so.2
+endif
 
 $(SBIN)/lmakeserver : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \
@@ -557,9 +563,7 @@ $(LIB)/clmake.so : \
 #
 Manifest : .git/index
 	git ls-files >$@
-Manifest.stamp : Manifest
-	>$@
-include Manifest.stamp                                                         # force make to remake Manifest without reading it
+include Manifest.inc_stamp                                                     # Manifest is used in this makefile
 
 #
 # Unit tests

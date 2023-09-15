@@ -31,13 +31,13 @@
 //
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
-	os << "TargetDigest(" ;
 	const char* sep = "" ;
-	if (+td.dfs  ) { os <<sep<< td.dfs  ; sep = "," ; }
-	if ( td.write) { os <<sep<< "write" ; sep = "," ; }
-	if (+td.tfs  ) { os <<sep<< td.tfs  ; sep = "," ; }
-	if (+td.crc  ) { os <<sep<< td.crc  ; sep = "," ; }
-	return os <<')' ;
+	/**/                os << "TargetDigest("  ;
+	if (+td.accesses) { os <<sep<< td.accesses ; sep = "," ; }
+	if ( td.write   ) { os <<sep<< "write"     ; sep = "," ; }
+	if (+td.tflags  ) { os <<sep<< td.tflags   ; sep = "," ; }
+	if (+td.crc     ) { os <<sep<< td.crc      ; sep = "," ; }
+	return              os <<')'               ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobDigest const& jd ) {
@@ -61,7 +61,7 @@
 //
 
 ::ostream& operator<<( ::ostream& os , TargetSpec const& tf ) {
-	return os << "TargetSpec(" << tf.pattern <<','<< tf.flags <<','<< tf.conflicts <<')' ;
+	return os << "TargetSpec(" << tf.pattern <<','<< tf.tflags <<','<< tf.conflicts <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
@@ -70,25 +70,25 @@
 		case JobProc::ChkDeps  : os <<','<< jrr.ok    ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
 		case JobProc::Start :
-			/**/                          os       << hex<<jrr.addr<<dec   ;
-			/**/                          os <<',' << jrr.autodep_env      ;
-			if (!jrr.chroot.empty()     ) os <<',' << jrr.chroot           ;
-			if (!jrr.cwd_s .empty()     ) os <<',' << jrr.cwd_s            ;
-			/**/                          os <<',' << jrr.env              ;
-			if (!jrr.static_deps.empty()) os <<',' << jrr.static_deps      ;
-			/**/                          os <<',' << jrr.interpreter      ;
-			/**/                          os <<',' << jrr.job_tmp_dir      ;
-			if (jrr.keep_tmp            ) os <<',' << "keep_tmp"           ;
-			/**/                          os <<',' << jrr.kill_sigs        ;
-			if (jrr.live_out            ) os <<',' << "live_out"           ;
-			/**/                          os <<',' << jrr.method           ;
-			/**/                          os <<',' << jrr.remote_admin_dir ;
-			/**/                          os <<',' << jrr.small_id         ;
-			if (!jrr.stdin   .empty()   ) os <<'<' << jrr.stdin            ;
-			if (!jrr.stdout  .empty()   ) os <<'>' << jrr.stdout           ;
-			/**/                          os <<"*>"<< jrr.targets          ;
-			if (+jrr.timeout            ) os <<',' << jrr.timeout          ;
-			/**/                          os <<',' << jrr.cmd              ; // last as it is most probably multi-line
+			/**/                          os <<',' << hex<<jrr.addr<<dec           ;
+			/**/                          os <<',' << jrr.autodep_env              ;
+			if (!jrr.chroot.empty()     ) os <<',' << jrr.chroot                   ;
+			if (!jrr.cwd_s .empty()     ) os <<',' << jrr.cwd_s                    ;
+			/**/                          os <<',' << to_printable_string(jrr.env) ; // env may contain the non-printable EnvPassMrkr value
+			if (!jrr.static_deps.empty()) os <<',' << jrr.static_deps              ;
+			/**/                          os <<',' << jrr.interpreter              ;
+			/**/                          os <<',' << jrr.job_tmp_dir              ;
+			if (jrr.keep_tmp            ) os <<',' << "keep_tmp"                   ;
+			/**/                          os <<',' << jrr.kill_sigs                ;
+			if (jrr.live_out            ) os <<',' << "live_out"                   ;
+			/**/                          os <<',' << jrr.method                   ;
+			/**/                          os <<',' << jrr.remote_admin_dir         ;
+			/**/                          os <<',' << jrr.small_id                 ;
+			if (!jrr.stdin   .empty()   ) os <<'<' << jrr.stdin                    ;
+			if (!jrr.stdout  .empty()   ) os <<'>' << jrr.stdout                   ;
+			/**/                          os <<"*>"<< jrr.targets                  ;
+			if (+jrr.timeout            ) os <<',' << jrr.timeout                  ;
+			/**/                          os <<',' << jrr.cmd                      ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
@@ -101,40 +101,43 @@
 //
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessInfo const& ai ) {
-	os << "AccessInfo(" ;
 	const char* sep = "" ;
-	if (+ai.dfs    ) { os <<sep     << ai.dfs     ; sep = "," ; }
-	if ( ai.write  ) { os <<sep     << "write"    ; sep = "," ; }
-	if (+ai.neg_tfs) { os <<sep<<'-'<< ai.neg_tfs ; sep = "," ; }
-	if (+ai.pos_tfs) { os <<sep<<'+'<< ai.pos_tfs ; sep = "," ; }
-	if ( ai.unlink ) { os <<sep     << "unlink"   ; sep = "," ; }
-	return os <<')' ;
+	/**/                  os << "AccessInfo("           ;
+	if (+ai.accesses  ) { os <<sep     << ai.accesses   ; sep = "," ; }
+	if (+ai.dflags    ) { os <<sep     << ai.dflags     ; sep = "," ; }
+	if ( ai.write     ) { os <<sep     << "write"       ; sep = "," ; }
+	if (+ai.neg_tflags) { os <<sep<<'-'<< ai.neg_tflags ; sep = "," ; }
+	if (+ai.pos_tflags) { os <<sep<<'+'<< ai.pos_tflags ; sep = "," ; }
+	if ( ai.unlink    ) { os <<sep     << "unlink"      ; sep = "," ; }
+	return                os <<')'                      ;
 }
 
 void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
+	// this.read may be long before this.write, but ai.read is simultaneous (and just before) ai.write, so there are not so many possible order, just 3
 	switch (after) {
-		case Yes :                                                     // order is : this.read - this.write - ai.read - ai.write
-			if (idle()) dfs |= ai.dfs ;                                // if this.idle(), ai.read is a real read
-			unlink  &= !ai.write   ; unlink  |= ai.unlink  ;           // if ai writes, it cancels previous this.unlink
-			neg_tfs &= ~ai.pos_tfs ; neg_tfs |= ai.neg_tfs ;           // ai flags have priority over this flags
-			pos_tfs &= ~ai.neg_tfs ; pos_tfs |= ai.pos_tfs ;           // .
+		case Yes :                                                                   // order is : this.read - this.write - ai.read - ai.write
+			if (idle()) accesses   |= ai.accesses    ;                               // if this.idle(), ai.read is a real read
+			/**/        unlink     &= !ai.write      ; unlink     |= ai.unlink     ; // if ai writes, it cancels previous this.unlink
+			/**/        neg_tflags &= ~ai.pos_tflags ; neg_tflags |= ai.neg_tflags ; // ai flags have priority over this flags
+			/**/        pos_tflags &= ~ai.neg_tflags ; pos_tflags |= ai.pos_tflags ; // .
 		break ;
-		case Maybe :                                                   // order is : this.read - ai.read - ai.write - this.write
-			dfs     |= ai.dfs                 ;                        // ai.read is always a real read
-			unlink  |= ai.unlink  && !write   ;                        // if this writes, it cancels previous ai.unlink
-			neg_tfs |= ai.neg_tfs &  ~pos_tfs ;                        // this flags have priority over ai flags
-			pos_tfs |= ai.pos_tfs &  ~neg_tfs ;                        // .
+		case Maybe :                                                           // order is : this.read - ai.read - ai.write - this.write
+			accesses   |= ai.accesses                 ;                        // ai.read is always a real read
+			unlink     |= ai.unlink && !write         ;                        // if this writes, it cancels previous ai.unlink
+			neg_tflags |= ai.neg_tflags & ~pos_tflags ;                        // this flags have priority over ai flags
+			pos_tflags |= ai.pos_tflags & ~neg_tflags ;                        // .
 		break ;
-		case No :                                                      // order is : ai.read - ai.write - this.read - this.write
-			if (ai.idle()) dfs |= ai.dfs ;                             // if ai.idle(), this.read is a real read
-			else           dfs  = ai.dfs ;                             // else, this.read is canceled
-			unlink  |= ai.unlink  && !write   ;                        // if this writes, it cancels previous ai.unlink
-			neg_tfs |= ai.neg_tfs &  ~pos_tfs ;                        // this flags have priority over ai flags
-			pos_tfs |= ai.pos_tfs &  ~neg_tfs ;                        // .
+		case No :                                                              // order is : ai.read - ai.write - this.read - this.write
+			if (ai.idle()) accesses   |= ai.accesses                  ;        // if ai.idle(), this.read is a real read
+			else           accesses    = ai.accesses                  ;        // else, this.read is canceled
+			/**/           unlink     |= ai.unlink && !write          ;        // if this writes, it cancels previous ai.unlink
+			/**/           neg_tflags |= ai.neg_tflags &  ~pos_tflags ;        // this flags have priority over ai flags
+			/**/           pos_tflags |= ai.pos_tflags &  ~neg_tflags ;        // .
 		break ;
 		default : FAIL(after) ;
 	}
-	write |= ai.write ;                                                // in all cases, there is a write if either write
+	dflags |= ai.dflags ;                                                      // in all cases, dflags are always accumulated
+	write  |= ai.write  ;                                                      // in all cases, there is a write if either writes
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -145,7 +148,7 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 	/**/                       os <<',' << jerr.info    ;
 	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
 	if (jerr.has_files()) {
-		if ( +jerr.info.dfs && !jerr.auto_date ) {
+		if ( +jerr.info.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
 		} else {
 			::vector_s fs ;

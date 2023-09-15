@@ -25,7 +25,7 @@ ENUM_4( DFlag                          // flags for deps
 ,	RuleMin    = Top                   // rules may have flags RuleMin<=flag<RuleMax1
 ,	RuleMax1   = Required              // .
 ,	HiddenMin  = Critical              // ldepend may report flags HiddenMin<=flag<HiddenMax1
-,	HiddenMax1 = Lnk                   // .
+,	HiddenMax1 = Static                // .
 //
 ,	Top                                // dep is relative to repo top, not rule's cwd
 //
@@ -36,9 +36,6 @@ ENUM_4( DFlag                          // flags for deps
 ,	Required                           // dep must be buildable or job is in error
 //
 ,	Static                             // dep is static
-,	Lnk                                // syscall sees link    content if dep is a link
-,	Reg                                // syscall sees regular content if dep is regular
-,	Stat                               // syscall sees inode   content (implied by other accesses)
 )
 static constexpr char DFlagChars[] = {
 	't'                                // Top
@@ -50,16 +47,11 @@ static constexpr char DFlagChars[] = {
 ,	'r'                                // Required
 //
 ,	'S'                                // Static
-,	'L'                                // Lnk
-,	'R'                                // Reg
-,	'T'                                // Stat
 } ;
 static_assert(::size(DFlagChars)==+DFlag::N) ;
 using DFlags = BitMap<DFlag> ;
 constexpr DFlags StaticDFlags { DFlag::Essential , DFlag::Required , DFlag::Static } ; // used for static deps
-constexpr DFlags AccessDFlags { DFlag::Lnk       , DFlag::Reg      , DFlag::Stat   } ;
-constexpr DFlags DataDFlags   { DFlag::Lnk       , DFlag::Reg                      } ;
-constexpr DFlags DfltDFlags   = AccessDFlags | DFlag::Required                       ; // used with ldepend
+constexpr DFlags DfltDFlags   {                    DFlag::Required                 } ; // used with ldepend
 
 ENUM( JobProc
 ,	None
@@ -129,13 +121,13 @@ using TFlags = BitMap<TFlag> ;
 static constexpr TFlags DfltTFlags      { TFlag::Match , TFlag::Warning , TFlag::Crc    , TFlag::Stat , TFlag::Write } ; // default flags for targets
 static constexpr TFlags UnexpectedTFlags{ TFlag::Incremental , TFlag::Star , TFlag::Dep , TFlag::Stat                } ; // flags used for accesses that are not targets
 
-static inline void chk(TFlags flags) {
-	if (flags[TFlag::Match]) {
-		if ( flags[TFlag::Dep] ) throw "cannot match on target and be a potential dep"s       ;
-		if (!flags[TFlag::Crc] ) throw "cannot match on target without computing checksum"s   ;
+static inline void chk(TFlags tf) {
+	if (tf[TFlag::Match]) {
+		if ( tf[TFlag::Dep] ) throw "cannot match on target and be a potential dep"s       ;
+		if (!tf[TFlag::Crc] ) throw "cannot match on target without computing checksum"s   ;
 	}
-	if (flags[TFlag::Star]) {
-		if (flags[TFlag::Phony]) throw "phony star targets not yet supported"s ;
+	if (tf[TFlag::Star]) {
+		if (tf[TFlag::Phony]) throw "phony star targets not yet supported"s ;
 	}
 }
 
@@ -193,7 +185,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 } ;
 static_assert(::size(JobReasonTagStrs)==+JobReasonTag::N) ;
 
-static const ::string EnvPassMrkr {1,0} ;                                            // special illegal value to ask for value from environment
+static const ::string EnvPassMrkr(1,0) ;                                            // special illegal value to ask for value from environment
 
 struct JobReason {
 	friend ::ostream& operator<<( ::ostream& , JobReason const& ) ;
@@ -261,19 +253,22 @@ template<class B> struct DepDigestBase ;
 template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) ;
 template<class B> struct DepDigestBase : NoVoid<B> {
 	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
-	using Base = NoVoid<B>      ;
-	using Date = Time::DiskDate ;
-	using Crc  = Hash::Crc      ;
-	//cxtors & casts
-	DepDigestBase(                                       )                                                                {}
-	DepDigestBase(          DFlags dfs , bool p          ) :           flags(dfs) , parallel{p}                           {}
-	DepDigestBase(          DFlags dfs , bool p , Crc  c ) :           flags(dfs) , parallel{p} , is_date{No } , _crc {c} {}
-	DepDigestBase(          DFlags dfs , bool p , Date d ) :           flags(dfs) , parallel{p} , is_date{Yes} , _date{d} {}
-	DepDigestBase( Base b , DFlags dfs , bool p          ) : Base{b} , flags(dfs) , parallel{p}                           {}
-	DepDigestBase( Base b , DFlags dfs , bool p , Crc  c ) : Base{b} , flags(dfs) , parallel{p} , is_date{No } , _crc {c} {}
-	DepDigestBase( Base b , DFlags dfs , bool p , Date d ) : Base{b} , flags(dfs) , parallel{p} , is_date{Yes} , _date{d} {}
+	using Base = NoVoid<B> ;
+	static constexpr bool HasBase = !::is_same_v<B,void> ;
 	//
-	DepDigestBase(DepDigestBase const& dd) : DepDigestBase{dd,dd.flags,dd.parallel} {
+	using Accesses = Disk::Accesses ;
+	using Crc      = Hash::Crc      ;
+	using Date     = Time::DiskDate ;
+	//cxtors & casts
+	DepDigestBase(                                                    ) :                                                                      _crc { } {}
+	DepDigestBase(          Accesses a , DFlags dfs , bool p          ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase(          Accesses a , DFlags dfs , bool p , Crc  c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase(          Accesses a , DFlags dfs , bool p , Date d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p          ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Crc  c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Date d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	//
+	DepDigestBase(DepDigestBase const& dd) : DepDigestBase{dd,dd.accesses,dd.dflags,dd.parallel} {
 		crc_date(dd) ;
 		known   = dd.known   ;
 		garbage = dd.garbage ;
@@ -285,92 +280,78 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		return *this ;
 	}
 	// accesses
-	bool has_crc       (      ) const {                       return is_date==No && +_crc ; }
-	Crc  crc           (      ) const { SWEAR(is_date==No ) ; return _crc                 ; }
-	Date date          (      ) const { SWEAR(is_date==Yes) ; return _date                ; }
-	void crc           (Crc  c)       { if (is_date==Yes) _date.~Date() ; if (is_date!=No ) new(&_crc ) Crc {c} ; else _crc  = c ; is_date = No  ; }
-	void date          (Date d)       { if (is_date==No ) _crc .~Crc () ; if (is_date!=Yes) new(&_date) Date{d} ; else _date = d ; is_date = Yes ; }
-	void clear_crc_date(      )       {
-		switch (is_date) {
-			case No    : _crc .~Crc () ; break ;
-			case Yes   : _date.~Date() ; break ;
-			case Maybe :                 break ;
-			default : FAIL(is_date) ;
-		}
-		is_date = Maybe ;
-	}
+	Crc  crc () const { SWEAR(!is_date) ; return _crc  ; }
+	Date date() const { SWEAR( is_date) ; return _date ; }
+	//
+	void crc           (Crc  c) { if ( is_date) { _date.~Date() ; new(&_crc ) Crc {c} ; } else _crc  = c ; is_date = false ; }
+	void date          (Date d) { if (!is_date) { _crc .~Crc () ; new(&_date) Date{d} ; } else _date = d ; is_date = true  ; }
+	void clear_crc_date(      ) { crc({}) ;                                                                                  }
+	//
 	template<class X> void crc_date(DepDigestBase<X> const& dd) {
-		switch (dd.is_date) {
-			case No    : crc (dd.crc ()) ; break ;
-			case Yes   : date(dd.date()) ; break ;
-			case Maybe :                   break ;
-			default : FAIL(dd.is_date) ;
-		}
+		if (dd.is_date) date(dd.date()) ;
+		else            crc (dd.crc ()) ;
 	}
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,flags) ;
+		static_assert(!HasBase) ;
+		::serdes(s,accesses) ;
+		::serdes(s,dflags  ) ;
 		if (::is_base_of_v<::istream,T>) {
 			clear_crc_date() ;
-			bool  p  ; ::serdes(s,p ) ; parallel = p  ;
-			bool  kn ; ::serdes(s,kn) ; known    = kn ;
-			bool  g  ; ::serdes(s,g ) ; garbage  = g  ;
-			Bool3 id ; ::serdes(s,id) ; is_date  = id ;
+			bool p  ; ::serdes(s,p ) ; parallel = p  ;
+			bool kn ; ::serdes(s,kn) ; known    = kn ;
+			bool g  ; ::serdes(s,g ) ; garbage  = g  ;
+			bool id ; ::serdes(s,id) ; is_date  = id ;
 		} else {
-			bool  p  = parallel ; ::serdes(s,p ) ;
-			bool  kn = known    ; ::serdes(s,kn) ;
-			bool  g  = garbage  ; ::serdes(s,g ) ;
-			Bool3 id = is_date  ; ::serdes(s,id) ;
+			bool p  = parallel ; ::serdes(s,p ) ;
+			bool kn = known    ; ::serdes(s,kn) ;
+			bool g  = garbage  ; ::serdes(s,g ) ;
+			bool id = is_date  ; ::serdes(s,id) ;
 		}
-		switch (is_date) {
-			case No    : ::serdes(s,_crc ) ; break ;
-			case Yes   : ::serdes(s,_date) ; break ;
-			case Maybe :                     break ;
-			default : FAIL(is_date) ;
-		}
+		if (is_date) ::serdes(s,_date) ;
+		else         ::serdes(s,_crc ) ;
 	}
 	// data
-	DFlags flags      ;                // 8<=8 bits
-	bool   parallel:1 = false ;        //    1 bit
-	bool   known   :1 = false ;        //    1 bit , dep was known (and thus done) before starting execution
-	bool   garbage :1 = false ;        //    1 bit , if true <= file was not the same between the first and last access
-	Bool3  is_date :2 = Maybe ;        //    2 bits, Maybe means no access : no date, no crc
+	Accesses accesses   ;              // 3<=8 bits
+	DFlags   dflags     ;              // 6<=8 bits
+	bool     parallel:1 = false ;      //    1 bit
+	bool     known   :1 = false ;      //    1 bit , dep was known (and thus done) before starting execution
+	bool     garbage :1 = false ;      //    1 bit , if true <= file was not the same between the first and last access
+	bool     is_date :1 = false ;      //    1 bit , if no access, is_date is false and _crc is Unknown
 private :
 	union {
-		Crc  _crc  ;                   // ~45<64 bits
+		Crc  _crc  ;                   // ~46<64 bits
 		Date _date ;                   // ~45<64 bits
 	} ;
 } ;
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
-	os << "D(" ;
+	/**/                             os << "D("                           ;
 	if constexpr (!::is_void_v<B>) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
-	if           (+dd.flags      ) { os <<sep<< dd.flags                  ; sep = "," ; }
+	if           (+dd.accesses   ) { os <<sep<< dd.accesses               ; sep = "," ; }
+	if           (+dd.dflags     ) { os <<sep<< dd.dflags                 ; sep = "," ; }
 	if           (dd.parallel    ) { os <<sep<< "parallel"                ; sep = "," ; }
 	if           (dd.known       ) { os <<sep<< "known"                   ; sep = "," ; }
 	if           (dd.garbage     ) { os <<sep<< "garbage"                 ; sep = "," ; }
-	switch (dd.is_date) {
-		case No    : os <<sep<< dd._crc  ; sep = "," ; break ;
-		case Yes   : os <<sep<< dd._date ; sep = "," ; break ;
-		case Maybe :                                   break ;
-		default : FAIL(dd.is_date) ;
-	}
-	return os <<')' ;
+	if           (dd.is_date     ) { os <<sep<< dd._date                  ; sep = "," ; }
+	else if      (+dd.crc()      ) { os <<sep<< dd._crc                   ; sep = "," ; }
+	return                           os <<')'                             ;
 }
 
 using DepDigest = DepDigestBase<void> ;
 
 struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
-	using Crc  = Hash::Crc  ;
+	using Accesses = Disk::Accesses ;
+	using Crc      = Hash::Crc      ;
 	// cxtors & casts
 	TargetDigest(                                       ) = default ;
-	TargetDigest( DFlags d , bool w , TFlags t , bool u ) : dfs{d} , write{w} , tfs{t} , crc{u?Crc::None:Crc::Unknown} {}
+	TargetDigest( Accesses a , bool w , TFlags t , bool u ) : accesses{a} , write{w} , tflags{t} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
-	DFlags dfs   ;                     // how target was accessed before it was written
-	bool   write = false ;             // if true <=> file was written (and possibly further unlinked)
-	TFlags tfs   ;
-	Crc    crc   ;                     // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Accesses accesses ;                // how target was accessed before it was written
+	bool     write    = false ;        // if true <=> file was written (and possibly further unlinked)
+	TFlags   tflags   ;
+	Crc      crc      ;                // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
 using AnalysisErr = ::vector<pair_s<NodeIdx>> ;
@@ -444,13 +425,13 @@ struct JobRpcReq {
 struct TargetSpec {
 	friend ::ostream& operator<<( ::ostream& , TargetSpec const& ) ;
 	// cxtors & casts
-	TargetSpec( ::string const& p={} , bool ins=false , TFlags f=DfltTFlags , ::vector<VarIdx> c={} ) : pattern{p} , is_native_star{ins} , flags{f} , conflicts{c} {
-		if (is_native_star) SWEAR(flags[TFlag::Star]) ;
+	TargetSpec( ::string const& p={} , bool ins=false , TFlags f=DfltTFlags , ::vector<VarIdx> c={} ) : pattern{p} , is_native_star{ins} , tflags{f} , conflicts{c} {
+		if (is_native_star) SWEAR(tflags[TFlag::Star]) ;
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,pattern       ) ;
 		::serdes(s,is_native_star) ;
-		::serdes(s,flags         ) ;
+		::serdes(s,tflags        ) ;
 		::serdes(s,conflicts     ) ;
 	}
 	// services
@@ -458,7 +439,7 @@ struct TargetSpec {
 	// data
 	::string         pattern        ;
 	bool             is_native_star = false      ;
-	TFlags           flags          = DfltTFlags ;
+	TFlags           tflags         = DfltTFlags ;
 	::vector<VarIdx> conflicts      ;                      // the idx of the previous targets that may conflict with this one
 } ;
 
@@ -473,8 +454,9 @@ ENUM_2( AutodepMethod
 
 struct JobRpcReply {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
-	using Crc  = Hash::Crc ;
-	using Proc = JobProc   ;
+	using Accesses = Disk::Accesses ;
+	using Crc      = Hash::Crc      ;
+	using Proc     = JobProc        ;
 	// cxtors & casts
 	JobRpcReply(                                                    ) = default ;
 	JobRpcReply( Proc p                                             ) : proc{p}             {                               }
@@ -556,9 +538,10 @@ ENUM( JobExecRpcProc
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
-	using P  = JobExecRpcProc    ;
-	using PD = Time::ProcessDate ;
-	using DD = Time::DiskDate    ;
+	using Accesses = Disk::Accesses    ;
+	using P        = JobExecRpcProc    ;
+	using PD       = Time::ProcessDate ;
+	using DD       = Time::DiskDate    ;
 	//
 	struct AccessInfo {                                                        // order is read, then write, then unlink
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
@@ -578,11 +561,12 @@ struct JobExecRpcReq {
 		// update this with access from ai, which may be before or after this (or between the read part and the write part is after==Maybe)
 		void update( AccessInfo const& , Bool3 after ) ;
 		// data
-		DFlags dfs     = {}    ;       // if +dfs <=> files are read
-		bool   write   = false ;       // if true <=> files are written
-		TFlags neg_tfs = {}    ;       // if write, removed TFlags
-		TFlags pos_tfs = {}    ;       // if write, added   TFlags
-		bool   unlink  = false ;       // if true <=> files are unlinked
+		Accesses accesses   = {}    ;  // if +dfs <=> files are read
+		DFlags   dflags     = {}    ;  // if +dfs <=> files are read
+		bool     write      = false ;  // if true <=> files are written
+		TFlags   neg_tflags = {}    ;  // if write, removed TFlags
+		TFlags   pos_tflags = {}    ;  // if write, added   TFlags
+		bool     unlink     = false ;  // if true <=> files are unlinked
 	} ;
 	// statics
 private :
@@ -594,22 +578,22 @@ public :
 	JobExecRpcReq( P p , bool s , ::string const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(!has_files()) ; }
 	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p} ,           comment{c} { SWEAR(!has_files()) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , DFlags dfs , bool nf , ::string const& c={} ) :
-		proc     {p         }
-	,	sync     {true      }
-	,	no_follow{nf        }
-	,	files    {::move(fs)}
-	,	info     {.dfs=dfs  }
-	,	comment  {c         }
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , DFlags dfs , bool nf , ::string const& c={} ) :
+		proc     {p                      }
+	,	sync     {true                   }
+	,	no_follow{nf                     }
+	,	files    {::move(fs)             }
+	,	info     {.accesses=a,.dflags=dfs}
+	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
-	JobExecRpcReq( P p , ::vector_s  && fs , DFlags dfs , bool nf , ::string const& c={} ) :
-		proc     {p                    }
-	,	sync     {true                 }
-	,	auto_date{true                 }
-	,	no_follow{nf                   }
-	,	files    {_s_mk_mdd(::move(fs))}
-	,	info     {.dfs=dfs             }
-	,	comment  {c                    }
+	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , DFlags dfs , bool nf , ::string const& c={} ) :
+		proc     {p                      }
+	,	sync     {true                   }
+	,	auto_date{true                   }
+	,	no_follow{nf                     }
+	,	files    {_s_mk_mdd(::move(fs))  }
+	,	info     {.accesses=a,.dflags=dfs}
+	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
 	//
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) :

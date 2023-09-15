@@ -17,10 +17,12 @@
 static constexpr int AT_BACKDOOR = Fd::Cwd.fd==-200 ? -300 : -200 ;            // special value to pass commands to autodep, stay away from used values (AT_FDCWD & >=0)
 
 struct Record {
-	using Proc       = JobExecRpcProc                                    ;
+	using Access     = Disk::Access                                      ;
+	using Accesses   = Disk::Accesses                                    ;
 	using DD         = Time::DiskDate                                    ;
-	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
+	using Proc       = JobExecRpcProc                                    ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
+	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
 	static void s_init( AutodepEnv const& ade ) { s_autodep_env = new AutodepEnv{ade} ; }
 	static Fd s_get_root_fd() {
@@ -56,24 +58,23 @@ private :
 		}
 		_report(JobExecRpcReq(proc,sync,comment)) ;
 	}
-	//
-	void _report_dep( ::string&& f , DD d , DFlags dfs , bool update , ::string const& c={} ) const {
+	void _report( ::string&& f , DD d , Accesses a , bool update , ::string const& c={} ) const {
 		SWEAR(!f.empty()) ;
-		SWEAR(+dfs      ) ;                                                    // if no DFlags, we have accessed nothing
-		//
-		_report( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .dfs=dfs , .write=update } , c ) ) ;
+		SWEAR(+a        ) ;
+		_report( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , c ) ) ;
 	}
-	void _report_dep       ( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , false , c ) ; }
-	void _report_dep       ( ::string&& f ,         DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , Disk::file_date(s_get_root_fd(),f) , dfs , false , c ) ; }
-	void _report_dep_update( ::string&& f , DD dd , DFlags dfs , ::string const& c={} ) const { _report_dep( ::forward<string>(f) , dd                                 , dfs , true  , c ) ; }
 	//
-	void _report_deps( ::vmap_s<DD>&& fs , DFlags dfs , bool unlink , ::string const& c={} ) const {
-		_report( JobExecRpcReq( JobExecRpcProc::Access , ::forward<vmap_s<DD>>(fs) , { .dfs=dfs , .unlink=unlink } , c ) ) ;
+	void _report_dep   ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report( ::move(f) , dd                                 , a , false , c ) ; }
+	void _report_dep   ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report( ::move(f) , Disk::file_date(s_get_root_fd(),f) , a , false , c ) ; }
+	void _report_update( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report( ::move(f) , dd                                 , a , true  , c ) ; }
+	//
+	void _report_deps( ::vmap_s<DD>&& fs , Accesses a , bool u , ::string const& c={} ) const {
+		_report( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=u } , c ) ) ;
 	}
-	void _report_deps( ::vector_s const& fs , DFlags dfs , bool u , ::string const& c={} ) const {
+	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_get_root_fd(),f) ) ;
-		_report_deps( ::move(fds) , dfs , u , c ) ;
+		_report_deps( ::move(fds) , a , u , c ) ;
 	}
 	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.write =true} , c ) ) ; }
 	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.unlink=true} , c ) ) ; }
@@ -111,6 +112,7 @@ public :
 		bool     in_tmp   = false ;
 		bool     do_read  = false ;
 		bool     do_write = false ;
+		bool     as_dir   = false ;
 		DD       date     ;                                                    // if file is updated and did not exist, its date must be capture before the actual syscall
 		::string comment  ;
 	} ;
@@ -159,7 +161,7 @@ public :
 	}
 	void stat ( int at , const char* file , bool no_follow=false , ::string const& comment="stat" ) {
 		::string real = _solve(at,file,no_follow,comment).first ;
-		if ( !s_autodep_env->ignore_stat && !real.empty() ) _report_dep( ::move(real) , DFlag::Stat , comment ) ;
+		if ( !s_autodep_env->ignore_stat && !real.empty() ) _report_dep( ::move(real) , Access::Stat , comment ) ;
 	}
 	JobExecRpcReply backdoor(JobExecRpcReq&& jerr) ;
 	//

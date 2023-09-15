@@ -62,9 +62,9 @@ namespace Engine {
 		using JobBase::JobBase ;
 		Job( RuleTgt , ::string const& target , Req={} , DepDepth lvl=0 ) ;    // plain Job, match on target, req is only for error reporting
 		//
-		Job( Special ,               ::vmap<Node,DFlags> const& deps ) ;       // Job used to represent a Req
-		Job( Special , Node target , ::vmap<Node,DFlags> const& deps ) ;       // special job
-		Job( Special , Node target , ::vector<JobTgt>    const&      ) ;       // multi
+		Job( Special ,               Deps deps               ) ;               // Job used to represent a Req
+		Job( Special , Node target , Deps deps               ) ;               // special job
+		Job( Special , Node target , ::vector<JobTgt> const& ) ;               // multi
 
 		// accesses
 		::string name     () const ;
@@ -301,8 +301,8 @@ namespace Engine {
 	// Job
 	//
 
-	inline Job::Job( Special sp ,          ::vmap<Node,DFlags> const& deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req) ; }
-	inline Job::Job( Special sp , Node t , ::vmap<Node,DFlags> const& deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } {}
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 
 	inline ::string Job::name() const {
 		return full_name((*this)->rule->job_sfx_len()) ;
@@ -395,8 +395,8 @@ namespace Engine {
 			match_gen = Rule::s_match_gen ;
 			if (!rule->is_sure()) goto Return ;
 			for( Dep const& d : deps ) {
-				if (!d.flags[DFlag::Static]) continue    ;                     // we are only interested in static targets, other ones may not exist and do not prevent job from being built
-				if (d->buildable!=Yes      ) goto Return ;
+				if (!d.dflags[DFlag::Static]) continue    ;                    // we are only interested in static targets, other ones may not exist and do not prevent job from being built
+				if (d->buildable!=Yes       ) goto Return ;
 			}
 			_sure = true ;
 		}

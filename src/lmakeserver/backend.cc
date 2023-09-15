@@ -38,8 +38,9 @@ namespace Backends {
 		Trace trace("s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
 		if ( Req(ri)->options.flags[ReqFlag::Local] && tag!=Tag::Local ) {
-			tag   = Tag::Local                                                    ;
+			SWEAR(+tag<+Tag::N) ;                                                           // prevent compiler array bound warning in next statement
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
+			tag   = Tag::Local                                                            ;
 		}
 		//
 		submit_attrs.tag = tag ;
@@ -129,7 +130,7 @@ namespace Backends {
 				if (it==_s_start_tab.end()) continue ;                         // since we decided that job is lost, it finally completed, ignore
 				s = it->second.lost() ;
 			}
-			::string host = deserialize<JobInfoStart>(Job(info.job).ancillary_file()).pre_start.host ;
+			::string host = deserialize<JobInfoStart>(IFStream(Job(info.job).ancillary_file())).pre_start.host ;
 			_s_handle_job_req( JobRpcReq( JobProc::End , info.seq_id , info.job , host , JobDigest{.status=s,.stderr="vanished after start"} ) ) ;
 		}
 		trace("done") ;
@@ -227,7 +228,7 @@ namespace Backends {
 					::vector_s targets  = match_.targets()       ;
 					in_addr_t  job_addr = fd.peer_addr()         ;
 					SmallId    small_id = _s_small_ids.acquire() ;
-					::string   tmp_dir  = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(*g_remote_admin_dir,"/job_tmp/",small_id) ;
+					::string   tmp_dir  = keep_tmp ? to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp)) : to_string(g_config.remote_admin_dir,"/job_tmp/",small_id) ;
 					//
 					for( ::pair_ss const& kv : start_cmd_attrs  .env ) reply.env.push_back(kv) ;
 					for( ::pair_ss const& kv : start_rsrcs_attrs.env ) reply.env.push_back(kv) ;
@@ -255,7 +256,7 @@ namespace Backends {
 				//	reply.seq_id                                                   // directly filled in job_exec
 					reply.small_id                = small_id                    ;
 					reply.timeout                 = start_rsrcs_attrs.timeout   ;
-					reply.remote_admin_dir        = *g_remote_admin_dir         ;
+					reply.remote_admin_dir        = g_config.remote_admin_dir   ;
 					reply.job_tmp_dir             = ::move(tmp_dir)             ;
 					// fancy attrs
 					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = create_match_attrs[rule->stdin_idx ].second.first ;
@@ -264,7 +265,7 @@ namespace Backends {
 					reply.targets.reserve(targets.size()) ;
 					for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) reply.targets.emplace_back( targets[t] , false/*is_native_star:garbage*/ , rule->flags(t) ) ;
 					//
-					reply.static_deps = ::mk_val_vector(create_match_attrs) ;
+					reply.static_deps = mk_val_vector(create_match_attrs) ;
 					//
 					report_unlink       = job.wash(match_) ;
 					entry.conn.job_addr = job_addr         ;

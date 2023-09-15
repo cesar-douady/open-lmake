@@ -461,14 +461,6 @@ namespace Engine {
 }
 #endif
 
-#ifdef DATA_DEF
-namespace Engine {
-	extern Config&    g_config           ;
-	extern ::string * g_local_admin_dir  ; extern bool g_has_local_admin_dir ;
-	extern ::string * g_remote_admin_dir ; extern bool g_has_local_admin_dir ;
-}
-#endif
-
 #ifdef IMPL
 namespace Engine {
 
@@ -507,22 +499,21 @@ namespace Engine {
 
 		// statics
 	public :
-		static void s_new_config   ( ::string const& local_admin_dir , ::string const& remote_admin_dir , Config&& , bool rescue=false ) ;
-		static void s_new_makefiles( ::umap<Crc,RuleData>&& , ::vector_s&& srcs                                                        ) ;
+		static void s_new_config   ( Config&& , bool rescue=false               ) ;
+		static void s_new_makefiles( ::umap<Crc,RuleData>&& , ::vector_s&& srcs ) ;
 		//
 		static void s_keep_config     (bool rescue=false) ;
-		static void s_keep_makefiles  (                 ) ;
 		static void s_invalidate_match(                 ) ;
 	private :
-		static void                 _s_init_config      (                                                                              ) ;
-		static Config/*old_config*/ _s_set_config       ( Config     && new_config                                                     ) ;
-		static void                 _s_diff_config      ( Config const& old_config                                                     ) ;
-		static void                 _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
-		static void                 _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
-		static void                 _s_collect_old_rules(                                                                              ) ;
-		static void                 _s_invalidate_exec  ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
-		static bool/*invalidate*/   _s_new_srcs         ( ::vector<Node>&& srcs                                                        ) ;
-		static void                 _s_new_rules        ( ::umap<Crc,RuleData>&& , bool force_invalidate                               ) ;
+		static void               _s_init_config      (                                                                              ) ;
+		static void               _s_set_config       ( Config     && new_config                                                     ) ;
+		static void               _s_diff_config      ( Config const& old_config                                                     ) ;
+		static void               _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
+		static void               _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
+		static void               _s_collect_old_rules(                                                                              ) ;
+		static void               _s_invalidate_exec  ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
+		static bool/*invalidate*/ _s_new_srcs         ( ::vector<Node>&& srcs                                                        ) ;
+		static void               _s_new_rules        ( ::umap<Crc,RuleData>&& , bool force_invalidate                               ) ;
 		// cxtors
 	public :
 		EngineStore(bool w) : writable{w} {}
@@ -578,10 +569,10 @@ namespace Engine {
 		::vector<RuleData> rule_datas  ;
 		SfxFile            sfxs        ;
 		PfxFile            pfxs        ;
-		Config             config      ;
 	} ;
 
-	extern EngineStore   g_store  ;
+	extern Config      g_config ;
+	extern EngineStore g_store  ;
 
 	template<class Idx_,class Item_> struct VectorHelper ;
 	//
