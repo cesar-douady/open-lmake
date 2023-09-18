@@ -32,7 +32,10 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::IgnoreError , { .short_name=DFlagChars[+DFlag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"           } }
 	,	{ Flag::NoRequired  , { .short_name=DFlagChars[+DFlag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"        } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line  { syntax,argc,argv }             ;
+	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	//
+	if (cmd_line.args.empty()) return 0 ;                                      // fast path : depends on nothing
+	//
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
 	DFlags            dflags    = DfltDFlags                    ;

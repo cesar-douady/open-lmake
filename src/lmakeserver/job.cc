@@ -37,14 +37,10 @@ namespace Engine {
 		return true ;
 	}
 
-	::vector<Node>/*report_unlink*/ Job::wash(Rule::SimpleMatch const& match) const {
-		Trace trace("wash") ;
-		::vector<Node> report_unlink ;
-		Rule           rule          = (*this)->rule       ;
-		::vector_s     to_mk_dirs    = match.target_dirs() ;
-		::set_s        to_del_dirs   ;                                         // ordered to ensure to_del_dirs are removed deepest first
-		::vector_s     to_wash       ;
-		// compute targets to wash
+	::pair<vector_s,vector<Node>/*report*/> Job::targets_to_wash(Rule::SimpleMatch const& match) const {
+		Rule           rule      = (*this)->rule ;
+		::vector<Node> to_report ;
+		::vector_s     to_wash   ;
 		// handle static targets
 		::vector_view_c_s sts = match.static_targets() ;
 		for( VarIdx t=0 ; t<sts.size() ; t++ ) {
@@ -53,23 +49,34 @@ namespace Engine {
 			if (rule->flags(t)[TFlag::Incremental]) continue ;                 // keep file for incremental targets
 			//
 			if ( !target->has_actual_job(*this) && target->has_actual_job() ) {
-				if (rule->flags(t)[TFlag::Warning]) report_unlink.push_back(target) ;
+				if (rule->flags(t)[TFlag::Warning]) to_report.push_back(target) ;
 			}
 			to_wash.push_back(sts[t]) ;
 		}
 		// handle star targets
-		Rule::FullMatch full_match ;                                           // lazy evaluated, if we find any target to report_unlink
+		Rule::FullMatch full_match ;                                           // lazy evaluated, if we find any target to_report
 		for( Target target : (*this)->star_targets ) {
 			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
 			if (target.is_update()    ) continue ;                             // if reads were allowed, keep file
 			//
 			if ( !target->has_actual_job(*this) && target->has_actual_job() ) {
 				if (!full_match                                               ) full_match = match ;              // solve lazy evaluation
-				if (rule->flags(full_match.idx(target.name()))[TFlag::Warning]) report_unlink.push_back(target) ;
+				if (rule->flags(full_match.idx(target.name()))[TFlag::Warning]) to_report.push_back(target) ;
 			}
 			to_wash.push_back(target.name()) ;
 		}
+		return {to_wash,to_report} ;
+	}
+
+	::vector<Node>/*report*/ Job::wash(Rule::SimpleMatch const& match) const {
+		Trace trace("wash") ;
+		::vector<Node> to_report ;
+		::vector_s     to_wash   ;
+		// compute targets to wash
+		tie(to_wash,to_report) = targets_to_wash(match) ;
 		// remove old_targets
+		::set_s       to_del_dirs   ;                                          // ordered to ensure to_del_dirs are removed deepest first
+		::vector_s    to_mk_dirs    = match.target_dirs()    ;
 		::set_s       to_mk_dir_set = mk_set(to_mk_dirs)     ;                 // uncomfortable on how a hash tab may work with repetitive calls to begin/erase, safer with a set
 		::unique_lock lock          { _s_target_dirs_mutex } ;
 		for( ::string const& t : to_wash ) {
@@ -113,7 +120,7 @@ namespace Engine {
 			}
 		}
 		for( ::string const& dir : to_mk_dirs ) { trace("create_dir",dir) ; _s_target_dirs[dir]++ ; } // update _target_dirs once we are sure job will start
-		return report_unlink ;
+		return to_report ;
 	}
 
 	void Job::end_exec() const {
@@ -195,12 +202,12 @@ namespace Engine {
 			if (d->buildable==No) { trace("no_dep",d) ; return ; }
 			deps.emplace_back(d,fs) ;
 		}
-		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		*this = Job(
-			match.name() , Dflt                                                              // args for store
-		,	rule_tgt , Deps( deps , rule_tgt->cmd_need_deps()?Accesses::All:Accesses::None ) // args for JobData
+			match.name() , Dflt                                                             // args for store
+		,	rule_tgt , Deps( deps , rule_tgt->cmd_needs_deps?Accesses::All:Accesses::None ) // args for JobData
 		) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			(*this)->tokens1 = rule_tgt->create_none_attrs.eval(*this,match).tokens1 ;
@@ -517,10 +524,9 @@ namespace Engine {
 		// handle deps
 		//
 		if ( !killed && status!=Status::EarlyErr ) {                           // if killed, old deps are better than new ones, if job did not run, we have no deps, not even static deps
-			DiskDate      db_date       ;
-			::vector<Dep> dep_vector    ; dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
-			::uset<Node>  old_deps      = mk_uset<Node>((*this)->deps) ;
-			bool          cmd_need_deps = rule->cmd_need_deps()        ;
+			DiskDate      db_date    ;
+			::vector<Dep> dep_vector ; dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
+			::uset<Node>  old_deps   = mk_uset<Node>((*this)->deps) ;
 			//
 			for( auto const& [dn,dd] : digest.deps ) {                         // static deps are guaranteed to appear first
 				Node d{dn} ;
@@ -528,7 +534,7 @@ namespace Engine {
 				dep.known = old_deps.contains(d) ;
 				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ; } // garbage : force unknown crc
 				else            { dep.crc_date(dd) ;                                                    } // date will be transformed into crc in make if possible
-				if ( cmd_need_deps && dep.dflags[DFlag::Static] ) {
+				if ( rule->cmd_needs_deps && dep.dflags[DFlag::Static] ) {
 					if (!dep.accesses) dep.date(dep->date) ;                   // dep has been accessed at submit or launch time, with the file date
 					dep.accesses = Accesses::All ;                             // if static deps were needed to compute cmd, assume they were read to be pessimistic
 				}
@@ -1017,14 +1023,14 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	static ::pair<SpecialStep,bool/*modified*/> _update_frozen_target( Bool3 is_src , Job j , UNode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
+	static ::pair<SpecialStep,Bool3/*modified*/> _update_frozen_target( Bool3 is_src , Job j , UNode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
 		Rule         r   = j->rule ;
 		FileInfoDate fid { tn }    ;
-		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,false/*modified*/} ;
+		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,No/*modified*/} ;
 		Trace trace("src",fid.date,t->date) ;
-		Crc      crc      { tn , g_config.hash_algo } ;
-		bool     modified = !crc.match(t->crc)        ;
-		DiskDate date     = +fid ? fid.date : t->date ;
+		Crc      crc      { tn , g_config.hash_algo }                                           ;
+		Bool3    modified = crc.match(t->crc) ? No : !t->crc || t->crc==Crc::None ? Maybe : Yes ;
+		DiskDate date     = +fid ? fid.date : t->date                                           ;
 		//vvvvvvvvvvvvvvvvvvvvv
 		t.refresh( crc , date ) ;
 		//^^^^^^^^^^^^^^^^^^^^^
@@ -1050,7 +1056,7 @@ namespace Engine {
 				::vector_view_c_s static_targets = match.static_targets() ;
 				SpecialStep       special_step   = SpecialStep::Idle      ;
 				Node              worst_target   ;
-				bool              modified       = false                  ;
+				Bool3             modified       = No                     ;
 				for( VarIdx ti=0 ; ti<static_targets.size() ; ti++ ) {
 					::string const& tn     = static_targets[ti]                                          ;
 					UNode           t      { tn }                                                        ;
@@ -1083,7 +1089,7 @@ namespace Engine {
 			break ;
 			case Special::Infinite :
 				(*this)->status = Status::Err ;
-				audit_end_special( req , SpecialStep::Err , false/*modified*/ ) ;
+				audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ;
 			break ;
 			case Special::Uphill :
 				for( Dep const& d : (*this)->deps ) {
@@ -1269,25 +1275,29 @@ namespace Engine {
 		return true/*maybe_new_deps*/ ;
 	}
 
-	void Job::audit_end_special( Req req , SpecialStep step , bool modified , Node node ) const {
+	void Job::audit_end_special( Req req , SpecialStep step , Bool3 modified , Node node ) const {
 		Status status = (*this)->status                                                                          ;
 		Color  color  = status==Status::Ok ? Color::HiddenOk : status>=Status::Err ? Color::Err : Color::Warning ;
 		bool   frozen = JobData::s_frozen(status)                                                                ;
 		//
 		SWEAR(status>Status::Garbage) ;
-		Trace trace("audit_end_special",*this,req,step,color,status) ;
+		Trace trace("audit_end_special",*this,req,step,modified,color,status) ;
 		//
-		::string    stderr   = special_stderr(node) ;
-		const char* step_str = nullptr              ;
+		::string stderr   = special_stderr(node) ;
+		::string step_str ;
 		switch (step) {
-			case SpecialStep::Idle      : step_str = frozen ? "frozen"                                : nullptr                       ; break ;
-			case SpecialStep::NoFile    : step_str = frozen ? "no_file_frozen"                        : (modified?"no_file":nullptr ) ; break ;
-			case SpecialStep::Ok        : step_str = frozen ? (modified?"new_frozen":"steady_frozen") : (modified?"new"    :"steady") ; break ;
+			case SpecialStep::Idle      :                                                                             break ;
+			case SpecialStep::NoFile    : step_str = modified!=No || frozen ? "no_file" : ""                        ; break ;
+			case SpecialStep::Ok        : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
 			case SpecialStep::Err       :
-			case SpecialStep::ErrNoFile : step_str = frozen ? "err_frozen"                            : "failed"                      ; break ;
+			case SpecialStep::ErrNoFile : step_str = "failed"                                                       ; break ;
 			default : FAIL(step) ;
 		}
-		if (step_str) {
+		if (frozen) {
+			if (step_str.empty()) step_str  = "frozen"  ;
+			else                  step_str += "_frozen" ;
+		}
+		if (!step_str.empty()) {
 			/**/                 req->audit_job (color      ,step_str,*this  ) ;
 			if (!stderr.empty()) req->audit_info(Color::None,stderr        ,1) ;
 		}

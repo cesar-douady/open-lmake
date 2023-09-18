@@ -27,7 +27,7 @@ if getattr(sys,'reading_makefiles',False) :
 			open(f'{dir}/a_file','w').write('hello')
 
 	class Mrkr(lmake.Rule):
-		targets = { 'MRKR' : r'{__dir__}mrkr{Wait:\d}' }
+		targets = { 'MRKR' : r'{__dir__}mrkr{Wait:\d}' }                       # cannot use target as we want to wait before creating MRKR
 		cmd     = 'sleep {Wait} ; echo > {MRKR}'                               # just create output
 
 	class Res1(lmake.PyRule):

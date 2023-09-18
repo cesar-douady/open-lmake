@@ -44,4 +44,4 @@ else :
 	ut.lmake( 'test' , steady=1 , new=2 )
 
 	print('v2',file=open('side.1','w'))
-	ut.lmake( 'test' , steady=1 , new=1 )
+	ut.lmake( 'test' , steady=1 , changed=1 )

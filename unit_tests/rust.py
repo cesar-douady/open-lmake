@@ -71,4 +71,4 @@ else :
 
 	print('hello world2',file=open('hello.in' ,'w'))
 	print('hello world2',file=open('hello.ref','w'))
-	ut.lmake( 'hello.ok' , done=1 , steady=1 , new=2 )                         # check we have acquired hello.in as a dep
+	ut.lmake( 'hello.ok' , done=1 , steady=1 , changed=2 )                     # check we have acquired hello.in as a dep

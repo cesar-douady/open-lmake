@@ -18,27 +18,30 @@ using namespace Time   ;
 ENUM( EventKind , Master , Int , Slave , Std )
 
 static ServerSockFd   _g_server_fd      ;
-static bool           _g_is_daemon      = false ;
-static ::atomic<bool> _g_done           = false ;
-static bool           _g_server_running = false ;
+static bool           _g_is_daemon      = false  ;
+static ::atomic<bool> _g_done           = false  ;
+static bool           _g_server_running = false  ;
 static ::string       _g_server_mrkr    ;
+static ::string       _g_host           = host() ;
 
-static int _get_mrkr_pid() {
-	::ifstream server_mrkr_stream {_g_server_mrkr} ;
-	if (!server_mrkr_stream) return 0 ;
-	::string server_pid ;
-	getline(server_mrkr_stream,server_pid) ;                                   // server:port
-	getline(server_mrkr_stream,server_pid) ;                                   // pid
-	return atol(server_pid.c_str()) ;
+static ::pair_s<int> _get_mrkr_host_pid() {
+	::ifstream server_mrkr_stream { _g_server_mrkr } ;
+	::string   service            ;
+	::string   server_pid         ;
+	if (!server_mrkr_stream                      ) { return { {}                      , 0                          } ; }
+	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                          } ; }
+	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                          } ; }
+	try                                            { return { SockFd::s_host(service) , ::atol(server_pid.c_str()) } ; }
+	catch (::string const&)                        { return { {}                      , 0                          } ; }
 }
 
 void server_cleanup() {
 	Trace trace("server_cleanup",STR(_g_server_running),_g_server_mrkr) ;
 	if (!_g_server_running) return ;                                           // not running, nothing to clean
-	int pid      = getpid()        ;
-	int mrkr_pid = _get_mrkr_pid() ;
-	trace("pid",mrkr_pid,pid) ;
-	if (mrkr_pid!=pid) return ;                                                // not our file, dont touch it
+	pid_t           pid  = getpid()             ;
+	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
+	trace("pid",mrkr,pid) ;
+	if (mrkr!=::pair_s(_g_host,pid)) return ;                                  // not our file, dont touch it
 	::unlink(_g_server_mrkr.c_str()) ;
 	trace("cleaned") ;
 }
@@ -49,22 +52,26 @@ void report_server( Fd fd , bool running ) {
 }
 
 bool/*crashed*/ start_server() {
-	bool crashed   = false    ;
-	int  pid       = getpid() ;
-	::string host_ = host()   ;
-	Trace trace("start_server",_g_server_mrkr,host_,pid) ;
+	bool  crashed = false    ;
+	pid_t pid     = getpid() ;
+	Trace trace("start_server",_g_server_mrkr,_g_host,pid) ;
 	dir_guard(_g_server_mrkr) ;
-	if ( int mrkr_pid = _get_mrkr_pid() ) {
-		if (kill_process(mrkr_pid,0)==0) {                                     // another server exists
-			trace("already_existing",mrkr_pid) ;
+	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
+	if ( !mrkr.first.empty() && mrkr.first!=_g_host ) {
+		trace("already_existing_elsewhere",mrkr) ;
+		return false/*unused*/ ;                                               // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
+	}
+	if (mrkr.second) {
+		if (kill_process(mrkr.second,0)) {                                     // another server exists
+			trace("already_existing",mrkr) ;
 			return false/*unused*/ ;
 		}
 		::unlink(_g_server_mrkr.c_str()) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		crashed = true ;
-		trace("vanished",mrkr_pid) ;
+		trace("vanished",mrkr) ;
 	}
 	_g_server_fd.listen() ;
-	::string tmp = ::to_string(_g_server_mrkr,'.',host_,'.',pid) ;
+	::string tmp = ::to_string(_g_server_mrkr,'.',_g_host,'.',pid) ;
 	OFStream(tmp)
 		<< _g_server_fd.service() << '\n'
 		<< getpid()               << '\n'
@@ -87,9 +94,7 @@ void record_targets( ::vector<Node> const& targets ) {
 	::vector_s known_targets ;
 	{	::ifstream targets_stream { targets_file } ;
 		::string   target         ;
-		while (std::getline(targets_stream,target)) {
-			known_targets.push_back(target) ;
-		}
+		while (::getline(targets_stream,target)) known_targets.push_back(target) ;
 	}
 	for( Node t : targets ) {
 		::string tn = t.name() ;

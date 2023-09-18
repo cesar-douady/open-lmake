@@ -82,4 +82,4 @@ else :
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
-	ut.lmake( 'hello.ok' , steady=1 , new=1 )                                  # check cargo can run twice with no problem
+	ut.lmake( 'hello.ok' , steady=1 , changed=1 )                              # check cargo can run twice with no problem

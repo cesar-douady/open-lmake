@@ -43,4 +43,4 @@ else :
 	print(1,file=open('trig','w'))
 	ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , may_rerun=1 , done=n , steady=1 , new=1 )
 	print(2,file=open('trig','w'))
-	ut.lmake(                      f'out_{n}' , failed=... , steady=... , new=1 , rc=1 )
+	ut.lmake(                      f'out_{n}' , failed=... , steady=... , changed=1 , rc=1 )

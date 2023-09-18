@@ -27,13 +27,6 @@ using namespace Disk ;
 namespace Caches {
 
 	struct Lru {
-		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,prev) ;
-			::serdes(s,next) ;
-			::serdes(s,sz  ) ;
-		}
-		// data
 		::string     prev = "LMAKE" ;
 		::string     next = "LMAKE" ;
 		DirCache::Sz sz   = 0       ;  // size of entry, or overall size for head

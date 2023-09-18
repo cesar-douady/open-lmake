@@ -66,11 +66,12 @@ struct SyscallDescr {
 	// static data
 	static ::vector<SyscallDescr> const s_tab ;
 	// data
-	int     syscall                                            = 0       ;
-	void    (*entry)( PidInfo& , pid_t , SyscallEntry const& ) = nullptr ;
-	void    (*exit )( PidInfo& , pid_t , SyscallExit  const& ) = nullptr ;
-	uint8_t prio                                               = 0       ;
-	bool    data_access                                        = false   ;
+	int         syscall                                                                  = 0       ;
+	void        (*entry)( PidInfo& , pid_t , SyscallEntry const& , const char* comment ) = nullptr ;
+	void        (*exit )( PidInfo& , pid_t , SyscallExit  const&                       ) = nullptr ;
+	uint8_t     prio                                                                     = 0       ;
+	bool        data_access                                                              = false   ;
+	const char* comment                                                                  = nullptr ;
 } ;
 
 void AutodepPtrace::_init(pid_t cp) {
@@ -119,7 +120,7 @@ void AutodepPtrace::s_prepare_child() {
 			SWEAR(syscall_info.op==PTRACE_SYSCALL_INFO_SECCOMP) ;
 			info.idx = syscall_info.seccomp.ret_data ;
 			SyscallDescr const& descr = SyscallDescr::s_tab.at(info.idx) ;
-			descr.entry( info , pid , syscall_info.seccomp ) ;
+			descr.entry( info , pid , syscall_info.seccomp , descr.comment ) ;
 			info.on_going = descr.exit ;
 			ptrace( info.on_going?PTRACE_SYSCALL:PTRACE_CONT , pid , 0/*addr*/ , 0/*data*/ ) ;
 		} else if ( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) {
@@ -211,7 +212,7 @@ void put_str( pid_t pid , uint64_t val , ::string const& str ) {
 template<bool At> int _at(uint64_t val) { if (At) return val ; else return AT_FDCWD ; }
 
 // chdir
-template<bool At> void entry_chdir( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At> void entry_chdir( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* ) {
 	try { info.action.chdir = RecordSock::Chdir( true/*active*/ , info.record , _at<At>(entry.args[0]) , At?nullptr:get_str(pid,entry.args[0]).c_str() ) ; }
 	catch (int) {}
 }
@@ -221,13 +222,13 @@ void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
-template<bool At,bool Flags> void entry_execve( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
-	try { info.record.exec( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , Flags&&(entry.args[3+At]&AT_SYMLINK_NOFOLLOW) , At?"execveat":"execve" ) ; }
+template<bool At,bool Flags> void entry_execve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
+	try { info.record.exec( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , Flags&&(entry.args[3+At]&AT_SYMLINK_NOFOLLOW) , comment ) ; }
 	catch (int) {}
 }
 
 // link
-template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = Flags ? entry.args[2+At*2] : 0 ;
 	try {
 		info.action.lnk = RecordSock::Lnk(
@@ -235,7 +236,7 @@ template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , Syscall
 		,	_at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str()
 		,	_at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str()
 		,	flags
-		,	At?to_string(::hex,"linkat.",flags):"link"
+		,	comment
 		) ;
 	} catch (int) {}
 }
@@ -244,7 +245,7 @@ void exit_lnk( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 }
 
 // open
-template<bool At> void entry_open( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At> void entry_open( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = entry.args[1+At] ;
 	try {
 		info.action.open = RecordSock::Open(
@@ -252,7 +253,7 @@ template<bool At> void entry_open( PidInfo& info , pid_t pid , SyscallEntry cons
 		,	_at<At>(entry.args[0])
 		,	get_str(pid,entry.args[0+At]).c_str()
 		,	flags
-		,	to_string(::hex,At?"openat.":"open.",flags)
+		,	comment
 		) ;
 	}
 	catch (int) {}
@@ -262,14 +263,14 @@ void exit_open( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 }
 
 // read_lnk
-template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	using Len = MsgBuf::Len ;
 	try {
 		int at = _at<At>(entry.args[0]) ;
 		if (at==AT_BACKDOOR) {
 			::string data = get_str( pid , entry.args[0+At] , sizeof(Len)+get<size_t>(pid,entry.args[0+At]) ) ;
 			::string buf  ( entry.args[2+At] , char(0) ) ;
-			RecordSock::ReadLnk( true/*active*/ , info.record , data.data() , buf.data() , buf.size() ) ;
+			RecordSock::ReadLnk( true/*active*/ , info.record , data.data() , buf.data() , buf.size() , "backdoor" ) ;
 			Len len = MsgBuf::s_sz(buf.data()) ;
 			if      (sizeof(Len)+len<=buf.size()) buf.resize(sizeof(Len)+len) ;
 			else if (sizeof(Len)    <=buf.size()) buf.resize(sizeof(Len)    ) ;
@@ -277,7 +278,7 @@ template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry 
 			put_str( pid , entry.args[1+At] , buf ) ;
 			np_ptrace_clear_syscall(pid) ;
 		} else {
-			info.action.read_lnk = RecordSock::ReadLnk( true/*active*/ , info.record , at , get_str(pid,entry.args[0+At]).c_str() , At?"readlinkat":"readlink" ) ;
+			info.action.read_lnk = RecordSock::ReadLnk( true/*active*/ , info.record , at , get_str(pid,entry.args[0+At]).c_str() , comment ) ;
 		}
 	} catch (int) {}
 }
@@ -286,7 +287,7 @@ void exit_read_lnk( PidInfo& info , pid_t /*pid*/ , SyscallExit const& res ) {
 }
 
 // rename
-template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = Flags ? entry.args[2+At*2] : 0 ;
 	try {
 		info.action.rename = RecordSock::Rename(
@@ -294,7 +295,7 @@ template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , Sysc
 		,	_at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str()
 		,	_at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str()
 		,	flags
-		,	At?to_string(::hex,"renameat.",flags):"rename"
+		,	comment
 		) ;
 	} catch (int) {}
 }
@@ -303,8 +304,8 @@ void exit_rename( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 }
 
 // symlink
-template<bool At> void entry_sym_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
-	try { info.action.sym_lnk = RecordSock::SymLnk( true/*active*/ , info.record , _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() , At?"symlinkat":"symlink" ) ; }
+template<bool At> void entry_sym_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment) {
+	try { info.action.sym_lnk = RecordSock::SymLnk( true/*active*/ , info.record , _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() , comment ) ; }
 	catch (int) {}
 }
 void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
@@ -312,12 +313,12 @@ void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
 }
 
 // unlink
-template<bool At> void entry_unlink( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At> void entry_unlink( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	try {
 		int      at    = _at<At>(entry.args[0])        ;
 		int      flags = At ? entry.args[1+At] : 0     ;
 		::string file  = get_str(pid,entry.args[0+At]) ;
-		info.action.unlink = RecordSock::Unlink( true/*active*/ , info.record , at , file.c_str() , flags&AT_REMOVEDIR , At?"unlinkat":"unlink" ) ;
+		info.action.unlink = RecordSock::Unlink( true/*active*/ , info.record , at , file.c_str() , flags&AT_REMOVEDIR , comment ) ;
 	} catch (int) {}
 }
 void exit_unlink( PidInfo& info , pid_t , SyscallExit const& res ) {
@@ -327,24 +328,24 @@ void exit_unlink( PidInfo& info , pid_t , SyscallExit const& res ) {
 // access
 static constexpr int FlagAlways = -1 ;
 static constexpr int FlagNever  = -2 ;
-template<bool At,int FlagArg> void entry_stat( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At,int FlagArg> void entry_stat( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	bool no_follow ;
 	switch (FlagArg) {
 		case FlagAlways : no_follow = true                                         ; break ;
 		case FlagNever  : no_follow = false                                        ; break ;
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
-	try { info.record.stat( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow ) ; }
+	try { info.record.stat( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow , comment ) ; }
 	catch (int) {}
 }
-template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , SyscallEntry const& entry ) {
+template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	bool no_follow ;
 	switch (FlagArg) {
 		case FlagAlways : no_follow = true                                         ; break ;
 		case FlagNever  : no_follow = false                                        ; break ;
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
-	try { info.record.solve( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow ) ; }
+	try { info.record.solve( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow , comment ) ; }
 	catch (int) {}
 }
 
@@ -352,109 +353,109 @@ template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , Sysc
 ::vector<SyscallDescr> const SyscallDescr::s_tab = {
 	{}                                                                                                 // first entry is ignored so each active line contains a ','
 #ifdef SYS_faccessat
-,	{ SYS_faccessat         , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false }
+,	{ SYS_faccessat         , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat"         }
 #endif
 #ifdef SYS_access
-,	{ SYS_access            , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false }
+,	{ SYS_access            , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "access"            }
 #endif
 #ifdef SYS_faccessat2
-,	{ SYS_faccessat2        , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false }
+,	{ SYS_faccessat2        , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat2"        }
 #endif
 #ifdef SYS_chdir
-,	{ SYS_chdir             , entry_chdir   <false/*At*/>                , exit_chdir    , 1 , true  }
+,	{ SYS_chdir             , entry_chdir   <false/*At*/>                , exit_chdir    , 1 , true                        }
 #endif
 #ifdef SYS_fchdir
-,	{ SYS_fchdir            , entry_chdir   <true /*At*/>                , exit_chdir    , 1 , true  }
+,	{ SYS_fchdir            , entry_chdir   <true /*At*/>                , exit_chdir    , 1 , true                        }
 #endif
 #ifdef SYS_execve
-,	{ SYS_execve            , entry_execve  <false/*At*/,false/*Flags*/> , nullptr       , 1 , true  }
+,	{ SYS_execve            , entry_execve  <false/*At*/,false/*Flags*/> , nullptr       , 1 , true  , "execve"            }
 #endif
 #ifdef SYS_execveat
-,	{ SYS_execveat          , entry_execve  <true /*At*/,true /*Flags*/> , nullptr       , 1 , true  }
+,	{ SYS_execveat          , entry_execve  <true /*At*/,true /*Flags*/> , nullptr       , 1 , true  , "execveat"          }
 #endif
 #ifdef SYS_link
-,	{ SYS_link              , entry_lnk     <false/*At*/,false/*Flags*/> , exit_lnk      , 1 , true  }
+,	{ SYS_link              , entry_lnk     <false/*At*/,false/*Flags*/> , exit_lnk      , 1 , true  , "link"              }
 #endif
 #ifdef SYS_linkat
-,	{ SYS_linkat            , entry_lnk     <true /*At*/,true /*Flags*/> , exit_lnk      , 1 , true  }
+,	{ SYS_linkat            , entry_lnk     <true /*At*/,true /*Flags*/> , exit_lnk      , 1 , true  , "linkat"            }
 #endif
 #ifdef SYS_mkdir
-,	{ SYS_mkdir             , entry_solve   <false/*At*/,FlagNever     > , nullptr       , 1 , false }
+,	{ SYS_mkdir             , entry_solve   <false/*At*/,FlagNever     > , nullptr       , 1 , false , "mkdir"             }
 #endif
 #ifdef SYS_mkdirat
-,	{ SYS_mkdirat           , entry_solve   <true /*At*/,FlagNever     > , nullptr       , 1 , false }
+,	{ SYS_mkdirat           , entry_solve   <true /*At*/,FlagNever     > , nullptr       , 1 , false , "mkdirat"           }
 #endif
 #ifdef SYS_name_to_handle_at
-,	{ SYS_name_to_handle_at , entry_open    <true /*At*/>                , exit_open     , 1 , true  }
+,	{ SYS_name_to_handle_at , entry_open    <true /*At*/>                , exit_open     , 1 , true  , "name_to_handle_at" }
 #endif
 #ifdef SYS_open
-,	{ SYS_open              , entry_open    <false/*At*/>                , exit_open     , 2 , true  }
+,	{ SYS_open              , entry_open    <false/*At*/>                , exit_open     , 2 , true  , "open"              }
 #endif
 #ifdef SYS_openat
-,	{ SYS_openat            , entry_open    <true /*At*/>                , exit_open     , 2 , true  }
+,	{ SYS_openat            , entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat"            }
 #endif
 #ifdef SYS_openat2
-, 	{ SYS_openat2           , entry_open    <true /*At*/>                , exit_open     , 2 , true  }
+, 	{ SYS_openat2           , entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat2"           }
 #endif
 #ifdef SYS_open_tree
-,	{ SYS_open_tree         , entry_stat    <true /*At*/,1             > , nullptr       , 1 , false }
+,	{ SYS_open_tree         , entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "open_tree"         }
 #endif
 #ifdef SYS_readlink
-,	{ SYS_readlink          , entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  }
+,	{ SYS_readlink          , entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  , "realink"           }
 #endif
 #ifdef SYS_readlinkat
-,	{ SYS_readlinkat        , entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  }
+,	{ SYS_readlinkat        , entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  , "realinkat"         }
 #endif
 #if SYS_rename
-,	{ SYS_rename            , entry_rename  <false/*At*/,false/*Flags*/> , exit_rename   , 1 , true  }
+,	{ SYS_rename            , entry_rename  <false/*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "rename"            }
 #endif
 #ifdef SYS_renameat
-,	{ SYS_renameat          , entry_rename  <true /*At*/,false/*Flags*/> , exit_rename   , 1 , true  }
+,	{ SYS_renameat          , entry_rename  <true /*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "renameat"          }
 #endif
 #ifdef SYS_renameat2
-,	{ SYS_renameat2         , entry_rename  <true /*At*/,true /*Flags*/> , exit_rename   , 1 , true  }
+,	{ SYS_renameat2         , entry_rename  <true /*At*/,true /*Flags*/> , exit_rename   , 1 , true  , "renameat2"         }
 #endif
 #ifdef SYS_rmdir
-,	{ SYS_rmdir             , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false }
+,	{ SYS_rmdir             , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "rmdir"             }
 #endif
 #ifdef SYS_stat
-,	{ SYS_stat              , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 2 , false }
+,	{ SYS_stat              , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 2 , false , "stat"              }
 #endif
 #ifdef SYS_stat64
-,	{ SYS_stat64            , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false }
+,	{ SYS_stat64            , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "stat64"            }
 #endif
 #ifdef SYS_fstatat64
-,	{ SYS_fstatat64         , entry_stat    <true /*At*/,2             > , nullptr       , 1 , false }
+,	{ SYS_fstatat64         , entry_stat    <true /*At*/,2             > , nullptr       , 1 , false , "fstatat64"         }
 #endif
 #ifdef SYS_lstat
-,	{ SYS_lstat             , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 2 , false }
+,	{ SYS_lstat             , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 2 , false , "lstat"             }
 #endif
 #ifdef SYS_lstat64
-,	{ SYS_lstat64           , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false }
+,	{ SYS_lstat64           , entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "lstat64"           }
 #endif
 #ifdef SYS_statx
-,	{ SYS_statx             , entry_stat    <true /*At*/,1             > , nullptr       , 1 , false }
+,	{ SYS_statx             , entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "statx"             }
 #endif
 #if SYS_newfstatat
-,	{ SYS_newfstatat        , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false }
+,	{ SYS_newfstatat        , entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "newfstatat"        }
 #endif
 #ifdef SYS_oldstat
-,	{ SYS_oldstat           , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false }
+,	{ SYS_oldstat           , entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "oldstat"           }
 #endif
 #ifdef SYS_oldlstat
-,	{ SYS_oldlstat          , entry_stat    <false/*At*/,FlagAlways>     , nullptr       , 1 , false }
+,	{ SYS_oldlstat          , entry_stat    <false/*At*/,FlagAlways>     , nullptr       , 1 , false , "oldlstat"          }
 #endif
 #ifdef SYS_symlink
-,	{ SYS_symlink           , entry_sym_lnk <false/*At*/>                , exit_sym_lnk  , 1 , true  }
+,	{ SYS_symlink           , entry_sym_lnk <false/*At*/>                , exit_sym_lnk  , 1 , true  , "symlink"           }
 #endif
 #ifdef SYS_symlinkat
-,	{ SYS_symlinkat         , entry_sym_lnk <true /*At*/>                , exit_sym_lnk  , 1 , true  }
+,	{ SYS_symlinkat         , entry_sym_lnk <true /*At*/>                , exit_sym_lnk  , 1 , true  , "symlinkat"         }
 #endif
 #ifdef SYS_unlink
-,	{ SYS_unlink            , entry_unlink  <false/*At*/>                , exit_unlink   , 1 , true  }
+,	{ SYS_unlink            , entry_unlink  <false/*At*/>                , exit_unlink   , 1 , true  , "unlink"            }
 #endif
 #ifdef SYS_unlinkat
-,	{ SYS_unlinkat          , entry_unlink  <true /*At*/>                , exit_unlink   , 1 , true  }
+,	{ SYS_unlinkat          , entry_unlink  <true /*At*/>                , exit_unlink   , 1 , true  , "unlinkat"          }
 #endif
 } ;
 

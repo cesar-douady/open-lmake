@@ -78,6 +78,8 @@ int main( int argc , char* argv[]) {
 	if ( +(neg_tflags&pos_tflags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
 	if ( unlink && (+neg_tflags||+pos_tflags) ) syntax.usage(          "cannot unlink and set/reset flags"s                                 ) ;
 	//
+	if (cmd_line.args.empty()) return 0 ;                                      // fast path : declare no targets
+	//
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access
 	,	::move(cmd_line.args)

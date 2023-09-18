@@ -47,4 +47,4 @@ else :
 
 	time.sleep(1)                                                              # Python .pyc validation is only sensitive to seconds ! so to ensure .py are seen as different, we must wait 1s.
 	print('2',file=open('ref','w'))
-	ut.lmake( 'chk' , done=2 , new=1 , steady=1 )
+	ut.lmake( 'chk' , done=2 , changed=1 , steady=1 )

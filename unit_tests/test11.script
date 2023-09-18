@@ -14,5 +14,5 @@ touch hello.py
 ut_launch -done 0 -steady 1 lmake src1.import
 
 echo >>hello.py
-ut_launch -done 0 -new 1 -rerun 2 -steady 1 lmake src1.import
-ut_launch -done 0 -new 0 -rerun 2 -steady 1 lmake src2.import
+ut_launch -done 0 -changed 1 -rerun 2 -steady 1 lmake src1.import
+ut_launch -done 0            -rerun 2 -steady 1 lmake src2.import

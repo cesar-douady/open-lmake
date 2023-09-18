@@ -1116,10 +1116,13 @@ This value may be empty (loop-back for local backend, @code{hostname} look up fo
 or the name of a host (looked up as for @code{ping}).
 @item @code{backends.local.cpu}
 @tab number of physical CPU's
-@tab This is a normal resource rules can require (which is the case if resources are defaulted)
+@tab This is a normal resource that rules can require (which is the case if resources are defaulted)
 @item @code{backends.local.mem}
 @tab size of physical memory in MB
-@tab This is a normal resource rules can require (which is the case if resources are defaulted)
+@tab This is a normal resource that rules can require.
+@item @code{backends.local.tmp}
+@tab 0
+@tab This is a normal resource that rules can require.
 @end multitable
 
 @section caches
@@ -2214,10 +2217,13 @@ The @lmake backend also provides the current ETA (@pxref{eta-estimation}) of the
 
 As of now, the only existing backend is the local backend, but a Slurm backend is scheduled shortly.
 
-In addition to dedicated resources, all backends manage the following 2 resources :
+In addition to dedicated resources, all backends manage the following 3 resources :
 @itemize @minus
 @item @code{cpu} : The number of threads the job is expected to run in parallel. The backend is expected to reserve enough resources for such a number of threads to run smoothly.
-@item @code{mem} : The memory size in MB the job is expected to need to run smoothly. The backend is expected to ensure that such memory is available for the job.
+@item @code{mem} : The memory size the job is expected to need to run smoothly.
+The backend is expected to ensure that such memory is available for the job.
+Unit must be coherent with the one used in the configuration. It is MB by default.
+@item @code{tmp} : The size of necessary temporary disk space.
 @end itemize
 
 @anchor{local-backend}
@@ -2246,9 +2252,9 @@ The local backend ensures that the sum of all the resources of the running jobs 
 By default, the configuration contains the 2 generic resources : @code{cpu} and @code{mem} configured respectively as the overall number of available cpus and the overall available memory (in MB).
 @itemize @minus
 @item @code{cpu} : The number of cpu as returned by @code{os.wched_getaffinity(0)}.
-@item @code{mem} : The physical memory size as returned by @code{s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')}
+@item @code{mem} : The physical memory size as returned by @code{s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')} in MB.
 @end itemize
-Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu} and a share of @code{mem} computed by dividing the physical memory size by the number of cpus.
+Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu}.
 
 @anchor{autodep}
 @section Autodep

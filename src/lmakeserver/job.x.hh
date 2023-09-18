@@ -81,7 +81,8 @@ namespace Engine {
 		bool active() const ;
 		//
 		//services
-		::vector<Node>/*report_unlink*/ wash(Rule::SimpleMatch const&) const ; // thread-safe
+		::pair<vector_s,vector<Node>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
+		::vector<Node>/*report*/                wash           (Rule::SimpleMatch const&) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -104,8 +105,8 @@ namespace Engine {
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , bool modified , Node ) const ;
-		void audit_end_special( Req , SpecialStep , bool modified        ) const ; // cannot use default Node={} as Node is incomplete
+		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ; // modified=Maybe means file is new
+		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ; // cannot use default Node={} as Node is incomplete
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		//
@@ -331,8 +332,8 @@ namespace Engine {
 	}
 	inline ::vector<Req> Job::reqs() const { return Req::reqs(*this) ; }
 
-	inline ::string Job::special_stderr   (                                ) const { return special_stderr   (      {}) ; }
-	inline void     Job::audit_end_special( Req r , SpecialStep s , bool m ) const { return audit_end_special(r,s,m,{}) ; }
+	inline ::string Job::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
+	inline void     Job::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
 
 	inline Rule::SimpleMatch Job::simple_match() const { return Rule::SimpleMatch(*this) ; }
 	inline Rule::FullMatch   Job::full_match  () const { return Rule::FullMatch  (*this) ; }

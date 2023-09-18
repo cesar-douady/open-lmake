@@ -21,44 +21,31 @@
 
 struct GatherDeps {
 	friend ::ostream& operator<<( ::ostream& os , GatherDeps const& ad ) ;
-	using Accesses = Disk::Accesses    ;
-	using Proc     = JobExecRpcProc    ;
-	using DD       = Time::DiskDate    ;
-	using PD       = Time::ProcessDate ;
-	using FI       = Disk::FileInfo    ;
+	using Accesses     = Disk::Accesses              ;
+	using AccessDigest = JobExecRpcReq::AccessDigest ;
+	using Proc         = JobExecRpcProc              ;
+	using DD           = Time::DiskDate              ;
+	using PD           = Time::ProcessDate           ;
+	using FI           = Disk::FileInfo              ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
-		AccessInfo(TFlags tfs_=UnexpectedTFlags) : tflags{tfs_} {}
+		AccessInfo() = default ;
+		AccessInfo( PD pd , TFlags tfs_ ) : access_date{pd} , tflags{tfs_} {}
+		//
+		bool operator==(AccessInfo const&) const = default ;                   // XXX : wht this is this necessary ?!?
 		// accesses
-		bool is_dep() const { return info.idle() && tflags[TFlag::Dep] ; }
+		bool is_dep() const { return digest.idle() && tflags[TFlag::Dep] ; }
 		// services
-		bool/*modified*/ update( PD pd , DD dd , JobExecRpcReq::AccessInfo const& ai , NodeIdx parallel_id_ ) {
-			Bool3 after =                                                      // new entries have after==No
-				!info.idle()   && pd>write_date ? Yes
-			:	+info.accesses && pd>read_date  ? Maybe
-			:	                                  No
-			;
-			// if we do not write, do book-keeping as read, even if we do not access the file
-			if ( (+ai.accesses||+ai.dflags) || ai.idle() ) {
-				if      (after==No     ) { file_date = dd ; read_date = pd ; parallel_id = parallel_id_ ; } // update read info if we are first to read
-				else if (!info.accesses) { file_date = dd ;                                               } // if no previous access, record our date
-			}
-			if ( !ai.idle() && after!=Yes ) write_date = pd ;
-			//
-			JobExecRpcReq::AccessInfo old_ai = info  ;                                                 // for trace only
-			info.update(ai,after) ;                                                                    // execute actions in actual order as provided by dates
-			SWEAR( !( (old_ai.neg_tflags|old_ai.pos_tflags) & ~(info.neg_tflags|info.pos_tflags) ) ) ; // info.tflags is less and less transparent
-			tflags = ( tflags & ~info.neg_tflags ) | info.pos_tflags ;                                 // thus we can recompute new tfs from old value
-			return after!=Yes || info!=old_ai ;
-		}
+		void update( PD pd , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ ) ;
 		// data
-		PD                        read_date   = {} ;       // if +info.dfs   , first read date : must appear first so deps are sorted by first access date
-		PD                        write_date  = {} ;       // if !info.idle(), first write date
-		JobExecRpcReq::AccessInfo info        = {} ;
-		DD                        file_date   = {} ;       // if +info.dfs   , date of file when read as first access
-		NodeIdx                   parallel_id = 0  ;
-		TFlags                    tflags           ;       // resulting flags after appliation of info flags modifiers
+		PD           access_date      ;                    // first access date
+		PD           first_write_date ;                    // if !digest.idle(), first write/unlink date
+		PD           last_write_date  ;                    // if !digest.idle(), last  write/unlink date
+		AccessDigest digest           ;
+		DD           file_date        ;                    // if +digest.accesses , date of file when read as first access
+		NodeIdx      parallel_id      = 0 ;
+		TFlags       tflags           ;                    // resulting flags after appliation of info flags modifiers
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -68,13 +55,13 @@ struct GatherDeps {
 	}
 	// services
 private :
-	bool/*new*/ _new_access( PD , ::string const& , DD , JobExecRpcReq::AccessInfo const& , NodeIdx parallel_id , ::string const& comment={} ) ;
+	bool/*new*/ _new_access( PD , ::string const& , DD , AccessDigest const& , NodeIdx parallel_id , ::string const& comment={} ) ;
 	//
-	void _new_accesses( PD pd , ::vector_s const& files , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+	void _new_accesses( PD pd , ::vector_s const& files , AccessDigest const& info , ::string const& comment={} ) {
 		parallel_id++ ;
 		for( auto const& f : files ) _new_access(pd,f,{},info,parallel_id,comment) ;
 	}
-	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , JobExecRpcReq::AccessInfo const& info , ::string const& comment={} ) {
+	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , AccessDigest const& info , ::string const& comment={} ) {
 		parallel_id++ ;
 		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,parallel_id,comment) ;
 	}

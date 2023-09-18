@@ -99,10 +99,10 @@ namespace Engine {
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (status!=Status::Ok) throw "cannot read makefiles"s ;
 		//
-		::string content = read_content(makefile_data) ;
-		::vector_s deps ; deps.reserve(gather_deps.accesses.size()) ;
+		::string   content = read_content(makefile_data) ;
+		::vector_s deps    ; deps.reserve(gather_deps.accesses.size()) ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
-			if (!ai.info.idle()) continue ;
+			if (!ai.digest.idle()) continue ;
 			Py::Match m = pyc_re1.match(d) ; if (!m) m = pyc_re2.match(d) ;
 			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
 			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }
@@ -114,7 +114,7 @@ namespace Engine {
 	void Makefiles::s_refresh_makefiles(bool chk) {
 		Trace trace("s_refresh_makefiles") ;
 		DiskDate latest_makefile ;
-		::string reason = _s_chk_makefiles(latest_makefile) ;
+		::string reason          = _s_chk_makefiles(latest_makefile) ;
 		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -133,8 +133,8 @@ namespace Engine {
 			PyObject* py_info = PyRun_String(info_str.c_str(),Py_eval_input,eval_env,eval_env) ;
 			Py_DECREF(eval_env) ;
 			if (!py_info) exit( 2 , "error while reading makefile digest :\n" , Py::err_str() ) ;
-			Py::Dict   info         = Py::Object( py_info , true/*clobber*/ ) ;
-			::string   root_dir_s   = *g_root_dir+'/'                         ;
+			Py::Dict   info       = Py::Object( py_info , true/*clobber*/ ) ;
+			::string   root_dir_s = *g_root_dir+'/'                         ;
 			// compile config early as we need it to generate the list of makefiles
 			Config config ;
 			try                      { config = Py::Mapping(info["config"]) ;                     }
@@ -167,9 +167,9 @@ namespace Engine {
 				}
 			} while (file_date(s_makefiles)<=latest_makefile) ;                // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
-			::umap<Crc,RuleData> rules            ;
-			::vector_s           srcs             ;
-			::string             step             ;
+			::umap<Crc,RuleData> rules ;
+			::vector_s           srcs  ;
+			::string             step  ;
 			try {
 				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				EngineStore::s_new_config( ::move(config) , chk ) ;
@@ -179,7 +179,7 @@ namespace Engine {
 				for( ::string const& f : srcs ) {
 					::string f_s = f+'/' ;
 					for ( ::string const& sd_s : lcl_src_dirs_s ) {
-						if (!f_s.starts_with(sd_s)) continue ;
+						if (!f_s.starts_with(sd_s) ) continue ;
 						if (f_s.size()==sd_s.size()) throw to_string(f," is both a source and a source dir"                                           ) ;
 						else                         throw to_string("source ",f," is withing source dir ",sd_s=="/"?sd_s:sd_s.substr(0,sd_s.size()-1)) ;
 					}

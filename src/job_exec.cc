@@ -118,13 +118,13 @@ int main( int argc , char* argv[] ) {
 		trace("analyze",STR(at_end)) ;
 		NodeIdx prev_parallel_id = 0 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
-			JobExecRpcReq::AccessInfo const& ai = info.info   ;
-			Accesses                         a  = ai.accesses ;  if (!info.tflags[TFlag::Stat]) a &= ~Access::Stat ;
+			JobExecRpcReq::AccessDigest const& ad = info.digest ;
+			Accesses                           a  = ad.accesses ;  if (!info.tflags[TFlag::Stat]) a &= ~Access::Stat ;
 			try                       { chk(info.tflags) ;                                               ;            }
 			catch (::string const& e) { append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ; continue ; } // dont know what to do with such an access
 			if (info.is_dep()) {
 				bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
-				DepDigest dd       { a , ai.dflags , parallel }                             ;
+				DepDigest dd       { a , ad.dflags , parallel }                             ;
 				prev_parallel_id = info.parallel_id ;
 				if (+a) {
 					dd.date(info.file_date) ;
@@ -136,8 +136,8 @@ int main( int argc , char* argv[] ) {
 				trace("dep   ",dd,info.tflags,file) ;
 			} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                                   ) a = Accesses::None ;
-				if ( ai.write && !ai.unlink && info.tflags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
-				TargetDigest td{a,ai.write,info.tflags,ai.unlink} ;
+				if ( ad.write && !ad.unlink && info.tflags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				TargetDigest td{a,ad.write,info.tflags,ad.unlink} ;
 				targets.emplace_back( file , td ) ;
 				trace("target",td,info.file_date,file) ;
 			}
@@ -155,7 +155,7 @@ int main( int argc , char* argv[] ) {
 			break ;
 			case JobExecRpcProc::DepInfos : {
 				::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.info.accesses,jerr.info.dflags,true/*parallel*/,date) ) ;
+				for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
 				jrr = JobRpcReq( JobProc::DepInfos , seq_id , job , host_ , ::move(ds) ) ;
 			} break ;
 			default : FAIL(jerr.proc) ;

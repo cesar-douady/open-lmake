@@ -19,10 +19,9 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , Delay const d ) {
 		int64_t  s  =       d.sec      ()  ;
 		uint32_t ns = ::abs(d.nsec_in_s()) ;
-		os << "Delay(" ;
+		/**/              os << "D:"                                                 ;
 		if ( !s && +d<0 ) os << '-'                                                  ;
-		/**/              os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
-		return os <<')' ;
+		return            os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
 	}
 
 	::string Delay::short_str() const {
@@ -52,10 +51,10 @@ namespace Time {
 	// Date
 	//
 
-	::ostream& operator<<( ::ostream& os , DiskDate    const d ) { return os <<"DiskDate("    << d.str(9) << ')' ; }
-	::ostream& operator<<( ::ostream& os , ProcessDate const d ) { return os <<"ProcessDate(" << d.str(9) << ')' ; }
+	::ostream& operator<<( ::ostream& os , DiskDate    const d ) { return os <<"DD:" << d.str(9) ; }
+	::ostream& operator<<( ::ostream& os , ProcessDate const d ) { return os <<"PD:" << d.str(9) ; }
 
-	::string Date::str(uint8_t prec,bool in_day) const {
+	::string Date::str( uint8_t prec , bool in_day ) const {
 		if (!*this) return "None" ;
 		time_t        s   = sec      () ;
 		uint32_t      ns  = nsec_in_s() ;

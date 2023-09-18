@@ -88,6 +88,8 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
 	if (verbose) {
+		if (files.empty()) return PyDict_New() ;                               // fast path : depend on no files
+		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                            ;
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
@@ -133,6 +135,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
+	//
 	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.write=!unlink,.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.unlink=unlink} , no_follow , "target" ) ;
 	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
 	//

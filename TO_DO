@@ -12,8 +12,8 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-*4 ensure compilation is ok with no ptrace if libseccomp is not available
-	- check it is ok on centos7
+* ^C is sometimes very slow
+	- and may crash the server
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -23,13 +23,9 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*2 change "new" into "changed"
-	- job.cc:1284
-	- unit tests
-	- doc
-*1 add tmp space management in local (like cpu & mem)
-	- and put in place a log scale for cpu/mem/tmp
-	- document
+* put in place a log scale for cpu/mem/tmp resources
+	- this is to decrease the number of buckets in GenericBackend as they are indexed by resources
+	- setting this log scale will decrease the number of different resources by putting in the same bucket resources that are close to each other
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -62,7 +58,6 @@ items :
 
 * make a class GenericBackend
 	- as a base class for LocalBackend and SlurmBackend
-*3 use the paradignm of auto [a,b] = object to auto serialize aggregates
 * add a warning when ids reach 15/16 of their limits
 ! track disk accesses from server
 	- allow direct read of makefiles
@@ -143,10 +138,6 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* make cmd_need_deps a field of RuleData rather than an access method
-* optimize case where depend ask for no dependencies
-	- specially if verbose
-	- avoid waiting for a prectible (empty) answer
 * gprof
 * get rid of pycxx
 ! manage HUGE pages in store
@@ -180,7 +171,7 @@ items :
 * TESTS
 ****************************************************************************************************
 
-*1 add a unit test for sub-Lmakefile.py
+*3 add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lcheck_deps, ...
 * gcov

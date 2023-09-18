@@ -66,18 +66,17 @@ if _reading_makefiles :
 	# config
 	#
 
-	local_admin_dir  = ''                                  # directory in which to store data that are private to the server (not accessed remote executing hosts) (default is to use LMAKE dir)
-	remote_admin_dir = ''                                  # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
-
 	config = pdict(
 		hash_algo       = 'Xxh'                            # algorithm to use to compute checksums on files, one of 'Xxh' or 'Md5'
 	,	heartbeat       = 60                               # delay between heartbeat checks of running jobs
 	,	link_support    = 'Full'                           # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
+#	,	local_admin_dir  = 'LMAKE'                         # directory in which to store data that are private to the server (not accessed remote executing hosts) (default is to use LMAKE dir)
 	,	max_dep_depth   = 1000                             # used to detect infinite recursions and loops
 #	,	max_error_lines = 30                               # used to limit the number of error lines when not reasonably limited otherwise
 	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
+#	,	remote_admin_dir = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
 	,	source_dirs     = []                               # files in these directories are deemed to be sources # XXX : only apply to reading Lmakefile.py for now
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 	,	console = pdict(                                   # tailor output lines
@@ -94,7 +93,8 @@ if _reading_makefiles :
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
 				cpu = len(_os.sched_getaffinity(0))        # total number of cpus available for the process, and hence for all jobs launched locally
-			,	mem = _physical_mem//Mega                  # total available memory (in MB)
+			,	mem = _physical_mem//Mega                  # total available memory (here in MB)
+			,	tmp = 0                                    # total available temporary disk space (e.g. in GB)
 			)
 		)
 	,	caches = pdict(                                    # PER_CACHE : provide an explanation for each cache method
@@ -199,8 +199,9 @@ if _reading_makefiles :
 		if has_ld_audit : autodep = 'ld_audit'             # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 		else            : autodep = 'ld_preload'           # .
 		resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
-			'cpu' : 1                                      # number of cpu's to allocate to jobs
-		,	'mem' : config.backends.local.mem//config.backends.local.cpu # memory to allocate to jobs
+			'cpu' : 1                                      # number of cpu's to allocate to job
+	#	,	'mem' : 0                                      # memory to allocate to job
+	#	,	'tmp' : 0                                      # temporary disk space to allocate to job
 		}                                                  # follow the same syntax as deps
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 			HOME       = '$CWD'                            # favor repeatability by hiding use home dir some tools use at start up time

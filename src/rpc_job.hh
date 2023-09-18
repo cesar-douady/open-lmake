@@ -267,49 +267,16 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p          ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
 	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Crc  c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
 	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Date d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
-	//
-	DepDigestBase(DepDigestBase const& dd) : DepDigestBase{dd,dd.accesses,dd.dflags,dd.parallel} {
-		crc_date(dd) ;
-		known   = dd.known   ;
-		garbage = dd.garbage ;
-	}
-	~DepDigestBase() { clear_crc_date() ; }
-	DepDigestBase& operator=(DepDigestBase const& dd) {
-		(*this).~DepDigestBase() ;
-		new(this) DepDigestBase{dd} ;
-		return *this ;
-	}
 	// accesses
 	Crc  crc () const { SWEAR(!is_date) ; return _crc  ; }
 	Date date() const { SWEAR( is_date) ; return _date ; }
 	//
-	void crc           (Crc  c) { if ( is_date) { _date.~Date() ; new(&_crc ) Crc {c} ; } else _crc  = c ; is_date = false ; }
-	void date          (Date d) { if (!is_date) { _crc .~Crc () ; new(&_date) Date{d} ; } else _date = d ; is_date = true  ; }
-	void clear_crc_date(      ) { crc({}) ;                                                                                  }
+	void crc (Crc  c) { _crc  = c ; is_date = false ; }
+	void date(Date d) { _date = d ; is_date = true  ; }
 	//
 	template<class X> void crc_date(DepDigestBase<X> const& dd) {
 		if (dd.is_date) date(dd.date()) ;
 		else            crc (dd.crc ()) ;
-	}
-	// services
-	template<IsStream T> void serdes(T& s) {
-		static_assert(!HasBase) ;
-		::serdes(s,accesses) ;
-		::serdes(s,dflags  ) ;
-		if (::is_base_of_v<::istream,T>) {
-			clear_crc_date() ;
-			bool p  ; ::serdes(s,p ) ; parallel = p  ;
-			bool kn ; ::serdes(s,kn) ; known    = kn ;
-			bool g  ; ::serdes(s,g ) ; garbage  = g  ;
-			bool id ; ::serdes(s,id) ; is_date  = id ;
-		} else {
-			bool p  = parallel ; ::serdes(s,p ) ;
-			bool kn = known    ; ::serdes(s,kn) ;
-			bool g  = garbage  ; ::serdes(s,g ) ;
-			bool id = is_date  ; ::serdes(s,id) ;
-		}
-		if (is_date) ::serdes(s,_date) ;
-		else         ::serdes(s,_crc ) ;
 	}
 	// data
 	Accesses accesses   ;              // 3<=8 bits
@@ -339,6 +306,7 @@ template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const&
 }
 
 using DepDigest = DepDigestBase<void> ;
+static_assert(::is_trivially_copyable_v<DepDigest>) ;                          // as long as this holds, we do not have to bother about union member cxtor/dxtor
 
 struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
@@ -358,18 +326,6 @@ using AnalysisErr = ::vector<pair_s<NodeIdx>> ;
 
 struct JobDigest {
 	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
-	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,status      ) ;
-		::serdes(s,targets     ) ;
-		::serdes(s,deps        ) ;
-		::serdes(s,analysis_err) ;
-		::serdes(s,stderr      ) ;
-		::serdes(s,stdout      ) ;
-		::serdes(s,wstatus     ) ;
-		::serdes(s,end_date    ) ;
-		::serdes(s,stats       ) ;
-	}
 	// data
 	Status                 status       = Status::New ;
 	::vmap_s<TargetDigest> targets      = {}          ;
@@ -535,6 +491,14 @@ ENUM( JobExecRpcProc
 ,	Access
 )
 
+ENUM_1( AccessOrder
+,	Write = InbetweenWrites            // >=Write means access comes after first write
+,	Before
+,	BetweenReadAndWrite
+,	InbetweenWrites
+,	After
+)
+
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
@@ -543,30 +507,30 @@ struct JobExecRpcReq {
 	using PD       = Time::ProcessDate ;
 	using DD       = Time::DiskDate    ;
 	//
-	struct AccessInfo {                                                        // order is read, then write, then unlink
-		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
+	struct AccessDigest {                                                      // order is read, then write, then unlink
+		friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
 		// accesses
 		bool idle() const { return !write && !unlink ; }
 		// services
-		bool operator==(AccessInfo const& ai) const = default ;                // XXX : why is this necessary at all ?!?
-		AccessInfo operator|(AccessInfo const& ai) const {                     // *this, then other
-			AccessInfo res = *this ;
-			res |= ai ;
+		bool operator==(AccessDigest const& ad) const = default ;              // XXX : why is this necessary at all ?!?
+		AccessDigest operator|(AccessDigest const& ad) const {                 // *this, then other
+			AccessDigest res = *this ;
+			res |= ad ;
 			return res ;
 		}
-		AccessInfo& operator|=(AccessInfo const& ai) {
-			update(ai,Yes) ;
+		AccessDigest& operator|=(AccessDigest const& ad) {
+			update(ad,AccessOrder::After) ;
 			return *this ;
 		}
-		// update this with access from ai, which may be before or after this (or between the read part and the write part is after==Maybe)
-		void update( AccessInfo const& , Bool3 after ) ;
+		// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
+		void update( AccessDigest const& , AccessOrder ) ;
 		// data
 		Accesses accesses   = {}    ;  // if +dfs <=> files are read
 		DFlags   dflags     = {}    ;  // if +dfs <=> files are read
-		bool     write      = false ;  // if true <=> files are written
+		bool     write      = false ;  // if true <=> files are written, possibly unlinked later
 		TFlags   neg_tflags = {}    ;  // if write, removed TFlags
 		TFlags   pos_tflags = {}    ;  // if write, added   TFlags
-		bool     unlink     = false ;  // if true <=> files are unlinked
+		bool     unlink     = false ;  // if true <=> files are unlinked at the end, possibly written before
 	} ;
 	// statics
 private :
@@ -583,7 +547,7 @@ public :
 	,	sync     {true                   }
 	,	no_follow{nf                     }
 	,	files    {::move(fs)             }
-	,	info     {.accesses=a,.dflags=dfs}
+	,	digest   {.accesses=a,.dflags=dfs}
 	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
 	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , DFlags dfs , bool nf , ::string const& c={} ) :
@@ -592,23 +556,23 @@ public :
 	,	auto_date{true                   }
 	,	no_follow{nf                     }
 	,	files    {_s_mk_mdd(::move(fs))  }
-	,	info     {.accesses=a,.dflags=dfs}
+	,	digest   {.accesses=a,.dflags=dfs}
 	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) :
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessDigest const& d , bool nf , bool s , ::string const& c={} ) :
 		proc     {p         }
 	,	sync     {s         }
 	,	auto_date{ad        }
 	,	no_follow{nf        }
 	,	files    {::move(fs)}
-	,	info     {ai        }
+	,	digest   {d         }
 	,	comment  {c         }
 	{ SWEAR(p==P::Access) ; }
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessInfo const& ai ,           bool s , ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ai,false,s    ,c} {}
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessInfo const& ai ,                    ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ai,false,false,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , AccessInfo const& ai , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,s    ,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , AccessInfo const& ai , bool nf ,          ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ai,nf   ,false,c} {}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,           bool s , ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ad,false,s    ,c} {}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,                    ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false/*audo_date*/,ad,false,false,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ad,nf   ,s    ,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf ,          ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ad,nf   ,false,c} {}
 	//
 	bool has_files() const { return proc==P::DepInfos || proc==P::Access ; }
 	// services
@@ -622,7 +586,7 @@ public :
 		/**/              ::serdes(s,auto_date) ;
 		/**/              ::serdes(s,no_follow) ;
 		/**/              ::serdes(s,files    ) ;
-		/**/              ::serdes(s,info     ) ;
+		/**/              ::serdes(s,digest   ) ;
 		/**/              ::serdes(s,comment  ) ;
 	}
 	// data
@@ -632,7 +596,7 @@ public :
 	bool         auto_date = false       ;                 // if has_files(), if true <=> files must be solved and dates added by probing disk (for autodep internal use, not to be sent to job_exec)
 	bool         no_follow = false       ;                 // if files has yet to be made real, whether links should not be followed
 	::vmap_s<DD> files     ;                               // file date when accessed with +dfs and !auto_date to identify content
-	AccessInfo   info      ;
+	AccessDigest digest    ;
 	::string     comment   ;
 } ;
 
@@ -671,15 +635,6 @@ struct JobExecRpcReply {
 
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
-	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,eta         ) ;
-		::serdes(s,submit_attrs) ;
-		::serdes(s,rsrcs       ) ;
-		::serdes(s,pre_start   ) ;
-		::serdes(s,start       ) ;
-		::serdes(s,backend_msg ) ;
-	}
 	// data
 	Time::ProcessDate eta          = {} ;
 	SubmitAttrs       submit_attrs = {} ;
@@ -691,11 +646,6 @@ struct JobInfoStart {
 
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
-	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,end        ) ;
-		::serdes(s,backend_msg) ;
-	}
 	// data
 	JobRpcReq end         = {} ;
 	::string  backend_msg = {} ;

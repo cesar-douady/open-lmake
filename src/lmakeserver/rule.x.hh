@@ -90,63 +90,57 @@ namespace Engine {
 #ifdef DATA_DEF
 namespace Engine {
 
-	struct Attrs {
+	namespace Attrs {
 		// statics
-		template<class T> static bool s_easy( T& dst , PyObject* py_src , T const& dflt={} ) {
+		template<class T> bool easy( T& dst , PyObject* py_src , T const& dflt={} ) {
 			if (!py_src        ) {              return true ; }
 			if (py_src==Py_None) { dst = dflt ; return true ; }
 			return false ;
 		}
-		template<class T,bool Env=false> static void s_acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
+		//
+		/**/                                  void acquire( bool       & dst , PyObject* py_src ) ;
+		/**/                                  void acquire( Time::Delay& dst , PyObject* py_src ) ;
+		/**/                                  void acquire( ::string   & dst , PyObject* py_src ) ;
+		template<class      T               > void acquire( ::vector<T>& dst , PyObject* py_src ) ;
+		template<class      T,bool Env=false> void acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
+		template<::integral I               > void acquire( I          & dst , PyObject* py_src ) ;
+		template<StdEnum    E               > void acquire( E          & dst , PyObject* py_src ) ;
+		//
+		template<class T,bool Env=false> void acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
 			try {
 				static_assert( !Env || is_same_v<T,::vmap_ss> ) ;
-				if constexpr (Env) s_acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
-				else               s_acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				if constexpr (Env) acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				else               acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
 			} catch (::string const& e) {
 				throw to_string("while processing ",key," : ",e) ;
 			}
 		}
-		static void s_acquire_env( ::vmap_ss& dst , PyObject* py_dct , ::string const& key ) { s_acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
-		/**/                                  static void s_acquire( bool       & dst , PyObject* py_src ) ;
-		/**/                                  static void s_acquire( Time::Delay& dst , PyObject* py_src ) ;
-		/**/                                  static void s_acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class      T               > static void s_acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class      T,bool Env=false> static void s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
-		template<::integral I               > static void s_acquire( I          & dst , PyObject* py_src ) ;
-		template<StdEnum    E               > static void s_acquire( E          & dst , PyObject* py_src ) ;
+		static inline void acquire_env( ::vmap_ss& dst , PyObject* py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
 		//
-		static ::string s_subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) ;
+		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) ;
 	} ;
 
 	// used at match time
-	struct CreateMatchAttrs : Attrs {
+	struct CreateMatchAttrs {
 		static constexpr const char* Msg = "deps" ;
 		struct DepSpec {
-			template<IsStream S> void serdes(S& s) {
-				::serdes(s,pattern) ;
-				::serdes(s,dflags ) ;
-			}
 			::string pattern ;
 			DFlags   dflags  ;
 		} ;
 		// services
 		BitMap<VarCmd> init( PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,full_dynamic) ;
-			::serdes(s,deps        ) ;
-		}
 		// data
 		bool              full_dynamic = false ;           // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
 		::vmap_s<DepSpec> deps         ;
 	} ;
 
 	// used at match time, but participate in nothing
-	struct CreateNoneAttrs : Attrs {
+	struct CreateNoneAttrs {
 		static constexpr const char* Msg = "tokens" ;
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
 			size_t tokens ;
-			s_acquire_from_dct(tokens,py_dct,"job_tokens") ;
+			Attrs::acquire_from_dct(tokens,py_dct,"job_tokens") ;
 			if (tokens==0)                                    tokens1 = 0                                ;
 			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
 			else                                              tokens1 = tokens-1                         ;
@@ -156,17 +150,13 @@ namespace Engine {
 	} ;
 
 	// used at submit time, participate in resources
-	struct SubmitRsrcsAttrs : Attrs {
+	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
 		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,backend) ;
-			::serdes(s,rsrcs  ) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(backend,py_dct,"backend") ;
-			s_acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ;
+			Attrs::acquire_from_dct(backend,py_dct,"backend") ;
+			Attrs::acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ;
 			::sort(rsrcs) ;                                                    // stabilize rsrcs crc
 		}
 		// data
@@ -175,30 +165,24 @@ namespace Engine {
 	} ;
 
 	// used at submit time, participate in resources
-	struct SubmitNoneAttrs : Attrs {
+	struct SubmitNoneAttrs {
 		static constexpr const char* Msg = "n_retries" ;
 		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,n_retries) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(n_retries,py_dct,"n_retries") ;
+			Attrs::acquire_from_dct(n_retries,py_dct,"n_retries") ;
 		}
 		// data
 		uint8_t n_retries = 0 ;
 	} ;
 
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
-	struct CacheNoneAttrs : Attrs {
+	struct CacheNoneAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,key) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(key,py_dct,"key") ;
+			Attrs::acquire_from_dct(key,py_dct,"key") ;
 			if ( !key.empty() && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
 		// data
@@ -206,27 +190,19 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate in cmd
-	struct StartCmdAttrs : Attrs {
+	struct StartCmdAttrs {
 		static constexpr const char* Msg = "execution command attributes" ;
 		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,auto_mkdir ) ;
-			::serdes(s,chroot     ) ;
-			::serdes(s,env        ) ;
-			::serdes(s,ignore_stat) ;
-			::serdes(s,interpreter) ;
-			::serdes(s,local_mrkr ) ;
-			::serdes(s,method     ) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir" ) ;
-			s_acquire_from_dct(chroot     ,py_dct,"chroot"     ) ;
-			s_acquire_env     (env        ,py_dct,"env"        ) ;
-			s_acquire_from_dct(ignore_stat,py_dct,"ignore_stat") ;
-			s_acquire_from_dct(interpreter,py_dct,"interpreter") ;
-			s_acquire_from_dct(local_mrkr ,py_dct,"local_mrkr" ) ;
-			s_acquire_from_dct(method     ,py_dct,"autodep"    ) ;
+			using namespace Attrs ;
+			acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir" ) ;
+			acquire_from_dct(chroot     ,py_dct,"chroot"     ) ;
+			acquire_env     (env        ,py_dct,"env"        ) ;
+			acquire_from_dct(ignore_stat,py_dct,"ignore_stat") ;
+			acquire_from_dct(interpreter,py_dct,"interpreter") ;
+			acquire_from_dct(local_mrkr ,py_dct,"local_mrkr" ) ;
+			acquire_from_dct(method     ,py_dct,"autodep"    ) ;
 			//
 			switch (method) {
 				case AutodepMethod::None      :                                                                                 break ;
@@ -247,13 +223,9 @@ namespace Engine {
 		AutodepMethod method      = AutodepMethod::Dflt ;
 	} ;
 
-	struct Cmd : Attrs {
+	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
 		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,cmd      ) ;
-			::serdes(s,is_python) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* , ::umap_s<CmdIdx> const& ) ;
 		void           update( PyObject*                           ) ;
 		// data
@@ -262,16 +234,12 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate in resources
-	struct StartRsrcsAttrs : Attrs {
+	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
-		template<IsStream S> void serdes(S& s) {
-			::serdes(s,timeout) ;
-			::serdes(s,env    ) ;
-		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(timeout,py_dct,"timeout") ;
-			s_acquire_env     (env    ,py_dct,"env"    ) ;
+			Attrs::acquire_from_dct(timeout,py_dct,"timeout") ;
+			Attrs::acquire_env     (env    ,py_dct,"env"    ) ;
 			if (timeout<Delay()) throw "timeout must be positive or null (no timeout if null)"s ;
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
@@ -281,7 +249,7 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate to nothing
-	struct StartNoneAttrs : Attrs {
+	struct StartNoneAttrs {
 		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
 		template<IsStream S> void serdes(S& s) {
@@ -293,11 +261,12 @@ namespace Engine {
 		}
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(keep_tmp   ,py_dct,"keep_tmp"   ) ;
-			s_acquire_from_dct(start_delay,py_dct,"start_delay") ;
-			s_acquire_from_dct(kill_sigs  ,py_dct,"kill_sigs"  ) ;
-			s_acquire_from_dct(n_retries  ,py_dct,"n_retries"  ) ;
-			s_acquire_env     (env        ,py_dct,"env"        ) ;
+			using namespace Attrs ;
+			acquire_from_dct(keep_tmp   ,py_dct,"keep_tmp"   ) ;
+			acquire_from_dct(start_delay,py_dct,"start_delay") ;
+			acquire_from_dct(kill_sigs  ,py_dct,"kill_sigs"  ) ;
+			acquire_from_dct(n_retries  ,py_dct,"n_retries"  ) ;
+			acquire_env     (env        ,py_dct,"env"        ) ;
 			::sort(env) ;                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
@@ -309,24 +278,24 @@ namespace Engine {
 	} ;
 
 	// used at end of job execution, participate in cmd
-	struct EndCmdAttrs : Attrs {
+	struct EndCmdAttrs {
 		static constexpr const char* Msg = "allow stderr" ;
 		// services
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(allow_stderr,py_dct,"allow_stderr") ;
+			Attrs::acquire_from_dct(allow_stderr,py_dct,"allow_stderr") ;
 		}
 		// data
 		bool allow_stderr = false ;    // if true <=> non empty stderr does not imply job error
 	} ;
 
 	// used at end of job execution, participate in nothing
-	struct EndNoneAttrs : Attrs {
+	struct EndNoneAttrs {
 		static constexpr const char* Msg = "max stderr length" ;
 		// services
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
-			s_acquire_from_dct(stderr_len,py_dct,"stderr_len") ;
+			Attrs::acquire_from_dct(stderr_len,py_dct,"stderr_len") ;
 		}
 		// data
 		size_t stderr_len = -1 ;       // max lines when displaying stderr (full content is shown with lshow -e)
@@ -491,7 +460,13 @@ namespace Engine {
 			+	sizeof(RuleIdx)                                                // Rule index
 			;
 		}
-		bool cmd_need_deps() const {                                           // if deps are needed for cmd computation, then static deps are deemed to be read...
+
+		// services
+		void add_cwd( ::string& file , bool top ) const {
+			if (!( top || file.empty() || cwd_s.empty() )) file.insert(0,cwd_s) ;
+		}
+	private :
+		bool _get_cmd_needs_deps() const {                                     // if deps are needed for cmd computation, then static deps are deemed to be read...
 			return                                                             // as accesses are not recorded and we need to be pessimistic
 				submit_rsrcs_attrs.is_dynamic
 			||	start_cmd_attrs   .is_dynamic
@@ -500,12 +475,6 @@ namespace Engine {
 			||	end_cmd_attrs     .is_dynamic
 			;
 		}
-
-		// services
-		void add_cwd( ::string& file , bool top ) const {
-			if (!( top || file.empty() || cwd_s.empty() )) file.insert(0,cwd_s) ;
-		}
-	private :
 		::vector_s _list_ctx(::vector<CmdIdx> const& ctx) const ;
 		void _set_crcs() ;
 
@@ -536,6 +505,7 @@ namespace Engine {
 		bool                      force              = false ;
 		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
+		bool    cmd_needs_deps   = false ;
 		bool    has_stars        = false ;
 		VarIdx  n_static_stems   = 0     ;
 		VarIdx  n_static_targets = 0     ;
@@ -658,8 +628,8 @@ namespace Engine {
 	// Attrs
 	//
 
-	template<::integral I> void Attrs::s_acquire( I& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,I(0))) return ;
+	template<::integral I> void Attrs::acquire( I& dst , PyObject* py_src ) {
+		if (easy(dst,py_src,I(0))) return ;
 		//
 		PyObject* py_src_long = PyNumber_Long(py_src) ;
 		if (!py_src_long) throw "cannot convert to an int" ;
@@ -672,15 +642,15 @@ namespace Engine {
 		dst = I(v) ;
 	}
 
-	template<StdEnum E> void Attrs::s_acquire( E& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,E::Dflt)) return ;
+	template<StdEnum E> void Attrs::acquire( E& dst , PyObject* py_src ) {
+		if (easy(dst,py_src,E::Dflt)) return ;
 		//
 		if (!PyUnicode_Check(py_src)) throw "not a str"s ;
 		dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
 	}
 
-	template<class T> void Attrs::s_acquire( ::vector<T>& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src)) return ;
+	template<class T> void Attrs::acquire( ::vector<T>& dst , PyObject* py_src ) {
+		if (easy(dst,py_src)) return ;
 		//
 		if (!PySequence_Check(py_src)) throw "not a sequence"s ;
 		PyObject* fast_val = PySequence_Fast(py_src,"") ;
@@ -690,14 +660,14 @@ namespace Engine {
 		for( size_t i=0 ; i<n ; i++ ) {
 			if (i>=dst.size()) dst.push_back(T()) ;                            // create empty entry
 			if (p[i]==Py_None) continue ;
-			try                       { s_acquire(dst.back(),p[i]) ;             }
+			try                       { acquire(dst.back(),p[i]) ;               }
 			catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
 		}
 		dst.resize(n) ;
 	}
 
-	template<class T,bool Env> void Attrs::s_acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src)) return ;
+	template<class T,bool Env> void Attrs::acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+		if (easy(dst,py_src)) return ;
 		//
 		::map_s<T> map = mk_map(dst) ;
 		if (!PyDict_Check(py_src)) throw "not a dict";
@@ -713,7 +683,7 @@ namespace Engine {
 					map[key] = EnvPassMrkr ;                                   // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
 					continue ;
 				}
-			try                       { s_acquire(map[key],py_val) ;               }
+			try                       { acquire(map[key],py_val) ;                 }
 			catch (::string const& e) { throw to_string("for item ",key," : ",e) ; }
 		}
 		dst = mk_vmap(map) ;
@@ -902,6 +872,7 @@ namespace Engine {
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
+		::serdes(s,cmd_needs_deps  ) ;
 		::serdes(s,has_stars       ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;

@@ -68,7 +68,8 @@
 #include "sys_config.h"
 #include "non_portable.hh"
 
-using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
+using namespace std ;                                                          // use std at top level so one write ::stuff instead of std::stuff
+using std::getline ;                                                           // special case getline which also has a C version that hides std::getline
 
 //
 // std lib name simplification
@@ -917,8 +918,18 @@ struct SockFd : AutoCloseFd {
 	friend ::ostream& operator<<( ::ostream& , SockFd const& ) ;
 	static constexpr in_addr_t LoopBackAddr = 0x7f000001 ;
 	// statics
-	static in_addr_t s_addr(::string const& server) ;
+	static in_addr_t           s_addr     (::string const& server ) ;
+	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                    ; }
+	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           ::stoul(service.substr(col+1))   ; }
+	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , ::stoul(service.substr(col+1)) } ; }
+private :
+	static size_t _s_col(::string const& service) {
+		size_t col = service.rfind(':') ;
+		if (col==Npos) throw "bad service : "+service ;
+		return col ;
+	}
 	// cxtors & casts
+public :
 	using AutoCloseFd::AutoCloseFd ;
 	SockFd(NewType) { init() ; }
 	//
@@ -981,9 +992,8 @@ struct ClientSockFd : SockFd {
 	void connect( in_addr_t       server , in_port_t port ) ;
 	void connect( ::string const& server , in_port_t port ) { connect( s_addr(server) , port ) ; }
 	void connect( ::string const& service ) {
-		size_t col = service.rfind(':') ;
-		swear_prod(col!=Npos,"bad service : ",service) ;
-		connect( service.substr(0,col) , ::stoul(service.substr(col+1)) ) ;
+		::pair_s<in_port_t> host_port = s_host_port(service) ;
+		connect( host_port.first , host_port.second ) ;
 	}
 } ;
 

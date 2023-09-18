@@ -230,16 +230,16 @@ namespace Engine {
 	// Attrs
 	//
 
-	void Attrs::s_acquire( bool& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src,false)) return ;
+	void Attrs::acquire( bool& dst , PyObject* py_src ) {
+		if (easy(dst,py_src,false)) return ;
 		//
 		int v = PyObject_IsTrue(py_src) ;
 		if (v==-1) throw "cannot determine truth value"s ;
 		dst = v ;
 	}
 
-	void Attrs::s_acquire( Time::Delay& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src)) return ;
+	void Attrs::acquire( Time::Delay& dst , PyObject* py_src ) {
+		if (easy(dst,py_src)) return ;
 		//
 		if (PyFloat_Check(py_src)) {
 			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
@@ -258,8 +258,8 @@ namespace Engine {
 		}
 	}
 
-	void Attrs::s_acquire( ::string& dst , PyObject* py_src ) {
-		if (s_easy(dst,py_src)) return ;
+	void Attrs::acquire( ::string& dst , PyObject* py_src ) {
+		if (easy(dst,py_src)) return ;
 		//
 		bool is_str = PyUnicode_Check(py_src) ;
 		if (!is_str) py_src = PyObject_Str(py_src) ;
@@ -268,7 +268,7 @@ namespace Engine {
 		if (!is_str) Py_DECREF(py_src) ;
 	}
 
-	::string Attrs::s_subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
+	::string Attrs::subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
 		::string res ;
 		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
 			[&]( ::string const& fixed )->void {
@@ -310,10 +310,10 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx   n_unnamed  = 0                                         ;
-			DFlags   df         = StaticDFlags                              ;
-			::string dep        = _split_flags(df,"dep "+key,py_val)        ;
-			::string parsed_dep = s_subst_fstr(dep,var_idxs,n_unnamed,need) ;
+			VarIdx   n_unnamed  = 0                                              ;
+			DFlags   df         = StaticDFlags                                   ;
+			::string dep        = _split_flags(df,"dep "+key,py_val)             ;
+			::string parsed_dep = Attrs::subst_fstr(dep,var_idxs,n_unnamed,need) ;
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
 				if (n_unnamed) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
@@ -334,7 +334,7 @@ namespace Engine {
 		if (is_dynamic) {
 			Py::Gil   gil    ;
 			PyObject* py_dct = _mk_dct(match) ;
-			if (!Attrs::s_easy(res,py_dct)) {
+			if (!Attrs::easy(res,py_dct)) {
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
 				PyObject*  py_key = nullptr/*garbage*/ ;
@@ -372,20 +372,20 @@ namespace Engine {
 	BitMap<VarCmd> Cmd::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
 		BitMap<VarCmd> need    ;
 		::string       raw_cmd ;
-		s_acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
-		s_acquire_from_dct(is_python,py_src,"is_python") ;
+		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
+		Attrs::acquire_from_dct(is_python,py_src,"is_python") ;
 		if (is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
 			VarIdx n_unnamed = 0 ;
-			cmd = s_subst_fstr(raw_cmd,var_idxs,n_unnamed,need) ;
+			cmd = Attrs::subst_fstr(raw_cmd,var_idxs,n_unnamed,need) ;
 			SWEAR(!n_unnamed) ;
 		}
 		return need ;
 	}
 
 	void Cmd::update( PyObject* py_src ) {
-		s_acquire_from_dct(cmd  ,py_src,"cmd") ;
+		Attrs::acquire_from_dct(cmd  ,py_src,"cmd") ;
 	}
 
 	::string DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
@@ -415,7 +415,7 @@ namespace Engine {
 			::string  cmd ;
 			Py::Gil   gil ;
 			PyObject* d   = _mk_dct(job,match,rsrcs) ;
-			Cmd::s_acquire_from_dct(cmd,d,"cmd") ;
+			Attrs::acquire_from_dct(cmd,d,"cmd") ;
 			Py_DECREF(d)  ;
 			return cmd ;
 		}
@@ -563,27 +563,30 @@ namespace Engine {
 			//
 			Trace trace("_acquire_py",name,prio) ;
 			//
-			::map_s<::pair<string,Bool3/*star*/>> stem_map ;                   // ordered so that stems is ordered
+			::map_ss      stem_defs  ;                                         // ordered so that stems are ordered
+			::map_s<bool> stem_stars ;                                         // .
 			field = "stems" ;
 			if (dct.hasKey(field))
-				for( auto const& [k,v] : Py::Dict(dct[field]) ) stem_map[Py::String(k)] = {Py::String(v),Maybe} ; // the real stems are restricted to what is necessary for job_name & targets
+				for( auto const& [k,v] : Py::Dict(dct[field]) ) stem_defs[Py::String(k)] = Py::String(v) ;
 			//
 			// augment stems with definitions found in job_name and targets
-			size_t unnamed_star_idx = 1 ;                                      // free running while walking over job_name + targets
-			auto augment_stems = [&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void {
-				Bool3 star3 = No|star ;
-				if (stem_map.contains(k)) {
-					::pair<string,Bool3/*star*/>& e = stem_map.at(k) ;
-					if ( re && e.first!=*re       ) throw to_string("2 different definitions for stem ",k," : ",e.first," and ",*re) ;
-					if ( e.second==Maybe || !star ) e.second = star3 ;         // record stem is used, and is static as soone as one use is static
-				} else {
-					if (re) stem_map[k] = {*re,star3} ;
+			size_t unnamed_star_idx = 1 ;                                                                               // free running while walking over job_name + targets
+			auto augment_stems = [&]( ::string const& k , bool star , ::string const* re , bool star_only ) -> void {
+				if (re) {
+					auto [it,inserted] = stem_defs.emplace(k,*re) ;
+					if ( !inserted && *re!=it->second ) throw to_string("2 different definitions for stem ",k," : ",it->second," and ",*re) ;
+				}
+				if ( !star_only || star ) {
+					auto [it,inserted] = stem_stars.emplace(k,star) ;
+					if ( !inserted && star!=it->second ) throw to_string("stem ",k," seen as both a static stem and a star stem") ;
 				}
 			} ;
 			field = "job_name" ;
 			if (!dct.hasKey(field)) throw "not found"s ;
 			job_name = Py::String(dct[field]) ;
-			_parse_py( job_name , &unnamed_star_idx , augment_stems ) ;
+			_parse_py( job_name , &unnamed_star_idx ,
+				[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void { augment_stems(k,star,re,false/*star_only*/) ; }
+			) ;
 			field = "targets" ;
 			if (!dct.hasKey(field)) throw "not found"s ;
 			Py::Dict py_targets{dct[field]} ;
@@ -593,12 +596,14 @@ namespace Engine {
 				field = Py::String(py_k) ;
 				Py::Sequence pyseq_tfs{ py_tfs } ;                             // targets are a tuple (target_pattern,flags...)
 				::string target = Py::String(pyseq_tfs[0]) ;
-				// avoid processing target if it is identical to job_name
-				// this is not an optimization, it is to ensure unnamed_star_idx's match
+				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
-					_parse_py( target , &unnamed_star_idx , augment_stems ) ;
+					_parse_py( target , &unnamed_star_idx ,
+						// static stems are declared in job_name, but error will be caught later on, when we can generate a sound message
+						[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void { augment_stems(k,star,re,true/*star_only*/) ; }
+					) ;
 				} else if (job_name_key.empty()) {
-					job_name_key = field           ;
+					job_name_key =           field ;
 					job_name_msg = "target "+field ;
 				}
 			}
@@ -608,15 +613,15 @@ namespace Engine {
 			unnamed_star_idx = 1          ;                                    // reset free running at each pass over job_name+targets
 			VarIdx n_static_unnamed_stems = 0     ;
 			bool   job_name_is_star       = false ;
-			auto   stem_words             = [&]( ::string const& k , bool star , bool unnamed ) -> ::string {
+			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
 				const char* stem = star ? "star stem" : "stem" ;
 				return unnamed ? to_string("unnamed ",stem) : to_string(stem,' ',k) ;
 			} ;
 			_parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-					if      (!stem_map.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",job_name_msg) ;
-					if      (star                 ) job_name_is_star = true ;
-					else if (unnamed              ) n_static_unnamed_stems++ ;
+					if      (!stem_defs.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",job_name_msg) ;
+					if      (star                  ) job_name_is_star = true ;
+					else if (unnamed               ) n_static_unnamed_stems++ ;
 				}
 			) ;
 			//
@@ -630,18 +635,22 @@ namespace Engine {
 					bool         is_native_star = false                    ;
 					::string     target         = Py::String(pyseq_tfs[0]) ;
 					::set_s      missing_stems  ;
-					// avoid processing target if it is identical to job_name
-					// this is not an optimization, it is to ensure unnamed_star_idx's match
+					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
 						if (job_name_is_star) is_native_star = true ;
 					} else {
-						for( auto const& [k,s] : stem_map ) if (s.second==No) missing_stems.insert(k) ;
+						for( auto const& [k,s] : stem_stars ) if (!s) missing_stems.insert(k) ;
 						_parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-								if      (!stem_map.contains(k)    ) throw to_string("found undefined ",stem_words(k,star,unnamed)," in target") ;
-								if      (star                     ) is_native_star = true ;
-								else if (stem_map.at(k).second!=No) throw to_string(stem_words(k,star,unnamed)," appears in target but not in ",job_name_msg) ;
-								else                                missing_stems.erase(k) ;
+								if (!stem_defs.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in target") ;
+								//
+								if (star) {
+									is_native_star = true ;
+									return ;
+								}
+								if ( !stem_stars.contains(k) || stem_stars.at(k) )
+									throw to_string(stem_words(k,star,unnamed)," appears in target but not in ",job_name_msg,", consider using ",k,'*') ;
+								missing_stems.erase(k) ;
 							}
 						) ;
 					}
@@ -684,19 +693,17 @@ namespace Engine {
 			field = "" ;
 			if (targets.size()>NoVar) throw to_string("too many targets : ",targets.size()," > ",NoVar) ;
 			::umap_s<VarIdx> stem_idxs ;
-			::umap_s<CmdIdx> var_idxs  ;
-			for( Bool3 star : {No,Yes} ) { // keep only useful stems and order them : static first, then star
-				for( auto const& [k,v] : stem_map )
-					if (v.second==star) {
-						stem_idxs[k] = VarIdx(stems.size()) ;
-						stems.emplace_back(k,v.first) ;
-					}
-				if (star==No) {
-					n_static_stems = stems.size() ;
-					/**/                                     var_idxs["stems"       ] = {VarCmd::Stems,0} ;
-					for( VarIdx s=0 ; s<stems.size() ; s++ ) var_idxs[stems[s].first] = {VarCmd::Stem ,s} ;
+			for( bool star : {false,true} ) { // keep only useful stems and order them : static first, then star
+				for( auto const& [k,v] : stem_stars ) {
+					if (v!=star) continue ;
+					stem_idxs[k] = VarIdx(stems.size()) ;
+					stems.emplace_back(k,stem_defs.at(k)) ;
 				}
+				if (!star) n_static_stems = stems.size() ;
 			}
+			::umap_s<CmdIdx> var_idxs ;
+			/**/                                       var_idxs["stems"       ] = {VarCmd::Stems,0} ;
+			for( VarIdx s=0 ; s<n_static_stems ; s++ ) var_idxs[stems[s].first] = {VarCmd::Stem ,s} ;
 			if (stems.size()>NoVar) throw to_string("too many stems : ",stems.size()," > ",NoVar) ;
 			//
 			// reformat job_name & targets to improve matching efficiency
@@ -757,6 +764,8 @@ namespace Engine {
 			field = "start_none_attrs"  ; if (dct.hasKey(field)) start_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "end_cmd_attrs"     ; if (dct.hasKey(field)) end_cmd_attrs     = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			//
+			cmd_needs_deps = _get_cmd_needs_deps() ;
 
 			//
 			// now process fields linked to execution

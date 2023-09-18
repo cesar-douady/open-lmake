@@ -59,11 +59,11 @@ int main( int argc , char* argv[] ) {
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather_deps.accesses ) {
-		if (ai.info.idle()) continue ;
-		deps_stream << (+ai.info.accesses?'<':' ') ;
-		deps_stream << (ai.info.write    ?'>':' ') ;
-		deps_stream << (ai.info.unlink   ?'!':' ') ;
-		deps_stream << target << '\n' ;
+		if (ai.digest.idle()) continue ;
+		deps_stream << (+ai.digest.accesses?'<':' ') ;
+		deps_stream << (ai.digest.write    ?'>':' ') ;
+		deps_stream << (ai.digest.unlink   ?'!':' ') ;
+		deps_stream << target << '\n'                ;
 	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;
@@ -82,7 +82,7 @@ int main( int argc , char* argv[] ) {
 		prev_parallel    = parallel    ;
 		prev_dep         = dep         ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.info.idle()) send(dep,ai.parallel_id) ;
-	/**/                                                                   send(                  ) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.digest.idle()) send(dep,ai.parallel_id) ;
+	/**/                                                                     send(                  ) ; // send last
 	return status!=Status::Ok ;
 }

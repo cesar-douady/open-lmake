@@ -248,8 +248,26 @@ namespace Engine {
 							} break ;
 							case ReqKey::ExecScript : {
 								if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
-								::string abs_cwd = *g_root_dir ; if (!report_start.start.cwd_s.empty()) { append_to_string(abs_cwd,'/',report_start.start.cwd_s) ; abs_cwd.pop_back() ; }
-								::string script = "exec env -i \\\n" ;
+								//
+								::string abs_cwd = *g_root_dir ;
+								if (!report_start.start.cwd_s.empty()) {
+									append_to_string(abs_cwd,'/',report_start.start.cwd_s) ;
+									abs_cwd.pop_back() ;
+								}
+								Rule::SimpleMatch             match           = jt.simple_match()         ;
+								::string                      script          = "#!/bin/bash\n"           ;
+								::pair<vector_s,vector<Node>> targets_to_wash = jt.targets_to_wash(match) ;
+								::vector_s const&             to_wash         = targets_to_wash.first     ;
+								::uset_s                      to_report       ; for( Node t : targets_to_wash.second ) to_report.insert(t.name()) ;
+								//
+								for( ::string const& tn : to_wash ) if (!to_report.contains(tn)) append_to_string( script , "rm " , tn , '\n' ) ;
+								if (!to_report.empty()) {
+									script += "set -x\n" ;
+									for( ::string const& tn : to_wash ) if (to_report.contains(tn)) append_to_string( script , "rm " , tn , '\n' ) ;
+									script += "set +x\n" ;
+								}
+								for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;
+								script += "exec env -i \\\n" ;
 								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
 								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
 								append_to_string( script , "\tSMALL_ID="          , to_string   (report_start.start.small_id  ) , " \\\n" ) ;

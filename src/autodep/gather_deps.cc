@@ -17,36 +17,77 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
+//
+// GatherDeps::AccessInfo
+//
+
+::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
+	/**/                                        os << "AccessInfo("                               ;
+	if (+ai.digest.accesses                   ) os << "R:" <<ai.access_date      <<','            ;
+	if (!ai.digest.idle()                     ) os << "W1:"<<ai.first_write_date <<','            ;
+	if (ai.first_write_date<ai.last_write_date) os << "WL:"<<ai.last_write_date  <<','            ;
+	/**/                                        os << ai.digest                                   ;
+	if (+ai.file_date                         ) os <<','<< "F:"<<ai.file_date                     ;
+	return                                      os <<','<< ai.tflags <<','<< ai.parallel_id <<')' ;
+}
+
+void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ ) {
+	AccessOrder order =
+		pd<access_date      ? AccessOrder::Before
+	:	digest.idle()       ? AccessOrder::BetweenReadAndWrite
+	:	pd<first_write_date ? AccessOrder::BetweenReadAndWrite
+	:	pd<last_write_date  ? AccessOrder::InbetweenWrites
+	:                         AccessOrder::After
+	;
+	if (
+		( +ad.accesses || !ad.idle() )
+	&&	(	order==AccessOrder::Before                                         // date becomes earlier
+		||	( !digest.accesses && order<AccessOrder::Write )                   // date becomes later
+		)
+	) {
+		if (+ad.accesses ) file_date   = dd           ;
+		/**/               access_date = pd           ;
+		/**/               parallel_id = parallel_id_ ;
+	}
+	if (!ad.idle()) {
+		if      (digest.idle()            ) first_write_date = last_write_date = pd ;
+		else if (order==AccessOrder::After)                    last_write_date = pd ;
+		else if (order< AccessOrder::Write) first_write_date                   = pd ;
+	}
+	//
+	AccessDigest old_ad = digest ;                                                                 // for trace only
+	digest.update(ad,order) ;                                                                      // execute actions in actual order as provided by dates
+	SWEAR( !( (old_ad.neg_tflags|old_ad.pos_tflags) & ~(digest.neg_tflags|digest.pos_tflags) ) ) ; // digest.tflags must become less and less transparent
+	tflags = ( tflags & ~digest.neg_tflags ) | digest.pos_tflags ;                                 // thus we can recompute new tfs from old value
+}
+
+//
+// GatherDeps
+//
+
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
 	/**/             os << "GatherDeps(" << gd.accesses ;
 	if (gd.seen_tmp) os <<",seen_tmp" ;
 	return           os << ')' ;
 }
 
-::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	/**/                   os << "AccessInfo("                               ;
-	if (+ai.info.accesses) os << "R:"<<ai.read_date  <<','                   ;
-	if (!ai.info.idle()  ) os << "W:"<<ai.write_date <<','                   ;
-	/**/                   os << ai.info                                     ;
-	if (+ai.file_date    ) os <<','<< "F:"<<ai.file_date                     ;
-	return                 os <<','<< ai.tflags <<','<< ai.parallel_id <<')' ;
-}
-
-bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , JobExecRpcReq::AccessInfo const& ai , NodeIdx parallel_id_ , ::string const& comment ) {
+bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
 	SWEAR(!file.empty()) ;
 	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
 	bool        is_new = it==access_map.end()  ;
 	if (is_new) {
 		access_map[file] = accesses.size() ;
-		accesses.emplace_back(file,AccessInfo(tflags_cb(file))) ;
+		accesses.emplace_back(file,AccessInfo(pd,tflags_cb(file))) ;
 		info = &accesses.back().second ;
 	} else {
 		info = &accesses[it->second].second ;
 	}
-	//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	if ( info->update(pd,dd,ai,parallel_id_) ) Trace("_new_access", is_new?"new   ":"update" , pd , *info , file , dd , comment ) ; // only trace if something changes
-	//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	AccessInfo old_info = *info ;                                              // for tracing only
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update(pd,dd,ad,parallel_id_) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (*info!=old_info) Trace("_new_access", is_new?"new   ":"update" , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
 	return is_new ;
 }
 
@@ -233,10 +274,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 							goto Close ;                                       // no reply, accept & read is enough to acknowledge
 						//                     vvvvvvvvvvvvvvvvvvvvvvvv
 						case Proc::Kill      : kill_job(Status::Killed) ;                 goto Close ; // .
-						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ; break ;
-						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.info , jerr.comment ) ;
-						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.digest , jerr.comment ) ; break ;
+						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.digest , jerr.comment ) ;
+						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						/*fall through*/
 						case Proc::ChkDeps : {
 							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
@@ -279,18 +320,18 @@ void GatherDeps::reorder() {
 	::stable_sort(                                                             // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return ::pair(a.second.read_date,a.second.parallel_id) < ::pair(b.second.read_date,b.second.parallel_id) ;
+			return ::pair(a.second.access_date,a.second.parallel_id) < ::pair(b.second.access_date,b.second.parallel_id) ;
 		}
 	) ;
 	// first pass : note stat accesses that are directories of immediately following file accesses as these are ilready mplicit deps (through Uphill rule)
 	::uset<size_t> to_del ;
-	size_t         last   = Npos ;                                            // XXX : replace with a vector to manage parallel deps
+	size_t         last   = Npos ;                                             // XXX : replace with a vector to manage parallel deps
 	for( size_t i1=accesses.size() ; i1>0 ; i1-- ) {
 		size_t      i           = i1-1        ;
 		auto const& [file,info] = accesses[i] ;
-		if      ( !info.is_dep()                                                                           ) last = Npos ;
-		else if ( last!=Npos && info.info.accesses==Access::Stat && accesses[last].first.starts_with(file) ) to_del.insert(i) ;
-		else                                                                                                 last = i ;
+		if      ( !info.is_dep()                                                                             ) last = Npos ;
+		else if ( last!=Npos && info.digest.accesses==Access::Stat && accesses[last].first.starts_with(file) ) to_del.insert(i) ;
+		else                                                                                                   last = i ;
 	}
 	// second pass : suppress stat accesses that are directories of seen files as these are already implicit deps (through Uphill rule)
 	::uset_s dirs ;
@@ -300,7 +341,7 @@ void GatherDeps::reorder() {
 		auto const& [file,info] = accesses[i] ;
 		if (to_del.contains(i)) { trace("skip_from_next",file) ; goto Skip ; }
 		if ( info.is_dep() ) {
-			if ( info.info.accesses==Access::Stat && dirs.contains(file) ) { trace("skip_from_prev",file) ; goto Skip ; } // as soon as an entry is removed, we must copy the following ones
+			if ( info.digest.accesses==Access::Stat && dirs.contains(file) ) { trace("skip_from_prev",file) ; goto Skip ; } // as soon as an entry is removed, we must copy the following ones
 			for( ::string dir=dir_name(file) ; !dir.empty() ; dir=dir_name(dir) )
 				if (!dirs.insert(dir).second) break ;                             // all uphill dirs are already inserted if a dir has been inserted
 		}

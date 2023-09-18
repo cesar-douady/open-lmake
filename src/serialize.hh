@@ -10,16 +10,21 @@
 template<class T> struct Serdeser ;
 
 template<class S> concept IsStream    =                                                                    ::is_same_v<S,ostream>      || ::is_same_v<S,istream>          ;
+//
 template<class T> concept HasSerdes   =                  requires( T x , ::istream& is , ::ostream& os ) { x.serdes(os)                ;  x.serdes(is)                ; } ;
 template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::istream& is , ::ostream& os ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;
 
 template<class T> concept Serializable = HasSerdes<T> || HasSerdeser<T> ;
 
 // serdes method should be const when serializing but is not because C++ does not let constness be template arg dependent
-template<HasSerdes   T> static inline void serdes( ::ostream& os , T const& x ) { const_cast<T&>(x).serdes(os) ; }
-template<HasSerdes   T> static inline void serdes( ::istream& is , T      & x ) {                x .serdes(is) ; }
-template<HasSerdeser T> static inline void serdes( ::ostream& os , T const& x ) { Serdeser<T>::s_serdes(os,x)  ; }
-template<HasSerdeser T> static inline void serdes( ::istream& is , T      & x ) { Serdeser<T>::s_serdes(is,x)  ; }
+/**/                                                               static inline void serdes( ::ostream&                                                    ) {                                       }
+/**/                                                               static inline void serdes( ::istream&                                                    ) {                                       }
+template<HasSerdes     T                                         > static inline void serdes( ::ostream& os , T  const& x                                   ) { const_cast<T&>(x).serdes(os) ;        }
+template<HasSerdes     T                                         > static inline void serdes( ::istream& is , T       & x                                   ) {                x .serdes(is) ;        }
+template<HasSerdeser   T                                         > static inline void serdes( ::ostream& os , T  const& x                                   ) { Serdeser<T>::s_serdes(os,x)  ;        }
+template<HasSerdeser   T                                         > static inline void serdes( ::istream& is , T       & x                                   ) { Serdeser<T>::s_serdes(is,x)  ;        }
+template< Serializable T1 , Serializable T2 , Serializable... Ts > static inline void serdes( ::ostream& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
+template< Serializable T1 , Serializable T2 , Serializable... Ts > static inline void serdes( ::istream& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
 //
 template<Serializable T> static inline void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
 template<Serializable T> static inline ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
@@ -39,6 +44,36 @@ template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) {
 namespace std {
 	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL("");return hash<::string>()(serialize(x)) ; } } ; // .
 }
+
+template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
+	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
+	static void s_serdes( ::ostream& os , T const& x ) {
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto const& [a,b,c,d,e,f,g,h,i,j] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto const& [a,b,c,d,e,f,g,h,i  ] = x ; serdes(os,a,b,c,d,e,f,g,h,i  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto const& [a,b,c,d,e,f,g,h    ] = x ; serdes(os,a,b,c,d,e,f,g,h    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                };}) { auto const& [a,b,c,d,e,f,g      ] = x ; serdes(os,a,b,c,d,e,f,g      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                    };}) { auto const& [a,b,c,d,e,f        ] = x ; serdes(os,a,b,c,d,e,f        ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U()                        };}) { auto const& [a,b,c,d,e          ] = x ; serdes(os,a,b,c,d,e          ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U()                            };}) { auto const& [a,b,c,d            ] = x ; serdes(os,a,b,c,d            ) ; }
+		else if constexpr (requires{T{U(),U(),U()                                };}) { auto const& [a,b,c              ] = x ; serdes(os,a,b,c              ) ; }
+		else if constexpr (requires{T{U(),U()                                    };}) { auto const& [a,b                ] = x ; serdes(os,a,b                ) ; }
+		else if constexpr (requires{T{U()                                        };}) { auto const& [a                  ] = x ; serdes(os,a                  ) ; }
+	}
+	static void s_serdes( ::istream& is , T& x ) {
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i  ] = x ; serdes(is,a,b,c,d,e,f,g,h,i  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h    ] = x ; serdes(is,a,b,c,d,e,f,g,h    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g      ] = x ; serdes(is,a,b,c,d,e,f,g      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f        ] = x ; serdes(is,a,b,c,d,e,f        ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e          ] = x ; serdes(is,a,b,c,d,e          ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U()                            };}) { auto& [a,b,c,d            ] = x ; serdes(is,a,b,c,d            ) ; }
+		else if constexpr (requires{T{U(),U(),U()                                };}) { auto& [a,b,c              ] = x ; serdes(is,a,b,c              ) ; }
+		else if constexpr (requires{T{U(),U()                                    };}) { auto& [a,b                ] = x ; serdes(is,a,b                ) ; }
+		else if constexpr (requires{T{U()                                        };}) { auto& [a                  ] = x ; serdes(is,a                  ) ; }
+	}
+} ;
 
 template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
 	// compiler should be able to avoid copy when using bit_cast, even with an intermediate buf
@@ -104,6 +139,10 @@ template<class... T> struct Serdeser<::tuple<T...>> {
 	static void s_serdes( ::ostream& s , ::tuple<T...> const& t ) { SerdeserTupleHelper<sizeof...(T),T...>::s_serdes(s,t) ; }
 	static void s_serdes( ::istream& s , ::tuple<T...>      & t ) { SerdeserTupleHelper<sizeof...(T),T...>::s_serdes(s,t) ; }
 } ;
+
+//
+// MsgBuf
+//
 
 struct MsgBuf {
 	using Len = size_t ;

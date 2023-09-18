@@ -93,7 +93,7 @@ namespace Engine {
 			// data
 			in_addr_t addr     = ServerSockFd::LoopBackAddr ;
 			bool      is_local = false                      ;
-			::vmap_ss dct  ;
+			::vmap_ss dct      ;
 		} ;
 
 		struct Cache {

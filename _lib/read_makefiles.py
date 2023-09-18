@@ -526,10 +526,8 @@ if hasattr(lmake,'sources') : srcs = lmake.sources
 else                        : srcs = lmake.auto_sources()
 
 print(repr({
-	'local_admin_dir'  : lmake.local_admin_dir
-,	'remote_admin_dir' : lmake.remote_admin_dir
-,	'config'           : lmake.config
-,	'srcs'             : srcs
+	'config' : lmake.config
+,	'srcs'   : srcs
 ,	'rules' : [
 		rule_rep
 		for rule in lmake.rules

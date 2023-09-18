@@ -27,22 +27,16 @@ using namespace Time         ;
 AutodepEnv* Record::s_autodep_env = nullptr ;                                  // declare as pointer to avoid late initialization
 Fd          Record::s_root_fd     ;
 
-void Record::_report( JobExecRpcReq const& jerr ) const {
-	if ( jerr.proc==JobExecRpcProc::Access && !jerr.sync ) {
+void Record::_report_access( JobExecRpcReq const& jerr ) const {
+	SWEAR(jerr.proc==JobExecRpcProc::Access) ;
+	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
-			auto it = access_cache.find(f) ;
-			if (it==access_cache.end()) {
-				miss            = true      ;
-				access_cache[f] = jerr.info ;                                  // create entry
-			} else {
-				JobExecRpcReq::AccessInfo& entry     = it->second        ;
-				JobExecRpcReq::AccessInfo  new_entry = entry | jerr.info ;
-				if (new_entry!=entry) {
-					miss = true       ;
-					entry = new_entry ;                                        // update entry
-				}
-			}
+			auto [it,inserted] = access_cache.emplace(f,Accesses::None) ;
+			Accesses old_accesses = it->second ;
+			it->second |= jerr.digest.accesses ;
+			if      (!jerr.digest.idle()     ) miss = true ;                   // modifying accesses cannot be cached as we do not know what other processes may have done in between
+			else if (it->second!=old_accesses) miss = true ;                   // new accesses must be recorded
 		}
 		if (!miss) return ;
 	}
@@ -79,11 +73,12 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		}
 		jerr.files     = ::move(files) ;
 		jerr.auto_date = false         ;                                       // files are now physical and dated
-		if ( some_in_tmp && jerr.info.write ) _report(JobExecRpcProc::Tmp) ;
+		if ( some_in_tmp && jerr.digest.write ) _report_tmp() ;
 	}
 	jerr.date     = ProcessDate::s_now() ;                                     // ensure date is posterior to links encountered while solving
 	jerr.comment += ".backdoor"          ;
-	_report(jerr) ;
+	if (jerr.proc==JobExecRpcProc::Access) _report_access(jerr) ;
+	else                                   report_cb     (jerr) ;
 	if (jerr.sync) return get_reply_cb() ;
 	else           return {}             ;
 }
@@ -117,7 +112,7 @@ int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	Accesses a = Access::Reg ; if (no_follow) a |= Access::Lnk ;                                       // if no_follow, the sym link may be hard linked
 	if ( !old_real.empty() && (ok||no_file) ) r._report_dep( ::move(old_real) , a , comment+".src" ) ; // if no_follow, the symlink can be linked
 	//
-	if (new_real.empty()) { if ( ok && in_tmp ) r._report       ( Proc::Tmp                         ) ; }
+	if (new_real.empty()) { if ( ok && in_tmp ) r._report_tmp   (                                   ) ; }
 	else                  { if ( ok           ) r._report_target( ::move(new_real) , comment+".dst" ) ; }
 	return rc ;
 }
@@ -142,12 +137,12 @@ int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file
 	bool ok = fd_rc>=0 ;
 	//
 	if (real.empty()) {
-		if ( do_write && ok && in_tmp ) r._report(Proc::Tmp) ;
+		if ( do_write && ok && in_tmp ) r._report_tmp() ;
 	} else {
 		if (do_write) {
 			if ( ok && !as_dir ) {
-				if (do_read) r._report_update( ::move(real) , date , Access::Reg , comment+(".upd") ) ; // file date is updated if created, use original date
-				else         r._report_target( ::move(real) ,                      comment+ ".wr"   ) ;
+				if (do_read) r._report_update( ::move(real) , date , Access::Reg , comment+".upd" ) ; // file date is updated if created, use original date
+				else         r._report_target( ::move(real) ,                      comment+".wr"  ) ;
 			}
 		} else if (do_read) {
 			if ( ok || no_file ) {
@@ -211,7 +206,7 @@ Record::Rename::Rename( bool active , Record& r , int old_at_ , const char* old_
 int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 	if (old_real==new_real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	if (rc==0) {                                                               // rename has occurred
-		if (in_tmp) r._report(Proc::Tmp) ;
+		if (in_tmp) r._report_tmp() ;
 		// handle directories (remember that rename has already occured when we walk)
 		// so for each directoty :
 		// - files are written
@@ -228,14 +223,14 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 			if ( !old_real.empty() ) for( ::string const& d : sfxs ) writes.push_back( old_real + d ) ;
 		}
 		::string c = comment+(exchange?"<>":"") ;
-		r._report_deps   ( ::move(reads ) , DataAccesses , true/*unlink*/ , c ) ; // do unlink before write so write has priority
-		r._report_targets( ::move(writes) ,                                 c ) ;
+		r._report_deps   ( ::move(reads ) , DataAccesses , true/*unlink*/ , c+".rd" ) ; // do unlink before write so write has priority
+		r._report_targets( ::move(writes) ,                                 c+".wr" ) ;
 	} else if (no_file) {                                                         // rename has not occurred : the read part must still be reported
 		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
 		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
 		::string c = comment+(exchange?"!<>":"!") ;
-		if ( !old_real.empty()             ) r._report_deps( walk( old_at,old_file , old_real ) , DataAccesses , false/*unlink*/ , c ) ;
-		if ( !new_real.empty() && exchange ) r._report_deps( walk( new_at,new_file , new_real ) , DataAccesses , false/*unlink*/ , c ) ;
+		if ( !old_real.empty()             ) r._report_deps( walk( old_at,old_file , old_real ) , DataAccesses , false/*unlink*/ , c+".rd!" ) ;
+		if ( !new_real.empty() && exchange ) r._report_deps( walk( new_at,new_file , new_real ) , DataAccesses , false/*unlink*/ , c+".rd!" ) ;
 	}
 	return rc ;
 }

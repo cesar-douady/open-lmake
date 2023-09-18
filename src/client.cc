@@ -24,12 +24,19 @@ static bool server_ok( Fd fd , ::string const& tag ) {
 
 static void connect_to_server() {
 	Trace trace("connect_to_server") ;
+	::string server_service ;
+	pid_t    server_pid     = 0 ;
 	for ( int i=0 ; i<10 ; i++ ) {
 		trace("try_old",i) ;
 		// try to connect to an existing server
-		{	::ifstream   server_mrkr_stream{to_string(AdminDir,'/',ServerMrkr)} ; if (!server_mrkr_stream                        ) goto LaunchServer ;
-			::string     server_service                                         ; if (!getline(server_mrkr_stream,server_service)) goto LaunchServer ;
-			ClientSockFd req_fd            {server_service                    } ; if (!req_fd                                    ) goto LaunchServer ;
+		{	::ifstream server_mrkr_stream { to_string(AdminDir,'/',ServerMrkr) } ;
+			::string   pid_str            ;
+			if (!server_mrkr_stream                          ) goto LaunchServer ;
+			if (!::getline(server_mrkr_stream,server_service)) goto LaunchServer ;
+			if (!::getline(server_mrkr_stream,pid_str       )) goto LaunchServer ;
+			server_pid = atol(pid_str.c_str()) ;
+			ClientSockFd req_fd{server_service} ;
+			if (!req_fd                                      ) goto LaunchServer ;
 			//
 			if (server_ok(req_fd,"old")) {
 				g_server_fds = ::move(req_fd) ;
@@ -50,7 +57,18 @@ static void connect_to_server() {
 		server.wait() ;                                                        // dont care about return code, we are going to relauch/reconnect anyway
 		// retry if not successful, may be a race between several clients trying to connect to/launch servers
 	}
-	exit(2,"cannot connect to server") ;
+	::string kill_server_msg ;
+	if (!server_service.empty()) {
+		::string server_host = SockFd::s_host(server_service) ;
+		if (server_host!=host()) kill_server_msg = to_string("ssh ",SockFd::s_host(server_service),' ') ;
+	}
+	if (server_pid              ) kill_server_msg += to_string("kill ",server_pid       ) ;
+	if (!kill_server_msg.empty()) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
+	exit(2
+	,	"cannot connect to server, consider :\n"
+	,	kill_server_msg
+	,	"\trm LMAKE/server\n"
+	) ;
 }
 
 static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {

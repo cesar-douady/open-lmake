@@ -100,44 +100,36 @@
 // JobExecRpcReq
 //
 
-::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessInfo const& ai ) {
+::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                  os << "AccessInfo("           ;
-	if (+ai.accesses  ) { os <<sep     << ai.accesses   ; sep = "," ; }
-	if (+ai.dflags    ) { os <<sep     << ai.dflags     ; sep = "," ; }
-	if ( ai.write     ) { os <<sep     << "write"       ; sep = "," ; }
-	if (+ai.neg_tflags) { os <<sep<<'-'<< ai.neg_tflags ; sep = "," ; }
-	if (+ai.pos_tflags) { os <<sep<<'+'<< ai.pos_tflags ; sep = "," ; }
-	if ( ai.unlink    ) { os <<sep     << "unlink"      ; sep = "," ; }
+	/**/                  os << "AccessDigest("           ;
+	if (+ad.accesses  ) { os <<sep     << ad.accesses   ; sep = "," ; }
+	if (+ad.dflags    ) { os <<sep     << ad.dflags     ; sep = "," ; }
+	if ( ad.write     ) { os <<sep     << "write"       ; sep = "," ; }
+	if (+ad.neg_tflags) { os <<sep<<'-'<< ad.neg_tflags ; sep = "," ; }
+	if (+ad.pos_tflags) { os <<sep<<'+'<< ad.pos_tflags ; sep = "," ; }
+	if ( ad.unlink    ) { os <<sep     << "unlink"      ; sep = "," ; }
 	return                os <<')'                      ;
 }
 
-void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
-	// this.read may be long before this.write, but ai.read is simultaneous (and just before) ai.write, so there are not so many possible order, just 3
-	switch (after) {
-		case Yes :                                                                   // order is : this.read - this.write - ai.read - ai.write
-			if (idle()) accesses   |= ai.accesses    ;                               // if this.idle(), ai.read is a real read
-			/**/        unlink     &= !ai.write      ; unlink     |= ai.unlink     ; // if ai writes, it cancels previous this.unlink
-			/**/        neg_tflags &= ~ai.pos_tflags ; neg_tflags |= ai.neg_tflags ; // ai flags have priority over this flags
-			/**/        pos_tflags &= ~ai.neg_tflags ; pos_tflags |= ai.pos_tflags ; // .
-		break ;
-		case Maybe :                                                           // order is : this.read - ai.read - ai.write - this.write
-			accesses   |= ai.accesses                 ;                        // ai.read is always a real read
-			unlink     |= ai.unlink && !write         ;                        // if this writes, it cancels previous ai.unlink
-			neg_tflags |= ai.neg_tflags & ~pos_tflags ;                        // this flags have priority over ai flags
-			pos_tflags |= ai.pos_tflags & ~neg_tflags ;                        // .
-		break ;
-		case No :                                                              // order is : ai.read - ai.write - this.read - this.write
-			if (ai.idle()) accesses   |= ai.accesses                  ;        // if ai.idle(), this.read is a real read
-			else           accesses    = ai.accesses                  ;        // else, this.read is canceled
-			/**/           unlink     |= ai.unlink && !write          ;        // if this writes, it cancels previous ai.unlink
-			/**/           neg_tflags |= ai.neg_tflags &  ~pos_tflags ;        // this flags have priority over ai flags
-			/**/           pos_tflags |= ai.pos_tflags &  ~neg_tflags ;        // .
-		break ;
-		default : FAIL(after) ;
+void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
+	dflags |= ad.dflags ;                                                      // in all cases, dflags are always accumulated
+	if ( order<AccessOrder::Write || idle() ) {
+		if ( order==AccessOrder::Before && !ad.idle() ) accesses  = Accesses::None ;
+		/**/                                            accesses |= ad.accesses    ;
 	}
-	dflags |= ai.dflags ;                                                      // in all cases, dflags are always accumulated
-	write  |= ai.write  ;                                                      // in all cases, there is a write if either writes
+	if (order>=AccessOrder::Write) {
+		neg_tflags &= ~ad.pos_tflags ; neg_tflags |= ad.neg_tflags ;           // ad flags have priority over this flags
+		pos_tflags &= ~ad.neg_tflags ; pos_tflags |= ad.pos_tflags ;           // .
+	} else {
+		neg_tflags |= ad.neg_tflags & ~pos_tflags ;                            // this flags have priority over ad flags
+		pos_tflags |= ad.pos_tflags & ~neg_tflags ;                            // .
+	}
+	if (!ad.idle()) {
+		if      (idle()                   ) unlink = ad.unlink ;
+		else if (order==AccessOrder::After) unlink = ad.unlink ;
+		write |= ad.write ;
+	}
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -145,10 +137,10 @@ void JobExecRpcReq::AccessInfo::update( AccessInfo const& ai , Bool3 after ) {
 	if (jerr.sync            ) os << ",sync"            ;
 	if (jerr.auto_date       ) os << ",auto_date"       ;
 	if (jerr.no_follow       ) os << ",no_follow"       ;
-	/**/                       os <<',' << jerr.info    ;
+	/**/                       os <<',' << jerr.digest  ;
 	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
 	if (jerr.has_files()) {
-		if ( +jerr.info.accesses && !jerr.auto_date ) {
+		if ( +jerr.digest.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
 		} else {
 			::vector_s fs ;
