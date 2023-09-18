@@ -168,14 +168,18 @@ namespace Engine {
 		else                              color = Color::Err        ;
 		audit( fd , ro , color , lvl , rule->user_name() , job.user_name() ) ;
 		if (show_deps==No) return ;
-		size_t  w            = 0 ;
-		for( auto const& [k,_] : rule->create_match_attrs.spec.deps ) w = ::max( w , k.size() ) ;
+		size_t    w       = 0 ;
+		::umap_ss rev_map ;
+		for( auto const& [k,d] : rule->create_match_attrs.eval(job.simple_match()) ) {
+			w                = ::max( w , k.size() ) ;
+			rev_map[d.first] = k                     ;
+		}
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
-			Dep const& dep = job->deps[d] ;
-			bool       cdp = d  >0                && dep           .parallel ;
-			bool       ndp = d+1<job->deps.size() && job->deps[d+1].parallel ;
-			::string dep_key = dep.dflags[DFlag::Static] && !rule->create_match_attrs.spec.full_dynamic ? rule->create_match_attrs.spec.deps[d].first : ""s ;
-			::string pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ::setw(w) , dep_key ,' ')                                                                  ;
+			Dep const& dep     = job->deps[d]                                                                     ;
+			bool       cdp     = d  >0                && dep           .parallel                                  ;
+			bool       ndp     = d+1<job->deps.size() && job->deps[d+1].parallel                                  ;
+			::string   dep_key = dep.dflags[DFlag::Static] ? rev_map.at(dep.name()) : ""s                         ;
+			::string   pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ::setw(w) , dep_key ,' ') ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;

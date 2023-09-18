@@ -56,6 +56,7 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* transform TFlags into Tflags and DFlags into Dflags
 * make a class GenericBackend
 	- as a base class for LocalBackend and SlurmBackend
 * add a warning when ids reach 15/16 of their limits

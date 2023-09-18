@@ -45,25 +45,23 @@ namespace Engine {
 		::vector_view_c_s sts = match.static_targets() ;
 		for( VarIdx t=0 ; t<sts.size() ; t++ ) {
 			Node target{sts[t]} ;
-			if (target->crc==Crc::None            ) continue ;                 // no interest to wash file if it does not exist
-			if (rule->flags(t)[TFlag::Incremental]) continue ;                 // keep file for incremental targets
+			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
+			TFlags tf = rule->flags(t) ;
+			if (tf[TFlag::Incremental]) continue ;                             // keep file for incremental targets
 			//
-			if ( !target->has_actual_job(*this) && target->has_actual_job() ) {
-				if (rule->flags(t)[TFlag::Warning]) to_report.push_back(target) ;
-			}
-			to_wash.push_back(sts[t]) ;
+			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[TFlag::Warning] ) to_report.push_back(target) ;
+			/**/                                                                                    to_wash  .push_back(sts[t]) ;
 		}
 		// handle star targets
 		Rule::FullMatch full_match ;                                           // lazy evaluated, if we find any target to_report
 		for( Target target : (*this)->star_targets ) {
 			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
-			if (target.is_update()    ) continue ;                             // if reads were allowed, keep file
+			if (!full_match) full_match = match ;                              // solve lazy evaluation // XXX : optimize by recording in Rule flags that are common to all targets (common case)
+			TFlags tf = rule->flags(full_match.idx(target.name())) ;
+			if (tf[TFlag::Incremental]) continue ;                             // keep incremental targets
 			//
-			if ( !target->has_actual_job(*this) && target->has_actual_job() ) {
-				if (!full_match                                               ) full_match = match ;              // solve lazy evaluation
-				if (rule->flags(full_match.idx(target.name()))[TFlag::Warning]) to_report.push_back(target) ;
-			}
-			to_wash.push_back(target.name()) ;
+			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[TFlag::Warning] ) to_report.push_back(target       ) ;
+			/**/                                                                                    to_wash  .push_back(target.name()) ;
 		}
 		return {to_wash,to_report} ;
 	}

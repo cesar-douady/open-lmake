@@ -1,8 +1,8 @@
 FROM ubuntu:22.04
 
 # the following 2 lines should not be necessary but was necessary today, for me
-# RUN cp /etc/apt/sources.list /etc/apt/sources.list-bak
-# RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: /etc/apt/sources.list-bak > /etc/apt/sources.list
+RUN cp /etc/apt/sources.list /etc/apt/sources.list-bak
+RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: /etc/apt/sources.list-bak > /etc/apt/sources.list
 
 RUN apt-get update
 RUN apt-get install -y build-essential
