@@ -35,45 +35,45 @@ int main( int argc , char* argv[]) {
 		{ Flag::Unlink      , { .short_name='u'                                            , .has_arg=false , .doc="report an unlink"                                                      } }
 	,	{ Flag::NoFollow    , { .short_name='P'                                            , .has_arg=false , .doc="Physical view, do not follow symbolic links."                          } }
 	//
-	,	{ Flag::Crc         , { .short_name=               TFlagChars[+TFlag::Crc      ]   , .has_arg=false , .doc="generate a crc for this target (compulsery if Match)"                  } }
-	,	{ Flag::Dep         , { .short_name=               TFlagChars[+TFlag::Dep      ]   , .has_arg=false , .doc="reads not followed by writes trigger dependencies"                     } }
-	,	{ Flag::Essential   , { .short_name=               TFlagChars[+TFlag::Essential]   , .has_arg=false , .doc="show when generating user oriented graphs"                             } }
-	,	{ Flag::Phony       , { .short_name=               TFlagChars[+TFlag::Phony    ]   , .has_arg=false , .doc="phony, file is deemed to exist even if unlinked"                       } }
-	,	{ Flag::SourceOk    , { .short_name=               TFlagChars[+TFlag::SourceOk ]   , .has_arg=false , .doc="ok to overwrite source files"                                          } }
-	,	{ Flag::Stat        , { .short_name=               TFlagChars[+TFlag::Stat     ]   , .has_arg=false , .doc="inode accesses (stat-like) are not ignored"                            } }
-	,	{ Flag::Write       , { .short_name=               TFlagChars[+TFlag::Write    ]   , .has_arg=false , .doc="writes are allowed (possibly followed by reads which are ignored)"     } }
-	,	{ Flag::NoCrc       , { .short_name=char(::toupper(TFlagChars[+TFlag::Crc      ])) , .has_arg=false , .doc="do not generate a crc for this target (compulsery if Match)"           } }
-	,	{ Flag::NoDep       , { .short_name=char(::toupper(TFlagChars[+TFlag::Dep      ])) , .has_arg=false , .doc="reads not followed by writes do not trigger dependencies"              } }
-	,	{ Flag::NoEssential , { .short_name=char(::toupper(TFlagChars[+TFlag::Essential])) , .has_arg=false , .doc="do not show when generating user oriented graphs"                      } }
-	,	{ Flag::NoPhony     , { .short_name=char(::toupper(TFlagChars[+TFlag::Phony    ])) , .has_arg=false , .doc="not phony, file is not deemed to exist if unlinked"                    } }
-	,	{ Flag::NoSourceOk  , { .short_name=char(::toupper(TFlagChars[+TFlag::SourceOk ])) , .has_arg=false , .doc="not ok to overwrite source files"                                      } }
-	,	{ Flag::NoStat      , { .short_name=char(::toupper(TFlagChars[+TFlag::Stat     ])) , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
-	,	{ Flag::NoWrite     , { .short_name=char(::toupper(TFlagChars[+TFlag::Write    ])) , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
+	,	{ Flag::Crc         , { .short_name=               TflagChars[+Tflag::Crc      ]   , .has_arg=false , .doc="generate a crc for this target (compulsery if Match)"                  } }
+	,	{ Flag::Dep         , { .short_name=               TflagChars[+Tflag::Dep      ]   , .has_arg=false , .doc="reads not followed by writes trigger dependencies"                     } }
+	,	{ Flag::Essential   , { .short_name=               TflagChars[+Tflag::Essential]   , .has_arg=false , .doc="show when generating user oriented graphs"                             } }
+	,	{ Flag::Phony       , { .short_name=               TflagChars[+Tflag::Phony    ]   , .has_arg=false , .doc="phony, file is deemed to exist even if unlinked"                       } }
+	,	{ Flag::SourceOk    , { .short_name=               TflagChars[+Tflag::SourceOk ]   , .has_arg=false , .doc="ok to overwrite source files"                                          } }
+	,	{ Flag::Stat        , { .short_name=               TflagChars[+Tflag::Stat     ]   , .has_arg=false , .doc="inode accesses (stat-like) are not ignored"                            } }
+	,	{ Flag::Write       , { .short_name=               TflagChars[+Tflag::Write    ]   , .has_arg=false , .doc="writes are allowed (possibly followed by reads which are ignored)"     } }
+	,	{ Flag::NoCrc       , { .short_name=char(::toupper(TflagChars[+Tflag::Crc      ])) , .has_arg=false , .doc="do not generate a crc for this target (compulsery if Match)"           } }
+	,	{ Flag::NoDep       , { .short_name=char(::toupper(TflagChars[+Tflag::Dep      ])) , .has_arg=false , .doc="reads not followed by writes do not trigger dependencies"              } }
+	,	{ Flag::NoEssential , { .short_name=char(::toupper(TflagChars[+Tflag::Essential])) , .has_arg=false , .doc="do not show when generating user oriented graphs"                      } }
+	,	{ Flag::NoPhony     , { .short_name=char(::toupper(TflagChars[+Tflag::Phony    ])) , .has_arg=false , .doc="not phony, file is not deemed to exist if unlinked"                    } }
+	,	{ Flag::NoSourceOk  , { .short_name=char(::toupper(TflagChars[+Tflag::SourceOk ])) , .has_arg=false , .doc="not ok to overwrite source files"                                      } }
+	,	{ Flag::NoStat      , { .short_name=char(::toupper(TflagChars[+Tflag::Stat     ])) , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
+	,	{ Flag::NoWrite     , { .short_name=char(::toupper(TflagChars[+Tflag::Write    ])) , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line   { syntax,argc,argv } ;
 	bool              unlink     = false              ;
 	bool              no_follow  = false              ;
-	TFlags            neg_tflags ;
-	TFlags            pos_tflags ;
+	Tflags            neg_tflags ;
+	Tflags            pos_tflags ;
 	//
 	if (cmd_line.flags[Flag::Unlink  ]) unlink    = true ;
 	if (cmd_line.flags[Flag::NoFollow]) no_follow = true ;
 	//
-	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= TFlag::Crc       ;
-	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= TFlag::Dep       ;
-	if (cmd_line.flags[Flag::Essential  ]) pos_tflags |= TFlag::Essential ;
-	if (cmd_line.flags[Flag::Phony      ]) pos_tflags |= TFlag::Phony     ;
-	if (cmd_line.flags[Flag::SourceOk   ]) pos_tflags |= TFlag::SourceOk  ;
-	if (cmd_line.flags[Flag::Stat       ]) pos_tflags |= TFlag::Stat      ;
-	if (cmd_line.flags[Flag::Write      ]) pos_tflags |= TFlag::Write     ;
+	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= Tflag::Crc       ;
+	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= Tflag::Dep       ;
+	if (cmd_line.flags[Flag::Essential  ]) pos_tflags |= Tflag::Essential ;
+	if (cmd_line.flags[Flag::Phony      ]) pos_tflags |= Tflag::Phony     ;
+	if (cmd_line.flags[Flag::SourceOk   ]) pos_tflags |= Tflag::SourceOk  ;
+	if (cmd_line.flags[Flag::Stat       ]) pos_tflags |= Tflag::Stat      ;
+	if (cmd_line.flags[Flag::Write      ]) pos_tflags |= Tflag::Write     ;
 	//
-	if (cmd_line.flags[Flag::NoCrc      ]) neg_tflags |= TFlag::Crc       ;
-	if (cmd_line.flags[Flag::NoDep      ]) neg_tflags |= TFlag::Dep       ;
-	if (cmd_line.flags[Flag::NoEssential]) neg_tflags |= TFlag::Essential ;
-	if (cmd_line.flags[Flag::NoPhony    ]) neg_tflags |= TFlag::Phony     ;
-	if (cmd_line.flags[Flag::NoSourceOk ]) neg_tflags |= TFlag::SourceOk  ;
-	if (cmd_line.flags[Flag::NoStat     ]) neg_tflags |= TFlag::Stat      ;
-	if (cmd_line.flags[Flag::NoWrite    ]) neg_tflags |= TFlag::Write     ;
+	if (cmd_line.flags[Flag::NoCrc      ]) neg_tflags |= Tflag::Crc       ;
+	if (cmd_line.flags[Flag::NoDep      ]) neg_tflags |= Tflag::Dep       ;
+	if (cmd_line.flags[Flag::NoEssential]) neg_tflags |= Tflag::Essential ;
+	if (cmd_line.flags[Flag::NoPhony    ]) neg_tflags |= Tflag::Phony     ;
+	if (cmd_line.flags[Flag::NoSourceOk ]) neg_tflags |= Tflag::SourceOk  ;
+	if (cmd_line.flags[Flag::NoStat     ]) neg_tflags |= Tflag::Stat      ;
+	if (cmd_line.flags[Flag::NoWrite    ]) neg_tflags |= Tflag::Write     ;
 	//
 	if ( +(neg_tflags&pos_tflags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
 	if ( unlink && (+neg_tflags||+pos_tflags) ) syntax.usage(          "cannot unlink and set/reset flags"s                                 ) ;

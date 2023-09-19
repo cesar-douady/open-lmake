@@ -31,11 +31,11 @@ struct GatherDeps {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
-		AccessInfo( PD pd , TFlags tfs_ ) : access_date{pd} , tflags{tfs_} {}
+		AccessInfo( PD pd , Tflags tfs_ ) : access_date{pd} , tflags{tfs_} {}
 		//
-		bool operator==(AccessInfo const&) const = default ;                   // XXX : wht this is this necessary ?!?
+		bool operator==(AccessInfo const&) const = default ;                   // XXX : why is this necessary ?!?
 		// accesses
-		bool is_dep() const { return digest.idle() && tflags[TFlag::Dep] ; }
+		bool is_dep() const { return digest.idle() && tflags[Tflag::Dep] ; }
 		// services
 		void update( PD pd , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ ) ;
 		// data
@@ -45,7 +45,7 @@ struct GatherDeps {
 		AccessDigest digest           ;
 		DD           file_date        ;                    // if +digest.accesses , date of file when read as first access
 		NodeIdx      parallel_id      = 0 ;
-		TFlags       tflags           ;                    // resulting flags after appliation of info flags modifiers
+		Tflags       tflags           ;                    // resulting flags after appliation of info flags modifiers
 	} ;
 	// cxtors & casts
 	GatherDeps(       ) = default ;
@@ -66,10 +66,10 @@ private :
 		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,parallel_id,comment) ;
 	}
 public :
-	void new_target( PD pd , ::string const& t         , TFlags n , TFlags p     , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
-	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , DFlags dfs , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.accesses=a,.dflags=dfs                },0/*parallel_id*/,c) ; }
+	void new_target( PD pd , ::string const& t         , Tflags n , Tflags p     , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
+	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.accesses=a,.dflags=dfs                },0/*parallel_id*/,c) ; }
 	//
-	void new_static_deps( PD pd , ::vmap_s<DFlags> const& ds , ::string const& c="static_deps" ) {
+	void new_static_deps( PD pd , ::vmap_s<Dflags> const& ds , ::string const& c="static_deps" ) {
 		SWEAR(accesses.empty()) ;                                                                                  // ensure we do not insert static deps after hidden ones
 		parallel_id++ ;
 		for( auto const& [f,d] : ds ) _new_access(pd,f,{},{.dflags=d},parallel_id,c) ;
@@ -93,7 +93,7 @@ public :
 	// date
 	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd     { return {}               ; } ; // function to contact server when necessary, return error by default
 	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void   {                           } ; // function to report live output, dont report by default
-	::function<TFlags     (::string      const&)> tflags_cb    = [](::string      const&)->TFlags { return UnexpectedTFlags ; } ; // function to compute tflags from target before modifiers
+	::function<Tflags     (::string      const&)> tflags_cb    = [](::string      const&)->Tflags { return UnexpectedTflags ; } ; // function to compute tflags from target before modifiers
 	ServerSockFd                                  master_sock  ;
 	in_addr_t                                     addr         = SockFd::LoopBackAddr                                           ; // local addr to which we can be contacted by running job
 	bool                                          create_group = false                                                          ; // if true <=> process is launched in its own group

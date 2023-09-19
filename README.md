@@ -108,39 +108,22 @@ Names are suffixed with \_ if needed to suppress ambiguities
 
 ## abbreviations
 - general rules :
-	- words are abbreviated using the following list if they are not exposed to users
-	- words may further be abbreviated using only consons when name spans no more than a page (~100 lines)
-	  or when such abbreviation makes code more readable
+	- words are abbreviated depending on their use and span : the more the span is short and the usage is heavy, the more they are abbreviated
+	- words may be abbreviated by their beginning, such as env for environ
+	- words may be abbreviated using only consons such as src for source
+	- these may be combined as in dst for destination
 	- words may further be abbreviated to a single letter when name spans no more than a few lines
-	- else words are not abbreviated
 - special cases :
 	<table>
 	<tr> <th> abbrev    </th> <th> full-name              </tdh </tr>
-	<tr> <td> cap       </td> <td> capacity               </td> </tr>
-	<tr> <td> del       </td> <td> delete                 </td> </tr>
-	<tr> <td> dct       </td> <td> dictionary             </td> </tr>
-	<tr> <td> dep       </td> <td> dependency             </td> </tr>
-	<tr> <td> diff      </td> <td> difference             </td> </tr>
-	<tr> <td> dst       </td> <td> destination            </td> </tr>
-	<tr> <td> expr      </td> <td> expression             </td> </tr>
-	<tr> <td> filename  </td> <td> file_name              </td> </tr>
-	<tr> <td> id        </td> <td> identifier             </td> </tr>
-	<tr> <td> idx       </td> <td> index                  </td> </tr>
-	<tr> <td> len       </td> <td> length                 </td> </tr>
-	<tr> <td> namespace </td> <td> name_space             </td> </tr>
-	<tr> <td> ongoing   </td> <td> on_going               </td> </tr>
-	<tr> <td> par       </td> <td> parallel               </td> </tr>
-	<tr> <td> proc      </td> <td> procedure, process     </td> </tr>
-	<tr> <td> regexpr   </td> <td> regular_expression     </td> </tr>
-	<tr> <td> res       </td> <td> result                 </td> </tr>
-	<tr> <td> rsv       </td> <td> reserv, reserved       </td> </tr>
-	<tr> <td> serdes    </td> <td> serialize, deserialize </td> </tr>
-	<tr> <td> sock      </td> <td> socket                 </td> </tr>
+	<tr> <td> dflag     </td> <td> dependency flag        </td> </tr>
+	<tr> <td> filename  </td> <td> file name              </td> </tr>
 	<tr> <td> lnk       </td> <td> symbolic link          </td> </tr>
-	<tr> <td> tab       </td> <td> table                  </td> </tr>
-	<tr> <td> tmp       </td> <td> temporary              </td> </tr>
-	<tr> <td> tmpl      </td> <td> template               </td> </tr>
-	<tr> <td> val       </td> <td> value                  </td> </tr>
+	<tr> <td> ongoing   </td> <td> on going               </td> </tr>
+	<tr> <td> regexpr   </td> <td> regular expression     </td> </tr>
+	<tr> <td> serdes    </td> <td> serialize, deserialize </td> </tr>
+	<tr> <td> tflag     </td> <td> target flag            </td> </tr>
+	<tr> <td> unode     </td> <td> unique node            </td> </tr>
 	<tr> <td> wakeup    </td> <td> wake_up                </td> </tr>
 	<tr> <td> wrt       </td> <td> with respect to        </td> </tr>
 	</table>

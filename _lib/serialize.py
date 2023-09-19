@@ -80,10 +80,10 @@ def _mk_f_string(s) :
 
 end_liness = {}
 srcs       = {}
-def _analyze(file_name) :
-	if file_name in end_liness : return
-	srcs      [file_name] = lines          = open(file_name).read().splitlines()
-	end_liness[file_name] = file_end_lines = {}
+def _analyze(filename) :
+	if filename in end_liness : return
+	srcs      [filename] = lines          = open(filename).read().splitlines()
+	end_liness[filename] = file_end_lines = {}
 	for start_lineno in range(len(lines)) :
 		start_line = lines[start_lineno]
 		def_pos    = start_line.find('def')
@@ -247,15 +247,15 @@ class Serialize :
 		return f'def {name}{inspect.signature(func)} :{core}'
 
 	def func_src(self,name,func) :
-		code      = func.__code__
-		file_name = code.co_filename
-		_analyze(file_name)
-		file_src       = srcs      [file_name]
-		file_end_lines = end_liness[file_name]
+		code     = func.__code__
+		filename = code.co_filename
+		_analyze(filename)
+		file_src       = srcs      [filename]
+		file_end_lines = end_liness[filename]
 		first_line_no  = code.co_firstlineno-1
 		end_line_no    = file_end_lines.get(first_line_no)
 		if first_line_no!=0 and file_src[first_line_no-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
-		assert end_line_no,f'{file_name}:{first_line_no+1} : cannot find def {name}'
+		assert end_line_no,f'{filename}:{first_line_no+1} : cannot find def {name}'
 		#
 		if func.__globals__ not in self.ctx : self.ctx.append(func.__globals__)
 		for glb_var in self.get_glbs(code) :

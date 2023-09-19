@@ -65,7 +65,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	bool     verbose   = false                    ;
 	bool     no_follow = false                    ;
 	Accesses accesses  = Accesses::All            ;
-	DFlags   dflags    = DfltDFlags               ;
+	Dflags   dflags    = DfltDflags               ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose"        ) ) { n_kw_args-- ; verbose   =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
@@ -75,7 +75,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 				if (PyObject_IsTrue(py_v)) accesses |=  a ;
 				else                       accesses &= ~a ;
 			}
-		for( DFlag df=DFlag::HiddenMin ; df<DFlag::HiddenMax1 ; df++ )
+		for( Dflag df=Dflag::HiddenMin ; df<Dflag::HiddenMax1 ; df++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) {
 				n_kw_args-- ;
 				if (PyObject_IsTrue(py_v)) dflags |=  df ;
@@ -118,12 +118,12 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
 	bool    unlink     = false                    ;
 	bool    no_follow  = false                    ;
-	TFlags  neg_tflags ;
-	TFlags  pos_tflags ;
+	Tflags  neg_tflags ;
+	Tflags  pos_tflags ;
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
-		for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ )
+		for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
 				n_kw_args-- ;
 				if (PyObject_IsTrue(py_v)) pos_tflags |= tf ;

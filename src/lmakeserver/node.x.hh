@@ -11,7 +11,7 @@
 namespace Engine {
 
 	struct Node        ;
-	struct UNode       ;
+	struct Unode       ;
 	struct NodeData    ;
 	struct NodeReqInfo ;
 
@@ -40,7 +40,7 @@ namespace Engine {
 
 	struct Node : NodeBase {
 		friend ::ostream& operator<<( ::ostream& , Node const ) ;
-		friend UNode ;
+		friend Unode ;
 		using Date       = DiskDate       ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
@@ -82,7 +82,7 @@ namespace Engine {
 		void set_buildable( Req , DepDepth lvl=0               ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& ri , CoarseDelay pressure ) const ;
 		//
-		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , DFlags=StaticDFlags , bool parallel=false ) ;
+		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , Dflags=StaticDflags , bool parallel=false ) ;
 		//
 		ReqInfo const& make( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
 		ReqInfo const& make( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
@@ -103,16 +103,16 @@ namespace Engine {
 	} ;
 
 	//
-	// UNode
+	// Unode
 	//
 
-	struct UNode : Node {                                                      // UNode is a Node with unique data
-		friend ::ostream& operator<<( ::ostream& , UNode const ) ;
+	struct Unode : Node {                                                      // Unode is a Node with unique data
+		friend ::ostream& operator<<( ::ostream& , Unode const ) ;
 		// cxtors & casts
-		UNode(                 ) = default ;
-		UNode(Idx             i) : Node(i) { unique() ; }
-		UNode(Node            n) : Node(n) { unique() ; }
-		UNode(::string const& n) : Node(n) { unique() ; }
+		Unode(                 ) = default ;
+		Unode(Idx             i) : Node(i) { unique() ; }
+		Unode(Node            n) : Node(n) { unique() ; }
+		Unode(::string const& n) : Node(n) { unique() ; }
 		// accesses
 		NodeData const& operator* () const { return _data() ; }
 		NodeData      & operator* ()       { return _data() ; }
@@ -124,6 +124,10 @@ namespace Engine {
 		//
 	} ;
 
+	//
+	// Target
+	//
+
 	struct Target : Node {
 		static_assert(Node::NGuardBits>=1) ;
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
@@ -131,18 +135,20 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Target const ) ;
 		// cxtors & casts
 		Target(                        ) = default ;
-		Target( Node n , bool iu=false ) : Node(n ) { is_update( +n && iu     ) ; } // if no node, ensure Target appears as false
-		Target( Target const& tu       ) : Node(tu) { is_update(tu.is_update()) ; }
+		Target( Node n , bool iu=false ) : Node(n) { is_unexpected( +n && iu        ) ; } // if no node, ensure Target appears as false
+		Target( Target const& t        ) : Node(t) { is_unexpected(t.is_unexpected()) ; }
 		//
-		Target& operator=(Target const& tu) { Node::operator=(tu) ; is_update(tu.is_update()) ; return *this ; }
+		Target& operator=(Target const& tu) { Node::operator=(tu) ; is_unexpected(tu.is_unexpected()) ; return *this ; }
 		// accesses
-		Idx operator+() const { return Node::operator+() | is_update()<<(NValBits-1) ; }
+		Idx operator+() const { return Node::operator+() | is_unexpected()<<(NValBits-1) ; }
 		//
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const = delete ; // { return Node::side<W,LSB+1>(   ) ; }
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       = delete ; // {        Node::side<W,LSB+1>(val) ; }
+		//
+		bool is_unexpected(        ) const { return Node::side<1>(   ) ; }
+		void is_unexpected(bool val)       {        Node::side<1>(val) ; }
 		// services
-		bool is_update(        ) const { return Node::side<1>(   ) ; }
-		void is_update(bool val)       {        Node::side<1>(val) ; }
+		bool lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) ; // fm & tn are lazy evaluated
 	} ;
 
 	struct Targets : TargetsBase {
@@ -159,9 +165,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,pair<Accesses,DFlags>> const& ,                           bool parallel=false ) ;
-		Deps( ::vmap  <Node,              DFlags > const& , Accesses={} ,             bool parallel=false ) ;
-		Deps( ::vector<Node                      > const& , Accesses={} , DFlags={} , bool parallel=false ) ;
+		Deps( ::vmap  <Node,pair<Accesses,Dflags>> const& ,                           bool parallel=false ) ;
+		Deps( ::vmap  <Node,              Dflags > const& , Accesses={} ,             bool parallel=false ) ;
+		Deps( ::vector<Node                      > const& , Accesses={} , Dflags={} , bool parallel=false ) ;
 	} ;
 
 	//
@@ -322,7 +328,7 @@ namespace Engine {
 	//
 
 	inline Node::Node(::string const& n) : NodeBase{n} {
-		if (!Disk::is_lcl(n)) UNode(*this)->external = true ;
+		if (!Disk::is_lcl(n)) Unode(*this)->external = true ;
 	}
 
 	inline bool Node::err (ReqInfo const& cri) const { return cri.err!=No || (*this)->err() ;      }
@@ -391,7 +397,7 @@ namespace Engine {
 		if (shared()) {
 			mk_shared( match_gen , b ) ;
 		} else {
-			UNode un{*this} ;
+			Unode un{*this} ;
 			un->match_gen = match_gen ;
 			un->buildable = b         ;
 		}
@@ -415,10 +421,10 @@ namespace Engine {
 	}
 
 	//
-	// UNode
+	// Unode
 	//
 
-	inline void UNode::refresh() {
+	inline void Unode::refresh() {
 		FileInfoDate fid{name()} ;
 		switch (manual_ok(fid)) {
 			case No    : refresh( {}        , fid.date          ) ; break ;
@@ -447,22 +453,34 @@ namespace Engine {
 	}
 
 	//
+	// Target
+	//
+
+	inline bool Target::lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) { // fm & tn are lazy evaluated
+		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
+		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
+		if (!fm       ) fm = sm     ;                                          // solve lazy evaluation
+		if (tn.empty()) tn = name() ;                                          // .
+		/**/            return sm.rule->tflags(fm.idx(tn))[tf] ;
+	}
+
+	//
 	// Deps
 	//
 
-	inline Deps::Deps( ::vmap<Node,pair<Accesses,DFlags>> const& static_deps , bool p ) {
+	inline Deps::Deps( ::vmap<Node,pair<Accesses,Dflags>> const& static_deps , bool p ) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
 		for( auto const& [d,adf] : static_deps ) ds.emplace_back( d , adf.first , adf.second , p ) ;
 		*this = Deps(ds) ;
 	}
 
-	inline Deps::Deps( ::vmap<Node,DFlags> const& static_deps , Accesses a , bool p ) {
+	inline Deps::Deps( ::vmap<Node,Dflags> const& static_deps , Accesses a , bool p ) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
 		for( auto const& [d,df] : static_deps ) { ds.emplace_back( d , a , df , p ) ; }
 		*this = Deps(ds) ;
 	}
 
-	inline Deps::Deps( ::vector<Node> const& deps , Accesses a , DFlags df , bool p ) {
+	inline Deps::Deps( ::vector<Node> const& deps , Accesses a , Dflags df , bool p ) {
 		::vector<Dep> ds ; ds.reserve(deps.size()) ;
 		for( auto const& d : deps ) ds.emplace_back( d , a , df , p ) ;
 		*this = Deps(ds) ;

@@ -112,7 +112,7 @@ namespace Engine {
 		//
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
-		bool                   _targets_ok      ( Req      , Rule::FullMatch const&                                                                       ) ;
+		bool                   _targets_ok      ( Req      , Rule::SimpleMatch const&                                                                     ) ;
 		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
 		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
 		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
@@ -396,7 +396,7 @@ namespace Engine {
 			match_gen = Rule::s_match_gen ;
 			if (!rule->is_sure()) goto Return ;
 			for( Dep const& d : deps ) {
-				if (!d.dflags[DFlag::Static]) continue    ;                    // we are only interested in static targets, other ones may not exist and do not prevent job from being built
+				if (!d.dflags[Dflag::Static]) continue    ;                    // we are only interested in static targets, other ones may not exist and do not prevent job from being built
 				if (d->buildable!=Yes       ) goto Return ;
 			}
 			_sure = true ;

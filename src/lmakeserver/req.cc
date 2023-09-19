@@ -52,7 +52,7 @@ namespace Engine {
 			break ;
 		}
 		//
-		::vmap<Node,DFlags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDFlags) ;
+		::vmap<Node,Dflags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDflags) ;
 		//
 		data.idx_by_start = s_n_reqs()           ;
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
@@ -63,7 +63,7 @@ namespace Engine {
 		data.audit_fd     = fd                   ;
 		data.stats.start  = ProcessDate::s_now() ;
 		//
-		data.job = Job( Special::Req , Deps(targets,Accesses::All,StaticDFlags,true/*parallel*/) ) ;
+		data.job = Job( Special::Req , Deps(targets,Accesses::All,StaticDflags,true/*parallel*/) ) ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -194,7 +194,7 @@ namespace Engine {
 			JobTgt                   jt          { rt , name } ;               // do not pass *this as req to avoid generating error message at cxtor time
 			::string                 reason      ;
 			Node                     missing_dep ;
-			::vmap_s<pair_s<DFlags>> static_deps ;
+			::vmap_s<pair_s<Dflags>> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
 			try                                            { static_deps = rt->create_match_attrs.eval(m)             ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
@@ -262,7 +262,7 @@ namespace Engine {
 		Node::ReqInfo const& cri = dep.c_req_info(*this) ;
 		if (!dep->makable()) {
 			if      (dep.err(cri)               ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
-			else if (dep.dflags[DFlag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
+			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
 		} else if (dep->multi) {
 			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
 		}

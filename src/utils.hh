@@ -1246,7 +1246,7 @@ struct Child {
 // miscellaneous
 //
 
-::string beautify_file_name(::string const& file_name) ;
+::string beautify_filename(::string const&) ;
 
 template<::unsigned_integral T> struct SmallIds {
 	T acquire() {

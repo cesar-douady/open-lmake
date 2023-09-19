@@ -105,7 +105,7 @@ int main( int argc , char* argv[] ) {
 	::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 	for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 		TargetSpec const& tf = start_info.targets[t] ;
-		if (tf.tflags[TFlag::Star]) target_patterns.emplace_back(tf.pattern) ;
+		if (tf.tflags[Tflag::Star]) target_patterns.emplace_back(tf.pattern) ;
 		else                        target_patterns.emplace_back(          ) ;
 	}
 	//
@@ -119,7 +119,7 @@ int main( int argc , char* argv[] ) {
 		NodeIdx prev_parallel_id = 0 ;
 		for( auto const& [file,info] : gather_deps.accesses ) {
 			JobExecRpcReq::AccessDigest const& ad = info.digest ;
-			Accesses                           a  = ad.accesses ;  if (!info.tflags[TFlag::Stat]) a &= ~Access::Stat ;
+			Accesses                           a  = ad.accesses ;  if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
 			try                       { chk(info.tflags) ;                                               ;            }
 			catch (::string const& e) { append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ; continue ; } // dont know what to do with such an access
 			if (info.is_dep()) {
@@ -136,7 +136,7 @@ int main( int argc , char* argv[] ) {
 				trace("dep   ",dd,info.tflags,file) ;
 			} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
 				if ( !info.file_date                                   ) a = Accesses::None ;
-				if ( ad.write && !ad.unlink && info.tflags[TFlag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+				if ( ad.write && !ad.unlink && info.tflags[Tflag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
 				TargetDigest td{a,ad.write,info.tflags,ad.unlink} ;
 				targets.emplace_back( file , td ) ;
 				trace("target",td,info.file_date,file) ;
@@ -170,15 +170,15 @@ int main( int argc , char* argv[] ) {
 	} ;
 	//
 	::uset_s static_deps = mk_key_uset(start_info.static_deps) ;
-	auto     tflags_cb   = [&](::string const& file)->TFlags {
-		if (static_deps.contains(file)) return UnexpectedTFlags ;
+	auto     tflags_cb   = [&](::string const& file)->Tflags {
+		if (static_deps.contains(file)) return UnexpectedTflags ;
 		//
 		for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {
 			TargetSpec const& spec = start_info.targets[t] ;
-			if (spec.tflags[TFlag::Star]) { if (+target_patterns[t].match(file)) return spec.tflags ; }
+			if (spec.tflags[Tflag::Star]) { if (+target_patterns[t].match(file)) return spec.tflags ; }
 			else                          { if (file==spec.pattern             ) return spec.tflags ; }
 		}
-		return UnexpectedTFlags ;
+		return UnexpectedTflags ;
 	} ;
 	//
 	::string live_out_buf ;                                                    // used to store incomplete last line to have line coherent chunks

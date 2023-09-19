@@ -311,24 +311,24 @@ namespace Engine {
 				continue ;
 			}
 			VarIdx   n_unnamed  = 0                                              ;
-			DFlags   df         = StaticDFlags                                   ;
+			Dflags   df         = StaticDflags                                   ;
 			::string dep        = _split_flags(df,"dep "+key,py_val)             ;
 			::string parsed_dep = Attrs::subst_fstr(dep,var_idxs,n_unnamed,need) ;
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
 				if (n_unnamed) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
 			}
-			rd.add_cwd( parsed_dep , df[DFlag::Top] ) ;
+			rd.add_cwd( parsed_dep , df[Dflag::Top] ) ;
 			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , df ) ) ;
 		}
 		if (deps.size()>Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 		return need ;
 	}
 
-	::vmap_s<pair_s<DFlags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
+	::vmap_s<pair_s<Dflags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
 		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
 		//
-		::vmap_s<pair_s<DFlags>> res ;
+		::vmap_s<pair_s<Dflags>> res ;
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , ::pair( parse_fstr(ds.pattern,match) , ds.dflags ) ) ;
 		//
 		if (is_dynamic) {
@@ -352,9 +352,9 @@ namespace Engine {
 					}
 					::string key = PyUnicode_AsUTF8(py_key)           ;
 					auto     it  = dep_idxs.find(key)                 ;
-					DFlags   df  = StaticDFlags                       ;
+					Dflags   df  = StaticDflags                       ;
 					::string dep = _split_flags(df,"dep "+key,py_val) ;
-					match.rule->add_cwd( dep , df[DFlag::Top] ) ;
+					match.rule->add_cwd( dep , df[Dflag::Top] ) ;
 					if (it==dep_idxs.end()) { SWEAR(spec.full_dynamic                   ) ; res.emplace_back(key,::pair(dep,df)) ;    } // if not full_dynamic, all deps must be listed in spec
 					else                    { SWEAR(res[it->second].second.first.empty()) ; res[it->second].second = ::pair(dep,df) ; } // dep cannot be both static and dynamic
 				}
@@ -654,18 +654,18 @@ namespace Engine {
 							}
 						) ;
 					}
-					TFlags min_flags  = TFlags::None ; _split_flags(min_flags,"target",pyseq_tfs.ptr()) ;
-					TFlags max_flags  = TFlags::All  ; _split_flags(max_flags,"target",pyseq_tfs.ptr()) ;
-					TFlags dflt_flags = DfltTFlags                                                      ;
-					TFlags flags      = (dflt_flags&max_flags)|min_flags                                ; // tentative value to get the match flag
-					if (is_native_star      ) dflt_flags |= TFlag::Star ;
-					if (!flags[TFlag::Match]) dflt_flags |= TFlag::Dep  ;
+					Tflags min_flags  = Tflags::None ; _split_flags(min_flags,"target",pyseq_tfs.ptr()) ;
+					Tflags max_flags  = Tflags::All  ; _split_flags(max_flags,"target",pyseq_tfs.ptr()) ;
+					Tflags dflt_flags = DfltTflags                                                      ;
+					Tflags flags      = (dflt_flags&max_flags)|min_flags                                ; // tentative value to get the match flag
+					if (is_native_star      ) dflt_flags |= Tflag::Star ;
+					if (!flags[Tflag::Match]) dflt_flags |= Tflag::Dep  ;
 					flags = (dflt_flags&max_flags)|min_flags ;                 // definitive value
 					// check
 					if (is_native_star) {
-						if ( !flags[TFlag::Star]     ) throw to_string("flag ",mk_snake(TFlag::Star)," cannot be reset because target contains star stems") ;
+						if ( !flags[Tflag::Star]     ) throw to_string("flag ",mk_snake(Tflag::Star)," cannot be reset because target contains star stems") ;
 					}
-					if (flags[TFlag::Match]) {
+					if (flags[Tflag::Match]) {
 						if (!is_lcl(target)          ) throw to_string("cannot match non local pattern ",target)                                            ;
 						if (!missing_stems.empty()   ) throw to_string("missing stems ",missing_stems," in target")                                         ;
 						found_matching = true ;
@@ -673,20 +673,19 @@ namespace Engine {
 						if (is_anti()                ) throw           "non-matching targets are meaningless for anti-rules"s                               ;
 					}
 					if (field=="<stdout>") {
-						if (flags[TFlag::Star       ]) throw           "stdout cannot be directed to a star target"s                                        ;
-						if (flags[TFlag::Phony      ]) throw           "stdout cannot be directed to a phony target"s                                       ;
-						if (flags[TFlag::Incremental]) throw           "stdout cannot be directed to a incremental target"s                                 ;
+						if (flags[Tflag::Star       ]) throw           "stdout cannot be directed to a star target"s                                        ;
+						if (flags[Tflag::Phony      ]) throw           "stdout cannot be directed to a phony target"s                                       ;
+						if (flags[Tflag::Incremental]) throw           "stdout cannot be directed to a incremental target"s                                 ;
 					}
 					chk(flags) ;
-					seen_top |= flags[TFlag::Top] ;
+					seen_top |= flags[Tflag::Top] ;
 					// record
-					add_cwd( target , flags[TFlag::Top] ) ;
-					(flags[TFlag::Star]?star_targets:targets).emplace_back( field , TargetSpec( ::move(target) , is_native_star , flags ) ) ;
-					if (field==job_name_key) add_cwd( job_name , flags[TFlag::Top] ) ;
+					add_cwd( target , flags[Tflag::Top] ) ;
+					(flags[Tflag::Star]?star_targets:targets).emplace_back( field , TargetSpec( ::move(target) , is_native_star , flags ) ) ;
+					if (field==job_name_key) add_cwd( job_name , flags[Tflag::Top] ) ;
 				}
 				if (job_name_key.empty()) add_cwd( job_name , seen_top ) ;
-				n_static_targets = targets.size()        ;
-				has_stars        = !star_targets.empty() ;
+				n_static_targets = targets.size() ;
 				if (!is_anti()) for( auto& ts : star_targets ) targets.push_back(::move(ts)) ; // star-targets are meaningless for an anti-rule
 			}
 			SWEAR(found_matching) ;                                            // we should not have come until here without a clean target
@@ -766,6 +765,12 @@ namespace Engine {
 			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			//
 			cmd_needs_deps = _get_cmd_needs_deps() ;
+			max_tflags     = Tflags::None          ;
+			min_tflags     = Tflags::All           ;
+			for( auto const& [k,ts] : targets ) {
+				max_tflags |= ts.tflags ;
+				min_tflags &= ts.tflags ;
+			}
 
 			//
 			// now process fields linked to execution
@@ -774,7 +779,7 @@ namespace Engine {
 			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) {
 				if (targets[t].first!="<stdout>") continue ;
-				if (targets[t].second.tflags[TFlag::Star]) throw "<stdout> must be a static target"s ;
+				if (targets[t].second.tflags[Tflag::Star]) throw "<stdout> must be a static target"s ;
 				stdout_idx = t ;
 				break ;
 			}
@@ -887,13 +892,13 @@ namespace Engine {
 			patterns[k] = ::move(p)          ;
 		}
 		for( auto const& [k,tf] : targets ) {
-			TFlags        dflt_flags = DfltTFlags ;                            // flags in effect if no special user info
+			Tflags        dflt_flags = DfltTflags ;                            // flags in effect if no special user info
 			OStringStream flags      ;
-			if ( tf.is_native_star      ) dflt_flags |= TFlag::Star ;
-			if (!tf.tflags[TFlag::Match]) dflt_flags |= TFlag::Dep  ;
+			if ( tf.is_native_star      ) dflt_flags |= Tflag::Star ;
+			if (!tf.tflags[Tflag::Match]) dflt_flags |= Tflag::Dep  ;
 			//
 			bool first = true ;
-			for( TFlag f=TFlag::RuleMin ; f<TFlag::RuleMax1 ; f++ ) {
+			for( Tflag f=Tflag::RuleMin ; f<Tflag::RuleMax1 ; f++ ) {
 				if (tf.tflags[f]==dflt_flags[f]) continue ;
 				//
 				if (first) { flags <<" : " ; first = false ; }
@@ -962,8 +967,8 @@ namespace Engine {
 			if (ds.pattern.empty()) continue ;
 			::string flags ;
 			bool     first = true ;
-			for( DFlag f=DFlag::RuleMin ; f<DFlag::RuleMax1 ; f++ ) {
-				if (ds.dflags[f]==StaticDFlags[f]) continue ;
+			for( Dflag f=Dflag::RuleMin ; f<Dflag::RuleMax1 ; f++ ) {
+				if (ds.dflags[f]==StaticDflags[f]) continue ;
 				//
 				if (first) { flags += " : " ; first = false ; }
 				else       { flags += " , " ;                 }
@@ -1132,9 +1137,9 @@ namespace Engine {
 	void RuleData::_set_crcs() {
 		bool anti = is_anti() ;
 		{	::vector<TargetSpec> targets_ ;
-			static constexpr TFlags MatchFlags{ TFlag::Star , TFlag::Match , TFlag::Dep } ;
+			static constexpr Tflags MatchFlags{ Tflag::Star , Tflag::Match , Tflag::Dep } ;
 			for( auto const& [k,t] : targets ) {
-				if (!t.tflags[TFlag::Match]) continue ;                        // no influence on matching if not matching, only on execution
+				if (!t.tflags[Tflag::Match]) continue ;                        // no influence on matching if not matching, only on execution
 				TargetSpec t_ = t ;
 				t_.tflags &= MatchFlags ;                                      // only these flags are important for matching, others are for execution only
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
@@ -1193,7 +1198,7 @@ namespace Engine {
 
 	void Rule::SimpleMatch::_compute_targets() const {
 		for( VarIdx t=0 ; t<rule->targets.size() ; t++ ) {
-			bool is_star = rule->flags(t)[TFlag::Star] ;
+			bool is_star = rule->tflags(t)[Tflag::Star] ;
 			_targets.push_back(_subst_target(
 				rule->targets[t].second.pattern
 			,	[&](VarIdx s)->::string {
@@ -1286,9 +1291,9 @@ namespace Engine {
 
 	bool Rule::FullMatch::_match( VarIdx t , ::string const& target ) const {
 		Py::Gil gil ;
-		SWEAR(_targets.size()>t) ;                                                  // _targets must have been computed up to t at least
-		if (rule->flags(t)[TFlag::Star]) return +_target_pattern(t).match(target) ;
-		else                             return target==_targets[t]               ;
+		SWEAR(_targets.size()>t) ;                                                   // _targets must have been computed up to t at least
+		if (rule->tflags(t)[Tflag::Star]) return +_target_pattern(t).match(target) ;
+		else                              return target==_targets[t]               ;
 	}
 
 }

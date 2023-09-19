@@ -49,7 +49,7 @@ namespace Engine {
 		Trace trace("_freeze_node",STR(add),t) ;
 		if (add) {
 			::string     tn  = t.name() ;
-			UNode        un  { t      } ;
+			Unode        un  { t      } ;
 			FileInfoDate fid { tn     } ;
 			t .mk_src() ;
 			un.refresh( Crc(tn,g_config.hash_algo) , fid.date ) ;
@@ -175,16 +175,16 @@ namespace Engine {
 			rev_map[d.first] = k                     ;
 		}
 		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
-			Dep const& dep     = job->deps[d]                                                                     ;
-			bool       cdp     = d  >0                && dep           .parallel                                  ;
-			bool       ndp     = d+1<job->deps.size() && job->deps[d+1].parallel                                  ;
-			::string   dep_key = dep.dflags[DFlag::Static] ? rev_map.at(dep.name()) : ""s                         ;
-			::string   pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ::setw(w) , dep_key ,' ') ;
+			Dep const& dep     = job->deps[d]                                                                           ;
+			bool       cdp     = d  >0                && dep           .parallel                                        ;
+			bool       ndp     = d+1<job->deps.size() && job->deps[d+1].parallel                                        ;
+			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep.name()) : ""s                               ;
+			::string   pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ' ' , ::setw(w) , dep_key ,' ') ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
 			else                     pfx.push_back('\\') ;
-			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[DFlag::Required])|hide , pfx , dep , lvl+1 ) ;
+			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
 		}
 	}
 
@@ -423,17 +423,17 @@ namespace Engine {
 							wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;
 						}
 						for( auto const& [tn,td] : digest.targets ) {
-							VarIdx   ti         = match.idx(tn)                                          ;
-							TFlags   stfs       = ti==Rule::NoVar ? UnexpectedTFlags : rule->flags(ti)   ;
-							bool     m          = stfs[TFlag::Match]                                     ;
+							VarIdx   ti         = match.idx(tn)      ;
+							Tflags   stfs       = rule->tflags(ti)   ;
+							bool     m          = stfs[Tflag::Match] ;
 							::string flags_str  ;
 							::string target_key = ti==Rule::NoVar ? unexpected : rule->targets[ti].first ;
 							flags_str += m                 ? '-'                : '#'                ;
 							flags_str += td.crc==Crc::None ? '!'                : '-'                ;
 							flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
-							flags_str += stfs[TFlag::Star] ? '*'                : '-'                ;
+							flags_str += stfs[Tflag::Star] ? '*'                : '-'                ;
 							flags_str += ' ' ;
-							for( TFlag tf=TFlag::HiddenMin ; tf<TFlag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TFlagChars[+tf]:'-' ;
+							for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-' ;
 							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 						}
 					}

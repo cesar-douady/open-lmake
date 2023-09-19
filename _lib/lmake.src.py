@@ -77,7 +77,7 @@ if _reading_makefiles :
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
 #	,	remote_admin_dir = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
-	,	source_dirs     = []                               # files in these directories are deemed to be sources # XXX : only apply to reading Lmakefile.py for now
+	,	source_dirs     = []                               # files in these directories are deemed to be sources
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 	,	console = pdict(                                   # tailor output lines
 			date_precision = None                          # number of second decimals in the timestamp field

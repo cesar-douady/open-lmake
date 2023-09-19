@@ -43,25 +43,27 @@ namespace Engine {
 		::vector_s     to_wash   ;
 		// handle static targets
 		::vector_view_c_s sts = match.static_targets() ;
-		for( VarIdx t=0 ; t<sts.size() ; t++ ) {
-			Node target{sts[t]} ;
+		for( VarIdx ti=0 ; ti<sts.size() ; ti++ ) {
+			Node target{sts[ti]} ;
 			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
-			TFlags tf = rule->flags(t) ;
-			if (tf[TFlag::Incremental]) continue ;                             // keep file for incremental targets
+			Tflags tf = rule->tflags(ti) ;
+			if (tf[Tflag::Incremental]) continue ;                             // keep file for incremental targets
 			//
-			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[TFlag::Warning] ) to_report.push_back(target) ;
-			/**/                                                                                    to_wash  .push_back(sts[t]) ;
+			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[Tflag::Warning] ) to_report.push_back(target ) ;
+			/**/                                                                                    to_wash  .push_back(sts[ti]) ;
 		}
 		// handle star targets
-		Rule::FullMatch full_match ;                                           // lazy evaluated, if we find any target to_report
-		for( Target target : (*this)->star_targets ) {
-			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
-			if (!full_match) full_match = match ;                              // solve lazy evaluation // XXX : optimize by recording in Rule flags that are common to all targets (common case)
-			TFlags tf = rule->flags(full_match.idx(target.name())) ;
-			if (tf[TFlag::Incremental]) continue ;                             // keep incremental targets
+		Rule::FullMatch fm ;                                                   // lazy evaluated, if we find any target to_report
+		for( Target t : (*this)->star_targets ) {
+			if (t->crc==Crc::None) continue ;                                  // no interest to wash file if it does not exist
+			::string tn ;                                                      // lazy evaluated
+			if (t.lazy_tflag(Tflag::Incremental,match,fm,tn)) continue ;       // may solve fm & tn lazy evalution
 			//
-			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[TFlag::Warning] ) to_report.push_back(target       ) ;
-			/**/                                                                                    to_wash  .push_back(target.name()) ;
+			bool has_other_actual_job = !t->has_actual_job(*this) && t->has_actual_job() ;
+			if ( has_other_actual_job && t.lazy_tflag(Tflag::Warning,match,fm,tn) ) to_report.push_back(t) ; // may solve fm & tn lazy evalution
+			//
+			if (tn.empty()) tn = t.name() ;                                    // solve lazy evaluation if not already done
+			to_wash.push_back(t.name()) ;
 		}
 		return {to_wash,to_report} ;
 	}
@@ -180,7 +182,7 @@ namespace Engine {
 		Trace trace("Job",rule_tgt,target,lvl) ;
 		Rule::FullMatch match{rule_tgt,target} ;
 		if (!match) { trace("no_match") ; return ; }
-		::vmap_s<DFlags> dep_names ;
+		::vmap_s<Dflags> dep_names ;
 		try {
 			dep_names = mk_val_vector(rule_tgt->create_match_attrs.eval(match)) ;
 		} catch (::string const& e) {
@@ -191,7 +193,7 @@ namespace Engine {
 			}
 			return ;
 		}
-		::vmap<Node,DFlags> deps ; deps.reserve(dep_names.size()) ;
+		::vmap<Node,Dflags> deps ; deps.reserve(dep_names.size()) ;
 		for( auto [dn,fs] : dep_names ) {
 			Node d{dn} ;
 			//vvvvvvvvvvvvvvvvvv
@@ -411,17 +413,16 @@ namespace Engine {
 		} ;
 		::uset<Node> seen_static_targets ;
 
-		for( UNode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
+		for( Unode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
 
-		::vector<Target> star_targets ; if (rule->has_stars) star_targets.reserve(digest.targets.size()) ; // typically, there is either no star targets or most of them are stars
+		::vector<Target> star_targets ;                                        // typically, there is either no star targets or they are most of them, lazy reserve if one is seen
 		for( auto const& [tn,td] : digest.targets ) {
-			TFlags tflags      = td.tflags                                 ;
-			UNode  target      { tn }                                      ;
-			bool   unlink      = td.crc==Crc::None                         ;
-			Crc    crc         = td.write || unlink ? td.crc : target->crc ;
-			bool   incremental = tflags[TFlag::Incremental]                ;
+			Tflags tflags = td.tflags                                 ;
+			Unode  target { tn }                                      ;
+			bool   unlink = td.crc==Crc::None                         ;
+			Crc    crc    = td.write || unlink ? td.crc : target->crc ;
 			//
-			if ( !tflags[TFlag::SourceOk] && td.write && target->is_src() ) {
+			if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
 				err = true ;
 				if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",+target) ;
 				else if (td.write) analysis_err.emplace_back("unexpected write to source" ,+target) ;
@@ -431,16 +432,16 @@ namespace Engine {
 			&&	target->has_actual_job() && !target->has_actual_job(*this)     // there is another job
 			&&	target->actual_job_tgt->end_date>start                         // dates overlap, which means both jobs were running concurrently (we are the second to end)
 			) {
-				Job    aj       = target->actual_job_tgt                                           ;
-				VarIdx aj_idx   = aj.full_match().idx(target.name())                               ; // this is expensive, but pretty exceptional
-				TFlags aj_flags = aj_idx==Rule::NoVar ? UnexpectedTFlags : aj->rule->flags(aj_idx) ;
+				Job    aj       = target->actual_job_tgt   ;                   // common_tflags cannot be tried as target may be unexpected for aj
+				VarIdx aj_idx   = aj.full_match().idx(tn)  ;                   // this is expensive, but pretty exceptional
+				Tflags aj_flags = aj->rule->tflags(aj_idx) ;
 				trace("clash",*this,tflags,aj,aj_idx,aj_flags,target) ;
 				// /!\ This may be very annoying !
 				//     Even completed Req's may have been poluted as at the time t->actual_job_tgt completed, it was not aware of the clash.
 				//     Putting target in clash_nodes will generate a frightening message to user asking to relaunch all concurrent commands, even past ones.
 				//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
-				if (tflags  [TFlag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
-				if (aj_flags[TFlag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
+				if (tflags  [Tflag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
+				if (aj_flags[Tflag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
 					Rule::SimpleMatch aj_match{aj} ;
 					for( Req r : reqs() ) {
 						ReqInfo& ajri = aj.req_info(r) ;
@@ -454,10 +455,7 @@ namespace Engine {
 					}
 				}
 			}
-			if ( !incremental && target->read(td.accesses) ) {
-				local_reason |= {JobReasonTag::PrevTarget,+target} ;
-				incremental   = true                               ;           // this was not allowed but fact is that we behaved incrementally
-			}
+			if ( !tflags[Tflag::Incremental] && target->read(td.accesses) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
 			if (crc==Crc::None) {
 				// if we have written then unlinked, then there has been a transcient state where the file existed
 				// we must consider this is a real target with full clash detection.
@@ -467,23 +465,27 @@ namespace Engine {
 					trace("unlink",target,STR(target->unlinked)) ;
 					continue ;                                                 // if we are not sure, a target is not generated if it does not exist
 				}
-				if ( !tflags[TFlag::Star] && !tflags[TFlag::Phony] ) {
+				if ( !tflags[Tflag::Star] && !tflags[Tflag::Phony] ) {
 					err = true ;
 					report_missing_target(tn) ;
 				}
 			}
-			if ( td.write && !unlink && !tflags[TFlag::Write] ) {
+			if ( td.write && !unlink && !tflags[Tflag::Write] ) {
 				err = true ;
 				analysis_err.emplace_back("unexpected write to",+target) ;
 			}
 			//
-			if (tflags[TFlag::Star]) star_targets.emplace_back( target , incremental ) ;
-			else                     seen_static_targets.insert(target)                ;
+			if (tflags[Tflag::Star]) {
+				if (star_targets.empty()) star_targets.reserve(digest.targets.size()) ; // solve lazy reserve
+				star_targets.emplace_back( target , tflags[Tflag::Unexpected] ) ;
+			} else {
+				seen_static_targets.insert(target) ;
+			}
 			//
 			bool         modified = false ;
 			FileInfoDate fid      { tn }  ;
 			if (!td.write) {
-				if ( tflags[TFlag::ManualOk] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
+				if ( tflags[Tflag::ManualOk] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
 				else                                                         goto NoRefresh ;
 			}
 			//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -493,7 +495,7 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			target->actual_job_tgt = { *this , RuleData::s_sure(tflags) } ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			any_modified |= modified && tflags[TFlag::Match] ;
+			any_modified |= modified && tflags[Tflag::Match] ;
 			trace("target",target,td,STR(modified),status) ;
 		}
 		if (seen_static_targets.size()<rule->n_static_targets) {               // some static targets have not been seen
@@ -501,14 +503,14 @@ namespace Engine {
 			::vector_view_c_s static_targets = match.static_targets() ;
 			for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
 				::string const&  tn = static_targets[t] ;
-				UNode            tu { tn }              ;
+				Unode            tu { tn }              ;
 				if (seen_static_targets.contains(tu)) continue ;
-				TFlags tflags = rule->flags(t) ;
+				Tflags tflags = rule->tflags(t) ;
 				tu->actual_job_tgt = { *this , true/*is_sure*/ } ;
 				//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (!tflags[TFlag::Incremental]) tu.refresh( Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
+				if (!tflags[Tflag::Incremental]) tu.refresh( Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
 				//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (!tflags[TFlag::Phony]) {
+				if (!tflags[Tflag::Phony]) {
 					err = true ;
 					if (status==Status::Ok) report_missing_target(tn) ;        // only report if job was ok, else it is quite normal
 				}
@@ -532,7 +534,7 @@ namespace Engine {
 				dep.known = old_deps.contains(d) ;
 				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ; } // garbage : force unknown crc
 				else            { dep.crc_date(dd) ;                                                    } // date will be transformed into crc in make if possible
-				if ( rule->cmd_needs_deps && dep.dflags[DFlag::Static] ) {
+				if ( rule->cmd_needs_deps && dep.dflags[Dflag::Static] ) {
 					if (!dep.accesses) dep.date(dep->date) ;                   // dep has been accessed at submit or launch time, with the file date
 					dep.accesses = Accesses::All ;                             // if static deps were needed to compute cmd, assume they were read to be pessimistic
 				}
@@ -761,10 +763,10 @@ namespace Engine {
 							State dep_state   = State::Ok                                  ;
 							bool  seen_all    = i_dep==n_deps                              ;
 							Dep&  dep         = seen_all ? sentinel : (*this)->deps[i_dep] ; // use empty dep as sentinel
-							bool  is_static   = dep.dflags[DFlag::Static     ]             ;
-							bool  is_critical = dep.dflags[DFlag::Critical   ]             ;
-							bool  ignore_err  = dep.dflags[DFlag::IgnoreError]             ;
-							bool  required    = dep.dflags[DFlag::Required   ]             ;
+							bool  is_static   =  dep.dflags[Dflag::Static     ]            ;
+							bool  is_critical =  dep.dflags[Dflag::Critical   ]            ;
+							bool  sense_err   = !dep.dflags[Dflag::IgnoreError]            ;
+							bool  required    =  dep.dflags[Dflag::Required   ]            ;
 							bool  care        = +dep.accesses                              ; // we care about this dep if we access it somehow
 							//
 							if (!dep.parallel) {
@@ -772,7 +774,7 @@ namespace Engine {
 								if ( critical_modif && !seen_all ) {
 									NodeIdx j = i_dep ;
 									for( NodeIdx i=i_dep ; i<n_deps ; i++ ) {         // suppress deps following modified critical one, except keep static deps as no-access
-										if ((*this)->deps[i].dflags[DFlag::Static]) {
+										if ((*this)->deps[i].dflags[Dflag::Static]) {
 											Dep& d = (*this)->deps[j++] ;
 											d         = (*this)->deps[i] ;
 											d.accesses = Accesses::None  ;
@@ -803,10 +805,12 @@ namespace Engine {
 									Node::ReqInfo& dri = dep.req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 									dri.live_out = true ;
 								}
-								//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								cdri = &dep.make( *cdri , care?dep_action:RunAction::Makable ) ; // refresh cdri if make changed it
-								//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-								ri.n_wait-- ;                                                  // restore
+								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								if      (care     ) cdri = &dep.make( *cdri , dep_action         ) ; // refresh cdri if make changed it
+								else if (sense_err) cdri = &dep.make( *cdri , RunAction::Status  ) ; // .
+								else                cdri = &dep.make( *cdri , RunAction::Makable ) ; // .
+								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								ri.n_wait-- ;                                                      // restore
 							}
 							if ( is_static && dep->buildable!=Yes ) sure = false ; // buildable is better after make()
 							if (cdri->waiting()) {
@@ -852,11 +856,11 @@ namespace Engine {
 								}
 								switch (cdri->err) {
 									case No    :                      break    ;
-									case Maybe : overwritten = true ; goto Err ;                                       // dep is already in error
-									case Yes   :                      if (!ignore_err) goto Err ; else goto Continue ; // .
+									case Maybe : overwritten = true ; goto Err ;                                     // dep is already in error
+									case Yes   :                      if (sense_err) goto Err ; else goto Continue ; // .
 									default: FAIL(cdri->err) ;
 								}
-								if ( !ignore_err && dep->err() ) {
+								if ( sense_err && dep->err() ) {
 									trace("dep_err",dep) ;
 									goto Err ;
 								}
@@ -1021,7 +1025,7 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	static ::pair<SpecialStep,Bool3/*modified*/> _update_frozen_target( Bool3 is_src , Job j , UNode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
+	static ::pair<SpecialStep,Bool3/*modified*/> _update_frozen_target( Bool3 is_src , Job j , Unode t , ::string const& tn , VarIdx ti=-1/*star*/ ) {
 		Rule         r   = j->rule ;
 		FileInfoDate fid { tn }    ;
 		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,No/*modified*/} ;
@@ -1033,12 +1037,12 @@ namespace Engine {
 		t.refresh( crc , date ) ;
 		//^^^^^^^^^^^^^^^^^^^^^
 		// if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
-		if ( +fid                       ) { j->db_date = date ;         return { SpecialStep::Ok        , modified } ; }
-		if ( ti==VarIdx(-1)             ) { t->actual_job_tgt.clear() ; return { SpecialStep::Idle      , modified } ; } // unlink of a star target is nothing
-		if ( is_src==Maybe              ) {                             return { SpecialStep::NoFile    , modified } ; }
-		if ( is_src==Yes                ) {                             return { SpecialStep::ErrNoFile , modified } ; }
-		if ( r->flags(ti)[TFlag::Phony] ) {                             return { SpecialStep::NoFile    , modified } ; }
-		else                              {                             return { SpecialStep::ErrNoFile , modified } ; }
+		if (+fid                       ) { j->db_date = date ;         return { SpecialStep::Ok        , modified } ; }
+		if (ti==VarIdx(-1)             ) { t->actual_job_tgt.clear() ; return { SpecialStep::Idle      , modified } ; } // unlink of a star target is nothing
+		if (is_src==Maybe              ) {                             return { SpecialStep::NoFile    , modified } ; }
+		if (is_src==Yes                ) {                             return { SpecialStep::ErrNoFile , modified } ; }
+		if (r->tflags(ti)[Tflag::Phony]) {                             return { SpecialStep::NoFile    , modified } ; }
+		else                             {                             return { SpecialStep::ErrNoFile , modified } ; }
 	}
 	bool/*may_new_dep*/ Job::_submit_special(ReqInfo& ri) {
 		Trace trace("submit_special",*this,ri) ;
@@ -1057,12 +1061,12 @@ namespace Engine {
 				Bool3             modified       = No                     ;
 				for( VarIdx ti=0 ; ti<static_targets.size() ; ti++ ) {
 					::string const& tn     = static_targets[ti]                                          ;
-					UNode           t      { tn }                                                        ;
+					Unode           t      { tn }                                                        ;
 					auto            [ss,m] = _update_frozen_target( No/*is_src*/ , *this , t , tn , ti ) ;
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 					modified |= m ;
 				}
-				for( UNode t : (*this)->star_targets ) {
+				for( Unode t : (*this)->star_targets ) {
 					auto [ss,m] = _update_frozen_target( No/*is_src*/ , *this , t , t.name() ) ;
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 					modified |= m ;
@@ -1073,7 +1077,7 @@ namespace Engine {
 			case Special::Src        :
 			case Special::GenericSrc : {
 				::string    tn          = name()                                                                 ;
-				UNode       un          { tn }                                                                   ;
+				Unode       un          { tn }                                                                   ;
 				bool        is_true_src = special==Special::Src                                                  ;
 				auto        [ss,m]      = _update_frozen_target( Maybe|is_true_src , *this , un , tn , 0/*ti*/ ) ;
 				un->actual_job_tgt = {*this,is_true_src/*is_sure*/} ;
@@ -1093,7 +1097,7 @@ namespace Engine {
 				for( Dep const& d : (*this)->deps ) {
 					// if we see a link uphill, then our crc is unknown to trigger rebuild of dependents
 					// there is no such stable situation as link will be resolved when dep is acquired, only when link appeared, until next rebuild
-					UNode un{name()} ;
+					Unode un{name()} ;
 					un->actual_job_tgt = {*this,true/*is_sure*/} ;
 					if ( d->crc.is_lnk() || !d->crc ) un.refresh( {}        , {}                ) ;
 					else                              un.refresh( Crc::None , DiskDate::s_now() ) ;
@@ -1105,15 +1109,21 @@ namespace Engine {
 		return false/*may_new_dep*/ ;
 	}
 
-	bool/*targets_ok*/ Job::_targets_ok( Req req , Rule::FullMatch const& match ) {
+	bool/*targets_ok*/ Job::_targets_ok( Req req , Rule::SimpleMatch const& match ) {
 		Trace trace("_targets_ok",*this,req) ;
 		Rule                rule              = (*this)->rule          ;
-		::vector_view_c_s   static_targets    = match.static_targets() ;
-		::umap<Node,VarIdx> static_target_map ; for( VarIdx ti=0 ; ti<static_targets.size() ; ti++ ) static_target_map[static_targets[ti]] = ti ;
+		::vector_view_c_s   static_target_names = match.static_targets() ;
+		::umap<Node,VarIdx> static_target_map   ;
+		::vector<Node>      static_target_nodes ; static_target_nodes.reserve(static_target_names.size()) ;
+		for( VarIdx ti=0 ; ti<static_target_names.size() ; ti++ ) {
+			Node n = static_target_names[ti] ;
+			static_target_map[n] = ti ;
+			static_target_nodes.push_back(n) ;
+		}
 		// check clashes
 		NodeIdx d = 0 ;
 		for( Dep const& dep : (*this)->deps ) {
-			if (!dep.dflags[DFlag::Static]      ) {       break    ; }
+			if (!dep.dflags[Dflag::Static]      ) {       break    ; }
 			if (!static_target_map.contains(dep)) { d++ ; continue ; }
 			::string dep_key = rule->create_match_attrs.spec.full_dynamic ? ""s : rule->create_match_attrs.spec.deps[d].first ;
 			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",dep_key," : ") ;
@@ -1128,14 +1138,19 @@ namespace Engine {
 			SWEAR((*this)->star_targets.empty()) ;                             // lost jobs report no targets at all
 			return true ;                                                      // targets may have been modified but job may not have reported it
 		}
-		// check targets
+		// check manual targets
 		::vmap<Node,bool/*ok*/> manual_targets ;
-		auto chk_target = [&]( Node t , VarIdx ti , ::string const& tn )->void {
-			TFlags flags = rule->flags(ti) ;
-			if (t.manual_ok_refresh(req,FileInfoDate(tn))==No) manual_targets.emplace_back(t,flags[TFlag::ManualOk]) ;
-		} ;
-		for( auto const& [t,ti] : static_target_map     ) {                          chk_target( t , ti            , static_targets[ti] ) ; }
-		for( Node         t     : (*this)->star_targets ) { ::string tn = t.name() ; chk_target( t , match.idx(tn) , tn                 ) ; }
+		for( VarIdx ti=0 ; ti<static_target_nodes.size() ; ti++ ) {
+			Node t = static_target_nodes[ti] ;
+			if (t.manual_ok_refresh(req,FileInfoDate(static_target_names[ti]))==No)
+				manual_targets.emplace_back(t,rule->tflags(ti)[Tflag::ManualOk]) ;
+		}
+		Rule::FullMatch fm ;                                               // lazy evaluated
+		for( Target t : (*this)->star_targets ) {
+			::string tn = t.name() ;
+			if (t.manual_ok_refresh(req,FileInfoDate(tn))==No)
+				manual_targets.emplace_back( t , t.lazy_tflag(Tflag::ManualOk,match,fm,tn) ) ; // may solve fm lazy evaluation, tn is already ok
+		}
 		//
 		bool job_ok = true ;
 		for( auto const& [t,ok] : manual_targets ) {
@@ -1175,7 +1190,7 @@ namespace Engine {
 		SubmitRsrcsAttrs  submit_rsrcs_attrs ;
 		SubmitNoneAttrs   submit_none_attrs  ;
 		CacheNoneAttrs    cache_none_attrs   ;
-		Rule::FullMatch   match              { *this }       ;
+		Rule::SimpleMatch match              { *this }       ;
 		Trace trace("submit_plain",*this,ri,reason,pressure) ;
 		SWEAR(!ri.waiting()) ;
 		try {
@@ -1309,7 +1324,7 @@ namespace Engine {
 		(*this)->run_status = RunStatus::Complete ;
 		NodeIdx n_static_deps = 0 ;
 		for ( Dep const& d : (*this)->deps ) {
-			if (!d.dflags[DFlag::Static]) break ;
+			if (!d.dflags[Dflag::Static]) break ;
 			n_static_deps++ ;
 		}
 		(*this)->deps.shorten_by( (*this)->deps.size() - n_static_deps ) ;     // forget hidden deps

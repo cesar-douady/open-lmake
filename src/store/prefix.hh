@@ -1358,7 +1358,6 @@ namespace Store {
 						if (!item.used) {
 							Item const& nxt = _at(item.nxt()) ;
 							// should have been compressed, (as not root)
-							// XXX : in case of crash, we may miss a compression in rare occasion, replace this with a warning and provide a means to repair
 							swear( item.chunk_sz + nxt.chunk_sz > nxt.max_chunk_sz() ,"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')') ;
 						}
 					break ;

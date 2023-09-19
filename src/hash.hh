@@ -56,9 +56,9 @@ namespace Hash {
 		static const Crc Unknown ;                                             // crc has not been computed
 		static const Crc None    ;                                             // file does not exist
 		// cxtors & casts
-		constexpr          Crc(                                  ) = default ;
-		constexpr explicit Crc( uint64_t v                       ) : _val{v} {}
-		/**/               Crc( ::string const& file_name , Algo ) ;
+		constexpr          Crc(                                 ) = default ;
+		constexpr explicit Crc( uint64_t v                      ) : _val{v} {}
+		/**/               Crc( ::string const& filename , Algo ) ;
 		// accesses
 	public :
 		constexpr bool              operator== (Crc const& other) const { return +*this== +other            ; }

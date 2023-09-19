@@ -350,7 +350,7 @@ class LinkAutodep(LinkAutodepEnv) :
 	,	'RPC_CLIENT'  : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-	if run((gcc,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2')).returncode==0 :
+	if run((gcc,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :
 		rev_post_opts = ('-l:libseccomp.so.2',)
 
 class LinkPythonAppExe(LinkAppExe) :

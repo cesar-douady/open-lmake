@@ -21,7 +21,7 @@ ENUM_2( BackendTag                     // PER_BACKEND : add a tag for each backe
 ,	Local
 )
 
-ENUM_4( DFlag                          // flags for deps
+ENUM_4( Dflag                          // flags for deps
 ,	RuleMin    = Top                   // rules may have flags RuleMin<=flag<RuleMax1
 ,	RuleMax1   = Required              // .
 ,	HiddenMin  = Critical              // ldepend may report flags HiddenMin<=flag<HiddenMax1
@@ -37,7 +37,7 @@ ENUM_4( DFlag                          // flags for deps
 //
 ,	Static                             // dep is static
 )
-static constexpr char DFlagChars[] = {
+static constexpr char DflagChars[] = {
 	't'                                // Top
 //
 ,	'c'                                // Critical
@@ -48,10 +48,10 @@ static constexpr char DFlagChars[] = {
 //
 ,	'S'                                // Static
 } ;
-static_assert(::size(DFlagChars)==+DFlag::N) ;
-using DFlags = BitMap<DFlag> ;
-constexpr DFlags StaticDFlags { DFlag::Essential , DFlag::Required , DFlag::Static } ; // used for static deps
-constexpr DFlags DfltDFlags   {                    DFlag::Required                 } ; // used with ldepend
+static_assert(::size(DflagChars)==+Dflag::N) ;
+using Dflags = BitMap<Dflag> ;
+constexpr Dflags StaticDflags { Dflag::Essential , Dflag::Required , Dflag::Static } ; // used for static deps
+constexpr Dflags DfltDflags   {                    Dflag::Required                 } ; // used with ldepend
 
 ENUM( JobProc
 ,	None
@@ -79,11 +79,11 @@ ENUM( Status       // result of job execution
 ,	EarlyErr       // job failed before even starting
 )
 
-ENUM_4( TFlag                          // flags for targets
+ENUM_4( Tflag                          // flags for targets
 ,	RuleMin    = Incremental           // rules may have flags RuleMin<=flag<RuleMax1
-,	RuleMax1   = N                     // .
+,	RuleMax1   = Unexpected            // .
 ,	HiddenMin  = Crc                   // ltarget may report flags HiddenMin<=flag<HiddenMax1
-,	HiddenMax1 = N                     // .
+,	HiddenMax1 = Unexpected            // .
 //
 ,	Incremental                        // reads are allowed (before earliest write if any)
 ,	ManualOk                           // ok to overwrite manual files
@@ -99,8 +99,10 @@ ENUM_4( TFlag                          // flags for targets
 ,	SourceOk                           // ok to overwrite source files
 ,	Stat                               // inode accesses (stat-like) are not ignored
 ,	Write                              // writes are allowed (possibly followed by reads which are ignored)
+//
+,	Unexpected                         // target is not declared, for internal use only
 )
-static constexpr char TFlagChars[] = {
+static constexpr char TflagChars[] = {
 	'I'                                // Incremental
 ,	'M'                                // ManualOk
 ,	'N'                                // Match
@@ -115,19 +117,21 @@ static constexpr char TFlagChars[] = {
 ,	's'                                // SourceOk
 ,	't'                                // Stat
 ,	'w'                                // Write
+//
+,	'U'                                // Unexpected
 } ;
-static_assert(::size(TFlagChars)==+TFlag::N) ;
-using TFlags = BitMap<TFlag> ;
-static constexpr TFlags DfltTFlags      { TFlag::Match , TFlag::Warning , TFlag::Crc    , TFlag::Stat , TFlag::Write } ; // default flags for targets
-static constexpr TFlags UnexpectedTFlags{ TFlag::Incremental , TFlag::Star , TFlag::Dep , TFlag::Stat                } ; // flags used for accesses that are not targets
+static_assert(::size(TflagChars)==+Tflag::N) ;
+using Tflags = BitMap<Tflag> ;
+static constexpr Tflags DfltTflags      { Tflag::Match , Tflag::Warning , Tflag::Crc    , Tflag::Stat , Tflag::Write      } ; // default flags for targets
+static constexpr Tflags UnexpectedTflags{ Tflag::Incremental , Tflag::Star , Tflag::Dep , Tflag::Stat , Tflag::Unexpected } ; // flags used for accesses that are not targets
 
-static inline void chk(TFlags tf) {
-	if (tf[TFlag::Match]) {
-		if ( tf[TFlag::Dep] ) throw "cannot match on target and be a potential dep"s       ;
-		if (!tf[TFlag::Crc] ) throw "cannot match on target without computing checksum"s   ;
+static inline void chk(Tflags tf) {
+	if (tf[Tflag::Match]) {
+		if ( tf[Tflag::Dep] ) throw "cannot match on target and be a potential dep"s       ;
+		if (!tf[Tflag::Crc] ) throw "cannot match on target without computing checksum"s   ;
 	}
-	if (tf[TFlag::Star]) {
-		if (tf[TFlag::Phony]) throw "phony star targets not yet supported"s ;
+	if (tf[Tflag::Star]) {
+		if (tf[Tflag::Phony]) throw "phony star targets not yet supported"s ;
 	}
 }
 
@@ -217,7 +221,7 @@ struct SubmitAttrs {
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		if      (      tag==BackendTag::Unknown) tag = other.tag ;
 		else if (other.tag!=BackendTag::Unknown) SWEAR(tag==other.tag) ;
-		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries ) ; // n_retries does not depend on req, but may not be always passed
+		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries ) ; // n_retries does not depend on req, but may not always be present
 		n_retries  = ::max(n_retries,other.n_retries) ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		live_out  |= other.live_out                   ;
@@ -261,12 +265,12 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Date     = Time::DiskDate ;
 	//cxtors & casts
 	DepDigestBase(                                                    ) :                                                                      _crc { } {}
-	DepDigestBase(          Accesses a , DFlags dfs , bool p          ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase(          Accesses a , DFlags dfs , bool p , Crc  c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase(          Accesses a , DFlags dfs , bool p , Date d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
-	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p          ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Crc  c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase( Base b , Accesses a , DFlags dfs , bool p , Date d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p          ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p , Crc  c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p , Date d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p          ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Crc  c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Date d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
 	// accesses
 	Crc  crc () const { SWEAR(!is_date) ; return _crc  ; }
 	Date date() const { SWEAR( is_date) ; return _date ; }
@@ -280,7 +284,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	Accesses accesses   ;              // 3<=8 bits
-	DFlags   dflags     ;              // 6<=8 bits
+	Dflags   dflags     ;              // 6<=8 bits
 	bool     parallel:1 = false ;      //    1 bit
 	bool     known   :1 = false ;      //    1 bit , dep was known (and thus done) before starting execution
 	bool     garbage :1 = false ;      //    1 bit , if true <= file was not the same between the first and last access
@@ -314,11 +318,11 @@ struct TargetDigest {
 	using Crc      = Hash::Crc      ;
 	// cxtors & casts
 	TargetDigest(                                       ) = default ;
-	TargetDigest( Accesses a , bool w , TFlags t , bool u ) : accesses{a} , write{w} , tflags{t} , crc{u?Crc::None:Crc::Unknown} {}
+	TargetDigest( Accesses a , bool w , Tflags t , bool u ) : accesses{a} , write{w} , tflags{t} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
 	Accesses accesses ;                // how target was accessed before it was written
 	bool     write    = false ;        // if true <=> file was written (and possibly further unlinked)
-	TFlags   tflags   ;
+	Tflags   tflags   ;
 	Crc      crc      ;                // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
@@ -381,8 +385,8 @@ struct JobRpcReq {
 struct TargetSpec {
 	friend ::ostream& operator<<( ::ostream& , TargetSpec const& ) ;
 	// cxtors & casts
-	TargetSpec( ::string const& p={} , bool ins=false , TFlags f=DfltTFlags , ::vector<VarIdx> c={} ) : pattern{p} , is_native_star{ins} , tflags{f} , conflicts{c} {
-		if (is_native_star) SWEAR(tflags[TFlag::Star]) ;
+	TargetSpec( ::string const& p={} , bool ins=false , Tflags f=DfltTflags , ::vector<VarIdx> c={} ) : pattern{p} , is_native_star{ins} , tflags{f} , conflicts{c} {
+		if (is_native_star) SWEAR(tflags[Tflag::Star]) ;
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,pattern       ) ;
@@ -395,7 +399,7 @@ struct TargetSpec {
 	// data
 	::string         pattern        ;
 	bool             is_native_star = false      ;
-	TFlags           tflags         = DfltTFlags ;
+	Tflags           tflags         = DfltTflags ;
 	::vector<VarIdx> conflicts      ;                      // the idx of the previous targets that may conflict with this one
 } ;
 
@@ -470,7 +474,7 @@ struct JobRpcReply {
 	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
-	::vmap_s<DFlags>          static_deps      ;                               // proc == Start   , deps that may clash with targets
+	::vmap_s<Dflags>          static_deps      ;                               // proc == Start   , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start
 	::vector<TargetSpec>      targets          ;                               // proc == Start
@@ -526,10 +530,10 @@ struct JobExecRpcReq {
 		void update( AccessDigest const& , AccessOrder ) ;
 		// data
 		Accesses accesses   = {}    ;  // if +dfs <=> files are read
-		DFlags   dflags     = {}    ;  // if +dfs <=> files are read
+		Dflags   dflags     = {}    ;  // if +dfs <=> files are read
 		bool     write      = false ;  // if true <=> files are written, possibly unlinked later
-		TFlags   neg_tflags = {}    ;  // if write, removed TFlags
-		TFlags   pos_tflags = {}    ;  // if write, added   TFlags
+		Tflags   neg_tflags = {}    ;  // if write, removed Tflags
+		Tflags   pos_tflags = {}    ;  // if write, added   Tflags
 		bool     unlink     = false ;  // if true <=> files are unlinked at the end, possibly written before
 	} ;
 	// statics
@@ -542,7 +546,7 @@ public :
 	JobExecRpcReq( P p , bool s , ::string const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(!has_files()) ; }
 	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p} ,           comment{c} { SWEAR(!has_files()) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , DFlags dfs , bool nf , ::string const& c={} ) :
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , Dflags dfs , bool nf , ::string const& c={} ) :
 		proc     {p                      }
 	,	sync     {true                   }
 	,	no_follow{nf                     }
@@ -550,7 +554,7 @@ public :
 	,	digest   {.accesses=a,.dflags=dfs}
 	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
-	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , DFlags dfs , bool nf , ::string const& c={} ) :
+	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , Dflags dfs , bool nf , ::string const& c={} ) :
 		proc     {p                      }
 	,	sync     {true                   }
 	,	auto_date{true                   }

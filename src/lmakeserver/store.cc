@@ -110,7 +110,7 @@ namespace Engine {
 	void EngineStore::_s_set_config(Config&& new_config) {
 		if ( !g_config.local_admin_dir.empty() && new_config.local_admin_dir!=g_config.local_admin_dir ) {
 			if ( ::rename( g_config.local_admin_dir.c_str() , new_config.local_admin_dir.c_str() ) != 0 )
-				// XXX : implement it
+				// XXX : implement physical move of local admin dir
 				throw to_string("physically moving local admin dir from ",g_config.local_admin_dir," to ",new_config.local_admin_dir," not yet implemented, please clean repository") ;
 		}
 		g_config            = ::move(new_config) ;
@@ -188,7 +188,7 @@ namespace Engine {
 		for( Rule r : rule_lst() )
 			for( VarIdx ti=0 ; ti<r->targets.size() ; ti++ ) {
 				RuleTgt rt{r,ti} ;
-				if (!rt.flags()[TFlag::Match]) continue ;
+				if (!rt.tflags()[Tflag::Match]) continue ;
 				sfx_map[ parse_suffix(rt.target()) ].insert(rt) ;
 			}
 		_propagate_to_longer<true/*IsSfx*/>(sfx_map) ;                         // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
@@ -350,13 +350,13 @@ namespace Engine {
 		for( Node n : srcs     ) { for( Node d=n.dir() ; +d ; d = d.dir() ) { if (src_dirs    .contains(d)) break ; src_dirs    .insert(d) ; } }
 		for( Node n : old_srcs ) { for( Node d=n.dir() ; +d ; d = d.dir() ) { if (old_src_dirs.contains(d)) break ; old_src_dirs.insert(d) ; } }
 		// check
-		for( Node d : src_vec )                                                // XXX : make check incremental (we only have to check new stuff, not all)
-			if (src_dirs.contains(d)) {
-				::string dn = d.name()+'/' ;
-				for( Node n : src_vec )
-					if ( n.name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n.name()) ;
-				FAIL(to_string(dn," is a source dir of no source")) ;
-			}
+		for( Node d : src_vec ) {
+			if (!src_dirs.contains(d)) continue ;
+			::string dn = d.name()+'/' ;
+			for( Node n : src_vec )
+				if ( n.name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n.name()) ;
+			FAIL(to_string(dn," is a source dir of no source")) ;
+		}
 		// compute diff
 		for( Node n : srcs ) {
 			auto it = old_srcs.find(n) ;

@@ -32,15 +32,15 @@ template<bool Multi,bool HasDataSz> struct TestData {
 struct TestFile {
 	TestFile() {
 		::cout<<"check file ..." ;
-		::string file_name = g_dir+"file" ;
-		{	File<false> f(file_name,10000,true/*writable*/) ;
+		::string filename = g_dir+"file" ;
+		{	File<false> f(filename,10000,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	File<false> f(file_name,10000,false/*writable*/) ;
+		{	File<false> f(filename,10000,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}

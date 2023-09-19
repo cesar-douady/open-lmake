@@ -110,13 +110,13 @@ namespace Disk {
 		}
 	}
 
-	static inline Fd open_read( Fd at , ::string const& file_name ) {
-		return ::openat( at , file_name.c_str() , O_RDONLY|O_CLOEXEC , 0666 ) ;
+	static inline Fd open_read( Fd at , ::string const& filename ) {
+		return ::openat( at , filename.c_str() , O_RDONLY|O_CLOEXEC , 0666 ) ;
 	}
 
-	static inline Fd open_write( Fd at , ::string const& file_name , bool append=false , bool exe=false , bool read_only=false ) {
-		dir_guard(at,file_name) ;
-		return ::openat( at , file_name.c_str() , O_WRONLY|O_CREAT|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , 0777 & ~(exe?0000:0111) & ~(read_only?0222:0000) ) ;
+	static inline Fd open_write( Fd at , ::string const& filename , bool append=false , bool exe=false , bool read_only=false ) {
+		dir_guard(at,filename) ;
+		return ::openat( at , filename.c_str() , O_WRONLY|O_CREAT|O_CLOEXEC|(append?O_APPEND:O_TRUNC) , 0777 & ~(exe?0000:0111) & ~(read_only?0222:0000) ) ;
 	}
 
 	static inline ::string read_lnk( Fd at , ::string const& file ) {

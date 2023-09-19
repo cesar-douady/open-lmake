@@ -20,12 +20,12 @@ namespace Hash {
 		}
 	}
 
-	Crc::Crc( ::string const& file_name , Algo algo ) {
-		FileInfo fi{file_name} ;
+	Crc::Crc( ::string const& filename , Algo algo ) {
+		FileInfo fi{filename} ;
 		switch (fi.tag) {
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				FileMap map{file_name} ;
+				FileMap map{filename} ;
 				if (!map) return ;
 				switch (algo) {
 					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
@@ -37,7 +37,7 @@ namespace Hash {
 				_val &= ~uint64_t(1) ;
 			} break ;
 			case FileTag::Lnk : {
-				::string lnk_target = read_lnk(file_name) ;
+				::string lnk_target = read_lnk(filename) ;
 				switch (algo) {
 					//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
 					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // ensure CRC is distinguished from a regular file with same content

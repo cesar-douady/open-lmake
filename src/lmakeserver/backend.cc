@@ -33,6 +33,14 @@ namespace Backends {
 		return os << "Conn(" << hex<<c.job_addr<<dec <<':'<< c.job_port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
 
+	::ostream& operator<<( ::ostream& os , Backend::DeferredReportEntry const& dre ) {
+		return os << "DeferredReportEntry(" << dre.date <<':'<< dre.seq_id <<','<< dre.job_exec << ')' ;
+	}
+
+	::ostream& operator<<( ::ostream& os , Backend::DeferredLostEntry const& dle ) {
+		return os << "DeferredReportEntry(" << dle.date <<','<< dle.seq_id <<','<< dle.job << ')' ;
+	}
+
 	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
@@ -86,14 +94,20 @@ namespace Backends {
 	}
 
 	void Backend::_s_wakeup_remote( JobIdx job , StartTabEntry::Conn const& conn , JobExecRpcProc proc ) {
-		Trace trace("_s_wakeup_remote",job,proc) ;
+		Trace trace("_s_wakeup_remote",job,conn,proc) ;
 		try {
 			// as job_exec is not waiting for this message, pretend we are the job, so use JobExecRpcReq instead of JobRpcReply
 			OMsgBuf().send( ClientSockFd(conn.job_addr,conn.job_port) , JobExecRpcReq(proc) ) ;
 		} catch (...) {
 			trace("no_job") ;
 			// if job cannot be connected to, assume it is dead and pretend it died after network_delay to give a chance to report if is already completed
-			_s_deferred_lost_queue.emplace( Date::s_now()+g_config.network_delay , conn.seq_id , job ) ;
+			{	::unique_lock lock { _s_mutex } ;                                                            // lock _s_start_tab for minimal time to avoid dead-locks
+				auto it = _s_start_tab.find(job) ;                                                           // get job entry
+				if (it==_s_start_tab.end()             ) return ;                                            // too late, job has already been reported
+				if (conn.seq_id!=it->second.conn.seq_id) return ;                                            // .
+				_s_deferred_lost_queue.emplace( Date::s_now()+g_config.network_delay , conn.seq_id , job ) ;
+				it->second.state = ConnState::Lost ;                                                         // mark entry so it is not reported several times
+			}
 		}
 	}
 
@@ -127,7 +141,8 @@ namespace Backends {
 			Status s = Status::Lost ;
 			{	::unique_lock lock { _s_mutex }                  ;
 				auto          it   = _s_start_tab.find(info.job) ;
-				if (it==_s_start_tab.end()) continue ;                         // since we decided that job is lost, it finally completed, ignore
+				if (it==_s_start_tab.end()) { trace("completed",info) ; continue ; } // since we decided that job is lost, it finally completed, ignore
+				trace("lost",info,it->second.submit_attrs.n_retries) ;
 				s = it->second.lost() ;
 			}
 			::string host = deserialize<JobInfoStart>(IFStream(Job(info.job).ancillary_file())).pre_start.host ;
@@ -153,7 +168,7 @@ namespace Backends {
 		::vector<Node>           report_unlink      ;
 		StartCmdAttrs            start_cmd_attrs    ;
 		::string                 cmd                ;
-		::vmap_s<pair_s<DFlags>> create_match_attrs ;
+		::vmap_s<pair_s<Dflags>> create_match_attrs ;
 		StartRsrcsAttrs          start_rsrcs_attrs  ;
 		StartNoneAttrs           start_none_attrs   ;
 		::string                 start_exc_txt      ;
@@ -163,8 +178,8 @@ namespace Backends {
 		::string                 backend_msg        ;
 		Trace trace("_s_handle_job_req",jrr,job_exec) ;
 		{	::unique_lock  lock  { _s_mutex } ;                                // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab") ; return false ; }
-			StartTabEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id") ; return false ; }
+			auto           it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
+			StartTabEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
 			switch (jrr.proc) {
 				case JobProc::Start : {
@@ -263,7 +278,7 @@ namespace Backends {
 					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets           [rule->stdout_idx]              ;
 					//
 					reply.targets.reserve(targets.size()) ;
-					for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) reply.targets.emplace_back( targets[t] , false/*is_native_star:garbage*/ , rule->flags(t) ) ;
+					for( VarIdx t=0 ; t<targets.size() ; t++ ) if (!targets[t].empty()) reply.targets.emplace_back( targets[t] , false/*is_native_star:garbage*/ , rule->tflags(t) ) ;
 					//
 					reply.static_deps = mk_val_vector(create_match_attrs) ;
 					//
@@ -401,9 +416,13 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				for( auto& [j,e] : _s_start_tab ) {
-					if (!e.start) continue ;                                   // if job has not started yet, it is the responsibility of the sub-backend to monitor it
-					if (e.old) to_wakeup[j] = e.conn ;                         // make a shadow to avoid too long a lock
-					else       e.old        = true   ;                         // no reason to check newer jobs, so save resources
+					if (!e.start                ) continue ;                   // if job has not started yet, it is the responsibility of the sub-backend to monitor it
+					switch (e.state) {
+						case ConnState::New  : e.state = ConnState::Old ; break ; // dont check new jobs to save resources
+						case ConnState::Old  : to_wakeup[j] = e.conn    ; break ; // make a shadow to avoid too long a lock
+						case ConnState::Lost :                            break ; // already reported
+						default : FAIL(e.state) ;
+					}
 				}
 			}
 			// check jobs that have already started

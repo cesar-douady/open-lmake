@@ -20,6 +20,12 @@ using Backends::Backend ;
 #ifdef DATA_DEF
 namespace Backends {
 
+	ENUM(ConnState
+	,	New
+	,	Old
+	,	Lost
+	)
+
 	struct Backend {
 		using SmallId     = uint32_t          ;
 		using CoarseDelay = Time::CoarseDelay ;
@@ -59,17 +65,21 @@ namespace Backends {
 			::vmap_ss      rsrcs        ;
 			::uset<ReqIdx> reqs         ;
 			SubmitAttrs    submit_attrs ;
-			bool           old          = false        ;   // if true <=> heartbeat has been seen
-            Tag            tag          = Tag::Unknown ;
+			ConnState      state        = ConnState::New ; // if true <=> heartbeat has been seen
+            Tag            tag          = Tag::Unknown   ;
 		} ;
 
 		struct DeferredReportEntry {
+			friend ::ostream& operator<<( ::ostream& , DeferredReportEntry const& ) ;
+			// data
 			Date    date     ;         // date at which report must be displayed if job is not done yet
 			SeqId   seq_id   ;
 			JobExec job_exec ;
 		} ;
 
 		struct DeferredLostEntry {
+			friend ::ostream& operator<<( ::ostream& , DeferredLostEntry const& ) ;
+			// data
 			Date   date   ;            // date at which job must be declared lost if it has not completed by then
 			SeqId  seq_id ;
 			JobIdx job    ;

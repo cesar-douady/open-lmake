@@ -58,15 +58,15 @@ namespace Disk {
 		}
 	}
 
-	FileMap::FileMap( Fd at , ::string const& file_name) {
-		FileInfo fi{at,file_name} ;
+	FileMap::FileMap( Fd at , ::string const& filename) {
+		FileInfo fi{at,filename} ;
 		if (!fi.is_reg()) return ;
 		sz = fi.sz ;
 		if (!sz) {
 			_ok = true ;
 			return ;
 		}
-		_fd = open_read(at,file_name) ;
+		_fd = open_read(at,filename) ;
 		if (!_fd) return ;
 		data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
 		if (data==MAP_FAILED) {
@@ -106,8 +106,8 @@ namespace Disk {
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot unlink dir " ,file) ;
 	}
 
-	::vector_s read_lines(::string const& file_name) {
-		::ifstream file_stream{file_name} ;
+	::vector_s read_lines(::string const& filename) {
+		::ifstream file_stream{filename} ;
 		if (!file_stream) return {} ;
 		//
 		::vector_s res            ;

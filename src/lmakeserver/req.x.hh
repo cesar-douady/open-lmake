@@ -249,7 +249,6 @@ namespace Engine {
 		// accesses
 		bool   is_open  () const { return idx_by_start!=Idx(-1)                             ; }
 		JobIdx n_running() const { return stats.cur(JobLvl::Queued)+stats.cur(JobLvl::Exec) ; }
-		Idx    idx      () const { return this - Req::s_store.data()                        ; }
 		// services
 		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
 		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }

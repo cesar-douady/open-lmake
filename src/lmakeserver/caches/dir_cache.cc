@@ -172,7 +172,7 @@ namespace Caches {
 					Node d{dn} ;
 					if (!d.done(req)) {
 						nds.insert(d) ;
-						critical |= dd.dflags[DFlag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
+						critical |= dd.dflags[Dflag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
 					} else if (!d->up_to_date(dd)) {
 						goto Miss ;
 					}

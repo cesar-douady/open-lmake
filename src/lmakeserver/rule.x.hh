@@ -125,7 +125,7 @@ namespace Engine {
 		static constexpr const char* Msg = "deps" ;
 		struct DepSpec {
 			::string pattern ;
-			DFlags   dflags  ;
+			Dflags   dflags  ;
 		} ;
 		// services
 		BitMap<VarCmd> init( PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
@@ -390,7 +390,7 @@ namespace Engine {
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap_s<pair_s<DFlags>> eval( Rule::SimpleMatch const& ) const ;
+		::vmap_s<pair_s<Dflags>> eval( Rule::SimpleMatch const& ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -414,7 +414,7 @@ namespace Engine {
 		static constexpr VarIdx NoVar = Rule::NoVar ;
 
 		// statics
-		static bool s_sure(TFlags tf) { return !tf[TFlag::Star] || tf[TFlag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
+		static bool s_sure(Tflags tf) { return !tf[Tflag::Star] || tf[Tflag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
 		// static data
 		static size_t s_name_sz ;
 
@@ -447,8 +447,13 @@ namespace Engine {
 		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc  ; }
 		bool   is_sure     (        ) const { return special!=Special::GenericSrc                           ; } // GenericSrc targets are only buildable if file actually exists
 		bool   user_defined(        ) const { return !allow_ext                                             ; } // used to decide to print in LMAKE/rules
-		TFlags flags       (VarIdx t) const { return t==NoVar ? UnexpectedTFlags : targets[t].second.tflags ; }
-		bool   sure        (VarIdx t) const { return s_sure(flags(t))                                       ; }
+		Tflags tflags      (VarIdx t) const { return t==NoVar ? UnexpectedTflags : targets[t].second.tflags ; }
+		bool   sure        (VarIdx t) const { return s_sure(tflags(t))                                      ; }
+		//
+		Bool3 common_tflags( Tflag  f, bool unexpected ) const {
+			if (unexpected) return No | UnexpectedTflags[f]                  ;
+			else            return ( Maybe | min_tflags[f] ) & max_tflags[f] ;
+		}
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
@@ -505,10 +510,11 @@ namespace Engine {
 		bool                      force              = false ;
 		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
-		bool    cmd_needs_deps   = false ;
-		bool    has_stars        = false ;
-		VarIdx  n_static_stems   = 0     ;
-		VarIdx  n_static_targets = 0     ;
+		bool   cmd_needs_deps   = false        ;
+		Tflags max_tflags       = Tflags::All  ;
+		Tflags min_tflags       = Tflags::None ;
+		VarIdx n_static_stems   = 0            ;
+		VarIdx n_static_targets = 0            ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                                                // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                                // for a given cmd, resources generation, must be >=cmd_gen
@@ -535,7 +541,7 @@ namespace Engine {
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
 		::vector_s               const& targets() const { if (!_has_targets) { _compute_targets()                           ; _has_targets = true ; } return _targets ; }
-		::vmap_s<pair_s<DFlags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
+		::vmap_s<pair_s<Dflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
 		::vector_view_c_s        static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                                 }
 	protected :
 		void _compute_targets() const ;
@@ -551,7 +557,7 @@ namespace Engine {
 		// cache
 	protected :
 		mutable bool _has_targets = false ; mutable ::vector_s               _targets ;
-		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<DFlags>> _deps    ;
+		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<Dflags>> _deps    ;
 	} ;
 
 	struct Rule::FullMatch : SimpleMatch {
@@ -594,8 +600,8 @@ namespace Engine {
 		::string const&    key        (              ) const { return (*this)->targets[tgt_idx].first          ; }
 		::string const&    target     (              ) const { return (*this)->targets[tgt_idx].second.pattern ; }
 		//
-		TFlags flags() const { return (*this)->flags(tgt_idx) ; }
-		bool   sure () const { return (*this)->sure (tgt_idx) ; }
+		Tflags tflags() const { return (*this)->tflags(tgt_idx) ; }
+		bool   sure  () const { return (*this)->sure  (tgt_idx) ; }
 		// services
 		Py::Pattern pattern() const { return (*this)->target_patterns[tgt_idx] ; }
 		// data
@@ -758,12 +764,12 @@ namespace Engine {
 	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
 		::string                        res        ;
 		::vector_s                      empty1     ;
-		::vmap_s<pair_s<DFlags>>        empty2     ;
+		::vmap_s<pair_s<Dflags>>        empty2     ;
 		Rule                            r          = solve_lazy(job,match)                          ;
 		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
 		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;     // fast path : when no need to compute match
 		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;     // fast path : when no need to compute targets
-		::vmap_s<pair_s<DFlags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;     // fast path : when no need to compute deps
+		::vmap_s<pair_s<Dflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;     // fast path : when no need to compute deps
 		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( auto [k,i] : ctx ) {
 			::vmap_ss dct ;
@@ -785,12 +791,12 @@ namespace Engine {
 	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		::string                        res        ;
 		::vector_s                      empty1     ;
-		::vmap_s<pair_s<DFlags>>        empty2     ;
+		::vmap_s<pair_s<Dflags>>        empty2     ;
 		Rule                            r          = solve_lazy(job,match)                          ;
 		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
 		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
 		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
-		::vmap_s<pair_s<DFlags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		::vmap_s<pair_s<Dflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
 		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
 			char c = fstr[ci] ;
@@ -873,7 +879,8 @@ namespace Engine {
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
 		::serdes(s,cmd_needs_deps  ) ;
-		::serdes(s,has_stars       ) ;
+		::serdes(s,max_tflags      ) ;
+		::serdes(s,min_tflags      ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		if (special==Special::Plain) {

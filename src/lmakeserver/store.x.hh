@@ -390,7 +390,7 @@ namespace Engine {
 		// accesses
 	protected :
 		NodeData const& _data() const ;
-		NodeData      & _data() ;                                              // provide mutable access so UNode can use it to define operator*
+		NodeData      & _data() ;                                              // provide mutable access so Unode can use it to define operator*
 	public :
 		NodeData const& operator* () const { return _data() ; }                // provide only const access as data may be shared
 		NodeData const* operator->() const { return &**this ; }

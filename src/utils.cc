@@ -119,12 +119,12 @@ action.sa_mask    = empty      ;
 	::sigaction( sig_num , &action , nullptr ) ;
 }
 
-static size_t/*len*/ _beautify(char* file_name) {                              // does not call malloc for use in src_point
+static size_t/*len*/ _beautify(char* filename) {                               // does not call malloc for use in src_point
 	enum State { Plain , Slash , Dot , DotDot } ;
-	char*       out = file_name ;
-	const char* min = file_name ;
+	char*       out = filename ;
+	const char* min = filename ;
 	State  state = Slash ;
-	for( const char* in=file_name ; *in ; in++) {
+	for( const char* in=filename ; *in ; in++) {
 		char c = *in ;
 		switch (c) {
 			case '/' : {
@@ -133,8 +133,8 @@ static size_t/*len*/ _beautify(char* file_name) {                              /
 				switch (s) {
 					case Plain : break ;
 					case Slash  :
-						if (in!=file_name) continue ;                          // 2 consecutive /, ignore 2nd if not first char
-						min = file_name+1 ;
+						if (in!=filename) continue ;                           // 2 consecutive /, ignore 2nd if not first char
+						min = filename+1 ;
 					break ;
 					case Dot :                                                 // after a ., suppress it
 						out-- ;
@@ -163,11 +163,11 @@ static size_t/*len*/ _beautify(char* file_name) {                              /
 		*out++ = c ;
 	}
 	*out = 0 ;
-	return out-file_name ;
+	return out-filename ;
 }
 
-::string beautify_file_name(::string const& file_name) {                                 // normal interface
-	::string res = file_name                   ;
+::string beautify_filename(::string const& filename) {                         // normal interface
+	::string res = filename              ;
 	size_t   len = _beautify(res.data()) ;
 	res.resize(len) ;
 	return res ;
