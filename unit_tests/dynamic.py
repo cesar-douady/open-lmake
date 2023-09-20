@@ -116,6 +116,13 @@ if getattr(sys,'reading_makefiles',False) :
 			return File=='yes'
 		cmd = 'cd auto ; cat ../hello ; :'
 
+	class Cmd(lmake.Rule) :
+		target = 'cmd'
+		deps = { 'HELLO' : 'hello' }
+		if step==1 : cmd = 'cat {HELLO} ; echo {bad}'
+		else       : cmd = 'cat {HELLO} ; echo {step}'
+
+
 else :
 
 	import ut
@@ -135,7 +142,7 @@ else :
 		print(f'step={s}',file=open('step.py','w'))
 		rc = 1 if s==1 else 0
 
-		ut.lmake( 'deps.hello+world.ok'   , done=2-rc*2 , steady=0    , failed=0  , new=3-rc*3 , no_deps=rc   , rc=rc )
+		ut.lmake( 'deps.hello+world.ok'   , done=2-rc*2 , steady=0    , failed=0  , new=2-rc*2 , no_deps=rc   , rc=rc )
 		ut.lmake( 'env.hello.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
 		ut.lmake( 'start_delay.no'        , done=rc     , steady=1-rc , failed=0  , new=0      , start=1      , rc=0  )
 		ut.lmake( 'start_delay.yes'       , done=rc     , steady=1-rc , failed=0  , new=0      , start=rc     , rc=0  )
@@ -147,5 +154,6 @@ else :
 		ut.lmake( 'allow_stderr.yes'      , done=0      , steady=1-rc , failed=rc , new=0      ,                rc=rc )
 		ut.lmake( 'auto_mkdir.no.ok'      , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
 		ut.lmake( 'auto_mkdir.yes.ok'     , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
+		ut.lmake( 'cmd'                   , done=1-rc   , steady=0    , failed=rc , new=rc     ,                rc=rc )
 		#
 		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , rc=rc )

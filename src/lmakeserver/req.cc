@@ -190,19 +190,19 @@ namespace Engine {
 		else                 (*this)->audit_node(Color::Err ,"no rule for"       ,name,lvl  ) ;
 		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
-			JobTgt                   jt          { rt , name } ;               // do not pass *this as req to avoid generating error message at cxtor time
-			::string                 reason      ;
-			Node                     missing_dep ;
-			::vmap_s<pair_s<Dflags>> static_deps ;
+		for( auto const& [rt,m] : mrts ) {                          // second pass to do report
+			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
+			::string                    reason      ;
+			Node                        missing_dep ;
+			::vmap_s<pair_s<AccDflags>> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
 			try                                            { static_deps = rt->create_match_attrs.eval(m)             ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable
 				for( bool search_non_buildable : {true,false} )
-					for( auto const& [k,df] : static_deps ) {
-						Node d{df.first} ;
+					for( auto const& [k,daf] : static_deps ) {
+						Node d{daf.first} ;
 						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
 						missing_key = k ;
 						missing_dep = d ;

@@ -325,11 +325,12 @@ namespace Engine {
 		return need ;
 	}
 
-	::vmap_s<pair_s<Dflags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
+	::vmap_s<pair_s<AccDflags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
 		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
 		//
-		::vmap_s<pair_s<Dflags>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , ::pair( parse_fstr(ds.pattern,match) , ds.dflags ) ) ;
+		Accesses a = match.rule->cmd_needs_deps ? Accesses::All : Accesses::None ;
+		::vmap_s<pair_s<AccDflags>> res ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , AccDflags(a,ds.dflags) ) ) ;
 		//
 		if (is_dynamic) {
 			Py::Gil   gil    ;
@@ -351,12 +352,12 @@ namespace Engine {
 						throw to_string("a dep has a non str key : ",key_str) ;
 					}
 					::string key = PyUnicode_AsUTF8(py_key)           ;
-					auto     it  = dep_idxs.find(key)                 ;
-					Dflags   df  = StaticDflags                       ;
-					::string dep = _split_flags(df,"dep "+key,py_val) ;
+					Dflags   df  = StaticDflags                       ;        // initial value
+					::string dep = _split_flags(df,"dep "+key,py_val) ;        // updates df
 					match.rule->add_cwd( dep , df[Dflag::Top] ) ;
-					if (it==dep_idxs.end()) { SWEAR(spec.full_dynamic                   ) ; res.emplace_back(key,::pair(dep,df)) ;    } // if not full_dynamic, all deps must be listed in spec
-					else                    { SWEAR(res[it->second].second.first.empty()) ; res[it->second].second = ::pair(dep,df) ; } // dep cannot be both static and dynamic
+					::pair_s<AccDflags> e { dep , {a,df} } ;
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key)) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
+					else                   {                                  res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
 				}
 			}
 			Py_DECREF(py_dct) ;

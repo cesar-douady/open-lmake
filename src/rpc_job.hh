@@ -53,6 +53,11 @@ using Dflags = BitMap<Dflag> ;
 constexpr Dflags StaticDflags { Dflag::Essential , Dflag::Required , Dflag::Static } ; // used for static deps
 constexpr Dflags DfltDflags   {                    Dflag::Required                 } ; // used with ldepend
 
+struct AccDflags {
+	Disk::Accesses accesses ;
+	Dflags         dflags   ;
+} ;
+
 ENUM( JobProc
 ,	None
 ,	Start
@@ -351,12 +356,11 @@ struct JobRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt                  } { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI ui , JI j ,                     S s                    ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s           } { SWEAR( p==P::End && s<=S::Garbage      ) ; }
-	JobRpcReq( P p ,         JI j ,                     S s , ::string&& e     ) : proc{p} ,              job{j} ,           digest{.status=s,.stderr{e}} { SWEAR( p==P::End && s>=S::Err          ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d                   } { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t                   } { SWEAR( p==P::LiveOut                   ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds            } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
+	JobRpcReq( P p , SI ui , JI j ,                     S s                    ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=S::Garbage      ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d        } { SWEAR( p==P::End                       ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
@@ -474,7 +478,7 @@ struct JobRpcReply {
 	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
-	::vmap_s<Dflags>          static_deps      ;                               // proc == Start   , deps that may clash with targets
+	::vmap_s<DepDigest>       static_deps      ;                               // proc == Start   , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start
 	::vector<TargetSpec>      targets          ;                               // proc == Start

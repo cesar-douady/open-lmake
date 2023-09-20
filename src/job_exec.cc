@@ -207,7 +207,7 @@ int main( int argc , char* argv[] ) {
 	/**/                     gather_deps.cwd          = cwd_                   ;
 	/**/                     gather_deps.env          = &cmd_env               ;
 	//
-	gather_deps.new_static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
+	gather_deps.static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
 	if (start_info.stdin.empty()) {
 		child_stdin = open_read("/dev/null") ;
 	} else {

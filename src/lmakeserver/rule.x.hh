@@ -390,7 +390,7 @@ namespace Engine {
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap_s<pair_s<Dflags>> eval( Rule::SimpleMatch const& ) const ;
+		::vmap_s<pair_s<AccDflags>> eval( Rule::SimpleMatch const& ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -540,9 +540,9 @@ namespace Engine {
 		bool operator+ (                  ) const { return +rule ; }
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
-		::vector_s               const& targets() const { if (!_has_targets) { _compute_targets()                           ; _has_targets = true ; } return _targets ; }
-		::vmap_s<pair_s<Dflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
-		::vector_view_c_s        static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                                 }
+		::vector_s                  const& targets() const { if (!_has_targets) { _compute_targets()                           ; _has_targets = true ; } return _targets ; }
+		::vmap_s<pair_s<AccDflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
+		::vector_view_c_s           static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                                 }
 	protected :
 		void _compute_targets() const ;
 		// services
@@ -556,8 +556,8 @@ namespace Engine {
 		::vector_s stems ;             // static stems only of course
 		// cache
 	protected :
-		mutable bool _has_targets = false ; mutable ::vector_s               _targets ;
-		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<Dflags>> _deps    ;
+		mutable bool _has_targets = false ; mutable ::vector_s                  _targets ;
+		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<AccDflags>> _deps    ;
 	} ;
 
 	struct Rule::FullMatch : SimpleMatch {
@@ -762,15 +762,15 @@ namespace Engine {
 	}
 
 	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
-		::string                        res        ;
-		::vector_s                      empty1     ;
-		::vmap_s<pair_s<Dflags>>        empty2     ;
-		Rule                            r          = solve_lazy(job,match)                          ;
-		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
-		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;     // fast path : when no need to compute match
-		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;     // fast path : when no need to compute targets
-		::vmap_s<pair_s<Dflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;     // fast path : when no need to compute deps
-		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
+		::string                           res        ;
+		::vector_s                         empty1     ;
+		::vmap_s<pair_s<AccDflags>>        empty2     ;
+		Rule                               r          = solve_lazy(job,match)                          ;
+		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
+		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
+		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
+		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( auto [k,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (k) {
@@ -779,25 +779,25 @@ namespace Engine {
 				case VarCmd::Dep    :                                                   if (!deps[i].second.first.empty()) cb_str(deps      [i].first,deps [i].second.first) ;   break ;
 				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()          ) cb_str(it->first          ,it->second           ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                        dct.emplace_back(r->stems  [j].first,stems[j]) ; cb_dct("stems"    ,dct  ) ; break ;
-				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (!tgts[j] .empty()) dct.emplace_back(r->targets[j].first,tgts [j]) ; cb_dct("targets"  ,dct  ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,df] : deps              ) if (!df.first.empty()) dct.emplace_back(k                  ,df.first) ; cb_dct("deps"     ,dct  ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                                       cb_dct("resources",rsrcs) ; break ;
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                         dct.emplace_back(r->stems  [j].first,stems[j] ) ; cb_dct("stems"    ,dct  ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (!tgts[j]  .empty()) dct.emplace_back(r->targets[j].first,tgts [j] ) ; cb_dct("targets"  ,dct  ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,daf] : deps             ) if (!daf.first.empty()) dct.emplace_back(k                  ,daf.first) ; cb_dct("deps"     ,dct  ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                                         cb_dct("resources",rsrcs) ; break ;
 				default : FAIL(k) ;
 			}
 		}
 	}
 
 	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
-		::string                        res        ;
-		::vector_s                      empty1     ;
-		::vmap_s<pair_s<Dflags>>        empty2     ;
-		Rule                            r          = solve_lazy(job,match)                          ;
-		auto                     const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
-		::vector_s               const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
-		::vector_s               const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
-		::vmap_s<pair_s<Dflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
-		::umap_ss                       rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
+		::string                           res        ;
+		::vector_s                         empty1     ;
+		::vmap_s<pair_s<AccDflags>>        empty2     ;
+		Rule                               r          = solve_lazy(job,match)                          ;
+		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
+		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
+		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
+		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
 			char c = fstr[ci] ;
 			if (c==Rule::StemMrkr) {

@@ -182,7 +182,7 @@ namespace Engine {
 		Trace trace("Job",rule_tgt,target,lvl) ;
 		Rule::FullMatch match{rule_tgt,target} ;
 		if (!match) { trace("no_match") ; return ; }
-		::vmap_s<Dflags> dep_names ;
+		::vmap_s<AccDflags> dep_names ;
 		try {
 			dep_names = mk_val_vector(rule_tgt->create_match_attrs.eval(match)) ;
 		} catch (::string const& e) {
@@ -193,21 +193,21 @@ namespace Engine {
 			}
 			return ;
 		}
-		::vmap<Node,Dflags> deps ; deps.reserve(dep_names.size()) ;
-		for( auto [dn,fs] : dep_names ) {
+		::vmap<Node,AccDflags> deps ; deps.reserve(dep_names.size()) ;
+		for( auto [dn,af] : dep_names ) {
 			Node d{dn} ;
 			//vvvvvvvvvvvvvvvvvv
 			d.set_buildable(lvl) ;
 			//^^^^^^^^^^^^^^^^^^
 			if (d->buildable==No) { trace("no_dep",d) ; return ; }
-			deps.emplace_back(d,fs) ;
+			deps.emplace_back(d,af) ;
 		}
-		//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//      vvvvvvvvvvvvvvvvv
 		*this = Job(
-			match.name() , Dflt                                                             // args for store
-		,	rule_tgt , Deps( deps , rule_tgt->cmd_needs_deps?Accesses::All:Accesses::None ) // args for JobData
+			match.name() , Dflt                                                // args for store
+		,	rule_tgt , Deps(deps)                                              // args for JobData
 		) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			(*this)->tokens1 = rule_tgt->create_none_attrs.eval(*this,match).tokens1 ;
@@ -523,7 +523,7 @@ namespace Engine {
 		//
 		// handle deps
 		//
-		if ( !killed && status!=Status::EarlyErr ) {                           // if killed, old deps are better than new ones, if job did not run, we have no deps, not even static deps
+		if (!killed) {                                                         // if killed, old deps are better than new ones, if job did not run, we have no deps, not even static deps
 			DiskDate      db_date    ;
 			::vector<Dep> dep_vector ; dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
 			::uset<Node>  old_deps   = mk_uset<Node>((*this)->deps) ;
@@ -534,10 +534,6 @@ namespace Engine {
 				dep.known = old_deps.contains(d) ;
 				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ; } // garbage : force unknown crc
 				else            { dep.crc_date(dd) ;                                                    } // date will be transformed into crc in make if possible
-				if ( rule->cmd_needs_deps && dep.dflags[Dflag::Static] ) {
-					if (!dep.accesses) dep.date(dep->date) ;                   // dep has been accessed at submit or launch time, with the file date
-					dep.accesses = Accesses::All ;                             // if static deps were needed to compute cmd, assume they were read to be pessimistic
-				}
 				trace("dep",dep,dd,dep->db_date()) ;
 				dep_vector.emplace_back(dep) ;
 				if ( +dd.accesses && !dd.garbage ) db_date = ::max(db_date,d->db_date()) ;

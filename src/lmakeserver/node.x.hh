@@ -165,9 +165,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,pair<Accesses,Dflags>> const& ,                           bool parallel=false ) ;
-		Deps( ::vmap  <Node,              Dflags > const& , Accesses={} ,             bool parallel=false ) ;
-		Deps( ::vector<Node                      > const& , Accesses={} , Dflags={} , bool parallel=false ) ;
+		Deps( ::vmap  <Node,AccDflags> const& ,                           bool parallel=false ) ;
+		Deps( ::vmap  <Node,Dflags   > const& , Accesses={} ,             bool parallel=false ) ;
+		Deps( ::vector<Node          > const& , Accesses={} , Dflags={} , bool parallel=false ) ;
 	} ;
 
 	//
@@ -468,9 +468,9 @@ namespace Engine {
 	// Deps
 	//
 
-	inline Deps::Deps( ::vmap<Node,pair<Accesses,Dflags>> const& static_deps , bool p ) {
+	inline Deps::Deps( ::vmap<Node,AccDflags> const& static_deps , bool p ) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,adf] : static_deps ) ds.emplace_back( d , adf.first , adf.second , p ) ;
+		for( auto const& [d,af] : static_deps ) ds.emplace_back( d , af.accesses , af.dflags , p ) ;
 		*this = Deps(ds) ;
 	}
 

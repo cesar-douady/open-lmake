@@ -69,10 +69,10 @@ public :
 	void new_target( PD pd , ::string const& t         , Tflags n , Tflags p     , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
 	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.accesses=a,.dflags=dfs                },0/*parallel_id*/,c) ; }
 	//
-	void new_static_deps( PD pd , ::vmap_s<Dflags> const& ds , ::string const& c="static_deps" ) {
-		SWEAR(accesses.empty()) ;                                                                                  // ensure we do not insert static deps after hidden ones
+	void static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& c="static_deps" ) {
+		SWEAR(accesses.empty()) ;                                                                          // ensure we do not insert static deps after hidden ones
 		parallel_id++ ;
-		for( auto const& [f,d] : ds ) _new_access(pd,f,{},{.dflags=d},parallel_id,c) ;
+		for( auto const& [f,d] : static_deps ) _new_access( pd , f , +d.accesses?d.date():DD() , {d.accesses,d.dflags} , parallel_id , c ) ;
 	}
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
