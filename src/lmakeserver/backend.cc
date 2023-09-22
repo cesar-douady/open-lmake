@@ -228,7 +228,7 @@ namespace Backends {
 						,	'\n'
 						,	e
 						) ;
-						s_end(tag,+job) ;
+						s_end(tag,+job,Status::Lost) ;
 						JobDigest digest { .status=Status::EarlyErr , .stderr=::move(err_str) }  ;
 						for( auto const& [k,daf] : create_match_attrs ) {
 							auto const& [d,af] = daf ;
@@ -308,7 +308,7 @@ namespace Backends {
 					if (jrr.digest.status>Status::Garbage) _s_start_tab.erase(it) ;
 					else                                   it->second.clear()     ; // retain entry so counting down number of retries goes on
 					//            vvvvvvvvvvvvvvv
-					backend_msg = s_end(tag,+job) ;
+					backend_msg = s_end(tag,+job,jrr.digest.status) ;
 					//            ^^^^^^^^^^^^^^^
 				} break ;
 				default : ;

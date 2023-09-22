@@ -15,11 +15,20 @@
 
 #include "autodep/autodep_env.hh"
 
+#if HAS_SLURM
+ENUM_2( BackendTag                     // PER_BACKEND : add a tag for each backend
+,	Dflt    = Local
+,	IsLocal = Local                    // <=IsLocal means backend launches jobs locally
+,	Local
+,	Slurm
+)
+#else
 ENUM_2( BackendTag                     // PER_BACKEND : add a tag for each backend
 ,	Dflt    = Local
 ,	IsLocal = Local                    // <=IsLocal means backend launches jobs locally
 ,	Local
 )
+#endif
 
 ENUM_4( Dflag                          // flags for deps
 ,	RuleMin    = Top                   // rules may have flags RuleMin<=flag<RuleMax1

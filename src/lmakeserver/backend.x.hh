@@ -102,7 +102,7 @@ namespace Backends {
 		static void s_launch     (          ) ;
 		// called by job_exec thread
 		static ::pair_s<uset<ReqIdx>> s_start( Tag t , JobIdx j ) ;            // sub-backend lock must have been takend by caller
-		static ::string/*msg*/        s_end  ( Tag t , JobIdx j ) ;            // .
+		static ::string/*msg*/        s_end  ( Tag t , JobIdx j, Status s) ;   // .
 		// called by heartbeat thread
 		static ::vmap<JobIdx,pair_s<bool/*err*/>> s_heartbeat() ;
 		//
@@ -147,7 +147,7 @@ namespace Backends {
 		//
 		virtual void                   launch(      ) {}                       // called to trigger launch of waiting jobs
 		virtual ::pair_s<uset<ReqIdx>> start (JobIdx) = 0 ;                    // inform job actually starts, return an informative message and reqs for which job has been launched
-		virtual ::string               end   (JobIdx) { return {} ; }          // inform job ended, return a message such as the stdout/stderr from slurm
+		virtual ::string               end   (JobIdx,Status) { return {} ; }   // inform job ended, return a message such as the stdout/stderr from slurm
 		//
 		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() { return {} ; } // regularly called (~ every minute) to give opportunity to backend to check jobs...
 		/**/                                                                   // (typically between launch and start), return lost jobs with error indications (message,is_error)
@@ -173,8 +173,8 @@ namespace Backends {
 	//
 	inline void Backend::s_new_req_eta(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",req) ; for( Tag t : Tag::N ) s_tab[+t]->new_req_eta(req) ; }
 	//
-	inline ::pair_s<uset<ReqIdx>> Backend::s_start( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j) ; }
-	inline ::string/*msg*/        Backend::s_end  ( Tag t , JobIdx j ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ; return s_tab[+t]->end  (j) ; }
+	inline ::pair_s<uset<ReqIdx>> Backend::s_start( Tag t , JobIdx j           ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j  ) ; }
+	inline ::string/*msg*/        Backend::s_end  ( Tag t , JobIdx j, Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ; return s_tab[+t]->end  (j,s) ; }
 
 }
 
