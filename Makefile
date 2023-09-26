@@ -36,6 +36,8 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
 
 LANG := c++20
 
+include sys_config.h.inc_stamp                                                 # sys_config.h is used in this makefile
+
 # python configuration
 ifeq ($(PYTHON),)
 $(error cannot find python3)
@@ -71,11 +73,23 @@ WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2
 
 endif
 
+# this is the recommanded way to insert a , when calling functions
+# /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
+COMMA         := ,
+.DEFAULT_GOAL := DFLT
+
+
+ARCH                := $(word 2,$(shell bash -c '$(CC) -v -E - </dev/null |& grep Target:'))
 SAN_FLAGS           := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
-LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH= | cut -d= -f2 | sed 's/:/ /g' | xargs realpath | uniq | sed s/^/-Wl,-rpath=/)
+LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=) # e.g. : LIBARY_PATH=/a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                 # e.g. : /a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                            # e.g. : /a/b /c /a/b/c/..
+LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                             # e.g. : /a/b /c /a/b
+LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                 # e.g. : /a/b /c
+LINK_LIB_PATH       := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH))       # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c
 LINK_O              := $(CC) $(COVERAGE) -r
 LINK_SO             := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread -shared-libgcc -shared
 LINK_BIN            := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread
@@ -87,7 +101,7 @@ PYTHON_LINK_OPTIONS := -L$(PYTHON_LIB_DIR) -Wl,-rpath=$(PYTHON_LIB_DIR) -l$(PYTH
 PYTHON_VERSION      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
 CFLAGS              := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
 CXXFLAGS            := $(CFLAGS) -std=$(LANG)
-ROOT                := $(shell pwd)
+ROOT_DIR            := $(abspath .)
 LIB                 := lib
 SLIB                := _lib
 BIN                 := bin
@@ -105,12 +119,14 @@ PYCXX_LIB         := $(PYCXX_HOME)/lib
 PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
 PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 
+sys_config.h : sys_config
+	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
+
+HAS_PTRACE := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
+HAS_SLURM  := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
+
 # Slurm
-HAS_SLURM := $(shell bash -c '$(CC) -E --include 'slurm/slurm.h' -xc - </dev/null >/dev/null 2>/dev/null && echo true')
-ifeq ($(HAS_SLURM),true)
-ARCH           := $(shell bash -c '$(CC) -v -E - </dev/null |& grep Target | cut -d " " -f 2')
-LD_SLURM_FLAGS := -Wl,-rpath=/usr/lib/$(ARCH)/slurm-wlm -L/usr/lib/$(ARCH)/slurm-wlm -lslurmfull -lresolv
-endif
+SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-L/usr/lib/$(ARCH)/slurm-wlm -Wl$(COMMA)-rpath=/usr/lib/$(ARCH)/slurm-wlm -lslurmfull -lresolv)
 
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver
@@ -154,9 +170,6 @@ ALL : DFLT STORE_TEST $(DOC)/lmake.html
 %.inc_stamp : %                                                                # prepare a stamp to be included, so as to force availability of a file w/o actually including it
 	>$@
 
-sys_config.h : sys_config
-	HAS_SLURM=$(HAS_SLURM) CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
-
 lmake.tar.gz : $(LMAKE_ALL_FILES)
 	tar -cz -f $@ $^
 
@@ -175,11 +188,11 @@ ext/%.dir.stamp : ext/%.zip
 ext/%.patched.stamp : ext/%.dir.stamp ext/%.patch_script
 	rm -rf $(@:%.stamp=%)
 	cp -r $(@:%.patched.stamp=%.dir) $(@:%.patched.stamp=%.patched)
-	cd $(@:%.patched.stamp=%.patched) ; $(ROOT)/$(@:%.patched.stamp=%.patch_script)
+	cd $(@:%.patched.stamp=%.patched) ; $(ROOT_DIR)/$(@:%.patched.stamp=%.patch_script)
 	touch $@
 ext/%.patched.h : ext/%.h ext/%.patch_script
 	cp $< $@
-	cd $(@D) ; $(ROOT)/$(@:%.patched.h=%.patch_script) $(@F)
+	cd $(@D) ; $(ROOT_DIR)/$(@:%.patched.h=%.patch_script) $(@F)
 
 .SECONDARY :
 
@@ -208,7 +221,7 @@ LMAKE        : LMAKE_SERVER LMAKE_REMOTE
 
 $(PYCXX).install.stamp : $(PYCXX).stamp
 	rm -rf $(PYCXX_HOME)
-	cd $(PYCXX_ROOT) ; $(PYTHON) setup.py install --home=$(ROOT)/$(PYCXX_HOME)
+	cd $(PYCXX_ROOT) ; $(PYTHON) setup.py install --home=$(ROOT_DIR)/$(PYCXX_HOME)
 	mv $(PYCXX_CXX)/cxxextensions.c $(PYCXX_CXX)/cxxextensions.cxx             # painful to provide compilation rules for both .c and .cxx
 	ln -s . $(PYCXX_CXX)/Src                                                   # support files include files starting with Src which is not installed
 	touch $@
@@ -274,48 +287,43 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 # lmake
 #
 
-include sys_config.h.inc_stamp                                                 # sys_config.h is used in this makefile
-HAS_PTRACE := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
-
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-ifeq ($(HAS_PTRACE),1)
-LIB_SECCOMP := -l:libseccomp.so.2
-endif
+LIB_SECCOMP := $(if $(HAS_PTRACE),-l:libseccomp.so.2)
 
 $(SBIN)/lmakeserver : \
-	$(PYCXX_LIB)/pycxx$(SAN).o                  \
-	$(SRC)/app$(SAN).o                          \
-	$(SRC)/disk$(SAN).o                         \
-	$(SRC)/hash$(SAN).o                         \
-	$(SRC)/lib$(SAN).o                          \
-	$(SRC)/non_portable.o                       \
-	$(SRC)/pycxx$(SAN).o                        \
-	$(SRC)/rpc_client$(SAN).o                   \
-	$(SRC)/rpc_job$(SAN).o                      \
-	$(SRC)/time$(SAN).o                         \
-	$(SRC)/trace$(SAN).o                        \
-	$(SRC)/utils$(SAN).o                        \
-	$(SRC)/store/file$(SAN).o                   \
-	$(SRC)/autodep/autodep_env$(SAN).o          \
-	$(SRC)/autodep/gather_deps$(SAN).o          \
-	$(SRC)/autodep/ptrace$(SAN).o               \
-	$(SRC)/autodep/record$(SAN).o               \
-	$(SRC)/lmakeserver/backend$(SAN).o          \
-	$(SRC)/lmakeserver/backends/local$(SAN).o   \
-	$(SRC)/lmakeserver/backends/slurm$(SAN).o   \
-	$(SRC)/lmakeserver/cache$(SAN).o            \
-	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
-	$(SRC)/lmakeserver/cmd$(SAN).o              \
-	$(SRC)/lmakeserver/global$(SAN).o           \
-	$(SRC)/lmakeserver/job$(SAN).o              \
-	$(SRC)/lmakeserver/makefiles$(SAN).o        \
-	$(SRC)/lmakeserver/node$(SAN).o             \
-	$(SRC)/lmakeserver/req$(SAN).o              \
-	$(SRC)/lmakeserver/rule$(SAN).o             \
-	$(SRC)/lmakeserver/store$(SAN).o            \
+	$(PYCXX_LIB)/pycxx$(SAN).o                                   \
+	$(SRC)/app$(SAN).o                                           \
+	$(SRC)/disk$(SAN).o                                          \
+	$(SRC)/hash$(SAN).o                                          \
+	$(SRC)/lib$(SAN).o                                           \
+	$(SRC)/non_portable.o                                        \
+	$(SRC)/pycxx$(SAN).o                                         \
+	$(SRC)/rpc_client$(SAN).o                                    \
+	$(SRC)/rpc_job$(SAN).o                                       \
+	$(SRC)/time$(SAN).o                                          \
+	$(SRC)/trace$(SAN).o                                         \
+	$(SRC)/utils$(SAN).o                                         \
+	$(SRC)/store/file$(SAN).o                                    \
+	$(SRC)/autodep/autodep_env$(SAN).o                           \
+	$(SRC)/autodep/gather_deps$(SAN).o                           \
+	$(SRC)/autodep/ptrace$(SAN).o                                \
+	$(SRC)/autodep/record$(SAN).o                                \
+	$(SRC)/lmakeserver/backend$(SAN).o                           \
+	                  $(SRC)/lmakeserver/backends/local$(SAN).o  \
+	$(if $(HAS_SLURM),$(SRC)/lmakeserver/backends/slurm$(SAN).o) \
+	$(SRC)/lmakeserver/cache$(SAN).o                             \
+	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o                  \
+	$(SRC)/lmakeserver/cmd$(SAN).o                               \
+	$(SRC)/lmakeserver/global$(SAN).o                            \
+	$(SRC)/lmakeserver/job$(SAN).o                               \
+	$(SRC)/lmakeserver/makefiles$(SAN).o                         \
+	$(SRC)/lmakeserver/node$(SAN).o                              \
+	$(SRC)/lmakeserver/req$(SAN).o                               \
+	$(SRC)/lmakeserver/rule$(SAN).o                              \
+	$(SRC)/lmakeserver/store$(SAN).o                             \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LD_SLURM_FLAGS) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(SLURM_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \
@@ -590,13 +598,13 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	( cd $(@D) ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH $(ROOT)/$< ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	mkdir -p $(@D)
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT)/bin:$(ROOT)/_bin:$$PATH PYTHONPATH=$(ROOT)/lib:$(ROOT)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
 
 #
 # lmake env
@@ -621,4 +629,4 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	mkdir -p $(LMAKE_ENV)-cache
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)

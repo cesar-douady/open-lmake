@@ -83,7 +83,7 @@ fi
 #
 # HAS_SLURM
 #
-if [ "$HAS_SLURM" == "true" ]
+if $(CC) -E --include 'slurm/slurm.h' -xc - </dev/null >/dev/null 2>/dev/null
 then HAS_SLURM=1
 else HAS_SLURM=0
 fi

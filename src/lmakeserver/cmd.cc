@@ -271,7 +271,8 @@ namespace Engine {
 									script += "set +x\n" ;
 								}
 								for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;
-								script += "exec env -i \\\n" ;
+								script += "mkdir -p $TMPDIR\n" ;
+								script += "exec env -i \\\n"   ;
 								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
 								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
 								append_to_string( script , "\tSMALL_ID="          , to_string   (report_start.start.small_id  ) , " \\\n" ) ;

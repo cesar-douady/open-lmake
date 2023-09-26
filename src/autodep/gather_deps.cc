@@ -107,6 +107,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	else     swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	autodep_env.service  = master_sock.service(addr) ;
 	autodep_env.root_dir = *g_root_dir               ;
+	trace("autodep_env",::string(autodep_env)) ;
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	if (method==AutodepMethod::Ptrace) {

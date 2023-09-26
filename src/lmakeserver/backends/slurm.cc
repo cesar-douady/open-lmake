@@ -5,7 +5,6 @@
 
 #include "sys_config.h"
 
-#if HAS_SLURM
 #include <filesystem>
 #include <charconv>
 #include <sys/sysinfo.h>
@@ -589,5 +588,3 @@ namespace Backends::Slurm {
 		return res ;
 	}
 }
-
-#endif
