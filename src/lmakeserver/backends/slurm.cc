@@ -181,6 +181,9 @@ namespace Backends::Slurm {
 		}
 
 		// services
+		virtual bool is_local() const {
+			return false ;
+		}
 		virtual void config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				if(k=="n_max_queue_jobs") {
@@ -208,7 +211,7 @@ namespace Backends::Slurm {
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
  			SWEAR(!req_map.contains(req)) ;
-			bool verbose = Req(req)->options.flags[ReqFlag::VerboseBackend];
+			bool verbose = Req(req)->options.flags[ReqFlag::Verbose];
  			req_map.insert({req,{n_jobs,verbose}}) ;
 		}
 		virtual void close_req(ReqIdx req) {

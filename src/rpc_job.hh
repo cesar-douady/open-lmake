@@ -15,21 +15,11 @@
 
 #include "autodep/autodep_env.hh"
 
-// if more backends are to be implemented, we must use a non-explosive way to express BackendTag
-#if HAS_SLURM
-	ENUM_2( BackendTag                 // PER_BACKEND : add a tag for each backend
-	,	Dflt    = Local
-	,	IsLocal = Local                // <=IsLocal means backend launches jobs locally
-	,	Local
-	,	Slurm
-	)
-#else
-	ENUM_2( BackendTag                 // PER_BACKEND : add a tag for each backend
-	,	Dflt    = Local
-	,	IsLocal = Local                // <=IsLocal means backend launches jobs locally
-	,	Local
-	)
-#endif
+ENUM_1( BackendTag                     // PER_BACKEND : add a tag for each backend
+,	Dflt = Local
+,	Local
+,	Slurm
+)
 
 ENUM_4( Dflag                          // flags for deps
 ,	RuleMin    = Top                   // rules may have flags RuleMin<=flag<RuleMax1

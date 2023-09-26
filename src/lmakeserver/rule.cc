@@ -135,7 +135,7 @@ namespace Engine {
 		for( size_t i=0 ; i<str.size() ; i++ ) {
 			char c = str[i] ;
 			if (c==Rule::StemMrkr) {
-				VarIdx stem = to_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
+				VarIdx stem = decode_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
 				if (stem>=stop_above) return res ;
 				res += cb(res.size(),stem) ;
 			} else {
@@ -156,7 +156,7 @@ namespace Engine {
 		for( size_t i=0 ; i<str.size() ; i++ ) {
 			char c = str[i] ;
 			if (c==Rule::StemMrkr) {
-				VarIdx stem = to_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
+				VarIdx stem = decode_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
 				cb(i,stem) ;
 			}
 		}
@@ -282,8 +282,8 @@ namespace Engine {
 				auto it = var_idxs.find(k)    ;
 				p[0] = Rule::StemMrkr ;
 				need |= it->second.bucket ;
-				from_enum( p+1                , it->second.bucket ) ;
-				from_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
+				encode_enum( p+1                , it->second.bucket ) ;
+				encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
 				n_unnamed += unnamed ;
 			}
 		) ;
@@ -430,7 +430,7 @@ namespace Engine {
 
 	static void _append_stem( ::string& target , VarIdx stem_idx ) {
 		::string s ; s.resize(sizeof(VarIdx)) ;
-		from_int( s.data() , stem_idx ) ;
+		encode_int( s.data() , stem_idx ) ;
 		target += Rule::StemMrkr ;
 		target += s              ;
 	}
@@ -859,8 +859,8 @@ namespace Engine {
 				char c = fstr[ci] ;
 				switch (c) {
 					case Rule::StemMrkr : {
-						VarCmd k = to_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
-						VarIdx i = to_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
+						VarCmd k = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
+						VarIdx i = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
 						res += '{' ;
 						switch (k) {
 							case VarCmd::Stem   : res += rd.stems                        [i].first ; break ;
@@ -1186,8 +1186,8 @@ namespace Engine {
 		//
 		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
-			FileNameIdx pos = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
-			FileNameIdx sz  = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			stems.push_back(name_.substr(pos,sz)) ;
 		}
 	}
@@ -1239,8 +1239,8 @@ namespace Engine {
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
 			FileNameIdx p  = poss [s]        ;
 			FileNameIdx sz = stems[s].size() ;
-			from_int( &sfx[i] , p  ) ; i+= sizeof(FileNameIdx) ;
-			from_int( &sfx[i] , sz ) ; i+= sizeof(FileNameIdx) ;
+			encode_int( &sfx[i] , p  ) ; i+= sizeof(FileNameIdx) ;
+			encode_int( &sfx[i] , sz ) ; i+= sizeof(FileNameIdx) ;
 		}
 		return {name,sfx} ;
 	}

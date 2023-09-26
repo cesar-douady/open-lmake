@@ -61,6 +61,9 @@ namespace Backends {
 			tag   = Tag::Local                                                            ;
 		}
 		//
+		if (!s_tab[+tag]                       ) throw to_string("backend ",tag," is not implemented") ;
+		if (!g_config.backends[+tag].configured) throw to_string("backend ",tag," is not configured" ) ;
+		//
 		submit_attrs.tag = tag ;
 		s_tab[+tag]->submit(ji,ri,submit_attrs,::move(rsrcs)) ;
 	}
@@ -91,7 +94,7 @@ namespace Backends {
 	void Backend::s_launch() {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_launch") ;
-		for( Tag t : Tag::N )
+		for( Tag t : Tag::N ) if (s_tab[+t])
 			try {
 				s_tab[+t]->launch() ;
 			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
@@ -454,8 +457,7 @@ namespace Backends {
 		::unique_lock                      lock { _s_mutex } ;
 		//
 		Trace trace("s_heartbeat") ;
-		for( Tag t : Tag::N ) {
-			if (!s_tab[+t]) continue ;                                                                  // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
+		for( Tag t : Tag::N ) if (s_tab[+t]) {                                                          // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
 			if (res.empty()) res =                 s_tab[+t]->heartbeat() ;                             // fast path
 			else             for( auto const& he : s_tab[+t]->heartbeat() ) res.push_back(::move(he)) ;
 		}
@@ -471,7 +473,8 @@ namespace Backends {
 		static ::jthread deferred_lost_thread   {_s_deferred_lost_thread_func  } ;
 		//
 		::unique_lock lock{_s_mutex} ;
-		for( Tag t : Tag::N ) if (s_tab[+t]) s_tab[+t]->config(config[+t]) ;
+		for( Tag t : Tag::N )
+			if ( s_tab[+t] && config[+t].configured ) s_tab[+t]->config(config[+t]) ; // if implemented and configured
 		s_service_ready.wait() ;
 	}
 
@@ -491,7 +494,7 @@ namespace Backends {
 		,	s_server_fd.service(g_config.backends[+tag].addr)
 		,	::to_string(entry.conn.seq_id)
 		,	::to_string(job              )
-		,	g_config.backends[+tag].is_local?"local":"remote"
+		,	s_is_local(tag)?"local":"remote"
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;
@@ -503,7 +506,7 @@ namespace Backends {
 		::vmap<JobIdx,StartTabEntry::Conn> to_kill ;
 		{	::unique_lock lock { _s_mutex }    ;                               // lock for minimal time
 			Date          now  = Date::s_now() ;
-			for( Tag t : Tag::N )
+			for( Tag t : Tag::N ) if (s_tab[+t])
 				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,now) ) ;

@@ -59,7 +59,6 @@ void np_ptrace_clear_syscall(int pid) {
 		iov.iov_len  = 9 * sizeof(unsigned long long) ;                        // read/write only 9 registers
 		rc  = ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
 		if ( rc==-1 || errno ) throw 0 ;
-		_clear_syscall(regs) ;
 		#if __arm__
 			regs.r7       = -1 ;
 		#elif __aarch64__

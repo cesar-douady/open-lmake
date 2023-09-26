@@ -86,14 +86,14 @@ namespace Engine {
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
 			// services
 			template<IsStream T> void serdes(T& s) {
-				::serdes(s,addr    ) ;
-				::serdes(s,is_local) ;
-				::serdes(s,dct     ) ;
+				::serdes(s,configured) ;
+				::serdes(s,addr      ) ;
+				::serdes(s,dct       ) ;
 			}
 			// data
-			in_addr_t addr     = ServerSockFd::LoopBackAddr ;
-			bool      is_local = false                      ;
-			::vmap_ss dct      ;
+			bool      configured = false                      ;
+			in_addr_t addr       = ServerSockFd::LoopBackAddr ;
+			::vmap_ss dct        ;
 		} ;
 
 		struct Cache {

@@ -36,7 +36,12 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
-		return os << "Backend(" << ::hex<<be.addr<<::dec <<','<< (be.is_local?"local":"remote") <<','<< be.dct << ')' ;
+		os << "Backend(" ;
+		if (be.configured) {
+			if (be.addr!=ServerSockFd::LoopBackAddr) os << ::hex<<be.addr<<::dec <<',' ;
+			/**/                                     os << be.dct                      ;
+		}
+		return os <<')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Config::Cache const& c ) {
@@ -60,18 +65,22 @@ namespace Engine {
 		return os<<')' ;
 	}
 
-	Config::Backend::Backend( Py::Mapping const& py_map , bool il ) {
-		::string field ;
-		is_local = il ;
+	Config::Backend::Backend( Py::Mapping const& py_map , bool is_local ) : configured{true} {
+		::string field   ;
 		try {
 			bool found_addr = false ;
 			for( auto const& [k,v] : Py::Mapping(py_map) ) {
 				field = Py::String(k) ;
-				if (field=="interface") { addr = ServerSockFd::s_addr(Py::String(v)) ; found_addr = true ; }
-				else                    { dct.emplace_back(field,v.str()) ;                                }
+				if (field=="interface") {
+					if (is_local) throw "interface is not supported for local backends"s ;
+					addr       = ServerSockFd::s_addr(Py::String(v)) ;
+					found_addr = true                                ;
+					continue ;
+				}
+				dct.emplace_back(field,v.str()) ;
 			}
 			field = "interface" ;
-			if (!found_addr) addr = is_local ? SockFd::LoopBackAddr : ServerSockFd::s_addr(host()) ;
+			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(host()) ;
 		} catch(::string const& e) {
 			throw to_string("while processing ",field,e) ;
 		}
@@ -131,12 +140,17 @@ namespace Engine {
 			field = "backends" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
 			Py::Mapping py_backends = py_map[field] ;
+			bool found = false ;
 			for( BackendTag t : BackendTag::N ) {
 				::string ts = mk_snake(t) ;
+				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				field = "backends."+ts ;
-				if (!py_backends.hasKey(ts)) throw "not found"s ;
-				backends[+t] = Backend( Py::Mapping(py_backends[ts]) , t<=BackendTag::IsLocal ) ;
+				if (!py_backends.hasKey(ts)) continue ;
+				if ( !bbe                  ) continue ;                                                                // silently ignore as long as no rule uses it
+				found = true ;
+				if (py_backends.hasKey(ts)) backends[+t] = Backend( Py::Mapping(py_backends[ts]) , bbe->is_local() ) ;
 			}
+			if (!found) throw "no available backend has been configured"s ;
 			//
 			field = "caches" ;
 			if (py_map.hasKey(field)) {
@@ -200,7 +214,7 @@ namespace Engine {
 		/**/          res << "max_error_lines  : " <<          max_err_lines                  <<'\n' ;
 		/**/          res << "network_delay    : " <<          network_delay.short_str()      <<'\n' ;
 		if (path_max) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
-		else          res << "path_max         : " << "unlimited"                             <<'\n' ;
+		else          res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
 		/**/          res << "remote_admin_dir : " <<          remote_admin_dir               <<'\n' ;
 		res << "console :\n" ;
 		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
@@ -210,18 +224,21 @@ namespace Engine {
 		/**/                                res << "\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		res << "backends :\n" ;
 		for( BackendTag t : BackendTag::N ) {
-			Backend const& be = backends[+t] ;
-			size_t         w  = 9            ;                                 // room for interface
+			Backend           const& be  = backends[+t]                 ;
+			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
+			if (!bbe          ) continue ;                                     // not implemented
+			if (!be.configured) continue ;                                     // not configured
+			size_t w  = 9 ;                                                    // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< be.is_local                       <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
+			if (be.addr!=ServerSockFd::LoopBackAddr) res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			/**/                                     res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
+			for( auto const& [k,v] : be.dct )        res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
 		if (!caches.empty()) {
 			res << "caches :\n" ;
 			for( auto const& [key,cache] : caches ) {
-				size_t w = 3 ;                                                     // room for tag
+				size_t w = 3 ;                                                 // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<'\t'<< key <<" :\n" ;
 				/**/                                 res <<"\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;

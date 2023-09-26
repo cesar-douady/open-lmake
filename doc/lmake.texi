@@ -930,6 +930,11 @@ Return the root dir as seen from passed @code{cwd} argument.
 
 Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
 
+@subsection @code{def has_backend(backend)}
+Return @code{True} if the passed backend is implemented, else return @code{False}.
+
+Raises the @code{ValueError} exception is the passed backend is unknown.
+
 @section constants
 
 The following constants are defined :

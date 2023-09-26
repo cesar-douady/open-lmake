@@ -77,8 +77,8 @@ namespace Engine {
 		struct FullMatch   ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
-		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                  } {                                      }
-		Rule(::string const& job_sfx) : Rule    { to_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx)) ; }
+		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                      } {                                      }
+		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx)) ; }
 		// acesses
 		::string job_sfx() const ;
 		// services
@@ -626,7 +626,7 @@ namespace Engine {
 			)
 		,	JobMrkr
 		) ;
-		from_int( &res[res.size()-sizeof(Idx)] , +*this ) ;
+		encode_int( &res[res.size()-sizeof(Idx)] , +*this ) ;
 		return res ;
 	}
 
@@ -638,7 +638,7 @@ namespace Engine {
 		if (easy(dst,py_src,I(0))) return ;
 		//
 		PyObject* py_src_long = PyNumber_Long(py_src) ;
-		if (!py_src_long) throw "cannot convert to an int" ;
+		if (!py_src_long) throw "cannot convert to an int"s ;
 		int  ovrflw = 0                                             ;
 		long v      = PyLong_AsLongAndOverflow(py_src_long,&ovrflw) ;
 		Py_DECREF(py_src_long) ;
@@ -676,7 +676,7 @@ namespace Engine {
 		if (easy(dst,py_src)) return ;
 		//
 		::map_s<T> map = mk_map(dst) ;
-		if (!PyDict_Check(py_src)) throw "not a dict";
+		if (!PyDict_Check(py_src)) throw "not a dict"s ;
 		PyObject*  py_key = nullptr/*garbage*/ ;
 		PyObject*  py_val = nullptr/*garbage*/ ;
 		ssize_t    pos    = 0                  ;
@@ -801,8 +801,8 @@ namespace Engine {
 		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
 			char c = fstr[ci] ;
 			if (c==Rule::StemMrkr) {
-				VarCmd k = to_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
-				VarIdx i = to_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
+				VarCmd k = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
+				VarIdx i = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
 				switch (k) {
 					case VarCmd::Stem   :                                                                                      res += stems[i]              ;   break ;
 					case VarCmd::Target :                                                                                      res += tgts [i]              ;   break ;

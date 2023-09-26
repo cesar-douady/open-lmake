@@ -79,7 +79,6 @@ COMMA         := ,
 .DEFAULT_GOAL := DFLT
 
 
-ARCH                := $(word 2,$(shell bash -c '$(CC) -v -E - </dev/null |& grep Target:'))
 SAN_FLAGS           := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
@@ -126,7 +125,7 @@ HAS_PTRACE := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
 HAS_SLURM  := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
 
 # Slurm
-SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-L/usr/lib/$(ARCH)/slurm-wlm -Wl$(COMMA)-rpath=/usr/lib/$(ARCH)/slurm-wlm -lslurmfull -lresolv)
+SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lslurm -lresolv)
 
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver

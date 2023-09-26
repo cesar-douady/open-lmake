@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* resources seem not to be present in lshow -i
 * debug unit_tests/cycle.py
 	- activate unit_tests/cycle.py
 	- set an ephemere store indexed by job with JobEphemereData in it

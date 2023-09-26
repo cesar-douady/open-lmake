@@ -56,8 +56,8 @@ namespace Caches {
 		//
 		char* p = &full_name[user_sz+1] ;                                      // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
-			FileNameIdx pos = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
-			FileNameIdx sz  = to_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
+			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			append_to_string( res , pos , '-' , sz , '+' ) ;
 		}
 		append_to_string(res,::string(rule->cmd_crc)) ;

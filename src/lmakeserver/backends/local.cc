@@ -198,6 +198,9 @@ namespace Backends::Local {
 		}
 
 		// services
+		virtual bool is_local() const {
+			return true ;
+		}
 		virtual void config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				rsrc_idxs[k] = rsrc_keys.size() ;

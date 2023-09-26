@@ -176,26 +176,56 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	}
 }
 
+static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	if ( PyTuple_GET_SIZE(args)!=1 || kw ) {
+		PyErr_SetString(PyExc_TypeError,"expect exactly a single positional argument") ;
+		return nullptr ;
+	}
+	PyObject* py_be = PyTuple_GET_ITEM(args,0) ;
+	if (!PyUnicode_Check(py_be)) {
+		PyErr_SetString(PyExc_TypeError,"argument must be a str") ;
+		return nullptr ;
+	}
+	const char* be  = PyUnicode_AsUTF8(py_be) ;
+	BackendTag  tag = BackendTag::Unknown     ;
+	try {
+		tag = mk_enum<BackendTag>(be) ;
+	} catch (::string const& e) {
+		PyErr_SetString(PyExc_ValueError,("unknown backend "s+be).c_str()) ;
+		return nullptr ;
+	}
+	switch (tag) {
+		case BackendTag::Local : Py_RETURN_TRUE                    ;
+		case BackendTag::Slurm : return PyBool_FromLong(HAS_SLURM) ;
+		default : FAIL(tag) ;
+	} ;
+}
+
 static PyMethodDef funcs[] = {
 	{	"check_deps"
 	,	reinterpret_cast<PyCFunction>(chk_deps)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"check_deps(verbose=False). Ensure that all previously seen deps are up-to-date"
+	,	"check_deps(verbose=False). Ensure that all previously seen deps are up-to-date."
 	}
 ,	{	"depend"
 	,	reinterpret_cast<PyCFunction>(depend)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,critical=False,ignore_error=False,essential=False). Mark all arguments as parallel dependencies"
+	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,critical=False,ignore_error=False,essential=False). Mark all arguments as parallel dependencies."
 	}
 ,	{	"target"
 	,	reinterpret_cast<PyCFunction>(target)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets"
+	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets."
 	}
 ,	{	"search_sub_root_dir"
 	,	reinterpret_cast<PyCFunction>(search_sub_root_dir)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"search_sub_root_dir(cwd=os.getcwd()). Return the nearest hierarchical root dir relative to the actual root dir"
+	,	"search_sub_root_dir(cwd=os.getcwd()). Return the nearest hierarchical root dir relative to the actual root dir."
+	}
+,	{	"has_backend"
+	,	reinterpret_cast<PyCFunction>(has_backend)
+	,	METH_VARARGS|METH_KEYWORDS
+	,	"has_backend(backend). Return true if the corresponding backend is implememented."
 	}
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;

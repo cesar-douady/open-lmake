@@ -375,13 +375,13 @@ static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep
 	return txt.substr(0,pos+1) ;
 }
 
-template<::integral I> static inline I to_int(const char* p) {
+template<::integral I> static inline I decode_int(const char* p) {
 	I r = 0 ;
 	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ;      // little endian, /!\ : beware of signs, casts, integer promotion, ...
 	return r ;
 }
 
-template<::integral I> static inline void from_int( char* p , I x ) {
+template<::integral I> static inline void encode_int( char* p , I x ) {
 	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;             // little endian
 }
 
@@ -686,8 +686,8 @@ template<StdEnum E> static inline constexpr E  operator| (E  e,E o) { SWEAR(e!=E
 template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o                                     ; return e          ; }
 template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o                                     ; return e          ; }
 //
-template<StdEnum E> static inline E    to_enum  ( const char* p ) { return E(to_int<EnumUint<E>>(p)) ; }
-template<StdEnum E> static inline void from_enum( char* p , E e ) { from_int(p,+e) ;                   }
+template<StdEnum E> static inline E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
+template<StdEnum E> static inline void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
