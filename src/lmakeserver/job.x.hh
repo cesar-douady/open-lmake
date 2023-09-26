@@ -101,7 +101,7 @@ namespace Engine {
 		//
 		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
 		//
-		bool/*ok*/ forget() ;
+		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
@@ -141,7 +141,7 @@ namespace Engine {
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const = delete ; // { return Job::side<W,LSB+1>(   ) ; }
 		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       = delete ; // {        Job::side<W,LSB+1>(val) ; }
 		// services
-		Bool3 produces(Node) const ;
+		bool produces( Node , bool sure=false ) const ;                        // if sure, reply true only if it is certain than node is produced
 	} ;
 
 	struct JobTgts : JobTgtsBase {
@@ -162,7 +162,7 @@ namespace Engine {
 		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                                            ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const&                                  ) ;       // hit indicates that result comes from a cache hit
+		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , bool washed                    ) ;       // hit indicates that result comes from a cache hit
 		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job is necessary for some other req
 		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//
@@ -377,13 +377,13 @@ namespace Engine {
 
 	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
 
-	inline Bool3 JobTgt::produces(Node t) const {
-		if ( (*this)->run_status==RunStatus::NoDep || (*this)->run_status==RunStatus::NoFile ) return No    ;
-		if ( is_sure()                                                                       ) return Yes   ;
-		if ( (*this)->err()                                                                  ) return Maybe ; // if job is in error, we do not trust actual star targets
-		if ( t->has_actual_job_tgt(*this)                                                    ) return Yes   ; // fast path
+	inline bool JobTgt::produces( Node t , bool sure ) const {
+		if ( (*this)->run_status==RunStatus::NoDep || (*this)->run_status==RunStatus::NoFile ) return false ;
+		if ( is_sure()                                                                       ) return true  ;
+		if ( (*this)->err()                                                                  ) return !sure ; // jobs in error are deemed to produce all their potential targets
+		if ( t->has_actual_job_tgt(*this)                                                    ) return true  ; // fast path
 		//
-		return No | ::binary_search( (*this)->star_targets , t ) ;
+		return ::binary_search( (*this)->star_targets , t ) ;
 	}
 
 	//

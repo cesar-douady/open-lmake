@@ -240,18 +240,23 @@ Done :
 
 bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
-	::umap<Fd,Req                      > req_tab ;                             // indexed by out_fd
-	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab  ;
-	 for (;;) {
+	::umap<Fd,Req                      > req_tab         ;                     // indexed by out_fd
+	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab          ;
+	ProcessDate                          next_stats_date = ProcessDate::s_now() ;
+	for (;;) {
 		bool empty = !g_engine_queue ;
 		if (empty) {                                                           // we are about to block, do some book-keeping
 			trace("wait") ;
 			//vvvvvvvvvvvvvvvvv
 			Backend::s_launch() ;                                              // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
 			//^^^^^^^^^^^^^^^^^
-			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
-			if ( _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
 		}
+		ProcessDate now ;
+		if ( empty || (now=ProcessDate::s_now())>next_stats_date ) {
+			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
+			next_stats_date = now+Delay(1.) ;
+		}
+		if (empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
 		EngineClosure closure = g_engine_queue.pop() ;
 		if (empty) DiskDate::s_refresh_now() ;                                 // we may have waited, refresh now
 		switch (closure.kind) {
@@ -328,14 +333,15 @@ bool/*interrupted*/ engine_loop() {
 				JobExec           & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt) ; break ;
-					case JobProc::ReportStart : je.report_start (                                    ) ; break ;
-					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ; break ;
-					case JobProc::Continue    : je.premature_end(job.req                             ) ; break ;
-					case JobProc::NotStarted  : je.not_started  (                                    ) ; break ;
-					case JobProc::End         : je.end          (job.rsrcs,job.digest                ) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt       ) ; break ;
+					case JobProc::ReportStart : je.report_start (                                           ) ; break ;
+					case JobProc::LiveOut     : je.live_out     (job.txt                                    ) ; break ;
+					case JobProc::Continue    : je.premature_end(job.req                                    ) ; break ;
+					case JobProc::NotStarted  : je.not_started  (                                           ) ; break ;
+					case JobProc::EarlyEnd    :
+					case JobProc::End         : je.end          (job.rsrcs,job.digest,job.proc==JobProc::End) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;

@@ -59,15 +59,15 @@ namespace Engine {
 		Bool3 manual_ok_refresh( Req r                       )       { return manual_ok_refresh(r,FileInfoDate(name())) ; }
 		Bool3 manual_ok_refresh( Job j                       )       { return manual_ok_refresh(j,FileInfoDate(name())) ; }
 		//
-		bool           has_req   (Req           ) const ;
-		ReqInfo const& c_req_info(Req           ) const ;
-		ReqInfo      & req_info  (Req           ) const ;
-		ReqInfo      & req_info  (ReqInfo const&) const ;                      // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs      (              ) const ;
-		bool           waiting   (              ) const ;
-		bool           err       (ReqInfo const&) const ;
-		bool           done      (ReqInfo const&) const ;
-		bool           done      (Req           ) const ;
+		bool           has_req   ( Req                                   ) const ;
+		ReqInfo const& c_req_info( Req                                   ) const ;
+		ReqInfo      & req_info  ( Req                                   ) const ;
+		ReqInfo      & req_info  ( ReqInfo const&                        ) const ; // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs      (                                       ) const ;
+		bool           waiting   (                                       ) const ;
+		bool           err       ( ReqInfo const& , bool uphill_ok=false ) const ;
+		bool           done      ( ReqInfo const&                        ) const ;
+		bool           done      ( Req                                   ) const ;
 		// services
 		::vector<RuleTgt> raw_rule_tgts() const ;
 		void              mk_old       () ;
@@ -89,7 +89,7 @@ namespace Engine {
 		//
 		void audit_multi( Req , ::vector<JobTgt> const& ) ;
 		//
-		bool/*ok*/ forget() ;
+		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
 		void add_watcher( ReqInfo& ri , Job watcher , Job::ReqInfo& wri , CoarseDelay pressure ) ;
 	private :
@@ -247,19 +247,18 @@ namespace Engine {
 			/**/                          return !uphill ;
 		}
 		JobTgt conform_job_tgt() const {
-			SWEAR(makable()) ;
+			SWEAR(makable(true/*uphill_ok*/)) ;                                // we are not going to pass an argument just for a SWEAR, uphill_ok is conservative
 			return job_tgts[conform_idx] ;
 		}
 		bool conform() const {
-			SWEAR(makable()) ;
 			JobTgt cjt = conform_job_tgt() ;
 			return cjt->is_special() || has_actual_job_tgt(cjt) ;
 		}
-		bool err() const {
-			if (multi     ) return true                     ;
-			if (!makable()) return false                    ;
-			if (!conform()) return true                     ;
-			else            return conform_job_tgt()->err() ;
+		bool err(bool uphill_ok=false) const {
+			if (multi              ) return true                     ;
+			if (!makable(uphill_ok)) return false                    ;
+			if (!conform()         ) return true                     ;
+			else                     return conform_job_tgt()->err() ;
 		}
 		bool is_special() const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
@@ -331,9 +330,9 @@ namespace Engine {
 		if (!Disk::is_lcl(n)) Unode(*this)->external = true ;
 	}
 
-	inline bool Node::err (ReqInfo const& cri) const { return cri.err!=No || (*this)->err() ;      }
-	inline bool Node::done(ReqInfo const& cri) const { return cri.done || (*this)->buildable==No ; }
-	inline bool Node::done(Req            r  ) const { return done(c_req_info(r)) ;                }
+	inline bool Node::err ( ReqInfo const& cri , bool uphill_ok ) const { return cri.err!=No || (*this)->err(uphill_ok) ; }
+	inline bool Node::done( ReqInfo const& cri                  ) const { return cri.done || (*this)->buildable==No     ; }
+	inline bool Node::done( Req            r                    ) const { return done(c_req_info(r))                    ; }
 
 	inline ::vector_view_c<JobTgt> Node::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
 	inline ::vector_view_c<JobTgt> Node::conform_job_tgts() const {

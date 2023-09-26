@@ -122,6 +122,7 @@ unit_tests/cargo.py
 unit_tests/chain.py
 unit_tests/conflict.py
 unit_tests/critical.py
+unit_tests/cycle.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
 unit_tests/dynamic.py
@@ -165,4 +166,5 @@ unit_tests/test16.script
 unit_tests/test17.script
 unit_tests/test18.script
 unit_tests/test19.script
+unit_tests/uphill.py
 unit_tests/wide.py

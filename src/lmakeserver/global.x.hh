@@ -181,10 +181,13 @@ namespace Engine {
 namespace Engine {
 
 	struct EngineClosure {
+		friend ::ostream& operator<<( ::ostream& , EngineClosure const& ) ;
+		//
 		using Kind = EngineClosureKind ;
 		using Req_ = Engine::Req       ;
 		using Job_ = Engine::Job       ;
 		using Date = ProcessDate       ;
+		//
 		using GP = GlobalProc     ;
 		using RP = ReqProc        ;
 		using JP = JobProc        ;
@@ -193,7 +196,6 @@ namespace Engine {
 		using K  = Kind           ;
 		using RO = ReqOptions     ;
 		using VN = ::vector<Node> ;
-		friend ::ostream& operator<<( ::ostream& , EngineClosure const& ) ;
 		//
 		struct Req {
 			friend ::ostream& operator<<( ::ostream& , Req const& ) ;
@@ -219,13 +221,13 @@ namespace Engine {
 			friend ::ostream& operator<<( ::ostream& , Job const& ) ;
 			JP        proc          = JP::None ;
 			JE        exec          = {}       ;
-			bool      report        = false    ;            // if proc==Start
-			VN        report_unlink = {}       ;            // if proc==Start
-			::string  txt           = {}       ;            // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
-			Req_      req           = {}       ;            // if proc==Continue
+			bool      report        = false    ;           // if proc==Start
+			VN        report_unlink = {}       ;           // if proc==Start
+			::string  txt           = {}       ;           // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
+			Req_      req           = {}       ;           // if proc==Continue
 			::vmap_ss rsrcs         = {}       ;
-			JD        digest        = {}       ;            // if proc==End
-			Fd        reply_fd      = {}       ;            // if proc==ChkDeps
+			JD        digest        = {}       ;           // if proc==End
+			Fd        reply_fd      = {}       ;           // if proc==ChkDeps
 		} ;
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
@@ -241,7 +243,7 @@ namespace Engine {
 		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
 		//
 		EngineClosure( JP p , JE&& je , Status s                ) : kind{K::Job} , job{.proc=p,.exec=::move(je),                 .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
-		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.rsrcs=::move(r),.digest=::move(jd)  } { SWEAR( p==JP::End                       ) ; }
+		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.rsrcs=::move(r),.digest=::move(jd)  } { SWEAR( p==JP::End || p==JP::EarlyEnd    ) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.deps{::move(dds)}},.reply_fd=rfd} {
 			SWEAR( p==JP::DepInfos || p==JP::ChkDeps ) ;

@@ -167,7 +167,7 @@ namespace Engine {
 		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
 		if ( dir!=node && dir->makable() ) {
 			/**/                                            (*this)->audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
-			if (dir->conform_job_tgt().produces(dir)==Yes ) (*this)->audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
+			if (dir->conform_job_tgt().produces(dir,true) ) (*this)->audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
 			else                                            (*this)->audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
 			return ;
 		}
@@ -178,11 +178,11 @@ namespace Engine {
 			if (rt->is_anti()) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match) ;
 			if ( JobTgt jt{rt,name} ; +jt ) {                                                                               // do not pass *this as req to avoid generating error message at cxtor time
-				swear_prod(jt.produces(node)==No,"no rule for ",node.name()," but ",jt->rule->user_name()," produces it") ;
+				swear_prod(!jt.produces(node),"no rule for ",node.name()," but ",jt->rule->user_name()," may produce it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
-			try                     { rt->create_match_attrs.eval(match) ; }
-			catch (::string const&) { continue ;                           }   // do not consider rule if deps cannot be computed
+			try                     { rt->deps_attrs.eval(match) ; }
+			catch (::string const&) { continue ;                   }           // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -196,7 +196,7 @@ namespace Engine {
 			Node                        missing_dep ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
-			try                                            { static_deps = rt->create_match_attrs.eval(m)             ;               }
+			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
 				// first search a non-buildable, if not found, deps have been made and we search for non makable

@@ -54,7 +54,7 @@ namespace Backends {
 				conn.seq_id = (*Engine::g_seq_id)++ ;
 			}
 			Status lost() {
-				if (submit_attrs.n_retries==0) return Status::EarlyErr ;
+				if (submit_attrs.n_retries==0) return Status::Err ;
 				submit_attrs.n_retries-- ;
 				return Status::Lost ;
 			}

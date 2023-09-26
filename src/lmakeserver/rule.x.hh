@@ -121,7 +121,7 @@ namespace Engine {
 	} ;
 
 	// used at match time
-	struct CreateMatchAttrs {
+	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
 		struct DepSpec {
 			::string pattern ;
@@ -381,14 +381,14 @@ namespace Engine {
 		PyObject* code = nullptr ;     // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
-	struct DynamicCreateMatchAttrs : Dynamic<CreateMatchAttrs> {
-		using Base = Dynamic<CreateMatchAttrs> ;
+	struct DynamicDepsAttrs : Dynamic<DepsAttrs> {
+		using Base = Dynamic<DepsAttrs> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicCreateMatchAttrs           (DynamicCreateMatchAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
-		DynamicCreateMatchAttrs           (DynamicCreateMatchAttrs     && src) : Base           {::move(src)} {}                 // .
-		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
-		DynamicCreateMatchAttrs& operator=(DynamicCreateMatchAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
+		DynamicDepsAttrs           (DynamicDepsAttrs const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
+		DynamicDepsAttrs           (DynamicDepsAttrs     && src) : Base           {::move(src)} {}                 // .
+		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
+		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
 		::vmap_s<pair_s<AccDflags>> eval( Rule::SimpleMatch const& ) const ;
 	} ;
@@ -496,7 +496,7 @@ namespace Engine {
 		VarIdx               stdin_idx  = NoVar         ;                      // index of dep used as stdin
 		bool                 allow_ext   = false        ;                      // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicCreateMatchAttrs   create_match_attrs ;                         // in match crc, evaluated at job creation time
+		DynamicDepsAttrs          deps_attrs         ;                         // in match crc, evaluated at job creation time
 		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
 		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
 		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs crc, evaluated at submit time
@@ -540,9 +540,9 @@ namespace Engine {
 		bool operator+ (                  ) const { return +rule ; }
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
-		::vector_s                  const& targets() const { if (!_has_targets) { _compute_targets()                           ; _has_targets = true ; } return _targets ; }
-		::vmap_s<pair_s<AccDflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->create_match_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
-		::vector_view_c_s           static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                                 }
+		::vector_s                  const& targets() const { if (!_has_targets) { _compute_targets()                   ; _has_targets = true ; } return _targets ; }
+		::vmap_s<pair_s<AccDflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->deps_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
+		::vector_view_c_s           static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
 	protected :
 		void _compute_targets() const ;
 		// services
@@ -884,7 +884,7 @@ namespace Engine {
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		if (special==Special::Plain) {
-			::serdes(s,create_match_attrs) ;
+			::serdes(s,deps_attrs        ) ;
 			::serdes(s,create_none_attrs ) ;
 			::serdes(s,cache_none_attrs  ) ;
 			::serdes(s,submit_rsrcs_attrs) ;

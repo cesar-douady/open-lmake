@@ -18,7 +18,6 @@ sys.reading_makefiles        = True                                            #
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict
-f_str = serialize.f_str
 
 sys.path = [lmake_s_dir+'/lib','.',*save_path]
 import Lmakefile
@@ -68,9 +67,10 @@ StdExecAttrs = {
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
-SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      # include {{ and }} to exclude them being recognized as stem, as in '{{foo}}'
-SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
-SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                           # this means string has no variable parts
+DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
+SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                     # include {{ and }} to exclude them being recognized as stem, as in '{{foo}}'
+SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                          # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
+SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                          # this means string has no variable parts
 
 def update_dct(acc,new) :
 	for k,v in new.items() :
@@ -106,16 +106,6 @@ def qualify_key(kind,key,seen) :
 	if key in Keywords         : raise TypeError(f'{kind} key {key} is a reserved keyword'      )
 	if key in seen             : raise TypeError(f'{kind} key {key} already seen as {seen[key]}')
 	seen[key] = kind
-
-def mk_snake(txt) :
-	res = []
-	start_of_word = True ;
-	for c in txt :
-		if   not c.isupper() : res.append(    c        )
-		elif start_of_word   : res.append(    c.lower())
-		else                 : res.append('_'+c.lower())
-		start_of_word = not c.isalnum()
-	return ''.join(res)
 
 def no_match(target) :
 	return '-match' in target[1:]
@@ -248,40 +238,65 @@ class Handle :
 		try    : self.local_root = lmake.search_sub_root_dir(module.__file__)
 		except : self.local_root = ''                                          # rules defined outside repo (typically standard base rules) are deemed to apply to the whole base
 
-	def _handle_dict(self,key,rep_key=None) :
-		if not rep_key               : rep_key = key
-		if rep_key not in self.attrs : return
-		dct = self.attrs[rep_key]
-		if callable(dct) :
-			self.dynamic_val[key] = dct
-			return
-		sv = {}
-		dv = {}
-		for k,v in dct.items() :
-			if   callable(v)           : dv[k] = v
-			elif not isinstance(v,str) : sv[k] = v
-			elif SimpleStrRe.match(v)  : sv[k] = static_fstring(v)             # v has no variable parts, make it a static value
-			else                       : dv[k] = f_str(v)                      # mark v so it is generated as an f-string
-		for k in dv.keys() : sv[k] = None                                      # ensure key is in static val so that it is seen from cmd
-		if sv : self.static_val [key] = sv
-		if dv : self.dynamic_val[key] = dv
-
-	def _handle_val(self,key,rep_key=None) :
-		if not rep_key               : rep_key = key
-		if rep_key not in self.attrs : return
-		val = self.attrs[rep_key]
-		if callable(val) :
-			self.dynamic_val[key] = val
-		else :
-			if isinstance(val,str) :
-				if SimpleStrRe.match(val) : self.static_val [key] = static_fstring(val) # val has no variable parts, make it a static value
-				else                      : self.dynamic_val[key] = f_str         (val) # mark val so it is generated as an f-string
-			else :
-				self.static_val [key] = val
-
 	def _init(self) :
 		self.static_val  = pdict()
 		self.dynamic_val = pdict()
+
+	def _is_simple_fstr(self,fstr) :
+		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
+
+	def _fstring(self,x,mk_fstring=True,for_deps=False) :
+		if callable(x) : return True,x
+		if isinstance(x,(tuple,list,set)) :
+			res_id  = False
+			res_val = []
+			first = True
+			for c in x :
+				id,v = self._fstring(c,mk_fstring,first and for_deps) # only transmit for_deps to first item of dep when it is a tuple
+				first   = False
+				res_id |= id
+				res_val.append(v)
+			return res_id,tuple(res_val)
+		if isinstance(x,dict) :
+			res_id  = False
+			res_dct = {}
+			for key,val in x.items() :
+				id_k,k = self._fstring(key,False     )
+				id_v,v = self._fstring(val,mk_fstring)
+				res_id |= id_k or id_v
+				res_dct[k] = v
+			return res_id,res_dct
+		if not mk_fstring  or not isinstance(x,str) :
+			return False,x
+		if for_deps :
+			if self._is_simple_fstr(x) :
+				return False,x
+		else :
+			if SimpleStrRe.match(x)  :
+				return False,static_fstring(x)                                 # v has no variable parts, can be interpreted statically as an f-string
+		return True ,serialize.f_str(x)                                        # x is made an f-string
+
+	def _handle_val(self,key,rep_key=None,for_deps=False) :
+		if not rep_key               : rep_key = key
+		if rep_key not in self.attrs : return
+		val = self.attrs[rep_key]
+		if rep_key in DictAttrs :
+			if callable(val) :
+				self.dynamic_val[key] = val
+				return
+			sv = {}
+			dv = {}
+			for k,v in val.items() :
+				id_k,k = self._fstring(k,False                  )
+				id_v,v = self._fstring(v      ,for_deps=for_deps)
+				if   id_k or id_v : dv[k],sv[k] = self._fstring(v)[1],None     # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
+				else              : sv[k]       = v
+			if sv : self.static_val [key] = sv
+			if dv : self.dynamic_val[key] = dv
+		else :
+			id,v = self._fstring(val)
+			if id : self.dynamic_val[key] = v
+			else  : self.static_val [key] = v
 
 	def _finalize(self) :
 		static_val  = self.static_val
@@ -292,18 +307,25 @@ class Handle :
 		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
 		return ( static_val , tuple(names) , ctx , code )
 
+	def _fmt_deps_targets(self,key,entry) :
+		if callable(entry)       : return entry
+		if isinstance(entry,str) :
+			entry = (entry,())
+		else :
+			def chk_strs(x) :
+				if callable(x) or isinstance(x,str) : return
+				if isinstance(x,(tuple,list))       : any(chk_strs(c) for c in x)
+				else                                : raise TypeError(f'seen non str component {x}')
+			if not entry : raise TypeError(f'cannot find target {key} in empty entry')
+			chk_strs(entry)
+			if len(entry)!=2 or not isinstance(entry[1],(tuple,list)) : entry = (entry[0],entry[1:])
+		return entry
+
 	def handle_cwd(self) :
 		if 'cwd'   in self.attrs : self.rule_rep.cwd = self.attrs.cwd
 		else                     : self.rule_rep.cwd = self.local_root
 
 	def handle_targets(self) :
-		def fmt(key,entry) :
-			if       isinstance(entry   ,str         ) : flags = ()
-			elif not isinstance(entry   ,(tuple,list)) : raise TypeError(f'bad format for target {key} of type {entry.__class__.__name__}'   )
-			elif not entry                             : raise TypeError(f'cannot find target {key} in empty entry'                          )
-			elif not isinstance(entry[0],str         ) : raise TypeError(f'bad format for target {key} of type {entry[0].__class__.__name__}')
-			else                                       : entry,flags = entry[0],tuple(mk_snake(f) for f in entry[1:] if f)
-			return (entry,*flags)
 		if   'target'      in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
 		if   'target'      in self.attrs                                 : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
 		elif 'post_target' in self.attrs                                 : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
@@ -311,8 +333,8 @@ class Handle :
 		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
 		#
 		self.rule_rep.targets = {
-			**{ k:fmt(k,t) for k,t in               self.attrs.targets     .items()   }
-		,	**{ k:fmt(k,t) for k,t in reversed(list(self.attrs.post_targets.items())) }
+			**{ k:self._fmt_deps_targets(k,t) for k,t in               self.attrs.targets     .items()   }
+		,	**{ k:self._fmt_deps_targets(k,t) for k,t in reversed(list(self.attrs.post_targets.items())) }
 		}
 
 	def handle_job_name(self) :
@@ -350,39 +372,24 @@ class Handle :
 		self._handle_val('key','cache')
 		self.rule_rep.cache_none_attrs = self._finalize()
 
-	def _is_simple_fstr(self,fstr) :
-		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
-
-	def handle_create_match(self) :
+	def handle_deps(self) :
 		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
 		self._init()
-		if callable(self.attrs.deps) :
-			self.static_val  = None                                            # for deps, a None static value means all keys are allowed
-			self.dynamic_val = self.attrs.deps
-		else :
-			for k,d in self.attrs.deps.items() :
-				self.static_val[k] = None                                      # in all cases, we need a static entry, even for dynamic values, so we have an idx at compilations time
-				if isinstance(d,str) : d = (d,)
-				if callable(d) :
-					self.dynamic_val[k] = d
-				elif not any(callable(x) for x in d) and self._is_simple_fstr(d[0]) :
-					self.static_val[k] = d
-				else :
-					l = []
-					for x in d :
-						if   callable  (x    ) : l.append(      x )
-						elif isinstance(x,str) : l.append(f_str(x))
-						else                   : raise TypeError(f'dep {k} contains {x} which is not a str nor callable')
-					self.dynamic_val[k] = l
-		self.rule_rep.create_match_attrs = self._finalize()
+		self._handle_val('deps',for_deps=True)
+		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
+		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
+		if callable(self.dynamic_val) :
+			assert not self.static_val                                         # there must be no static val when deps are full dynamic
+			self.static_val  = None                                            # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
-		if self.rule_rep.create_match_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
+		if self.rule_rep.deps_attrs[0] : self.per_job.update({ k for k in self.attrs.deps.keys() if k.isidentifier() }) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()
-		self._handle_val ('backend'            )
-		self._handle_dict('rsrcs'  ,'resources')
+		self._handle_val('backend'            )
+		self._handle_val('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
 		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs',{})
@@ -395,29 +402,29 @@ class Handle :
 
 	def handle_start_cmd(self) :
 		self._init()
-		self._handle_val ('auto_mkdir'                )
-		self._handle_val ('ignore_stat'               )
-		self._handle_val ('autodep'                   )
-		self._handle_val ('chroot'                    )
-		self._handle_val ('interpreter'               )
-		self._handle_val ('local_mrkr' ,'local_marker')
-		self._handle_dict('env'        ,'environ_cmd' )
+		self._handle_val('auto_mkdir'                )
+		self._handle_val('ignore_stat'               )
+		self._handle_val('autodep'                   )
+		self._handle_val('chroot'                    )
+		self._handle_val('interpreter'               )
+		self._handle_val('local_mrkr' ,'local_marker')
+		self._handle_val('env'        ,'environ_cmd' )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :
 		self._init()
-		self._handle_dict('env'    ,'environ_resources')
-		self._handle_val ('timeout'                    )
+		self._handle_val('env'    ,'environ_resources')
+		self._handle_val('timeout'                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
 	def handle_start_none(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
-		self._handle_val ('keep_tmp'                       )
-		self._handle_val ('start_delay'                    )
-		self._handle_val ('kill_sigs'                      )
-		self._handle_val ('n_retries'                      )
-		self._handle_dict('env'        ,'environ_ancillary')
+		self._handle_val('keep_tmp'                       )
+		self._handle_val('start_delay'                    )
+		self._handle_val('kill_sigs'                      )
+		self._handle_val('n_retries'                      )
+		self._handle_val('env'        ,'environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
 
 	def handle_end_cmd(self) :
@@ -467,13 +474,10 @@ class Handle :
 			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , tuple(cmd_ctx) )
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
-			if self._is_simple_fstr(cmd) :
-				self.rule_rep.cmd = ( {'cmd':cmd,'is_python':False} ,)
-			else :
-				self._init()
-				self._handle_val('cmd')
-				self.rule_rep.cmd = self._finalize()
-				assert len(self.rule_rep.cmd)==4,'cmd should be dynamic here'
+			self._init()
+			self._handle_val('cmd',for_deps=True)
+			self.rule_rep.cmd                 = self._finalize()
+			self.rule_rep.cmd[0]['is_python'] = False
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class
@@ -499,7 +503,7 @@ def fmt_rule(rule) :
 	#
 	h.handle_create_none ()
 	h.handle_cache_none  ()
-	h.handle_create_match()
+	h.handle_deps        ()
 	h.handle_submit_rsrcs()
 	h.handle_submit_none ()
 	h.handle_start_cmd   ()

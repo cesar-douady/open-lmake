@@ -62,7 +62,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
-	,	{ ReqFlag::VerboseBackend  , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
+	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;

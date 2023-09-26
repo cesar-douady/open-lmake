@@ -291,10 +291,10 @@ namespace Engine {
 	}
 
 	//
-	// CreateMatchAttrs
+	// DepsAttrs
 	//
 
-	BitMap<VarCmd> CreateMatchAttrs::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+	BitMap<VarCmd> DepsAttrs::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		full_dynamic = py_src==Py_None ;
 		if (full_dynamic) return {} ;
 		//
@@ -325,7 +325,7 @@ namespace Engine {
 		return need ;
 	}
 
-	::vmap_s<pair_s<AccDflags>> DynamicCreateMatchAttrs::eval( Rule::SimpleMatch const& match ) const {
+	::vmap_s<pair_s<AccDflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
 		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
 		//
 		Accesses a = match.rule->cmd_needs_deps ? Accesses::All : Accesses::None ;
@@ -745,10 +745,10 @@ namespace Engine {
 
 			/**/                                       var_idxs["targets"       ] = {VarCmd::Targets,0} ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {VarCmd::Target ,t} ;
-			if (dct.hasKey("create_match_attrs")) create_match_attrs = { Py::Object(dct["create_match_attrs"]).ptr() , var_idxs , *this } ;
+			if (dct.hasKey("deps_attrs")) deps_attrs = { Py::Object(dct["deps_attrs"]).ptr() , var_idxs , *this } ;
 			//
-			/**/                                                            var_idxs["deps"                               ] = { VarCmd::Deps , 0 } ;
-			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) var_idxs[create_match_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
+			/**/                                                    var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
+			for( VarIdx d=0 ; d<deps_attrs.spec.deps.size() ; d++ ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
 			field = "create_none_attrs"  ; if (dct.hasKey(field)) create_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
 			field = "cache_none_attrs"   ; if (dct.hasKey(field)) cache_none_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
@@ -784,8 +784,8 @@ namespace Engine {
 				stdout_idx = t ;
 				break ;
 			}
-			for( VarIdx d=0 ; d<create_match_attrs.spec.deps.size() ; d++ ) {
-				if (create_match_attrs.spec.deps[d].first!="<stdin>") continue ;
+			for( VarIdx d=0 ; d<deps_attrs.spec.deps.size() ; d++ ) {
+				if (deps_attrs.spec.deps[d].first!="<stdin>") continue ;
 				stdin_idx = d ;
 				break ;
 			}
@@ -828,7 +828,7 @@ namespace Engine {
 				Py::boost(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
 			}
 			_set_crcs() ;
-			create_match_attrs.compile() ;
+			deps_attrs        .compile() ;
 			create_none_attrs .compile() ;
 			cache_none_attrs  .compile() ;
 			submit_rsrcs_attrs.compile() ;
@@ -865,7 +865,7 @@ namespace Engine {
 						switch (k) {
 							case VarCmd::Stem   : res += rd.stems                        [i].first ; break ;
 							case VarCmd::Target : res += rd.targets                      [i].first ; break ;
-							case VarCmd::Dep    : res += rd.create_match_attrs.spec.deps [i].first ; break ;
+							case VarCmd::Dep    : res += rd.deps_attrs.spec.deps         [i].first ; break ;
 							case VarCmd::Rsrc   : res += rd.submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
 							default : FAIL(k) ;
 						}
@@ -951,7 +951,7 @@ namespace Engine {
 		return rd.job_name ;
 	}
 
-	static ::string _pretty( size_t i , CreateMatchAttrs const& ms , RuleData const& rd ) {
+	static ::string _pretty( size_t i , DepsAttrs const& ms , RuleData const& rd ) {
 		OStringStream res      ;
 		size_t        wk       = 0 ;
 		size_t        wd       = 0 ;
@@ -1080,10 +1080,10 @@ namespace Engine {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		//
-		res << name ;
+		res << name << " :" ;
 		switch (special) {
-			case Special::Anti       : res <<" : AntiRule"   ; break ;
-			case Special::GenericSrc : res <<" : SourceRule" ; break ;
+			case Special::Anti       : res <<" AntiRule"   ; break ;
+			case Special::GenericSrc : res <<" SourceRule" ; break ;
 			default : ;
 		}
 		res << '\n' ;
@@ -1098,7 +1098,7 @@ namespace Engine {
 		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;
 		/**/                res << indent("targets :\n",1) << _pretty_targets(*this,2,targets) ;
 		if (!is_special()) {
-			res << _pretty_str(1,create_match_attrs,*this) ;
+			res << _pretty_str(1,deps_attrs        ,*this) ;
 			res << _pretty_str(1,create_none_attrs       ) ;
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
@@ -1119,7 +1119,7 @@ namespace Engine {
 		for( auto [k,i] : ctx ) switch (k) {
 			case VarCmd::Stem    : res.push_back(stems                        [i].first) ; break ;
 			case VarCmd::Target  : res.push_back(targets                      [i].first) ; break ;
-			case VarCmd::Dep     : res.push_back(create_match_attrs.spec.deps [i].first) ; break ;
+			case VarCmd::Dep     : res.push_back(deps_attrs.spec.deps         [i].first) ; break ;
 			case VarCmd::Rsrc    : res.push_back(submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
 			case VarCmd::Stems   : res.push_back("stems"                               ) ; break ;
 			case VarCmd::Targets : res.push_back("targets"                             ) ; break ;
@@ -1146,25 +1146,25 @@ namespace Engine {
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
 			Hash::Xxh h ;
-			/**/       h.update(special           ) ;
-			/**/       h.update(stems             ) ;
-			/**/       h.update(cwd_s             ) ;
-			if (!anti) h.update(job_name          ) ;                          // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
-			/**/       h.update(targets_          ) ;
-			/**/       h.update(allow_ext         ) ;
-			if (!anti) h.update(create_match_attrs) ;
+			/**/       h.update(special   ) ;
+			/**/       h.update(stems     ) ;
+			/**/       h.update(cwd_s     ) ;
+			if (!anti) h.update(job_name  ) ;                                  // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
+			/**/       h.update(targets_  ) ;
+			/**/       h.update(allow_ext ) ;
+			if (!anti) h.update(deps_attrs) ;
 			match_crc = h.digest() ;
 		}
 		if (anti) return ;                                                     // anti-rules are only capable of matching
 		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
-			h.update(stems             ) ;
-			h.update(job_name          ) ;
-			h.update(targets           ) ;
-			h.update(force             ) ;
-			h.update(create_match_attrs) ;
-			h.update(start_cmd_attrs   ) ;
-			h.update(cmd               ) ;
-			h.update(end_cmd_attrs     ) ;
+			h.update(stems          ) ;
+			h.update(job_name       ) ;
+			h.update(targets        ) ;
+			h.update(force          ) ;
+			h.update(deps_attrs     ) ;
+			h.update(start_cmd_attrs) ;
+			h.update(cmd            ) ;
+			h.update(end_cmd_attrs  ) ;
 			cmd_crc = h.digest() ;
 		}
 		{	Hash::Xxh h ;

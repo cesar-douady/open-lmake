@@ -15,6 +15,9 @@ int main( int argc , char* argv[] ) {
 		{ ReqKey::None      , { .short_name=0   , .doc="rerun files provided in arguments"                   } }
 	,	{ ReqKey::Error     , { .short_name='e' , .doc="rerun jobs in error, even if up to date"             } }
 	,	{ ReqKey::Resources , { .short_name='r' , .doc="rerun jobs with new resources, even if not in error" } }
+	},{
+		{ ReqFlag::Deps    , { .short_name='d' , .has_arg=false , .doc="forget about deps"    } }
+	,	{ ReqFlag::Targets , { .short_name='t' , .has_arg=false , .doc="forget about targets" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//

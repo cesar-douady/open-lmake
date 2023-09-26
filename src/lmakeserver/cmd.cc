@@ -21,7 +21,7 @@ namespace Engine {
 		bool ok = true ;
 		switch (ro.key) {
 			case ReqKey::None :
-				for( Node t : targets ) ok &= t.forget() ;
+				for( Node t : targets ) ok &= t.forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 			break ;
 			case ReqKey::Error :
 				g_store.invalidate_exec(true/*cmd_ok*/) ;
@@ -170,7 +170,7 @@ namespace Engine {
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;
-		for( auto const& [k,d] : rule->create_match_attrs.eval(job.simple_match()) ) {
+		for( auto const& [k,d] : rule->deps_attrs.eval(job.simple_match()) ) {
 			w                = ::max( w , k.size() ) ;
 			rev_map[d.first] = k                     ;
 		}
@@ -398,14 +398,14 @@ namespace Engine {
 				} break ;
 				case ReqKey::AllDeps :
 				case ReqKey::Deps    : {
-					bool     always      = ro.key==ReqKey::AllDeps ;
-					::string uphill_name = dir_name(target.name()) ;
-					double   prio        = -Infinity               ;
+					bool     always      = ro.flags[ReqFlag::Verbose] ;
+					::string uphill_name = dir_name(target.name())    ;
+					double   prio        = -Infinity                  ;
 					if (!uphill_name.empty()) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts ) {
 						if (job_tgt->rule->prio<prio) break ;
 						if (job_tgt==jt ) { prio = rule->prio ; continue ; }   // actual job is output last as this is what user views first
-						bool hide = job_tgt.produces(target)==No ;
+						bool hide = !job_tgt.produces(target) ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;
 					}
@@ -434,7 +434,7 @@ namespace Engine {
 							flags_str += stfs[Tflag::Star] ? '*'                : '-'                ;
 							flags_str += ' ' ;
 							for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-' ;
-							_send_node( fd , ro , true/*always*/ , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
+							_send_node( fd , ro , ro.flags[ReqFlag::Verbose] , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 						}
 					}
 				break ;

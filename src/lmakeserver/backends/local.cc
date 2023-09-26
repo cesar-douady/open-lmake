@@ -43,7 +43,7 @@ namespace Backends::Local {
 		RsrcsData2(                                        ) = default ;
 		RsrcsData2( LocalBackend const& , ::vmap_ss const& ) ;
 		// services
-		bool fit_in(RsrcsData const& avail) const {                        // true if all resources fit within avail
+		bool fit_in(RsrcsData const& avail) const {                            // true if all resources fit within avail
 			SWEAR(size()==avail.size()) ;
 			for( size_t i=0 ; i<size() ; i++ ) if ((*this)[i].min>avail[i]) return false ;
 			return true ;

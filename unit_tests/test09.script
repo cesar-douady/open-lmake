@@ -16,7 +16,9 @@ ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hid
 
 ut_launch -dangling 0 -done 0 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
 
-lshow -a src3.hide
-lforget src3.hide
-lshow -a src3.hide
+echo forget
+lshow   -dv src3.hide
+lforget -d  src3.hide
+lshow   -dv src3.hide
+echo forgotten
 ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hide

@@ -41,35 +41,33 @@ namespace Engine {
 		Rule           rule      = (*this)->rule ;
 		::vector<Node> to_report ;
 		::vector_s     to_wash   ;
+		Trace trace("targets_to_wash",*this) ;
 		// handle static targets
 		::vector_view_c_s sts = match.static_targets() ;
 		for( VarIdx ti=0 ; ti<sts.size() ; ti++ ) {
-			Node target{sts[ti]} ;
-			if (target->crc==Crc::None) continue ;                             // no interest to wash file if it does not exist
-			Tflags tf = rule->tflags(ti) ;
-			if (tf[Tflag::Incremental]) continue ;                             // keep file for incremental targets
+			Node   t  { sts[ti] }        ; if (t->crc==Crc::None     ) { trace("static_no_file"    ,t) ; continue ; } // no interest to wash file if it does not exist
+			Tflags tf = rule->tflags(ti) ; if (tf[Tflag::Incremental]) { trace("static_incremental",t) ; continue ; } // keep file for incremental targets
 			//
-			if ( !target->has_actual_job(*this) && target->has_actual_job() && tf[Tflag::Warning] ) to_report.push_back(target ) ;
-			/**/                                                                                    to_wash  .push_back(sts[ti]) ;
+			if ( !t->has_actual_job(*this) && t->has_actual_job() && tf[Tflag::Warning] ) { trace("static_report",t) ; to_report.push_back(t) ; }
+			to_wash.push_back(sts[ti]) ;
 		}
 		// handle star targets
 		Rule::FullMatch fm ;                                                   // lazy evaluated, if we find any target to_report
 		for( Target t : (*this)->star_targets ) {
-			if (t->crc==Crc::None) continue ;                                  // no interest to wash file if it does not exist
-			::string tn ;                                                      // lazy evaluated
-			if (t.lazy_tflag(Tflag::Incremental,match,fm,tn)) continue ;       // may solve fm & tn lazy evalution
+			/**/          if (t->crc==Crc::None                           ) { trace("star_no_file"    ,t) ; continue ; } // no interest to wash file if it does not exist
+			::string tn ; if (t.lazy_tflag(Tflag::Incremental,match,fm,tn)) { trace("star_incremental",t) ; continue ; } // may solve fm & tn lazy evalution
 			//
 			bool has_other_actual_job = !t->has_actual_job(*this) && t->has_actual_job() ;
-			if ( has_other_actual_job && t.lazy_tflag(Tflag::Warning,match,fm,tn) ) to_report.push_back(t) ; // may solve fm & tn lazy evalution
+			if ( has_other_actual_job && t.lazy_tflag(Tflag::Warning,match,fm,tn) ) { trace("star_report",t) ; to_report.push_back(t) ; } // may solve fm & tn lazy evalution
 			//
 			if (tn.empty()) tn = t.name() ;                                    // solve lazy evaluation if not already done
-			to_wash.push_back(t.name()) ;
+			to_wash.push_back(tn) ;
 		}
 		return {to_wash,to_report} ;
 	}
 
 	::vector<Node>/*report*/ Job::wash(Rule::SimpleMatch const& match) const {
-		Trace trace("wash") ;
+		Trace trace("wash",*this) ;
 		::vector<Node> to_report ;
 		::vector_s     to_wash   ;
 		// compute targets to wash
@@ -184,12 +182,12 @@ namespace Engine {
 		if (!match) { trace("no_match") ; return ; }
 		::vmap_s<AccDflags> dep_names ;
 		try {
-			dep_names = mk_val_vector(rule_tgt->create_match_attrs.eval(match)) ;
+			dep_names = mk_val_vector(rule_tgt->deps_attrs.eval(match)) ;
 		} catch (::string const& e) {
 			trace("no_dep_subst") ;
 			if (+req) {
 				req->audit_job(Color::Note,"no_deps",rule_tgt,match.user_name()) ;
-				req->audit_stderr({{rule_tgt->create_match_attrs.s_exc_msg(false/*using_static*/),{}}},e,-1,1) ;
+				req->audit_stderr({{rule_tgt->deps_attrs.s_exc_msg(false/*using_static*/),{}}},e,-1,1) ;
 			}
 			return ;
 		}
@@ -360,7 +358,7 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest ) {
+	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , bool washed ) {
 		Status            status           = digest.status                                      ; // status will be modified, need to make a copy
 		bool              err              = status>=Status::Err                                ;
 		bool              killed           = status<=Status::Killed                             ;
@@ -407,119 +405,123 @@ namespace Engine {
 		//
 		// handle targets
 		//
-		auto report_missing_target = [&](::string const& tn)->void {
-			FileInfo fi{tn} ;
-			analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , +Node(tn) ) ;
-		} ;
-		::uset<Node> seen_static_targets ;
-
-		for( Unode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
-
-		::vector<Target> star_targets ;                                        // typically, there is either no star targets or they are most of them, lazy reserve if one is seen
-		for( auto const& [tn,td] : digest.targets ) {
-			Tflags tflags = td.tflags                                 ;
-			Unode  target { tn }                                      ;
-			bool   unlink = td.crc==Crc::None                         ;
-			Crc    crc    = td.write || unlink ? td.crc : target->crc ;
+		if (!washed) {                                                         // old targets have not been washed, we must keep them as job has not run
+			SWEAR(digest.targets.empty()) ;                                    // cannot create targets before having washed previous one
+		} else {
+			auto report_missing_target = [&](::string const& tn)->void {
+				FileInfo fi{tn} ;
+				analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , +Node(tn) ) ;
+			} ;
+			::uset<Node> seen_static_targets ;
 			//
-			if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
-				err = true ;
-				if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",+target) ;
-				else if (td.write) analysis_err.emplace_back("unexpected write to source" ,+target) ;
+			for( Unode t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt.clear() ; // ensure targets we no more generate do not keep pointing to us
+			//
+			::vector<Target> star_targets ;                                    // typically, there is either no star targets or they are most of them, lazy reserve if one is seen
+			for( auto const& [tn,td] : digest.targets ) {
+				Tflags tflags = td.tflags                                 ;
+				Unode  target { tn }                                      ;
+				bool   unlink = td.crc==Crc::None                         ;
+				Crc    crc    = td.write || unlink ? td.crc : target->crc ;
+				//
+				if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
+					err = true ;
+					if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",+target) ;
+					else if (td.write) analysis_err.emplace_back("unexpected write to source" ,+target) ;
+				}
+				if (
+					td.write                                                   // we actually wrote
+				&&	target->has_actual_job() && !target->has_actual_job(*this) // there is another job
+				&&	target->actual_job_tgt->end_date>start                     // dates overlap, which means both jobs were running concurrently (we are the second to end)
+				) {
+					Job    aj       = target->actual_job_tgt   ;               // common_tflags cannot be tried as target may be unexpected for aj
+					VarIdx aj_idx   = aj.full_match().idx(tn)  ;               // this is expensive, but pretty exceptional
+					Tflags aj_flags = aj->rule->tflags(aj_idx) ;
+					trace("clash",*this,tflags,aj,aj_idx,aj_flags,target) ;
+					// /!\ This may be very annoying !
+					//     Even completed Req's may have been poluted as at the time t->actual_job_tgt completed, it was not aware of the clash.
+					//     Putting target in clash_nodes will generate a frightening message to user asking to relaunch all concurrent commands, even past ones.
+					//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
+					if (tflags  [Tflag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
+					if (aj_flags[Tflag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
+						Rule::SimpleMatch aj_match{aj} ;
+						for( Req r : reqs() ) {
+							ReqInfo& ajri = aj.req_info(r) ;
+							ajri.done_ = ajri.done_ & RunAction::Status ;                             // whether there is clash or not, this job must be rerun if we need the actual files
+							for( Node ajt : aj_match.static_targets() ) if (ajt.done(r)) goto Clash ;
+							for( Node ajt : aj->star_targets          ) if (ajt.done(r)) goto Clash ;
+							continue ;
+						Clash :                                                // one of the targets is done, this is the annoying case
+							trace("critical_clash") ;
+							r->clash_nodes.insert(target) ;
+						}
+					}
+				}
+				if ( !tflags[Tflag::Incremental] && target->read(td.accesses) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
+				if (crc==Crc::None) {
+					// if we have written then unlinked, then there has been a transcient state where the file existed
+					// we must consider this is a real target with full clash detection.
+					// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
+					if ( !RuleData::s_sure(tflags) && !td.write ) {
+						target->unlinked = target->crc!=Crc::None ;            // if target was actually unlinked, note it as it is not considered a target of the job
+						trace("unlink",target,STR(target->unlinked)) ;
+						continue ;                                             // if we are not sure, a target is not generated if it does not exist
+					}
+					if ( !tflags[Tflag::Star] && !tflags[Tflag::Phony] ) {
+						err = true ;
+						report_missing_target(tn) ;
+					}
+				}
+				if ( td.write && !unlink && !tflags[Tflag::Write] ) {
+					err = true ;
+					analysis_err.emplace_back("unexpected write to",+target) ;
+				}
+				//
+				if (tflags[Tflag::Star]) {
+					if (star_targets.empty()) star_targets.reserve(digest.targets.size()) ; // solve lazy reserve
+					star_targets.emplace_back( target , tflags[Tflag::Unexpected] ) ;
+				} else {
+					seen_static_targets.insert(target) ;
+				}
+				//
+				bool         modified = false ;
+				FileInfoDate fid      { tn }  ;
+				if (!td.write) {
+					if ( tflags[Tflag::ManualOk] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
+					else                                                         goto NoRefresh ;
+				}
+				//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				modified = target.refresh( crc , fid.date_or_now() ) ;
+				//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			NoRefresh :
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				target->actual_job_tgt = { *this , RuleData::s_sure(tflags) } ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				any_modified |= modified && tflags[Tflag::Match] ;
+				trace("target",target,td,STR(modified),status) ;
 			}
-			if (
-				td.write                                                       // we actually wrote
-			&&	target->has_actual_job() && !target->has_actual_job(*this)     // there is another job
-			&&	target->actual_job_tgt->end_date>start                         // dates overlap, which means both jobs were running concurrently (we are the second to end)
-			) {
-				Job    aj       = target->actual_job_tgt   ;                   // common_tflags cannot be tried as target may be unexpected for aj
-				VarIdx aj_idx   = aj.full_match().idx(tn)  ;                   // this is expensive, but pretty exceptional
-				Tflags aj_flags = aj->rule->tflags(aj_idx) ;
-				trace("clash",*this,tflags,aj,aj_idx,aj_flags,target) ;
-				// /!\ This may be very annoying !
-				//     Even completed Req's may have been poluted as at the time t->actual_job_tgt completed, it was not aware of the clash.
-				//     Putting target in clash_nodes will generate a frightening message to user asking to relaunch all concurrent commands, even past ones.
-				//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
-				if (tflags  [Tflag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
-				if (aj_flags[Tflag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
-					Rule::SimpleMatch aj_match{aj} ;
-					for( Req r : reqs() ) {
-						ReqInfo& ajri = aj.req_info(r) ;
-						ajri.done_ = ajri.done_ & RunAction::Status ;                             // whether there is clash or not, this job must be rerun if we need the actual files
-						for( Node ajt : aj_match.static_targets() ) if (ajt.done(r)) goto Clash ;
-						for( Node ajt : aj->star_targets          ) if (ajt.done(r)) goto Clash ;
-						continue ;
-					Clash :                                                    // one of the targets is done, this is the annoying case
-						trace("critical_clash") ;
-						r->clash_nodes.insert(target) ;
+			if (seen_static_targets.size()<rule->n_static_targets) {           // some static targets have not been seen
+				Rule::SimpleMatch match          { *this }                ;    // match must stay alive as long as we use static_targets
+				::vector_view_c_s static_targets = match.static_targets() ;
+				for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
+					::string const&  tn = static_targets[t] ;
+					Unode            tu { tn }              ;
+					if (seen_static_targets.contains(tu)) continue ;
+					Tflags tflags = rule->tflags(t) ;
+					tu->actual_job_tgt = { *this , true/*is_sure*/ } ;
+					//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (!tflags[Tflag::Incremental]) tu.refresh( Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
+					//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (!tflags[Tflag::Phony]) {
+						err = true ;
+						if (status==Status::Ok) report_missing_target(tn) ;    // only report if job was ok, else it is quite normal
 					}
 				}
 			}
-			if ( !tflags[Tflag::Incremental] && target->read(td.accesses) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
-			if (crc==Crc::None) {
-				// if we have written then unlinked, then there has been a transcient state where the file existed
-				// we must consider this is a real target with full clash detection.
-				// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
-				if ( !RuleData::s_sure(tflags) && !td.write ) {
-					target->unlinked = target->crc!=Crc::None ;                // if target was actually unlinked, note it as it is not considered a target of the job
-					trace("unlink",target,STR(target->unlinked)) ;
-					continue ;                                                 // if we are not sure, a target is not generated if it does not exist
-				}
-				if ( !tflags[Tflag::Star] && !tflags[Tflag::Phony] ) {
-					err = true ;
-					report_missing_target(tn) ;
-				}
-			}
-			if ( td.write && !unlink && !tflags[Tflag::Write] ) {
-				err = true ;
-				analysis_err.emplace_back("unexpected write to",+target) ;
-			}
-			//
-			if (tflags[Tflag::Star]) {
-				if (star_targets.empty()) star_targets.reserve(digest.targets.size()) ; // solve lazy reserve
-				star_targets.emplace_back( target , tflags[Tflag::Unexpected] ) ;
-			} else {
-				seen_static_targets.insert(target) ;
-			}
-			//
-			bool         modified = false ;
-			FileInfoDate fid      { tn }  ;
-			if (!td.write) {
-				if ( tflags[Tflag::ManualOk] && target.manual_ok(fid)!=Yes ) crc = {tn,g_config.hash_algo} ;
-				else                                                         goto NoRefresh ;
-			}
-			//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			modified = target.refresh( crc , fid.date_or_now() ) ;
-			//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		NoRefresh :
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			target->actual_job_tgt = { *this , RuleData::s_sure(tflags) } ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			any_modified |= modified && tflags[Tflag::Match] ;
-			trace("target",target,td,STR(modified),status) ;
+			::sort(star_targets) ;                                             // ease search in targets
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			(*this)->star_targets.assign(star_targets) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		if (seen_static_targets.size()<rule->n_static_targets) {               // some static targets have not been seen
-			Rule::SimpleMatch match          { *this }                ;        // match must stay alive as long as we use static_targets
-			::vector_view_c_s static_targets = match.static_targets() ;
-			for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
-				::string const&  tn = static_targets[t] ;
-				Unode            tu { tn }              ;
-				if (seen_static_targets.contains(tu)) continue ;
-				Tflags tflags = rule->tflags(t) ;
-				tu->actual_job_tgt = { *this , true/*is_sure*/ } ;
-				//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (!tflags[Tflag::Incremental]) tu.refresh( Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
-				//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (!tflags[Tflag::Phony]) {
-					err = true ;
-					if (status==Status::Ok) report_missing_target(tn) ;        // only report if job was ok, else it is quite normal
-				}
-			}
-		}
-		::sort(star_targets) ;                                                 // ease search in targets
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		(*this)->star_targets.assign(star_targets) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//
 		// handle deps
 		//
@@ -709,8 +711,9 @@ namespace Engine {
 		ri.update( run_action , make_action , *this ) ;
 		if (!ri.waiting()) {                                                   // we may have looped in which case stats update is meaningless and may fail()
 			//
-			Special special      = rule->special                                                 ;
-			bool    dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
+			Special special      = rule->special                                                    ;
+			bool    is_uphill    = special==Special::Uphill                                         ;
+			bool    dep_live_out = special==Special::Req    && req->options.flags[ReqFlag::LiveOut] ;
 			//
 			Trace trace("Jmake",*this,ri,before_lvl,run_action,reason,make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 			if (ri.done(ri.action)) goto Wakeup ;
@@ -754,7 +757,7 @@ namespace Engine {
 						}
 						bool critical_modif   = false ;
 						bool critical_waiting = false ;
-						Dep  sentinel ;
+						Dep  sentinel         ;
 						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps),true ; i_dep++ ) {
 							State dep_state   = State::Ok                                  ;
 							bool  seen_all    = i_dep==n_deps                              ;
@@ -772,8 +775,8 @@ namespace Engine {
 									for( NodeIdx i=i_dep ; i<n_deps ; i++ ) {         // suppress deps following modified critical one, except keep static deps as no-access
 										if ((*this)->deps[i].dflags[Dflag::Static]) {
 											Dep& d = (*this)->deps[j++] ;
-											d         = (*this)->deps[i] ;
-											d.accesses = Accesses::None  ;
+											d          = (*this)->deps[i] ;
+											d.accesses = Accesses::None   ;
 										}
 									}
 									if (j!=n_deps) {
@@ -822,7 +825,7 @@ namespace Engine {
 								if ( is_modif                          ) dep_state = State::DanglingModif ; // if not overridden by an error
 								if ( !is_static && state>=State::Modif ) goto Continue ;                    // if not static, maybe all the following errors will be washed by previous modif
 								//
-								bool makable = dep->makable(special==Special::Uphill/*uphill_ok*/) ; // sub-files of makable dir are not buildable, except for Uphill so sub-sub-files are not buildable
+								bool makable = dep->makable(is_uphill) ;       // sub-files of makable dir are not buildable, except for Uphill so sub-sub-files are not buildable
 								if (!makable) {
 									if (is_static) {
 										dep_state  = State::MissingStatic                  ;
@@ -856,7 +859,7 @@ namespace Engine {
 									case Yes   :                      if (sense_err) goto Err ; else goto Continue ; // .
 									default: FAIL(cdri->err) ;
 								}
-								if ( sense_err && dep->err() ) {
+								if ( sense_err && dep->err(is_uphill) ) {      // dep errors implies it makable, which takes an argument, we must provide it
 									trace("dep_err",dep) ;
 									goto Err ;
 								}
@@ -907,7 +910,7 @@ namespace Engine {
 							dep_state  = State::Err                                                               ;
 							reason    |= { overwritten?JobReasonTag::DepOverwritten:JobReasonTag::DepErr , +dep } ;
 						Continue :
-							trace("dep",dep,STR(is_static),STR(dep.done(*cdri)),STR(dep.err(*cdri)),ri,dep->crc,dep_state,state,STR(critical_modif),STR(critical_waiting),reason) ;
+							trace("dep",dep,STR(dep.done(*cdri)),STR(dep.err(*cdri)),ri,dep->crc,dep_state,state,STR(critical_modif),STR(critical_waiting),reason) ;
 							//
 							SWEAR(dep_state!=State::Modif) ;                                                            // dep_state only generates dangling modifs
 							if ( is_critical && care && dep_state==State::DanglingModif  ) critical_modif = true      ;
@@ -1121,7 +1124,7 @@ namespace Engine {
 		for( Dep const& dep : (*this)->deps ) {
 			if (!dep.dflags[Dflag::Static]      ) {       break    ; }
 			if (!static_target_map.contains(dep)) { d++ ; continue ; }
-			::string dep_key = rule->create_match_attrs.spec.full_dynamic ? ""s : rule->create_match_attrs.spec.deps[d].first ;
+			::string dep_key = rule->deps_attrs.spec.full_dynamic ? ""s : rule->deps_attrs.spec.deps[d].first ;
 			::string err_msg = to_string("simultaneously static target ",rule->targets[static_target_map[dep]].first," and static dep ",dep_key," : ") ;
 			req->audit_job ( Color::Err  , "clash" , *this     ) ;
 			req->audit_node( Color::Note , err_msg , dep   , 1 ) ;
@@ -1242,11 +1245,11 @@ namespace Engine {
 						ri.lvl = Lvl::Hit ;
 						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
-						bool modified = je.end({},digest) ;                      // no resources available for cached jobs
+						bool modified = je.end({},digest,true/*wash*/) ;       // no resources for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[*this] = { true/*hit*/ , modified , {} } ;
 						return true/*maybe_new_deps*/ ;
-					} catch (::string const&) {}                                 // if we cant download result, it is like a miss
+					} catch (::string const&) {}                               // if we cant download result, it is like a miss
 				break ;
 				case Maybe :
 					for( Node d : cache_match.new_deps ) {
@@ -1312,21 +1315,20 @@ namespace Engine {
 		}
 	}
 
-	bool/*ok*/ Job::forget() {
+	bool/*ok*/ Job::forget( bool targets , bool deps ) {
 		Trace trace("Jforget",*this,(*this)->deps,(*this)->deps.size()) ;
 		for( Req r : running_reqs() ) { (void)r ; return false ; }             // ensure job is not running
 		(*this)->status = Status::New ;
 		fence() ;                                                              // once status is New, we are sure target is not up to date, we can safely modify it
 		(*this)->run_status = RunStatus::Complete ;
-		NodeIdx n_static_deps = 0 ;
-		for ( Dep const& d : (*this)->deps ) {
-			if (!d.dflags[Dflag::Static]) break ;
-			n_static_deps++ ;
+		if (deps) {
+			NodeIdx j = 0 ;
+			for( Dep const& d : (*this)->deps ) if (d.dflags[Dflag::Static]) (*this)->deps[j++] = d ;
+			if (j!=(*this)->deps.size()) (*this)->deps.shorten_by((*this)->deps.size()-j) ;
 		}
-		(*this)->deps.shorten_by( (*this)->deps.size() - n_static_deps ) ;     // forget hidden deps
 		if (!(*this)->rule->is_special()) {
 			(*this)->exec_gen = 0 ;
-			(*this)->star_targets.clear() ;
+			if (targets) (*this)->star_targets.clear() ;
 		}
 		trace("summary",(*this)->deps) ;
 		return true ;

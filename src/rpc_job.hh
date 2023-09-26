@@ -77,6 +77,7 @@ ENUM( JobProc
 ,	DepInfos
 ,	LiveOut
 ,	End
+,	EarlyEnd       // job ended before targets could be washed
 )
 
 ENUM( Status       // result of job execution
@@ -90,7 +91,6 @@ ENUM( Status       // result of job execution
 ,	Err            // >=Err means job ended in error
 ,	ErrFrozen      // job is frozen in error
 ,	Timeout        // job timed out
-,	EarlyErr       // job failed before even starting
 )
 
 ENUM_4( Tflag                          // flags for targets
@@ -258,10 +258,10 @@ struct SubmitAttrs {
 struct JobStats {
 	using Delay = Time::Delay ;
 	// data
-	Delay  cpu   ;
-	Delay  job   ;                     // elapsed in job
-	Delay  total ;                     // elapsed including overhead
-	size_t mem   = 0 ;                 // in bytes
+	Delay  cpu   = {} ;
+	Delay  job   = {} ;                // elapsed in job
+	Delay  total = {} ;                // elapsed including overhead
+	size_t mem   = 0  ;                // in bytes
 } ;
 
 // for Dep recording in book-keeping, we want to derive from Node
