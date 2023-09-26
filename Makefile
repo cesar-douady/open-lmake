@@ -105,6 +105,13 @@ PYCXX_LIB         := $(PYCXX_HOME)/lib
 PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
 PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 
+# Slurm
+HAS_SLURM := $(shell bash -c '$(CC) -E --include 'slurm/slurm.h' -xc - </dev/null >/dev/null 2>/dev/null && echo true')
+ifeq ($(HAS_SLURM),true)
+ARCH           := $(shell bash -c '$(CC) -v -E - </dev/null |& grep Target | cut -d " " -f 2')
+LD_SLURM_FLAGS := -Wl,-rpath=/usr/lib/$(ARCH)/slurm-wlm -L/usr/lib/$(ARCH)/slurm-wlm -lslurmfull -lresolv
+endif
+
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver
 
@@ -148,7 +155,7 @@ ALL : DFLT STORE_TEST $(DOC)/lmake.html
 	>$@
 
 sys_config.h : sys_config
-	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
+	HAS_SLURM=$(HAS_SLURM) CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
 lmake.tar.gz : $(LMAKE_ALL_FILES)
 	tar -cz -f $@ $^
@@ -295,6 +302,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/autodep/record$(SAN).o               \
 	$(SRC)/lmakeserver/backend$(SAN).o          \
 	$(SRC)/lmakeserver/backends/local$(SAN).o   \
+	$(SRC)/lmakeserver/backends/slurm$(SAN).o   \
 	$(SRC)/lmakeserver/cache$(SAN).o            \
 	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
 	$(SRC)/lmakeserver/cmd$(SAN).o              \
@@ -307,7 +315,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LD_SLURM_FLAGS) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \

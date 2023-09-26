@@ -80,11 +80,20 @@ then HAS_OSTRINGSTREAM_VIEW=1
 else HAS_OSTRINGSTREAM_VIEW=0
 fi
 
+#
+# HAS_SLURM
+#
+if [ "$HAS_SLURM" == "true" ]
+then HAS_SLURM=1
+else HAS_SLURM=0
+fi
+
 cat <<EOF
 	#define HAS_CLOSE_RANGE        $HAS_CLOSE_RANGE
 	#define HAS_PTRACE             $HAS_PTRACE
 	#define HAS_LD_AUDIT           $HAS_LD_AUDIT
 	#define NEED_STAT_WRAPPERS     $NEED_STAT_WRAPPERS
 	#define HAS_OSTRINGSTREAM_VIEW $HAS_OSTRINGSTREAM_VIEW
+	#define HAS_SLURM              $HAS_SLURM
 	#define PYTHON                 "$PYTHON"
 EOF

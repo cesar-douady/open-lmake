@@ -303,7 +303,7 @@ namespace Backends::Local {
 			entry.n_reqs  = 0    ;
 			return {to_string("pid:",entry.pid),res} ;
 		}
-		virtual ::string/*msg*/ end(JobIdx job) {
+		virtual ::string/*msg*/ end(JobIdx job, Status /*s*/) {
 			auto it = running_map.find(job) ;
 			if (it==running_map.end()) return {} ;                             // job was killed in the mean time
 			//vvvvvvvvvvvvvvvvvvv
