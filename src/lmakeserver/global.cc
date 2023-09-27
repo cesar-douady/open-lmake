@@ -107,6 +107,7 @@ namespace Engine {
 			field = "max_error_lines"  ; if (py_map.hasKey(field)) max_err_lines    = size_t             (Py::Long  (py_map[field])) ;
 			field = "network_delay"    ; if (py_map.hasKey(field)) network_delay    = Time::Delay        (Py::Float (py_map[field])) ;
 			field = "remote_admin_dir" ; if (py_map.hasKey(field)) remote_admin_dir =                     Py::String(py_map[field])  ; else remote_admin_dir = AdminDir ;
+			field = "remote_tmp_dir"   ; if (py_map.hasKey(field)) remote_tmp_dir   =                     Py::String(py_map[field])  ; else remote_tmp_dir   = AdminDir ;
 			field = "trace_size"       ; if (py_map.hasKey(field)) trace_sz         = size_t             (Py::Long  (py_map[field])) ;
 			field = "path_max"         ; if (py_map.hasKey(field)) path_max         = size_t             (Py::Long  (py_map[field])) ;
 			field = "sub_prio_boost"   ; if (py_map.hasKey(field)) sub_prio_boost   = Prio               (Py::Float (py_map[field])) ;
@@ -216,6 +217,7 @@ namespace Engine {
 		if (path_max) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
 		else          res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
 		/**/          res << "remote_admin_dir : " <<          remote_admin_dir               <<'\n' ;
+		/**/          res << "remote_tmp_dir   : " <<          remote_tmp_dir                 <<'\n' ;
 		res << "console :\n" ;
 		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
 		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;

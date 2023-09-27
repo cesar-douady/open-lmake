@@ -129,6 +129,7 @@ namespace Engine {
 			::serdes(s,trace_sz             ) ;
 			::serdes(s,path_max             ) ;
 			::serdes(s,remote_admin_dir     ) ;
+			::serdes(s,remote_tmp_dir       ) ;
 			::serdes(s,src_dirs_s           ) ;
 			::serdes(s,sub_prio_boost       ) ;
 			::serdes(s,backends             ) ;
@@ -153,6 +154,7 @@ namespace Engine {
 		size_t         trace_sz                                        = 0                ;
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
 		::string       remote_admin_dir                                ;
+		::string       remote_tmp_dir                                  ;
 		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
 		Backend        backends[+BackendTag::N]                        ;

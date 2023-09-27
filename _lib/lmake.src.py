@@ -76,7 +76,8 @@ if _reading_makefiles :
 	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 	,	trace_size      = 100*Mega                         # size of trace
 #	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
-#	,	remote_admin_dir = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
+#	,	remote_admin_dir = 'LMAKE'                         # directory in which to store job trace during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
+#	,	remote_tmp_dir   = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
 	,	source_dirs     = []                               # files in these directories are deemed to be sources
 	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 	,	console = pdict(                                   # tailor output lines
