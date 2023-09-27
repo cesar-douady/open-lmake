@@ -76,11 +76,11 @@ void print_end(JobRpcReq const& jrr) {
 	::cout << "digest.stats.total : " << st.total    <<'\n' ;
 	::cout << "digest.stats.mem   : " << st.mem      <<'\n' ;
 	//
-	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )       ;
-	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )       ;
-	::cout << "digest.analysis_err :\n" ; _print_map  (jd.analysis_err)       ;
-	::cout << "digest.stderr :\n"       ; ::cout << indent(jd.stderr ) <<'\n' ;
-	::cout << "digest.stdout :\n"       ; ::cout << indent(jd.stdout ) <<'\n' ;
+	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )      ;
+	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )      ;
+	::cout << "digest.analysis_err :\n" ; _print_map  (jd.analysis_err)      ;
+	::cout << "digest.stderr :\n"       ; ::cout << indent(jd.stderr) <<'\n' ;
+	::cout << "digest.stdout :\n"       ; ::cout << indent(jd.stdout) <<'\n' ;
 }
 
 int main( int argc , char* argv[] ) {

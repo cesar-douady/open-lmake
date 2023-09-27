@@ -12,7 +12,9 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* resources seem not to be present in lshow -i
+* ensure that check_deps sees all previous deps
+	- at least, ensure it is processed when the queue is empty
+	- possibly add a few ms of delay to be sure
 * debug unit_tests/cycle.py
 	- activate unit_tests/cycle.py
 	- set an ephemere store indexed by job with JobEphemereData in it
@@ -78,6 +80,10 @@ items :
 
 * make a class GenericBackend
 	- as a base class for LocalBackend and SlurmBackend
+* put in place a variant in Job::ReqInfo
+	- to ensure no infinite rerun loop
+	- for example the index of the first dep that triggered the rerun
+		- this should increase at each rerun
 * add a warning when ids reach 15/16 of their limits
 ! track disk accesses from server
 	- allow direct read of makefiles

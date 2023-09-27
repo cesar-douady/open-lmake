@@ -199,6 +199,7 @@ namespace Backends {
 				case JobProc::Start : {
 					job_exec.start = Date::s_now()      ;
 					submit_attrs   = entry.submit_attrs ;
+					rsrcs          = entry.rsrcs        ;
 					//                            vvvvvvvvvvvvvvvvvvvvvvv
 					tie(backend_msg,entry.reqs) = s_start(entry.tag,+job) ;
 					entry.start                 = job_exec.start          ;
@@ -206,7 +207,7 @@ namespace Backends {
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 					Rule::SimpleMatch match = job.simple_match() ;
 					try {
-						start_none_attrs = rule->start_none_attrs.eval(match,entry.rsrcs) ;
+						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs) ;
 					} catch (::string const& e) {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
@@ -223,15 +224,14 @@ namespace Backends {
 						}
 					}
 					try {
-						deps_attrs        = rule->deps_attrs       .eval(match            ) ; deps_attrs_passed = true ;
-						start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,entry.rsrcs) ; cmd_attrs_passed  = true ;
-						cmd               = rule->cmd              .eval(match,entry.rsrcs) ; cmd_passed        = true ;
-						start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,entry.rsrcs) ;
+						deps_attrs        = rule->deps_attrs       .eval(match      ) ; deps_attrs_passed = true ;
+						start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs) ; cmd_attrs_passed  = true ;
+						cmd               = rule->cmd              .eval(match,rsrcs) ; cmd_passed        = true ;
+						start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs) ;
 					} catch (::string const& e) {
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,STR(cmd_attrs_passed),STR(cmd_passed),e) ;
 						Tag       tag   = entry.tag           ;
-						::vmap_ss rsrcs = ::move(entry.rsrcs) ;
 						_s_start_tab.erase(it) ;
 						job_exec.host.clear() ;
 						::string err_str = to_string(
@@ -246,8 +246,8 @@ namespace Backends {
 						JobDigest digest { .status=Status::Err , .deps=_mk_digest_deps(deps_attrs) , .stderr=::move(err_str) }  ;
 						trace("early_err",digest) ;
 						{	OFStream ofs { dir_guard(job.ancillary_file()) } ;
-							serialize( ofs , JobInfoStart({ .eta=eta , .submit_attrs=submit_attrs , .pre_start=jrr , .start=reply , .backend_msg=backend_msg }) ) ;
-							serialize( ofs , JobInfoEnd  ( JobRpcReq( JobProc::End , {} , jrr.job , {} , digest )                                             ) ) ;
+							serialize( ofs , JobInfoStart({ .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .pre_start=jrr , .start=reply , .backend_msg=backend_msg }) ) ;
+							serialize( ofs , JobInfoEnd  ( JobRpcReq( JobProc::End , {} , jrr.job , {} , digest )                                                            ) ) ;
 						}
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::Start    , ::move(job_exec) , false/*report_now*/ , report_unlink , start_exc_txt ) ;
@@ -329,7 +329,17 @@ namespace Backends {
 				//vvvvvvvvvvvvvvvvvvvvvv
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
-				serialize( OFStream(dir_guard(job.ancillary_file())) , JobInfoStart({.eta=eta,.submit_attrs=submit_attrs,.pre_start=jrr,.start=reply,.backend_msg=backend_msg}) ) ;
+				serialize(
+					OFStream(dir_guard(job.ancillary_file()))
+				,	JobInfoStart({
+						.eta          = eta
+					,	.submit_attrs = submit_attrs
+					,	.rsrcs        = ::move(rsrcs)
+					,	.pre_start    = jrr
+					,	.start        = reply
+					,	.backend_msg  = backend_msg
+					})
+				) ;
 				//
 				bool deferred_start_report = Delay(job->exec_time)<start_none_attrs.start_delay && report_unlink.empty() && start_exc_txt.empty() ; // dont defer if we must report info at start time
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

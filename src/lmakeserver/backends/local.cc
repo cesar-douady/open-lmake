@@ -32,7 +32,7 @@ namespace Backends::Local {
 		// cxtors & casts
 		RsrcsData(                                        ) = default ;
 		RsrcsData( LocalBackend const& , ::vmap_ss const& ) ;
-		::vmap_ss vmap(LocalBackend const&) const ;
+		::vmap_ss mk_vmap(LocalBackend const&) const ;
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] += rsrcs[i] ; return *this ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] -= rsrcs[i] ; return *this ; }
@@ -410,7 +410,7 @@ namespace Backends::Local {
 					Rsrcs2 const&         rsrcs2         = candidate->first      ;
 					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
 					//
-					::vector_s cmd_line = acquire_cmd_line( MyTag , job , rsrcs->vmap(*this) , wit->second.submit_attrs ) ;
+					::vector_s cmd_line = acquire_cmd_line( MyTag , job , rsrcs->mk_vmap(*this) , wit->second.submit_attrs ) ;
 					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					Child child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
 					//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -505,9 +505,9 @@ namespace Backends::Local {
 		}
 	}
 
-	::vmap_ss RsrcsData::vmap(LocalBackend const& self) const {
+	::vmap_ss RsrcsData::mk_vmap(LocalBackend const& self) const {
 		::vmap_ss res ; res.reserve(self.rsrc_keys.size()) ;
-		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) res.emplace_back( self.rsrc_keys[i] , to_string((*this)[i]) ) ;
+		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) if ((*this)[i]) res.emplace_back( self.rsrc_keys[i] , to_string((*this)[i]) ) ;
 		return res ;
 	}
 

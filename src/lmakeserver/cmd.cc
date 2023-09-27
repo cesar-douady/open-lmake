@@ -327,8 +327,6 @@ namespace Engine {
 								audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
 							break ;
 							case ReqKey::Info : {
-								int      ws       = digest.wstatus                                                                                                                    ;
-								::string rc       = WIFEXITED(ws) ? to_string("exited ",WEXITSTATUS(ws)) : WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG(ws))) : "??"s ;
 								::string ids      = to_string( "job=",report_start.pre_start.job , " , small=",report_start.start.small_id )                                          ;
 								bool     has_host = !report_start.pre_start.host.empty()                                                                                              ;
 								if (report_start.pre_start.seq_id) append_to_string(ids," , seq=",report_start.pre_start.seq_id) ; // there may be no seq_id if job hit the cache
@@ -364,32 +362,55 @@ namespace Engine {
 									if ( rs.start.method!=AdMD           ) audit( fd , ro , Color::None , lvl+1 , to_string("autodep        : ",mk_snake(rs.start.method)        ) ) ;
 									if (+rs.start.timeout                ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout        : ",rs.start.timeout.short_str()     ) ) ;
 								}
+								//
+								::map_ss required_rsrcs  ;
+								::map_ss allocated_rsrcs = mk_map(report_start.rsrcs) ;
+								try {
+									Rule::SimpleMatch match ;
+									required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(jt,match).rsrcs) ;
+								} catch(::string const&) {}
+								//
 								if (has_end) {
-									audit( fd , ro , Color::None , lvl+1 , to_string("end date       : ",digest.end_date.str()                  ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("rc             : ",rc                                     ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("cpu time       : ",float(digest.stats.cpu  )         ,'s' ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("elapsed in job : ",float(digest.stats.job  )         ,'s' ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("elapsed total  : ",float(digest.stats.total)         ,'s' ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("memory         : ",      digest.stats.mem  /1'000'000,"MB") ) ;
+									bool overflow = !allocated_rsrcs.contains("mem") || digest.stats.mem>size_t(atol(allocated_rsrcs.at("mem").c_str())) ;
+									int  ws       = digest.wstatus                                                                                       ;
+									bool ok       = WIFEXITED(ws) && WEXITSTATUS(ws)==0                                                                  ;
+									::string rc =
+										ok              ? "ok"s
+									:	WIFEXITED  (ws) ? to_string("exited "  ,            WEXITSTATUS(ws) )
+									:	WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG   (ws)))
+									:	"??"s
+									;
+									audit( fd , ro ,                         Color::None , lvl+1 , to_string("end date       : ",digest.end_date.str()          ) ) ;
+									audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , to_string("rc             : ",rc                             ) ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , to_string("cpu time       : ",digest.stats.cpu  .short_str() ) ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , to_string("elapsed in job : ",digest.stats.job  .short_str() ) ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , to_string("elapsed total  : ",digest.stats.total.short_str() ) ) ;
+									audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , to_string("used mem       : ",digest.stats.mem/1'000'000,"MB") ) ;
 								}
 								//
-								if ( has_start && !report_start.rsrcs.empty() ) {
-									SubmitRsrcsAttrs rsrcs_attrs ;
-									bool             no_rsrcs    = false ;
-									try {
-										Rule::SimpleMatch match ;
-										rsrcs_attrs = rule->submit_rsrcs_attrs.eval(jt,match) ;
-									} catch(::string const& e) {
-										audit( fd , ro , Color::Err , lvl+1 , "resources : cannot compute" ) ;
-										audit( fd , ro , Color::Err , lvl+2 , e                            ) ;
-										no_rsrcs = true ;
-									}
-									if (!no_rsrcs) {
-										audit( fd , ro , Color::None , lvl+1 , "resources :" ) ;
-										size_t kw = 0 ;
-										for( auto const& [k,_] : rsrcs_attrs.rsrcs ) kw = ::max(kw,k.size()) ;
-										for( size_t r=0 ; r<rsrcs_attrs.rsrcs.size() ; r++ )
-											audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),rsrcs_attrs.rsrcs[r].first," : ",report_start.rsrcs[r]) ) ;
+								bool   has_required  = !required_rsrcs .empty() ;
+								bool   has_allocated = !allocated_rsrcs.empty() ;
+								size_t kw            = 0                        ;
+								for( auto const& [k,_] : required_rsrcs  ) kw = ::max(kw,k.size()) ;
+								for( auto const& [k,_] : allocated_rsrcs ) kw = ::max(kw,k.size()) ;
+								if ( has_required || has_allocated ) {
+									::string hdr = "resources :" ;
+									if      (!has_allocated) hdr = "required " +hdr ;
+									else if (!has_required ) hdr = "allocated "+hdr ;
+									audit( fd , ro , Color::None , lvl+1 , hdr ) ;
+									if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k," : ",v) ) ;
+									else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k," : ",v) ) ;
+									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k," : ",v) ) ;
+									else {
+										for( auto const& [k,rv] : required_rsrcs ) {
+											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k,"(required )"," : ",rv) ) ; continue ; }
+											::string const& av = allocated_rsrcs.at(k) ;
+											if (rv==av                      ) { audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k,"           "," : ",rv) ) ; continue ; }
+											/**/                                audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k,"(required )"," : ",rv) ) ;
+											/**/                                audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k,"(allocated)"," : ",av) ) ;
+										}
+										for( auto const& [k,av] : allocated_rsrcs )
+											if (!required_rsrcs.contains(k))    audit( fd , ro , Color::None , lvl+2 , to_string(::setw(kw),k,"(allocated)"," : ",av) ) ;
 									}
 								}
 							} break ;
