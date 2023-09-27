@@ -24,14 +24,14 @@ namespace Backends::Slurm {
 		uint16_t cpu     = 1   ; // number of logical cpu (sbatch --cpus-per-task option)
 		uint32_t mem     = 0   ; // memory in MB          (sbatch --mem           option)
 		uint32_t tmp     = 0   ; // tmp disk in MB        (sbatch --tmp           option)
-		string   part    = ""  ; // partition name        (sbatch --partition     option)
-		string   gres    = ""  ; // generic resources     (sbatch --gres          option)
-		string   licence = ""  ; // licence               (sbtach --licenses      option)
-		string   feature = ""  ; // feature/contraint     (sbatch --constraint    option)
+		::string part    = ""  ; // partition name        (sbatch --partition     option)
+		::string gres    = ""  ; // generic resources     (sbatch --gres          option)
+		::string licence = ""  ; // licence               (sbtach --licenses      option)
+		::string feature = ""  ; // feature/contraint     (sbatch --constraint    option)
 		bool operator==(RsrcsDataSingle const&) const = default;
 	} ;
 
-	struct RsrcsData : vector<RsrcsDataSingle> {
+	struct RsrcsData : ::vector<RsrcsDataSingle> {
 		RsrcsData(                ) = default ;
 		RsrcsData(::vmap_ss const&);
 		::vmap_ss vmap(void) const ;
@@ -110,7 +110,7 @@ namespace Backends::Slurm {
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
-	static inline uint32_t s2u32(const string& s) {
+	static inline uint32_t s2u32(const ::string& s) {
 		uint32_t r=0;
 		//from_chars is supposed to be faster than stoi (x4.5)
 		auto [ptr, ec] = ::from_chars(s.data(), s.data()+s.size(), r);
@@ -484,10 +484,10 @@ namespace Backends::Slurm {
 				return JOB_RUNNING;
 			}
 		}
-		inline string cmd_to_string(::vector_s& cmd_line) const {
+		inline ::string cmd_to_string(::vector_s& cmd_line) const {
 			std::stringstream ss;
 			ss << "#!/bin/sh\n";
-			for(string s : cmd_line) {
+			for(::string const& s : cmd_line) {
 				ss << s  ;
 				ss << " ";
 			}
@@ -498,20 +498,20 @@ namespace Backends::Slurm {
 		inline ::string getLogStdoutPath(JobIdx job) const {return to_string(getLogPath(job), "/stdout"   );}
 
 		inline ::optional<::string> slurm_spawn_job(JobIdx job, ::vector_s& cmd_line, Rsrcs  const& rsrcs, bool verbose, uint32_t * slurmJobId) {
-			uint32_t  n_comp   = (*rsrcs).size(); SWEAR(n_comp>0) ;
-			char     *env[1]   = {const_cast<char *>("")};
-			string    wd       = *g_root_dir;
-			auto      job_name = *(--::filesystem::path(wd).end()) / Job(job).full_name(); // ="repoDir/target"
-			string    script   = cmd_to_string(cmd_line);
-			string    s_errPath;
-			string    s_outPath;
+			uint32_t  n_comp   = rsrcs->size(); SWEAR(n_comp>0) ;
+			static char*env[1] = {const_cast<char *>("")};
+			::string  wd       = *g_root_dir;
+			auto      job_name = *(--::filesystem::path(wd).end()) / Job(job).user_name(); // ="repoDir/target"
+			::string  script   = cmd_to_string(cmd_line);
+			::string  s_errPath;
+			::string  s_outPath;
 			if(verbose) {
 				s_errPath      = getLogStderrPath(job);
 				s_outPath      = getLogStdoutPath(job);
 				Disk::make_dir(getLogPath(job));
 			}
 			::vector<job_desc_msg_t> jDesc(n_comp);
-			for(uint32_t i=0; RsrcsDataSingle r: *rsrcs) {
+			for(uint32_t i=0; RsrcsDataSingle const& r: *rsrcs) {
 				job_desc_msg_t* j = &jDesc[i];
 				slurm_init_job_desc_msg(j);
 				j->env_size         = 1;
@@ -519,15 +519,15 @@ namespace Backends::Slurm {
 				j->cpus_per_task    = r.cpu  ;
 				j->pn_min_memory    = r.mem  ;    //in MB
 				j->pn_min_tmp_disk  = r.tmp  ;    //in MB
-				j->std_err          = const_cast<char *>(verbose ? s_errPath.data() : "/dev/null");
-				j->std_out          = const_cast<char *>(verbose ? s_outPath.data() : "/dev/null");
-				j->work_dir         = const_cast<char *>(wd       .data());
+				j->std_err          = verbose ? s_errPath.data() : const_cast<char *>("/dev/null");
+				j->std_out          = verbose ? s_outPath.data() : const_cast<char *>("/dev/null");
+				j->work_dir         = wd.data ();
 				j->name             = const_cast<char *>(job_name .c_str());
 				if(!r.feature.empty()) j->features      = const_cast<char *>(r.feature.data());
 				if(!r.licence.empty()) j->licenses      = const_cast<char *>(r.licence.data());
 				if(!r.part   .empty()) j->partition     = const_cast<char *>(r.part   .data());
 				if(!r.gres   .empty()) j->tres_per_node = const_cast<char *>(r.gres   .data());
-				if(i==0)               j->script        = const_cast<char *>(script   .data());
+				if(i==0)               j->script        =                    script   .data() ;
 				i++;
 			}
 			int ret;
@@ -545,7 +545,7 @@ namespace Backends::Slurm {
 				slurm_free_submit_response_response_msg(jMsg);
 				return {};
 			} else {
-				string err = "Launch slurm job error: " + string(slurm_strerror(slurm_get_errno()));
+				::string err = "Launch slurm job error: " + ::string(slurm_strerror(slurm_get_errno()));
 				return err;
 			}
 		}
@@ -554,12 +554,12 @@ namespace Backends::Slurm {
 	bool _inited = (SlurmBackend::s_init(),true) ;
 
 	template<class T>
-	static inline T& grow(vector<T>& v, uint32_t idx) {
+	static inline T& grow(::vector<T>& v, uint32_t idx) {
 		if(idx>=v.size()) v.resize(idx+1);
 		return v[idx];
 	}
-	static inline void rsrcThrow(const string& k) {throw to_string("no resource ", k," for backend ",mk_snake(MyTag));}
-	static uint32_t mtoi(const string& mem) {
+	static inline void rsrcThrow(const ::string& k) {throw to_string("no resource ", k," for backend ",mk_snake(MyTag));}
+	static uint32_t mtoi(const ::string& mem) {
 		char c = mem.back();
 		switch (c) {
 			case 'M': return s2u32(mem.substr(0,mem.size()-1))       ;
