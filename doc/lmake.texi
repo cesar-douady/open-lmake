@@ -1031,15 +1031,15 @@ Recognized attributes are :
 @item @code{local_admin_dir}
 @tab @code{LMAKE}
 @tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
-Actually most of the accesses are made in this directory, @pxref{dir-local_admin_dir}.
+Actually most of the accesses are made in this directory (@pxref{dir-local_admin_dir}).
 
 @item @code{remote_admin_dir}
 @tab @code{LMAKE}
-@tab This variable contains a directory to be used for remote execution administration, @pxref{dir-remote_admin_dir}.
+@tab This variable contains a directory to be used for remote execution administration (@pxref{dir-remote_admin_dir}).
 
 @item @code{remote_tmp_dir}
 @tab @code{LMAKE}
-@tab This variable contains a directory to be used as a temporary storage for remote execution, @pxref{dir-remote_tmp_dir}.
+@tab This variable contains a directory to be used as a temporary storage for remote execution (@pxref{dir-remote_tmp_dir}).
 
 @item @code{heartbeat}
 @tab @code{60}

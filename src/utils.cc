@@ -71,8 +71,8 @@
 	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + quotes
 	for( char c : s )
 		switch (c) {
-			case '\\' :                                // must be escaped
-			case '\'' : res += '\\' ; /*fall through*/ // .
+			case '\\' :                                 // must be escaped
+			case '\'' : res += '\\' ; [[fallthrough]] ; // .
 			default   : res += c    ;
 		}
 	res += '"' ;

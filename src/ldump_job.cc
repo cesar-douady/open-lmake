@@ -58,7 +58,7 @@ void print_start(JobRpcReply const& jrr) {
 	//
 	::cout << "static_deps :\n" ; _print_map(jrr.static_deps) ;
 	::cout << "env :\n"         ; _print_map(jrr.env        ) ;
-	::cout << "cmd :\n"         ; ::cout << indent(jrr.cmd) ; if ( !jrr.cmd.empty() && jrr.cmd.back()!='\n' ) ::cout<<'\n' ;
+	::cout << "cmd :\n"         ; ::cout << ensure_nl(indent(jrr.cmd)) ;
 }
 
 void print_end(JobRpcReq const& jrr) {
@@ -79,8 +79,8 @@ void print_end(JobRpcReq const& jrr) {
 	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )      ;
 	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )      ;
 	::cout << "digest.analysis_err :\n" ; _print_map  (jd.analysis_err)      ;
-	::cout << "digest.stderr :\n"       ; ::cout << indent(jd.stderr) <<'\n' ;
-	::cout << "digest.stdout :\n"       ; ::cout << indent(jd.stdout) <<'\n' ;
+	::cout << "digest.stderr :\n"       ; ::cout << ensure_nl(indent(jd.stderr)) ;
+	::cout << "digest.stdout :\n"       ; ::cout << ensure_nl(indent(jd.stdout)) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -95,18 +95,14 @@ int main( int argc , char* argv[] ) {
 		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;
 		print_start       (report_start.start       ) ;
-		if (!report_start.backend_msg.empty()) {
-			::cout << "backend_msg :\n" << report_start.backend_msg ;
-			if (report_start.backend_msg.back()!='\n') ::cout << '\n' ;
-		}
+		if (!report_start.backend_msg.empty())
+			::cout << "backend_msg :\n" << ensure_nl(::move(report_start.backend_msg)) ;
 	} catch(...) {}
 	try {
 		auto report_end = deserialize<JobInfoEnd>(job_stream) ;
 		print_end(report_end.end) ;
-		if (!report_end.backend_msg.empty()) {
-			::cout << "backend_msg :\n" << report_end.backend_msg ;
-			if (report_end.backend_msg.back()!='\n') ::cout << '\n' ;
-		}
+		if (!report_end.backend_msg.empty())
+			::cout << "backend_msg :\n" << ensure_nl(::move(report_end.backend_msg)) ;
 	} catch(...) {}
 	return 0 ;
 }

@@ -288,8 +288,14 @@ static inline bool is_print(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
 
-template<class... A> ::string to_string          (A const&... args) { OStringStream res ; [[maybe_unused]] bool _[] = { false , (res<<args,false)... } ; return              res.str()  ; }
-template<class... A> ::string to_printable_string(A const&... args) { OStringStream res ; [[maybe_unused]] bool _[] = { false , (res<<args,false)... } ; return mk_printable(res.str()) ; }
+static inline ::string ensure_nl(::string     && txt) { if (txt.back()!='\n') txt += '\n' ; return txt ; }
+static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                }
+
+template<class... A> ::string to_string(A const&... args) {
+	OStringStream res ;
+	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
+	return res.str() ;
+}
 //
 static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
 static inline ::string to_string(const char*     s) { return  s  ; }           // .
@@ -396,11 +402,7 @@ static bool/*done*/ kill_self      ( int sig_num                        ) ;
 /**/   void         write_backtrace( ::ostream& os , int hide_cnt       ) ;
 
 template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
-	OStringStream err ;
-	[[maybe_unused]] bool _[] ={false,(err<<args,false)...} ;
-	::string err_str = err.str() ;
-	if ( !err_str.empty() && err_str.back()!='\n' ) err_str.push_back('\n') ;
-	::cerr << err_str ;
+	::cerr << ensure_nl(to_string(args...)) ;
 	::std::exit(rc) ;
 }
 

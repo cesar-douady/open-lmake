@@ -57,13 +57,10 @@ struct GatherDeps {
 private :
 	bool/*new*/ _new_access( PD , ::string const& , DD , AccessDigest const& , NodeIdx parallel_id , ::string const& comment={} ) ;
 	//
-	void _new_accesses( PD pd , ::vector_s const& files , AccessDigest const& info , ::string const& comment={} ) {
+	void _new_accesses(JobExecRpcReq const& jerr) {
+		SWEAR(!jerr.auto_date) ;
 		parallel_id++ ;
-		for( auto const& f : files ) _new_access(pd,f,{},info,parallel_id,comment) ;
-	}
-	void _new_accesses( PD pd , ::vmap_s<DD> const& dds , AccessDigest const& info , ::string const& comment={} ) {
-		parallel_id++ ;
-		for( auto const& [f,dd] : dds ) _new_access(pd,f,dd,info,parallel_id,comment) ;
+		for( auto const& [f,dd] : jerr.files ) _new_access( jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
 	}
 public :
 	void new_target( PD pd , ::string const& t         , Tflags n , Tflags p     , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }

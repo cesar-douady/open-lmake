@@ -69,7 +69,7 @@ namespace Engine {
 					cb_fixed(fixed) ;
 					fixed.clear() ;
 					state = Key ;
-				/*fall through*/
+				[[fallthrough]] ;
 				case Key :
 					if (c!='}') {
 						if (c==':') state = Re ;
@@ -407,9 +407,9 @@ namespace Engine {
 					res += "}\n" ;
 				}
 			) ;
-			/**/                       res += spec.cmd                                                              ;
-			if (spec.cmd.back()!='\n') res += '\n'                                                                  ;
-			/**/                       res += "rc = cmd()\nif rc : raise RuntimeError(f'cmd() returned rc={rc}')\n" ;
+			/**/                       res += spec.cmd  ;
+			if (spec.cmd.back()!='\n') res += '\n'      ;
+			/**/                       res += "cmd()\n" ;
 			return res ;
 		} else {
 			if (!is_dynamic) return parse_fstr(spec.cmd,job,match,rsrcs) ;
@@ -1031,9 +1031,7 @@ namespace Engine {
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
-		::string cmd = _pretty_fstr(c.cmd,rd) ;
-		if ( !cmd.empty() && cmd.back()!='\n' ) cmd += '\n' ;
-		return indent(cmd,i) ;
+		return indent(ensure_nl(_pretty_fstr(c.cmd,rd)),i) ;
 	}
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
@@ -1069,9 +1067,9 @@ namespace Engine {
 		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
 		if ( !s.empty() || d.is_dynamic ) res << indent(to_string(T::Msg," :\n"),i) << s ;
 		if (d.is_dynamic) {
-			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1)                           ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
-			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << indent(d.glbs_str,i+2) ; if (d.glbs_str.back()!='\n')                                res << '\n' ; }
-			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << indent(d.code_str,i+2) ; if (d.code_str.back()!='\n')                                res << '\n' ; }
+			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
+			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << ensure_nl(indent(d.glbs_str,i+2)) ;                                      }
+			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << ensure_nl(indent(d.code_str,i+2)) ;                                      }
 		}
 		return res.str() ;
 	}

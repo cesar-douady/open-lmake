@@ -522,7 +522,7 @@ namespace Backends::Slurm {
 				j->std_err          = verbose ? s_errPath.data() : const_cast<char *>("/dev/null");
 				j->std_out          = verbose ? s_outPath.data() : const_cast<char *>("/dev/null");
 				j->work_dir         = wd.data ();
-				j->name             = const_cast<char *>(job_name .c_str());
+				j->name             = const_cast<char *>(job_name.c_str());
 				if(!r.feature.empty()) j->features      = const_cast<char *>(r.feature.data());
 				if(!r.licence.empty()) j->licenses      = const_cast<char *>(r.licence.data());
 				if(!r.part   .empty()) j->partition     = const_cast<char *>(r.part   .data());

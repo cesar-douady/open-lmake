@@ -12,9 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* ensure that check_deps sees all previous deps
-	- at least, ensure it is processed when the queue is empty
-	- possibly add a few ms of delay to be sure
 * debug unit_tests/cycle.py
 	- activate unit_tests/cycle.py
 	- set an ephemere store indexed by job with JobEphemereData in it
@@ -78,6 +75,9 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* get rid of double crc (md5+xxh)
+	- keep only xxh
+	- superior on all metrics
 * make a class GenericBackend
 	- as a base class for LocalBackend and SlurmBackend
 * put in place a variant in Job::ReqInfo

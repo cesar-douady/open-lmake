@@ -50,7 +50,7 @@ int main( int argc , char* argv[] ) {
 	//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	try                       { status = gather_deps.exec_child( cmd_line.args ) ; }
 	//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(2,e,'\n') ;                                   }
+	catch (::string const& e) { exit(2,e) ;                                        }
 	//
 	::ostream* ds       ;
 	OFStream   user_out ;

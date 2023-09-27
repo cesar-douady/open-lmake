@@ -172,7 +172,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 								trace("modified_makefiles") ;
 								goto Bad ;
 							}
-						} /*fall through*/
+						} [[fallthrough]] ;
 						case ReqProc::Forget :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
 						case ReqProc::Freeze :
 						case ReqProc::Show   : {

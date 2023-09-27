@@ -67,19 +67,19 @@ if _reading_makefiles :
 	#
 
 	config = pdict(
-		hash_algo       = 'Xxh'                            # algorithm to use to compute checksums on files, one of 'Xxh' or 'Md5'
-	,	heartbeat       = 60                               # delay between heartbeat checks of running jobs
-	,	link_support    = 'Full'                           # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
+		hash_algo        = 'Xxh'                           # algorithm to use to compute checksums on files, one of 'Xxh' or 'Md5'
+	,	heartbeat        = 60                              # delay between heartbeat checks of running jobs
+	,	link_support     = 'Full'                          # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 #	,	local_admin_dir  = 'LMAKE'                         # directory in which to store data that are private to the server (not accessed remote executing hosts) (default is to use LMAKE dir)
-	,	max_dep_depth   = 1000                             # used to detect infinite recursions and loops
-#	,	max_error_lines = 30                               # used to limit the number of error lines when not reasonably limited otherwise
-	,	network_delay   = 3                                # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
-	,	trace_size      = 100*Mega                         # size of trace
-#	,	path_max        = 400                              # max path length, but a smaller value makes debugging easier (by default, not activated)
+	,	max_dep_depth    = 1000                            # used to detect infinite recursions and loops
+#	,	max_error_lines  = 30                              # used to limit the number of error lines when not reasonably limited otherwise
+	,	network_delay    = 3                               # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
+	,	trace_size       = 100*Mega                        # size of trace
+#	,	path_max         = 400                             # max path length, but a smaller value makes debugging easier (by default, not activated)
 #	,	remote_admin_dir = 'LMAKE'                         # directory in which to store job trace during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
 #	,	remote_tmp_dir   = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
-	,	source_dirs     = []                               # files in these directories are deemed to be sources
-	,	sub_prio_boost  = 1                                # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
+	,	source_dirs      = []                              # files in these directories are deemed to be sources
+	,	sub_prio_boost   = 1                               # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 	,	console = pdict(                                   # tailor output lines
 			date_precision = None                          # number of second decimals in the timestamp field
 		,	host_length    = None                          # length of the host field (lines will be misaligned if a host is longer)

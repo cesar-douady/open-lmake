@@ -560,8 +560,7 @@ namespace Engine {
 		} catch (::string const& e) {
 			end_none_attrs = rule->end_none_attrs.spec ;
 			analysis_err.emplace_back(rule->end_none_attrs.s_exc_msg(true/*using_static*/),0) ;
-			analysis_err_txt = e ;
-			if ( !analysis_err_txt.empty() && analysis_err_txt.back()!='\n' ) analysis_err_txt.push_back('\n') ;
+			analysis_err_txt = ensure_nl(e) ;
 		}
 		//
 		(*this)->exec_ok(true) ;                                               // effect of old cmd has gone away with job execution
@@ -744,7 +743,7 @@ namespace Engine {
 						}
 						ri.lvl = Lvl::Dep ;
 						if (JobData::s_frozen(status)) break ;
-					/*fall through*/
+					[[fallthrough]] ;
 					case Lvl::Dep : {
 					RestartAnalysis :                                                                    // restart analysis here when it is discovered we need deps to run the job
 						if ( ri.dep_lvl==0 && !(*this)->exec_ok() ) {                                    // process command like a dep in parallel with static_deps

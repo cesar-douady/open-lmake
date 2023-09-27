@@ -171,17 +171,38 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		trace("pid",child.pid) ;
 	}
 	//
-	Fd                              child_fd       = open_sig_fd(SIGCHLD) ;
-	Epoll                           epoll          { New }                ;
-	Status                          status         = Status::New          ;
-	size_t                          kill_cnt       = 0                    ;    // number of times child has been killed so far
-	PD                              end            ;
-	::umap<Fd         ,IMsgBuf    > slaves         ;
-	::umap<Fd/*reply*/,ServerReply> server_replies ;
+	Fd                                child_fd           = open_sig_fd(SIGCHLD) ;
+	Epoll                             epoll              { New }                ;
+	Status                            status             = Status::New          ;
+	size_t                            kill_cnt           = 0                    ; // number of times child has been killed so far
+	PD                                end                ;
+	::umap<Fd         ,IMsgBuf      > slaves             ;
+	::umap<Fd/*reply*/,ServerReply  > server_replies     ;
+	::umap<Fd         ,JobExecRpcReq> delayed_check_deps ;                     // check_deps events are delayed to ensure all previous deps are taken into account
 	auto kill_job = [&](Status s)->void {
 		if (status!=Status::New) return ;
 		status  = s           ;
 		end     = PD::s_now() ;
+	} ;
+	auto handle_req_to_server = [&]( Fd fd , JobExecRpcReq&& jerr ) -> bool/*still_sync*/ {
+		trace("slave",fd,jerr) ;
+		reorder() ;                                        // ensure server sees a coherent view
+		Proc   proc     = jerr.proc               ;        // capture essential info before moving to server_cb
+		size_t sz       = jerr.files.size()       ;        // .
+		bool   sync_    = jerr.sync               ;        // .
+		Fd     reply_fd = server_cb(::move(jerr)) ;
+		trace("reply",reply_fd) ;
+		if (reply_fd) {
+			epoll.add_read(reply_fd,Kind::ServerReply) ;
+			server_replies[reply_fd].fd = sync_ ? fd : Fd() ;
+		} else if (jerr.sync) {
+			JobExecRpcReply sync_reply ;
+			sync_reply.proc  = proc ;
+			sync_reply.ok    = Yes                                          ; // try to mimic server as much as possible when none is available
+			sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
+			sync(fd,sync_reply) ;
+		}
+		return false ;
 	} ;
 	//
 	if (+timeout                 ) end = PD::s_now() + timeout ;
@@ -202,10 +223,17 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			}
 			wait_ns = (end-now).nsec() ;
 		}
+		if (!delayed_check_deps.empty()) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
-		for( Epoll::Event event : events ) {
+		if ( events.empty() && !delayed_check_deps.empty() ) {  // process delayed check deps after all other events
+			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
+			delayed_check_deps.clear() ;
+			continue ;
+		}
+		for( Epoll::Event const& event : events ) {
 			Kind kind = event.data<Kind>() ;
 			Fd   fd   = event.fd()         ;
+			SWEAR(!delayed_check_deps.contains(fd)) ;                          // while we are waiting for an answer, we should not be receiving any more requests
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
@@ -258,49 +286,24 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					JobExecRpcReq jerr  ;
 					try         { if (!slaves.at(fd).receive_step(fd,jerr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
-					bool            sync_      = jerr.sync ;                             // capture essential info so as to be able to move jerr
-					Proc            proc       = jerr.proc ;                             // .
-					JobExecRpcReply sync_reply ;
-					sync_reply.proc = proc ;                                   // this may be incomplete and will be completed or sync_ will be made false
+					bool sync_ = jerr.sync ;                                             // capture essential info so as to be able to move jerr
+					Proc proc  = jerr.proc ;                                             // .
 					switch (proc) {
-						case Proc::None      :                                            goto Close ;
-						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ; break      ;
-						case Proc::Heartbeat :
-							if (!child.is_alive()) {                           // we should have been informed if child died, just in case...
-								trace("vanished") ;
-								status = Status::Lost ;
-								epoll.close(child_fd) ;
-								epoll.cnt-- ;                                  // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
-							}
-							goto Close ;                                       // no reply, accept & read is enough to acknowledge
-						//                     vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill      : kill_job(Status::Killed) ;                 goto Close ; // .
-						//                     ^^^^^^^^^^^^^^^^^^^^^^^^ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.digest , jerr.comment ) ; break ;
-						case Proc::DepInfos  : SWEAR(!jerr.auto_date) ; _new_accesses( jerr.date , jerr.files , jerr.digest , jerr.comment ) ;
-						//                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						/*fall through*/
-						case Proc::ChkDeps : {
-							size_t sz = jerr.files.size() ;                    // capture essential info before moving to server_cb
-							trace("slave",fd,jerr) ;
-							reorder() ;                                        // ensure server sees a coherent view
-							Fd reply_fd = server_cb(::move(jerr)) ;
-							trace("reply",reply_fd) ;
-							if (!reply_fd) {
-								sync_reply.ok    = Yes                                          ; // try to mimic server as much as possible when none is available
-								sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
-							} else {
-								epoll.add_read(reply_fd,Kind::ServerReply) ;
-								server_replies[reply_fd].fd = sync_ ? fd : Fd() ;
-								sync_ = false ;                                   // do sync when we have the reply from server
-							}
-						} break ;
-						case Proc::Trace : trace("from_job",jerr.comment) ; break ;
+						case Proc::None      :                                                                              goto Close ;
+						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ;                                   break      ;
+						case Proc::Heartbeat :                                                                              goto Close ; // no reply, accept & read is enough to acknowledge
+						//                    vvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Kill     : kill_job(Status::Killed) ;                                                    goto Close ; // .
+						case Proc::Access   : _new_accesses(jerr) ;                                                         break ;
+						case Proc::DepInfos : _new_accesses(jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ;      // if sync, handle_req_to_server replies
+						//                    ^^^^^^^^^^^^^^^^^^^
+						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;                       sync_ = false ; break ;      // if sync, reply is delayed as well
+						case Proc::Trace    : trace("from_job",jerr.comment) ;                                              break ;
 						default : fail(proc) ;
 					}
-					//         vvvvvvvvvvvvvvvvvvv
-					if (sync_) sync(fd,sync_reply) ;
-					//         ^^^^^^^^^^^^^^^^^^^
+					//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;
+					//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					break ;
 				Close :
 					trace("slave","close",proc,fd) ;
