@@ -262,7 +262,7 @@ namespace Backends {
 					//
 					::string tmp_dir = keep_tmp ?
 						to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp))
-					:	to_string(g_config.remote_admin_dir,"/job_tmp/",small_id)
+					:	to_string(g_config.remote_tmp_dir,"/job_tmp/",small_id)
 					;
 					//
 					for( ::pair_ss const& kv : start_cmd_attrs  .env ) reply.env.push_back(kv) ;

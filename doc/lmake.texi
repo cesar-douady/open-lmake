@@ -1007,6 +1007,15 @@ This directory must be unique for each repository, i.e. @lmake considers it as a
 
 It can be freely modified (or removed) when @lmake is not running.
 
+@anchor{dir-remote_tmp_dir}
+@section @code{lmake.remote_tmp_dir}
+
+This variable specifies the path name of the file system available to user jobs for temporary storage for the remote executing hosts only (not shared among them).
+It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
+This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
+
+It can be freely modified (or removed) when @lmake is not running.
+
 @chapter Config
 
 @lmake can be configured to tailor its parameters to the user needs.
@@ -1022,13 +1031,15 @@ Recognized attributes are :
 @item @code{local_admin_dir}
 @tab @code{LMAKE}
 @tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
-Actually most of the accesses are made in this directory.
-See @pxref{dir-local_admin_dir}.
+Actually most of the accesses are made in this directory, @pxref{dir-local_admin_dir}.
 
 @item @code{remote_admin_dir}
 @tab @code{LMAKE}
-@tab This variable contains a directory to be used for remote execution administration.
-See @pxref{dir-remote_admin_dir}.
+@tab This variable contains a directory to be used for remote execution administration, @pxref{dir-remote_admin_dir}.
+
+@item @code{remote_tmp_dir}
+@tab @code{LMAKE}
+@tab This variable contains a directory to be used as a temporary storage for remote execution, @pxref{dir-remote_tmp_dir}.
 
 @item @code{heartbeat}
 @tab @code{60}
