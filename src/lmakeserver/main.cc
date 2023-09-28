@@ -180,7 +180,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
 							::vector_s     bads      ;
 							for( ::string const& target : rrr.targets ) {
-								RealPath::SolveReport rp = real_path.solve(target) ; // ignore links that lead to real path
+								RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ; // ignore links that lead to real path
 								if (rp.in_repo) targets.emplace_back(rp.real) ;
 								else            bads   .emplace_back(target ) ;
 							}

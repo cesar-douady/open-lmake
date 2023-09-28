@@ -134,7 +134,7 @@ if _reading_makefiles :
 			'stems'
 		,	'targets'     , 'post_targets'
 		,	'deps'
-		,	'environ_cmd' , 'environ_rsrcs' , 'environ_ancillary'
+		,	'environ_cmd' , 'environ_resources' , 'environ_ancillary'
 		,	'resources'
 		}
 	#	name                                               # must be specific for each rule, defaults to class name

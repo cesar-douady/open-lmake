@@ -12,10 +12,11 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* console dates of may_rerun seem to be start date instead of end date
 * debug unit_tests/cycle.py
 	- activate unit_tests/cycle.py
 	- set an ephemere store indexed by job with JobEphemereData in it
-	- put db_date, run_state and a new busy field in there
+	- put db_date and a new busy field in there
 	- then db_date can become much smaller, maybe 28 bits, as it just needs to be a req seq_id.
 	- detect cycle with the busy bit and use it to generate a run_state error
 	- take care of uphill : it should not participate in cycles as
@@ -45,9 +46,13 @@ items :
 	- dont know how to do that
 
 ****************************************************************************************************
-* COSMETIC (not implemented and ugly as long as not implemented)
+* COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* in LMAKE/rules, python rules have their {} doubled
+* some ^@ appear in ancillary environment
+	- these are variables inherited from slurm
+	- need to show that in a more user friendly way (and unambiguously)
 * manage to output file name and line number back to Lmakefile.py when executing cmd
 	- as of now, line no depend on number of accessed variables, globals, etc.
 		- an easy step would be to define cmd before globals to at least have a stable transformation
@@ -57,7 +62,6 @@ items :
 	- ensure it is also present in executable script
 	- apply same technic to called functions transported into script
 		- i.e. use technic in serialize module
-* lmake -e does not restart jobs that are dep_err
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen

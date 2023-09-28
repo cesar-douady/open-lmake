@@ -264,10 +264,10 @@ namespace Engine {
 								::vector_s const&             to_wash         = targets_to_wash.first     ;
 								::uset_s                      to_report       ; for( Node t : targets_to_wash.second ) to_report.insert(t.name()) ;
 								//
-								for( ::string const& tn : to_wash ) if (!to_report.contains(tn)) append_to_string( script , "rm " , tn , '\n' ) ;
+								for( ::string const& tn : to_wash ) if (!to_report.contains(tn)) append_to_string( script , "rm -f " , tn , '\n' ) ;
 								if (!to_report.empty()) {
 									script += "set -x\n" ;
-									for( ::string const& tn : to_wash ) if (to_report.contains(tn)) append_to_string( script , "rm " , tn , '\n' ) ;
+									for( ::string const& tn : to_wash ) if (to_report.contains(tn)) append_to_string( script , "rm -f " , tn , '\n' ) ;
 									script += "set +x\n" ;
 								}
 								for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;

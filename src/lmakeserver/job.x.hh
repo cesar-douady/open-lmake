@@ -34,12 +34,10 @@ namespace Engine {
 	,	PrematureEnd                   //                                         job was killed before starting
 	)
 
-	ENUM_1( SpecialStep                // ordered by increasing importance
-	,	HasErr = ErrNoFile             // >=HasErr means error
+	ENUM( SpecialStep                  // ordered by increasing importance
 	,	Idle
 	,	NoFile
 	,	Ok
-	,	ErrNoFile
 	,	Err
 	)
 
@@ -209,13 +207,12 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		// accesses
 	public :
-		bool cmd_ok    () const { return exec_gen >=                     rule->cmd_gen                  ; }
-		bool exec_ok   () const { return exec_gen >= (status==Status::Ok?rule->cmd_gen:rule->rsrcs_gen) ; } // dont care about rsrcs if job went ok
-		bool frozen    () const { return s_frozen(status)                                               ; }
-		bool is_special() const { return rule->is_special() || frozen()                                 ; }
+		bool cmd_ok    () const { return                       exec_gen >= rule->cmd_gen   ; }
+		bool rsrcs_ok  () const { return status<Status::Err || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
+		bool frozen    () const { return s_frozen(status)                                  ; }
+		bool is_special() const { return rule->is_special() || frozen()                    ; }
 		//
 		void exec_ok(bool ok) { SWEAR(!rule->is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
-		//
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
 			if (rule->is_special()) return { {}              , false } ;
@@ -225,12 +222,12 @@ namespace Engine {
 		//
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
-		//
 		bool err() const {
-			if (run_status>=RunStatus::Err     ) return true                ;
-			if (run_status!=RunStatus::Complete) return false               ;
-			else                                 return status>=Status::Err ;
+				if (run_status>=RunStatus::Err     ) return true                ;
+				if (run_status!=RunStatus::Complete) return false               ;
+				else                                 return status>=Status::Err ;
 		}
+		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		//
 		// data
 		DiskDate         db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
@@ -243,7 +240,7 @@ namespace Engine {
 		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
 		Tokens1          tokens1                  = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
 		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status    :4             = Status::New         ; static_assert(+Status   ::N<16) ; //      4 bits
+		Status           status    :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
 	private :
 		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
@@ -285,11 +282,12 @@ namespace Engine {
 			}
 		}
 		// data
-		NodeIdx    dep_lvl          = 0                   ;                                   // 31<=32 bits
-		RunAction  done_         :3 = RunAction ::None    ; static_assert(+RunAction ::N<8) ; //      3 bits , action for which we are done
-		Lvl        lvl           :3 = Lvl       ::None    ; static_assert(+Lvl       ::N<8) ; //      3 bits
-		BackendTag backend       :2 = BackendTag::Unknown ; static_assert(+BackendTag::N<4) ; //      2 bits
-		bool       start_reported:1 = false               ;                                   //      1 bits , if true <=> start message has been reported to user
+		NodeIdx      dep_lvl          = 0                      ;                                      // 31<=32 bits
+		RunAction    done_         :3 = RunAction   ::None     ; static_assert(+RunAction   ::N< 8) ; //      3 bits , action for which we are done
+		Lvl          lvl           :3 = Lvl         ::None     ; static_assert(+Lvl         ::N< 8) ; //      3 bits
+		BackendTag   backend       :2 = BackendTag  ::Unknown  ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
+		JobReasonTag force         :5 = JobReasonTag::None     ; static_assert(+JobReasonTag::N<32) ; //      5 bits
+		bool         start_reported:1 = false                  ;                                      //      1 bits , if true <=> start message has been reported to user
 	} ;
 	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
 
@@ -361,6 +359,7 @@ namespace Engine {
 	}
 
 	inline bool/*maybe_new_deps*/ Job::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
+		ri.force = JobReasonTag::None ;                                         // job is submitted, that was the goal, now void looping
 		if ((*this)->is_special()) return _submit_special(ri                ) ;
 		else                       return _submit_plain  (ri,reason,pressure) ;
 	}
@@ -378,10 +377,10 @@ namespace Engine {
 	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
 
 	inline bool JobTgt::produces( Node t , bool sure ) const {
-		if ( (*this)->run_status==RunStatus::NoDep || (*this)->run_status==RunStatus::NoFile ) return false ;
-		if ( is_sure()                                                                       ) return true  ;
-		if ( (*this)->err()                                                                  ) return !sure ; // jobs in error are deemed to produce all their potential targets
-		if ( t->has_actual_job_tgt(*this)                                                    ) return true  ; // fast path
+		if ((*this)->missing()          ) return false ;                       // missing jobs produce nothing
+		if (is_sure()                   ) return true  ;
+		if ((*this)->err()              ) return !sure ;                       // jobs in error are deemed to produce all their potential targets
+		if (t->has_actual_job_tgt(*this)) return true  ;                       // fast path
 		//
 		return ::binary_search( (*this)->star_targets , t ) ;
 	}
