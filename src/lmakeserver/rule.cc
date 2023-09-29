@@ -230,16 +230,19 @@ namespace Engine {
 	// Attrs
 	//
 
-	void Attrs::acquire( bool& dst , PyObject* py_src ) {
-		if (easy(dst,py_src,false)) return ;
+	bool/*updated*/ Attrs::acquire( bool& dst , PyObject* py_src ) {
+		if (!py_src        ) {           return false ;                              }
+		if (py_src==Py_None) { if (!dst) return false ; dst = false ; return true  ; }
 		//
 		int v = PyObject_IsTrue(py_src) ;
 		if (v==-1) throw "cannot determine truth value"s ;
 		dst = v ;
+		return true ;
 	}
 
-	void Attrs::acquire( Time::Delay& dst , PyObject* py_src ) {
-		if (easy(dst,py_src)) return ;
+	bool/*updated*/ Attrs::acquire( Time::Delay& dst , PyObject* py_src ) {
+		if (!py_src        ) {           return false ;                           }
+		if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
 		//
 		if (PyFloat_Check(py_src)) {
 			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
@@ -256,16 +259,19 @@ namespace Engine {
 		} else {
 			throw "cannot convert to float"s ;
 		}
+		return true ;
 	}
 
-	void Attrs::acquire( ::string& dst , PyObject* py_src ) {
-		if (easy(dst,py_src)) return ;
+	bool/*updated*/ Attrs::acquire( ::string& dst , PyObject* py_src ) {
+		if (!py_src        ) {                  return false ;                           }
+		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
 		//
 		bool is_str = PyUnicode_Check(py_src) ;
 		if (!is_str) py_src = PyObject_Str(py_src) ;
 		if (!py_src) throw "cannot convert to str"s ;
 		dst = PyUnicode_AsUTF8(py_src) ;
 		if (!is_str) Py_DECREF(py_src) ;
+		return true ;
 	}
 
 	::string Attrs::subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
@@ -335,35 +341,55 @@ namespace Engine {
 		if (is_dynamic) {
 			Py::Gil   gil    ;
 			PyObject* py_dct = _mk_dct(match) ;
-			if (!Attrs::easy(res,py_dct)) {
-				::map_s<VarIdx> dep_idxs ;
-				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-				PyObject*  py_key = nullptr/*garbage*/ ;
-				PyObject*  py_val = nullptr/*garbage*/ ;
-				Py_ssize_t pos    = 0                  ;
-				while (PyDict_Next( py_dct , &pos , &py_key , &py_val )) {
-					if (py_val==Py_None) continue ;
-					if (!PyUnicode_Check(py_key)) {
-						PyObject* py_key_str = PyObject_Str(py_key) ;
-						Py_DECREF(py_dct) ;
-						if (!py_key_str) throw "a dep has a non printable key"s ;
-						::string key_str = PyUnicode_AsUTF8(py_key_str) ;
-						Py_DECREF(py_key_str) ;
-						throw to_string("a dep has a non str key : ",key_str) ;
-					}
-					::string key = PyUnicode_AsUTF8(py_key)           ;
-					Dflags   df  = StaticDflags                       ;        // initial value
-					::string dep = _split_flags(df,"dep "+key,py_val) ;        // updates df
-					match.rule->add_cwd( dep , df[Dflag::Top] ) ;
-					::pair_s<AccDflags> e { dep , {a,df} } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key)) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
-					else                   {                                  res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
+			::map_s<VarIdx> dep_idxs ;
+			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
+			PyObject*  py_key = nullptr/*garbage*/ ;
+			PyObject*  py_val = nullptr/*garbage*/ ;
+			Py_ssize_t pos    = 0                  ;
+			while (PyDict_Next( py_dct , &pos , &py_key , &py_val )) {
+				if (py_val==Py_None) continue ;
+				if (!PyUnicode_Check(py_key)) {
+					PyObject* py_key_str = PyObject_Str(py_key) ;
+					Py_DECREF(py_dct) ;
+					if (!py_key_str) throw "a dep has a non printable key"s ;
+					::string key_str = PyUnicode_AsUTF8(py_key_str) ;
+					Py_DECREF(py_key_str) ;
+					throw to_string("a dep has a non str key : ",key_str) ;
 				}
+				::string key = PyUnicode_AsUTF8(py_key)           ;
+				Dflags   df  = StaticDflags                       ;        // initial value
+				::string dep = _split_flags(df,"dep "+key,py_val) ;        // updates df
+				match.rule->add_cwd( dep , df[Dflag::Top] ) ;
+				::pair_s<AccDflags> e { dep , {a,df} } ;
+				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key)) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
+				else                   {                                  res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
 			}
 			Py_DECREF(py_dct) ;
 		}
 		//
 		return res  ;
+	}
+
+	//
+	// SubmitRsrcsAttrs
+	//
+
+	void SubmitRsrcsAttrs::s_canon(::vmap_ss& rsrcs) {
+		for ( auto& [k,v] : rsrcs ) {
+			StdRsrc r = mk_enum_no_throw<StdRsrc>(k) ;
+			if (r==StdRsrc::Unknown) continue ;                                // resource is not standard
+			if (k!=mk_snake(r)     ) continue ;                                // .
+			uint64_t val = 0 /*garbage*/ ;
+			try                     { val = from_string_with_units<uint64_t>(v) ; }
+			catch (::string const&) { continue ;                                  }   // value is not recognized
+			//
+			if ( g_config.rsrc_digits[+r] && val ) {
+				uint8_t sw = ::max(0,int(bit_width(val))-int(g_config.rsrc_digits[+r])) ; // compute necessary shift for rounding, /!\ beware of signness with unsigned arithmetic
+				val = (((val-1)>>sw)+1)<<sw ;                                             // quantify by rounding up
+			}
+			//
+			v = to_string_with_units<uint64_t>(val) ;
+		}
 	}
 
 	//
@@ -383,10 +409,6 @@ namespace Engine {
 			SWEAR(!n_unnamed) ;
 		}
 		return need ;
-	}
-
-	void Cmd::update( PyObject* py_src ) {
-		Attrs::acquire_from_dct(cmd  ,py_src,"cmd") ;
 	}
 
 	::string DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
@@ -1004,6 +1026,19 @@ namespace Engine {
 		if (sna.n_retries!=0) entries.emplace_back( "n_retries" , mk_snake (sna.n_retries) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
+	static ::string _pretty_env( size_t i , ::vmap_ss const& m ) {
+		OStringStream res ;
+		size_t        wk  = 0 ;
+		//
+		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
+		for( auto const& [k,v] : m ) {
+			res << ::string(i,'\t') << ::setw(wk)<<k ;
+			if (v==EnvPassMrkr) res << " ...\n"        ;
+			else                res <<" : "<< v <<'\n' ;
+		}
+		//
+		return res.str() ;
+	}
 	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
 		OStringStream res    ;
@@ -1026,19 +1061,21 @@ namespace Engine {
 			}
 		}
 		if (!sca.env.empty()) {
-			res << indent("environ :\n",i) << _pretty_vmap( i+1 , sca.env ) ;
+			res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
 		}
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
-		return indent(ensure_nl(_pretty_fstr(c.cmd,rd)),i) ;
+		if (c.cmd.empty()) return {}                                          ;
+		if (c.is_python  ) return indent(ensure_nl(             c.cmd    ),i) ;
+		else               return indent(ensure_nl(_pretty_fstr(c.cmd,rd)),i) ;
 	}
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		/**/                  res << _pretty_vmap(i,entries) ;
-		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sra.env ) ;
+		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
@@ -1048,7 +1085,7 @@ namespace Engine {
 		if (+sna.start_delay      ) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
 		if (!sna.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/                  res << _pretty_vmap(i,entries) ;
-		if (!sna.env.empty()) res << indent("environ :\n",i) << _pretty_vmap( i+1 , sna.env ) ;
+		if (!sna.env.empty()) res << indent("environ :\n",i) << _pretty_env( i+1 , sna.env ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {

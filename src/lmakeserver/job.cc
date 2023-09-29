@@ -167,10 +167,12 @@ namespace Engine {
 		return os << ')' ;
 	}
 	::ostream& operator<<( ::ostream& os , JobExec const je ) {
-		if (!je) return os << "JT()" ;
-		os << "JobExec(" << Job(je) ;
-		if (!je.host.empty()) os <<','<< je.host ;
-		return os <<','<< je.start <<')' ;
+		if (!je                       ) return os << "JT()"                ;
+		/**/                                   os << "JobExec(" << Job(je) ;
+		if (!je.host.empty()          )        os <<','<< je.host          ;
+		/**/                                   os <<','<< je.start_date    ;
+		if (je.end_date!=je.start_date)        os <<','<< je.end_date      ;
+		/**/                            return os <<')'                    ;
 	}
 
 	::shared_mutex    Job::_s_target_dirs_mutex ;
@@ -252,7 +254,7 @@ namespace Engine {
 		Trace trace("premature_end",*this,req,STR(report)) ;
 		ReqInfo& ri = req_info(req) ;
 		make( ri , RunAction::None , {}/*reason*/ , MakeAction::PrematureEnd ) ;
-		if (report) req->audit_job(Color::Note,"continue",*this) ;
+		if (report) req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;
 		req.chk_end() ;
 	}
 
@@ -379,7 +381,7 @@ namespace Engine {
 		} catch (::string const& e) {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
 			for( Req req : running_reqs_ ) {
-				req->audit_job(Color::Note,"dynamic",*this) ;
+				req->audit_job(Color::Note,"dynamic",*this,true/*at_end*/) ;
 				req->audit_stderr({{rule->cache_none_attrs.s_exc_msg(true/*using_static*/),{}}},e,-1,1) ;
 			}
 		}
@@ -397,7 +399,7 @@ namespace Engine {
 			default              : SWEAR(status>Status::Garbage) ;                // ensure we have not forgotten a case
 		}
 		//
-		(*this)->end_date = ProcessDate::s_now()                            ;
+		(*this)->end_date = Pdate::s_now()                                  ;
 		(*this)->status   = status<=Status::Garbage ? status : Status::Lost ;  // ensure we cannot appear up to date while working on data
 		fence() ;
 		//
@@ -431,7 +433,7 @@ namespace Engine {
 				if (
 					td.write                                                   // we actually wrote
 				&&	target->has_actual_job() && !target->has_actual_job(*this) // there is another job
-				&&	target->actual_job_tgt->end_date>start                     // dates overlap, which means both jobs were running concurrently (we are the second to end)
+				&&	target->actual_job_tgt->end_date>start_date                // dates overlap, which means both jobs were running concurrently (we are the second to end)
 				) {
 					Job    aj       = target->actual_job_tgt   ;               // common_tflags cannot be tried as target may be unexpected for aj
 					VarIdx aj_idx   = aj.full_match().idx(tn)  ;               // this is expensive, but pretty exceptional
@@ -512,9 +514,9 @@ namespace Engine {
 					if (seen_static_targets.contains(tu)) continue ;
 					Tflags tflags = rule->tflags(t) ;
 					tu->actual_job_tgt = { *this , true/*is_sure*/ } ;
-					//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (!tflags[Tflag::Incremental]) tu.refresh( Crc::None , DiskDate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
-					//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (!tflags[Tflag::Incremental]) tu.refresh( Crc::None , Ddate::s_now() ) ; // if incremental, target is preserved, else it has been washed at start time
+					//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (!tflags[Tflag::Phony]) {
 						err = true ;
 						if (status==Status::Ok) report_missing_target(tn) ;    // only report if job was ok, else it is quite normal
@@ -530,7 +532,7 @@ namespace Engine {
 		// handle deps
 		//
 		if (!killed) {                                                         // if killed, old deps are better than new ones, if job did not run, we have no deps, not even static deps
-			DiskDate      db_date    ;
+			Ddate         db_date    ;
 			::vector<Dep> dep_vector ; dep_vector.reserve(digest.deps.size()) ; // typically, static deps are all accessed
 			::uset<Node>  old_deps   = mk_uset<Node>((*this)->deps) ;
 			//
@@ -670,9 +672,9 @@ namespace Engine {
 		}
 		if (!pfx.empty()) step = pfx+step ;
 		Trace trace("audit_end",c,step,*this,cri,STR(modified)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job(c,step,*this,exec_time) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		req->audit_job(c,step,*this,true/*at_end*/,exec_time) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (jr==JobReport::Unknown) return ;
 		req->audit_stderr(analysis_err,stderr,stderr_len,1) ;
 	}
@@ -1028,9 +1030,9 @@ namespace Engine {
 		FileInfoDate fid{tn} ;
 		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,No/*modified*/} ;
 		Trace trace("src",fid.date,t->date) ;
-		Crc      crc      { tn , g_config.hash_algo }                                           ;
-		Bool3    modified = crc.match(t->crc) ? No : !t->crc || t->crc==Crc::None ? Maybe : Yes ;
-		DiskDate date     = +fid ? fid.date : t->date                                           ;
+		Crc   crc      { tn , g_config.hash_algo }                                           ;
+		Bool3 modified = crc.match(t->crc) ? No : !t->crc || t->crc==Crc::None ? Maybe : Yes ;
+		Ddate date     = +fid ? fid.date : t->date                                           ;
 		//vvvvvvvvvvvvvvvvvvvvv
 		t.refresh( crc , date ) ;
 		//^^^^^^^^^^^^^^^^^^^^^
@@ -1106,8 +1108,8 @@ namespace Engine {
 					// there is no such stable situation as link will be resolved when dep is acquired, only when link appeared, until next rebuild
 					Unode un{name()} ;
 					un->actual_job_tgt = {*this,true/*is_sure*/} ;
-					if ( d->crc.is_lnk() || !d->crc ) un.refresh( {}        , {}                ) ;
-					else                              un.refresh( Crc::None , DiskDate::s_now() ) ;
+					if ( d->crc.is_lnk() || !d->crc ) un.refresh( {}        , {}             ) ;
+					else                              un.refresh( Crc::None , Ddate::s_now() ) ;
 				}
 				(*this)->status = Status::Ok ;
 			break ;
@@ -1152,7 +1154,7 @@ namespace Engine {
 			if (t.manual_ok_refresh(req,FileInfoDate(static_target_names[ti]))==No)
 				manual_targets.emplace_back(t,rule->tflags(ti)[Tflag::ManualOk]) ;
 		}
-		Rule::FullMatch fm ;                                               // lazy evaluated
+		Rule::FullMatch fm ;                                                   // lazy evaluated
 		for( Target t : (*this)->star_targets ) {
 			::string tn = t.name() ;
 			if (t.manual_ok_refresh(req,FileInfoDate(tn))==No)
@@ -1174,8 +1176,8 @@ namespace Engine {
 	Advised :
 		for( auto const& [t,ok] : manual_targets ) {
 			if (ok) continue ;
-			DiskDate td    = file_date(t.name()) ;
-			uint8_t  n_dec = (td-t->date)>Delay(2.) ? 0 : 3 ;                  // if dates are far apart, probably a human action and short date is more comfortable, else be precise
+			Ddate   td    = file_date(t.name())            ;
+			uint8_t n_dec = (td-t->date)>Delay(2.) ? 0 : 3 ;                   // if dates are far apart, probably a human action and short date is more comfortable, else be precise
 			req->audit_node(
 				Color::Note
 			,	t->crc==Crc::None ?
@@ -1247,7 +1249,7 @@ namespace Engine {
 			switch (cache_match.hit) {
 				case Yes :
 					try {
-						JobExec        je            { *this , ProcessDate::s_now() }        ;
+						JobExec        je            { *this , Pdate::s_now() }              ;
 						::vector<Node> report_unlink = wash(match)                           ;
 						JobDigest      digest        = cache->download(*this,cache_match.id) ;
 						ri.lvl = Lvl::Hit ;

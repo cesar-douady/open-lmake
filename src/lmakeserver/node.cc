@@ -242,7 +242,7 @@ namespace Engine {
 			trace("not_buildable",cri) ;
 			if ( (*this)->crc!=Crc::None && manual_ok()==Maybe ) {             // if file has been removed, everything is ok again : file is not buildable and does not exist
 				Unode un{*this} ;
-				un.refresh( Crc::None , DiskDate::s_now() ) ;
+				un.refresh( Crc::None , Ddate::s_now() ) ;
 				un.share() ;                                                   // now that there is no more crc, maybe node is sharable
 			}
 			return cri ;
@@ -425,7 +425,7 @@ namespace Engine {
 		un->job_tgts      .clear() ;
 		un->actual_job_tgt.clear() ;
 		un->match_gen = NMatchGen ;                                            // sources are locked match_ok
-		un.refresh( Crc::None , DiskDate::s_now() ) ;
+		un.refresh( Crc::None , Ddate::s_now() ) ;
 		share() ;
 	}
 
@@ -447,7 +447,7 @@ namespace Engine {
 		return os<<'U'<<Node(n) ;
 	}
 
-	bool/*modified*/ Unode::refresh( Crc crc , DiskDate date ) {
+	bool/*modified*/ Unode::refresh( Crc crc , Ddate date ) {
 		bool steady = (*this)->crc.match(crc) ;
 		Trace trace("refresh",*this,STR(steady),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
 		if (steady) {                               (*this)->date = date ;                                } // regulars and links cannot have the same crc

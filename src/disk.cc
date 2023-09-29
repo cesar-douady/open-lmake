@@ -53,8 +53,8 @@ namespace Disk {
 		struct ::stat st = _s_stat(at,n) ;
 		static_cast<FileInfo&>(*this) = FileInfo(st) ;
 		if (+*this) {
-			date = Date(st.st_ctim) ;
-			sz   = st.st_size       ;
+			date = Ddate(st.st_ctim) ;
+			sz   = st.st_size        ;
 		}
 	}
 

@@ -36,7 +36,7 @@ namespace Engine {
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {
-			::string trace_file      = "outputs/"+ProcessDate::s_now().str(i)             ;
+			::string trace_file      = "outputs/"+Pdate::s_now().str(i)                   ;
 			::string fast_trace_file = to_string(g_config.local_admin_dir,'/',trace_file) ;
 			if (is_reg(fast_trace_file)) { SWEAR(i<=9) ; continue ; }                       // at ns resolution, it impossible to have a conflict
 			//
@@ -58,10 +58,10 @@ namespace Engine {
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
-		data.start        = DiskDate   ::s_now() ;
+		data.start        = Ddate::s_now()       ;
 		data.options      = options              ;
 		data.audit_fd     = fd                   ;
-		data.stats.start  = ProcessDate::s_now() ;
+		data.stats.start  = Pdate::s_now()       ;
 		//
 		data.job = Job( Special::Req , Deps(targets,Accesses::All,StaticDflags,true/*parallel*/) ) ;
 		//
@@ -134,7 +134,7 @@ namespace Engine {
 		_adjust_eta() ;
 	}
 	void Req::_adjust_eta(bool push_self) {
-			ProcessDate now = ProcessDate::s_now() ;
+			Pdate now = Pdate::s_now() ;
 			Trace trace("_adjust_eta",now,(*this)->ete) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed = false ;
@@ -310,12 +310,12 @@ namespace Engine {
 				"| SUMMARY |\n"
 				"+---------+\n"
 			) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  jobs : " , (*this)->stats.useful()                                    ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "hit     jobs : " , (*this)->stats.ended(JobReport::Hit  )                     ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   jobs : " , (*this)->stats.ended(JobReport::Rerun)                     ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str()      ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str()      ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (ProcessDate::s_now()-(*this)->stats.start)   .short_str() ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "useful  jobs : " , (*this)->stats.useful()                               ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "hit     jobs : " , (*this)->stats.ended(JobReport::Hit  )                ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "rerun   jobs : " , (*this)->stats.ended(JobReport::Rerun)                ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str() ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str() ) ) ;
+			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-(*this)->stats.start)    .short_str() ) ) ;
 			for( Job j : (*this)->frozens ) (*this)->audit_job( j->err()?Color::Err:Color::Warning , "frozen" , j ) ;
 			if (!(*this)->clash_nodes.empty()) {
 				(*this)->audit_info( Color::Warning , "These files have been written by several simultaneous jobs" ) ;

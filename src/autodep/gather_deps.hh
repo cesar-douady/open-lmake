@@ -24,8 +24,8 @@ struct GatherDeps {
 	using Accesses     = Disk::Accesses              ;
 	using AccessDigest = JobExecRpcReq::AccessDigest ;
 	using Proc         = JobExecRpcProc              ;
-	using DD           = Time::DiskDate              ;
-	using PD           = Time::ProcessDate           ;
+	using DD           = Time::Ddate                 ;
+	using PD           = Time::Pdate                 ;
 	using FI           = Disk::FileInfo              ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;

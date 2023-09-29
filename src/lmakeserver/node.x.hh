@@ -41,7 +41,6 @@ namespace Engine {
 	struct Node : NodeBase {
 		friend ::ostream& operator<<( ::ostream& , Node const ) ;
 		friend Unode ;
-		using Date       = DiskDate       ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
@@ -119,8 +118,8 @@ namespace Engine {
 		NodeData const* operator->() const { return &**this ; }
 		NodeData      * operator->()       { return &**this ; }
 		// services
-		bool/*modified*/ refresh( Crc , Date ) ;
-		void             refresh(            ) ;
+		bool/*modified*/ refresh( Crc , Ddate ) ;
+		void             refresh(             ) ;
 		//
 	} ;
 
@@ -194,8 +193,7 @@ namespace Engine {
 namespace Engine {
 
 	struct NodeData {
-		using Idx  = Node::Idx  ;
-		using Date = Node::Date ;
+		using Idx = Node::Idx  ;
 		static constexpr uint8_t     NBuildable = +Bool3::N+1              ;   // Bool3::Unknown (=Bool3::N) is a possible value
 		static constexpr NodeDataIdx NShared    = (NMatchGen+1)*NBuildable ;   // match_gen range is 0-NMachGen inclusive
 		// statics
@@ -262,7 +260,7 @@ namespace Engine {
 		}
 		bool is_special() const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
-		Date db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Date() ; }
+		Ddate db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Ddate() ; }
 		//
 		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in dfs
 			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference
@@ -273,7 +271,7 @@ namespace Engine {
 		}
 		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
 		// data
-		Date     date                    ;                  // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		Ddate    date                    ;                  // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 		RuleTgts rule_tgts               ;                  // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		JobTgts  job_tgts                ;                  //      32 bits, owned , ordered by prio, valid if match_ok
@@ -426,9 +424,9 @@ namespace Engine {
 	inline void Unode::refresh() {
 		FileInfoDate fid{name()} ;
 		switch (manual_ok(fid)) {
-			case No    : refresh( {}        , fid.date          ) ; break ;
-			case Maybe : refresh( Crc::None , DiskDate::s_now() ) ; break ;
-			case Yes   :                                            break ;
+			case No    : refresh( {}        , fid.date       ) ; break ;
+			case Maybe : refresh( Crc::None , Ddate::s_now() ) ; break ;
+			case Yes   :                                         break ;
 			default : FAIL(fid) ;
 		}
 	}

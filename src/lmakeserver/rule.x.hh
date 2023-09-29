@@ -11,6 +11,8 @@
 #include "store/vector.hh"
 #include "store/struct.hh"
 
+#include "rpc_job.hh"
+
 #ifdef STRUCT_DECL
 
 namespace Engine {
@@ -68,10 +70,10 @@ namespace Engine {
 
 	struct Rule : RuleBase {
 		friend ::ostream& operator<<( ::ostream& os , Rule const r ) ;
-		static constexpr char JobMrkr  = 0 ;                                   // ensure no ambiguity between job names and node names
-		static constexpr char StarMrkr = 0 ;                                   // signal a star stem in job_name
-		static constexpr char StemMrkr = 0 ;                                   // signal a stem in job_name & targets & deps & cmd
-		static constexpr VarIdx NoVar = -1 ;
+		static constexpr char   JobMrkr  =  0 ;                                // ensure no ambiguity between job names and node names
+		static constexpr char   StarMrkr =  0 ;                                // signal a star stem in job_name
+		static constexpr char   StemMrkr =  0 ;                                // signal a stem in job_name & targets & deps & cmd
+		static constexpr VarIdx NoVar    = -1 ;
 		//
 		struct SimpleMatch ;
 		struct FullMatch   ;
@@ -92,25 +94,19 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		template<class T> bool easy( T& dst , PyObject* py_src , T const& dflt={} ) {
-			if (!py_src        ) {              return true ; }
-			if (py_src==Py_None) { dst = dflt ; return true ; }
-			return false ;
-		}
+		/**/                                  bool/*updated*/ acquire( bool       & dst , PyObject* py_src ) ;
+		/**/                                  bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) ;
+		/**/                                  bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
+		template<class      T               > bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
+		template<class      T,bool Env=false> bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
+		template<::integral I               > bool/*updated*/ acquire( I          & dst , PyObject* py_src ) ;
+		template<StdEnum    E               > bool/*updated*/ acquire( E          & dst , PyObject* py_src ) ;
 		//
-		/**/                                  void acquire( bool       & dst , PyObject* py_src ) ;
-		/**/                                  void acquire( Time::Delay& dst , PyObject* py_src ) ;
-		/**/                                  void acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class      T               > void acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class      T,bool Env=false> void acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
-		template<::integral I               > void acquire( I          & dst , PyObject* py_src ) ;
-		template<StdEnum    E               > void acquire( E          & dst , PyObject* py_src ) ;
-		//
-		template<class T,bool Env=false> void acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
+		template<class T,bool Env=false> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
 			try {
 				static_assert( !Env || is_same_v<T,::vmap_ss> ) ;
-				if constexpr (Env) acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
-				else               acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				if constexpr (Env) return acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				else               return acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
 			} catch (::string const& e) {
 				throw to_string("while processing ",key," : ",e) ;
 			}
@@ -152,13 +148,17 @@ namespace Engine {
 	// used at submit time, participate in resources
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
+		static void s_canon(::vmap_ss& rsrcs) ;                                // round and cannonicalize standard resources
 		// services
 		BitMap<VarCmd> init  ( PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update( PyObject* py_dct                           ) {
 			Attrs::acquire_from_dct(backend,py_dct,"backend") ;
-			Attrs::acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ;
-			::sort(rsrcs) ;                                                    // stabilize rsrcs crc
+			if ( Attrs::acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ) {
+				::sort(rsrcs) ;                                                // stabilize rsrcs crc
+				canon() ;
+			}
 		}
+		void canon() { s_canon(rsrcs) ; }
 		// data
 		BackendTag backend = BackendTag::Local ;           // backend to use to launch jobs
 		::vmap_ss  rsrcs   ;
@@ -227,7 +227,9 @@ namespace Engine {
 		static constexpr const char* Msg = "execution command" ;
 		// services
 		BitMap<VarCmd> init  ( PyObject* , ::umap_s<CmdIdx> const& ) ;
-		void           update( PyObject*                           ) ;
+		void           update( PyObject* py_dct                    ) {
+			Attrs::acquire_from_dct(cmd  ,py_dct,"cmd") ;
+		}
 		// data
 		bool     is_python = false/*garbage*/ ;
 		::string cmd       ;
@@ -634,8 +636,9 @@ namespace Engine {
 	// Attrs
 	//
 
-	template<::integral I> void Attrs::acquire( I& dst , PyObject* py_src ) {
-		if (easy(dst,py_src,I(0))) return ;
+	template<::integral I> bool/*updated*/ Attrs::acquire( I& dst , PyObject* py_src ) {
+		if (!py_src        ) {           return false ; }
+		if (py_src==Py_None) { dst = 0 ; return true  ; }
 		//
 		PyObject* py_src_long = PyNumber_Long(py_src) ;
 		if (!py_src_long) throw "cannot convert to an int"s ;
@@ -646,35 +649,43 @@ namespace Engine {
 		if (::cmp_less   (v,::numeric_limits<I>::min())) throw "underflow"s                          ;
 		if (::cmp_greater(v,::numeric_limits<I>::max())) throw "overflow"s                           ;
 		dst = I(v) ;
+		return true ;
 	}
 
-	template<StdEnum E> void Attrs::acquire( E& dst , PyObject* py_src ) {
-		if (easy(dst,py_src,E::Dflt)) return ;
+	template<StdEnum E> bool/*updated*/ Attrs::acquire( E& dst , PyObject* py_src ) {
+		if (!py_src        ) {                 return false ; }
+		if (py_src==Py_None) { dst = E::Dflt ; return true  ; }
 		//
 		if (!PyUnicode_Check(py_src)) throw "not a str"s ;
 		dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
+		return true ;
 	}
 
-	template<class T> void Attrs::acquire( ::vector<T>& dst , PyObject* py_src ) {
-		if (easy(dst,py_src)) return ;
+	template<class T> bool/*updated*/ Attrs::acquire( ::vector<T>& dst , PyObject* py_src ) {
+		if (!py_src        ) {                  return false ;                           }
+		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
 		//
+		bool updated = false ;
 		if (!PySequence_Check(py_src)) throw "not a sequence"s ;
 		PyObject* fast_val = PySequence_Fast(py_src,"") ;
 		SWEAR(fast_val) ;
 		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
 		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
 		for( size_t i=0 ; i<n ; i++ ) {
-			if (i>=dst.size()) dst.push_back(T()) ;                            // create empty entry
+			if (i>=dst.size()) { updated = true ; dst.push_back(T()) ; }       // create empty entry
 			if (p[i]==Py_None) continue ;
-			try                       { acquire(dst.back(),p[i]) ;               }
+			try                       { updated |= acquire(dst.back(),p[i]) ;    }
 			catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
 		}
-		dst.resize(n) ;
+		if (n!=dst.size()) { updated = true ; dst.resize(n) ; }
+		return updated ;
 	}
 
-	template<class T,bool Env> void Attrs::acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-		if (easy(dst,py_src)) return ;
+	template<class T,bool Env> bool/*updated*/ Attrs::acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+		if (!py_src        ) {                  return false ;                           }
+		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
 		//
+		bool updated = false ;
 		::map_s<T> map = mk_map(dst) ;
 		if (!PyDict_Check(py_src)) throw "not a dict"s ;
 		PyObject*  py_key = nullptr/*garbage*/ ;
@@ -683,16 +694,26 @@ namespace Engine {
 		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
 			if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
 			const char* key = PyUnicode_AsUTF8(py_key) ;
-			if (py_val==Py_None) { map[key] ; continue ; }                     // create empty entry
+			if (py_val==Py_None) {
+				updated |= map.emplace(key,T()).second ;
+				continue ;
+			}
 			if constexpr (Env)
 				if (py_val==Py::g_ellipsis) {
+					updated  = true        ;
 					map[key] = EnvPassMrkr ;                                   // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
 					continue ;
 				}
-			try                       { acquire(map[key],py_val) ;                 }
-			catch (::string const& e) { throw to_string("for item ",key," : ",e) ; }
+			try {
+				auto [it,inserted] = map.emplace(key,T()) ;
+				updated |= inserted                   ;
+				updated |= acquire(it->second,py_val) ;
+			} catch (::string const& e) {
+				throw to_string("for item ",key," : ",e) ;
+			}
 		}
 		dst = mk_vmap(map) ;
+		return updated ;
 	}
 
 	//

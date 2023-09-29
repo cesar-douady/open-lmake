@@ -19,7 +19,7 @@ static constexpr int AT_BACKDOOR = Fd::Cwd.fd==-200 ? -300 : -200 ;            /
 struct Record {
 	using Access     = Disk::Access                                      ;
 	using Accesses   = Disk::Accesses                                    ;
-	using DD         = Time::DiskDate                                    ;
+	using DD         = Time::Ddate                                       ;
 	using Proc       = JobExecRpcProc                                    ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;

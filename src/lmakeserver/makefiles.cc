@@ -62,8 +62,8 @@ namespace Engine {
 		return srcs ;
 	}
 
-	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles(DiskDate& latest_makefile) {
-		DiskDate   makefiles_date   = file_date(s_makefiles) ;                             // ensure we gather correct date with NFS
+	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles(Ddate& latest_makefile) {
+		Ddate      makefiles_date   = file_date(s_makefiles) ;                          // ensure we gather correct date with NFS
 		::ifstream makefiles_stream { s_makefiles }          ;
 		Trace trace("_s_chk_makefiles",makefiles_date) ;
 		if (is_reg(s_no_makefiles)) { trace("found"    ,s_no_makefiles) ; return "last makefiles read process was interrupted" ; } // s_no_makefile_file is a marker that says s_makefiles is invalid
@@ -92,7 +92,7 @@ namespace Engine {
 		GatherDeps  gather_deps   { New }                                                               ;
 		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
 		::vector_s  cmd_line      = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } ;
-		Trace trace("_read_makefiles",ProcessDate::s_now()) ;
+		Trace trace("_read_makefiles",Pdate::s_now()) ;
 		gather_deps.autodep_env.src_dirs_s = {"/"} ;
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used communicate with client
@@ -107,13 +107,13 @@ namespace Engine {
 			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
 			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }
 		}
-		trace("done",ProcessDate::s_now()) ;
+		trace("done",Pdate::s_now()) ;
 		return { deps , content } ;
 	}
 
 	void Makefiles::s_refresh_makefiles(bool chk) {
 		Trace trace("s_refresh_makefiles") ;
-		DiskDate latest_makefile ;
+		Ddate    latest_makefile ;
 		::string reason          = _s_chk_makefiles(latest_makefile) ;
 		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read

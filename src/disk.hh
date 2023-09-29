@@ -9,8 +9,8 @@
 #include "time.hh"
 
 namespace Disk {
-	using Date   = Time::DiskDate ;
-	using DiskSz = uint64_t       ;
+	using Ddate  = Time::Ddate ;
+	using DiskSz = uint64_t    ;
 
 	ENUM(Access
 	,	Lnk        // file is accessed with readlink
@@ -80,9 +80,9 @@ namespace Disk {
 		FileInfoDate(         ::string const& name ) : FileInfoDate(Fd::Cwd,name) {} // .
 		FileInfoDate( Fd at , ::string const& name ) ;                               // .
 		// services
-		Date date_or_now() const { return +*this ? date : Time::DiskDate::s_now() ; }
+		Ddate date_or_now() const { return +*this ? date : Time::Ddate::s_now() ; }
 		// data
-		Date date ;
+		Ddate date ;
 	} ;
 
 	::string dir_name (::string const&) ;
@@ -126,12 +126,12 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	static inline bool is_reg   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).is_reg()          ; }
-	static inline bool is_lnk   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Lnk ; }
-	static inline bool is_dir   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Dir ; }
-	static inline bool is_target( Fd at , ::string const& file={} ) { return +FileInfo    (at,file)                   ; }
-	static inline bool is_none  ( Fd at , ::string const& file={} ) { return !FileInfo    (at,file).tag               ; }
-	static inline Date file_date( Fd at , ::string const& file={} ) { return  FileInfoDate(at,file).date              ; }
+	static inline bool  is_reg   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).is_reg()          ; }
+	static inline bool  is_lnk   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Lnk ; }
+	static inline bool  is_dir   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Dir ; }
+	static inline bool  is_target( Fd at , ::string const& file={} ) { return +FileInfo    (at,file)                   ; }
+	static inline bool  is_none  ( Fd at , ::string const& file={} ) { return !FileInfo    (at,file).tag               ; }
+	static inline Ddate file_date( Fd at , ::string const& file={} ) { return  FileInfoDate(at,file).date              ; }
 
 	static inline ::vector_s      lst_dir      ( ::string const& dir  , ::string const& prefix={}          ) { return lst_dir      (Fd::Cwd,dir ,prefix    ) ; }
 	static inline ::vector_s      walk         ( ::string const& file , ::string const& prefix={}          ) { return walk         (Fd::Cwd,file,prefix    ) ; }
@@ -148,7 +148,7 @@ namespace Disk {
 	static inline bool            is_dir       ( ::string const& file                                      ) { return is_dir       (Fd::Cwd,file           ) ; }
 	static inline bool            is_target    ( ::string const& file                                      ) { return is_target    (Fd::Cwd,file           ) ; }
 	static inline bool            is_none      ( ::string const& file                                      ) { return is_none      (Fd::Cwd,file           ) ; }
-	static inline Date            file_date    ( ::string const& file                                      ) { return file_date    (Fd::Cwd,file           ) ; }
+	static inline Ddate           file_date    ( ::string const& file                                      ) { return file_date    (Fd::Cwd,file           ) ; }
 
 	static inline ::string cwd() {
 		char* buf = ::getcwd(nullptr,0) ;

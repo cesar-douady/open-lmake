@@ -16,10 +16,10 @@
 
 namespace Time {
 
-	struct Delay       ;
-	struct Date        ;
-	struct DiskDate    ;
-	struct ProcessDate ;
+	struct Delay ;
+	struct Date  ;
+	struct Ddate ;
+	struct Pdate ;
 	template<class T> requires(IsOneOf<T,int64_t,uint64_t>) struct TimeBase ;
 
 	template<class T> requires(IsOneOf<T,int64_t,uint64_t>) struct TimeBase {
@@ -63,12 +63,12 @@ namespace Time {
 	struct Delay : TimeBase<int64_t> {
 		using Base = TimeBase<int64_t> ;
 		friend ::ostream& operator<<( ::ostream& , Delay const ) ;
-		friend Date        ;
-		friend DiskDate    ;
-		friend ProcessDate ;
+		friend Date  ;
+		friend Ddate ;
+		friend Pdate ;
 		// statics
 	private :
-		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , ProcessDate until ) ;
+		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) ;
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -161,64 +161,64 @@ namespace Time {
 	} ;
 
 	//
-	// We implement a complete separation between wall-clock time (ProcessDate) and time seen from the disk which may be on a server with its own view of time.
+	// We implement a complete separation between wall-clock time (Pdate) a short for process date) and time seen from the disk (Ddate) which may be on a server with its own view of time.
 	// Care has been taken so that you cannot compare and more generally inter-operate between these 2 times.
-	// Getting current ProcessDate-time is very cheap (few ns), so no particular effort is made to cache or otherwise optimize it.
-	// But it is the contrary for DiskDate current time : you must create or write to a file, very expensive (some fraction of ms).
+	// Getting current Pdate-time is very cheap (few ns), so no particular effort is made to cache or otherwise optimize it.
+	// But it is the contrary for Ddate current time : you must create or write to a file, very expensive (some fraction of ms).
 	// So we keep a lazy evaluated cached value that is refreshed once per loop (after we have waited) in each thread :
 	// - in terms of precision, this is enough, we just want correct relative order
 	// - in terms of cost, needing current disk time is quite rare (actually, we just need it to put a date on when a file is known to not exist, else we have a file date)
 	// - so in case of exceptional heavy use, cached value is used and in case of no use, we do not pay at all.
 	//
 
-	struct ProcessDate : Date {
-		friend ::ostream& operator<<( ::ostream& , ProcessDate const ) ;
+	struct Pdate : Date {
+		friend ::ostream& operator<<( ::ostream& , Pdate const ) ;
 		friend Delay ;
 		// statics
-		static ProcessDate s_now() ;
+		static Pdate s_now() ;
 		// cxtors & casts
 		using Date::Date ;
 		// services
-		constexpr bool              operator== (ProcessDate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
-		constexpr ::strong_ordering operator<=>(ProcessDate const& other) const { return _val<=>other._val  ; }
+		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
+		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr ProcessDate  operator+ (Delay other) const {                         return ProcessDate(_val+other._val) ; }
-		constexpr ProcessDate  operator- (Delay other) const {                         return ProcessDate(_val-other._val) ; }
-		constexpr ProcessDate& operator+=(Delay other)       { *this = *this + other ; return *this                        ; }
-		constexpr ProcessDate& operator-=(Delay other)       { *this = *this - other ; return *this                        ; }
-		constexpr Delay        operator- (ProcessDate) const ;
+		constexpr Pdate  operator+ (Delay other) const {                         return Pdate(_val+other._val) ; }
+		constexpr Pdate  operator- (Delay other) const {                         return Pdate(_val-other._val) ; }
+		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                  ; }
+		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                  ; }
+		constexpr Delay  operator- (Pdate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
 		void          sleep_until(            ) const ;
 	} ;
 
-	struct DiskDate : Date {
-		friend ::ostream& operator<<( ::ostream& , DiskDate const ) ;
+	struct Ddate : Date {
+		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
 		friend Delay ;
 		// statics
 		// s_now is rarely but unpredictably used
 		// so the idea is that s_refresh_now is called after each wait (i.e. once per loop in each thread)
 		// but this is cheap, you only pay if you actually call s_now, and this is the rare event
-		static void     s_refresh_now() { _t_now = {} ;                        } // refresh s_now (actual clear cached value)
-		static DiskDate s_now        () { return +_t_now ? _t_now : _s_now() ; } // provide a disk view of now
+		static void  s_refresh_now() { _t_now = {} ;                        }  // refresh s_now (actual clear cached value)
+		static Ddate s_now        () { return +_t_now ? _t_now : _s_now() ; }  // provide a disk view of now
 	private :
-		static DiskDate _s_now   () ;                                          // update cached value and return it
+		static Ddate _s_now() ;                                                // update cached value and return it
 		// static data
-		static thread_local DiskDate _t_now ;                                  // per thread lazy evaluated cached value
+		static thread_local Ddate _t_now ;                                     // per thread lazy evaluated cached value
 		// cxtors & casts
 	public :
 		using Date::Date ;
 		// services
-		constexpr bool              operator== (DiskDate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
-		constexpr ::strong_ordering operator<=>(DiskDate const& other) const { return _val<=>other._val  ; }
+		constexpr bool              operator== (Ddate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
+		constexpr ::strong_ordering operator<=>(Ddate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr DiskDate  operator+ (Delay other) const {                         return DiskDate(_val+other._val) ; }
-		constexpr DiskDate  operator- (Delay other) const {                         return DiskDate(_val-other._val) ; }
-		constexpr DiskDate& operator+=(Delay other)       { *this = *this + other ; return *this                     ; }
-		constexpr DiskDate& operator-=(Delay other)       { *this = *this - other ; return *this                     ; }
-		constexpr Delay     operator- (DiskDate   ) const ;
+		constexpr Ddate  operator+ (Delay other) const {                         return Ddate(_val+other._val) ; }
+		constexpr Ddate  operator- (Delay other) const {                         return Ddate(_val-other._val) ; }
+		constexpr Ddate& operator+=(Delay other)       { *this = *this + other ; return *this                  ; }
+		constexpr Ddate& operator-=(Delay other)       { *this = *this - other ; return *this                  ; }
+		constexpr Delay  operator- (Ddate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
 		void          sleep_until(            ) const ;
@@ -234,16 +234,16 @@ namespace Time {
 	inline constexpr Date Delay::operator+(Date d) const {
 		return Date(_val+d._val) ;
 	}
-	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , ProcessDate until ) {
+	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) {
 		if (sleep<=Delay()) return !tkn.stop_requested() ;
 		::mutex                  m   ;
 		::unique_lock<mutex>     lck { m } ;
 		::condition_variable_any cv  ;
-		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return ProcessDate::s_now()>=until ; } ) ;
+		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate::s_now()>=until ; } ) ;
 		return res ;
 	}
 	inline bool/*slept*/ Delay::sleep_for(::stop_token tkn) const {
-		return _s_sleep( tkn , *this , ProcessDate::s_now()+*this ) ;
+		return _s_sleep( tkn , *this , Pdate::s_now()+*this ) ;
 	}
 	inline void Delay::sleep_for() const {
 		if (_val<=0) return ;
@@ -258,16 +258,16 @@ namespace Time {
 	// Date
 	//
 	constexpr Date Date::None  {uint64_t( 0)} ;
-	inline ProcessDate ProcessDate::s_now() {
+	inline Pdate Pdate::s_now() {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;
-		return ProcessDate(now) ;
+		return Pdate(now) ;
 	}
-	inline constexpr Delay ProcessDate::operator-(ProcessDate other) const { return Delay(int64_t(_val-other._val)) ; }
-	inline constexpr Delay DiskDate   ::operator-(DiskDate    other) const { return Delay(int64_t(_val-other._val)) ; }
+	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(int64_t(_val-other._val)) ; }
+	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(int64_t(_val-other._val)) ; }
 	//
-	inline bool/*slept*/ ProcessDate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
-	inline void          ProcessDate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }
+	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
+	inline void          Pdate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }
 
 }
 

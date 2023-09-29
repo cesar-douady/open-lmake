@@ -115,9 +115,9 @@ namespace Engine {
 		JobIdx cur   () const { JobIdx res = 0 ; for( JobLvl    i : JobLvl::N    ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
 		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
-		Time::ProcessDate start                  ;
-		Time::ProcessDate eta                    ;
-		Time::Delay       jobs_time[2/*useful*/] ;
+		Time::Pdate start                  ;
+		Time::Pdate eta                    ;
+		Time::Delay jobs_time[2/*useful*/] ;
 	private :
 		JobIdx _cur  [+JobLvl::Done+1-(+JobLvl::None+1)] = {} ;
 		JobIdx _ended[+JobReport::N                    ] = {} ;
@@ -253,7 +253,7 @@ namespace Engine {
 		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
 		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }
 		//
-		void audit_job( Color c , ProcessDate date , ::string const& step , Rule r , ::string const& jn , ::string const& host={} , Delay exec_time={} ) const {
+		void audit_job( Color c , Pdate date , ::string const& step , Rule r , ::string const& jn , ::string const& host={} , Delay exec_time={} ) const {
 			::OStringStream msg ;
 			if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
 			if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<host                                  <<' ' ;
@@ -262,11 +262,12 @@ namespace Engine {
 			if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
 			audit( audit_fd , trace_stream , options , c , 0 , msg.str() , jn ) ;
 		}
-		void audit_job( Color c , ProcessDate d , ::string const& s , Job j , ::string const& h={} , Delay et={} ) const { audit_job( c , d , s , j->rule , j.user_name() , h , et ) ; }
+		void audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h={} , Delay et={} ) const { audit_job( c , d , s , j ->rule , j .user_name() , h       , et ) ; }
+		void audit_job( Color c , Pdate d , ::string const& s , JobExec const& je            , Delay et={} ) const { audit_job( c , d , s , je                        , je.host , et ) ; }
 		//
-		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , r,jn , h       , et ) ; }
-		void audit_job( Color c , ::string const& s , Job     j                   , ::string const& h={} , Delay et={} ) const { audit_job( c , ProcessDate::s_now() , s , j    , h       , et ) ; }
-		void audit_job( Color c , ::string const& s , JobExec je                  ,                        Delay et={} ) const { audit_job( c , je.start             , s , je   , je.host , et ) ; }
+		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,r,jn,h,et) ; }
+		void audit_job( Color c , ::string const& s , Job j                       , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
+		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je    ,et) ; }
 		//
 		void audit_status(bool ok) const {
 			try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
@@ -315,7 +316,7 @@ namespace Engine {
 		Fd                   audit_fd       ;              // to report to user
 		OFStream  mutable    trace_stream   ;              // saved output
 		ReqOptions           options        ;
-		DiskDate             start          ;
+		Ddate                start          ;
 		Delay                ete            ;              // Estimated Time Enroute
 		::umap<Rule,JobIdx>  ete_n_rules    ;              // number of jobs participating to stats.ete with exec_time from rule
 		::vector<Job>        frozens        ;              // frozen jobs to report in summary

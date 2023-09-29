@@ -24,11 +24,9 @@ static constexpr uint8_t TraceNameSz = JobHistorySz<= 10 ? 1 : JobHistorySz<=100
 static_assert(JobHistorySz<=10000) ;                                                       // above, we need to make hierarchical names
 
 int main( int argc , char* argv[] ) {
-	using Date = ProcessDate ;
-
 	static JobRpcReply start_info  ;                                           // start_info is made static as it holds g_tmp_dir, to avoid pointing to deallocated memory
-
-	Date start_overhead = Date::s_now() ;
+	//
+	Pdate start_overhead = Pdate::s_now() ;
 	//
 	block_sig(SIGCHLD) ;
 	swear_prod(argc==5,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
@@ -77,11 +75,9 @@ int main( int argc , char* argv[] ) {
 	cmd_env["ROOT_DIR"   ] = start_info.autodep_env.root_dir ;
 	cmd_env["SEQUENCE_ID"] = to_string(seq_id             )  ;
 	cmd_env["SMALL_ID"   ] = to_string(start_info.small_id)  ;
-	for( auto const& [k,v] : start_info.env ) {
-		::string val = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
-		if ( val==EnvPassMrkr && has_env(k) ) val = get_env(k) ;               // if value is special illegal value, use value from environement (typically from slurm)
-		cmd_env[k] = ::move(val) ;
-	}
+	for( auto const& [k,v] : start_info.env )
+		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
+		else if (has_env(k)    ) cmd_env[k] = get_env(k)                                 ; // if value is special illegal value, use value from environement (typically from slurm)
 	if ( !cmd_env.contains("TMPDIR") || start_info.keep_tmp )
 		cmd_env["TMPDIR"] = mk_abs( start_info.job_tmp_dir , start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
 	g_tmp_dir = new ::string{cmd_env["TMPDIR"]} ;
@@ -232,11 +228,11 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Date start_job = Date::s_now() ;                                                          // as late as possible before child starts
+		Pdate start_job = Pdate::s_now() ;                                                        // as late as possible before child starts
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status status = gather_deps.exec_child( args , child_stdin , child_stdout , Child::Pipe ) ;
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Date          end_job = Date::s_now() ;                                                   // as early as possible after child ends
+		Pdate         end_job = Pdate::s_now() ;                                                  // as early as possible after child ends
 		struct rusage rsrcs   ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
@@ -296,7 +292,7 @@ int main( int argc , char* argv[] ) {
 		} ;
 	}
 End :
-	Date end_overhead = Date::s_now() ;
+	Pdate end_overhead = Pdate::s_now() ;
 	trace("end_overhead",end_overhead) ;
 	end_report.digest.stats.total = end_overhead - start_overhead ;            // measure overhead as late as possible
 	//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -65,6 +65,12 @@ namespace Engine {
 	,	Reported
 	)
 
+	ENUM( StdRsrc
+	,	Cpu
+	,	Mem
+	,	Tmp
+	)
+
 }
 #endif
 #ifdef STRUCT_DEF
@@ -133,6 +139,7 @@ namespace Engine {
 			::serdes(s,src_dirs_s           ) ;
 			::serdes(s,sub_prio_boost       ) ;
 			::serdes(s,backends             ) ;
+			::serdes(s,rsrc_digits          ) ;
 			::serdes(s,caches               ) ;
 			::serdes(s,colors               ) ;
 			::serdes(s,console.date_prec    ) ;
@@ -158,6 +165,7 @@ namespace Engine {
 		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
 		Backend        backends[+BackendTag::N]                        ;
+		uint8_t        rsrc_digits[+StdRsrc::N]                        = {}               ; // precision of standard resources
 		::map_s<Cache> caches                                          ;
 		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
 		struct {
@@ -188,7 +196,6 @@ namespace Engine {
 		using Kind = EngineClosureKind ;
 		using Req_ = Engine::Req       ;
 		using Job_ = Engine::Job       ;
-		using Date = ProcessDate       ;
 		//
 		using GP = GlobalProc     ;
 		using RP = ReqProc        ;

@@ -63,9 +63,9 @@ void Record::exec( int at , const char* exe , bool no_follow , ::string const& c
 JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 	if (jerr.has_files()) {
 		SWEAR(jerr.auto_date) ;
-		bool               some_in_tmp = false               ;
-		::string           c           = jerr.comment+".lnk" ;
-		::vmap_s<DiskDate> files       ;
+		bool            some_in_tmp = false               ;
+		::string        c           = jerr.comment+".lnk" ;
+		::vmap_s<Ddate> files       ;
 		for( auto const& [f,dd] : jerr.files ) {
 			::pair_s<bool/*in_tmp*/> sr = _solve( AT_FDCWD , f.c_str() , jerr.no_follow , c ) ;
 			if (!sr.first.empty()) files.emplace_back( sr.first , file_date(s_get_root_fd(),sr.first) ) ;
@@ -75,8 +75,8 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		jerr.auto_date = false         ;                                       // files are now physical and dated
 		if ( some_in_tmp && jerr.digest.write ) _report_tmp() ;
 	}
-	jerr.date     = ProcessDate::s_now() ;                                     // ensure date is posterior to links encountered while solving
-	jerr.comment += ".backdoor"          ;
+	jerr.date     = Pdate::s_now() ;                                     // ensure date is posterior to links encountered while solving
+	jerr.comment += ".backdoor"    ;
 	if (jerr.proc==JobExecRpcProc::Access) _report_access(jerr) ;
 	else                                   report_cb     (jerr) ;
 	if (jerr.sync) return get_reply_cb() ;

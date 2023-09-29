@@ -448,7 +448,7 @@ namespace Backends::Local {
 			Trace trace("_wait_jobs",MyTag) ;
 			for(;;) {
 				auto [popped,pid] = _wait_queue.pop(stop) ;
-				DiskDate::s_refresh_now() ;                                    // we have waited, refresh now
+				Ddate::s_refresh_now() ;                                       // we have waited, refresh now
 				if (!popped) return ;
 				trace("wait",pid) ;
 				::waitpid(pid,nullptr,0) ;
@@ -489,15 +489,16 @@ namespace Backends::Local {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",MyTag) ;
 			SWEAR(it->second<size()) ;
+			Rsrc2& entry = (*this)[it->second] ;
 			try {
-				size_t pos = v.find('<') ;
+				size_t pos     = v.find('<')          ;
+				bool   in_mega = k=="mem" || k=="tmp" ;
 				if (pos==Npos) {
-					Rsrc x ; ::istringstream(v)>>x ;
-					(*this)[it->second].min = x ;
-					(*this)[it->second].max = x ;
+					if (in_mega) { entry.min = from_string_with_units<Rsrc,'M'>(v              ) ; entry.max = entry.min                                         ; }
+					else         { entry.min = from_string_with_units<Rsrc    >(v              ) ; entry.max = entry.min                                         ; }
 				} else {
-					::istringstream(v.substr(0    ,pos))>>(*this)[it->second].min ;
-					::istringstream(v.substr(pos+1    ))>>(*this)[it->second].max ;
+					if (in_mega) { entry.min = from_string_with_units<Rsrc,'M'>(v.substr(0,pos)) ; entry.max = from_string_with_units<Rsrc,'M'>(v.substr(pos+1)) ; }
+					else         { entry.min = from_string_with_units<Rsrc    >(v.substr(0,pos)) ; entry.max = from_string_with_units<Rsrc    >(v.substr(pos+1)) ; }
 				}
 			} catch(...) {
 				throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()," nor a min/max pair separated by <") ;
@@ -507,7 +508,12 @@ namespace Backends::Local {
 
 	::vmap_ss RsrcsData::mk_vmap(LocalBackend const& self) const {
 		::vmap_ss res ; res.reserve(self.rsrc_keys.size()) ;
-		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) if ((*this)[i]) res.emplace_back( self.rsrc_keys[i] , to_string((*this)[i]) ) ;
+		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) {
+			if (!(*this)[i]) continue ;
+			::string const& key = self.rsrc_keys[i] ;
+			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , to_string((*this)[i],'M') ) ;
+			else                            res.emplace_back( key , to_string((*this)[i]    ) ) ;
+		}
 		return res ;
 	}
 

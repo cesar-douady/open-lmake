@@ -38,6 +38,7 @@
 #include <atomic>
 #include <array>
 #include <bit>
+#include <charconv>
 #include <compare>
 #include <concepts>
 #include <condition_variable>
@@ -392,6 +393,9 @@ template<::integral I> static inline void encode_int( char* p , I x ) {
 }
 
 ::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) ;
+
+template<::integral T,char U=0> T        from_string_with_units(::string const& s) ; // provide default unit in U. If provided, return value is expressed in this unit
+template<::integral T,char U=0> ::string to_string_with_units  (T               x) ; // .
 
 //
 // assert
@@ -1281,11 +1285,75 @@ static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } /
 template<class T> static inline T clone(T const& x) { return x ; }             // simply clone a value
 
 template<class T,bool Fence=false> struct Save {
-	 Save( T& ref , T const& val ) : saved(ref),_ref(ref) {                      ref  = val   ; if (Fence) fence() ; } // save and init, ensure sequentiality if asked to do so
-	 Save( T& ref                ) : saved(ref),_ref(ref) {                                                          } // in some cases, we do not care about the value, just saving and restoring
+	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} {                      ref  = val   ; if (Fence) fence() ; } // save and init, ensure sequentiality if asked to do so
+	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                          } // in some cases, we do not care about the value, just saving and restoring
 	~Save(                       )                        { if (Fence) fence() ; _ref = saved ;                      } // restore      , ensure sequentiality if asked to do so
-	T  saved ;
+	T saved ;
 private :
 	T& _ref ;
 } ;
 template<class T> using FenceSave = Save<T,true> ;
+
+//
+// Implementation
+//
+
+//
+// string
+//
+
+static constexpr inline int _unit_val(char u) {
+	switch (u) {
+		case 'E' : return  60 ; break ;
+		case 'P' : return  50 ; break ;
+		case 'T' : return  40 ; break ;
+		case 'G' : return  30 ; break ;
+		case 'M' : return  20 ; break ;
+		case 'k' : return  10 ; break ;
+		case 0   : return   0 ; break ;
+		case 'm' : return -10 ; break ;
+		case 'u' : return -20 ; break ;
+		case 'n' : return -30 ; break ;
+		case 'p' : return -40 ; break ;
+		case 'f' : return -50 ; break ;
+		case 'a' : return -60 ; break ;
+		default  : throw to_string("unrecognized suffix ",u) ;
+	}
+}
+template<::integral T,char U> T from_string_with_units(::string const& s) {
+	T                   val     = 0 /*garbage*/                   ;
+	const char*         s_start = s.c_str()                       ;
+	const char*         s_end   = s.c_str()+s.size()              ;
+	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
+	//
+	if (fcr.ec!=::errc()) throw to_string("unrecognized value "        ,s) ;
+	if (fcr.ptr<s_end-1 ) throw to_string("partially recognized value ",s) ;
+	//
+	static constexpr int B = _unit_val(U       ) ;
+	/**/             int b = _unit_val(*fcr.ptr) ;
+	//
+	if ( B>=b                                    ) return val>>(B-b)  ;
+	if ( val > ::numeric_limits<T>::max()>>(b-B) ) throw "overflow"s  ;
+	if ( val < ::numeric_limits<T>::min()>>(b-B) ) throw "underflow"s ;
+	/**/                                           return val<<(b-B)  ;
+}
+
+template<::integral T,char U> ::string to_string_with_units(T x) {
+	if (!x) return to_string(0,U) ;
+	switch (U) {
+		case 'a' : if (x&0x3ff) return to_string(x,'a') ; x >>= 10 ; [[fallthrough]] ;
+		case 'f' : if (x&0x3ff) return to_string(x,'f') ; x >>= 10 ; [[fallthrough]] ;
+		case 'p' : if (x&0x3ff) return to_string(x,'p') ; x >>= 10 ; [[fallthrough]] ;
+		case 'n' : if (x&0x3ff) return to_string(x,'n') ; x >>= 10 ; [[fallthrough]] ;
+		case 'u' : if (x&0x3ff) return to_string(x,'u') ; x >>= 10 ; [[fallthrough]] ;
+		case 'm' : if (x&0x3ff) return to_string(x,'m') ; x >>= 10 ; [[fallthrough]] ;
+		case 0   : if (x&0x3ff) return to_string(x    ) ; x >>= 10 ; [[fallthrough]] ;
+		case 'k' : if (x&0x3ff) return to_string(x,'k') ; x >>= 10 ; [[fallthrough]] ;
+		case 'M' : if (x&0x3ff) return to_string(x,'M') ; x >>= 10 ; [[fallthrough]] ;
+		case 'G' : if (x&0x3ff) return to_string(x,'G') ; x >>= 10 ; [[fallthrough]] ;
+		case 'T' : if (x&0x3ff) return to_string(x,'T') ; x >>= 10 ; [[fallthrough]] ;
+		case 'P' : if (x&0x3ff) return to_string(x,'P') ; x >>= 10 ; [[fallthrough]] ;
+		case 'E' :              return to_string(x,'E') ;
+		default  : FAIL(U) ;
+	}
+}

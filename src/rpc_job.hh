@@ -267,21 +267,21 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	//
 	using Accesses = Disk::Accesses ;
 	using Crc      = Hash::Crc      ;
-	using Date     = Time::DiskDate ;
+	using Ddate    = Time::Ddate    ;
 	//cxtors & casts
-	DepDigestBase(                                                    ) :                                                                      _crc { } {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p          ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p , Crc  c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p , Date d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p          ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Crc  c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Date d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase(                                                     ) :                                                                      _crc { } {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p           ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p , Crc   c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase(          Accesses a , Dflags dfs , bool p , Ddate d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p           ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Crc   c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
+	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Ddate d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
 	// accesses
-	Crc  crc () const { SWEAR(!is_date) ; return _crc  ; }
-	Date date() const { SWEAR( is_date) ; return _date ; }
+	Crc   crc () const { SWEAR(!is_date) ; return _crc  ; }
+	Ddate date() const { SWEAR( is_date) ; return _date ; }
 	//
-	void crc (Crc  c) { _crc  = c ; is_date = false ; }
-	void date(Date d) { _date = d ; is_date = true  ; }
+	void crc (Crc   c) { _crc  = c ; is_date = false ; }
+	void date(Ddate d) { _date = d ; is_date = true  ; }
 	//
 	template<class X> void crc_date(DepDigestBase<X> const& dd) {
 		if (dd.is_date) date(dd.date()) ;
@@ -296,8 +296,8 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	bool     is_date :1 = false ;      //    1 bit , if no access, is_date is false and _crc is Unknown
 private :
 	union {
-		Crc  _crc  ;                   // ~46<64 bits
-		Date _date ;                   // ~45<64 bits
+		Crc   _crc  ;                  // ~46<64 bits
+		Ddate _date ;                  // ~45<64 bits
 	} ;
 } ;
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
@@ -343,7 +343,7 @@ struct JobDigest {
 	::string               stderr       = {}          ;
 	::string               stdout       = {}          ;
 	int                    wstatus      = 0           ;
-	Time::ProcessDate      end_date     = {}          ;
+	Time::Pdate            end_date     = {}          ;
 	JobStats               stats        = {}          ;
 } ;
 
@@ -510,10 +510,10 @@ ENUM_1( AccessOrder
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
-	using Accesses = Disk::Accesses    ;
-	using P        = JobExecRpcProc    ;
-	using PD       = Time::ProcessDate ;
-	using DD       = Time::DiskDate    ;
+	using Accesses = Disk::Accesses ;
+	using P        = JobExecRpcProc ;
+	using PD       = Time::Pdate    ;
+	using DD       = Time::Ddate    ;
 	//
 	struct AccessDigest {                                                      // order is read, then write, then unlink
 		friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
@@ -644,12 +644,12 @@ struct JobExecRpcReply {
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
 	// data
-	Time::ProcessDate eta          = {} ;
-	SubmitAttrs       submit_attrs = {} ;
-	::vmap_ss         rsrcs        = {} ;
-	JobRpcReq         pre_start    = {} ;
-	JobRpcReply       start        = {} ;
-	::string          backend_msg  = {} ;
+	Time::Pdate eta          = {} ;
+	SubmitAttrs submit_attrs = {} ;
+	::vmap_ss   rsrcs        = {} ;
+	JobRpcReq   pre_start    = {} ;
+	JobRpcReply start        = {} ;
+	::string    backend_msg  = {} ;
 } ;
 
 struct JobInfoEnd {

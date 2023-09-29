@@ -141,7 +141,20 @@ namespace Engine {
 			field = "backends" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
 			Py::Mapping py_backends = py_map[field] ;
-			bool found = false ;
+			bool        found       = false         ;
+			if (py_backends.hasKey("precisions")) {
+				Save<::string> sav      { field , field+".precisions" }         ;
+				Py::Mapping    py_precs = Py::Object(py_backends["precisions"]) ;
+				for( StdRsrc r : StdRsrc::N ) {
+					::string r_str = mk_snake(r) ;
+					if (!py_precs.hasKey(r_str)) continue ;
+					Save<::string> sav{field,to_string(field,'.',r_str)} ;
+					unsigned long prec = static_cast<unsigned long>(Py::Long(py_precs[r_str])) ;
+					if (!has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
+					if (prec==1              ) throw "must be 0 or at least 2"s             ;
+					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                   // number of kept digits
+				}
+			}
 			for( BackendTag t : BackendTag::N ) {
 				::string ts = mk_snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
@@ -225,6 +238,11 @@ namespace Engine {
 		else                                res << "\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		res << "backends :\n" ;
+		bool has_digits = false ; for( StdRsrc r : StdRsrc::N ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
+		if (has_digits) {
+			res << "\tprecisions :\n" ;
+			for( StdRsrc r : StdRsrc::N ) if (rsrc_digits[+r]) res << to_string("\t\t",mk_snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
+		}
 		for( BackendTag t : BackendTag::N ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;

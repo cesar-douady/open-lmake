@@ -1118,6 +1118,13 @@ Each color is a triplet RGB of values between 0 and 255.
 @tab This attribute is a @code{pdict} with one entry for each backend
 (@pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
+
+In addition the @code{precisions} can be set to a @code{dict} with one entry for each standard resource (@code{cpu}, @code{mem} and @code{tmp}).
+This attribute must be @code{0} or a power of 2 not less than 2.
+
+If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
+Above it, the relative precision is retained, rounding up.
+For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (@pxref{resource-buckets}).
 @item @code{caches}
 @tab
 @tab This attribute is a @code{pdict} with one entry for each cache.
@@ -1143,11 +1150,15 @@ or the name of a host (looked up as for @code{ping}).
 @tab number of physical CPU's
 @tab This is a normal resource that rules can require (which is the case if resources are defaulted)
 @item @code{backends.local.mem}
-@tab size of physical memory in MB
-@tab This is a normal resource that rules can require.
+@tab size of physical memory
+@tab This is the pysical memory necessary for jobs.
+It can be specified as a number or a string representing a number followed by a standard suffix such as @code{k},  @code{M} or @code{G}.
+Internally, the granularity is forced to MBytes before any possible rounding linked with the @code{precisions} attribute.
 @item @code{backends.local.tmp}
 @tab 0
-@tab This is a normal resource that rules can require.
+@tab This is the disk size in the temporary directory necessary for jobs.
+It can be specified as a number or a string representing a number followed by a standard suffix such as @code{k},  @code{M} or @code{G}.
+Internally, the granularity is forced to MBytes before any possible rounding linked with the @code{precisions} attribute.
 @end multitable
 
 @section caches
@@ -2524,6 +2535,31 @@ If lmake is connected to a terminal, then the terminal foreground and background
 video mode is set to normal, else it is set to reverse.
 
 In that case, lmake output is colored and the (configurable) color set is chosen depending on video mode.
+
+@anchor{resource-buckets}
+@section Resource buckets
+
+It may be wise to quantify resources with relatively large steps for resources @code{mem} and @code{tmp}, especially if these may be computed with a formula.
+
+The reason is linked to the way the backends select jobs.
+When a backend (actually both the local backend and the slurm essentially work the same way) search for the next job to launch, it walk through the available jobs to
+find the eligible one with the highest priority.
+When doing that, only jobs with different resources need to be compared as for a given set of resources, they can be pre-ordered by priority.
+As a consequence, the running time is proportional to the number of different resources.
+If the @code{mem} and @code{tmp} needed space is computed from some metrics, it may be very well possible that each job has a different number, leading to a selection process
+whose time is proportional to the number of waiting jobs, which can be very high (maybe millions).
+To help reduce this overhead, one may want to put jobs into buckets with defined values for these resources.
+This can be done with a sound formula to compute the values.
+But as this is potentially important for @lmake itself, @lmake provides an easy means to achieve this goal by defining a given precision.
+After all, you probably do not care if the reserved memory is 990MB or 1024MB.
+
+The @code{config.backends.precisions} field allows you to easily define the adequate granularity. The larger this number, the finer the granularity.
+A fine granularity allows a better use of the available resources.
+A coarser graniularity allows a more efficient job selection process.
+So the right answer is a sound balance between these two aspects.
+A value of 4 or 8 is probably a reasonable value.
+
+In presence of jobs with a high degree of parallelism requiring a lot of cpus, the same may be applied for the required number of cpus.
 
 @chapter FAQ
 

@@ -128,7 +128,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 	for(;;) {
 		::vector<Epoll::Event> events = epoll.wait() ;
 		bool                   new_fd = false        ;
-		DiskDate::s_refresh_now() ;                                            // we may have waited, refresh now
+		Ddate::s_refresh_now() ;                                               // we may have waited, refresh now
 		for( Epoll::Event event : events ) {
 			EventKind kind = event.data<EventKind>() ;
 			Fd        fd   = event.fd()              ;
@@ -242,7 +242,7 @@ bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
 	::umap<Fd,Req                      > req_tab         ;                     // indexed by out_fd
 	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab          ;
-	ProcessDate                          next_stats_date = ProcessDate::s_now() ;
+	Pdate                                next_stats_date = Pdate::s_now() ;
 	for (;;) {
 		bool empty = !g_engine_queue ;
 		if (empty) {                                                           // we are about to block, do some book-keeping
@@ -251,14 +251,13 @@ bool/*interrupted*/ engine_loop() {
 			Backend::s_launch() ;                                              // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
 			//^^^^^^^^^^^^^^^^^
 		}
-		ProcessDate now ;
-		if ( empty || (now=ProcessDate::s_now())>next_stats_date ) {
+		if ( Pdate now ; empty || (now=Pdate::s_now())>next_stats_date ) {
 			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
 			next_stats_date = now+Delay(1.) ;
 		}
 		if (empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
 		EngineClosure closure = g_engine_queue.pop() ;
-		if (empty) DiskDate::s_refresh_now() ;                                 // we may have waited, refresh now
+		if (empty) Ddate::s_refresh_now() ;                                    // we may have waited, refresh now
 		switch (closure.kind) {
 			case EngineClosureKind::Global : {
 				switch (closure.global_proc) {
@@ -395,6 +394,6 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	trace("exit",STR(interrupted),ProcessDate::s_now()) ;
+	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;
 }

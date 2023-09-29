@@ -17,9 +17,10 @@ _reading_makefiles = getattr(_sys,'reading_makefiles',False)
 
 from clmake import *                                                           # if not in an lmake repo, root_dir is not set to current dir
 
-Kilo = 1_000                           # convenient constants
-Mega = 1_000_000                       # .
-Giga = 1_000_000_000                   # .
+Kilo =      1024                       # convenient constants
+Mega = Kilo*1024                       # .
+Giga = Mega*1024                       # .
+Tera = Giga*1024                       # .
 inf  = float('inf')                    # use the repr value as variable name
 
 def version(major,minor) :
@@ -86,7 +87,12 @@ if _reading_makefiles :
 		,	has_exec_time  = True                          # if True, output the exec_time field
 		)
 	,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
-			local = pdict(                                 # entries mention the total availability of resources
+			precisions = pdict(                            # precision of resources allocated for jobs, one entry for each standard resource.
+		#		cpu = 4                                    # 4 means possible values are 1 2, 3, 4, 6, 8, 12, ...
+		#	,	mem = 4                                    # 8 would mean possible values are 1 2, 3, 4, 5, 6, 7, 8, 10, ...
+		#	,	tmp = 4                                    # .
+			)
+		,	local = pdict(                                 # entries mention the total availability of resources
 		#	,	interface = socket.getfqdn()               # address at which lmake can be contacted from jobs launched by this backend, can be :
 				#                                            - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
 				#                                            - standard dot notation  : for example '192.168.0.1'
@@ -94,8 +100,8 @@ if _reading_makefiles :
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
 				cpu = len(_os.sched_getaffinity(0))        # total number of cpus available for the process, and hence for all jobs launched locally
-			,	mem = _physical_mem//Mega                  # total available memory (here in MB)
-			,	tmp = 0                                    # total available temporary disk space (e.g. in GB)
+			,	mem = _physical_mem                        # total available memory in bytes
+			,	tmp = 0                                    # total available temporary disk space in bytes
 			)
 		)
 	,	caches = pdict(                                    # PER_CACHE : provide an explanation for each cache method

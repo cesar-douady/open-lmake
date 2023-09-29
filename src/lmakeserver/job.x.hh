@@ -151,24 +151,27 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const ) ;
 		// cxtors & casts
-		JobExec(                                         ) = default ;
-		JobExec( Job j , ::string&& h , ProcessDate d={} ) : Job{j} , host{::move(h)} , start{d} {}
-		JobExec( Job j ,                ProcessDate d={} ) : Job{j} ,                   start{d} {}
+		JobExec(                                               ) = default ;
+		JobExec( Job j , ::string&& h , Pdate sd    , Pdate ed ) : Job{j} , host{::move(h)} , start_date{sd} , end_date{ed} {}
+		JobExec( Job j ,                Pdate sd    , Pdate ed ) : Job{j} ,                   start_date{sd} , end_date{ed} {}
+		JobExec( Job j , ::string&& h , Pdate sd={}            ) : Job{j} , host{::move(h)} , start_date{sd} , end_date{sd} {}
+		JobExec( Job j ,                Pdate sd={}            ) : Job{j} ,                   start_date{sd} , end_date{sd} {}
 		// services
 		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} , ::string const& txt={} ) const ;
 		void             report_start (                                                                            ) const ; // called in engine thread after start if started called with false
 		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                                            ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , bool washed                    ) ;       // hit indicates that result comes from a cache hit
-		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job is necessary for some other req
+		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , bool washed                    ) ;       // hit indicates that result is from a cache hit
+		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job has some other req
 		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		// data
-		::string    host  ;            // host executing the job
-		ProcessDate start ;            // date at which action has been created (may be reported later to user, but with this date)
+		::string host       ;
+		Pdate    start_date ;
+		Pdate    end_date   ;
 	} ;
 }
 #endif
@@ -230,8 +233,8 @@ namespace Engine {
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		//
 		// data
-		DiskDate         db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
-		ProcessDate      end_date                 ;                                                         //     64 bits,
+		Ddate            db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
+		Pdate            end_date                 ;                                                         //     64 bits,
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
 		Deps             deps                     ;                                                         // 31<=32 bits, owned
 		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
@@ -365,7 +368,8 @@ namespace Engine {
 	}
 
 	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
-		JobExec(*this,{},ProcessDate::s_now()).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
+		Pdate now = Pdate::s_now() ;
+		JobExec(*this,::string(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
 	}
 
 	//

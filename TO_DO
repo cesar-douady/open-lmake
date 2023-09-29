@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* console dates of may_rerun seem to be start date instead of end date
 * debug unit_tests/cycle.py
 	- activate unit_tests/cycle.py
 	- set an ephemere store indexed by job with JobEphemereData in it
@@ -33,6 +32,8 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* do not rerun jobs lost when error is reported by backend
+* heartbeat messages are shown on console but are not recorded in stderr
 * put in place a log scale for cpu/mem/tmp resources
 	- this is to decrease the number of buckets in GenericBackend as they are indexed by resources
 	- setting this log scale will decrease the number of different resources by putting in the same bucket resources that are close to each other
@@ -49,10 +50,6 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* in LMAKE/rules, python rules have their {} doubled
-* some ^@ appear in ancillary environment
-	- these are variables inherited from slurm
-	- need to show that in a more user friendly way (and unambiguously)
 * manage to output file name and line number back to Lmakefile.py when executing cmd
 	- as of now, line no depend on number of accessed variables, globals, etc.
 		- an easy step would be to define cmd before globals to at least have a stable transformation
@@ -79,6 +76,11 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* generate performance metrics
+	- useful/useless created jobs
+	- non buildable nodes
+	- max number of resources slots in backend
+	- total number of deps
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
@@ -199,6 +201,9 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* when rounding resources using config.backends.precisions
+	- round to prioritize jobs
+	- do not round for actual allocation
 * provide a compile option w/o trace
 	- to measure tracing price more than to actually use it
 * gprof

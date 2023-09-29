@@ -24,8 +24,8 @@ namespace Engine {
 	using Crc          = Hash::Crc          ;
 	using Delay        = Time::Delay        ;
 	using CoarseDelay  = Time::CoarseDelay  ;
-	using DiskDate     = Time::DiskDate     ;
-	using ProcessDate  = Time::ProcessDate  ;
+	using Ddate        = Time::Ddate        ;
+	using Pdate        = Time::Pdate        ;
 }
 
 #define STRUCT_DECL

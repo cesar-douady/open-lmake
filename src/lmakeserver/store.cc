@@ -54,7 +54,7 @@ namespace Engine {
 	}
 
 	void EngineStore::_s_init_srcs_rules(bool rescue) {
-		Trace trace("_init_srcs_rules",ProcessDate::s_now()) ;
+		Trace trace("_init_srcs_rules",Pdate::s_now()) ;
 		::string dir      = g_config.local_admin_dir+"/store" ;
 		bool     writable = g_store.writable                  ;
 		//
@@ -93,7 +93,7 @@ namespace Engine {
 				SWEAR(+np==i) ;
 			}
 		}
-		trace("done",ProcessDate::s_now()) ;
+		trace("done",Pdate::s_now()) ;
 		//
 		if (rescue) {
 			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
@@ -138,21 +138,21 @@ namespace Engine {
 	}
 
 	void EngineStore::s_new_config( Config&& config , bool rescue ) {
-		Trace trace("s_new_config",ProcessDate::s_now(),STR(rescue)) ;
+		Trace trace("s_new_config",Pdate::s_now(),STR(rescue)) ;
 		_s_init_config() ;
 		Config old_config = g_config ;
 		_s_set_config(::move(config)) ;
 		g_config.open() ;
 		_s_init_srcs_rules(rescue) ;
 		_s_diff_config(old_config) ;
-		trace("done",ProcessDate::s_now()) ;
+		trace("done",Pdate::s_now()) ;
 	}
 
 	void EngineStore::s_new_makefiles( ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs ) {
-		Trace trace("s_new_makefiles",ProcessDate::s_now()) ;
+		Trace trace("s_new_makefiles",Pdate::s_now()) ;
 		bool invalidate_src = _s_new_srcs ( mk_vector<Node>(srcs)           ) ;
 		/**/                  _s_new_rules( ::move(rules ) , invalidate_src ) ;
-		trace("done",ProcessDate::s_now()) ;
+		trace("done",Pdate::s_now()) ;
 	}
 
 	void EngineStore::_compile_rule_datas() {

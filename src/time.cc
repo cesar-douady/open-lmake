@@ -51,8 +51,8 @@ namespace Time {
 	// Date
 	//
 
-	::ostream& operator<<( ::ostream& os , DiskDate    const d ) { return os <<"DD:" << d.str(9) ; }
-	::ostream& operator<<( ::ostream& os , ProcessDate const d ) { return os <<"PD:" << d.str(9) ; }
+	::ostream& operator<<( ::ostream& os , Ddate const d ) { return os <<"DD:" << d.str(9) ; }
+	::ostream& operator<<( ::ostream& os , Pdate const d ) { return os <<"PD:" << d.str(9) ; }
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
 		if (!*this) return "None" ;
@@ -70,18 +70,18 @@ namespace Time {
 	}
 
 	//
-	// DiskDate
+	// Ddate
 	//
 
-	thread_local DiskDate DiskDate::_t_now ;
+	thread_local Ddate Ddate::_t_now ;
 
-	DiskDate DiskDate::_s_now() {
+	Ddate Ddate::_s_now() {
 		::string    now_file = to_string(AdminDir,"/now") ;
-		AutoCloseFd fd       = open_write(now_file)       ;                    // create a file, just to have the date for now, which must be a DiskDate, not a ProcessDate
+		AutoCloseFd fd       = open_write(now_file)       ;                    // create a file, just to have the date for now, which must be a Ddate, not a Pdate
 		char        _        = 0                          ;
 		swear_prod(+fd,"cannot create ",now_file) ;
 		SWEAR(::write(fd,&_,1)==1) ;                                           // must write something to update mtime
-		DiskDate now = file_date(fd) ;
+		Ddate now = file_date(fd) ;
 		SWEAR(+now) ;
 		_t_now = now ;
 		return now ;

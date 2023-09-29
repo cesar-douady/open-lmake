@@ -29,7 +29,7 @@ namespace Backends {
 	struct Backend {
 		using SmallId     = uint32_t          ;
 		using CoarseDelay = Time::CoarseDelay ;
-		using Date        = Time::ProcessDate ;
+		using Pdate       = Time::Pdate       ;
 
 		struct StartTabEntry {
 			friend ::ostream& operator<<( ::ostream& , StartTabEntry const& ) ;
@@ -60,7 +60,7 @@ namespace Backends {
 			}
 			// data
 			Conn           conn         ;
-			Date           start        ;
+			Pdate          start        ;
 			::uset_s       washed       ;
 			::vmap_ss      rsrcs        ;
 			::uset<ReqIdx> reqs         ;
@@ -72,7 +72,7 @@ namespace Backends {
 		struct DeferredReportEntry {
 			friend ::ostream& operator<<( ::ostream& , DeferredReportEntry const& ) ;
 			// data
-			Date    date     ;         // date at which report must be displayed if job is not done yet
+			Pdate   date     ;         // date at which report must be displayed if job is not done yet
 			SeqId   seq_id   ;
 			JobExec job_exec ;
 		} ;
@@ -80,7 +80,7 @@ namespace Backends {
 		struct DeferredLostEntry {
 			friend ::ostream& operator<<( ::ostream& , DeferredLostEntry const& ) ;
 			// data
-			Date   date   ;            // date at which job must be declared lost if it has not completed by then
+			Pdate  date   ;            // date at which job must be declared lost if it has not completed by then
 			SeqId  seq_id ;
 			JobIdx job    ;
 		} ;
