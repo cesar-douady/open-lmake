@@ -78,7 +78,7 @@ int main( int argc , char* argv[] ) {
 	for( auto const& [k,v] : start_info.env )
 		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
 		else if (has_env(k)    ) cmd_env[k] = get_env(k)                                 ; // if value is special illegal value, use value from environement (typically from slurm)
-	if ( !cmd_env.contains("TMPDIR") || start_info.keep_tmp )
+	if ( start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
 		cmd_env["TMPDIR"] = mk_abs( start_info.job_tmp_dir , start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
 	g_tmp_dir = new ::string{cmd_env["TMPDIR"]} ;
 	//

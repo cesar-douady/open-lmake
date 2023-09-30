@@ -25,23 +25,16 @@ if getattr(sys,'reading_makefiles',False) :
 		target = 'b'
 		cmd = 'cat a'
 
-	class C(lmake.Rule) :
-		target = 'c'
-		cmd = 'cat d/x || :'
-
-	class D(lmake.Rule) :
-		target = 'd'
-		cmd = 'cat c'
-
 else :
+
+	import subprocess as sp
 
 	import ut
 
-	if False :                                                                 # XXX : activate when cycles are correctly handled
+	print('step=1',file=open('step.py','w'))
+	ut.lmake( 'b' , may_rerun=2 ,          rc=1 )
 
-		print('step=1',file=open('step.py','w'))
-		ut.lmake( 'b' , may_rerun=2 ,          rc=1 )
-		ut.lmake( 'c' , may_rerun=2 , done=2 , rc=0 )                          # this is not a loop as d being constructible, d/x is not
-
-		print('step=2',file=open('step.py','w'))
-		ut.lmake( 'b' , steady=2 , rc=0 )                                      # loop is solved
+	print('step=2',file=open('step.py','w'))
+	ut.lmake( 'b' , steady=0 , rc=1 )                                          # loop is solved, but lmake cant cope with the situation
+	sp.run(('lforget','-d','a'),check=True)                                    # follow recommandation
+	ut.lmake( 'b' , steady=2 , rc=0 )                                          # loop is solved

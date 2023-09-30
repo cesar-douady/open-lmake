@@ -460,7 +460,13 @@ namespace Engine {
 
 }
 #endif
+#ifdef INFO_DEF
+namespace Engine {
 
+	extern Config g_config ;
+
+}
+#endif
 #ifdef IMPL
 namespace Engine {
 
@@ -571,7 +577,6 @@ namespace Engine {
 		PfxFile            pfxs        ;
 	} ;
 
-	extern Config      g_config ;
 	extern EngineStore g_store  ;
 
 	template<class Idx_,class Item_> struct VectorHelper ;

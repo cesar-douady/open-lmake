@@ -12,15 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* debug unit_tests/cycle.py
-	- activate unit_tests/cycle.py
-	- set an ephemere store indexed by job with JobEphemereData in it
-	- put db_date and a new busy field in there
-	- then db_date can become much smaller, maybe 28 bits, as it just needs to be a req seq_id.
-	- detect cycle with the busy bit and use it to generate a run_state error
-	- take care of uphill : it should not participate in cycles as
-		- either dir is buildable and node is not
-		- or it is not and uphill does not apply
 * ^C is sometimes very slow
 	- and may crash the server
 ! sometimes losing terminal colors
@@ -32,11 +23,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* do not rerun jobs lost when error is reported by backend
-* heartbeat messages are shown on console but are not recorded in stderr
 * put in place a log scale for cpu/mem/tmp resources
 	- this is to decrease the number of buckets in GenericBackend as they are indexed by resources
 	- setting this log scale will decrease the number of different resources by putting in the same bucket resources that are close to each other
+	- do that once local/slurm backends are merged
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -78,19 +68,21 @@ items :
 
 * generate performance metrics
 	- useful/useless created jobs
-	- non buildable nodes
+	- number of non buildable nodes
 	- max number of resources slots in backend
 	- total number of deps
+	- total number of pressure updates
+* make a class GenericBackend
+	- as a base class for LocalBackend and SlurmBackend
+	- when slurm is installed so tests are possible
+* add a warning when ids reach 15/16 of their limits
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
-* make a class GenericBackend
-	- as a base class for LocalBackend and SlurmBackend
-* put in place a variant in Job::ReqInfo
+! put in place a variant in Job::ReqInfo
 	- to ensure no infinite rerun loop
 	- for example the index of the first dep that triggered the rerun
 		- this should increase at each rerun
-* add a warning when ids reach 15/16 of their limits
 ! track disk accesses from server
 	- allow direct read of makefiles
 		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
@@ -108,7 +100,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* declare $TMPDIR as /tmp
+*1 declare $TMPDIR as /tmp
 	- and redirect to the real TMPDIR in autodep
 	- also, when accessing /proc or cwd, map from $TMPDIR back to /tmp
 	- same for realpath
@@ -147,6 +139,10 @@ items :
 			- register exception handling to call it automatically
 		- suppress input redirection to /dev/null
 			- what if stdin is actively used ?
+! support direct dep rebuild
+	- specify a target flag 'direct'
+	- find a way to embed python regexprs into autodep w/o bring full python
+	- find a way to avoid conflict dead-locks
 ! record deps during attribute computation
 	- when dynamic
 ! implement slurm interface

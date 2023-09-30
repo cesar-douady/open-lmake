@@ -189,6 +189,40 @@ namespace Engine {
 
 }
 #endif
+#ifdef INFO_DEF
+namespace Engine {
+
+	ENUM( NodeLvl
+	,	None       // reserve value 0 as they are not counted in n_total
+	,	Zombie     // req is zombie but node not marked done yet
+	,	Uphill     // first level set at init, uphill directory
+	,	NoJob      // job candidates are exhausted
+	,	Plain      // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
+	)
+
+	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
+		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
+		//
+		using Base       = ReqInfo<Job>   ;
+		using Lvl        = NodeLvl        ;
+		using MakeAction = NodeMakeAction ;
+		//
+		static constexpr RuleIdx NoIdx = Node::NoIdx ;
+		static const     ReqInfo Src   ;
+		// cxtors & casts
+		using Base::Base ;
+		// services
+		void update( RunAction , MakeAction , Node ) ;
+		// data
+	public :
+		RuleIdx prio_idx = NoIdx ;     //     16 bits
+		bool    done     = false ;     //  1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
+		Bool3   err      = No    ;     //  2<= 8 bit , if true => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
+	} ;
+	static_assert(sizeof(NodeReqInfo)==40) ;                                   // check expected size
+
+}
+#endif
 #ifdef DATA_DEF
 namespace Engine {
 
@@ -286,35 +320,6 @@ namespace Engine {
 	} ;
 	static_assert(sizeof(NodeData)==32) ;                                      // check expected size
 
-	ENUM( NodeLvl
-	,	None       // reserve value 0 as they are not counted in n_total
-	,	Zombie     // req is zombie but node not marked done yet
-	,	Uphill     // first level set at init, uphill directory
-	,	NoJob      // job candidates are exhausted
-	,	Plain      // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
-	)
-
-	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
-		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
-		//
-		using Base       = ReqInfo<Job>   ;
-		using Lvl        = NodeLvl        ;
-		using MakeAction = NodeMakeAction ;
-		//
-		static constexpr RuleIdx NoIdx = Node::NoIdx ;
-		static const     ReqInfo Src   ;
-		// cxtors & casts
-		using Base::Base ;
-		// services
-		void update( RunAction , MakeAction , Node ) ;
-		// data
-	public :
-		RuleIdx prio_idx = NoIdx ;     //     16 bits
-		bool    done     = false ;     //  1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
-		Bool3   err      = No    ;     //  2<= 8 bit , if true => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
-	} ;
-	static_assert(sizeof(NodeReqInfo)==40) ;                                   // check expected size
-
 }
 #endif
 #ifdef IMPL
@@ -336,7 +341,9 @@ namespace Engine {
 	inline ::vector_view_c<JobTgt> Node::conform_job_tgts() const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		RuleIdx prio_idx = (*this)->conform_idx ;
-		if (prio_idx!=NoIdx) while ( prio_idx && (*this)->job_tgts[prio_idx-1]->rule->prio==(*this)->job_tgts[prio_idx]->rule->prio ) prio_idx-- ; // rewind to start of first job within prio level
+		if (prio_idx!=NoIdx)
+			while ( prio_idx && (*this)->job_tgts[prio_idx-1]->rule->prio==(*this)->job_tgts[prio_idx]->rule->prio )
+				prio_idx-- ;                                                                                         // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}
 

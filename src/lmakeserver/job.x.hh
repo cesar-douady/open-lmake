@@ -173,6 +173,52 @@ namespace Engine {
 		Pdate    start_date ;
 		Pdate    end_date   ;
 	} ;
+
+}
+#endif
+#ifdef INFO_DEF
+namespace Engine {
+
+	struct JobReqInfo : ReqInfo<Node> {                                        // watchers of Job's are Node's
+		using Base = ReqInfo<Node> ;
+		friend ::ostream& operator<<( ::ostream& , JobReqInfo const& ) ;
+		using Lvl        = JobLvl        ;
+		using MakeAction = JobMakeAction ;
+		// cxtors & casts
+		using Base::Base ;
+		// accesses
+		bool running() const {
+			switch (lvl) {
+				case Lvl::Queued :
+				case Lvl::Exec   : return true  ;
+				default          : return false ;
+			}
+		}
+		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
+		// services
+		void update( RunAction , MakeAction , Job ) ;
+		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { Base::add_watcher(watcher,watcher_req_info) ; }
+		void chk() const {
+			SWEAR(done_<=RunAction::Dsk) ;
+			switch (lvl) {
+				case Lvl::None   : SWEAR(n_wait==0) ; break ;                  // not started yet, cannot wait anything
+				case Lvl::Done   : SWEAR(n_wait==0) ; break ;                  // done, cannot wait anything anymore
+				case Lvl::Queued :
+				case Lvl::Exec   : SWEAR(n_wait==1) ; break ;                  // if running, we are waiting for job execution
+				default          : SWEAR(n_wait> 0) ; break ;                  // we must be waiting something if not Done nor None
+			}
+		}
+		// data
+		NodeIdx      dep_lvl          = 0                      ;                                      // 31<=32 bits
+		RunAction    done_         :3 = RunAction   ::None     ; static_assert(+RunAction   ::N< 8) ; //      3 bits, action for which we are done
+		Lvl          lvl           :3 = Lvl         ::None     ; static_assert(+Lvl         ::N< 8) ; //      3 bits
+		BackendTag   backend       :2 = BackendTag  ::Unknown  ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
+		JobReasonTag force         :5 = JobReasonTag::None     ; static_assert(+JobReasonTag::N<32) ; //      5 bits
+		bool         start_reported:1 = false                  ;                                      //      1 bit , if true <=> start message has been reported to user
+		bool         speculative   :1 = false                  ;                                      //      1 bit , if true <=> job is waiting for speculative deps only
+	} ;
+	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
+
 }
 #endif
 #ifdef DATA_DEF
@@ -255,45 +301,6 @@ namespace Engine {
 	,	Modified
 	)
 
-	struct JobReqInfo : ReqInfo<Node> {                                        // watchers of Job's are Node's
-		using Base = ReqInfo<Node> ;
-		friend ::ostream& operator<<( ::ostream& , JobReqInfo const& ) ;
-		using Lvl        = JobLvl        ;
-		using MakeAction = JobMakeAction ;
-		// cxtors & casts
-		using Base::Base ;
-		// accesses
-		bool running() const {
-			switch (lvl) {
-				case Lvl::Queued :
-				case Lvl::Exec   : return true  ;
-				default          : return false ;
-			}
-		}
-		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
-		// services
-		void update( RunAction , MakeAction , Job ) ;
-		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { Base::add_watcher(watcher,watcher_req_info) ; }
-		void chk() const {
-			SWEAR(done_<=RunAction::Dsk) ;
-			switch (lvl) {
-				case Lvl::None   : SWEAR(n_wait==0) ; break ;                  // not started yet, cannot wait anything
-				case Lvl::Done   : SWEAR(n_wait==0) ; break ;                  // done, cannot wait anything anymore
-				case Lvl::Queued :
-				case Lvl::Exec   : SWEAR(n_wait==1) ; break ;                  // if running, we are waiting for job execution
-				default          : SWEAR(n_wait> 0) ; break ;                  // we must be waiting something if not Done nor None
-			}
-		}
-		// data
-		NodeIdx      dep_lvl          = 0                      ;                                      // 31<=32 bits
-		RunAction    done_         :3 = RunAction   ::None     ; static_assert(+RunAction   ::N< 8) ; //      3 bits , action for which we are done
-		Lvl          lvl           :3 = Lvl         ::None     ; static_assert(+Lvl         ::N< 8) ; //      3 bits
-		BackendTag   backend       :2 = BackendTag  ::Unknown  ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
-		JobReasonTag force         :5 = JobReasonTag::None     ; static_assert(+JobReasonTag::N<32) ; //      5 bits
-		bool         start_reported:1 = false                  ;                                      //      1 bits , if true <=> start message has been reported to user
-	} ;
-	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
-
 }
 #endif
 #ifdef IMPL
@@ -349,7 +356,7 @@ namespace Engine {
 	}
 
 	inline void Job::set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
-		if (!ri.set_pressure(pressure)) return ;                              // pressure is not significantly higher than already existing, nothing to propagate
+		if (!ri.set_pressure(pressure)) return ;                              // if pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
 		_set_pressure_raw(ri,pressure) ;
 	}

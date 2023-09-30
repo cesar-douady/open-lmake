@@ -105,10 +105,13 @@ namespace Time {
 		static constexpr int64_t  TicksPerSecond = 1000                 ;      // this may be freely modified
 		static constexpr uint8_t  Mantissa       = 11                   ;      // .
 		static constexpr uint32_t Scale          = 28294                ;      // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
-		static constexpr Val      Factor         = (1<<Mantissa)*10/100 ;      // adding factor means multiply by 1.1
 		//
 		static const CoarseDelay MinPositive ;
+		// statics
+	private :
+		static constexpr Val _Factor(uint32_t percent) { return (1<<Mantissa)*percent/100 ; }
 		// cxtors & casts
+	public :
 		constexpr CoarseDelay() = default ;
 		constexpr CoarseDelay(Delay d) { *this = d ; }
 		constexpr CoarseDelay& operator=(Delay d) {
@@ -133,8 +136,8 @@ namespace Time {
 		constexpr bool              operator== (CoarseDelay const& d) const { return _val== d._val ;             }
 		constexpr ::strong_ordering operator<=>(CoarseDelay const& d) const { return _val<=>d._val ;             }
 		//
-		CoarseDelay scale_up  () const { return CoarseDelay( _val>=Val(-1)-Factor ? Val(-1) : Val(_val+Factor) ) ; }
-		CoarseDelay scale_down() const { return CoarseDelay( _val<=        Factor ? Val( 0) : Val(_val-Factor) ) ; }
+		CoarseDelay scale_up  (uint32_t percent) const { return CoarseDelay( _val>=Val(-1)-_Factor(percent) ? Val(-1) : Val(_val+_Factor(percent)) ) ; }
+		CoarseDelay scale_down(uint32_t percent) const { return CoarseDelay( _val<=        _Factor(percent) ? Val( 0) : Val(_val-_Factor(percent)) ) ; }
 		//
 		::string short_str() const { return Delay(*this).short_str() ; }
 		// data

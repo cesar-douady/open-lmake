@@ -123,9 +123,17 @@ namespace Engine {
 		JobIdx _ended[+JobReport::N                    ] = {} ;
 	} ;
 
+	struct JobAudit {
+		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
+		// data
+		bool        hit          = false/*garbage*/ ;      // else it is a rerun
+		bool        modified     = false/*garbage*/ ;
+		AnalysisErr analysis_err ;
+	} ;
+
 }
 #endif
-#ifdef DATA_DEF
+#ifdef INFO_DEF
 namespace Engine {
 
 	template<class W> ::ostream& operator<<( ::ostream& , ReqInfo<W> const& ) ;
@@ -200,21 +208,24 @@ namespace Engine {
 			else                         return mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
 		}
 		//
-		bool/*new_pressure*/ set_pressure(CoarseDelay pressure_) {
+		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
 			if (pressure_<=pressure) return false ;
-			bool propagate =  pressure_>pressure.scale_up() ;                          // pressure precision is about 10%, a reasonable compromise with perf (to avoid too many pressure updates)
-			Trace trace("set_pressure",*this,pressure,"->",pressure_,STR(propagate)) ;
+			// pressure precision is about 10%, a reasonable compromise with perf (to avoid too many pressure updates)
+			// because as soon as a new pressure is discovered for a Node/Job, it is propagated down the path while it may not be the definitive value
+			// imposing an exponential progression guarantees a logarithmic number of updates
+			// also, in case of loop, this limits the number of loops to 10
+			bool propagate = pressure_>pressure.scale_up(10/*percent*/) ;
 			pressure = pressure_ ;
 			return propagate ;
 		}
 		// data
-		JobNodeIdx  n_wait      = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watcher pointing to us + 1 if job is submitted
-		CoarseDelay pressure    ;                                                      //      16 bits, critical delay from end of job to end of req
-		Req         req         ;                                                      //       8 bits
-		RunAction   action   :3 = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
-		bool        live_out :1 = false             ;                                  //       1 bit  , if true <=> generate live output
+		W::Idx      n_wait     = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		CoarseDelay pressure   ;                                                      //      16 bits, critical delay from end of job to end of req
+		Req         req        ;                                                      //       8 bits
+		RunAction   action  :3 = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
+		bool        live_out:1 = false             ;                                  //       1 bit  , if true <=> generate live output
 	private :
-		uint8_t _n_watchers :3 = 0 ; static_assert(VectorMrkr<8) ;             //  3   bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:3 = 0 ; static_assert(VectorMrkr<8) ;              //  3   bits, number of watchers, if NWatcher <=> watchers is a vector
 		union { /* use array as long as possible, and vector when overflow*/   // 64*3 bits, notify watchers when done
 			::vector<W          > _watchers_v ;
 			::array <W,NWatchers> _watchers_a ;
@@ -225,16 +236,9 @@ namespace Engine {
 
 }
 #endif
-#ifdef IMPL
+#ifdef DATA_DEF
 namespace Engine {
 
-	struct JobAudit {
-		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
-		// data
-		bool        hit          = false/*garbage*/ ;      // else it is a rerun
-		bool        modified     = false/*garbage*/ ;
-		AnalysisErr analysis_err ;
-	} ;
 	struct ReqData {
 		friend struct Req ;
 		using Idx = Req::Idx ;
@@ -253,17 +257,9 @@ namespace Engine {
 		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
 		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }
 		//
-		void audit_job( Color c , Pdate date , ::string const& step , Rule r , ::string const& jn , ::string const& host={} , Delay exec_time={} ) const {
-			::OStringStream msg ;
-			if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
-			if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<host                                  <<' ' ;
-			/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
-			/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<r->name                                     ;
-			if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
-			audit( audit_fd , trace_stream , options , c , 0 , msg.str() , jn ) ;
-		}
-		void audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h={} , Delay et={} ) const { audit_job( c , d , s , j ->rule , j .user_name() , h       , et ) ; }
-		void audit_job( Color c , Pdate d , ::string const& s , JobExec const& je            , Delay et={} ) const { audit_job( c , d , s , je                        , je.host , et ) ; }
+		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , ::string const& host={} , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , Job                             , ::string const& host={} , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                            , Delay exec_time={} ) const ;
 		//
 		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,r,jn,h,et) ; }
 		void audit_job( Color c , ::string const& s , Job j                       , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
@@ -323,11 +319,14 @@ namespace Engine {
 		::uset<Node>         clash_nodes    ;              // nodes that have been written by simultaneous jobs
 	} ;
 
+}
+#endif
+#ifdef IMPL
+namespace Engine {
+
 	//
 	// Req
 	//
-
-	// accesses
 
 	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
 	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }
@@ -339,6 +338,13 @@ namespace Engine {
 	template<class W> ::ostream& operator<<( ::ostream& os , ReqInfo<W> const& ri ) {
 		return os<<"ReqInfo("<<ri.req<<','<<ri.action<<','<<ri.n_wait<<')' ;
 	}
+
+	//
+	// ReqData
+	//
+
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h , Delay et ) const { audit_job( c , d , s , j->rule , j.user_name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je         , Delay et ) const { audit_job( c , d , s , je                      , je.host , et ) ; }
 
 }
 #endif

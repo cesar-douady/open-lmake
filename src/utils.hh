@@ -1285,14 +1285,22 @@ static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } /
 template<class T> static inline T clone(T const& x) { return x ; }             // simply clone a value
 
 template<class T,bool Fence=false> struct Save {
-	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} {                      ref  = val   ; if (Fence) fence() ; } // save and init, ensure sequentiality if asked to do so
-	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                          } // in some cases, we do not care about the value, just saving and restoring
-	~Save(                       )                        { if (Fence) fence() ; _ref = saved ;                      } // restore      , ensure sequentiality if asked to do so
+	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
+	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                  } // in some cases, we do not care about the value, just saving and restoring
+	~Save(                       )                        {              if (Fence) fence() ; _ref = saved ; } // restore      , ensure sequentiality if asked to do so
 	T saved ;
 private :
 	T& _ref ;
 } ;
 template<class T> using FenceSave = Save<T,true> ;
+
+template<class T,bool Fence=false> struct SaveInc {
+	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<::numeric_limits<T>::max()) ; _ref++ ; if (Fence) fence() ;          } // increment, ensure sequentiality if asked to do so
+	~SaveInc(      )             { SWEAR(_ref>::numeric_limits<T>::min()) ;          if (Fence) fence() ; _ref-- ; } // restore  , ensure sequentiality if asked to do so
+private :
+	T& _ref ;
+} ;
+template<class T> using FenceSaveInc = SaveInc<T,true> ;
 
 //
 // Implementation

@@ -58,6 +58,7 @@ namespace Backends {
 				submit_attrs.n_retries-- ;
 				return Status::Lost ;
 			}
+			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn           conn         ;
 			Pdate          start        ;

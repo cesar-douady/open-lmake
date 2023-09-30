@@ -224,12 +224,18 @@ namespace Engine {
 	}
 
 	void Req::_report_cycle(Node node) {
-		::uset  <Node> seen  ;
-		::vector<Node> cycle ;
+		::uset  <Node> seen      ;
+		::vector<Node> cycle     ;
+		::uset  <Rule> to_raise  ;
+		::vector<Node> to_forget ;
 		for( Node d=node ; !seen.contains(d) ;) {
 			seen.insert(d) ;
-			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) ) {
-				if (j.c_req_info(*this).done()) continue ;
+			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) )             // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
+				if (j.c_req_info(*this).done()) to_raise.insert(j->rule) ;
+			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) ) {           // 2nd pass to find the loop
+				Job::ReqInfo const& cjri = j.c_req_info(*this) ;
+				if (cjri.done()) continue ;
+				if (cjri.speculative) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
 					if (dd.done(*this)) continue ;
 					d = dd ;
@@ -242,7 +248,7 @@ namespace Engine {
 			cycle.push_back(d) ;
 		}
 		(*this)->audit_node( Color::Err , "cycle detected for",node ) ;
-		Node deepest = cycle.back() ;
+		Node deepest   = cycle.back()  ;
 		bool seen_loop = deepest==node ;
 		for( size_t i=0 ; i<cycle.size() ; i++ ) {
 			const char* prefix ;
@@ -253,6 +259,11 @@ namespace Engine {
 			else if ( cycle[i]==deepest                      ) { prefix = "+-> " ; seen_loop = true ; }
 			else                                               { prefix = "    " ;                    }
 			(*this)->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
+		}
+		if (!to_forget.empty() || !to_raise.empty() ) {
+			(*this)->audit_info( Color::Note , "consider :\n" ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d ",n                                   , 1 ) ;
+			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->user_name(),".prio = ",r->prio,"+1") , 1 ) ;
 		}
 	}
 
@@ -349,6 +360,16 @@ namespace Engine {
 	void ReqData::clear() {
 		SWEAR(!n_running()) ;
 		*this = ReqData() ;
+	}
+
+	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , ::string const& host , Delay exec_time ) const {
+		::OStringStream msg ;
+		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
+		if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<host                                  <<' ' ;
+		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
+		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
+		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
+		audit( audit_fd , trace_stream , options , c , 0 , msg.str() , job_name ) ;
 	}
 
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , size_t& n_err , DepDepth lvl ) {

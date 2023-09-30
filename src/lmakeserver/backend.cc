@@ -13,17 +13,9 @@ using namespace Engine ;
 
 namespace Backends {
 
-	ENUM( EventKind , Master , Stop , Slave )
-
-	::latch                                   Backend::s_service_ready          { 1 } ;
-	::string                                  Backend::s_executable             ;
-	Backend*                                  Backend::s_tab[+Tag::N]           ;
-	ServerSockFd                              Backend::s_server_fd              ;
-	::mutex                                   Backend::_s_mutex                 ;
-	::umap<JobIdx,Backend::StartTabEntry>     Backend::_s_start_tab             ;
-	SmallIds<SmallId>                         Backend::_s_small_ids             ;
-	ThreadQueue<Backend::DeferredReportEntry> Backend::_s_deferred_report_queue ;
-	ThreadQueue<Backend::DeferredLostEntry  > Backend::_s_deferred_lost_queue   ;
+	//
+	// Backend::*
+	//
 
 	::ostream& operator<<( ::ostream& os , Backend::StartTabEntry const& ste ) {
 		return os << "StartTabEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
@@ -40,6 +32,34 @@ namespace Backends {
 	::ostream& operator<<( ::ostream& os , Backend::DeferredLostEntry const& dle ) {
 		return os << "DeferredReportEntry(" << dle.date <<','<< dle.seq_id <<','<< dle.job << ')' ;
 	}
+
+	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartTabEntry::req_info() const {
+		Pdate eta      ;
+		bool  keep_tmp = false ;
+		::unique_lock lock{Req::s_reqs_mutex} ;                                // ensure Req::s_store is not reallocated while we walk
+		for( ReqIdx r : reqs ) {
+			Req req{r} ;
+			keep_tmp |= req->options.flags[ReqFlag::KeepTmp]              ;
+			eta       = +eta ? ::min(eta,req->stats.eta) : req->stats.eta ;
+		}
+		return {eta,keep_tmp} ;
+	}
+
+	//
+	// Backend
+	//
+
+	ENUM( EventKind , Master , Stop , Slave )
+
+	::latch                                   Backend::s_service_ready          { 1 } ;
+	::string                                  Backend::s_executable             ;
+	Backend*                                  Backend::s_tab[+Tag::N]           ;
+	ServerSockFd                              Backend::s_server_fd              ;
+	::mutex                                   Backend::_s_mutex                 ;
+	::umap<JobIdx,Backend::StartTabEntry>     Backend::_s_start_tab             ;
+	SmallIds<SmallId>                         Backend::_s_small_ids             ;
+	ThreadQueue<Backend::DeferredReportEntry> Backend::_s_deferred_report_queue ;
+	ThreadQueue<Backend::DeferredLostEntry  > Backend::_s_deferred_lost_queue   ;
 
 	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<pair_s<AccDflags>> const& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
@@ -212,17 +232,12 @@ namespace Backends {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
 					}
-					bool deps_attrs_passed = false                     ;
-					bool cmd_attrs_passed  = false                     ;
-					bool cmd_passed        = false                     ;
-					bool keep_tmp          = start_none_attrs.keep_tmp ;
-					{	::unique_lock lock{Req::s_reqs_mutex} ;                  // ensure Req::s_store is not reallocated while we walk
-						for( ReqIdx r : entry.reqs ) {
-							Req req{r} ;
-							keep_tmp |= req->options.flags[ReqFlag::KeepTmp]              ;
-							eta       = +eta ? ::min(eta,req->stats.eta) : req->stats.eta ;
-						}
-					}
+					bool deps_attrs_passed = false            ;
+					bool cmd_attrs_passed  = false            ;
+					bool cmd_passed        = false            ;
+					bool keep_tmp          = false/*garbage*/ ;
+					tie(eta,keep_tmp) = entry.req_info() ;
+					keep_tmp |= start_none_attrs.keep_tmp ;
 					try {
 						deps_attrs        = rule->deps_attrs       .eval(match      ) ; deps_attrs_passed = true ;
 						start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs) ; cmd_attrs_passed  = true ;
@@ -434,11 +449,16 @@ namespace Backends {
 				for( auto& [j,he] : missings ) {
 					auto it = _s_start_tab.find(j) ;
 					if (it==_s_start_tab.end()) continue ;
-					trace("erase_start_tab",j,it->second) ;
-					Status    s     = he.second ? Status::Err : it->second.lost() ;
-					::vmap_ss rsrcs = it->second.rsrcs                                 ;
-					if (s>Status::Garbage) _s_start_tab.erase(it) ;
-					JobExec je{j,now} ;
+					StartTabEntry& entry = it->second ;
+					trace("erase_start_tab",j,entry) ;
+					Status    s     = he.second ? Status::Err : entry.lost() ;
+					::vmap_ss rsrcs = entry.rsrcs                            ;
+					JobExec   je    { j , now }                              ;
+					if (s>Status::Garbage) {
+						auto [eta,keep_tmp] = entry.req_info() ;
+						serialize( OFStream(dir_guard(je.ancillary_file())) , JobInfoStart({ .eta=eta , .submit_attrs=entry.submit_attrs , .rsrcs=entry.rsrcs , .backend_msg=he.first }) ) ;
+						_s_start_tab.erase(it) ;
+					}
 					// signal jobs that have disappeared so they can be relaunched or reported in error
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::Start    , ::move(je) , false/*report_now*/ , ::vector<Node>()                        ) ;

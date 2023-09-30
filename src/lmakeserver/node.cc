@@ -57,7 +57,6 @@ namespace Engine {
 	}
 
 	void Node::_set_pressure_raw( ReqInfo& ri ) const {
-		Trace trace("set_pressure","propagate",*this,ri) ;
 		for( Job job : conform_job_tgts(ri) ) job.set_pressure(job.req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
@@ -305,42 +304,42 @@ namespace Engine {
 			if (multi) break ;
 			prod_idx = NoIdx ;
 			// make eligible jobs
-			ri.n_wait++ ;                                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
-			for( it.reset(ri.prio_idx) ; it ; it++ ) {
-				RunAction action = RunAction::None ;
-				if (+regenerate_job) {
-					if (*it==regenerate_job) action = RunAction::Run ;
-				} else {
-					switch (ri.action) {
-						case RunAction::Makable : action = it->is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
-						case RunAction::Status  : action =                 RunAction::Status                      ; break ;
-						case RunAction::Dsk     :
-							if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
-							else {
-								if (clean==Maybe) {                                                             // solve lazy evaluation
-									if ((*it)->rule->is_special()) clean = No | (manual_ok        (   )==Yes) ; // special rules handle manual targets specially
-									else                           clean = No | (manual_ok_refresh(req)==Yes) ;
+			{	SaveInc save{ri.n_wait} ;                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
+				for( it.reset(ri.prio_idx) ; it ; it++ ) {
+					RunAction action = RunAction::None ;
+					if (+regenerate_job) {
+						if (*it==regenerate_job) action = RunAction::Run ;
+					} else {
+						switch (ri.action) {
+							case RunAction::Makable : action = it->is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
+							case RunAction::Status  : action =                 RunAction::Status                      ; break ;
+							case RunAction::Dsk     :
+								if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
+								else {
+									if (clean==Maybe) {                                                             // solve lazy evaluation
+										if ((*it)->rule->is_special()) clean = No | (manual_ok        (   )==Yes) ; // special rules handle manual targets specially
+										else                           clean = No | (manual_ok_refresh(req)==Yes) ;
+									}
+									if      ( clean==Yes                                         ) action = RunAction::Status ;
+									else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
 								}
-								if      ( clean==Yes                                         ) action = RunAction::Status ;
-								else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
-							}
-						break ;
-						default : FAIL(ri.action) ;
+							break ;
+							default : FAIL(ri.action) ;
+						}
 					}
+					trace("make_job",ri,clean,action,*it) ;
+					Job::ReqInfo& jri = it->req_info(req) ;
+					jri.live_out = ri.live_out ;                                                                 // transmit user request to job for last level live output
+					//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if      (action==RunAction::Run ) it->make( jri , action , {JobReasonTag::NoTarget,+*this} ) ;
+					else if (action!=RunAction::None) it->make( jri , action                                   ) ;
+					//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (jri.waiting()       ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
+					if (!it->produces(*this)) {                                             continue ; }
+					if (prod_idx==NoIdx     ) { prod_idx = it.idx ;                                    }
+					else                      { multi    = true   ;                                    }
 				}
-				trace("make_job",ri,clean,action,*it) ;
-				Job::ReqInfo& jri = it->req_info(req) ;
-				jri.live_out = ri.live_out ;                                                                 // transmit user request to job for last level live output
-				//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if      (action==RunAction::Run ) it->make( jri , action , {JobReasonTag::NoTarget,+*this} ) ;
-				else if (action!=RunAction::None) it->make( jri , action                                   ) ;
-				//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (jri.waiting()       ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
-				if (!it->produces(*this)) {                                             continue ; }
-				if (prod_idx==NoIdx     ) { prod_idx = it.idx ;                                    }
-				else                      { multi    = true   ;                                    }
 			}
-			ri.n_wait-- ;                                                      // restore
 			if (ri.waiting()   ) goto Wait ;
 			if (prod_idx!=NoIdx) break     ;
 			ri.prio_idx = it.idx ;
@@ -356,13 +355,13 @@ namespace Engine {
 			un->uphill      = false ;
 			audit_multi(req,jts) ;
 		} else {
+			bool uphill =
+				prod_idx!=NoIdx
+			&&	(*this)->job_tgts[prod_idx]->rule->special==Special::Uphill
+			;
 			if ((*this)->conform_idx!=prod_idx) Unode(*this)->conform_idx = prod_idx ;
 			if ((*this)->multi                ) Unode(*this)->multi       = false    ;
-			if ((*this)->uphill               ) Unode(*this)->uphill      = false    ;
-			if (prod_idx!=NoIdx) {
-				JobTgt prod_job = (*this)->job_tgts[prod_idx] ;
-				if (prod_job->rule->is_special()) Unode(*this)->uphill = prod_job->rule->special==Special::Uphill ;
-			}
+			if ((*this)->uphill     !=uphill  ) Unode(*this)->uphill      = uphill   ;
 		}
 		ri.done = true ;
 	Wakeup :
@@ -380,11 +379,17 @@ namespace Engine {
 	}
 
 	bool/*ok*/ Node::forget( bool targets , bool deps ) {
-		Trace trace("Nforget",*this,STR(waiting()),conform_job_tgts()) ;
+		Trace trace("Nforget",*this,STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
 		if (waiting()) return false ;
+		//
 		bool res = true ;
-		for( Job j : conform_job_tgts() ) res &= j.forget(targets,deps) ;
-		_set_buildable() ;
+		RuleIdx k =0 ;
+		for( Job j : (*this)->job_tgts ) {
+			/**/                                                             res &= j.forget(targets,deps) ;           // all jobs above conform jobs
+			if (k==(*this)->conform_idx) { for( Job j : conform_job_tgts() ) res &= j.forget(targets,deps) ; break ; } // conform jobs
+			k++ ;
+		}
+		_set_buildable() ;                                                     // wash cache
 		return res ;
 	}
 

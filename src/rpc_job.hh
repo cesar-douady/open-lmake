@@ -649,12 +649,12 @@ struct JobInfoStart {
 	::vmap_ss   rsrcs        = {} ;
 	JobRpcReq   pre_start    = {} ;
 	JobRpcReply start        = {} ;
-	::string    backend_msg  = {} ;
+	::string    backend_msg  = {} ;    // reason for not starting
 } ;
 
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
 	// data
 	JobRpcReq end         = {} ;
-	::string  backend_msg = {} ;
+	::string  backend_msg = {} ;       // report from backend remote execution
 } ;

@@ -36,6 +36,10 @@ namespace Engine {
 #include "core.x.hh"
 #undef STRUCT_DEF
 
+#define INFO_DEF
+#include "core.x.hh"
+#undef INFO_DEF
+
 #define DATA_DEF
 #include "core.x.hh"
 #undef DATA_DEF

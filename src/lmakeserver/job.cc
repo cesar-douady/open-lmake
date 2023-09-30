@@ -680,7 +680,7 @@ namespace Engine {
 	}
 
 	void Job::_set_pressure_raw(ReqInfo& ri , CoarseDelay pressure ) const {
-		Trace("set_pressure",*this,ri,pressure) ;
+		Trace trace("set_pressure",*this,ri,pressure) ;
 		Req         req          = ri.req                                        ;
 		CoarseDelay dep_pressure = ri.pressure + (*this)->best_exec_time().first ;
 		switch (ri.lvl) {
@@ -758,8 +758,10 @@ namespace Engine {
 							dep_action  = RunAction::Dsk       ;
 							if (JobData::s_frozen(status)) break ;             // no dep analysis for frozen jobs
 						}
-						bool critical_modif   = false ;
-						bool critical_waiting = false ;
+						ri.speculative = false ;                               // initiallly, we are not speculatively waiting
+						bool  critical_modif   = false ;
+						bool  critical_waiting = false ;
+						Bool3 seen_waiting     = No    ;                       // Maybe means that waiting has been seen in the same parallel deps (much like DanglingModif for modifs)
 						Dep  sentinel         ;
 						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps),true ; i_dep++ ) {
 							State dep_state   = State::Ok                                  ;
@@ -772,7 +774,8 @@ namespace Engine {
 							bool  care        = +dep.accesses                              ; // we care about this dep if we access it somehow
 							//
 							if (!dep.parallel) {
-								if (state==State::DanglingModif) state = State::Modif ; // dangling modifs become modifs when stamped by a sequential dep
+								if (state       ==State::DanglingModif) state        = State::Modif ; // dangling modifs become modifs when stamped by a sequential dep
+								if (seen_waiting==Maybe               ) seen_waiting = Yes          ; // seen_waiting becomes Yes when stamped by a sequential dep
 								if ( critical_modif && !seen_all ) {
 									NodeIdx j = i_dep ;
 									for( NodeIdx i=i_dep ; i<n_deps ; i++ ) {         // suppress deps following modified critical one, except keep static deps as no-access
@@ -792,9 +795,10 @@ namespace Engine {
 								if ( critical_waiting                  ) goto Wait ;          // stop analysis as critical dep may be modified
 								if ( seen_all                          ) break     ;          // we are done
 							}
-							SWEAR( is_static <= required ) ;                          // static deps are necessarily required
-							Node::ReqInfo const* cdri        = &dep.c_req_info(req) ; // avoid allocating req_info as long as not necessary
-							bool                 overwritten = false                ;
+							SWEAR( is_static <= required ) ;                                                    // static deps are necessarily required
+							Node::ReqInfo const* cdri              = &dep.c_req_info(req)                     ; // avoid allocating req_info as long as not necessary
+							bool                 overwritten       = false                                    ;
+							bool                 maybe_speculative = state==State::Modif || seen_waiting==Yes ; // this dep may disappear
 							//
 							if ( !care && !required ) {                        // dep is useless
 								SWEAR(special==Special::Infinite) ;            // this is the only case
@@ -802,7 +806,7 @@ namespace Engine {
 							}
 							if (!cdri->waiting()) {
 								dep.acquire_crc() ;                                          // 1st chance : before calling make as it can be destroyed in case of flash execution
-								ri.n_wait++ ;                                                // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+								SaveInc save_wait{ri.n_wait} ;                               // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 								if (dep_live_out) {                                          // ask live output for last level if user asked it
 									Node::ReqInfo& dri = dep.req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 									dri.live_out = true ;
@@ -812,14 +816,15 @@ namespace Engine {
 								else if (sense_err) cdri = &dep.make( *cdri , RunAction::Status  ) ; // .
 								else                cdri = &dep.make( *cdri , RunAction::Makable ) ; // .
 								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-								ri.n_wait-- ;                                                      // restore
 							}
 							if ( is_static && dep->buildable!=Yes ) sure = false ; // buildable is better after make()
 							if (cdri->waiting()) {
+							ri.speculative |= maybe_speculative && !is_static ; // we are speculatively waiting
 								reason |= {JobReasonTag::DepNotReady,+dep} ;
 								Node::ReqInfo& dri = dep.req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 								dep.add_watcher(dri,*this,ri,dep_pressure) ;
 								critical_waiting |= is_critical ;
+								seen_waiting     |= Maybe       ;              // transformed into Yes upon sequential dep
 								goto Continue ;
 							}
 							{	SWEAR(dep.done(*cdri)) ;                       // after having called make, dep must be either waiting or done
@@ -1325,8 +1330,8 @@ namespace Engine {
 	}
 
 	bool/*ok*/ Job::forget( bool targets , bool deps ) {
-		Trace trace("Jforget",*this,(*this)->deps,(*this)->deps.size()) ;
-		for( Req r : running_reqs() ) { (void)r ; return false ; }             // ensure job is not running
+		Trace trace("Jforget",*this,STR(targets),STR(deps),(*this)->deps,(*this)->deps.size()) ;
+		for( Req r : running_reqs() ) { (void)r ; return false ; }                               // ensure job is not running
 		(*this)->status = Status::New ;
 		fence() ;                                                              // once status is New, we are sure target is not up to date, we can safely modify it
 		(*this)->run_status = RunStatus::Complete ;

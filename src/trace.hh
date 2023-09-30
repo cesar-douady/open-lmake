@@ -40,9 +40,7 @@ private :
 	static ::mutex _s_mutex ;
 	// cxtors & casts
 public :
-	Trace() : _hidden{t_hide} {
-		t_lvl++ ;
-	}
+	Trace() : _save_lvl{t_lvl} , _save_hide{t_hide} {}
 	template<class T,class... Ts> Trace( T const& first_arg , Ts const&... args ) : Trace{} {
 		_first_arg = to_string(first_arg) ;
 		//
@@ -50,14 +48,10 @@ public :
 		(*this)(args...) ;
 		_first = false ;
 	}
-	~Trace() {
-		t_lvl-- ;
-		t_hide = _hidden ;
-	}
 	// services
 	/**/                  void hide      (bool h=true      ) { t_hide = h ;                                                 }
-	template<class... Ts> void operator()(Ts const&... args) { if ( s_sz && !_hidden ) _record<false/*protect*/>(args...) ; }
-	template<class... Ts> void protect   (Ts const&... args) { if ( s_sz && !_hidden ) _record<true /*protect*/>(args...) ; }
+	template<class... Ts> void operator()(Ts const&... args) { if ( s_sz && !_save_hide.saved ) _record<false/*protect*/>(args...) ; }
+	template<class... Ts> void protect   (Ts const&... args) { if ( s_sz && !_save_hide.saved ) _record<true /*protect*/>(args...) ; }
 private :
 	template<bool P,class... Ts> void _record(Ts const&...     ) ;
 	template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
@@ -66,9 +60,10 @@ private :
 	template<bool P            > void _output(int8_t          x) { *_t_buf << int(x)                ; } // avoid confusion with char
 	template<bool P            > void _output(bool            x) = delete ;                             // bool is not explicit enough, use strings
 	// data
-	bool     _hidden    = false ;
-	bool     _first     = false ;
-	::string _first_arg ;
+	SaveInc<int > _save_lvl  ;
+	Save   <bool> _save_hide ;
+	bool          _first     = false ;
+	::string      _first_arg ;
 } ;
 
 template<bool P,class... Ts> void Trace::_record(Ts const&... args) {
