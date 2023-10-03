@@ -628,3 +628,13 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+
+#
+# archive
+#
+VERSION     := 0.1
+ARCHIVE_DIR := open-lmake-$(VERSION)
+%.tar.bz2 : LMAKE
+	mkdir -p $(ARCHIVE_DIR)
+	for d in bin _bin lib _lib ; do cp -r $$d $(ARCHIVE_DIR); done
+	tar cjvf $@ $(ARCHIVE_DIR)
