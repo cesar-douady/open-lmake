@@ -150,8 +150,9 @@ namespace Engine {
 					if (!py_precs.hasKey(r_str)) continue ;
 					Save<::string> sav{field,to_string(field,'.',r_str)} ;
 					unsigned long prec = static_cast<unsigned long>(Py::Long(py_precs[r_str])) ;
-					if (!has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
-					if (prec==1              ) throw "must be 0 or at least 2"s             ;
+					if (prec==0                ) { rsrc_digits[+r]=0; continue;}
+					if (!::has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
+					if (prec==1                ) throw "must be 0 or at least 2"s             ;
 					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                   // number of kept digits
 				}
 			}
