@@ -223,7 +223,6 @@ namespace Backends::Slurm {
 			SWEAR(req_map.at(req).waiting_jobs.empty()) ;
 			SWEAR(req_map.at(req).spawned_jobs.empty()) ;
 			req_map.erase(req) ;
-			cerr << "CLOSE REQ MAX: " << maxRsrc << endl; //TODO: to remove
 		}
 	private :
 		uint32_t n_max_queue_jobs = -1; //no limit by default
@@ -233,7 +232,6 @@ namespace Backends::Slurm {
 		::umap<JobIdx,WaitingEntry > waiting_map;
 		::umap<JobIdx,SpawnedEntry > spawned_map;
 		::umap<Rsrcs ,SlurmPressure> slurm_map  ;
-		uint32_t maxRsrc = 0; //TODO: to remove
 
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
@@ -250,12 +248,6 @@ namespace Backends::Slurm {
 			}
 			entry.waiting_jobs[job] = pressure             ;
 			entry.waiting_queues[rs].insert({pressure,job}) ;
-
-			//TODO: to remove:
-			if(entry.waiting_queues.size()>maxRsrc) {
-				maxRsrc = entry.waiting_queues.size();
-				cerr << "Max RSRC entry: " << maxRsrc << endl;
-			}
 		}
 		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
 			ReqEntry    & entry = req_map.at(req)       ;
