@@ -21,13 +21,13 @@ namespace Backends::Slurm {
 
 	struct SlurmBackend ;
 	struct RsrcsDataSingle {
-		uint16_t cpu     = 1   ; // number of logical cpu (sbatch --cpus-per-task option)
-		uint32_t mem     = 0   ; // memory in MB          (sbatch --mem           option)
-		uint32_t tmp     = 0   ; // tmp disk in MB        (sbatch --tmp           option)
-		::string part    = ""  ; // partition name        (sbatch --partition     option)
-		::string gres    = ""  ; // generic resources     (sbatch --gres          option)
-		::string licence = ""  ; // licence               (sbtach --licenses      option)
-		::string feature = ""  ; // feature/contraint     (sbatch --constraint    option)
+		uint16_t cpu     = 1 ; // number of logical cpu (sbatch --cpus-per-task option)
+		uint32_t mem     = 0 ; // memory in MB          (sbatch --mem           option)
+		uint32_t tmp     = 0 ; // tmp disk in MB        (sbatch --tmp           option)
+		::string part        ; // partition name        (sbatch --partition     option)
+		::string gres        ; // generic resources     (sbatch --gres          option)
+		::string licence     ; // licence               (sbtach --licenses      option)
+		::string feature     ; // feature/contraint     (sbatch --constraint    option)
 		bool operator==(RsrcsDataSingle const&) const = default;
 	} ;
 
@@ -114,7 +114,7 @@ namespace Backends::Slurm {
 		uint32_t r=0;
 		//from_chars is supposed to be faster than stoi (x4.5)
 		auto [ptr, ec] = ::from_chars(s.data(), s.data()+s.size(), r);
-		swear(ec == std::errc(), to_string("Wrong string convertion to uint32_t: ", s));
+		swear(ec == std::errc(), "Wrong string convertion to uint32_t: "s + s);
 		return r;
 	}
 
@@ -188,8 +188,8 @@ namespace Backends::Slurm {
 			for( auto const& [k,v] : config.dct ) {
 				if(k=="n_max_queue_jobs") {
 					auto [ptr, ec] = ::from_chars(v.data(), v.data()+v.size(), n_max_queue_jobs);
-					if (ec != std::errc())   throw to_string("Wrong configuration setting for n_max_queue_jobs: ", v);
-					if (n_max_queue_jobs==0) throw to_string("n_max_queue_jobs must be > 0");
+					if (ec != std::errc())   throw "Wrong configuration setting for n_max_queue_jobs: "s + v;
+					if (n_max_queue_jobs==0) throw "n_max_queue_jobs must be > 0"s;
 				}
 			}
 		}
@@ -223,6 +223,7 @@ namespace Backends::Slurm {
 			SWEAR(req_map.at(req).waiting_jobs.empty()) ;
 			SWEAR(req_map.at(req).spawned_jobs.empty()) ;
 			req_map.erase(req) ;
+			cerr << "CLOSE REQ MAX: " << maxRsrc << endl; //TODO: to remove
 		}
 	private :
 		uint32_t n_max_queue_jobs = -1; //no limit by default
@@ -232,6 +233,7 @@ namespace Backends::Slurm {
 		::umap<JobIdx,WaitingEntry > waiting_map;
 		::umap<JobIdx,SpawnedEntry > spawned_map;
 		::umap<Rsrcs ,SlurmPressure> slurm_map  ;
+		uint32_t maxRsrc = 0; //TODO: to remove
 
 		// do not launch immediately to have a better view of which job should be launched first
 		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
@@ -248,6 +250,12 @@ namespace Backends::Slurm {
 			}
 			entry.waiting_jobs[job] = pressure             ;
 			entry.waiting_queues[rs].insert({pressure,job}) ;
+
+			//TODO: to remove:
+			if(entry.waiting_queues.size()>maxRsrc) {
+				maxRsrc = entry.waiting_queues.size();
+				cerr << "Max RSRC entry: " << maxRsrc << endl;
+			}
 		}
 		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
 			ReqEntry    & entry = req_map.at(req)       ;
@@ -317,17 +325,13 @@ namespace Backends::Slurm {
 			// as soon as jobs are started, top-backend handles heart beat
 			::vmap<JobIdx,pair_s<bool/*err*/>> res ;
 			for( auto& [job,entry] : spawned_map ) {
-				job_states js = slurm_job_state(entry.slurm_jobid);
-				if(
-					js != JOB_PENDING
-				&&	js != JOB_RUNNING
-				&&	js != JOB_SUSPENDED
-				&&	js != JOB_COMPLETE
-				) {
-					bool isErr   = js==JOB_FAILED || js==JOB_OOM;
-					::string msg = isErr && entry.verbose ? readStderrLog(job) : ::string({});
+				::string info;
+				job_states js = slurm_job_state(entry.slurm_jobid, info);
+				if(js>JOB_COMPLETE) {
+					bool isErr = js==JOB_FAILED || js==JOB_OOM;
+					if(isErr && entry.verbose) info = info + "\n" + readStderrLog(job);
 					Trace trace("heartbeat job: ",job, " slurm jobid: ",entry.slurm_jobid," state is: ", js);
-					res.emplace_back(job,pair(msg,isErr)) ;
+					res.emplace_back(job,pair(info,isErr)) ;
 				}
 			}
 			for(auto& [job,entry] : res) spawned_map.erase(job);
@@ -436,7 +440,7 @@ namespace Backends::Slurm {
 		}
 
 	private :
-		static void slurm_cancel(uint32_t jobid) {
+		void slurm_cancel(uint32_t jobid) const {
 			int err;
 			//This for loop with a retry comes from the scancel Slurm utility code
 			//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
@@ -454,7 +458,7 @@ namespace Backends::Slurm {
 			}
 			Trace trace("Error while killing job: ", jobid, "error: ", slurm_strerror(errno));
 		}
-		static job_states slurm_job_state(uint32_t jobid) {
+		inline job_states slurm_job_state(uint32_t jobid, ::string& info) const {
 			//possible job_states values are (see slurm.h) :
 			//	JOB_PENDING    : queued waiting for initiation
 			//	JOB_RUNNING    : allocated resources and executing
@@ -471,14 +475,28 @@ namespace Backends::Slurm {
 			//	JOB_END        : not a real state, last entry in table
 			job_info_msg_t *resp;
 			if(slurm_load_job(&resp, jobid, SHOW_LOCAL) == SLURM_SUCCESS) {
-				job_states js = static_cast<job_states>(resp->job_array[0].job_state & JOB_STATE_BASE);
-				for(uint32_t i=1;i<resp->record_count;i++) {
-					slurm_job_info_t * ji = &resp->job_array[i];
-					SWEAR(js==(ji->job_state & JOB_STATE_BASE));
+				job_states job_state = static_cast<job_states>(resp->job_array[0].job_state & JOB_STATE_BASE);
+				for(uint32_t i=0;i<resp->record_count;i++) {
+					const slurm_job_info_t * ji = &resp->job_array[i];
+					job_states js = static_cast<job_states>(ji->job_state & JOB_STATE_BASE);
+					if(js>JOB_COMPLETE) { //otherwise only the main job state is considered
+						job_state = js;
+						switch(js) {
+							case JOB_FAILED   : info = to_string("Failed on node(s): ", ji->nodes, " with exit code ", ji->exit_code); break;
+							case JOB_OOM      : info = to_string("Out of memory killed on node(s): ", ji->nodes                     ); break;
+							case JOB_CANCELLED: info =           "Job cancelled by user"s                                            ; break;
+							case JOB_TIMEOUT  : info = to_string("Job terminated on reaching time limit on node(s): "  , ji->nodes  ); break;
+							case JOB_NODE_FAIL: info = to_string("Job terminated on node failure on node(s): "         , ji->nodes  ); break;
+							case JOB_PREEMPTED: info = to_string("Job terminated due to preemption on node(s): "       , ji->nodes  ); break;
+							case JOB_BOOT_FAIL: info = to_string("Job terminated due to node boot failure on node(s): ", ji->nodes  ); break;
+							case JOB_DEADLINE : info = to_string("Job terminated on deadline on node(s): "             , ji->nodes  ); break;
+							default:
+								swear(0, to_string("Slurm: wrong job state return for job (", jobid, "): ", job_state));               break;
+						}
+					}
 				}
 				slurm_free_job_info_msg( resp );
-				swear(js<JOB_END, to_string("Slurm: wrong job state return for job (", jobid, "): ", js));
-				return js;
+				return job_state;
 			} else {
 				swear(0,to_string("Error while loading job info (", jobid, "): ", slurm_strerror(errno)));
 				return JOB_RUNNING;
@@ -494,8 +512,8 @@ namespace Backends::Slurm {
 			return ss.str();
 		}
 		inline ::string getLogPath      (JobIdx job) const {return to_string(AdminDir, "/slurm_log/"s, job);}
-		inline ::string getLogStderrPath(JobIdx job) const {return to_string(getLogPath(job), "/stderr"   );}
-		inline ::string getLogStdoutPath(JobIdx job) const {return to_string(getLogPath(job), "/stdout"   );}
+		inline ::string getLogStderrPath(JobIdx job) const {return getLogPath(job) + "/stderr"s            ;}
+		inline ::string getLogStdoutPath(JobIdx job) const {return getLogPath(job) + "/stdout"s            ;}
 
 		inline ::optional<::string> slurm_spawn_job(JobIdx job, ::vector_s& cmd_line, Rsrcs  const& rsrcs, bool verbose, uint32_t * slurmJobId) {
 			uint32_t  n_comp   = rsrcs->size(); SWEAR(n_comp>0) ;
@@ -545,8 +563,7 @@ namespace Backends::Slurm {
 				slurm_free_submit_response_response_msg(jMsg);
 				return {};
 			} else {
-				::string err = "Launch slurm job error: " + ::string(slurm_strerror(slurm_get_errno()));
-				return err;
+				return "Launch slurm job error: "s + slurm_strerror(slurm_get_errno());
 			}
 		}
 	} ;
@@ -559,14 +576,8 @@ namespace Backends::Slurm {
 		return v[idx];
 	}
 	static inline void rsrcThrow(const ::string& k) {throw to_string("no resource ", k," for backend ",mk_snake(MyTag));}
-	static uint32_t mtoi(const ::string& mem) {
-		char c = mem.back();
-		switch (c) {
-			case 'M': return s2u32(mem.substr(0,mem.size()-1))       ;
-			case 'G': return s2u32(mem.substr(0,mem.size()-1)) * 1024;
-			default : return s2u32(mem);
-		}
-		return 0;
+	static inline uint32_t mtoi(const ::string& mem) {
+		return from_string_with_units<uint32_t,'M'>(mem);
 	}
 	inline RsrcsData::RsrcsData(::vmap_ss const& m) {
 		for( auto const& [k,v] : m ) {
@@ -585,9 +596,9 @@ namespace Backends::Slurm {
 	::vmap_ss RsrcsData::vmap(void) const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
-		res.emplace_back("cpu", to_string((*this)[0].cpu));
-		res.emplace_back("mem", to_string((*this)[0].mem));
-		res.emplace_back("tmp", to_string((*this)[0].tmp));
+		res.emplace_back("cpu", to_string((*this)[0].cpu    ));
+		res.emplace_back("mem", to_string((*this)[0].mem,'M'));
+		res.emplace_back("tmp", to_string((*this)[0].tmp,'M'));
 		return res ;
 	}
 }
