@@ -201,7 +201,7 @@ namespace Backends::Local {
 		virtual bool is_local() const {
 			return true ;
 		}
-		virtual void config(Config::Backend const& config) {
+		virtual bool config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				rsrc_idxs[k] = rsrc_keys.size() ;
 				rsrc_keys.push_back(k) ;
@@ -213,6 +213,7 @@ namespace Backends::Local {
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			Trace("config",MyTag,"capacity",'=',capacity_) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
+			return true;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;

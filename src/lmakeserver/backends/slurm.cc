@@ -116,7 +116,6 @@ namespace Backends::Slurm {
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
 	struct SlurmBackend : Backend {
-
 		struct WaitingEntry {
 			WaitingEntry() = default ;
 			WaitingEntry( Rsrcs const& rs , SubmitAttrs const& sa ) : rsrcs{rs} , n_reqs{1} , submit_attrs{sa} {}
@@ -168,18 +167,19 @@ namespace Backends::Slurm {
 			uint32_t n_waiting_jobs = 0; //spawned (waiting in slurm queue)
 		} ;
 
-		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
+			slurm_init(nullptr);
 			SlurmBackend& self = *new SlurmBackend ;
 			s_register(MyTag,self) ;
 		}
+		~SlurmBackend() {slurm_fini();}
 
 		// services
 		virtual bool is_local() const {
 			return false ;
 		}
-		virtual void config(Config::Backend const& config) {
+		virtual bool config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				if(k=="n_max_queue_jobs") {
 					auto [ptr, ec] = ::from_chars(v.data(), v.data()+v.size(), n_max_queue_jobs);
@@ -187,6 +187,12 @@ namespace Backends::Slurm {
 					if (n_max_queue_jobs==0) throw "n_max_queue_jobs must be > 0"s;
 				}
 			}
+			slurmd_status_t * slurmd_status;
+			if (slurm_load_slurmd_status(&slurmd_status)) {
+				return false; //Probably no service slurmd available
+			}
+			slurm_free_slurmd_status(slurmd_status);
+			return true;
 		}
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
 			bool             single = false;
