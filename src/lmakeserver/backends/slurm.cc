@@ -110,13 +110,8 @@ namespace Backends::Slurm {
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
-	static inline uint32_t s2u32(const ::string& s) {
-		uint32_t r=0;
-		//from_chars is supposed to be faster than stoi (x4.5)
-		auto [ptr, ec] = ::from_chars(s.data(), s.data()+s.size(), r);
-		swear(ec == std::errc(), "Wrong string convertion to uint32_t: "s + s);
-		return r;
-	}
+	template<::integral T> static inline T s2val(const ::string& s) {return from_string_with_units<T    >(s);}
+	template<::integral T> static inline T m2val(const ::string& m) {return from_string_with_units<T,'M'>(m);}
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
@@ -194,18 +189,21 @@ namespace Backends::Slurm {
 			}
 		}
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
-			bool             single  = false;
-			::umap_s<size_t> capa    = mk_umap(capacity);
-			::umap_s<uint32_t> rs;
+			bool             single = false;
+			::umap_s<size_t> capa   = mk_umap(capacity);
+			::umap_s<size_t> rs;
 			for(auto [k,v] : rsrcs) {
-				if     (capa.contains(k))                     rs[k]  = s2u32(v);
+				if(capa.contains(k)) {
+					// capacities of local backend are only integer information
+					rs[k] = (k=="tmp" || k=="mem") ? m2val<size_t>(v) : s2val<size_t>(v);
+				}
 				else if(k=="gres" && !v.starts_with("shard")) single = true;
 			}
-
 			::vmap_ss lclRsrc;
 			for(auto [k,v] : rs) {
-				uint32_t capaVal = static_cast<uint32_t>(capa[k]);
-				lclRsrc.emplace_back(k, to_string(single ? capaVal : ::min(v,capaVal)));
+				size_t   val   = single ? capa[k] : ::min(static_cast<size_t>(v),capa[k]);
+				::string val_s = (k=="tmp" || k=="mem") ? to_string_with_units<size_t,'M'>(val) : to_string(val);
+				lclRsrc.emplace_back(k, val_s);
 			}
 			return lclRsrc;
 		}
@@ -568,19 +566,18 @@ namespace Backends::Slurm {
 		return v[idx];
 	}
 	static inline void rsrcThrow(const ::string& k) {throw to_string("no resource ", k," for backend ",mk_snake(MyTag));}
-	static inline uint32_t mtoi(const ::string& mem) {
-		return from_string_with_units<uint32_t,'M'>(mem);
-	}
 	inline RsrcsData::RsrcsData(::vmap_ss const& m) {
+		const auto m2u32 = m2val<uint32_t>;
+		const auto s2u32 = s2val<uint32_t>;
 		for( auto const& [k,v] : m ) {
 			switch (k[0]) {
 				case 'p' : if (k.starts_with("part"   )) grow(*this,::atoi(&k[4])).part    =         v  ; else rsrcThrow(k); break ;
-				case 't' : if (k.starts_with("tmp"    )) grow(*this,::atoi(&k[3])).tmp     =    mtoi(v) ; else rsrcThrow(k); break ;
+				case 't' : if (k.starts_with("tmp"    )) grow(*this,::atoi(&k[3])).tmp     =   m2u32(v) ; else rsrcThrow(k); break ;
 				case 'g' : if (k.starts_with("gres"   )) grow(*this,::atoi(&k[4])).gres    = "gres:"+v  ; else rsrcThrow(k); break ;
 				case 'f' : if (k.starts_with("feature")) grow(*this,::atoi(&k[7])).feature =         v  ; else rsrcThrow(k); break ;
 				case 'l' : if (k.starts_with("licence")) grow(*this,::atoi(&k[7])).licence =         v  ; else rsrcThrow(k); break ;
 				case 'c' : if (k.starts_with("cpu"    )) grow(*this,::atoi(&k[3])).cpu     =   s2u32(v) ; else rsrcThrow(k); break ;
-				case 'm' : if (k.starts_with("mem"    )) grow(*this,::atoi(&k[3])).mem     =    mtoi(v) ; else rsrcThrow(k); break ;
+				case 'm' : if (k.starts_with("mem"    )) grow(*this,::atoi(&k[3])).mem     =   m2u32(v) ; else rsrcThrow(k); break ;
 				default  : rsrcThrow(k);
 			}
 		}

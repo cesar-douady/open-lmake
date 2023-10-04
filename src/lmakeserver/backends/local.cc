@@ -257,8 +257,8 @@ namespace Backends::Local {
 			CoarseDelay pressure = _adjust_pressure(submit_attrs.pressure,rs2) ;
 			Trace trace("submit","rsrs",rs2,"adjusted_pressure",pressure) ;
 			//
-			waiting_map.emplace( job , WaitingEntry(rs2,submit_attrs) ) ;
 			entry.waiting_jobs[job] = pressure             ;
+			waiting_map.emplace( job , WaitingEntry(rs2,submit_attrs) ) ;
 			entry.waiting_queues[rs2].insert({pressure,job}) ;
 		}
 		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {

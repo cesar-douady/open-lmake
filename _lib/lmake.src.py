@@ -56,7 +56,7 @@ if _reading_makefiles :
 		raise FileNotFoundError(f'cannot find {cmd} in standard path {_std_path}')
 	_lmake_dir    = _osp.dirname(_osp.dirname(__file__))
 	_python       = _sys.executable
-	_physical_mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE')
+	_physical_mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE') // Mega
 
 	# Lmakefile must define the following variables in module lmake :
 	# - config  : the server configuration
@@ -100,8 +100,8 @@ if _reading_makefiles :
 				#                                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 				#                                            default is loopback for local backend and hostname for the others
 				cpu = len(_os.sched_getaffinity(0))        # total number of cpus available for the process, and hence for all jobs launched locally
-			,	mem = _physical_mem                        # total available memory in bytes
-			,	tmp = 0                                    # total available temporary disk space in bytes
+			,	mem = str(_physical_mem)+'M'               # total available memory in MBytes
+			,	tmp = '0M'                                 # total available temporary disk space in MBytes
 			)
 		)
 	,	caches = pdict(                                    # PER_CACHE : provide an explanation for each cache method
@@ -208,8 +208,8 @@ if _reading_makefiles :
 		else            : autodep = 'ld_preload'           # .
 		resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 			'cpu' : 1                                      # number of cpu's to allocate to job
-	#	,	'mem' : 0                                      # memory to allocate to job
-	#	,	'tmp' : 0                                      # temporary disk space to allocate to job
+	#	,	'mem' : '0M'                                   # memory to allocate to job
+	#	,	'tmp' : '0M'                                   # temporary disk space to allocate to job
 		}                                                  # follow the same syntax as deps
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 			HOME       = '$CWD'                            # favor repeatability by hiding use home dir some tools use at start up time
