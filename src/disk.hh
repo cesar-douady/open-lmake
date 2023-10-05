@@ -18,9 +18,9 @@ namespace Disk {
 	,	Stat       // file is accessed with stat like (read inode)
 	)
 	static constexpr char AccessChars[] = {
-		'L'        // Lnk
-	,	'R'        // Reg
-	,	'T'        // Stat
+		'L'                                                // Lnk
+	,	'R'                                                // Reg
+	,	'T'                                                // Stat
 	} ;
 	static_assert(::size(AccessChars)==+Access::N) ;
 	using Accesses = BitMap<Access> ;
@@ -29,7 +29,7 @@ namespace Disk {
 	ENUM_1( FileTag
 	,	None
 	,	Reg
-	,	Exe
+	,	Exe        // a regular file with exec permission
 	,	Lnk
 	,	Dir
 	,	Err
@@ -122,7 +122,7 @@ namespace Disk {
 	static inline ::string read_lnk( Fd at , ::string const& file ) {
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlinkat(at,file.c_str(),buf,PATH_MAX) ;
-		if ( cnt<0 || cnt>PATH_MAX ) return {} ;
+		if ( cnt<0 || cnt>=PATH_MAX ) return {} ;
 		return {buf,size_t(cnt)} ;
 	}
 
@@ -130,6 +130,7 @@ namespace Disk {
 	static inline bool  is_lnk   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Lnk ; }
 	static inline bool  is_dir   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Dir ; }
 	static inline bool  is_target( Fd at , ::string const& file={} ) { return +FileInfo    (at,file)                   ; }
+	static inline bool  is_exe   ( Fd at , ::string const& file={} ) { return  FileInfo    (at,file).tag==FileTag::Exe ; }
 	static inline bool  is_none  ( Fd at , ::string const& file={} ) { return !FileInfo    (at,file).tag               ; }
 	static inline Ddate file_date( Fd at , ::string const& file={} ) { return  FileInfoDate(at,file).date              ; }
 
@@ -147,6 +148,7 @@ namespace Disk {
 	static inline bool            is_lnk       ( ::string const& file                                      ) { return is_lnk       (Fd::Cwd,file           ) ; }
 	static inline bool            is_dir       ( ::string const& file                                      ) { return is_dir       (Fd::Cwd,file           ) ; }
 	static inline bool            is_target    ( ::string const& file                                      ) { return is_target    (Fd::Cwd,file           ) ; }
+	static inline bool            is_exe       ( ::string const& file                                      ) { return is_exe       (Fd::Cwd,file           ) ; }
 	static inline bool            is_none      ( ::string const& file                                      ) { return is_none      (Fd::Cwd,file           ) ; }
 	static inline Ddate           file_date    ( ::string const& file                                      ) { return file_date    (Fd::Cwd,file           ) ; }
 
@@ -189,17 +191,36 @@ namespace Disk {
 		bool        _ok = false ;
 	} ;
 
-	struct RealPath {
+	ENUM_1(Kind
+	,	Dep = SrcDirs                  // <=Dep means that file must be reported as a dep
+	,	Repo
+	,	SrcDirs                        // file has been found in source dirs
+	,	Root                           // file is the root dir
+	,	Tmp
+	,	Proc                           // file is in /proc
+	,	Admin
+	,	Ext                            // all other cases
+	)
+
+	struct RealPathEnv {
+		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
+		LnkSupport lnk_support = LnkSupport::Full ;                            // by default, be pessimistic
+		::string   root_dir    = {}               ;
+		::string   tmp_dir     = {}               ;
+		::string   tmp_view    = {}               ;
+		::vector_s src_dirs_s  = {}               ;
+	} ;
+
+	// XXX : avoid duplicating RealPathEnv by storing a pointer to it here rather than inheritance
+	struct RealPath : RealPathEnv {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
-			// cxtors & casts
-			SolveReport(                                                     ) = default ;
-			SolveReport( ::string && r , ::vector_s&& ls , bool ir , bool it ) : real{::move(r)} , lnks{::move(ls)} , in_repo{ir} , in_tmp{it} {}
 			// data
-			::string   real    ;                           // real path relative to root if in_repo, else absolute or empty if in tmp, admin or proc
-			::vector_s lnks    ;                           // links followed to get to real
-			bool       in_repo = false ;
-			bool       in_tmp  = false ;
+			::string   real   = {}        ;                // real path relative to root if in_repo or found in a relative src_dir ...
+			//                                             // or absolute if found in an absolute src_dir or mapped in tmp, else empty
+			::vector_s lnks   = {}        ;                // links followed to get to real
+			Kind       kind   = Kind::Ext ;                // do not process awkard files
+			bool       mapped = false     ;                // if true <=> tmp mapping has been used
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
@@ -227,37 +248,36 @@ namespace Disk {
 		// statics
 	private :
 		// if No <=> no file, if Maybe <=> a regular file, if Yes <=> a link
-		static Bool3/*ok*/ _s_read_lnk( ::string& target/*out*/ , ::string const& real ) {
-			char buf[PATH_MAX] ;
-			ssize_t n = ::readlink( real.c_str() , buf , sizeof(buf) ) ;
-			if (n<0) return Maybe & (errno!=ENOENT) ;
-			buf[n] = 0 ;
-			target = static_cast<const char*>(buf) ;                           // w/o cast, target size would be PATH_MAX
+		Bool3/*ok*/ _read_lnk( ::string& target/*out*/ , ::string const& real ) {
+			::string t = read_lnk(real) ;
+			if (t.empty()) return Maybe & (errno!=ENOENT) ;
+			target = ::move(t) ;
 			return Yes ;
 		}
 		// cxtors & casts
 	public :
-		RealPath (                                                        ) = default ;
-		RealPath ( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) { init(ls,sds_s,p) ; } // sds_s may be either absolute or relative, but must be canonic
-		void init( LnkSupport ls , ::vector_s const& sds_s={} , pid_t p=0 ) ;                      // .
+		RealPath() = default ;
+		// src_dirs_s may be either absolute or relative, but must be canonic
+		// tmp_dir and tmp_view must be absolute and canonic
+		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) { init(rpe,p) ; }
+		void init( RealPathEnv const&     , pid_t  =0 ) ;
 		// services
-		SolveReport        solve( Fd at , ::string const&      , bool no_follow=false , bool root_ok=false ) ;
-		SolveReport        solve( Fd at , const char*     file , bool no_follow=false , bool root_ok=false ) { return solve(at     ,::string(file),no_follow,root_ok) ; } // ensure proper types
-		SolveReport        solve(         ::string const& file , bool no_follow=false , bool root_ok=false ) { return solve(Fd::Cwd,         file ,no_follow,root_ok) ; }
-		SolveReport        solve( Fd at ,                        bool no_follow=false , bool root_ok=false ) { return solve(at     ,         {}   ,no_follow,root_ok) ; }
-		::vmap_s<Accesses> exec ( Fd at , ::string const& exe  , bool no_follow=false ) ;
+		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
+		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve(at     ,::string(file),no_follow) ; } // ensure proper types
+		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
+		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
+		//
+		vmap_s<Accesses> exec(SolveReport&) ;                                  // arg is updated to reflect last interpreter
 	private :
-		::string _find_src( ::string const& real , bool in_repo ) const ;
+		::string _find_src(::string const& real) const ;
 		// data
 	public :
-		::string   cwd_           ;
-		pid_t      pid            = 0 ;
-		::vector_s abs_src_dirs_s ;      // this is an absolute version of src_dirs
-		::vector_s src_dirs_s     ;
+		pid_t    pid          = 0                ;
+		bool     has_tmp_view = false/*garbage*/ ;
+		::string cwd_         ;
 	private :
-		::string   _admin_dir   ;
-		LnkSupport _lnk_support = LnkSupport::Unknown ;
-
+		::string   _admin_dir      ;
+		::vector_s _abs_src_dirs_s ;                                          // this is an absolute version of src_dirs
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

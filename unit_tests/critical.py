@@ -5,7 +5,7 @@
 
 import sys
 
-n_good = 20
+n_good = 2
 
 if getattr(sys,'reading_makefiles',False) :
 

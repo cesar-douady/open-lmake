@@ -15,8 +15,8 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 
 	// try backdoor
 	// worst data dependent reply size is a CRC per file, rest is a (small) constant size overhead
-	::string reply               ( sizeof(Crc)*jerr.files.size() + 100 , char(0) ) ;                                          // provide some margin for overhead
-	int      rc [[maybe_unused]] = ::readlinkat( AT_BACKDOOR , OMsgBuf::s_send(jerr).data() , reply.data() , reply.size() ) ; // no rc from backdoor
+	::string reply               ( sizeof(Crc)*jerr.files.size() + 100 , char(0) ) ;                                       // provide some margin for overhead
+	int      rc [[maybe_unused]] = ::readlinkat( Backdoor , OMsgBuf::s_send(jerr).data() , reply.data() , reply.size() ) ; // no rc from backdoor
 	//
 	size_t reply_sz = MsgBuf::s_sz(reply.data()) ;
 	if (reply_sz) {
@@ -25,8 +25,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	}
 
 	// backdoor did not work, try direct connection to server
-	if (has_env("LMAKE_AUTODEP_ENV")) {
-		static bool s_inited [[maybe_unused]] = (RecordSock::s_init(),true) ;
+	if (!get_env("LMAKE_AUTODEP_ENV","").empty()) {
 		return RecordSock().backdoor(JobExecRpcReq(jerr)) ;
 	}
 

@@ -24,7 +24,6 @@ static constexpr uint8_t TraceNameSz = JobHistorySz<= 10 ? 1 : JobHistorySz<=100
 static_assert(JobHistorySz<=10000) ;                                                       // above, we need to make hierarchical names
 
 int main( int argc , char* argv[] ) {
-	static JobRpcReply start_info  ;                                           // start_info is made static as it holds g_tmp_dir, to avoid pointing to deallocated memory
 	//
 	Pdate start_overhead = Pdate::s_now() ;
 	//
@@ -38,8 +37,9 @@ int main( int argc , char* argv[] ) {
 	//
 	JobRpcReq end_report { JobProc::End , seq_id , job , host_ , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
 	//
-	GatherDeps gather_deps{ New                                                                    } ;
-	JobRpcReq req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
+	GatherDeps  gather_deps { New                                                                    } ;
+	JobRpcReq   req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
+	JobRpcReply start_info  ;
 	try {
 		ClientSockFd fd{service} ;
 		//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -79,10 +79,11 @@ int main( int argc , char* argv[] ) {
 		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,start_info.local_mrkr,abs_cwd) ;
 		else if (has_env(k)    ) cmd_env[k] = get_env(k)                                 ; // if value is special illegal value, use value from environement (typically from slurm)
 	if ( start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
-		cmd_env["TMPDIR"] = mk_abs( start_info.job_tmp_dir , start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
-	g_tmp_dir = new ::string{cmd_env["TMPDIR"]} ;
+		cmd_env["TMPDIR"] = mk_abs( start_info.autodep_env.tmp_dir , start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
+	start_info.autodep_env.tmp_dir = cmd_env["TMPDIR"] ;
+	if (!start_info.autodep_env.tmp_view.empty()) cmd_env["TMPDIR"] = start_info.autodep_env.tmp_view ; // job must use the job view
 	//
-	app_init() ;                                                               // safer to call app_init once we are in repo and once g_tmp_dir is set
+	app_init() ;
 	Py::init() ;
 	//
 	Trace trace("main",service,seq_id,job) ;
@@ -91,18 +92,16 @@ int main( int argc , char* argv[] ) {
 	trace("cmd_env"       ,cmd_env       ) ;
 	//
 	try {
-		unlink_inside(*g_tmp_dir) ;                                            // be certain that tmp dir is clean
+		unlink_inside(start_info.autodep_env.tmp_dir) ;                              // be certain that tmp dir is clean
 	} catch (::string const&) {
 		try {
-			make_dir(*g_tmp_dir) ;                                             // and that it exists
+			make_dir(start_info.autodep_env.tmp_dir) ;                               // and that it exists
 		} catch (::string const& e) {
 			end_report.digest.stderr = "cannot create tmp dir : "+e ;
 			goto End ;
 		}
 	}
-	{
-		//
-		Fd child_stdin  = Child::None ;
+	{	Fd child_stdin  = Child::None ;
 		Fd child_stdout = Child::Pipe ;
 		//
 		::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
@@ -140,7 +139,7 @@ int main( int argc , char* argv[] ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvv
 					deps.emplace_back(file,dd) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("dep   ",dd,info.tflags,file) ;
+					trace("dep   ",dd,file) ;
 				} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
 					if ( !info.file_date                                   ) a = Accesses::None ;
 					if ( ad.write && !ad.unlink && info.tflags[Tflag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
@@ -201,18 +200,18 @@ int main( int argc , char* argv[] ) {
 			live_out_buf = live_out_buf.substr(pos) ;
 		} ;
 		//
-		/**/                     gather_deps.server_cb    = server_cb              ;
-		/**/                     gather_deps.tflags_cb    = tflags_cb              ;
-		if (start_info.live_out) gather_deps.live_out_cb  = live_out_cb            ;
-		/**/                     gather_deps.create_group = true                   ;
-		/**/                     gather_deps.method       = start_info.method      ;
 		/**/                     gather_deps.addr         = start_info.addr        ;
 		/**/                     gather_deps.autodep_env  = start_info.autodep_env ;
-		/**/                     gather_deps.timeout      = start_info.timeout     ;
-		/**/                     gather_deps.kill_sigs    = start_info.kill_sigs   ;
 		/**/                     gather_deps.chroot       = start_info.chroot      ;
+		/**/                     gather_deps.create_group = true                   ;
 		/**/                     gather_deps.cwd          = cwd_                   ;
 		/**/                     gather_deps.env          = &cmd_env               ;
+		/**/                     gather_deps.kill_sigs    = start_info.kill_sigs   ;
+		if (start_info.live_out) gather_deps.live_out_cb  = live_out_cb            ;
+		/**/                     gather_deps.method       = start_info.method      ;
+		/**/                     gather_deps.server_cb    = server_cb              ;
+		/**/                     gather_deps.tflags_cb    = tflags_cb              ;
+		/**/                     gather_deps.timeout      = start_info.timeout     ;
 		//
 		gather_deps.static_deps( start_overhead , start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
 		if (start_info.stdin.empty()) {
@@ -266,10 +265,7 @@ int main( int argc , char* argv[] ) {
 			while (!spurious_unlink_queue.empty()) append_to_string(err_str,'\t',spurious_unlink_queue.pop(),'\n') ;
 		}
 		//
-		if ( gather_deps.seen_tmp && !start_info.keep_tmp ) {
-			trace("tmp",*g_tmp_dir) ;
-			unlink_inside(*g_tmp_dir) ;
-		}
+		if ( gather_deps.seen_tmp && !start_info.keep_tmp ) unlink_inside(start_info.autodep_env.tmp_dir) ;
 		//
 		if (!err_str.empty()) {
 			status             |= Status::Err                          ;

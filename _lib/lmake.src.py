@@ -87,7 +87,7 @@ if _reading_makefiles :
 		,	has_exec_time  = True                          # if True, output the exec_time field
 		)
 	,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
-			precisions = pdict(                            # precision of resources allocated for jobs, one entry for each standard resource.
+			precisions = pdict(                            # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
 		#		cpu = 4                                    # 4 means possible values are 1 2, 3, 4, 6, 8, 12, ...
 		#	,	mem = 4                                    # 8 would mean possible values are 1 2, 3, 4, 5, 6, 7, 8, 10, ...
 		#	,	tmp = 4                                    # .
@@ -202,6 +202,7 @@ if _reading_makefiles :
 	#	start_delay  = 1                                   # delay before sending a start message if job is not done by then
 	#	stderr_len   = 20                                  # maximum number of stderr lines shown in output (full content is accessible with lshow -e)
 		timeout      = None                                # timeout allocated to job execution (in s), must be None or an int
+	#	tmp          = '/tmp'                              # path under which the temporary directory is seen in the job
 		job_tokens   = 1                                   # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
 		if has_ld_audit : autodep = 'ld_audit'             # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 		else            : autodep = 'ld_preload'           # .

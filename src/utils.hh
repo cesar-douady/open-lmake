@@ -15,6 +15,7 @@
 #include <netdb.h>
 #include <netinet/ip.h>
 #include <pthread.h>
+#include <stdio.h>                     // for P_tmpdir
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/file.h>
@@ -1329,7 +1330,8 @@ static constexpr inline int _unit_val(char u) {
 	}
 }
 template<::integral T,char U> T from_string_with_units(::string const& s) {
-	T                   val     = 0 /*garbage*/                   ;
+	using T64 = ::conditional_t<is_signed_v<T>,int64_t,uint64_t> ;
+	T64                 val     = 0 /*garbage*/                   ;
 	const char*         s_start = s.c_str()                       ;
 	const char*         s_end   = s.c_str()+s.size()              ;
 	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
@@ -1340,10 +1342,16 @@ template<::integral T,char U> T from_string_with_units(::string const& s) {
 	static constexpr int B = _unit_val(U       ) ;
 	/**/             int b = _unit_val(*fcr.ptr) ;
 	//
-	if ( B>=b                                    ) return val>>(B-b)  ;
-	if ( val > ::numeric_limits<T>::max()>>(b-B) ) throw "overflow"s  ;
-	if ( val < ::numeric_limits<T>::min()>>(b-B) ) throw "underflow"s ;
-	/**/                                           return val<<(b-B)  ;
+	if (B>=b) {
+		val >>= B-b ;
+		if ( val > ::numeric_limits<T>::max() ) throw "overflow"s  ;
+		if ( val < ::numeric_limits<T>::min() ) throw "underflow"s ;
+		return T(val) ;
+	} else {
+		if ( val > ::numeric_limits<T>::max()>>(b-B) ) throw "overflow"s  ;
+		if ( val < ::numeric_limits<T>::min()>>(b-B) ) throw "underflow"s ;
+		return T(val<<(b-B)) ;
+	}
 }
 
 template<::integral T,char U> ::string to_string_with_units(T x) {

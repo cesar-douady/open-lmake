@@ -23,6 +23,7 @@ static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_server_mrkr    ;
 static ::string       _g_host           = host() ;
+static RealPath       _g_real_path      ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { _g_server_mrkr } ;
@@ -176,13 +177,12 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 						case ReqProc::Forget :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
 						case ReqProc::Freeze :
 						case ReqProc::Show   : {
-							RealPath       real_path {g_config.lnk_support} ;
-							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
+							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ;                           // typically, there is no bads
 							::vector_s     bads      ;
 							for( ::string const& target : rrr.targets ) {
-								RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ; // ignore links that lead to real path
-								if (rp.in_repo) targets.emplace_back(rp.real) ;
-								else            bads   .emplace_back(target ) ;
+								RealPath::SolveReport rp = _g_real_path.solve(target,true/*no_follow*/) ; // ignore links that lead to real path
+								if (rp.kind==Kind::Repo) targets.emplace_back(rp.real) ;
+								else                     bads   .emplace_back(target ) ;
 							}
 							if (bads.empty()) {
 								trace("targets",targets) ;
@@ -195,9 +195,9 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							} else {
 								trace("bads",bads) ;
-								//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								for( ::string const& bad : bads ) audit( out_fd , rrr.options , Color::Err , 0 , "cannot process target",bad) ;
-								//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								for( ::string const& bad : bads ) audit( out_fd , rrr.options , Color::Err , 0 , "cannot make target outside repository : ",bad) ;
+								//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 								goto Bad ;
 							}
 						} break ;
@@ -372,6 +372,7 @@ int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	app_init(false/*search_root*/,false/*cd_root*/) ;                          // server is always launched at root
 	Py::init(true/*multi-thread*/) ;
+	_g_real_path.init({ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }) ;
 	_g_server_mrkr = to_string(AdminDir,'/',ServerMrkr) ;
 	_g_is_daemon   = argc==1                         ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;

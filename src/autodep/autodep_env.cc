@@ -5,51 +5,53 @@
 
 #include "autodep_env.hh"
 
+using namespace Disk ;
+
 ::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
-	/**/                         os << "AutodepEnv(" << ade.service <<','<< ade.root_dir <<',' ;
-	if ( ade.auto_mkdir        ) os <<",auto_mkdir"                                            ;
-	if ( ade.ignore_stat       ) os <<",ignore_stat"                                           ;
-	if (!ade.src_dirs_s.empty()) os <<','<< ade.src_dirs_s                                     ;
-	return                       os <<','<< ade.lnk_support <<')'                              ;
+	/**/                         os << "AutodepEnv(" << static_cast<RealPathEnv const&>(ade) ;
+	/**/                         os <<','<< ade.service                                      ;
+	if ( ade.auto_mkdir        ) os <<",auto_mkdir"                                          ;
+	if ( ade.ignore_stat       ) os <<",ignore_stat"                                         ;
+	return                       os <<')'                                                    ;
 }
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (env.empty()) return ;
-	{	size_t pos1 = env.find(':'       ) ; if (pos1==Npos) goto Fail ;
-		/**/   pos1 = env.find(':',pos1+1) ; if (pos1==Npos) goto Fail ;
-		size_t pos2 = env.find(':',pos1+1) ; if (pos2==Npos) goto Fail ;
-		// service
-		service = env.substr(0,pos1) ;
-		// options
-		for( size_t i=pos1+1 ; i<pos2 ; i++ )
-			switch (env[i]) {
-				case 'd' : auto_mkdir  = true             ; break ;
-				case 'i' : ignore_stat = true             ; break ;
-				case 'n' : lnk_support = LnkSupport::None ; break ;
-				case 'f' : lnk_support = LnkSupport::File ; break ;
-				case 'a' : lnk_support = LnkSupport::Full ; break ;
-				default : goto Fail ;
-			}
-		//source dirs
-		size_t pos3 = pos2+1 ;                                                 // compute pos3 during source dirs analysis
-		for ( bool first=true ; env[pos3]!=':' ; first=false ) {
-			if ( !first && env[pos3++]!=',' ) goto Fail ;
-			size_t sz = parse_c_str(env,pos3) ;
-			if (sz==Npos) goto Fail ;
-			src_dirs_s.push_back(env.substr(pos3+1,sz-2)) ;                    // account for quotes
-			SWEAR(src_dirs_s.back().back()=='/') ;
-			pos3 += sz ;
+	size_t pos = env.find(':'      ) ; if (pos==Npos) goto Fail ;
+	/**/   pos = env.find(':',pos+1) ; if (pos==Npos) goto Fail ;
+	// service
+	service = env.substr(0,pos) ;
+	pos++ ;
+	// options
+	for( ; env[pos]!=':' ; pos++ )
+		switch (env[pos]) {
+			case 'd' : auto_mkdir  = true             ; break ;
+			case 'i' : ignore_stat = true             ; break ;
+			case 'n' : lnk_support = LnkSupport::None ; break ;
+			case 'f' : lnk_support = LnkSupport::File ; break ;
+			case 'a' : lnk_support = LnkSupport::Full ; break ;
+			default  : goto Fail ;
 		}
-		// root dir
-		root_dir = env.substr(pos3+1) ;
-		return ;
+	//source dirs
+	pos++ ;
+	for ( bool first=true ; env[pos]!=':' ; first=false ) {
+		if ( !first && env[pos++]!=',' ) goto Fail ;
+		size_t sz = parse_c_str(env,pos) ;
+		if (sz==Npos) goto Fail ;
+		src_dirs_s.push_back(env.substr(pos+1,sz-2)) ;                     // account for quotes
+		SWEAR(src_dirs_s.back().back()=='/') ;
+		pos += sz ;
 	}
+	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; tmp_dir  = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=':') goto Fail ; }
+	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; tmp_view = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=':') goto Fail ; }
+	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; root_dir = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=0  ) goto Fail ; }
+	return ;
 Fail :
-	fail_prod( "bad autodep env format : " , env ) ;
+	fail_prod( "bad autodep env format at pos ",pos," : " , env ) ;
 }
 
 AutodepEnv::operator ::string() const {
-	::string res ; res.reserve(24+root_dir.size()) ;
+	::string res ;
 	// service
 	res += service ;
 	// options
@@ -71,9 +73,8 @@ AutodepEnv::operator ::string() const {
 		else       res   += ','   ;
 		res += mk_c_str(sd_s) ;
 	}
-	// root dir
-	res += ':'      ;
-	res += root_dir ;
+	// other dirs
+	append_to_string( res ,':', mk_c_str(tmp_dir) ,':', mk_c_str(tmp_view) ,':', mk_c_str(root_dir) ) ;
 	//
 	return res ;
 }

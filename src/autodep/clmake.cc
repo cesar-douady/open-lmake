@@ -91,7 +91,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		if (files.empty()) return PyDict_New() ;                               // fast path : depend on no files
 		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
-		JobExecRpcReply reply = _g_autodep_support.req(jerr)                            ;
+		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                               ;
 		SWEAR(reply.infos.size()==jerr.files.size()) ;
 		PyObject* res = PyDict_New() ;
 		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
@@ -157,22 +157,25 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	if (views.size()==0) views.push_back(cwd()) ;
 	SWEAR(views.size()==1) ;
 	::string const& view = views[0] ;
-	SWEAR(!view.empty()) ;
+	if (view.empty()) return PyUnicode_FromString("") ;
 	//
-	RealPath::SolveReport solve_report = RealPath(_g_autodep_support.lnk_support).solve(view,no_follow,true/*root_ok*/) ;
+	RealPath::SolveReport solve_report = RealPath({.lnk_support=_g_autodep_support.lnk_support}).solve(view,no_follow) ;
 	//
-	if (!solve_report.in_repo) {
-		PyErr_SetString(PyExc_ValueError,"cannot find sub root dir in repository") ;
-		return nullptr ;
-	}
-	::string abs_path = solve_report.real.empty() ? *g_root_dir : to_string(*g_root_dir,'/',solve_report.real) ;
-	try {
-		::string abs_sub_root_dir = search_root_dir(abs_path).first ;
-		abs_sub_root_dir.push_back('/') ;
-		return PyUnicode_FromString( abs_sub_root_dir.c_str()+g_root_dir->size()+1 ) ;
-	} catch (::string const&e) {
-		PyErr_SetString(PyExc_ValueError,e.c_str()) ;
-		return nullptr ;
+	switch (solve_report.kind) {
+		case Kind::Root :
+			return PyUnicode_FromString("") ;
+		case Kind::Repo :
+			try {
+				::string abs_path         = mk_abs(solve_report.real,_g_autodep_support.root_dir+'/') ;
+				::string abs_sub_root_dir = search_root_dir(abs_path).first                           ; abs_sub_root_dir += '/' ;
+				return PyUnicode_FromString( abs_sub_root_dir.c_str()+_g_autodep_support.root_dir.size()+1 ) ;
+			} catch (::string const&e) {
+				PyErr_SetString(PyExc_ValueError,e.c_str()) ;
+				return nullptr ;
+			}
+		default :
+			PyErr_SetString(PyExc_ValueError,"cannot find sub root dir in repository") ;
+			return nullptr ;
 	}
 }
 
@@ -248,15 +251,14 @@ PyMODINIT_FUNC PyInit_clmake() {
 	//
 	_g_autodep_support = New ;
 	if (!has_env("LMAKE_AUTODEP_ENV")) _g_autodep_support.root_dir = search_root_dir().first ;
-	lib_init(_g_autodep_support.root_dir) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	PyModule_AddStringConstant( mod , "root_dir"       , g_root_dir->c_str()               ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True            ) ;
-	PyObject_SetAttrString    ( mod , "has_ptrace"     , HAS_PTRACE   ? Py_True : Py_False ) ;
-	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)    ) ;
-	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )    ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_support.root_dir.c_str() ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False   ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True              ) ;
+	PyObject_SetAttrString    ( mod , "has_ptrace"     , HAS_PTRACE   ? Py_True : Py_False   ) ;
+	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)      ) ;
+	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )      ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mod ;
 }
 #pragma GCC visibility pop

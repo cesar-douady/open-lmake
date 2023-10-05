@@ -29,7 +29,8 @@ struct Ctx {
 
 struct Lock {
 	// no need for protection against recursive call as our accesses are not routed to us
-	static bool t_busy() { return false ; }                                    // there is no recursive call with ld_audit
+	static bool t_busy () { return false ; }                                   // there is no recursive call with ld_audit
+	static bool t_busy0() { return false ; }                                   // .
 	static ::mutex s_mutex ;
 	Lock () { s_mutex.lock  () ; }
 	~Lock() { s_mutex.unlock() ; }
@@ -55,69 +56,72 @@ void* get_orig(const char* syscall) {
 #include "autodep_ld.cc"
 
 ::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{
-	{ "chdir"            , { reinterpret_cast<void*>(Audited::chdir            ) } }
-,	{ "close"            , { reinterpret_cast<void*>(Audited::close            ) } }
-,	{ "__close"          , { reinterpret_cast<void*>(Audited::__close          ) } }
-,	{ "creat"            , { reinterpret_cast<void*>(Audited::creat            ) } }
-,	{ "creat64"          , { reinterpret_cast<void*>(Audited::creat64          ) } }
-//,	{ "dlmopen"          , { reinterpret_cast<void*>(Audited::dlmopen          ) } } // handled by la_objopen (calling Audited::dlmopen does not work for a mysterious reason)
-//,	{ "dlopen"           , { reinterpret_cast<void*>(Audited::dlopen           ) } } // .
-,	{ "dup2"             , { reinterpret_cast<void*>(Audited::dup2             ) } }
-,	{ "dup3"             , { reinterpret_cast<void*>(Audited::dup3             ) } }
-,	{ "execl"            , { reinterpret_cast<void*>(Audited::execl            ) } } // because calling variadic functions is impractical
-,	{ "execle"           , { reinterpret_cast<void*>(Audited::execle           ) } } // .
-,	{ "execlp"           , { reinterpret_cast<void*>(Audited::execlp           ) } } // .
-,	{ "execv"            , { reinterpret_cast<void*>(Audited::execv            ) } }
-,	{ "execve"           , { reinterpret_cast<void*>(Audited::execve           ) } }
-,	{ "execveat"         , { reinterpret_cast<void*>(Audited::execveat         ) } }
-,	{ "execvp"           , { reinterpret_cast<void*>(Audited::execvp           ) } }
-,	{ "execvpe"          , { reinterpret_cast<void*>(Audited::execvpe          ) } }
-,	{ "fchdir"           , { reinterpret_cast<void*>(Audited::fchdir           ) } }
-,	{ "fopen"            , { reinterpret_cast<void*>(Audited::fopen            ) } }
-,	{ "fopen64"          , { reinterpret_cast<void*>(Audited::fopen64          ) } }
-,	{ "fork"             , { reinterpret_cast<void*>(Audited::fork             ) } }
-,	{ "__fork"           , { reinterpret_cast<void*>(Audited::__fork           ) } }
-,	{ "freopen"          , { reinterpret_cast<void*>(Audited::freopen          ) } }
-,	{ "freopen64"        , { reinterpret_cast<void*>(Audited::freopen64        ) } }
-,	{ "__libc_fork"      , { reinterpret_cast<void*>(Audited::__libc_fork      ) } }
-,	{ "link"             , { reinterpret_cast<void*>(Audited::link             ) } }
-,	{ "linkat"           , { reinterpret_cast<void*>(Audited::linkat           ) } }
-//,	{ "mkostemp"         , { reinterpret_cast<void*>(Audited::mkostemp         ) } } // normally only accesses $TMPDIR which are not tracked for deps (and difficult to implement)
-//,	{ "mkostemp64"       , { reinterpret_cast<void*>(Audited::mkostemp64       ) } } // .
-//,	{ "mkostemps"        , { reinterpret_cast<void*>(Audited::mkostemps        ) } } // .
-//,	{ "mkostemps64"      , { reinterpret_cast<void*>(Audited::mkostemps64      ) } } // .
-//,	{ "mkstemp"          , { reinterpret_cast<void*>(Audited::mkstemp          ) } } // .
-//,	{ "mkstemp64"        , { reinterpret_cast<void*>(Audited::mkstemp64        ) } } // .
-//,	{ "mkstemps"         , { reinterpret_cast<void*>(Audited::mkstemps         ) } } // .
-//,	{ "mkstemps64"       , { reinterpret_cast<void*>(Audited::mkstemps64       ) } } // .
-,	{ "open"             , { reinterpret_cast<void*>(Audited::open             ) } }
-,	{ "__open"           , { reinterpret_cast<void*>(Audited::__open           ) } }
-,	{ "__open_nocancel"  , { reinterpret_cast<void*>(Audited::__open_nocancel  ) } }
-,	{ "__open_2"         , { reinterpret_cast<void*>(Audited::__open_2         ) } }
-,	{ "open64"           , { reinterpret_cast<void*>(Audited::open64           ) } }
-,	{ "__open64"         , { reinterpret_cast<void*>(Audited::__open64         ) } }
-,	{ "__open64_nocancel", { reinterpret_cast<void*>(Audited::__open64_nocancel) } }
-,	{ "__open64_2"       , { reinterpret_cast<void*>(Audited::__open64_2       ) } }
-,	{ "openat"           , { reinterpret_cast<void*>(Audited::openat           ) } }
-,	{ "__openat_2"       , { reinterpret_cast<void*>(Audited::__openat_2       ) } }
-,	{ "openat64"         , { reinterpret_cast<void*>(Audited::openat64         ) } }
-,	{ "__openat64_2"     , { reinterpret_cast<void*>(Audited::__openat64_2     ) } }
-,	{ "readlink"         , { reinterpret_cast<void*>(Audited::readlink         ) } }
-,	{ "readlinkat"       , { reinterpret_cast<void*>(Audited::readlinkat       ) } }
-,	{ "__readlinkat_chk" , { reinterpret_cast<void*>(Audited::__readlinkat_chk ) } }
-,	{ "__readlink_chk"   , { reinterpret_cast<void*>(Audited::__readlink_chk   ) } }
-,	{ "rename"           , { reinterpret_cast<void*>(Audited::rename           ) } }
-,	{ "renameat"         , { reinterpret_cast<void*>(Audited::renameat         ) } }
-,	{ "renameat2"        , { reinterpret_cast<void*>(Audited::renameat2        ) } }
-,	{ "symlink"          , { reinterpret_cast<void*>(Audited::symlink          ) } }
-,	{ "symlinkat"        , { reinterpret_cast<void*>(Audited::symlinkat        ) } }
-,	{ "system"           , { reinterpret_cast<void*>(Audited::system           ) } }
-,	{ "truncate"         , { reinterpret_cast<void*>(Audited::truncate         ) } }
-,	{ "truncate64"       , { reinterpret_cast<void*>(Audited::truncate64       ) } }
-,	{ "unlink"           , { reinterpret_cast<void*>(Audited::unlink           ) } }
-,	{ "unlinkat"         , { reinterpret_cast<void*>(Audited::unlinkat         ) } }
-,	{ "vfork"            , { reinterpret_cast<void*>(Audited::vfork            ) } } // because vfork semantic does not allow instrumentation of following exec
-,	{ "__vfork"          , { reinterpret_cast<void*>(Audited::__vfork          ) } } // .
+	{ "chdir"               , { reinterpret_cast<void*>(Audited::chdir               ) } }
+,	{ "close"               , { reinterpret_cast<void*>(Audited::close               ) } }
+,	{ "__close"             , { reinterpret_cast<void*>(Audited::__close             ) } }
+,	{ "creat"               , { reinterpret_cast<void*>(Audited::creat               ) } }
+,	{ "creat64"             , { reinterpret_cast<void*>(Audited::creat64             ) } }
+//,	{ "dlmopen"             , { reinterpret_cast<void*>(Audited::dlmopen             ) } } // handled by la_objopen (calling Audited::dlmopen does not work for a mysterious reason)
+//,	{ "dlopen"              , { reinterpret_cast<void*>(Audited::dlopen              ) } } // .
+,	{ "dup2"                , { reinterpret_cast<void*>(Audited::dup2                ) } }
+,	{ "dup3"                , { reinterpret_cast<void*>(Audited::dup3                ) } }
+,	{ "execl"               , { reinterpret_cast<void*>(Audited::execl               ) } }
+,	{ "execle"              , { reinterpret_cast<void*>(Audited::execle              ) } }
+,	{ "execlp"              , { reinterpret_cast<void*>(Audited::execlp              ) } }
+,	{ "execv"               , { reinterpret_cast<void*>(Audited::execv               ) } }
+,	{ "execve"              , { reinterpret_cast<void*>(Audited::execve              ) } }
+,	{ "execveat"            , { reinterpret_cast<void*>(Audited::execveat            ) } }
+,	{ "execvp"              , { reinterpret_cast<void*>(Audited::execvp              ) } }
+,	{ "execvpe"             , { reinterpret_cast<void*>(Audited::execvpe             ) } }
+,	{ "fchdir"              , { reinterpret_cast<void*>(Audited::fchdir              ) } }
+,	{ "fopen"               , { reinterpret_cast<void*>(Audited::fopen               ) } }
+,	{ "fopen64"             , { reinterpret_cast<void*>(Audited::fopen64             ) } }
+,	{ "fork"                , { reinterpret_cast<void*>(Audited::fork                ) } }
+,	{ "__fork"              , { reinterpret_cast<void*>(Audited::__fork              ) } }
+,	{ "freopen"             , { reinterpret_cast<void*>(Audited::freopen             ) } }
+,	{ "freopen64"           , { reinterpret_cast<void*>(Audited::freopen64           ) } }
+,	{ "getcwd"              , { reinterpret_cast<void*>(Audited::getcwd              ) } } // necessary when tmp_view is not empty to map back to job view
+,	{ "getwd"               , { reinterpret_cast<void*>(Audited::getwd               ) } } // .
+,	{ "get_current_dir_name", { reinterpret_cast<void*>(Audited::get_current_dir_name) } } // .
+,	{ "__libc_fork"         , { reinterpret_cast<void*>(Audited::__libc_fork         ) } }
+,	{ "link"                , { reinterpret_cast<void*>(Audited::link                ) } }
+,	{ "linkat"              , { reinterpret_cast<void*>(Audited::linkat              ) } }
+//,	{ "mkostemp"            , { reinterpret_cast<void*>(Audited::mkostemp            ) } } // XXX : implement mkstemp & co
+//,	{ "mkostemp64"          , { reinterpret_cast<void*>(Audited::mkostemp64          ) } } // .
+//,	{ "mkostemps"           , { reinterpret_cast<void*>(Audited::mkostemps           ) } } // .
+//,	{ "mkostemps64"         , { reinterpret_cast<void*>(Audited::mkostemps64         ) } } // .
+//,	{ "mkstemp"             , { reinterpret_cast<void*>(Audited::mkstemp             ) } } // .
+//,	{ "mkstemp64"           , { reinterpret_cast<void*>(Audited::mkstemp64           ) } } // .
+//,	{ "mkstemps"            , { reinterpret_cast<void*>(Audited::mkstemps            ) } } // .
+//,	{ "mkstemps64"          , { reinterpret_cast<void*>(Audited::mkstemps64          ) } } // .
+,	{ "open"                , { reinterpret_cast<void*>(Audited::open                ) } }
+,	{ "__open"              , { reinterpret_cast<void*>(Audited::__open              ) } }
+,	{ "__open_nocancel"     , { reinterpret_cast<void*>(Audited::__open_nocancel     ) } }
+,	{ "__open_2"            , { reinterpret_cast<void*>(Audited::__open_2            ) } }
+,	{ "open64"              , { reinterpret_cast<void*>(Audited::open64              ) } }
+,	{ "__open64"            , { reinterpret_cast<void*>(Audited::__open64            ) } }
+,	{ "__open64_nocancel"   , { reinterpret_cast<void*>(Audited::__open64_nocancel   ) } }
+,	{ "__open64_2"          , { reinterpret_cast<void*>(Audited::__open64_2          ) } }
+,	{ "openat"              , { reinterpret_cast<void*>(Audited::openat              ) } }
+,	{ "__openat_2"          , { reinterpret_cast<void*>(Audited::__openat_2          ) } }
+,	{ "openat64"            , { reinterpret_cast<void*>(Audited::openat64            ) } }
+,	{ "__openat64_2"        , { reinterpret_cast<void*>(Audited::__openat64_2        ) } }
+,	{ "readlink"            , { reinterpret_cast<void*>(Audited::readlink            ) } }
+,	{ "readlinkat"          , { reinterpret_cast<void*>(Audited::readlinkat          ) } }
+,	{ "__readlinkat_chk"    , { reinterpret_cast<void*>(Audited::__readlinkat_chk    ) } }
+,	{ "__readlink_chk"      , { reinterpret_cast<void*>(Audited::__readlink_chk      ) } }
+,	{ "rename"              , { reinterpret_cast<void*>(Audited::rename              ) } }
+,	{ "renameat"            , { reinterpret_cast<void*>(Audited::renameat            ) } }
+,	{ "renameat2"           , { reinterpret_cast<void*>(Audited::renameat2           ) } }
+,	{ "symlink"             , { reinterpret_cast<void*>(Audited::symlink             ) } }
+,	{ "symlinkat"           , { reinterpret_cast<void*>(Audited::symlinkat           ) } }
+,	{ "system"              , { reinterpret_cast<void*>(Audited::system              ) } }
+,	{ "truncate"            , { reinterpret_cast<void*>(Audited::truncate            ) } }
+,	{ "truncate64"          , { reinterpret_cast<void*>(Audited::truncate64          ) } }
+,	{ "unlink"              , { reinterpret_cast<void*>(Audited::unlink              ) } }
+,	{ "unlinkat"            , { reinterpret_cast<void*>(Audited::unlinkat            ) } }
+,	{ "vfork"               , { reinterpret_cast<void*>(Audited::vfork               ) } } // because vfork semantic does not allow instrumentation of following exec
+,	{ "__vfork"             , { reinterpret_cast<void*>(Audited::__vfork             ) } } // .
 //
 // mere path accesses, no actual accesses to file data
 //
@@ -170,8 +174,8 @@ Qualify :
 }
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
-	Audit::s_audit() ;                                                         // force Audit static init
 	//
+	auditer() ;                                                                // force Audit static init
 	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
 	if (*def_cook   ) goto Ignore ;                                            // cookie is used to identify libc (when cookie==0)
 	//
@@ -179,9 +183,9 @@ template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int
 		if (it==g_syscall_tab->end()) goto Ignore ;
 		//
 		SymEntry const& entry = it->second ;
-		SWEAR(Audit::s_autodep_env->lnk_support!=LnkSupport::Unknown) ;
-		if ( Audit::s_autodep_env->lnk_support>=entry.lnk_support) goto Catch ;
-		if (!Audit::s_autodep_env->ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
+		SWEAR(RecordSock::s_autodep_env().lnk_support!=LnkSupport::Unknown) ;
+		if ( RecordSock::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
+		if (!RecordSock::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
 		goto Ignore ;
 	Catch :
 		entry.orig = reinterpret_cast<void*>(sym->st_value) ;
@@ -197,9 +201,9 @@ extern "C" {
 	unsigned int la_version(unsigned int /*version*/) { return LAV_CURRENT ; }
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		Audit::s_audit() ;                                                              // force Audit static init
+		auditer() ;                                                                     // force Audit static init
 		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
-			Audit::read(AT_FDCWD,map->l_name,false/*no_follow*/,"la_objopen") ;
+			Read(map->l_name,false/*no_follow*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
@@ -211,9 +215,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) { Lock lock ; Audit::read(AT_FDCWD,name) ; } break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        { Lock lock ; Audit::read(AT_FDCWD,name) ; } break ;
+			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,"la_objsearch") ; break ;
 			default : ;
 		}
 		return const_cast<char*>(name) ;

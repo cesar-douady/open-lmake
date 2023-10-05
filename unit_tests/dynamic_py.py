@@ -19,7 +19,7 @@ if getattr(sys,'reading_makefiles',False) :
 		cmd    = 'echo hello=$(cat ref)'
 
 	class Test(lmake.DynamicPyRule) :
-		target = 'test'
+		target       = 'test'
 		allow_stderr = True
 		def cmd():
 			import hello

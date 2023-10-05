@@ -9,8 +9,13 @@
 
 using namespace Disk ;
 
-::string* g_root_dir = nullptr ;
-::string* g_tmp_dir  = nullptr ;
+#pragma GCC visibility push(default)                                           // force visibility of functions defined hereinafter, until the corresponding pop
+extern "C" {
+	const char* __asan_default_options () { return "verify_asan_link_order=0,detect_leaks=0" ; }
+	const char* __ubsan_default_options() { return "halt_on_error=1"                         ; }
+	const char* __tsan_default_options () { return "report_signal_unsafe=0"                  ; }
+}
+#pragma GCC visibility pop
 
 ::pair_ss search_root_dir(::string const& cwd_) {
 	::string root_s_dir = cwd_ ;
@@ -44,9 +49,3 @@ using namespace Disk ;
 	return {root_s_dir,startup_dir_s} ;
 }
 ::pair_ss search_root_dir() { return search_root_dir(cwd()) ; }
-
-void lib_init(::string const& root_dir) {
-	SWEAR( is_abs(root_dir) ) ;                                                // root_dir is a successtion of components prefixed by /, if at root, it must be empty
-	if (!g_tmp_dir) g_tmp_dir  = new ::string{get_env("TMPDIR",DfltTmp)} ;
-	/**/            g_root_dir = new ::string{root_dir                 } ;
-}

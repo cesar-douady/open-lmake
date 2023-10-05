@@ -43,18 +43,18 @@ namespace Engine {
 	}
 
 	static ::vector_s _gather_srcs( Py::Sequence const& py_srcs ) {
-		RealPath   real_path { g_config.lnk_support } ;
+		RealPath   real_path {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
 		::vector_s srcs      ;
 		for( Py::Object py_obj : py_srcs ) {
 			::string src ;
 			try                       { src = Py::String(py_obj) ; }
 			catch(::Py::Exception& e) { throw e.errorValue() ;     }
 			if (src.empty()) throw "found an empty source"s ;
-			RealPath::SolveReport rp = real_path.solve(src,true/*no_follow*/) ;
+			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
 			//
-			if (!rp.lnks.empty()) throw to_string("source ",src," : found a link in its path : ",rp.lnks[0]) ;
-			if (!rp.in_repo     ) throw to_string("source ",src," : not in reposiroty"                     ) ;
-			if (rp.real!=src    ) throw to_string("source ",src," : canonical form is "         ,rp.real   ) ;
+			if (!sr.lnks.empty()   ) throw to_string("source ",src," : found a link in its path : ",sr.lnks[0]) ;
+			if (sr.kind!=Kind::Repo) throw to_string("source ",src," : not in reposiroty"                     ) ;
+			if (sr.real!=src       ) throw to_string("source ",src," : canonical form is "         ,sr.real   ) ;
 			if (g_config.lnk_support==LnkSupport::None) { if (!is_reg   (src)) throw to_string("source ",src," is not a regular file"           ) ; }
 			else                                        { if (!is_target(src)) throw to_string("source ",src," is not a regular file nor a link") ; }
 			srcs.emplace_back(src) ;

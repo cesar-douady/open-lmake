@@ -22,13 +22,15 @@ using namespace Time ;
 //
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	/**/                                        os << "AccessInfo("                               ;
-	if (+ai.digest.accesses                   ) os << "R:" <<ai.access_date      <<','            ;
-	if (!ai.digest.idle()                     ) os << "W1:"<<ai.first_write_date <<','            ;
-	if (ai.first_write_date<ai.last_write_date) os << "WL:"<<ai.last_write_date  <<','            ;
-	/**/                                        os << ai.digest                                   ;
-	if (+ai.file_date                         ) os <<','<< "F:"<<ai.file_date                     ;
-	return                                      os <<','<< ai.tflags <<','<< ai.parallel_id <<')' ;
+	/**/                                        os << "AccessInfo("                    ;
+	if (+ai.digest.accesses                   ) os << "R:" <<ai.access_date      <<',' ;
+	if (!ai.digest.idle()                     ) os << "W1:"<<ai.first_write_date <<',' ;
+	if (ai.first_write_date<ai.last_write_date) os << "WL:"<<ai.last_write_date  <<',' ;
+	/**/                                        os << ai.digest                        ;
+	if (+ai.file_date                         ) os <<','<< "F:"<<ai.file_date          ;
+	if (!ai.digest.idle()                     ) os <<','<< ai.tflags                   ;
+	if (+ai.digest.accesses                   ) os <<','<< ai.parallel_id              ;
+	return                                      os <<')' ;
 }
 
 void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ ) {
@@ -67,8 +69,8 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 
 ::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
 	/**/             os << "GatherDeps(" << gd.accesses ;
-	if (gd.seen_tmp) os <<",seen_tmp" ;
-	return           os << ')' ;
+	if (gd.seen_tmp) os <<",seen_tmp"                   ;
+	return           os << ')'                          ;
 }
 
 bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
@@ -91,13 +93,14 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , Acce
 	return is_new ;
 }
 
-ENUM( Kind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
+ENUM( GatherDepsKind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
 struct ServerReply {
 	IMsgBuf buf ;                      // buf to assemble the reply
 	Fd      fd  ;                      // fd to forward reply to
 } ;
 
 Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd child_stdout , Fd child_stderr ) {
+	using Kind = GatherDepsKind ;
 	using Proc = JobExecRpcProc ;
 	Trace trace("exec_child",STR(create_group),method,autodep_env,args) ;
 	if (env) trace("env",*env) ;

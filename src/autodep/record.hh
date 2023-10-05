@@ -14,41 +14,55 @@
 #include "rpc_job.hh"
 #include "time.hh"
 
-static constexpr int AT_BACKDOOR = Fd::Cwd.fd==-200 ? -300 : -200 ;            // special value to pass commands to autodep, stay away from used values (AT_FDCWD & >=0)
+static constexpr Fd Backdoor = AT_FDCWD==-200 ? -300 : -200 ;                  // special value to pass commands to autodep, stay away from used values (AT_FDCWD & >=0)
 
 struct Record {
 	using Access     = Disk::Access                                      ;
 	using Accesses   = Disk::Accesses                                    ;
 	using DD         = Time::Ddate                                       ;
+	using SolveReport= Disk::RealPath::SolveReport                       ;
 	using Proc       = JobExecRpcProc                                    ;
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
-	static void s_init( AutodepEnv const& ade ) { s_autodep_env = new AutodepEnv{ade} ; }
-	static Fd s_get_root_fd() {
-		if (!s_root_fd) {
-			s_root_fd = Disk::open_read(s_autodep_env->root_dir) ;
-			SWEAR(+s_root_fd) ;
-			s_root_fd.no_std() ;                                               // avoid poluting standard descriptors
+	static Fd s_root_fd() {
+		if (!_s_root_fd) {
+			_s_root_fd = Disk::open_read(s_autodep_env().root_dir) ;
+			SWEAR(+_s_root_fd) ;
+			_s_root_fd.no_std() ;                                              // avoid poluting standard descriptors
 		}
-		return s_root_fd ;
+		return _s_root_fd ;
 	}
 	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
-	static bool s_do_read (int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_WRONLY && !(flags&O_TRUNC) ; }
-	static bool s_do_write(int flags ) { return ( flags&(O_RDONLY|O_WRONLY|O_RDWR) ) != O_RDONLY                     ; }
+	static AutodepEnv const& s_autodep_env() {
+		if (!_s_autodep_env) _s_autodep_env =new AutodepEnv{getenv("LMAKE_AUTODEP_ENV")} ;
+		return *_s_autodep_env ;
+	}
+	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
+		SWEAR(!_s_autodep_env) ;
+		_s_autodep_env = new AutodepEnv{ade} ;
+		return *_s_autodep_env ;
+	}
+	// these 2 functions are guaranteed syscall free, so there is no need for caller to protect errno
+	static void s_hide      ( int fd                ) { if ( _s_root_fd.fd==fd                        ) _s_root_fd.detach() ; }
+	static void s_hide_range( int min , int max=~0u ) { if ( _s_root_fd.fd>=min && _s_root_fd.fd<=max ) _s_root_fd.detach() ; }
+
 	// static data
-	static AutodepEnv* s_autodep_env ;
-	static Fd          s_root_fd     ;
+private :
+	static Fd          _s_root_fd     ;
+	static AutodepEnv* _s_autodep_env ;
 	// cxtors & casts
+public :
 	Record() = default ;
 	//
 	Record   ( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) { init(rcb,grcb,pid) ; }
 	void init( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) {
-		real_path.init(s_autodep_env->lnk_support,s_autodep_env->src_dirs_s,pid) ;
+		real_path.init( s_autodep_env() , pid ) ;
 		report_cb    = rcb  ;
 		get_reply_cb = grcb ;
 	}
 	// services
+	bool is_simple(const char*) const ;
 private :
 	void _report_access( ::string&& f , DD d , Accesses a , bool update , ::string const& c={} ) const {
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , c ) ) ;
@@ -56,16 +70,16 @@ private :
 	//
 	void _report_access( JobExecRpcReq const& jerr ) const ;
 	//
-	void _report_dep   ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                                 , a , false , c ) ; }
-	void _report_dep   ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_get_root_fd(),f) , a , false , c ) ; }
-	void _report_update( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                                 , a , true  , c ) ; }
+	void _report_dep   ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , false , c ) ; }
+	void _report_dep   ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_root_fd(),f) , a , false , c ) ; }
+	void _report_update( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , true  , c ) ; }
 	//
 	void _report_deps( ::vmap_s<DD>&& fs , Accesses a , bool u , ::string const& c={} ) const {
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=u } , c ) ) ;
 	}
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
-		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_get_root_fd(),f) ) ;
+		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , a , u , c ) ;
 	}
 	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.write =true} , c ) ) ; }
@@ -80,87 +94,164 @@ private :
 		else if (!sync     ) return ;
 		report_cb(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
 	}
-	//
-	//
-	::pair_s<bool/*in_tmp*/> _solve( int at , const char* file  , bool no_follow , ::string const& comment={} ) ;
-	//
 public :
-	struct Chdir {
+	JobExecRpcReply backdoor( JobExecRpcReq&& jerr                    ) ;
+	ssize_t         backdoor( const char* msg , char* buf , size_t sz ) ;
+	//
+	struct Path {
+		using Kind = Disk::Kind ;
+		// cxtors & casts
+		Path() = default ;
+		Path(                  const char* p ) :                        file{p } {}
+		Path(           Fd a                 ) : has_at{true} , at{a} , file{""} {}
+		Path(           Fd a , const char* p ) : has_at{true} , at{a} , file{p } {}
+		Path( bool ha , Fd a , const char* p ) : has_at{ha  } , at{a} , file{p } {}
+		~Path() { if (allocated) delete[] file ; }
+		// servicess
+		void allocate(::string const& file_) {
+			if (allocated) delete[] file ;
+			char* data = new char[file_.size()+1] ;                            // +1 to account for terminating null
+			::memcpy(data,file_.c_str(),file_.size()+1) ;
+			file      = data    ;
+			at        = Fd::Cwd ;
+			allocated = true    ;
+		}
+		void share(const char* file_) {
+			if (allocated) delete[] file ;
+			file      = file_   ;
+			at        = Fd::Cwd ;
+			allocated = false   ;
+		}
+		void allocate( Fd at_ , ::string const& file_ ) { SWEAR(has_at) ; allocate(file_) ; at = at_ ; }
+		void share   ( Fd at_ , const char*     file_ ) { SWEAR(has_at) ; share   (file_) ; at = at_ ; }
+		// data
+		bool        has_at    = false         ;            // if false => at is not managed and may not be substituted any non-default value
+		bool        allocated = false         ;            // if true <=> file has been allocated and must be freed upon destruction
+		Kind        kind      = Kind::Unknown ;            // updated when analysis is done
+		Fd          at        = Fd::Cwd       ;            // at & file may be modified, but together, they always refer to the same file
+		const char* file      = nullptr       ;            // .
+	} ;
+	struct Real : Path {
+		// cxtors & casts
+		Real() = default ;
+		Real( Path const& p , ::string const& c={} ) : Path{p} , comment{c} {}
+		// services
+		template<class T> T operator()( Record& , T rc ) { return rc ; }
+		// data
+		::string real    = {} ;
+		::string comment = {} ;
+	} ;
+	struct Solve : Real {
+		// search (executable if asked so) file in path_var
+		Solve()= default ;
+		Solve( Record& r , Path const& path , bool no_follow , ::string comment_={} ) : Real{path,comment_} {
+			real = r._solve( *this , no_follow , comment ).real ;
+		}
+	} ;
+	struct Chdir : Solve {
+		// cxtors & casts
 		Chdir() = default ;
-		Chdir( bool /*active*/ , Record& , int /*at*/                   ) {}
-		Chdir( bool   active   , Record& , int   at   , const char* dir ) ;
-		int operator()( Record& , int rc , int pid=0 ) ;
+		Chdir( Record& , Path const& ) ;
+		// services
+		int operator()( Record& , int rc , pid_t pid=0 ) ;
+	} ;
+	struct Exec : Solve {
+		// cxtors & casts
+		Exec() = default ;
+		Exec( Record& , Path const& , bool no_follow , ::string const& comment="exec" ) ;
 	} ;
 	struct Lnk {
+		// cxtors & casts
 		Lnk() = default ;
-		Lnk( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , int flags=0 , ::string const& comment="lnk" ) ;
+		Lnk( Record& , Path const& src , Path const& dst , int flags=0 , ::string const& comment="lnk" ) ;
+		// services
 		int operator()( Record& , int rc , bool no_file ) ;                    // no_file is only meaning full if rc is in error
-		::string old_real  ;
-		::string new_real  ;
-		bool     in_tmp    = false ;
-		bool     no_follow = true  ;
-		::string comment   ;
+		// data
+		bool  no_follow = true ;
+		Solve src       ;
+		Solve dst       ;
 	} ;
-	struct Open {
+	struct Open : Solve {
+		// cxtors & casts
 		Open() = default ;
-		Open( bool active , Record& , int at , const char* file , int flags , ::string const& comment="open" ) ;
-		int operator()( Record& , bool has_fd , int fd_rc , bool no_file ) ;   // no_file is only meaning full if rc is in error
-		::string real     ;
-		bool     in_tmp   = false ;
-		bool     do_read  = false ;
-		bool     do_write = false ;
-		bool     as_dir   = false ;
-		DD       date     ;                                                    // if file is updated and did not exist, its date must be capture before the actual syscall
-		::string comment  ;
+		Open( Record& , Path const& , int flags , ::string const& comment="open" ) ;
+		// services
+		int operator()( Record& , bool has_fd , int fd_rc , bool no_file ) ;   // no_file is only meaningful if rc is in error
+		// data
+		bool do_read  = false ;
+		bool do_write = false ;
+		DD   date     ;                // if file is updated and did not exist, its date must be capture before the actual syscall
 	} ;
-	struct ReadLnk {
+	struct Read : Solve {
+		// cxtors & casts
+		Read() = default ;
+		Read( Record& , Path const& , bool no_follow , ::string const& comment="read" ) ;
+	} ;
+	struct ReadLnk : Solve {
+		// cxtors & casts
 		ReadLnk() = default ;
-		ReadLnk( bool active , Record& , int at , const char* file                         , ::string const& comment="read_lnk" ) ; // for regular
-		ReadLnk( bool active , Record& ,          const char* file , char* buf , size_t sz , ::string const& comment="backdoor" ) ; // for backdoor
-		ssize_t operator()( Record& r , ssize_t len ) ;                        // if file is updated and did not exist, its date must be capture before the actual syscall
-		::string real    ;
-		::string comment ;
+		// buf and sz are only used when mapping tmp or processing backdoor
+		ReadLnk( Record&   , Path const&   , char* buf , size_t sz , ::string const& comment="read_lnk" ) ;
+		ReadLnk( Record& r , Path const& p ,                         ::string const& comment="read_lnk" ) : ReadLnk{r,p,nullptr/*buf*/,0/*sz*/,comment} {
+			SWEAR(p.at!=Backdoor) ;                                            // backdoor works in cxtor and need buf to put its result
+		}
+		// services
+		ssize_t operator()( Record& r , ssize_t len=0 ) ;                      // len unused in case of backdoor
+		// data
+		char*  buf = nullptr/*garbage*/ ;
+		size_t sz  = 0      /*garbage*/ ;
 	} ;
 	struct Rename {
+		// cxtors & casts
 		Rename() = default ;
-		Rename( bool active , Record& , int oat , const char* ofile , int nat , const char* nfile , unsigned int flags=0 , ::string const& comment="rename" ) ;
+		Rename( Record& , Path const& src , Path const& dst , unsigned int flags=0 , ::string const& comment="rename" ) ;
+		// services
 		int operator()( Record& , int rc , bool no_file ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
-		int      old_at   ;
-		int      new_at   ;
-		::string old_file ;
-		::string new_file ;
-		::string old_real ;
-		::string new_real ;
-		bool     in_tmp   = false ;
-		bool     exchange = false ;
-		::string comment  ;
+		// data
+		bool  exchange = false/*garbage*/ ;
+		Solve src      ;
+		Solve dst      ;
 	} ;
-	struct SymLnk {
+	struct Search : Real {
+		// search (executable if asked so) file in path_var
+		Search() = default ;
+		Search( Record& , Path const& , bool exec , const char* path_var , ::string const& comment="search" ) ;
+	} ;
+	struct Stat : Solve {
+		// cxtors & casts
+		Stat() = default ;
+		Stat( Record& , Path const& , bool no_follow , ::string const& comment="stat" ) ;
+		// services
+		int operator()( Record& , int rc=0 , bool no_file=true ) ;             // by default, be pessimistic : success & if specified as error, consider we are missing the file
+		template<class T> T* operator()( Record& r , T* res , bool no_file ) {
+			(*this)( r , -!res , no_file ) ;                                   // map null (indicating error) to -a and non-null (indicating success) to 0
+			return res ;
+		}
+	} ;
+	struct SymLnk : Solve {
+		// cxtors & casts
 		SymLnk() = default ;
-		SymLnk( bool active , Record& , int at , const char* file , ::string const& comment="sym_lnk" ) ;
+		SymLnk( Record& , Path const& , ::string const& comment="sym_lnk" ) ;
+		// services
 		int operator()( Record& , int rc ) ;
-		::string real    ;
-		::string comment ;
 	} ;
-	struct Unlink {
+	struct Unlink : Solve {
+		// cxtors & casts
 		Unlink() = default ;
-		Unlink( bool active , Record& , int at , const char* file , bool remove_dir=false , ::string const& comment="unlink" ) ;
+		Unlink( Record& , Path const& , bool remove_dir=false , ::string const& comment="unlink" ) ;
+		// services
 		int operator()( Record& , int rc ) ;
-		::string real    ;
-		::string comment ;
 	} ;
 	//
-	void chdir(          const char* dir                                                           ) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }
-	void read ( int at , const char* file , bool no_follow=false , ::string const& comment="read"  ) ;
-	void exec ( int at , const char* file , bool no_follow=false , ::string const& comment="exec"  ) ;
-	void solve( int at , const char* file , bool no_follow=false , ::string const& comment="solve" ) {
-		_solve(at,file,no_follow,comment) ;
+	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }
+	void solve( Path const& path , bool no_follow ) {
+		if (path.at==Backdoor) return ;
+		Path p = path ;
+		_solve(p,no_follow) ;
 	}
-	void stat ( int at , const char* file , bool no_follow=false , ::string const& comment="stat" ) {
-		::string real = _solve(at,file,no_follow,comment).first ;
-		if ( !s_autodep_env->ignore_stat && !real.empty() ) _report_dep( ::move(real) , Access::Stat , comment ) ;
-	}
-	JobExecRpcReply backdoor(JobExecRpcReq&& jerr) ;
+	//
+protected :
+	SolveReport _solve( Path& , bool no_follow , ::string const& comment={} ) ;
 	//
 	// data
 protected :
@@ -172,35 +263,27 @@ protected :
 } ;
 
 struct RecordSock : Record {
-	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_get_report_fd(),jerr) ;                       }
-	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_get_report_fd()) ; }
-	static int s_get_report_fd() {
+	// statics
+	static Fd s_get_report_fd() {
 		if (!_s_report_fd) {
 			// establish connection with server
-			if (_s_service_is_file) _s_report_fd = Disk::open_write( *_s_service , true/*append*/ ) ;
-			else                    _s_report_fd = ClientSockFd    ( *_s_service                  ) ;
-			_s_report_fd.no_std() ;                                                                   // avoid poluting standard descriptors
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",*_s_service) ;
+			::string const& service = s_autodep_env().service ;
+			if (service.back()==':') _s_report_fd = Disk::open_write(service,true/*append*/) ;
+			else                     _s_report_fd = ClientSockFd    (service               ) ;
+			_s_report_fd.no_std() ;                                                            // avoid poluting standard descriptors
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _s_report_fd ;
 	}
-	static void s_init(AutodepEnv const& ade) {
-		Record::s_init(ade) ;
-		lib_init(ade.root_dir) ;
-		_s_service = new ::string{ade.service} ;
-		if (_s_service->back()==':') {
-			*_s_service        = to_string(*g_root_dir,'/',_s_service->substr(0,_s_service->size()-1)) ; // for debugging purpose, log to a file
-			_s_service_is_file = true                                                                  ;
-		}
-	}
-	static void s_init() {
-		if (!has_env("LMAKE_AUTODEP_ENV")) throw "dont know where to report deps"s ;
-		s_init(get_env("LMAKE_AUTODEP_ENV")) ;
-	}
+	// these 2 functions are guaranteed syscall free, so there is no need for caller to protect errno
+	static void s_hide      ( int fd                ) { Record::s_hide      (fd     ) ; if ( _s_report_fd.fd==fd                          ) _s_report_fd.detach() ; }
+	static void s_hide_range( int min , int max=~0u ) { Record::s_hide_range(min,max) ; if ( _s_report_fd.fd>=min && _s_report_fd.fd<=max ) _s_report_fd.detach() ; }
+private :
+	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_get_report_fd(),jerr) ;                       }
+	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_get_report_fd()) ; }
 	// static data
-	static Fd        _s_report_fd       ;
-	static ::string* _s_service         ;                  // pointer to avoid init/fin order hazard
-	static bool      _s_service_is_file ;
+	static Fd _s_report_fd ;
 	// cxtors & casts
+public :
 	RecordSock( pid_t p=0 ) : Record{ _s_report , _s_get_reply , p } {}
 } ;

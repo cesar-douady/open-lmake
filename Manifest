@@ -26,7 +26,6 @@ src/autodep/autodep.cc
 src/autodep/autodep_env.cc
 src/autodep/autodep_env.hh
 src/autodep/autodep_ld.cc
-src/autodep/autodep_ld.hh
 src/autodep/autodep_ld_audit.cc
 src/autodep/autodep_ld_preload.cc
 src/autodep/autodep_support.cc
@@ -167,5 +166,6 @@ unit_tests/test16.script
 unit_tests/test17.script
 unit_tests/test18.script
 unit_tests/test19.script
+unit_tests/tmp.py
 unit_tests/uphill.py
 unit_tests/wide.py

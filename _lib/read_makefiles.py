@@ -52,6 +52,7 @@ StdExecAttrs = {
 ,	'ete'               : ( float , False   )
 ,	'force'             : ( bool  , False   )
 ,	'ignore_stat'       : ( bool  , True    )
+,	'job_tokens'        : ( int   , True    )
 ,	'keep_tmp'          : ( bool  , True    )
 ,	'kill_sigs'         : ( tuple , True    )
 ,	'local_marker'      : ( str   , True    )
@@ -63,7 +64,7 @@ StdExecAttrs = {
 ,	'start_delay'       : ( float , True    )
 ,	'stderr_len'        : ( int   , True    )
 ,	'timeout'           : ( float , True    )
-,	'job_tokens'        : ( int   , True    )
+,	'tmp'               : ( str   , True    )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
@@ -403,12 +404,13 @@ class Handle :
 	def handle_start_cmd(self) :
 		self._init()
 		self._handle_val('auto_mkdir'                )
+		self._handle_val('env'        ,'environ_cmd' )
 		self._handle_val('ignore_stat'               )
 		self._handle_val('autodep'                   )
 		self._handle_val('chroot'                    )
 		self._handle_val('interpreter'               )
 		self._handle_val('local_mrkr' ,'local_marker')
-		self._handle_val('env'        ,'environ_cmd' )
+		self._handle_val('tmp'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

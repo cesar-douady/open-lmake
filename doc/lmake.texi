@@ -1582,6 +1582,22 @@ This attribute defines a directory in which jobs will @code{chroot} into before 
 
 The job wrapper itself stays in the original file system in which it is launched, only the job does a @code{chroot}.
 
+@section @code{tmp}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{str}
+@item Default
+@tab -
+@item Dynamic
+@tab Yes. Environment includes stems, targets, deps and resources.
+@end multitable
+
+This attribute defines the name under which the temporary directory allocated for the job is seen by it.
+This means the job runs in a sand box in which the temporary directory is mapped to a directory named after this attribute (see @pxref{tmp} for the usefulness of this feature).
+
 @section @code{cwd}
 
 @multitable @columnfractions 0.1 0.9
@@ -2561,6 +2577,48 @@ A value of 4 or 8 is probably a reasonable value.
 
 In presence of jobs with a high degree of parallelism requiring a lot of cpus, the same may be applied for the required number of cpus.
 
+@anchor{tmp}
+@section Mapping the temporary directory
+
+Mapping the temporary directory feature is an answer to some situations which are apparently against the @lmake execution model.
+
+@lmake sees jobs as having some inputs and generating some outputs.
+But some tools operate on data (typically a directory) without making a distinction between input and output.
+
+Imagine, for example you have 2 closely related tools :
+@itemize
+@item Let's call these 2 tools phase1 and phase2.
+@item phase1 is used to prepare a directory, for example it generates some source files and put the result in the directory.
+@item phase2 operates on this directory, for example it compiles the sources files prepared by phase1 and puts the compiled files next to the sources, in the same directory.
+@item Suppose, in addition, that phase2 takes and argument, for example it may have several optimization levels for the compilation process.
+@end itemize
+
+Then, you want to organize your flow to have a first job using phase1, then several dependent jobs using phase2, potentially running in parallel.
+One way to do that is to set up your flow the following way :
+@itemize
+@item Name the output of phase1 @file{phase1.out}
+@item name the output of phases @file{phase2.arg.out} where @file{arg} may have several values.
+@item In the rule to run phase1, simply drive it to generate its data in @file{phase1.out}.
+@item In the rule to run phase 2, first copy @file{phase1.out} to @file{phase2.arg.out}, then use phase2 to operate on @file{phase2.arg.out}.
+The copy process can be further optimized by linking in some situations, but his is not the purpose of this discussion.
+@end itemize
+
+This is fine, as long as copying the data is allowed.
+Some tools store absolute paths in their own data, so that the copy of @file{phase1.out} to @file{phase2.arg.out} invalidates the data and makes them unusable.
+In that case, a modified flow may be :
+@itemize
+@item In the rule to run phase1, drive it to generate its data in $TMPDIR, then copy $TMPDIR to @file{phase1.out}.
+@item In the rule to run phase2, first copy @file{phase1.out} to $TMPDIR, then use phase2 to operate on $TMPDIR, then copy $TMPDIR to @file{phase2.arg.out}.
+@end itemize
+
+The problem is that the $TMPDIR used by phase1 may (and typically is) different from the $TMPDIR used for phase2.
+This is not a bad @lmake design or a lack of luck, this is unavoidable if you want to run several instances of phase2 in parallel : they cannot all have the same $TMPDIR.
+
+To face this situation, you can ask @lmake to arrange so that each of these jobs see $TMPDIR as a fixed name, for example /tmp, although the true underlying files are in different directories.
+This way, the flow shown above works as expected.
+
+This seems like an awkward situation, but is common practice in the CAD tools domain.
+
 @chapter FAQ
 
 @section How do I prevent @lmake to set dependencies to a given directory
@@ -2604,9 +2662,9 @@ class Gcc(lmake.Rule) :
 @chapter Glossary
 
 @table @asis
-@item MRO
-Method Research Order, the inheritance chain from the current class to its most basic base, usually @code{object}.
-Python computes the MRO in such a way as to enforce the diamond rule.
+@item CAD
+Computer Aided Design.
+A domain used to produce various objects, in partiulcar integrated ciruits, characterized by heavy processing and complex flows.
 @item diamond rule
 A feature of Python that allows the following behavior :
 @itemize
@@ -2622,6 +2680,9 @@ Estimated Time of Arrival. This is the date at which a given event (such as a jo
 Estimated Time En route. This is the remaining time necessary to complete a task.
 @item LRU
 Least Recently Used. A classical cache replacement policy where the entry that was least recently used is discarded when a new one is allocated.
+@item MRO
+Method Research Order, the inheritance chain from the current class to its most basic base, usually @code{object}.
+Python computes the MRO in such a way as to enforce the diamond rule.
 @end table
 
 @bye

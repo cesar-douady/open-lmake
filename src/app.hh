@@ -14,6 +14,7 @@
 
 extern ::string* g_startup_dir_s ;     // pointer to avoid init/fini order hazards, relative to g_root_dir, includes final /,  dir from which command was launched
 extern ::string* g_lmake_dir     ;     // pointer to avoid init/fini order hazards, absolute              , installation dir of lmake
+extern ::string* g_root_dir      ;     // pointer to avoid init/fini order hazards, absolute              , root of repository
 
 struct KeySpec {
 	char     short_name = 0 ;

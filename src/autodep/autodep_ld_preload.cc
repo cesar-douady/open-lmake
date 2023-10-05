@@ -35,7 +35,8 @@ struct Lock {
 	// - 1 : thread is processing a user access and must record deps
 	// - 2 : thread has entered a recursive call and must not record deps
 	// statics
-	static bool t_busy() { return t_loop>1 ; }                                 // t_busy means processing a recursive call
+	static bool t_busy () { return t_loop>1 ; }                                 // t_busy means processing a recursive call
+	static bool t_busy0() { return t_loop>0 ; }                                 // same, before taking a 2nd lock
 	// static data
 	static              ::mutex s_mutex ;
 	static thread_local uint8_t t_loop  ;

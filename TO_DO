@@ -23,6 +23,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* handle EarlyErr as normal errors
+	- wash targets
+	- trust report saying that non of them have been generated
+	- as of today, job is rerun if retried in case of missing targets
 * put in place a log scale for cpu/mem/tmp resources
 	- this is to decrease the number of buckets in GenericBackend as they are indexed by resources
 	- setting this log scale will decrease the number of different resources by putting in the same bucket resources that are close to each other
@@ -100,22 +104,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 declare $TMPDIR as /tmp
-	- and redirect to the real TMPDIR in autodep
-	- also, when accessing /proc or cwd, map from $TMPDIR back to /tmp
-	- same for realpath
-	- better stability
-	- allow tools to work in /tmp and always see the same absolute path
-		- useful for cad tools that store plenty of absolute paths
-		- useful for inout situations :
-			- cp source to /tmp
-			- update /tmp
-			- cp /tmp to dest
-			- a single copy can be made if tool supports symlinks :
-				- cp source to dest
-				- symlink dest into tmp
-				- work in tmp
-			- this way, tools think it is updated and lmake sees a in and a out
 * provide the possibility to prevent rebuild from a given file
 	- much like freeze, but the other way around
 	- useful to work on deep files such as utils to add a feature
@@ -139,6 +127,18 @@ items :
 			- register exception handling to call it automatically
 		- suppress input redirection to /dev/null
 			- what if stdin is actively used ?
+! support direct rebuild of deps
+	- switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
+	- add a dep flag to say direct for use by depend
+	- add a target flag to say direct for use by pattern
+	- pass known hidden deps to job_exec to avoid connection to server when known
+	- the difficult point : manage resource deadlocks
+		- suspend waiting job (tell backend job is suspended)
+		- kill it if necessary (at the will of backend)
+		- tell backend job is resumed
+		- while suspended, consider mem & cpu to be automaticly freed (but not tmp)
+		- consider sending a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
+		- then resume participates to allocation competition
 ! support direct dep rebuild
 	- specify a target flag 'direct'
 	- find a way to embed python regexprs into autodep w/o bring full python
@@ -202,6 +202,10 @@ items :
 	- do not round for actual allocation
 * provide a compile option w/o trace
 	- to measure tracing price more than to actually use it
+* launch deps as soon as they are discovered
+	- w/o waiting for dependent job to complete
+	- for non-existent deps, else there is a risk that a steady target is modified while job is on going
+	- possibly upon declaration by user
 * gprof
 * get rid of pycxx
 ! manage HUGE pages in store
@@ -235,7 +239,9 @@ items :
 * TESTS
 ****************************************************************************************************
 
-*1 add a unit test for sub-Lmakefile.py
+*1 add a unit test for rename
+*2 add a unit test for dup2
+* add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
 * add a unit_test to validate n_retries

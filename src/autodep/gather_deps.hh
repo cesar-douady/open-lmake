@@ -73,7 +73,9 @@ public :
 	}
 	//
 	void new_exec( PD pd , ::string const& exe , ::string const& c="exec" ) {
-		for( auto&& [file,a] : Disk::RealPath(autodep_env.lnk_support,autodep_env.src_dirs_s).exec(Fd::Cwd,exe) ) {
+		Disk::RealPath              rp { autodep_env }                    ;
+		Disk::RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
+		for( auto&& [file,a] : rp.exec(sr) ) {
 			DD       dd = Disk::file_date(file) ;
 			new_dep( pd , ::move(file) , dd , a , {} , c ) ;
 		}

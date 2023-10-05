@@ -300,7 +300,7 @@ namespace Engine {
 	// DepsAttrs
 	//
 
-	BitMap<VarCmd> DepsAttrs::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+	BitMap<VarCmd> DepsAttrs::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		full_dynamic = py_src==Py_None ;
 		if (full_dynamic) return {} ;
 		//
@@ -396,7 +396,7 @@ namespace Engine {
 	// Cmd
 	//
 
-	BitMap<VarCmd> Cmd::init( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
+	BitMap<VarCmd> Cmd::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
 		BitMap<VarCmd> need    ;
 		::string       raw_cmd ;
 		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
@@ -1054,6 +1054,7 @@ namespace Engine {
 			/**/                          do_field( "autodep"      , mk_snake (sca.method     ) ) ;
 			if (!sca.chroot     .empty()) do_field( "chroot"       ,           sca.chroot       ) ;
 			if (!sca.local_mrkr .empty()) do_field( "local_marker" ,           sca.local_mrkr   ) ;
+			if (!sca.tmp        .empty()) do_field( "tmp"          ,           sca.tmp          ) ;
 			if (!sca.interpreter.empty()) {
 				OStringStream i ;
 				for( ::string const& c : sca.interpreter ) i <<' '<<c ;

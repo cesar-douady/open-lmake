@@ -443,7 +443,6 @@ struct JobRpcReply {
 				::serdes(s,env             ) ;
 				::serdes(s,hash_algo       ) ;
 				::serdes(s,interpreter     ) ;
-				::serdes(s,job_tmp_dir     ) ;
 				::serdes(s,keep_tmp        ) ;
 				::serdes(s,kill_sigs       ) ;
 				::serdes(s,live_out        ) ;
@@ -470,7 +469,6 @@ struct JobRpcReply {
 	::vmap_ss                 env              ;                               // proc == Start
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
 	::vector_s                interpreter      ;                               // proc == Start   , actual interpreter used to execute cmd
-	::string                  job_tmp_dir      ;                               // proc == Start
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start

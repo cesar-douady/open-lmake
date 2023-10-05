@@ -34,16 +34,6 @@ using namespace Disk ;
 using SyscallEntry = decltype(ptrace_syscall_info().seccomp) ;
 using SyscallExit  = decltype(ptrace_syscall_info().exit   ) ;
 
-struct Action {
-	RecordSock::Chdir   chdir    = {} ;
-	RecordSock::Lnk     lnk      = {} ;
-	RecordSock::Open    open     = {} ;
-	RecordSock::ReadLnk read_lnk = {} ;
-	RecordSock::Rename  rename   = {} ;
-	RecordSock::SymLnk  sym_lnk  = {} ;
-	RecordSock::Unlink  unlink   = {} ;
-} ;
-
 // When tracing a child, initially, the child will run till first signal and only then will follow the specified seccomp filter.
 // If a traced system call (as per the seccomp filter) is done before, it will fail.
 // This typically happen with the initial exec call.
@@ -51,6 +41,15 @@ struct Action {
 static constexpr int FirstSignal = SIGTRAP ;
 
 struct PidInfo {
+	struct Action {
+		RecordSock::Chdir   chdir    = {} ;
+		RecordSock::Lnk     lnk      = {} ;
+		RecordSock::Open    open     = {} ;
+		RecordSock::ReadLnk read_lnk = {} ;
+		RecordSock::Rename  rename   = {} ;
+		RecordSock::SymLnk  sym_lnk  = {} ;
+		RecordSock::Unlink  unlink   = {} ;
+	} ;
 	// static data
 	static ::umap<pid_t,PidInfo > s_tab ;
 	// cxtors & casts
@@ -75,7 +74,8 @@ struct SyscallDescr {
 } ;
 
 void AutodepPtrace::_init(pid_t cp) {
-	RecordSock::s_init(*s_autodep_env) ;
+	SWEAR(s_autodep_env->tmp_view.empty()) ;                                   // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
+	RecordSock::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
 	pid_t pid     ;
@@ -92,12 +92,13 @@ void AutodepPtrace::_init(pid_t cp) {
 
 void AutodepPtrace::s_prepare_child() {
 	// prepare filter
-	RecordSock::s_init(*s_autodep_env) ;
-	SWEAR(RecordSock::s_autodep_env->lnk_support!=LnkSupport::Unknown) ;
+	AutodepEnv const& ade = RecordSock::s_autodep_env(*s_autodep_env) ;
+	SWEAR(ade.tmp_view.empty()                ) ;                              // cannot support directory mapping as there is no way to allocate memory in the traced process
+	SWEAR(ade.lnk_support!=LnkSupport::Unknown) ;
 	scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ; SWEAR(scmp) ;
-	bool ignore_stat = RecordSock::s_autodep_env->ignore_stat && RecordSock::s_autodep_env->lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
-	SWEAR(SyscallDescr::s_tab[0].syscall==0) ;                                                                              // ensure first entry is empty
-	for( size_t i=1 ; i<SyscallDescr::s_tab.size() ; i++ ) {                                                                // first entry is ignore to ease s_tab definition with #ifdef
+	bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;  // if full link support, we need to analyze uphill dirs
+	SWEAR(SyscallDescr::s_tab[0].syscall==0) ;                                 // ensure first entry is empty
+	for( size_t i=1 ; i<SyscallDescr::s_tab.size() ; i++ ) {                   // first entry is ignore to ease s_tab definition with #ifdef
 		SyscallDescr const& sc = SyscallDescr::s_tab[i] ;
 		if ( !sc.data_access && ignore_stat ) continue ;                       // non stat-like access are always needed
 		//
@@ -110,7 +111,7 @@ void AutodepPtrace::s_prepare_child() {
 	kill_self(FirstSignal) ;                                                   // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
 }
 
-::pair<bool/*done*/,int/*wstatus*/> AutodepPtrace::_changed( int pid , int wstatus ) {
+::pair<bool/*done*/,int/*wstatus*/> AutodepPtrace::_changed( pid_t pid , int wstatus ) {
 	PidInfo& info = PidInfo::s_tab.try_emplace(pid,pid).first->second ;
 	if (WIFSTOPPED(wstatus)) {
 		struct ptrace_syscall_info  syscall_info ;
@@ -209,12 +210,13 @@ void put_str( pid_t pid , uint64_t val , ::string const& str ) {
 // SyscallDescr
 //
 
-template<bool At> int _at(uint64_t val) { if (At) return val ; else return AT_FDCWD ; }
+template<bool At> Fd _at(uint64_t val) { if (At) return val ; else return Fd::Cwd ; }
 
 // chdir
 template<bool At> void entry_chdir( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* ) {
-	try { info.action.chdir = RecordSock::Chdir( true/*active*/ , info.record , _at<At>(entry.args[0]) , At?nullptr:get_str(pid,entry.args[0]).c_str() ) ; }
-	catch (int) {}
+	try {
+		info.action.chdir = RecordSock::Chdir( info.record , { _at<At>(entry.args[0]) , At?nullptr:get_str(pid,entry.args[0]).c_str() } ) ;
+	} catch (int) {}
 }
 void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 	info.action.chdir( info.record , res.rval , pid ) ;
@@ -223,8 +225,10 @@ void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,bool Flags> void entry_execve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
-	try { info.record.exec( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , Flags&&(entry.args[3+At]&AT_SYMLINK_NOFOLLOW) , comment ) ; }
-	catch (int) {}
+	int flags = entry.args[3+At] ;
+	try {
+		RecordSock::Exec( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , Flags&&(flags&AT_SYMLINK_NOFOLLOW) , comment ) ;
+	} catch (int) {}
 }
 
 // link
@@ -232,9 +236,9 @@ template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , Syscall
 	int flags = Flags ? entry.args[2+At*2] : 0 ;
 	try {
 		info.action.lnk = RecordSock::Lnk(
-			true/*active*/ , info.record
-		,	_at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str()
-		,	_at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str()
+			info.record
+		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str() }
+		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str() }
 		,	flags
 		,	comment
 		) ;
@@ -248,13 +252,7 @@ void exit_lnk( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 template<bool At> void entry_open( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = entry.args[1+At] ;
 	try {
-		info.action.open = RecordSock::Open(
-			true/*active*/ , info.record
-		,	_at<At>(entry.args[0])
-		,	get_str(pid,entry.args[0+At]).c_str()
-		,	flags
-		,	comment
-		) ;
+		info.action.open = RecordSock::Open( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , flags , comment ) ;
 	}
 	catch (int) {}
 }
@@ -265,20 +263,17 @@ void exit_open( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 // read_lnk
 template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	using Len = MsgBuf::Len ;
+	Fd at = _at<At>(entry.args[0]) ;
 	try {
-		int at = _at<At>(entry.args[0]) ;
-		if (at==AT_BACKDOOR) {
+		if (at==Backdoor) {
 			::string data = get_str( pid , entry.args[0+At] , sizeof(Len)+get<size_t>(pid,entry.args[0+At]) ) ;
-			::string buf  ( entry.args[2+At] , char(0) ) ;
-			RecordSock::ReadLnk( true/*active*/ , info.record , data.data() , buf.data() , buf.size() , "backdoor" ) ;
-			Len len = MsgBuf::s_sz(buf.data()) ;
-			if      (sizeof(Len)+len<=buf.size()) buf.resize(sizeof(Len)+len) ;
-			else if (sizeof(Len)    <=buf.size()) buf.resize(sizeof(Len)    ) ;
-			else                                  buf.resize(0              ) ;
+			::string buf  ( entry.args[2+At] , char(0) )                                                      ;
+			ssize_t  len  = info.record.backdoor( data.data(), buf.data() , buf.size() )                      ;
+			buf.resize(len) ;
 			put_str( pid , entry.args[1+At] , buf ) ;
 			np_ptrace_clear_syscall(pid) ;
 		} else {
-			info.action.read_lnk = RecordSock::ReadLnk( true/*active*/ , info.record , at , get_str(pid,entry.args[0+At]).c_str() , comment ) ;
+			info.action.read_lnk = RecordSock::ReadLnk( info.record , { at , get_str(pid,entry.args[0+At]).c_str() } , comment ) ;
 		}
 	} catch (int) {}
 }
@@ -291,9 +286,9 @@ template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , Sysc
 	int flags = Flags ? entry.args[2+At*2] : 0 ;
 	try {
 		info.action.rename = RecordSock::Rename(
-			true/*active*/ , info.record
-		,	_at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str()
-		,	_at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str()
+			info.record
+		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str() }
+		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str() }
 		,	flags
 		,	comment
 		) ;
@@ -305,8 +300,9 @@ void exit_rename( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 
 // symlink
 template<bool At> void entry_sym_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment) {
-	try { info.action.sym_lnk = RecordSock::SymLnk( true/*active*/ , info.record , _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() , comment ) ; }
-	catch (int) {}
+	try {
+		info.action.sym_lnk = RecordSock::SymLnk( info.record , { _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() } , comment ) ;
+	} catch (int) {}
 }
 void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
 	info.action.sym_lnk( info.record , res.rval ) ;
@@ -314,11 +310,9 @@ void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
 
 // unlink
 template<bool At> void entry_unlink( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
+	int flags = At ? entry.args[1+At] : 0 ;
 	try {
-		int      at    = _at<At>(entry.args[0])        ;
-		int      flags = At ? entry.args[1+At] : 0     ;
-		::string file  = get_str(pid,entry.args[0+At]) ;
-		info.action.unlink = RecordSock::Unlink( true/*active*/ , info.record , at , file.c_str() , flags&AT_REMOVEDIR , comment ) ;
+		info.action.unlink = RecordSock::Unlink( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , flags&AT_REMOVEDIR , comment ) ;
 	} catch (int) {}
 }
 void exit_unlink( PidInfo& info , pid_t , SyscallExit const& res ) {
@@ -335,8 +329,9 @@ template<bool At,int FlagArg> void entry_stat( PidInfo& info , pid_t pid , Sysca
 		case FlagNever  : no_follow = false                                        ; break ;
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
-	try { info.record.stat( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow , comment ) ; }
-	catch (int) {}
+	try {
+		RecordSock::Stat( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , no_follow , comment )(info.record) ;
+	} catch (int) {}
 }
 template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	bool no_follow ;
@@ -345,8 +340,9 @@ template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , Sysc
 		case FlagNever  : no_follow = false                                        ; break ;
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
-	try { info.record.solve( _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() , no_follow , comment ) ; }
-	catch (int) {}
+	try {
+		RecordSock::Solve( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , no_follow , comment ) ;
+	} catch (int) {}
 }
 
 // ordered by priority of generated seccomp filter (more frequent first)

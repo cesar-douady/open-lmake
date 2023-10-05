@@ -393,7 +393,7 @@ namespace Backends::Slurm {
 					}
 					if (candidate==queues.end()) break ;                       // nothing for this req, process next req
 					//
-					uint32_t              slurm_jobid                            ;
+					uint32_t              slurm_jobid    = 0                     ;
 					::set<PressureEntry>& pressure_set   = candidate->second     ;
 					auto                  pressure_first = pressure_set.begin()  ;
 					JobIdx                job            = pressure_first->job   ;

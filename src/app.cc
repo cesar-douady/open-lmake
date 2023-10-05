@@ -12,20 +12,13 @@ using namespace Disk ;
 using namespace Time ;
 
 ::string* g_lmake_dir     = nullptr ;
-::string* g_startup_dir_s = nullptr ;                                          // includes final   /, relative to g_root_dir , dir from which command was launched
+::string* g_startup_dir_s = nullptr ;  // includes final /, relative to g_root_dir , dir from which command was launched
+::string* g_root_dir      = nullptr ;
 
 void crash_handler(int sig) {
 	if (sig==SIGABRT) crash(4,sig,"aborted"               ) ;
 	else              crash(2,sig,"caught ",strsignal(sig)) ;
 }
-
-#pragma GCC visibility push(default)                                           // force visibility of functions defined hereinafter, until the corresponding pop
-extern "C" {
-	const char* __asan_default_options () { return "verify_asan_link_order=0,detect_leaks=0" ; }
-	const char* __ubsan_default_options() { return "halt_on_error=1"                         ; }
-	const char* __tsan_default_options () { return "report_signal_unsafe=0"                  ; }
-}
-#pragma GCC visibility pop
 
 void app_init( bool search_root , bool cd_root ) {
 	sanitize(::cout) ;
@@ -39,7 +32,7 @@ void app_init( bool search_root , bool cd_root ) {
 			g_startup_dir_s = new ::string ;
 			tie(root_dir,*g_startup_dir_s) = search_root_dir(root_dir) ;
 		}
-		lib_init(root_dir) ;
+		g_root_dir = new ::string{root_dir} ;
 	} catch (::string const& e) { exit(2,e) ; }
 	if (cd_root) {
 		SWEAR(search_root) ;                                                          // it is meaningless to cd to root dir if we do not search it

@@ -8,28 +8,23 @@
 #include "disk.hh"
 #include "serialize.hh"
 
-struct AutodepEnv {
+struct AutodepEnv : Disk::RealPathEnv {
 	friend ::ostream& operator<<( ::ostream& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:options:source_dirs:root_dir
+	// env format : server:port:options:source_dirs:tmp_dir:tmp_view:root_dir
 	//if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
 	AutodepEnv( ::string const& env ) ;
 	operator ::string() const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,service    ) ;
-		::serdes(s,root_dir   ) ;
-		::serdes(s,src_dirs_s ) ;
-		::serdes(s,auto_mkdir ) ;
-		::serdes(s,ignore_stat) ;
-		::serdes(s,lnk_support) ;
+		::serdes(s,static_cast<RealPathEnv&>(*this)) ;
+		::serdes(s,auto_mkdir                      ) ;
+		::serdes(s,ignore_stat                     ) ;
+		::serdes(s,service                         ) ;
 	}
 	// data
-	::string   service     ;
-	::string   root_dir    ;
-	::vector_s src_dirs_s  ;
-	bool       auto_mkdir  = false            ;            // if true <=> auto mkdir in case of chdir
-	bool       ignore_stat = false            ;            // if true <=> stat-like syscalls do not trigger dependencies
-	LnkSupport lnk_support = LnkSupport::Full ;
+	bool     auto_mkdir  = false ;     // if true <=> auto mkdir in case of chdir
+	bool     ignore_stat = false ;     // if true <=> stat-like syscalls do not trigger dependencies
+	::string service     ;
 } ;

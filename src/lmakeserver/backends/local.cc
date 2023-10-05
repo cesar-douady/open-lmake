@@ -473,13 +473,17 @@ namespace Backends::Local {
 
 	bool _inited = (LocalBackend::s_init(),true) ;
 
+	static inline Rsrc from_string_rsrc( ::string const& k , ::string const& v ) {
+		if ( k=="mem" || k=="tmp" ) return from_string_with_units<Rsrc,'M'>(v) ;
+		else                        return from_string_with_units<Rsrc    >(v) ;
+	}
 	inline RsrcsData::RsrcsData( LocalBackend const& self , ::vmap_ss const& m ) {
 		resize(self.rsrc_keys.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
 			SWEAR(it->second<size()) ;
-			try        { ::istringstream(v)>>(*this)[it->second] ;                           }
+			try        { (*this)[it->second] = from_string_rsrc(k,v) ;                       }
 			catch(...) { throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()) ; }
 		}
 	}
@@ -487,19 +491,13 @@ namespace Backends::Local {
 		resize(self.rsrc_keys.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
-			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",MyTag) ;
+			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
 			SWEAR(it->second<size()) ;
 			Rsrc2& entry = (*this)[it->second] ;
 			try {
-				size_t pos     = v.find('<')          ;
-				bool   in_mega = k=="mem" || k=="tmp" ;
-				if (pos==Npos) {
-					if (in_mega) { entry.min = from_string_with_units<Rsrc,'M'>(v              ) ; entry.max = entry.min                                         ; }
-					else         { entry.min = from_string_with_units<Rsrc    >(v              ) ; entry.max = entry.min                                         ; }
-				} else {
-					if (in_mega) { entry.min = from_string_with_units<Rsrc,'M'>(v.substr(0,pos)) ; entry.max = from_string_with_units<Rsrc,'M'>(v.substr(pos+1)) ; }
-					else         { entry.min = from_string_with_units<Rsrc    >(v.substr(0,pos)) ; entry.max = from_string_with_units<Rsrc    >(v.substr(pos+1)) ; }
-				}
+				size_t pos = v.find('<') ;
+				if (pos==Npos) { entry.min = from_string_rsrc(k,v              ) ; entry.max = entry.min                           ; }
+				else           { entry.min = from_string_rsrc(k,v.substr(0,pos)) ; entry.max = from_string_rsrc(k,v.substr(pos+1)) ; }
 			} catch(...) {
 				throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()," nor a min/max pair separated by <") ;
 			}

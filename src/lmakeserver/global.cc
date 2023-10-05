@@ -197,16 +197,22 @@ namespace Engine {
 			}
 			field = "source_dirs" ;
 			if (py_map.hasKey(field)) {
-				::string root_dir_s = *g_root_dir+'/'            ;
-				RealPath rp         { LnkSupport::Full , {"/"} } ;
+				::string root_dir_s = *g_root_dir+'/'                                                                  ;
+				RealPath rp         { { .lnk_support=LnkSupport::Full , .root_dir=*g_root_dir , .src_dirs_s{{"/"}} } } ;
 				for( auto const& py_sd : Py::Sequence(py_map[field]) ) {
 					::string sd = Py::String(py_sd) ;
 					if (sd.empty()    ) throw "empty source dir"s ;
 					if (sd.back()=='/') sd.pop_back() ;
 					RealPath::SolveReport sr = rp.solve(sd) ;
+					switch (sr.kind) {
+						case Kind::Tmp   : throw to_string("source dir ",sd," cannot be in temporary dir") ;
+						case Kind::Proc  : throw to_string("source dir ",sd," cannot be in /proc"        ) ;
+						case Kind::Admin : throw to_string("source dir ",sd," cannot be in ",AdminDir    ) ;
+						default : ;
+					}
 					sr.real += '/' ;
-					if (!sr.in_repo && !is_abs(sd) ) src_dirs_s.push_back(mk_rel(sr.real,root_dir_s)) ; // keep source dir relative if asked so
-					else                             src_dirs_s.push_back(::move(sr.real           )) ;
+					if ( sr.kind!=Kind::Repo && !is_abs(sd) ) src_dirs_s.push_back(mk_rel(sr.real,root_dir_s)) ; // keep source dir relative if asked so
+					else                                      src_dirs_s.push_back(::move(sr.real           )) ;
 				}
 			}
 		} catch(::string& e) {

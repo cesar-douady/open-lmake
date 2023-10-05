@@ -8,7 +8,6 @@
 #include "utils.hh"
 
 static constexpr char AdminDir[] = "LMAKE" ;
-static constexpr char DfltTmp [] = "/tmp"  ;
 
 ENUM( LnkSupport
 ,	None
@@ -16,11 +15,5 @@ ENUM( LnkSupport
 ,	Full
 )
 
-// lib_complete may be called before main(), which means static strings are forbidden as they could be initialized by the compiler after us
-extern ::string* g_tmp_dir   ;         // pointer to avoid init/fini order hazard, absolute              , tmp dir
-extern ::string* g_root_dir  ;         // pointer to avoid init/fini order hazard, absolute              , root of repository
-
 ::pair_ss search_root_dir(::string const& cwd) ;
 ::pair_ss search_root_dir(                   ) ;
-
-void lib_init(::string const& root_dir) ;

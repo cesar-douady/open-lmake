@@ -58,10 +58,10 @@ endif
 # -fsanitize=address and -fsanitize=thread are exclusive of one another
 # for an unknown reason, clang is incompatible with -fsanitize
 ifeq ($(LMAKE_SAN),A)
-ASAN_FLAGS := -fsanitize=address -fsanitize=undefined
+SAN_FLAGS := -fsanitize=address -fsanitize=undefined
 endif
 ifeq ($(LMAKE_SAN),T)
-TSAN_FLAGS := -fsanitize=thread
+SAN_FLAGS := -fsanitize=thread
 endif
 
 else ifeq ($(findstring clang,$(CC)),clang)
@@ -79,7 +79,6 @@ COMMA         := ,
 .DEFAULT_GOAL := DFLT
 
 
-SAN_FLAGS           := $(strip $(ASAN_FLAGS) $(TSAN_FLAGS))
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
@@ -268,7 +267,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 #
 
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils          )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_env autodep_ld autodep_support gather_deps ptrace record                                          )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , autodep_env autodep_support gather_deps ptrace record                                                     )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                        )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x )
 

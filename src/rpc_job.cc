@@ -77,7 +77,6 @@
 			/**/                          os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
 			if (!jrr.static_deps.empty()) os <<',' << jrr.static_deps                  ;
 			/**/                          os <<',' << jrr.interpreter                  ;
-			/**/                          os <<',' << jrr.job_tmp_dir                  ;
 			if (jrr.keep_tmp            ) os <<',' << "keep_tmp"                       ;
 			/**/                          os <<',' << jrr.kill_sigs                    ;
 			if (jrr.live_out            ) os <<',' << "live_out"                       ;

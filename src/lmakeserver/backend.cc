@@ -290,24 +290,22 @@ namespace Backends {
 					reply.autodep_env.lnk_support = g_config.lnk_support        ;
 					reply.autodep_env.src_dirs_s  = g_config.src_dirs_s         ;
 					reply.autodep_env.root_dir    = *g_root_dir                 ;
+					reply.autodep_env.tmp_dir     = ::move(tmp_dir)             ; // tmp directory on disk
+					reply.autodep_env.tmp_view    = start_cmd_attrs.tmp         ; // tmp directory as viewed by job
 					reply.chroot                  = start_cmd_attrs.chroot      ;
 					reply.cmd                     = ::move(cmd)                 ;
 					reply.cwd_s                   = rule->cwd_s                 ;
-				//	reply.env                                                      // done above
+				//	reply.env                                                     // done above
 					reply.hash_algo               = g_config.hash_algo          ;
-				//	reply.host                                                     // directly filled in job_exec
 					reply.interpreter             = start_cmd_attrs.interpreter ;
-				//	reply.job_id                                                   // directly filled in job_exec
 					reply.keep_tmp                = keep_tmp                    ;
 					reply.kill_sigs               = start_none_attrs.kill_sigs  ;
 					reply.live_out                = entry.submit_attrs.live_out ;
 					reply.local_mrkr              = start_cmd_attrs.local_mrkr  ;
 					reply.method                  = start_cmd_attrs.method      ;
-				//	reply.seq_id                                                   // directly filled in job_exec
 					reply.small_id                = small_id                    ;
 					reply.timeout                 = start_rsrcs_attrs.timeout   ;
 					reply.remote_admin_dir        = g_config.remote_admin_dir   ;
-					reply.job_tmp_dir             = ::move(tmp_dir)             ;
 					// fancy attrs
 					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = deps_attrs[rule->stdin_idx ].second.first ;
 					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets   [rule->stdout_idx]              ;
@@ -449,11 +447,11 @@ namespace Backends {
 				for( auto& [j,he] : missings ) {
 					auto it = _s_start_tab.find(j) ;
 					if (it==_s_start_tab.end()) continue ;
-					StartTabEntry& entry = it->second ;
-					trace("erase_start_tab",j,entry) ;
-					Status    s     = he.second ? Status::Err : entry.lost() ;
-					::vmap_ss rsrcs = entry.rsrcs                            ;
-					JobExec   je    { j , now }                              ;
+					StartTabEntry& entry = it->second                             ;
+					Status         s     = he.second ? Status::Err : entry.lost() ;
+					::vmap_ss      rsrcs = entry.rsrcs                            ;
+					JobExec        je    { j , now }                              ;
+					trace("handle_job",je,entry,s) ;
 					if (s>Status::Garbage) {
 						auto [eta,keep_tmp] = entry.req_info() ;
 						serialize( OFStream(dir_guard(je.ancillary_file())) , JobInfoStart({ .eta=eta , .submit_attrs=entry.submit_attrs , .rsrcs=entry.rsrcs , .backend_msg=he.first }) ) ;

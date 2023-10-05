@@ -271,7 +271,7 @@ namespace Engine {
 									script += "set +x\n" ;
 								}
 								for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;
-								script += "mkdir -p $TMPDIR\n" ;
+								script += to_string("mkdir -p ${TMPDIR:-",P_tmpdir,"}\n") ;
 								script += "exec env -i \\\n"   ;
 								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
 								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
@@ -291,8 +291,9 @@ namespace Engine {
 									if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                                        ," \\\n") ;
 									else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,report_start.start.local_mrkr,abs_cwd))," \\\n") ;
 								}
-								//
-								if (!seen_tmp_dir) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(report_start.start.job_tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
+								// if tmp directory is viewed by job under another name, provide it as the script may work only with that name
+								::string const& tmp_dir = report_start.start.autodep_env.tmp_view.empty() ? report_start.start.autodep_env.tmp_dir : report_start.start.autodep_env.tmp_view ;
+								if (!seen_tmp_dir) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
 								//
 								for( ::string const& c : report_start.start.interpreter ) append_to_string(script,      mk_shell_str(c                     ),' ') ;
 								/**/                                                      append_to_string(script,"-c ",mk_shell_str(report_start.start.cmd)    ) ;
@@ -351,7 +352,7 @@ namespace Engine {
 									//
 									audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag),bem                      ) ) ;
 									audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                    ) ) ;
-									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.job_tmp_dir                                   ) ) ;
+									audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.autodep_env.tmp_dir                           ) ) ;
 									audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str()," - ",rs.submit_attrs.pressure.short_str()) ) ;
 									//
 									if ( rs.submit_attrs.live_out        ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out       : true"                              ) ) ;
