@@ -35,20 +35,16 @@ struct Lock {
 	// - 1 : thread is processing a user access and must record deps
 	// - 2 : thread has entered a recursive call and must not record deps
 	// statics
-	static bool t_busy () { return t_loop>1 ; }                                 // t_busy means processing a recursive call
-	static bool t_busy0() { return t_loop>0 ; }                                 // same, before taking a 2nd lock
+	static bool t_busy() { return t_loop ; }                                  // same, before taking a 2nd lock
 	// static data
 	static              ::mutex s_mutex ;
-	static thread_local uint8_t t_loop  ;
+	static thread_local bool    t_loop  ;
 	// cxtors & casts
-	Lock () : _save_loop{t_loop} { SWEAR( t_loop<=2 ) ; if (t_loop>1) { SWEAR(!s_mutex.try_lock()) ; return ; } s_mutex.lock  () ; }
-	~Lock()                      { SWEAR( t_loop>=1 ) ; if (t_loop>1) { SWEAR(!s_mutex.try_lock()) ; return ; } s_mutex.unlock() ; }
-	// data
-private :
-	SaveInc<uint8_t> _save_loop ;
+	Lock () { SWEAR(!t_loop) ; t_loop = true  ; s_mutex.lock  () ; }
+	~Lock() { SWEAR( t_loop) ; t_loop = false ; s_mutex.unlock() ; }
 } ;
-::mutex              Lock::s_mutex ;
-uint8_t thread_local Lock::t_loop  = 0 ;
+::mutex           Lock::s_mutex ;
+bool thread_local Lock::t_loop  = false ;
 
 void* get_orig(const char* syscall) {
 	void* res = ::dlsym(RTLD_NEXT,syscall) ;                                   // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it

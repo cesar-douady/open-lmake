@@ -108,8 +108,14 @@ def qualify_key(kind,key,seen) :
 	if key in seen             : raise TypeError(f'{kind} key {key} already seen as {seen[key]}')
 	seen[key] = kind
 
+def _no_match_flags(flags) :
+	if isinstance(flags, str            ) : return flags in ('-match','-Match')
+	if isinstance(flags,(tuple,list,set)) : return any(_no_match_flags(f) for f in flags)
+	raise TypeError('unrecognized flags : {flags}')
 def no_match(target) :
-	return '-match' in target[1:]
+	if isinstance(target, str            ) : return False
+	if isinstance(target,(tuple,list,set)) : return _no_match_flags(target[1:])
+	raise TypeError('unrecognized target : {target}')
 
 def qualify(attrs) :
 	seen = {}

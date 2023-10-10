@@ -412,17 +412,21 @@ template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
 }
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
-	char    buf[PATH_MAX] ;
-	ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-	if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) << " : " ;
-	OStringStream err ;
-	[[maybe_unused]] bool _[] ={false,(err<<args,false)...} ;
-	::string err_str = err.str() ;
-	if ( !err_str.empty() && err_str.back()!='\n' ) err_str.push_back('\n') ;
-	::cerr << err_str ;
-	set_sig_handler(sig,SIG_DFL) ;
-	write_backtrace(::cerr,hide_cnt+1) ;                                       // rather than merely calling abort, this works even if crash_handler is not installed
-	kill_self(sig) ;
+	static bool busy = false ;
+	if (!busy) {                                                               // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+		busy = true ;
+		char    buf[PATH_MAX] ;
+		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) << " : " ;
+		OStringStream err ;
+		[[maybe_unused]] bool _[] ={false,(err<<args,false)...} ;
+		::string err_str = err.str() ;
+		if ( !err_str.empty() && err_str.back()!='\n' ) err_str.push_back('\n') ;
+		::cerr << err_str ;
+		set_sig_handler(sig,SIG_DFL) ;
+		write_backtrace(::cerr,hide_cnt+1) ;                                   // rather than merely calling abort, this works even if crash_handler is not installed
+		kill_self(sig) ;
+	}
 	set_sig_handler(SIGABRT,SIG_DFL) ;
 	::abort() ;
 }

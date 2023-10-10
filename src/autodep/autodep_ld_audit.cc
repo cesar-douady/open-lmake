@@ -29,8 +29,7 @@ struct Ctx {
 
 struct Lock {
 	// no need for protection against recursive call as our accesses are not routed to us
-	static bool t_busy () { return false ; }                                   // there is no recursive call with ld_audit
-	static bool t_busy0() { return false ; }                                   // .
+	static bool t_busy() { return false ; }                                   // .
 	static ::mutex s_mutex ;
 	Lock () { s_mutex.lock  () ; }
 	~Lock() { s_mutex.unlock() ; }
@@ -86,14 +85,14 @@ void* get_orig(const char* syscall) {
 ,	{ "__libc_fork"         , { reinterpret_cast<void*>(Audited::__libc_fork         ) } }
 ,	{ "link"                , { reinterpret_cast<void*>(Audited::link                ) } }
 ,	{ "linkat"              , { reinterpret_cast<void*>(Audited::linkat              ) } }
-//,	{ "mkostemp"            , { reinterpret_cast<void*>(Audited::mkostemp            ) } } // XXX : implement mkstemp & co
-//,	{ "mkostemp64"          , { reinterpret_cast<void*>(Audited::mkostemp64          ) } } // .
-//,	{ "mkostemps"           , { reinterpret_cast<void*>(Audited::mkostemps           ) } } // .
-//,	{ "mkostemps64"         , { reinterpret_cast<void*>(Audited::mkostemps64         ) } } // .
-//,	{ "mkstemp"             , { reinterpret_cast<void*>(Audited::mkstemp             ) } } // .
-//,	{ "mkstemp64"           , { reinterpret_cast<void*>(Audited::mkstemp64           ) } } // .
-//,	{ "mkstemps"            , { reinterpret_cast<void*>(Audited::mkstemps            ) } } // .
-//,	{ "mkstemps64"          , { reinterpret_cast<void*>(Audited::mkstemps64          ) } } // .
+,	{ "mkostemp"            , { reinterpret_cast<void*>(Audited::mkostemp            ) } }
+,	{ "mkostemp64"          , { reinterpret_cast<void*>(Audited::mkostemp64          ) } }
+,	{ "mkostemps"           , { reinterpret_cast<void*>(Audited::mkostemps           ) } }
+,	{ "mkostemps64"         , { reinterpret_cast<void*>(Audited::mkostemps64         ) } }
+,	{ "mkstemp"             , { reinterpret_cast<void*>(Audited::mkstemp             ) } }
+,	{ "mkstemp64"           , { reinterpret_cast<void*>(Audited::mkstemp64           ) } }
+,	{ "mkstemps"            , { reinterpret_cast<void*>(Audited::mkstemps            ) } }
+,	{ "mkstemps64"          , { reinterpret_cast<void*>(Audited::mkstemps64          ) } }
 ,	{ "open"                , { reinterpret_cast<void*>(Audited::open                ) } }
 ,	{ "__open"              , { reinterpret_cast<void*>(Audited::__open              ) } }
 ,	{ "__open_nocancel"     , { reinterpret_cast<void*>(Audited::__open_nocancel     ) } }

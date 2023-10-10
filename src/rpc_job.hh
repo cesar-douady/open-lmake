@@ -68,7 +68,6 @@ ENUM( JobProc
 ,	DepInfos
 ,	LiveOut
 ,	End
-,	EarlyEnd       // job ended before targets could be washed
 )
 
 ENUM( Status       // result of job execution

@@ -12,8 +12,9 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* ^C is sometimes very slow
+! ^C is sometimes very slow
 	- and may crash the server
+	- hard to reproduce
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -23,14 +24,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* handle EarlyErr as normal errors
-	- wash targets
-	- trust report saying that non of them have been generated
-	- as of today, job is rerun if retried in case of missing targets
-* put in place a log scale for cpu/mem/tmp resources
-	- this is to decrease the number of buckets in GenericBackend as they are indexed by resources
-	- setting this log scale will decrease the number of different resources by putting in the same bucket resources that are close to each other
-	- do that once local/slurm backends are merged
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
@@ -110,7 +103,7 @@ items :
 	- just check before push
 	- can be a flag to freeze (such as freeze forward, meaning jobs see file as frozen, even if it moves)
 	- possibly work as a resource : rebuild if dependent is in error
-* provide the possibility to play dynamically with resources
+* provide the possibility to play dynamically with resources in config
 * implement a lshow -r to see what is running now
 * report errors in title (split useful into done et err)
 * result cache v2 (copy & link) :
@@ -129,6 +122,9 @@ items :
 			- what if stdin is actively used ?
 ! support direct rebuild of deps
 	- switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
+		- difficulty is that there is no named group
+		- this means () from user regexprs must be counted to compute group indices
+		- which in turn means to do a expr analysis (lexical or syntaxic ?) to recognize true ()'s from escaped ones
 	- add a dep flag to say direct for use by depend
 	- add a target flag to say direct for use by pattern
 	- pass known hidden deps to job_exec to avoid connection to server when known
@@ -136,8 +132,8 @@ items :
 		- suspend waiting job (tell backend job is suspended)
 		- kill it if necessary (at the will of backend)
 		- tell backend job is resumed
-		- while suspended, consider mem & cpu to be automaticly freed (but not tmp)
-		- consider sending a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
+		- while suspended, consider resources to be freed
+		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
 ! support direct dep rebuild
 	- specify a target flag 'direct'

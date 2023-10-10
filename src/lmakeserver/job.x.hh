@@ -162,7 +162,7 @@ namespace Engine {
 		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                                            ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , bool washed                    ) ;       // hit indicates that result is from a cache hit
+		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const&                                  ) ;       // hit indicates that result is from a cache hit
 		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job has some other req
 		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//

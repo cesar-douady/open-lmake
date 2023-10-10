@@ -111,10 +111,10 @@ size_t parse_c_str( ::string const& s , size_t start ) {
 //
 
 void set_sig_handler( int sig_num , void (*handler)(int) ) {
-sigset_t empty ; ::sigemptyset(&empty) ;
-struct sigaction action ;
-action.sa_handler = handler    ;
-action.sa_mask    = empty      ;
+	sigset_t         empty  ; ::sigemptyset(&empty) ;
+	struct sigaction action ;
+	action.sa_handler = handler    ;
+	action.sa_mask    = empty      ;
 	action.sa_flags   = SA_RESTART ;
 	::sigaction( sig_num , &action , nullptr ) ;
 }

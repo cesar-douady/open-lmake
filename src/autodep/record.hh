@@ -43,9 +43,8 @@ struct Record {
 		_s_autodep_env = new AutodepEnv{ade} ;
 		return *_s_autodep_env ;
 	}
-	// these 2 functions are guaranteed syscall free, so there is no need for caller to protect errno
-	static void s_hide      ( int fd                ) { if ( _s_root_fd.fd==fd                        ) _s_root_fd.detach() ; }
-	static void s_hide_range( int min , int max=~0u ) { if ( _s_root_fd.fd>=min && _s_root_fd.fd<=max ) _s_root_fd.detach() ; }
+	static void s_hide      ( int fd                ) { if ( _s_root_fd.fd==fd                        ) _s_root_fd.detach() ; } // guaranteed syscall free, so no need for caller to protect errno
+	static void s_hide_range( int min , int max=~0u ) { if ( _s_root_fd.fd>=min && _s_root_fd.fd<=max ) _s_root_fd.detach() ; } // .
 
 	// static data
 private :
@@ -176,7 +175,7 @@ public :
 		Open() = default ;
 		Open( Record& , Path const& , int flags , ::string const& comment="open" ) ;
 		// services
-		int operator()( Record& , bool has_fd , int fd_rc , bool no_file ) ;   // no_file is only meaningful if rc is in error
+		int operator()( Record& , bool has_fd , int fd_rc , bool no_file=false ) ;   // no_file is only meaningful if rc is in error
 		// data
 		bool do_read  = false ;
 		bool do_write = false ;

@@ -332,15 +332,14 @@ bool/*interrupted*/ engine_loop() {
 				JobExec           & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt       ) ; break ;
-					case JobProc::ReportStart : je.report_start (                                           ) ; break ;
-					case JobProc::LiveOut     : je.live_out     (job.txt                                    ) ; break ;
-					case JobProc::Continue    : je.premature_end(job.req                                    ) ; break ;
-					case JobProc::NotStarted  : je.not_started  (                                           ) ; break ;
-					case JobProc::EarlyEnd    :
-					case JobProc::End         : je.end          (job.rsrcs,job.digest,job.proc==JobProc::End) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started      (job.report,job.report_unlink,job.txt) ; break ;
+					case JobProc::ReportStart : je.report_start (                                    ) ; break ;
+					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ; break ;
+					case JobProc::Continue    : je.premature_end(job.req                             ) ; break ;
+					case JobProc::NotStarted  : je.not_started  (                                    ) ; break ;
+					case JobProc::End         : je.end          (job.rsrcs,job.digest                ) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;
