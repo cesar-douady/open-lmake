@@ -53,7 +53,8 @@ namespace Backends {
 
 	::latch                                   Backend::s_service_ready          { 1 } ;
 	::string                                  Backend::s_executable             ;
-	Backend*                                  Backend::s_tab[+Tag::N]           ;
+	Backend*                                  Backend::s_tab  [+Tag::N]         ;
+	::atomic<bool>                            Backend::s_ready[+Tag::N]         = {} ;
 	ServerSockFd                              Backend::s_server_fd              ;
 	::mutex                                   Backend::_s_mutex                 ;
 	::umap<JobIdx,Backend::StartTabEntry>     Backend::_s_start_tab             ;
@@ -74,13 +75,14 @@ namespace Backends {
 	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
-		if (!s_tab[+tag]) throw to_string("backend ",tag," is not implemented") ;
 		//
-		if (tag!=Tag::Local && (Req(ri)->options.flags[ReqFlag::Local] || !s_tab[+tag]->ready || !g_config.backends[+tag].configured)) {
-			SWEAR(+tag<+Tag::N) ;                                                           // prevent compiler array bound warning in next statement
+		if ( tag!=Tag::Local && (Req(ri)->options.flags[ReqFlag::Local]||!s_ready[+tag]) ) {    // if asked backend is not usable, force local execution
+			SWEAR(+tag<+Tag::N) ;                                                               // prevent compiler array bound warning in next statement
+			if (!s_tab[+tag]) throw to_string("backend ",mk_snake(tag)," is not implemented") ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 		}
+		if (!s_ready[+tag]) throw "local backend is not available"s ;
 		submit_attrs.tag = tag ;
 		s_tab[+tag]->submit(ji,ri,submit_attrs,::move(rsrcs)) ;
 	}
@@ -111,7 +113,8 @@ namespace Backends {
 	void Backend::s_launch() {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_launch") ;
-		for( Tag t : Tag::N ) if (s_tab[+t])
+		for( Tag t : Tag::N ) {
+			if (!s_ready[+t]) continue ;
 			try {
 				s_tab[+t]->launch() ;
 			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
@@ -125,6 +128,7 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 			}
+		}
 	}
 
 	void Backend::_s_wakeup_remote( JobIdx job , StartTabEntry::Conn const& conn , JobExecRpcProc proc ) {
@@ -486,7 +490,8 @@ namespace Backends {
 		::unique_lock                      lock { _s_mutex } ;
 		//
 		Trace trace("s_heartbeat") ;
-		for( Tag t : Tag::N ) if (s_tab[+t]) {                                                          // if s_tab is not initialized yet (we are called from an async thread), no harm, just skip
+		for( Tag t : Tag::N ) {
+			if (!s_ready[+t]) continue ;
 			if (res.empty()) res =                 s_tab[+t]->heartbeat() ;                             // fast path
 			else             for( auto const& he : s_tab[+t]->heartbeat() ) res.push_back(::move(he)) ;
 		}
@@ -503,8 +508,8 @@ namespace Backends {
 		//
 		::unique_lock lock{_s_mutex} ;
 		for( Tag t : Tag::N )
-			if ( s_tab[+t] && config[+t].configured )                    // if implemented and configured
-				s_tab[+t]->ready = s_tab[+t]->config(config[+t]) ; 
+			if ( s_tab[+t] && config[+t].configured )                          // if implemented and configured
+				s_ready[+t] = s_tab[+t]->config(config[+t]) ;
 		s_service_ready.wait() ;
 	}
 
@@ -539,13 +544,15 @@ namespace Backends {
 		::vmap<JobIdx,StartTabEntry::Conn> to_kill ;
 		{	::unique_lock lock { _s_mutex }     ;                              // lock for minimal time
 			Pdate         now  = Pdate::s_now() ;
-			for( Tag t : Tag::N ) if (s_tab[+t])
+			for( Tag t : Tag::N ) {
+				if (!s_ready[+t]) continue ;
 				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,now) ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					_s_start_tab.erase(j) ;
 				}
+			}
 			for( auto& [j,e] : _s_start_tab ) {
 				if (req) {
 					auto it = e.reqs.find(req) ;

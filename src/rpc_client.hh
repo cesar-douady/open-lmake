@@ -41,20 +41,20 @@ ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other c
 ,	Targets        // if proc==Show
 )
 
-ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-,	Archive         // if proc== Make        , all intermediate files are generated
-,	Deps            // if proc== Forget      , forget deps
-,	ForgetOldErrors // if proc== Make        , assume old errors are transcient
-,	KeepTmp         // if proc== Make        , keep tmp dir after job execution
-,	Jobs            // if proc== Make        , max number of jobs
-,	LiveOut         // if proc== Make        , generate live output for last job
-,	Local           // if proc== Make        , lauch all jobs locally
-,	ManualOk        // if proc== Make        , allow lmake to overwrite manual files
-,	SourceOk        // if proc== Make        , allow lmake to overwrite source files
-,	Targets         // if proc== Forget      , forget targets
-,	Verbose         // if proc== Make | Show , generate generous output
-,	Force           // if proc== Freeze      , act if doable, even if awkward
-,	Backend         // if proc== Make        , allow lmake to send arguments to the backends
+ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
+,	Archive                            // if proc==                   Make        , all intermediate files are generated
+,	Backend                            // if proc==                   Make        , send argument to backends
+,	Deps                               // if proc== Forget                        , forget deps
+,	Force                              // if proc==          Freeze               , act if doable, even if awkward
+,	ForgetOldErrors                    // if proc==                   Make        , assume old errors are transcient
+,	KeepTmp                            // if proc==                   Make        , keep tmp dir after job execution
+,	Jobs                               // if proc==                   Make        , max number of jobs
+,	LiveOut                            // if proc==                   Make        , generate live output for last job
+,	Local                              // if proc==                   Make        , lauch all jobs locally
+,	ManualOk                           // if proc==                   Make        , allow lmake to overwrite manual files
+,	SourceOk                           // if proc==                   Make        , allow lmake to overwrite source files
+,	Targets                            // if proc== Forget                        , forget targets
+,	Verbose                            // if proc==                   Make | Show , generate generous output
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -80,10 +80,10 @@ struct ReqOptions {
 	// data
 	::string startup_dir_s ;
 	Bool3    reverse_video = Maybe        ;                // if Maybe <=> not a terminal, do not colorize
-	ReqKey   key           = ReqKey::None ;                // if proc==          Freeze           || Show
-	ReqFlags flags         ;                               // if proc==Forget || Freeze   || Make
-	JobIdx   n_jobs        = 0            ;                // if proc==                      Make
-	::string backend_args  ;                               // if proc==                      Make
+	ReqKey   key           = ReqKey::None ;                // if proc==         Freeze          | Show
+	ReqFlags flags         ;                               // if proc==Forget | Freeze   | Make
+	JobIdx   n_jobs        = 0            ;                // if proc==                    Make
+	::string backend_args  ;                               // if proc==                    Make
 } ;
 
 struct ReqRpcReq {

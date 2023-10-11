@@ -81,6 +81,8 @@ namespace Engine {
 		size_t minor ;
 	} ;
 
+	extern ::atomic<bool> g_backends_ready[+BackendTag::N] ;
+
 	struct Config {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 
@@ -92,14 +94,14 @@ namespace Engine {
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
 			// services
 			template<IsStream T> void serdes(T& s) {
-				::serdes(s,configured) ;
 				::serdes(s,addr      ) ;
 				::serdes(s,dct       ) ;
+				::serdes(s,configured) ;
 			}
 			// data
-			bool      configured = false                      ;
 			in_addr_t addr       = ServerSockFd::LoopBackAddr ;
 			::vmap_ss dct        ;
+			bool      configured = false                      ;
 		} ;
 
 		struct Cache {

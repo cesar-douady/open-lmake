@@ -31,8 +31,6 @@ namespace Backends {
 		using CoarseDelay = Time::CoarseDelay ;
 		using Pdate       = Time::Pdate       ;
 
-		Backend() : ready(false) {}
-
 		struct StartTabEntry {
 			friend ::ostream& operator<<( ::ostream& , StartTabEntry const& ) ;
 			struct Conn {
@@ -124,9 +122,11 @@ namespace Backends {
 		static void            _s_deferred_lost_thread_func  ( ::stop_token                                         ) ;
 		// static data
 	public :
-		static ::latch      s_service_ready    ;
-		static ::string     s_executable       ;
-		static Backend*     s_tab[/*+Tag::N*/] ;
+		static ::latch        s_service_ready  ;
+		static ::string       s_executable     ;
+		static Backend*       s_tab  [+Tag::N] ;
+		static ::atomic<bool> s_ready[+Tag::N] ;
+
 		static ServerSockFd s_server_fd        ;
 	private :
 		static ::mutex                          _s_mutex                 ;
@@ -163,10 +163,6 @@ namespace Backends {
 	protected :
 		::vector_s acquire_cmd_line( Tag , JobIdx , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, return job command line
 		/**/                                                                                   // SubmitAttrs must be the operator| of the submit/add_pressure corresponding values for the job
-		// data
-	private :
-		SmallIds<SmallId> _small_ids ;
-		bool              ready      ;
 	} ;
 
 }
@@ -176,11 +172,10 @@ namespace Backends {
 
 	inline bool Backend::s_is_local(Tag t) { return s_tab[+t]->is_local() ; }
 	//
-	// n_jobs is the maximum number of job backend may run on behalf of this req
-	inline void Backend::s_open_req ( ReqIdx r , JobIdx n_jobs ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req" ,r) ; for( Tag t : Tag::N ) if (s_tab[+t]) s_tab[+t]->open_req (r,n_jobs) ; }
-	inline void Backend::s_close_req( ReqIdx r                 ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req",r) ; for( Tag t : Tag::N ) if (s_tab[+t]) s_tab[+t]->close_req(r       ) ; }
-	//
-	inline void Backend::s_new_req_eta(ReqIdx req) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",req) ; for( Tag t : Tag::N ) if (s_tab[+t]) s_tab[+t]->new_req_eta(req) ; }
+	// nj is the maximum number of job backend may run on behalf of this req
+	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req"   ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->open_req   (r,nj) ; }
+	inline void Backend::s_close_req  (ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
+	inline void Backend::s_new_req_eta(ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
 	//
 	inline ::pair_s<uset<ReqIdx>> Backend::s_start( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j  ) ; }
 	inline ::string/*msg*/        Backend::s_end  ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ; return s_tab[+t]->end  (j,s) ; }

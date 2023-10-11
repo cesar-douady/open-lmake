@@ -137,16 +137,15 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					SWEAR(f!=Flag::Unknown) ;
-					if (!syntax.flags[+f].short_name) goto Bad ;
-					//
-					if (syntax.flags[+f].has_arg) { if (*p!='=') throw to_string("no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
-					else                          { if (*p     ) throw to_string("unexpected value for option --",option) ;                       }
-					flags |= f ;
-					continue ;
+					if (!syntax.flags[+f].short_name) {
+						if (syntax.flags[+f].has_arg) { if (*p!='=') throw to_string("no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
+						else                          { if (*p     ) throw to_string("unexpected value for option --",option) ;                       }
+						flags |= f ;
+						continue ;
+					}
 				}
-				if (option=="help") throw ""s ;
-			Bad :
-				throw to_string("unexpected option --",option) ;
+				if (option=="help") throw ""s                                      ;
+				else                throw to_string("unexpected option --",option) ;
 			} else {
 				// short options
 				const char* p ;

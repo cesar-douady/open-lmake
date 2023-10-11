@@ -10,22 +10,29 @@ if getattr(sys,'reading_makefiles',False) :
 
 	import lmake
 
-	lmake.sources = (
-		'Lmakefile.py'
-	,	'hello.tar'
-	)
+	lmake.sources = ('Lmakefile.py',)
 
+	file = 'a/b/c'
 	class Tar(lmake.Rule) :
+		targets = { 'TAR' : r'hello.tar{*:.*}' }
+		cmd = '''
+			cd $TMPDIR
+			mkdir -p $(dirname {file})
+			echo yes >{file}
+			tar cf $ROOT_DIR/hello.tar {file}
+		'''
+	class Untar(lmake.Rule) :
 		targets = { 'TARGET' : '{File:.*}.tardir/{*:.*}' }
 		deps    = { 'TAR'    : '{File}.tar'              }
 		cmd     = 'tar mxaf {TAR} -C {File}.tardir'
+
+	class Cpy(lmake.Rule) :
+		target = 'cpy'
+		dep    = f'hello.tardir/{file}'
+		cmd    = 'cat'
 
 else :
 
 	import ut
 
-	print('yes',file=open('inside','w'))
-	os.system('tar cf hello.tar inside')
-	os.unlink('inside')
-
-	ut.lmake( 'hello.tardir/inside' , done=1 , new=1 )
+	ut.lmake( 'cpy' , done=3 )

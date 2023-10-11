@@ -174,7 +174,6 @@ namespace Backends::Slurm {
 
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
-			slurm_init(nullptr);
 			SlurmBackend& self = *new SlurmBackend ;
 			s_register(MyTag,self) ;
 		}
@@ -192,6 +191,7 @@ namespace Backends::Slurm {
 					if (n_max_queue_jobs==0) throw "n_max_queue_jobs must be > 0"s;
 				}
 			}
+			slurm_init(nullptr);
 			slurmd_status_t * slurmd_status;
 			if (slurm_load_slurmd_status(&slurmd_status)) {
 				return false; //Probably no service slurmd available
