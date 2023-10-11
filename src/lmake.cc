@@ -63,6 +63,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
 	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
+	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                   } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;

@@ -126,13 +126,13 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					SWEAR(k!=Key::Unknown) ;
-					if (!syntax.keys[+k].short_name) goto Bad ;
-					//
-					if (has_key) throw to_string("cannot specify both --",option," and --",mk_snake(key)) ;
-					if (*p     ) throw to_string("unexpected value for option --",option                ) ;
-					key     = k    ;
-					has_key = true ;
-					continue ;
+					if (syntax.keys[+k].short_name) {
+						if (has_key) throw to_string("cannot specify both --",option," and --",mk_snake(key)) ;
+						if (*p     ) throw to_string("unexpected value for option --",option                ) ;
+						key     = k    ;
+						has_key = true ;
+						continue ;
+					}
 				}
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;

@@ -74,16 +74,13 @@ namespace Backends {
 	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
+		if (!s_tab[+tag]) throw to_string("backend ",tag," is not implemented") ;
 		//
-		if ( Req(ri)->options.flags[ReqFlag::Local] && tag!=Tag::Local ) {
+		if (tag!=Tag::Local && (Req(ri)->options.flags[ReqFlag::Local] || !s_tab[+tag]->ready || !g_config.backends[+tag].configured)) {
 			SWEAR(+tag<+Tag::N) ;                                                           // prevent compiler array bound warning in next statement
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 		}
-		//
-		if (!s_tab[+tag]                       ) throw to_string("backend ",tag," is not implemented") ;
-		if (!g_config.backends[+tag].configured) throw to_string("backend ",tag," is not configured" ) ;
-		//
 		submit_attrs.tag = tag ;
 		s_tab[+tag]->submit(ji,ri,submit_attrs,::move(rsrcs)) ;
 	}
@@ -506,7 +503,8 @@ namespace Backends {
 		//
 		::unique_lock lock{_s_mutex} ;
 		for( Tag t : Tag::N )
-			if ( s_tab[+t] && config[+t].configured ) s_tab[+t]->config(config[+t]) ; // if implemented and configured
+			if ( s_tab[+t] && config[+t].configured )                    // if implemented and configured
+				s_tab[+t]->ready = s_tab[+t]->config(config[+t]) ; 
 		s_service_ready.wait() ;
 	}
 

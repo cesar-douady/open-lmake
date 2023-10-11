@@ -54,6 +54,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Targets         // if proc== Forget      , forget targets
 ,	Verbose         // if proc== Make | Show , generate generous output
 ,	Force           // if proc== Freeze      , act if doable, even if awkward
+,	Backend         // if proc== Make        , allow lmake to send arguments to the backends
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -66,7 +67,7 @@ struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
 	// cxtors & casts
 	ReqOptions(                          ) = default ;
-	ReqOptions( Bool3 rv , ReqCmdLine cl ) : startup_dir_s{*g_startup_dir_s} , reverse_video{rv} , key{cl.key} , flags{cl.flags} , n_jobs{JobIdx(::atol(cl.flag_args[+ReqFlag::Jobs].c_str()))} {}
+	ReqOptions( Bool3 rv , ReqCmdLine cl ) : startup_dir_s{*g_startup_dir_s} , reverse_video{rv} , key{cl.key} , flags{cl.flags} , n_jobs{JobIdx(::atol(cl.flag_args[+ReqFlag::Jobs].c_str()))}, backend_args{cl.flag_args[+ReqFlag::Backend]} {}
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,startup_dir_s) ;
@@ -74,6 +75,7 @@ struct ReqOptions {
 		::serdes(s,key          ) ;
 		::serdes(s,flags        ) ;
 		::serdes(s,n_jobs       ) ;
+		::serdes(s,backend_args ) ;
 	}
 	// data
 	::string startup_dir_s ;
@@ -81,6 +83,7 @@ struct ReqOptions {
 	ReqKey   key           = ReqKey::None ;                // if proc==          Freeze           || Show
 	ReqFlags flags         ;                               // if proc==Forget || Freeze   || Make
 	JobIdx   n_jobs        = 0            ;                // if proc==                      Make
+	::string backend_args  ;                               // if proc==                      Make
 } ;
 
 struct ReqRpcReq {

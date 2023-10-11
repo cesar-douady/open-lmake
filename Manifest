@@ -14,6 +14,7 @@ doc/lmake_doc.pptx
 docker/centos7.docker
 docker/ubuntu20.docker
 docker/ubuntu22.docker
+ext/cxxopts.hpp
 ext/pycxx-7.1.7.patch_script
 ext/pycxx-7.1.7.tar.gz
 ext/xxhash.h
