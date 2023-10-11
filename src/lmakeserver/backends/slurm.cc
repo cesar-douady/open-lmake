@@ -9,7 +9,7 @@
 #include <charconv>
 #include <sys/sysinfo.h>
 #include <slurm/slurm.h>
-
+#include "ext/cxxopts.hpp"
 #include "core.hh"
 #include "hash.hh"
 
@@ -21,13 +21,17 @@ namespace Backends::Slurm {
 
 	struct SlurmBackend ;
 	struct RsrcsDataSingle {
-		uint16_t cpu     = 1 ; // number of logical cpu (sbatch --cpus-per-task option)
-		uint32_t mem     = 0 ; // memory in MB          (sbatch --mem           option)
-		uint32_t tmp     = 0 ; // tmp disk in MB        (sbatch --tmp           option)
-		::string part        ; // partition name        (sbatch --partition     option)
-		::string gres        ; // generic resources     (sbatch --gres          option)
-		::string licence     ; // licence               (sbtach --licenses      option)
-		::string feature     ; // feature/contraint     (sbatch --constraint    option)
+		uint16_t cpu     = 0 ; // number of logical cpu (sbatch --cpus-per-task   option)
+		uint32_t mem     = 0 ; // memory in MB           (sbatch --mem            option)
+		uint32_t tmp     = 0 ; // tmp disk in MB         (sbatch --tmp            option)
+		::string part        ; // partition name         (sbatch -p,--partition   option)
+		::string gres        ; // generic resources      (sbatch --gres           option)
+		::string licence     ; // licence                (sbtach -L,--licenses    option)
+		::string feature     ; // feature/contraint      (sbatch -C,--constraint  option)
+		::string qos         ; // Quality Of Service     (sbtach -q,--qos         option)
+		::string reserv      ; // Reservation            (sbtach -r,--reservation option)
+		::string excludes    ; // List of required nodes (sbatch -w,--nodelist    option)
+		::string nodes       ; // List of excludes nodes (sbatch -x,--exclude     option)
 		bool operator==(RsrcsDataSingle const&) const = default;
 	} ;
 
@@ -99,7 +103,7 @@ namespace Backends::Slurm {
 	} ;
 	template< class Data , ::unsigned_integral Cnt > ::umap<Data,Cnt> Shared<Data,Cnt>::_s_store ;
 
-	using Rsrcs     = Shared<RsrcsData,JobIdx> ;
+	using Rsrcs = Shared<RsrcsData,JobIdx> ;
 }
 
 namespace std {
@@ -155,6 +159,7 @@ namespace Backends::Slurm {
 				spawned_jobs  .clear() ;
 			}
 			// data
+			RsrcsData                          forceRsrcs     ;
 			::umap<Rsrcs,::set<PressureEntry>> waiting_queues ;
 			::umap<JobIdx,CoarseDelay        > waiting_jobs   ;
 			::uset<JobIdx                    > spawned_jobs   ;
@@ -216,7 +221,31 @@ namespace Backends::Slurm {
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
  			SWEAR(!req_map.contains(req)) ;
 			bool verbose = Req(req)->options.flags[ReqFlag::Verbose];
- 			req_map.insert({req,{n_jobs,verbose}}) ;
+			req_map.insert({req,{n_jobs,verbose}}) ;
+			::string args = Req(req)->options.backend_args;
+			if(!args.empty()) {
+				ReqEntry&  entry      = req_map[req];
+				p_cxxopts  optParse   = createParser();
+				::vector_s v_compArgs = splitString(args,' ');
+				char **    argv       = new char *[v_compArgs.size()];
+				uint32_t   nArgs      = 1;
+				uint8_t    compIdx    = 0;
+
+				argv[0] = "slurm"s.data();
+				for(::string &ca: v_compArgs) {
+					cerr << "Arg to parse: " << ca << endl;
+					if(ca!=":") {
+						argv[nArgs++] = ca.data();
+					} else {
+						entry.forceRsrcs.resize(1);
+						parseSlurmArgs(optParse, nArgs, argv, entry.forceRsrcs[compIdx++]);
+						nArgs=1;
+					}
+				}
+				entry.forceRsrcs.resize(1);
+				parseSlurmArgs(optParse, nArgs, argv, entry.forceRsrcs[compIdx]);
+				delete []argv;
+			}
 		}
 		virtual void close_req(ReqIdx req) {
 			if(req_map.size()==1) {
@@ -308,15 +337,6 @@ namespace Backends::Slurm {
 			spawned_map.erase(it) ;
 			return msg;
 		}
-		inline ::string readStderrLog(JobIdx job) const {
-			::string          errLog = getLogStderrPath(job);
-			::string          msg    = to_string("Error from: ", errLog, "\n");
-			std::ifstream     ferr(errLog);
-			std::stringstream buffer;
-			buffer << ferr.rdbuf();
-			msg    += buffer.str();
-			return msg;
-		}
 		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() {
 			// as soon as jobs are started, top-backend handles heart beat
 			::vmap<JobIdx,pair_s<bool/*err*/>> res ;
@@ -393,7 +413,7 @@ namespace Backends::Slurm {
 					}
 					if (candidate==queues.end()) break ;                       // nothing for this req, process next req
 					//
-					uint32_t              slurm_jobid    = 0                     ;
+					uint32_t              slurm_jobid                            ;
 					::set<PressureEntry>& pressure_set   = candidate->second     ;
 					auto                  pressure_first = pressure_set.begin()  ;
 					JobIdx                job            = pressure_first->job   ;
@@ -401,8 +421,9 @@ namespace Backends::Slurm {
 					Rsrcs  const&         rsrcs          = candidate->first      ;
 					auto                  rmap           = rsrcs->vmap()         ;
 					::vector_s            cmd_line       = acquire_cmd_line( MyTag, job, ::move(rmap), wit->second.submit_attrs ) ;
+					RsrcsData             rsrcData       = blendRsrcs(*rsrcs, req_it->second.forceRsrcs);
 					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if(auto ret_s = slurm_spawn_job(job, cmd_line, rsrcs, req_it->second.verbose, &slurm_jobid)) [[unlikely]] {
+					if(auto ret_s = slurm_spawn_job(job, cmd_line, rsrcData, req_it->second.verbose, &slurm_jobid)) [[unlikely]] {
 						job_error.push_back({job,{ret_s.value(),rmap}});
 					} else [[likely]] {
 						spawned_map[job] = {rsrcs, slurm_jobid, wit->second.n_reqs, req_it->second.verbose} ;
@@ -436,6 +457,90 @@ namespace Backends::Slurm {
 		}
 
 	private :
+		using  p_cxxopts = ::unique_ptr<cxxopts::Options>;
+		inline p_cxxopts createParser(void) {
+			p_cxxopts allocated(new cxxopts::Options("slurm", "Slurm options parser for lmake"));
+			auto& options = *allocated;
+			options.add_options()
+				("p,partition"    , "Partition"    , cxxopts::value<::string>())
+				("C,constraint"   , "Constraint"   , cxxopts::value<::string>())
+				("c,cpus-per-task", "cpus-per-task", cxxopts::value<uint16_t>())
+				("gres"           , "gres"         , cxxopts::value<::string>())
+				("mem"            , "mem"          , cxxopts::value<uint32_t>())
+				("L,licenses"     , "licenses"     , cxxopts::value<::string>())
+				("tmp"            , "tmp"          , cxxopts::value<uint32_t>())
+				("q,qos"          , "qos"          , cxxopts::value<::string>())
+				("reservation"    , "reservation"  , cxxopts::value<::string>())
+				("x,exclude"      , "exclude nodes", cxxopts::value<::string>())
+				("w,nodelist"     , "nodes"        , cxxopts::value<::string>())
+				("h,help"         , "Print usage"                              )
+				;
+			return allocated;
+		}
+		void parseSlurmArgs(p_cxxopts& parser, int argc, char** argv, RsrcsDataSingle& rsrc) {
+			try {
+				auto result = parser->parse(argc, argv);
+				if (result.count("help")) {
+					::cerr << parser->help() << ::endl;
+				}
+				if(result.count("partition"    )) rsrc.part     = result["partition"    ].as<::string>();
+				if(result.count("constraint"   )) rsrc.feature  = result["constraint"   ].as<::string>();
+				if(result.count("cpus-per-task")) rsrc.cpu      = result["cpus-per-task"].as<uint16_t>();
+				if(result.count("gres"         )) rsrc.gres     = result["gres"         ].as<::string>();
+				if(result.count("mem"          )) rsrc.mem      = result["mem"          ].as<uint32_t>();
+				if(result.count("tmp"          )) rsrc.tmp      = result["tmp"          ].as<uint32_t>();
+				if(result.count("licenses"     )) rsrc.licence  = result["licenses"     ].as<::string>();
+				if(result.count("qos"          )) rsrc.qos      = result["qos"          ].as<::string>();
+				if(result.count("reservation"  )) rsrc.reserv   = result["reservation"  ].as<::string>();
+				if(result.count("nodelist"     )) rsrc.nodes    = result["nodelist"     ].as<::string>();
+				if(result.count("exclude"      )) rsrc.excludes = result["exclude"      ].as<::string>();
+			} catch(const cxxopts::exceptions::exception& e) {
+				cerr << "Error while parsing slurm options: " << e.what() << ::endl;
+				exit(1);
+			}
+		}
+		inline RsrcsData blendRsrcs(RsrcsData const& rsrcsIn, RsrcsData const& forceRsrscs) const {
+			if(forceRsrscs.empty()) return rsrcsIn; //fast path
+			RsrcsData newRsrc;
+			for(uint32_t i=0; RsrcsDataSingle const& r: rsrcsIn) {
+				const RsrcsDataSingle& forceData = forceRsrscs[i];
+				newRsrc.resize(1);
+				#define SET_RSRC_INT(field) newRsrc[i].field =  forceData.field         ? forceData.field : r.field
+				#define SET_RSRC_STR(field) newRsrc[i].field = !forceData.field.empty() ? forceData.field : r.field
+				SET_RSRC_INT(cpu     );
+				SET_RSRC_INT(mem     );
+				SET_RSRC_INT(tmp     );
+				SET_RSRC_STR(part    );
+				SET_RSRC_STR(gres    );
+				SET_RSRC_STR(licence );
+				SET_RSRC_STR(feature );
+				SET_RSRC_STR(qos     );
+				SET_RSRC_STR(reserv  );
+				SET_RSRC_STR(nodes   );
+				SET_RSRC_STR(excludes);
+				i++;
+				if(forceRsrscs.size() <= i) break;
+			}
+			return newRsrc;
+		}
+		inline ::string readStderrLog(JobIdx job) const {
+			::string          errLog = getLogStderrPath(job);
+			::string          msg    = to_string("Error from: ", errLog, "\n");
+			std::ifstream     ferr(errLog);
+			std::stringstream buffer;
+			buffer << ferr.rdbuf();
+			msg    += buffer.str();
+			return msg;
+		}
+		inline ::vector_s splitString(::string& s, char delimiter) const {
+			string parsed;
+			stringstream input(s);
+			::vector_s v_out;
+			while(getline(input,parsed,delimiter)){
+				v_out.push_back(parsed);
+			}
+			return v_out;
+		}
 		void slurm_cancel(uint32_t jobid) const {
 			int err;
 			//This for loop with a retry comes from the scancel Slurm utility code
@@ -511,8 +616,8 @@ namespace Backends::Slurm {
 		inline ::string getLogStderrPath(JobIdx job) const {return getLogPath(job) + "/stderr"s            ;}
 		inline ::string getLogStdoutPath(JobIdx job) const {return getLogPath(job) + "/stdout"s            ;}
 
-		inline ::optional<::string> slurm_spawn_job(JobIdx job, ::vector_s& cmd_line, Rsrcs  const& rsrcs, bool verbose, uint32_t * slurmJobId) {
-			uint32_t  n_comp   = rsrcs->size(); SWEAR(n_comp>0) ;
+		inline ::optional<::string> slurm_spawn_job(JobIdx job, ::vector_s& cmd_line, RsrcsData const& rsrcs, bool verbose, uint32_t * slurmJobId) {
+			uint32_t  n_comp   = rsrcs.size(); SWEAR(n_comp>0) ;
 			static char*env[1] = {const_cast<char *>("")};
 			::string  wd       = *g_root_dir;
 			auto      job_name = *(--::filesystem::path(wd).end()) / Job(job).user_name(); // ="repoDir/target"
@@ -525,7 +630,7 @@ namespace Backends::Slurm {
 				Disk::make_dir(getLogPath(job));
 			}
 			::vector<job_desc_msg_t> jDesc(n_comp);
-			for(uint32_t i=0; RsrcsDataSingle const& r: *rsrcs) {
+			for(uint32_t i=0; RsrcsDataSingle const& r: rsrcs) {
 				job_desc_msg_t* j = &jDesc[i];
 				slurm_init_job_desc_msg(j);
 				j->env_size         = 1;
@@ -537,11 +642,15 @@ namespace Backends::Slurm {
 				j->std_out          = verbose ? s_outPath.data() : const_cast<char *>("/dev/null");
 				j->work_dir         = wd.data ();
 				j->name             = const_cast<char *>(job_name.c_str());
-				if(!r.feature.empty()) j->features      = const_cast<char *>(r.feature.data());
-				if(!r.licence.empty()) j->licenses      = const_cast<char *>(r.licence.data());
-				if(!r.part   .empty()) j->partition     = const_cast<char *>(r.part   .data());
-				if(!r.gres   .empty()) j->tres_per_node = const_cast<char *>(r.gres   .data());
-				if(i==0)               j->script        =                    script   .data() ;
+				if(!r.excludes.empty()) j->exc_nodes     = const_cast<char *>(r.excludes.data());
+				if(!r.nodes   .empty()) j->req_nodes     = const_cast<char *>(r.nodes   .data());
+				if(!r.reserv  .empty()) j->reservation   = const_cast<char *>(r.reserv  .data());
+				if(!r.qos     .empty()) j->qos           = const_cast<char *>(r.qos     .data());
+				if(!r.feature .empty()) j->features      = const_cast<char *>(r.feature .data());
+				if(!r.licence .empty()) j->licenses      = const_cast<char *>(r.licence .data());
+				if(!r.part    .empty()) j->partition     = const_cast<char *>(r.part    .data());
+				if(!r.gres    .empty()) j->tres_per_node = const_cast<char *>(r.gres    .data());
+				if(i==0)                j->script        =                    script    .data() ;
 				i++;
 			}
 			int ret;
@@ -577,13 +686,17 @@ namespace Backends::Slurm {
 		const auto s2u32 = s2val<uint32_t>;
 		for( auto const& [k,v] : m ) {
 			switch (k[0]) {
-				case 'p' : if (k.starts_with("part"   )) grow(*this,::atoi(&k[4])).part    =         v  ; else rsrcThrow(k); break ;
-				case 't' : if (k.starts_with("tmp"    )) grow(*this,::atoi(&k[3])).tmp     =   m2u32(v) ; else rsrcThrow(k); break ;
-				case 'g' : if (k.starts_with("gres"   )) grow(*this,::atoi(&k[4])).gres    = "gres:"+v  ; else rsrcThrow(k); break ;
-				case 'f' : if (k.starts_with("feature")) grow(*this,::atoi(&k[7])).feature =         v  ; else rsrcThrow(k); break ;
-				case 'l' : if (k.starts_with("licence")) grow(*this,::atoi(&k[7])).licence =         v  ; else rsrcThrow(k); break ;
-				case 'c' : if (k.starts_with("cpu"    )) grow(*this,::atoi(&k[3])).cpu     =   s2u32(v) ; else rsrcThrow(k); break ;
-				case 'm' : if (k.starts_with("mem"    )) grow(*this,::atoi(&k[3])).mem     =   m2u32(v) ; else rsrcThrow(k); break ;
+				case 'p' : if (k.starts_with("part"    )) grow(*this,::atoi(&k[4])).part     =         v  ; else rsrcThrow(k); break ;
+				case 't' : if (k.starts_with("tmp"     )) grow(*this,::atoi(&k[3])).tmp      =   m2u32(v) ; else rsrcThrow(k); break ;
+				case 'g' : if (k.starts_with("gres"    )) grow(*this,::atoi(&k[4])).gres     = "gres:"+v  ; else rsrcThrow(k); break ;
+				case 'f' : if (k.starts_with("feature" )) grow(*this,::atoi(&k[7])).feature  =         v  ; else rsrcThrow(k); break ;
+				case 'l' : if (k.starts_with("licence" )) grow(*this,::atoi(&k[7])).licence  =         v  ; else rsrcThrow(k); break ;
+				case 'c' : if (k.starts_with("cpu"     )) grow(*this,::atoi(&k[3])).cpu      =   s2u32(v) ; else rsrcThrow(k); break ;
+				case 'm' : if (k.starts_with("mem"     )) grow(*this,::atoi(&k[3])).mem      =   m2u32(v) ; else rsrcThrow(k); break ;
+				case 'q' : if (k.starts_with("qos"     )) grow(*this,::atoi(&k[3])).qos      =         v  ; else rsrcThrow(k); break ;
+				case 'r' : if (k.starts_with("reserv"  )) grow(*this,::atoi(&k[6])).reserv   =         v  ; else rsrcThrow(k); break ;
+				case 'n' : if (k.starts_with("nodes"   )) grow(*this,::atoi(&k[5])).nodes    =         v  ; else rsrcThrow(k); break ;
+				case 'e' : if (k.starts_with("excludes")) grow(*this,::atoi(&k[8])).excludes =         v  ; else rsrcThrow(k); break ;
 				default  : rsrcThrow(k);
 			}
 		}
