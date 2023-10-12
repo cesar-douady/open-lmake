@@ -88,6 +88,18 @@ then HAS_SLURM=1
 else HAS_SLURM=0
 fi
 
+#
+# LD_LIBRARY_PATH for python
+# in current LD_LIBRARY_PATH, at most one entry is necessary to run python, this is the only one we are interested in
+#
+if LD_LIBRARY_PATH= $PYTHON </dev/null ; then
+	PYTHON_LD_LIBRARY_PATH=
+else
+	for PYTHON_LD_LIBRARY_PATH in ${LD_LIBRARY_PATH//:/ } ; do
+		LD_LIBRARY_PATH=$PYTHON_LD_LIBRARY_PATH $PYTHON</dev/null && break
+	done
+fi
+
 cat <<EOF
 	#define HAS_CLOSE_RANGE        $HAS_CLOSE_RANGE
 	#define HAS_PTRACE             $HAS_PTRACE
@@ -96,4 +108,5 @@ cat <<EOF
 	#define HAS_OSTRINGSTREAM_VIEW $HAS_OSTRINGSTREAM_VIEW
 	#define HAS_SLURM              $HAS_SLURM
 	#define PYTHON                 "$PYTHON"
+	#define PYTHON_LD_LIBRARY_PATH "$PYTHON_LD_LIBRARY_PATH"
 EOF

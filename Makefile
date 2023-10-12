@@ -5,7 +5,7 @@
 
 #
 # build configuration
-#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
 MAKEFLAGS := -j$(shell nproc||echo 1) -k
 
@@ -19,7 +19,7 @@ OPT_FLAGS := -O3
 
 GIT := $(shell bash -c 'type -p git')
 
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 
 MAKEFLAGS += -r -R
@@ -120,8 +120,9 @@ PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 sys_config.h : sys_config
 	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
-HAS_PTRACE := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
-HAS_SLURM  := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
+HAS_PTRACE             := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
+HAS_SLURM              := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
+PYTHON_LD_LIBRARY_PATH := $(shell awk '$$2=="PYTHON_LD_LIBRARY_PATH" { print substr($$3,2,length($$3)-2) }' sys_config.h)
 
 # Slurm
 SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lslurm -lresolv)
@@ -207,7 +208,7 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	mkdir -p $(@D)
 	cp $<    $@
 	echo "_git = '$(GIT)'" >>$@
-	[ '$(LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(LD_LIBRARY_PATH)'" >>$@
+	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
 
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
 LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)

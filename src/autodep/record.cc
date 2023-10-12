@@ -133,7 +133,7 @@ ssize_t Record::backdoor( const char* msg , char* buf , size_t sz ) {
 	return             os << p.file             ;
 }
 
-Record::Chdir::Chdir( Record& r , Path const& path ) : Solve{r,path,true/*no_follow*/} {
+Record::Chdir::Chdir( Record& r , Path&& path ) : Solve{r,::move(path),true/*no_follow*/} {
 	if (s_autodep_env().auto_mkdir && !real.empty() ) Disk::make_dir(s_root_fd(),real,false/*unlink_ok*/) ;
 }
 int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
@@ -143,15 +143,15 @@ int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
 	return rc ;
 }
 
-Record::Exec::Exec( Record& r , Path const& path , bool no_follow , ::string const& comment_ ) : Solve{r,path,no_follow,comment_} {
+Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
 	SolveReport sr {.real=real,.kind=kind} ;
 	for( auto&& [file,a] : r.real_path.exec(sr) ) r._report_dep( ::move(file) , a , comment ) ;
 }
 
-Record::Lnk::Lnk( Record& r , Path const& src_ , Path const& dst_ , int flags , ::string const& comment_ ) :
+Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , int flags , ::string const& comment_ ) :
 	no_follow { bool(flags&AT_SYMLINK_FOLLOW)                                             }
-,	src       { r , src_ , !no_follow        , to_string(comment_,".src",::hex,'.',flags) }
-,	dst       { r , dst_ , true/*no_follow*/ , to_string(comment_,".dst",::hex,'.',flags) }
+,	src       { r , ::move(src_) , !no_follow        , to_string(comment_,".src",::hex,'.',flags) }
+,	dst       { r , ::move(dst_) , true/*no_follow*/ , to_string(comment_,".dst",::hex,'.',flags) }
 {}
 int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	if (src.real==dst.real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
@@ -165,7 +165,7 @@ int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	return rc ;
 }
 
-Record::Open::Open( Record& r , Path const& path , int flags , ::string const& comment_ ) : Solve{ r , path , bool(flags&O_NOFOLLOW) , to_string(comment_,::hex,'.',flags) } {
+Record::Open::Open( Record& r , Path&& path , int flags , ::string const& comment_ ) : Solve{ r , ::move(path) , bool(flags&O_NOFOLLOW) , to_string(comment_,::hex,'.',flags) } {
 	bool do_stat = flags&O_PATH ;
 	//
 	if ( flags&(O_DIRECTORY|O_TMPFILE)          ) { kind=Kind::Ext ; return ; } // we already solved, this is enough for a directory
@@ -200,12 +200,12 @@ int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file
 	return fd_rc ;
 }
 
-Record::Read::Read( Record& r , Path const& path , bool no_follow , ::string const& comment_ ) : Solve{r,path,no_follow,comment_} {
+Record::Read::Read( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
 	if (kind<=Kind::Dep) r._report_dep( ::move(real) , Access::Reg , comment ) ;
 }
 
-Record::ReadLnk::ReadLnk( Record& r , Path const& path , char* buf_ , size_t sz_ , ::string const& comment_ ) : Solve{r,path,true/*no_follow*/,comment_} , buf{buf_} , sz{sz_} {
-	SWEAR(path.at!=Backdoor) ;
+Record::ReadLnk::ReadLnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} , buf{buf_} , sz{sz_} {
+	SWEAR(at!=Backdoor) ;
 }
 
 ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
@@ -237,14 +237,10 @@ ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 }
 
 // flags is not used if echange is not supported
-Record::Rename::Rename( Record& r , Path const& src_ , Path const& dst_ , u_int flags [[maybe_unused]] , ::string const& comment_ ) :
-	src{ r , src_ , true/*no_follow*/ , to_string(comment_+".rd",::hex,'.',flags) }
-,	dst{ r , dst_ , true/*no_follow*/ , to_string(comment_+".wr",::hex,'.',flags) }
+Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , u_int flags [[maybe_unused]] , ::string const& comment_ ) :
+	src{ r , ::move(src_) , true/*no_follow*/ , to_string(comment_+".rd",::hex,'.',flags) }
+,	dst{ r , ::move(dst_) , true/*no_follow*/ , to_string(comment_+".wr",::hex,'.',flags) }
 {
-r._report_trace("src_:",src_) ; // XXX : remove when bug linked to rename is fixed
-r._report_trace("dst_:",dst_) ;
-r._report_trace("src :",src ) ;
-r._report_trace("dst :",dst ) ;
 	#ifdef RENAME_EXCHANGE
 		exchange = flags & RENAME_EXCHANGE ;
 	#endif
@@ -256,8 +252,6 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		src.comment += "<>" ;
 		dst.comment += "<>" ;
 	}
-r._report_trace("src :",src ) ; // XXX : remove when bug linked to rename is fixed
-r._report_trace("dst :",dst ) ;
 	if (rc==0) {                                                                        // rename has occurred
 		if ( dst.kind==Kind::Tmp || (exchange&&src.kind==Kind::Tmp) ) r._report_tmp() ;
 		// handle directories (remember that rename has already occured when we walk)
@@ -325,7 +319,7 @@ Record::Search::Search( Record& r , Path const& path , bool exec , const char* p
 	}
 }
 
-Record::Stat::Stat( Record& r , Path const& path , bool no_follow , ::string const& comment_ ) : Solve{r,path,no_follow,comment_} {
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
 	if (s_autodep_env().ignore_stat) kind = Kind::Ext ;                        // no report if stats are ignored
 }
 int Record::Stat::operator()( Record& r , int rc , bool no_file ) {
@@ -333,13 +327,13 @@ int Record::Stat::operator()( Record& r , int rc , bool no_file ) {
 	return rc ;
 }
 
-Record::SymLnk::SymLnk( Record& r , Path const& path , ::string const& comment_ ) : Solve{r,path,true/*no_follow*/,comment_} {}
+Record::SymLnk::SymLnk( Record& r , Path&& path , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} {}
 int Record::SymLnk::operator()( Record& r , int rc ) {
 	if ( kind==Kind::Repo && rc>=0 ) r._report_target( ::move(real) , comment ) ;
 	return rc ;
 }
 
-Record::Unlink::Unlink( Record& r , Path const& path, bool remove_dir , ::string const& comment_ ) : Solve{r,path,true/*no_follow*/,comment_} {
+Record::Unlink::Unlink( Record& r , Path&& path, bool remove_dir , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} {
 	if (remove_dir) kind = Kind::Ext ;
 }
 int Record::Unlink::operator()( Record& r , int rc ) {

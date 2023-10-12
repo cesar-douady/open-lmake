@@ -77,8 +77,8 @@ template<class Action,bool NF=false,bool DP=false> struct AuditAction : Ctx,Acti
 	// and must be the one after the actual call to libc when auditing code finally leave
 	// Ctx contains save_errno in its cxtor and restore_errno in its dxtor
 	// so here, errno must be restored at the end of cxtor and saved at the beginning of operator()
-	template<class... A> AuditAction (Path const& p ,               A&&... args) requires(!DP) : Action{auditer(),p ,   ::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction (Path const& p1,Path const& p2,A&&... args) requires( DP) : Action{auditer(),p1,p2,::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction (Path&& p ,          A&&... args) requires(!DP) : Action{auditer(),::move(p ),           ::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction (Path&& p1,Path&& p2,A&&... args) requires( DP) : Action{auditer(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
 	// services
 	template<class T> T operator()(            T res) requires(!NF) { save_errno() ; return Action::operator()(auditer(),       res              ) ; }
 	template<class T> T operator()(            T res) requires( NF) { save_errno() ; return Action::operator()(auditer(),       res,get_no_file()) ; }

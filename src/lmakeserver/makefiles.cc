@@ -94,9 +94,18 @@ namespace Engine {
 		::vector_s  cmd_line      = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } ;
 		Trace trace("_read_makefiles",Pdate::s_now()) ;
 		gather_deps.autodep_env.src_dirs_s = {"/"} ;
+		//
+		::string sav_ld_library_path ;
+		if (PYTHON_LD_LIBRARY_PATH[0]!=0) {
+			sav_ld_library_path = get_env("LD_LIBRARY_PATH") ;
+			if (!sav_ld_library_path.empty()) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PYTHON_LD_LIBRARY_PATH) ) ;
+			else                              set_env( "LD_LIBRARY_PATH" ,                                   PYTHON_LD_LIBRARY_PATH  ) ;
+		}
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used communicate with client
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (PYTHON_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
+		//
 		if (status!=Status::Ok) throw "cannot read makefiles"s ;
 		//
 		::string   content = read_content(makefile_data) ;

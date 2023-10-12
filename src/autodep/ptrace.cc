@@ -215,7 +215,8 @@ template<bool At> Fd _at(uint64_t val) { if (At) return val ; else return Fd::Cw
 // chdir
 template<bool At> void entry_chdir( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* ) {
 	try {
-		info.action.chdir = RecordSock::Chdir( info.record , { _at<At>(entry.args[0]) , At?nullptr:get_str(pid,entry.args[0]).c_str() } ) ;
+		if (At) info.action.chdir = RecordSock::Chdir( info.record , { Fd(entry.args[0])          } ) ;
+		else    info.action.chdir = RecordSock::Chdir( info.record , { get_str(pid,entry.args[0]) } ) ;
 	} catch (int) {}
 }
 void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {
@@ -227,7 +228,7 @@ void exit_chdir( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 template<bool At,bool Flags> void entry_execve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = entry.args[3+At] ;
 	try {
-		RecordSock::Exec( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , Flags&&(flags&AT_SYMLINK_NOFOLLOW) , comment ) ;
+		RecordSock::Exec( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]) } , Flags&&(flags&AT_SYMLINK_NOFOLLOW) , comment ) ;
 	} catch (int) {}
 }
 
@@ -237,8 +238,8 @@ template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , Syscall
 	try {
 		info.action.lnk = RecordSock::Lnk(
 			info.record
-		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str() }
-		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str() }
+		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]) }
+		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]) }
 		,	flags
 		,	comment
 		) ;
@@ -252,7 +253,7 @@ void exit_lnk( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 template<bool At> void entry_open( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = entry.args[1+At] ;
 	try {
-		info.action.open = RecordSock::Open( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , flags , comment ) ;
+		info.action.open = RecordSock::Open( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]) } , flags , comment ) ;
 	}
 	catch (int) {}
 }
@@ -273,7 +274,7 @@ template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , SyscallEntry 
 			put_str( pid , entry.args[1+At] , buf ) ;
 			np_ptrace_clear_syscall(pid) ;
 		} else {
-			info.action.read_lnk = RecordSock::ReadLnk( info.record , { at , get_str(pid,entry.args[0+At]).c_str() } , comment ) ;
+			info.action.read_lnk = RecordSock::ReadLnk( info.record , { at , get_str(pid,entry.args[0+At]) } , comment ) ;
 		}
 	} catch (int) {}
 }
@@ -287,8 +288,8 @@ template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , Sysc
 	try {
 		info.action.rename = RecordSock::Rename(
 			info.record
-		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]).c_str() }
-		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]).c_str() }
+		,	{ _at<At>(entry.args[0   ]) , get_str(pid,entry.args[0+At  ]) }
+		,	{ _at<At>(entry.args[1+At]) , get_str(pid,entry.args[1+At*2]) }
 		,	flags
 		,	comment
 		) ;
@@ -301,7 +302,7 @@ void exit_rename( PidInfo& info , pid_t pid , SyscallExit const& res ) {
 // symlink
 template<bool At> void entry_sym_lnk( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment) {
 	try {
-		info.action.sym_lnk = RecordSock::SymLnk( info.record , { _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]).c_str() } , comment ) ;
+		info.action.sym_lnk = RecordSock::SymLnk( info.record , { _at<At>(entry.args[1]) , get_str(pid,entry.args[1+At]) } , comment ) ;
 	} catch (int) {}
 }
 void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
@@ -312,7 +313,7 @@ void exit_sym_lnk( PidInfo& info , pid_t , SyscallExit const& res ) {
 template<bool At> void entry_unlink( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
 	int flags = At ? entry.args[1+At] : 0 ;
 	try {
-		info.action.unlink = RecordSock::Unlink( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , flags&AT_REMOVEDIR , comment ) ;
+		info.action.unlink = RecordSock::Unlink( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]) } , flags&AT_REMOVEDIR , comment ) ;
 	} catch (int) {}
 }
 void exit_unlink( PidInfo& info , pid_t , SyscallExit const& res ) {
@@ -330,7 +331,7 @@ template<bool At,int FlagArg> void entry_stat( PidInfo& info , pid_t pid , Sysca
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
 	try {
-		RecordSock::Stat( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , no_follow , comment )(info.record) ;
+		RecordSock::Stat( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]) } , no_follow , comment )(info.record) ;
 	} catch (int) {}
 }
 template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , SyscallEntry const& entry , const char* comment ) {
@@ -341,7 +342,7 @@ template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , Sysc
 		default         : no_follow = entry.args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
 	try {
-		RecordSock::Solve( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]).c_str() } , no_follow , comment ) ;
+		RecordSock::Solve( info.record , { _at<At>(entry.args[0]) , get_str(pid,entry.args[0+At]) } , no_follow , comment ) ;
 	} catch (int) {}
 }
 

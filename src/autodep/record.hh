@@ -104,40 +104,61 @@ public :
 		using Kind = Disk::Kind ;
 		friend ::ostream& operator<<( ::ostream& , Path const& ) ;
 		// cxtors & casts
-		Path() = default ;
-		Path(                  const char* p ) :                        file{p } {}
-		Path(           Fd a                 ) : has_at{true} , at{a} , file{""} {}
-		Path(           Fd a , const char* p ) : has_at{true} , at{a} , file{p } {}
-		Path( bool ha , Fd a , const char* p ) : has_at{ha  } , at{a} , file{p } {}
-		~Path() { if (allocated) delete[] file ; }
-		// servicess
-		void allocate(::string const& file_) {
-			if (allocated) delete[] file ;
-			char* data = new char[file_.size()+1] ;                            // +1 to account for terminating null
-			::memcpy(data,file_.c_str(),file_.size()+1) ;
-			file      = data    ;
+		Path(                                             )                                          {                                  }
+		Path( Fd a                                        ) : has_at{true} , at{a}                   {                                  }
+		Path(        const char*     f , bool steal=true  ) :                        file{f        } { if (!steal) allocate(        ) ; }
+		Path( Fd a , const char*     f , bool steal=true  ) : has_at{true} , at{a} , file{f        } { if (!steal) allocate(        ) ; }
+		Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
+		Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
+		//
+		Path(Path && p) { *this = ::move(p) ; }
+		Path& operator=(Path&& p) {
+			deallocate() ;
+			has_at      = p.has_at    ;
+			kind        = p.kind      ;
+			at          = p.at        ;
+			file        = p.file      ;
+			allocated   = p.allocated ;
+			p.allocated = false       ; // we have clobbered allocation, so it is no more p's responsibility
+			return *this ;
+		}
+		//
+		~Path() { deallocate() ; }
+		// services
+		void deallocate() { if (allocated) delete[] file ; }
+		//
+		void allocate(                          ) { if (!allocated) allocate( at      , file      , strlen(file) ) ; }
+		void allocate(        size_t sz         ) { if (!allocated) allocate( at      , file      , sz           ) ; }
+		void allocate(        ::string const& f ) {                 allocate( Fd::Cwd , f.c_str() , f.size()     ) ; }
+		void allocate( Fd a , ::string const& f ) {                 allocate( a       , f.c_str() , f.size()     ) ; }
+		void allocate( Fd at_ , const char* file_ , size_t sz ) {
+			SWEAR( has_at || at_==Fd::Cwd ) ;
+			deallocate() ;
+			char* buf = new char[sz+1] ;                                       // +1 to account for terminating null
+			::memcpy(buf,file_,sz+1) ;
+			file      = buf     ;
 			at        = Fd::Cwd ;
 			allocated = true    ;
 		}
-		void share(const char* file_) {
-			if (allocated) delete[] file ;
-			file      = file_   ;
-			at        = Fd::Cwd ;
-			allocated = false   ;
+		void share(const char* file_) { share(Fd::Cwd,file_) ; }
+		void share( Fd at_ , const char* file_ ) {
+			SWEAR( has_at || at_==Fd::Cwd ) ;
+			deallocate() ;
+			file      = file_ ;
+			at        = at_   ;
+			allocated = false ;
 		}
-		void allocate( Fd at_ , ::string const& file_ ) { SWEAR(has_at) ; allocate(file_) ; at = at_ ; }
-		void share   ( Fd at_ , const char*     file_ ) { SWEAR(has_at) ; share   (file_) ; at = at_ ; }
 		// data
 		bool        has_at    = false         ;            // if false => at is not managed and may not be substituted any non-default value
 		bool        allocated = false         ;            // if true <=> file has been allocated and must be freed upon destruction
 		Kind        kind      = Kind::Unknown ;            // updated when analysis is done
 		Fd          at        = Fd::Cwd       ;            // at & file may be modified, but together, they always refer to the same file
-		const char* file      = nullptr       ;            // .
+		const char* file      = ""            ;            // .
 	} ;
 	struct Real : Path {
 		// cxtors & casts
 		Real() = default ;
-		Real( Path const& p , ::string const& c={} ) : Path{p} , comment{c} {}
+		Real( Path&& path , ::string const& comment_={} ) : Path{::move(path)} , comment{comment_} {}
 		// services
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		// data
@@ -147,26 +168,26 @@ public :
 	struct Solve : Real {
 		// search (executable if asked so) file in path_var
 		Solve()= default ;
-		Solve( Record& r , Path const& path , bool no_follow , ::string comment_={} ) : Real{path,comment_} {
+		Solve( Record& r , Path&& path , bool no_follow , ::string const& comment_={} ) : Real{::move(path),comment_} {
 			real = r._solve( *this , no_follow , comment ).real ;
 		}
 	} ;
 	struct Chdir : Solve {
 		// cxtors & casts
 		Chdir() = default ;
-		Chdir( Record& , Path const& ) ;
+		Chdir( Record& , Path&& ) ;
 		// services
 		int operator()( Record& , int rc , pid_t pid=0 ) ;
 	} ;
 	struct Exec : Solve {
 		// cxtors & casts
 		Exec() = default ;
-		Exec( Record& , Path const& , bool no_follow , ::string const& comment="exec" ) ;
+		Exec( Record& , Path&& , bool no_follow , ::string const& comment="exec" ) ;
 	} ;
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;
-		Lnk( Record& , Path const& src , Path const& dst , int flags=0 , ::string const& comment="lnk" ) ;
+		Lnk( Record& , Path&& src , Path&& dst , int flags=0 , ::string const& comment="lnk" ) ;
 		// services
 		int operator()( Record& , int rc , bool no_file ) ;                    // no_file is only meaning full if rc is in error
 		// data
@@ -177,7 +198,7 @@ public :
 	struct Open : Solve {
 		// cxtors & casts
 		Open() = default ;
-		Open( Record& , Path const& , int flags , ::string const& comment="open" ) ;
+		Open( Record& , Path&& , int flags , ::string const& comment="open" ) ;
 		// services
 		int operator()( Record& , bool has_fd , int fd_rc , bool no_file=false ) ;   // no_file is only meaningful if rc is in error
 		// data
@@ -188,14 +209,14 @@ public :
 	struct Read : Solve {
 		// cxtors & casts
 		Read() = default ;
-		Read( Record& , Path const& , bool no_follow , ::string const& comment="read" ) ;
+		Read( Record& , Path&& , bool no_follow , ::string const& comment="read" ) ;
 	} ;
 	struct ReadLnk : Solve {
 		// cxtors & casts
 		ReadLnk() = default ;
 		// buf and sz are only used when mapping tmp or processing backdoor
-		ReadLnk( Record&   , Path const&   , char* buf , size_t sz , ::string const& comment="read_lnk" ) ;
-		ReadLnk( Record& r , Path const& p ,                         ::string const& comment="read_lnk" ) : ReadLnk{r,p,nullptr/*buf*/,0/*sz*/,comment} {
+		ReadLnk( Record&   , Path&&   , char* buf , size_t sz , ::string const& comment="read_lnk" ) ;
+		ReadLnk( Record& r , Path&& p ,                         ::string const& comment="read_lnk" ) : ReadLnk{r,::move(p),nullptr/*buf*/,0/*sz*/,comment} {
 			SWEAR(p.at!=Backdoor) ;                                            // backdoor works in cxtor and need buf to put its result
 		}
 		// services
@@ -207,7 +228,7 @@ public :
 	struct Rename {
 		// cxtors & casts
 		Rename() = default ;
-		Rename( Record& , Path const& src , Path const& dst , unsigned int flags=0 , ::string const& comment="rename" ) ;
+		Rename( Record& , Path&& src , Path&& dst , unsigned int flags=0 , ::string const& comment="rename" ) ;
 		// services
 		int operator()( Record& , int rc , bool no_file ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data
@@ -223,7 +244,7 @@ public :
 	struct Stat : Solve {
 		// cxtors & casts
 		Stat() = default ;
-		Stat( Record& , Path const& , bool no_follow , ::string const& comment="stat" ) ;
+		Stat( Record& , Path&& , bool no_follow , ::string const& comment="stat" ) ;
 		// services
 		int operator()( Record& , int rc=0 , bool no_file=true ) ;             // by default, be pessimistic : success & if specified as error, consider we are missing the file
 		template<class T> T* operator()( Record& r , T* res , bool no_file ) {
@@ -234,24 +255,19 @@ public :
 	struct SymLnk : Solve {
 		// cxtors & casts
 		SymLnk() = default ;
-		SymLnk( Record& , Path const& , ::string const& comment="sym_lnk" ) ;
+		SymLnk( Record& , Path&& , ::string const& comment="sym_lnk" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 	} ;
 	struct Unlink : Solve {
 		// cxtors & casts
 		Unlink() = default ;
-		Unlink( Record& , Path const& , bool remove_dir=false , ::string const& comment="unlink" ) ;
+		Unlink( Record& , Path&& , bool remove_dir=false , ::string const& comment="unlink" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 	} ;
 	//
 	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }
-	void solve( Path const& path , bool no_follow ) {
-		if (path.at==Backdoor) return ;
-		Path p = path ;
-		_solve(p,no_follow) ;
-	}
 	//
 protected :
 	SolveReport _solve( Path& , bool no_follow , ::string const& comment={} ) ;
