@@ -3,8 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "sys_config.h"
-
+#include <dlfcn.h>
 #include <filesystem>
 #include <charconv>
 #include <sys/sysinfo.h>
@@ -177,13 +176,25 @@ namespace Backends::Slurm {
 			SlurmBackend& self = *new SlurmBackend ;
 			s_register(MyTag,self) ;
 		}
-		~SlurmBackend() {slurm_fini();}
+		~SlurmBackend() {
+			DYNAPI_slurm_fini();
+			if(slurmHandler) dlclose(slurmHandler);
+		}
 
 		// services
 		virtual bool is_local() const {
 			return false ;
 		}
 		virtual bool config(Config::Backend const& config) {
+			if(loadSlurmApi()) return false;
+
+			DYNAPI_slurm_init(nullptr);
+			slurmd_status_t * slurmd_status;
+			if (DYNAPI_slurm_load_slurmd_status(&slurmd_status)) {
+				return false; //Probably no service slurmd available
+			}
+			DYNAPI_slurm_free_slurmd_status(slurmd_status);
+
 			for( auto const& [k,v] : config.dct ) {
 				if(k=="n_max_queue_jobs") {
 					auto [ptr, ec] = ::from_chars(v.data(), v.data()+v.size(), n_max_queue_jobs);
@@ -191,12 +202,6 @@ namespace Backends::Slurm {
 					if (n_max_queue_jobs==0) throw "n_max_queue_jobs must be > 0"s;
 				}
 			}
-			slurm_init(nullptr);
-			slurmd_status_t * slurmd_status;
-			if (slurm_load_slurmd_status(&slurmd_status)) {
-				return false; //Probably no service slurmd available
-			}
-			slurm_free_slurmd_status(slurmd_status);
 			return true;
 		}
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
@@ -233,7 +238,6 @@ namespace Backends::Slurm {
 
 				argv[0] = "slurm"s.data();
 				for(::string &ca: v_compArgs) {
-					cerr << "Arg to parse: " << ca << endl;
 					if(ca!=":") {
 						argv[nArgs++] = ca.data();
 					} else {
@@ -258,8 +262,25 @@ namespace Backends::Slurm {
 			req_map.erase(req) ;
 		}
 	private :
-		uint32_t n_max_queue_jobs = -1; //no limit by default
-
+		#define DECL_DYN_SYMBOL(symbol) decltype(symbol)* DYNAPI_ ## symbol
+		uint32_t n_max_queue_jobs = -1     ; //no limit by default
+		void *   slurmHandler     = nullptr;
+		DECL_DYN_SYMBOL(slurm_init                             );
+		DECL_DYN_SYMBOL(slurm_fini                             );
+		DECL_DYN_SYMBOL(slurm_load_slurmd_status               );
+		DECL_DYN_SYMBOL(slurm_free_slurmd_status               );
+		DECL_DYN_SYMBOL(slurm_kill_job                         );
+		DECL_DYN_SYMBOL(slurm_get_errno                        );
+		DECL_DYN_SYMBOL(slurm_strerror                         );
+		DECL_DYN_SYMBOL(slurm_load_job                         );
+		DECL_DYN_SYMBOL(slurm_free_job_info_msg                );
+		DECL_DYN_SYMBOL(slurm_init_job_desc_msg                );
+		DECL_DYN_SYMBOL(slurm_submit_batch_job                 );
+		DECL_DYN_SYMBOL(slurm_submit_batch_het_job             );
+		DECL_DYN_SYMBOL(slurm_free_submit_response_response_msg);
+		DECL_DYN_SYMBOL(slurm_list_create                      );
+		DECL_DYN_SYMBOL(slurm_list_destroy                     );
+		DECL_DYN_SYMBOL(slurm_list_append                      );
 	public :
 		::umap<ReqIdx,ReqEntry     > req_map    ;
 		::umap<JobIdx,WaitingEntry > waiting_map;
@@ -457,6 +478,30 @@ namespace Backends::Slurm {
 		}
 
 	private :
+		int loadSlurmApi(void) {
+			slurmHandler = dlopen ("libslurm.so", RTLD_NOW|RTLD_GLOBAL);
+			if(slurmHandler==NULL) return 1;
+			#define SET_SLURM_API(func) \
+				DYNAPI_ ## func = reinterpret_cast<decltype(func)*>(dlsym(slurmHandler, #func)); \
+				if(DYNAPI_ ## func==NULL) return 1;
+			SET_SLURM_API(slurm_init                             );
+			SET_SLURM_API(slurm_fini                             );
+			SET_SLURM_API(slurm_load_slurmd_status               );
+			SET_SLURM_API(slurm_free_slurmd_status               );
+			SET_SLURM_API(slurm_kill_job                         );
+			SET_SLURM_API(slurm_get_errno                        );
+			SET_SLURM_API(slurm_strerror                         );
+			SET_SLURM_API(slurm_load_job                         );
+			SET_SLURM_API(slurm_free_job_info_msg                );
+			SET_SLURM_API(slurm_init_job_desc_msg                );
+			SET_SLURM_API(slurm_submit_batch_job                 );
+			SET_SLURM_API(slurm_submit_batch_het_job             );
+			SET_SLURM_API(slurm_free_submit_response_response_msg);
+			SET_SLURM_API(slurm_list_create                      );
+			SET_SLURM_API(slurm_list_destroy                     );
+			SET_SLURM_API(slurm_list_append                      );
+			return 0;
+		}
 		using  p_cxxopts = ::unique_ptr<cxxopts::Options>;
 		inline p_cxxopts createParser(void) {
 			p_cxxopts allocated(new cxxopts::Options("slurm", "Slurm options parser for lmake"));
@@ -495,8 +540,7 @@ namespace Backends::Slurm {
 				if(result.count("nodelist"     )) rsrc.nodes    = result["nodelist"     ].as<::string>();
 				if(result.count("exclude"      )) rsrc.excludes = result["exclude"      ].as<::string>();
 			} catch(const cxxopts::exceptions::exception& e) {
-				cerr << "Error while parsing slurm options: " << e.what() << ::endl;
-				exit(1);
+				throw to_string("Error while parsing slurm options: ", e.what());
 			}
 		}
 		inline RsrcsData blendRsrcs(RsrcsData const& rsrcsIn, RsrcsData const& forceRsrscs) const {
@@ -547,7 +591,7 @@ namespace Backends::Slurm {
 			//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 			//Running jobs are killed by lmake/job_exec
 			for(int i=0;i<10/*MAX_CANCEL_RETRY*/;i++){
-				err = slurm_kill_job(jobid, SIGKILL, KILL_FULL_JOB);
+				err = DYNAPI_slurm_kill_job(jobid, SIGKILL, KILL_FULL_JOB);
 				if (err == SLURM_SUCCESS || errno != ESLURM_TRANSITION_STATE_NO_UPDATE) {
 					break;
 				}
@@ -557,7 +601,7 @@ namespace Backends::Slurm {
 				Trace trace("Cancel slurm jodid: ",jobid) ;
 				return;
 			}
-			Trace trace("Error while killing job: ", jobid, "error: ", slurm_strerror(errno));
+			Trace trace("Error while killing job: ", jobid, "error: ", DYNAPI_slurm_strerror(errno));
 		}
 		inline job_states slurm_job_state(uint32_t jobid, ::string& info) const {
 			//possible job_states values are (see slurm.h) :
@@ -575,7 +619,7 @@ namespace Backends::Slurm {
 			//	JOB_OOM        : experienced out of memory error
 			//	JOB_END        : not a real state, last entry in table
 			job_info_msg_t *resp;
-			if(slurm_load_job(&resp, jobid, SHOW_LOCAL) == SLURM_SUCCESS) {
+			if(DYNAPI_slurm_load_job(&resp, jobid, SHOW_LOCAL) == SLURM_SUCCESS) {
 				job_states job_state = static_cast<job_states>(resp->job_array[0].job_state & JOB_STATE_BASE);
 				for(uint32_t i=0;i<resp->record_count;i++) {
 					const slurm_job_info_t * ji = &resp->job_array[i];
@@ -596,10 +640,10 @@ namespace Backends::Slurm {
 						}
 					}
 				}
-				slurm_free_job_info_msg( resp );
+				DYNAPI_slurm_free_job_info_msg( resp );
 				return job_state;
 			} else {
-				swear(0,to_string("Error while loading job info (", jobid, "): ", slurm_strerror(errno)));
+				swear(0,to_string("Error while loading job info (", jobid, "): ", DYNAPI_slurm_strerror(errno)));
 				return JOB_RUNNING;
 			}
 		}
@@ -632,7 +676,7 @@ namespace Backends::Slurm {
 			::vector<job_desc_msg_t> jDesc(n_comp);
 			for(uint32_t i=0; RsrcsDataSingle const& r: rsrcs) {
 				job_desc_msg_t* j = &jDesc[i];
-				slurm_init_job_desc_msg(j);
+				DYNAPI_slurm_init_job_desc_msg(j);
 				j->env_size         = 1;
 				j->environment      = env;
 				j->cpus_per_task    = r.cpu  ;
@@ -656,19 +700,19 @@ namespace Backends::Slurm {
 			int ret;
 			submit_response_msg_t *jMsg;
 			if(n_comp==1) {
-				ret = slurm_submit_batch_job(&jDesc[0], &jMsg);
+				ret = DYNAPI_slurm_submit_batch_job(&jDesc[0], &jMsg);
 			} else {
-				List jList = slurm_list_create(NULL);
-				for(uint32_t i=0;i<n_comp;i++) slurm_list_append(jList, &jDesc[i]);
-				ret = slurm_submit_batch_het_job(jList,&jMsg);
-				slurm_list_destroy(jList);
+				List jList = DYNAPI_slurm_list_create(NULL);
+				for(uint32_t i=0;i<n_comp;i++) DYNAPI_slurm_list_append(jList, &jDesc[i]);
+				ret = DYNAPI_slurm_submit_batch_het_job(jList,&jMsg);
+				DYNAPI_slurm_list_destroy(jList);
 			}
 			if(ret == SLURM_SUCCESS) {
 				*slurmJobId = jMsg->job_id;
-				slurm_free_submit_response_response_msg(jMsg);
+				DYNAPI_slurm_free_submit_response_response_msg(jMsg);
 				return {};
 			} else {
-				return "Launch slurm job error: "s + slurm_strerror(slurm_get_errno());
+				return "Launch slurm job error: "s + DYNAPI_slurm_strerror(DYNAPI_slurm_get_errno());
 			}
 		}
 	} ;
