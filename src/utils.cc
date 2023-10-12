@@ -382,7 +382,7 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		hint.ai_socktype = SOCK_STREAM ;
 		struct addrinfo* ai ;
 		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
-		swear_prod(rc==0,"cannot get addr of ",server," (",rc,')') ;
+		if (rc!=0) throw to_string("cannot get addr of ",server," (",rc,')') ;
 		static_assert(sizeof(in_addr_t)==4) ;                                                 // else use adequate ntohl/ntohs
 		in_addr_t addr = ::ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;
 		freeaddrinfo(ai) ;

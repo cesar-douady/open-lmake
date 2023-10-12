@@ -97,15 +97,15 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* implement a lshow -r to see what is running now
+* provide the possibility to play dynamically with resources in config
+* report errors in title (split useful into done et err)
 * provide the possibility to prevent rebuild from a given file
 	- much like freeze, but the other way around
 	- useful to work on deep files such as utils to add a feature
 	- just check before push
 	- can be a flag to freeze (such as freeze forward, meaning jobs see file as frozen, even if it moves)
 	- possibly work as a resource : rebuild if dependent is in error
-* provide the possibility to play dynamically with resources in config
-* implement a lshow -r to see what is running now
-* report errors in title (split useful into done et err)
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -141,8 +141,6 @@ items :
 	- find a way to avoid conflict dead-locks
 ! record deps during attribute computation
 	- when dynamic
-! implement slurm interface
-	- implement job postlude
 * implement a ref/check mechanism
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
@@ -200,7 +198,7 @@ items :
 	- to measure tracing price more than to actually use it
 * launch deps as soon as they are discovered
 	- w/o waiting for dependent job to complete
-	- for non-existent deps, else there is a risk that a steady target is modified while job is on going
+	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going
 	- possibly upon declaration by user
 * gprof
 * get rid of pycxx
