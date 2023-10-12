@@ -141,7 +141,6 @@ namespace Engine {
 			field = "backends" ;
 			if (!py_map.hasKey(field)) throw "not found"s ;
 			Py::Mapping py_backends = py_map[field] ;
-			bool        found       = false         ;
 			if (py_backends.hasKey("precisions")) {
 				Save<::string> sav      { field , field+".precisions" }         ;
 				Py::Mapping    py_precs = Py::Object(py_backends["precisions"]) ;
@@ -160,12 +159,11 @@ namespace Engine {
 				::string ts = mk_snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				field = "backends."+ts ;
-				if (!py_backends.hasKey(ts)) continue ;
-				if ( !bbe                  ) continue ;                                                                // silently ignore as long as no rule uses it
-				found = true ;
-				if (py_backends.hasKey(ts)) backends[+t] = Backend( Py::Mapping(py_backends[ts]) , bbe->is_local() ) ;
+				if ( !bbe                  ) continue ;                                                                  // not implemented
+				if (!py_backends.hasKey(ts)) continue ;                                                                  // not configured
+				try                       { backends[+t] = Backend( Py::Mapping(py_backends[ts]) , bbe->is_local() ) ; }
+				catch (::string const& e) { ::cerr<<"Warning : backend "<<ts<<" could not be configured : "<<e<<endl ; }
 			}
-			if (!found) throw "no available backend has been configured"s ;
 			//
 			field = "caches" ;
 			if (py_map.hasKey(field)) {

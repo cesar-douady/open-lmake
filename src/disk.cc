@@ -78,14 +78,20 @@ namespace Disk {
 	}
 
 	vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix ) {
-		::vector_s res    ;
-		Fd         dir_fd = dir.empty() ? at : Fd(::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY )) ; if (!dir_fd) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
-		DIR*       dir_fp = ::fdopendir(dir_fd)                                                        ; if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		Fd dir_fd = at ;
+		if      (!dir.empty()) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		else if (at==Fd::Cwd ) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
+		if (!dir_fd) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		//
+		DIR* dir_fp = ::fdopendir(dir_fd) ;
+		if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		//
+		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
 			if (entry->d_name[0]!='.') goto Ok  ;
-			if (entry->d_name[1]==0  ) continue ;                               // ignore .
+			if (entry->d_name[1]==0  ) continue ;                              // ignore .
 			if (entry->d_name[1]!='.') goto Ok  ;
-			if (entry->d_name[2]==0  ) continue ;                               // ignore ..
+			if (entry->d_name[2]==0  ) continue ;                              // ignore ..
 		Ok :
 			res.emplace_back(prefix+entry->d_name) ;
 		}
@@ -99,9 +105,9 @@ namespace Disk {
 	}
 
 	void unlink( Fd at , ::string const& file ) {
-		if (::unlinkat(at,file.c_str(),0)==0            ) return ;
-		if (errno==ENOENT                               ) return ;
-		if (errno!=EISDIR                               ) throw to_string("cannot unlink file ",file) ;
+		if (::unlinkat(at,file.c_str(),0)==0           ) return ;
+		if (errno==ENOENT                              ) return ;
+		if (errno!=EISDIR                              ) throw to_string("cannot unlink file ",file) ;
 		unlink_inside(at,file) ;
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot unlink dir " ,file) ;
 	}
@@ -141,9 +147,9 @@ namespace Disk {
 
 	static void _walk( ::vector_s& res , Fd at , ::string const& file , ::string const& prefix ) {
 		switch (FileInfo(at,file).tag) {
-			case FileTag::Err  :                         return ;
-			case FileTag::Dir  :                         break  ;
-			default            : res.push_back(prefix) ; return ;
+			case FileTag::Err :                         return ;
+			case FileTag::Dir :                         break  ;
+			default           : res.push_back(prefix) ; return ;
 		}
 		::vector_s lst      = lst_dir(at,file) ;
 		::string   file_s   = file  +'/'       ;

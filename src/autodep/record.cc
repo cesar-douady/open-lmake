@@ -128,6 +128,11 @@ ssize_t Record::backdoor( const char* msg , char* buf , size_t sz ) {
 	return len ;
 }
 
+::ostream& operator<<( ::ostream& os , Record::Path const& p ) {
+	if (p.at!=Fd::Cwd) os <<'@'<< p.at.fd <<':' ;
+	return             os << p.file             ;
+}
+
 Record::Chdir::Chdir( Record& r , Path const& path ) : Solve{r,path,true/*no_follow*/} {
 	if (s_autodep_env().auto_mkdir && !real.empty() ) Disk::make_dir(s_root_fd(),real,false/*unlink_ok*/) ;
 }
@@ -236,16 +241,23 @@ Record::Rename::Rename( Record& r , Path const& src_ , Path const& dst_ , u_int 
 	src{ r , src_ , true/*no_follow*/ , to_string(comment_+".rd",::hex,'.',flags) }
 ,	dst{ r , dst_ , true/*no_follow*/ , to_string(comment_+".wr",::hex,'.',flags) }
 {
+r._report_trace("src_:",src_) ; // XXX : remove when bug linked to rename is fixed
+r._report_trace("dst_:",dst_) ;
+r._report_trace("src :",src ) ;
+r._report_trace("dst :",dst ) ;
 	#ifdef RENAME_EXCHANGE
 		exchange = flags & RENAME_EXCHANGE ;
 	#endif
 }
 int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
+	// XXX : protect code against access rights while walking : the rename of a dir can be ok while walking inside it could be forbidden
 	if (src.real==dst.real) return rc ;                                           // this includes case where both are outside repo as they would be both empty
 	if (exchange) {
 		src.comment += "<>" ;
 		dst.comment += "<>" ;
 	}
+r._report_trace("src :",src ) ; // XXX : remove when bug linked to rename is fixed
+r._report_trace("dst :",dst ) ;
 	if (rc==0) {                                                                        // rename has occurred
 		if ( dst.kind==Kind::Tmp || (exchange&&src.kind==Kind::Tmp) ) r._report_tmp() ;
 		// handle directories (remember that rename has already occured when we walk)

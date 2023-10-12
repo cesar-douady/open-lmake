@@ -584,15 +584,16 @@ public :
 public :
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobExecRpcReq() ;
-		/**/              ::serdes(s,proc     ) ;
-		/**/              ::serdes(s,date     ) ;
-		/**/              ::serdes(s,sync     ) ;
-		if (!has_files()) return ;
-		/**/              ::serdes(s,auto_date) ;
-		/**/              ::serdes(s,no_follow) ;
-		/**/              ::serdes(s,files    ) ;
-		/**/              ::serdes(s,digest   ) ;
-		/**/              ::serdes(s,comment  ) ;
+		::serdes(s,proc) ;
+		::serdes(s,date) ;
+		::serdes(s,sync) ;
+		if (has_files()) {
+			::serdes(s,auto_date) ;
+			::serdes(s,no_follow) ;
+			::serdes(s,files    ) ;
+			::serdes(s,digest   ) ;
+		}
+		::serdes(s,comment) ;
 	}
 	// data
 	P            proc      = P::None     ;

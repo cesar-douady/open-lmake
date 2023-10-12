@@ -43,7 +43,7 @@ namespace Engine {
 		Trace trace("_freeze_job",STR(add),j) ;
 		SWEAR(j.active()) ;
 		j->status = add ? Status::Frozen : Status::New ;
-		audit( fd , ro  , add?Color::Warning:Color::Note , 0 , to_string(add?"froze job ":"melted job ",::setw(w),j->rule->user_name(),' ') , j.name() ) ;
+		audit( fd , ro  , add?Color::Warning:Color::Note , 0 , to_string(add?"froze job ":"melted job ",::setw(w),j->rule->user_name(),' ') , j.user_name() ) ;
 	}
 	static void _freeze( Fd fd , ReqOptions const& ro , Node t , bool add ) {
 		Trace trace("_freeze_node",STR(add),t) ;

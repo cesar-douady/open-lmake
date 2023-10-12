@@ -67,7 +67,8 @@ namespace Engine {
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
-		Backend::s_open_req(+*this,options.n_jobs) ;
+		try                       { Backend::s_open_req(+*this,options.n_jobs) ; }
+		catch (::string const& e) { close() ; throw ;                            }
 		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
 	}

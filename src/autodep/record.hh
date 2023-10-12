@@ -93,12 +93,16 @@ private :
 		else if (!sync     ) return ;
 		report_cb(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
 	}
+	template<class... A> void _report_trace(A const&... args) {
+		report_cb( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;
+	}
 public :
 	JobExecRpcReply backdoor( JobExecRpcReq&& jerr                    ) ;
 	ssize_t         backdoor( const char* msg , char* buf , size_t sz ) ;
 	//
 	struct Path {
 		using Kind = Disk::Kind ;
+		friend ::ostream& operator<<( ::ostream& , Path const& ) ;
 		// cxtors & casts
 		Path() = default ;
 		Path(                  const char* p ) :                        file{p } {}
