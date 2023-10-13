@@ -93,10 +93,10 @@ private :
 		else if (!sync     ) return ;
 		report_cb(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
 	}
-	template<class... A> void _report_trace(A const&... args) {
+public :
+	template<class... A> void report_trace(A const&... args) {
 		report_cb( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;
 	}
-public :
 	JobExecRpcReply backdoor( JobExecRpcReq&& jerr                    ) ;
 	ssize_t         backdoor( const char* msg , char* buf , size_t sz ) ;
 	//
@@ -136,9 +136,9 @@ public :
 			deallocate() ;
 			char* buf = new char[sz+1] ;                                       // +1 to account for terminating null
 			::memcpy(buf,file_,sz+1) ;
-			file      = buf     ;
-			at        = Fd::Cwd ;
-			allocated = true    ;
+			file      = buf  ;
+			at        = at_  ;
+			allocated = true ;
 		}
 		void share(const char* file_) { share(Fd::Cwd,file_) ; }
 		void share( Fd at_ , const char* file_ ) {

@@ -154,6 +154,11 @@ items :
 ? implement a compilation rule py->pyc
 	- and use python -B
 	- what about the numerous retries this approach implies ?
+		- this is a use case for direct dep update
+		! beware that pyc records py date
+			- then pyc would be broken if py is updated steady as pyc would not be remade
+			- requires a dep flag to say we are depending on date
+			? or use the python crc based mechanism
 ? consider fuse as an autodep method
 	? unclear it is faster than ptrace
 		? all data traffic goes through it
@@ -161,15 +166,7 @@ items :
 		? an advantage is that accesses to system files (outside the repository) are transparent
 	? there must be one fuse mount for each job so as to recognize which job does the access
 	? how to manage so that the job sees the repository with its nominal name
-? add unsafe keyword whenever there is reponsibility transfer from lmake to user
-	- incremental target
-	- -dep target
-	- non cmd env variable
-	- verbose check_deps
-? implement steal
-	? 2 possible implementation :
-		? read disk file, and support live updates (with a seq number, check it did not change during the access)
-		? send request to server
+		? requires a chroot
 ? lshow does not need to read Lmakefile
 	- this allows to use lshow even if Lmakefile is unreadable
 ? provide a lock mechanism in local backend
@@ -191,14 +188,16 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* provide a compile option w/o trace
+	- to measure tracing price more than to actually use it
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
-* provide a compile option w/o trace
-	- to measure tracing price more than to actually use it
 * launch deps as soon as they are discovered
 	- w/o waiting for dependent job to complete
 	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going
+		- or record close & dup so as to know when a file is no longer needed
+		- gather crc before dep launch in case dep is steady
 	- possibly upon declaration by user
 * gprof
 * get rid of pycxx

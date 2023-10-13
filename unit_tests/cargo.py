@@ -9,8 +9,11 @@ if getattr(sys,'reading_makefiles',False) :
 
 	import lmake
 
+	from step import step
+
 	lmake.sources = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'hello/Cargo.toml'
 	,	'hello/src/main.rs'
 	,	'hello.in'
@@ -20,12 +23,13 @@ if getattr(sys,'reading_makefiles',False) :
 	class CompileRust(lmake.HomelessRule,lmake.RustRule) :
 		targets = {
 			'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'
-		,	'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , '-Crc','-Dep','Incremental','-Match' )
+		,	'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , '-Dep','Incremental','-Match' )
 		}
 		deps    = {
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
+		if step==2 : autodep = 'ptrace'
 		cmd     = 'cd  {Dir}{Module} ; cargo build 2>&1'
 
 	class RunRust(lmake.RustRule) :
@@ -79,7 +83,13 @@ else :
 	print('hello world',file=open('hello.in' ,'w'))
 	print('hello world',file=open('hello.ref','w'))
 
+	print('step=1',file=open('step.py','w'))
+
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
 	ut.lmake( 'hello.ok' , steady=1 , changed=1 )                              # check cargo can run twice with no problem
+
+	print('step=2',file=open('step.py','w'))
+	os.system('rm -rf hello/target')                                           # force cargo to regenerate everything
+	ut.lmake( 'hello.ok' , steady=1 )                                          # check ptrace works with cargo

@@ -398,10 +398,10 @@ template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , Sysc
 ,	{ SYS_open_tree         , entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "open_tree"         }
 #endif
 #ifdef SYS_readlink
-,	{ SYS_readlink          , entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  , "realink"           }
+,	{ SYS_readlink          , entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  , "readlink"          }
 #endif
 #ifdef SYS_readlinkat
-,	{ SYS_readlinkat        , entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  , "realinkat"         }
+,	{ SYS_readlinkat        , entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  , "readlinkat"        }
 #endif
 #if SYS_rename
 ,	{ SYS_rename            , entry_rename  <false/*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "rename"            }
