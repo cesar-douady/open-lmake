@@ -302,6 +302,7 @@ template<class... A> ::string to_string(A const&... args) {
 static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
 static inline ::string to_string(const char*     s) { return  s  ; }           // .
 static inline ::string to_string(char            c) { return {c} ; }           // .
+static inline ::string to_string(                 ) { return {}  ; }           // .
 
 template<class T> static inline void _append_to_string( ::string& dst , T               x ) { dst += to_string(x) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=           s  ; } // fast path
@@ -417,12 +418,9 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		busy = true ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) << " : " ;
-		OStringStream err ;
-		[[maybe_unused]] bool _[] ={false,(err<<args,false)...} ;
-		::string err_str = err.str() ;
-		if ( !err_str.empty() && err_str.back()!='\n' ) err_str.push_back('\n') ;
-		::cerr << err_str ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<" :" ;
+		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
+		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
 		write_backtrace(::cerr,hide_cnt+1) ;                                   // rather than merely calling abort, this works even if crash_handler is not installed
 		kill_self(sig) ;
@@ -467,10 +465,12 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 	if (!cond) crash( 1 , SIGABRT , "assertion violation : " , args... ) ;
 }
 
-#define SWEAR(     ...) swear     ((__VA_ARGS__),__FILE__,':',__LINE__," in ",__PRETTY_FUNCTION__," : ",#__VA_ARGS__                    ) // actually a single arg, but it could be such as foo<a,b>()
-#define FAIL(      ...) fail      (              __FILE__,':',__LINE__," in ",__PRETTY_FUNCTION__," : ",#__VA_ARGS__," : ",(__VA_ARGS__)) // .
-#define SWEAR_PROD(...) swear_prod((__VA_ARGS__),__FILE__,':',__LINE__," in ",__PRETTY_FUNCTION__," : ",#__VA_ARGS__                    ) // .
-#define FAIL_PROD( ...) fail_prod (              __FILE__,':',__LINE__," in ",__PRETTY_FUNCTION__," : ",#__VA_ARGS__," : ",(__VA_ARGS__)) // .
+#define _FAIL_STR2(x) #x
+#define _FAIL_STR(x) _FAIL_STR2(x)
+#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
+#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
+#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
+#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 
 //
 // meta programming
@@ -751,7 +751,7 @@ static inline void _enum_split( const char** tab , char* str , size_t n ) {
 		if ( is_space(*p) || *p==',' ) { if ( start) { tab[i++]=start ; *p=0 ; start = nullptr ; } }
 		else                           { if (!start) {                         start = p       ; } }
 	if (start) tab[i++] = start ;
-	SWEAR(i==n) ;
+	SWEAR( i==n , i , n ) ;
 }
 
 template<StdEnum E> ::map_s<E> _mk_enum_tab() {
@@ -883,8 +883,8 @@ struct Fd {
 		struct sockaddr_in peer_addr ;
 		socklen_t          len       = sizeof(peer_addr)                                                           ;
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
-		SWEAR(rc ==0                ) ;
-		SWEAR(len==sizeof(peer_addr)) ;
+		SWEAR( rc ==0                 , rc  ) ;
+		SWEAR( len==sizeof(peer_addr) , len ) ;
 		return ntohl(peer_addr.sin_addr.s_addr) ;
 	}
 	// data
@@ -953,8 +953,8 @@ public :
 		struct sockaddr_in my_addr ;
 		socklen_t          len     = sizeof(my_addr)                                                           ;
 		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
-		SWEAR(rc ==0              ) ;
-		SWEAR(len==sizeof(my_addr)) ;
+		SWEAR( rc ==0               , rc  ) ;
+		SWEAR( len==sizeof(my_addr) , len ) ;
 		return ntohs(my_addr.sin_port) ;
 	}
 } ;

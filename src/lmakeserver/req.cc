@@ -27,7 +27,7 @@ namespace Engine {
 	}
 
 	Req::Req( Fd fd , ::vector<Node> const& targets , ReqOptions const& options ) : Base{s_small_ids.acquire()} {
-		SWEAR(+*this<=s_store.size()) ;
+		SWEAR( +*this<=s_store.size() , +*this , s_store.size() ) ;
 		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
 		if (+*this>=s_store.size()) {
 			::unique_lock lock{s_reqs_mutex} ;                                 // emplace_back may reallocate
@@ -38,7 +38,7 @@ namespace Engine {
 		for( int i=0 ;; i++ ) {
 			::string trace_file      = "outputs/"+Pdate::s_now().str(i)                   ;
 			::string fast_trace_file = to_string(g_config.local_admin_dir,'/',trace_file) ;
-			if (is_reg(fast_trace_file)) { SWEAR(i<=9) ; continue ; }                       // at ns resolution, it impossible to have a conflict
+			if (is_reg(fast_trace_file)) { SWEAR(i<=9,i) ; continue ; }                     // at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
@@ -119,7 +119,7 @@ namespace Engine {
 			_adjust_eta() ;
 	}
 	void Req::new_exec_time( Job job , bool remove_old , bool add_new , Delay old_exec_time ) {
-		SWEAR(!job->rule->is_special()) ;
+		SWEAR( !job->rule->is_special() , job->rule->special ) ;
 		if ( !remove_old && !add_new ) return ;                                // nothing to do
 		Delay delta ;
 		Rule  rule  = job->rule ;
@@ -359,7 +359,7 @@ namespace Engine {
 	::mutex ReqData::_s_audit_mutex ;
 
 	void ReqData::clear() {
-		SWEAR(!n_running()) ;
+		SWEAR( !n_running() , n_running() ) ;
 		*this = ReqData() ;
 	}
 

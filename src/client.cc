@@ -22,8 +22,8 @@ static bool server_ok( Fd fd , ::string const& tag ) {
 	return ok ;
 }
 
-static void connect_to_server() {
-	Trace trace("connect_to_server") ;
+static void connect_to_server(bool refresh) {
+	Trace trace("connect_to_server",STR(refresh)) ;
 	::string server_service ;
 	pid_t    server_pid     = 0 ;
 	for ( int i=0 ; i<10 ; i++ ) {
@@ -47,7 +47,7 @@ static void connect_to_server() {
 		trace("try_new",i) ;
 		// try to launch a new server
 		// server calls ::setpgid(0,0) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
-		Child server{ false/*as_group*/ , {*g_lmake_dir+"/_bin/lmakeserver",""} , Child::Pipe , Child::Pipe } ;
+		Child server{ false/*as_group*/ , {*g_lmake_dir+"/_bin/lmakeserver","-d"/*no_daemon*/,refresh?"--"/*nop*/:"-r"/*no_refresh*/} , Child::Pipe , Child::Pipe } ;
 		//
 		if (server_ok(server.stdout,"new")) {
 			g_server_fds = AutoCloseFdPair{ server.stdout , server.stdin } ;
@@ -108,9 +108,9 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		for(;;) {
 			char c ;
 			::vector<Epoll::Event> events = epoll.wait(100'000'000) ;          // 100ms
-			SWEAR(events.size()<=1) ;                                          // there is a single fd, there may not be more than 1 event
+			SWEAR( events.size()<=1 , events.size() ) ;                        // there is a single fd, there may not be more than 1 event
 			if (!events.size()) goto Restore ;                                 // timeout
-			SWEAR(events[0].fd()==in_fd) ;                                     // this is the only possible fd
+			SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;          // this is the only possible fd
 			if (::read(in_fd,&c,1)!=1) goto Restore ;                          // eof or err ? awkward, but give up in that case
 			if (c=='\a') break ;
 			reply.push_back(c) ;
@@ -131,10 +131,10 @@ Restore :
 	return Maybe ;
 }
 
-Bool3/*ok*/ out_proc( ReqProc proc , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
+Bool3/*ok*/ out_proc( ReqProc proc , bool refresh , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
 	Trace trace("out_proc") ;
 	ReqRpcReq rrr{ proc , cmd_line.files() , { is_reverse_video(Fd::Stdin,Fd::Stdout) , cmd_line } } ;
-	connect_to_server() ;
+	connect_to_server(refresh) ;
 	started_cb() ;
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	try {

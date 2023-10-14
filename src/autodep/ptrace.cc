@@ -74,31 +74,31 @@ struct SyscallDescr {
 } ;
 
 void AutodepPtrace::_init(pid_t cp) {
-	SWEAR(s_autodep_env->tmp_view.empty()) ;                                   // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
+	SWEAR( s_autodep_env->tmp_view.empty() , s_autodep_env->tmp_view ) ;       // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
 	RecordSock::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
-	pid_t pid     ;
 	int   wstatus ;
-	SWEAR( (pid=wait(&wstatus))==child_pid ) ;                                 // first signal is only there to start tracing as we are initially traced to next signal
+	pid_t pid     = wait(&wstatus) ;                                           // first signal is only there to start tracing as we are initially traced to next signal
+	SWEAR( pid==child_pid , pid , child_pid ) ;
 	::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ ,
 		PTRACE_O_TRACESECCOMP
 	|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
 	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
 	) ;
-	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal ) ;
+	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
 	::ptrace( PTRACE_CONT , pid , 0/*addr*/ , 0/*data*/ ) ;
 }
 
 void AutodepPtrace::s_prepare_child() {
 	// prepare filter
 	AutodepEnv const& ade = RecordSock::s_autodep_env(*s_autodep_env) ;
-	SWEAR(ade.tmp_view.empty()                ) ;                              // cannot support directory mapping as there is no way to allocate memory in the traced process
-	SWEAR(ade.lnk_support!=LnkSupport::Unknown) ;
+	SWEAR( ade.tmp_view.empty()                 , ade.tmp_view ) ;             // cannot support directory mapping as there is no way to allocate memory in the traced process
+	SWEAR( ade.lnk_support!=LnkSupport::Unknown ) ;
 	scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ; SWEAR(scmp) ;
-	bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;  // if full link support, we need to analyze uphill dirs
-	SWEAR(SyscallDescr::s_tab[0].syscall==0) ;                                 // ensure first entry is empty
-	for( size_t i=1 ; i<SyscallDescr::s_tab.size() ; i++ ) {                   // first entry is ignore to ease s_tab definition with #ifdef
+	bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ;     // if full link support, we need to analyze uphill dirs
+	SWEAR( SyscallDescr::s_tab[0].syscall==0 , SyscallDescr::s_tab[0].syscall ) ; // ensure first entry is empty
+	for( size_t i=1 ; i<SyscallDescr::s_tab.size() ; i++ ) {                      // first entry is ignore to ease s_tab definition with #ifdef
 		SyscallDescr const& sc = SyscallDescr::s_tab[i] ;
 		if ( !sc.data_access && ignore_stat ) continue ;                       // non stat-like access are always needed
 		//
@@ -106,7 +106,7 @@ void AutodepPtrace::s_prepare_child() {
 		seccomp_rule_add        ( scmp , SCMP_ACT_TRACE(i) , sc.syscall , 0       ) ;
 	}
 	// Load in the kernel & trace
-	int rc = seccomp_load(scmp) ; SWEAR_PROD(rc==0) ;
+	int rc = seccomp_load(scmp) ; SWEAR_PROD( rc==0 , rc ) ;
 	ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
 	kill_self(FirstSignal) ;                                                   // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
 }
@@ -118,7 +118,7 @@ void AutodepPtrace::s_prepare_child() {
 		::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info ) ;
 		if ( (wstatus>>8) == (SIGTRAP|(PTRACE_EVENT_SECCOMP<<8)) ) {
 			// enter syscall
-			SWEAR(syscall_info.op==PTRACE_SYSCALL_INFO_SECCOMP) ;
+			SWEAR( syscall_info.op==PTRACE_SYSCALL_INFO_SECCOMP , syscall_info.op ) ;
 			info.idx = syscall_info.seccomp.ret_data ;
 			SyscallDescr const& descr = SyscallDescr::s_tab.at(info.idx) ;
 			descr.entry( info , pid , syscall_info.seccomp , descr.comment ) ;

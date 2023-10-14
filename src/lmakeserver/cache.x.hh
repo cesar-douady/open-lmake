@@ -42,7 +42,7 @@ namespace Caches {
 		virtual void config(Config::Cache const&) {}
 		//
 		virtual Match      match   ( Job , Req              ) { return { .completed=true , .hit=No } ; }
-		virtual JobDigest  download( Job , Id        const& ) { FAIL("") ;                             } // no download possible since we never match
+		virtual JobDigest  download( Job , Id        const& ) { FAIL() ;                               } // no download possible since we never match
 		virtual bool/*ok*/ upload  ( Job , JobDigest const& ) { return false ;                         }
 
 	} ;

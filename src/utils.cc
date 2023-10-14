@@ -179,7 +179,7 @@ struct SrcPoint {
 	char     func[1000]     ;
 } ;
 
-// XXX : use/mimic https://github.com/ianlancetaylor/libbacktrace or libbfd
+// XXX : use c++23 backtrace facility rather than use/mimic https://github.com/ianlancetaylor/libbacktrace or libbfd
 static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_points ) {
 	char             exe[PATH_MAX]  ;
 	ssize_t          cnt            = ::readlink("/proc/self/exe",exe,sizeof(exe)) ; exe[cnt] = 0 ;
@@ -291,9 +291,9 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 		}
 		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
 		switch (cnt_) {
-			case  0 :                       if (!wait_overflow) return {}     ; break ; // timeout
-			case -1 : SWEAR(errno==EINTR) ;                                     break ;
-			default : events.resize(cnt_) ;                     return events ;
+			case  0 : if (!wait_overflow)             return {}     ; break ;  // timeout
+			case -1 : SWEAR( errno==EINTR , errno ) ;                 break ;
+			default : events.resize(cnt_) ;           return events ;
 		}
 		if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
 	}
@@ -402,10 +402,10 @@ bool/*parent*/ Child::spawn(
 ,	::string const& cwd_
 ,	void (*pre_exec)()
 ) {
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std ) ;        // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      ) ;        // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      ) ;        // .
-	SWEAR(!( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr        )) ;        // .
+	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ; // ensure reasonably simple situations
+	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ; // .
+	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ; // .
+	SWEAR(!( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                   ) ; // .
 	::Pipe p2c  ;
 	::Pipe c2po ;
 	::Pipe c2pe ;

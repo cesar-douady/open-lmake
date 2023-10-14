@@ -81,7 +81,7 @@ namespace Disk {
 		Fd dir_fd = at ;
 		if      (!dir.empty()) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
 		else if (at==Fd::Cwd ) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
-		if (!dir_fd) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
+		if (!dir_fd) throw to_string("cannot open dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
 		if (!dir_fp) throw to_string("cannot list dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
@@ -151,7 +151,9 @@ namespace Disk {
 			case FileTag::Dir :                         break  ;
 			default           : res.push_back(prefix) ; return ;
 		}
-		::vector_s lst      = lst_dir(at,file) ;
+		::vector_s lst ;
+		try                     { lst = lst_dir(at,file) ; }
+		catch (::string const&) { return ;                 } // list only accessible files
 		::string   file_s   = file  +'/'       ;
 		::string   prefix_s = prefix+'/'       ;
 		for( ::string const& f : lst ) _walk( res , at,file_s+f , prefix_s+f ) ;
@@ -200,8 +202,8 @@ namespace Disk {
 	}
 
 	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
-		SWEAR( is_abs(file) == is_abs_s(dir_s)    ) ;
-		SWEAR( dir_s.empty() || dir_s.back()=='/' ) ;
+		SWEAR( is_abs(file) == is_abs_s(dir_s)    , file , dir_s ) ;
+		SWEAR( dir_s.empty() || dir_s.back()=='/' ,        dir_s ) ;
 		size_t last_slash1 = 0 ;
 		for( size_t i=0 ; i<file.size() ; i++ ) {
 			if (file[i]!=dir_s[i]) break ;
@@ -245,9 +247,9 @@ namespace Disk {
 	}
 
 	void RealPath::init( RealPathEnv const& rpe , pid_t p ) {
-		/**/                   SWEAR(is_abs(rpe.root_dir)) ;
-		/**/                   SWEAR(is_abs(rpe.tmp_dir )) ;
-		if (!tmp_view.empty()) SWEAR(is_abs(rpe.tmp_view)) ;
+		/**/                   SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
+		/**/                   SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
+		if (!tmp_view.empty()) SWEAR( is_abs(rpe.tmp_view) , rpe.tmp_view ) ;
 		//
 		static_cast<RealPathEnv&>(*this) = rpe ;
 		pid                              = p   ;
@@ -279,12 +281,11 @@ namespace Disk {
 		else        return _POSIX_SYMLOOP_MAX ;
 	}
 	// XXX : optimize by transforming cur into a const char*, avoiding a copy for caller
-	// XXX : optimize by looking in /proc (after having open the file) is file is a real path and provide direct answer in this case
+	// XXX : optimize by looking in /proc (after having opened the file) if file is a real path and provide direct answer in this case
 	//       apply, as soon as we prepare to make a readlink (before that, we may lose time instead of saving), which arrives pretty soon when link support is full
 	RealPath::SolveReport RealPath::solve( Fd at , ::string const& file , bool no_follow ) {
 		static ::string const* const proc         = new ::string("/proc") ;
 		static int             const s_n_max_lnks = _get_symloop_max()    ;
-		if (file.empty()) return {} ;
 
 		::vector_s lnks ;
 
@@ -311,7 +312,7 @@ namespace Disk {
 		_Dvg in_proc ( *proc                            , real ) ;             // keep track of where we are w.r.t. /proc      , always track symlinks
 
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
-		// when file is empty, we are done
+		// when pos>cur->size(), we are done and result is real
 		size_t end    ;
 		int    n_lnks = 0 ;
 		for (

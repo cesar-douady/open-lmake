@@ -39,10 +39,11 @@ template<Serializable T> static inline T    deserialize( ::string const& s      
 // make objects hashable as soon as they define serdes(::ostream) &&  serdes(::istream)
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>
 // /!\ : not ideal in terms of performances, but easy to use.
-template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL("");return serialize(a)== serialize(b) ; } // cannot define this for Serializable as it creates conflicts
-template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL("");return serialize(a)<=>serialize(b) ; } // .
+// suppress calls to FAIL when necessary
+template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL();return serialize(a)== serialize(b) ; } // cannot define this for Serializable as it creates conflicts
+template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL();return serialize(a)<=>serialize(b) ; } // .
 namespace std {
-	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL("");return hash<::string>()(serialize(x)) ; } } ; // .
+	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL();return hash<::string>()(serialize(x)) ; } } ; // .
 }
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
@@ -190,7 +191,7 @@ struct IMsgBuf : MsgBuf {
 			_clear() ;
 			return true/*complete*/ ;
 		} else {
-			SWEAR(_buf.size()==sizeof(Len)) ;
+			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
 			Len len = s_sz(_buf.data()) ;
 			// we now expect the data
 			_buf.resize(len) ;

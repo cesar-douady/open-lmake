@@ -29,11 +29,11 @@ int main( int argc , char* argv[] ) {
 	//
 	block_sig(SIGCHLD) ;
 	swear_prod(argc==5,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
-	::string service   =      argv[1]         ;
-	SeqId    seq_id    = atol(argv[2])        ;
-	JobIdx   job       = atol(argv[3])        ;
-	bool     is_remote = argv[4]=="remote"s   ; if (!is_remote) SWEAR(argv[4]=="local"s) ;
-	::string host_     = is_remote?host():""s ;
+	::string service   =      argv[1]                ;
+	SeqId    seq_id    = atol(argv[2])               ;
+	JobIdx   job       = atol(argv[3])               ;
+	bool     is_remote = strcmp(argv[4],"remote")==0 ; if (!is_remote) SWEAR( strcmp(argv[4],"local")==0 , argv[4] ) ;
+	::string host_     = is_remote?host():""s        ;
 	//
 	JobRpcReq end_report { JobProc::End , seq_id , job , host_ , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
 	//

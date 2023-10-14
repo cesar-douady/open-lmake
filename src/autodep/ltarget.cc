@@ -56,6 +56,9 @@ int main( int argc , char* argv[]) {
 	Tflags            neg_tflags ;
 	Tflags            pos_tflags ;
 	//
+	if (cmd_line.args.empty()) return 0 ;                                                                   // fast path : declare no targets
+	for( ::string const& f : cmd_line.args ) if (f.empty()) exit(2,"cannot declare empty file as target") ;
+	//
 	if (cmd_line.flags[Flag::Unlink  ]) unlink    = true ;
 	if (cmd_line.flags[Flag::NoFollow]) no_follow = true ;
 	//
@@ -77,8 +80,6 @@ int main( int argc , char* argv[]) {
 	//
 	if ( +(neg_tflags&pos_tflags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
 	if ( unlink && (+neg_tflags||+pos_tflags) ) syntax.usage(          "cannot unlink and set/reset flags"s                                 ) ;
-	//
-	if (cmd_line.args.empty()) return 0 ;                                      // fast path : declare no targets
 	//
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access

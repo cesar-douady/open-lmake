@@ -57,10 +57,10 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 		else if (order< AccessOrder::Write) first_write_date                   = pd ;
 	}
 	//
-	AccessDigest old_ad = digest ;                                                                 // for trace only
-	digest.update(ad,order) ;                                                                      // execute actions in actual order as provided by dates
-	SWEAR( !( (old_ad.neg_tflags|old_ad.pos_tflags) & ~(digest.neg_tflags|digest.pos_tflags) ) ) ; // digest.tflags must become less and less transparent
-	tflags = ( tflags & ~digest.neg_tflags ) | digest.pos_tflags ;                                 // thus we can recompute new tfs from old value
+	AccessDigest old_ad = digest ;                                                                                   // for trace only
+	digest.update(ad,order) ;                                                                                        // execute actions in actual order as provided by dates
+	SWEAR( !( (old_ad.neg_tflags|old_ad.pos_tflags) & ~(digest.neg_tflags|digest.pos_tflags) ) , old_ad , digest ) ; // digest.tflags must become less and less transparent
+	tflags = ( tflags & ~digest.neg_tflags ) | digest.pos_tflags ;                                                   // thus we can recompute new tfs from old value
 }
 
 //
@@ -74,7 +74,7 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 }
 
 bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
-	SWEAR(!file.empty()) ;
+	SWEAR( !file.empty() , comment ) ;
 	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
 	bool        is_new = it==access_map.end()  ;
@@ -241,14 +241,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 				case Kind::Stdout :
 				case Kind::Stderr : {
 					char buf[4096] ;
-					int  cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR(cnt>=0) ;
+					int  cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					if (kind==Kind::Stderr) { if (cnt) { stderr.append(buf,cnt) ; } else { trace("close_stderr") ; epoll.close(fd) ; } }
 					else                    { if (cnt) { stdout.append(buf,cnt) ; } else { trace("close_stdout") ; epoll.close(fd) ; } }
 				} break ;
 				case Kind::ChildEnd : {
 					struct signalfd_siginfo child_info ;
 					int                     cnt        = ::read( fd , &child_info , sizeof(child_info) ) ;
-					SWEAR(cnt==sizeof(child_info)) ;
+					SWEAR( cnt==sizeof(child_info) , cnt ) ;
 					wstatus = child.wait() ;
 					if (status==Status::New) {
 						if (WIFEXITED(wstatus)) {

@@ -109,9 +109,9 @@ namespace Store {
 		// statics
 	private :
 		static uint8_t _s_bucket(Sz      sz    ) requires( Multi) { return sz<=LinearSz ? sz-1 : LinearSz+n_bits(sz)-n_bits(LinearSz+1)             ; }
-		static uint8_t _s_bucket(Sz      sz    ) requires(!Multi) { SWEAR(sz==1) ; return 0 ;                                                         }
+		static uint8_t _s_bucket(Sz      sz    ) requires(!Multi) { SWEAR(sz==1,sz) ; return 0 ;                                                      }
 		static Sz      _s_sz    (uint8_t bucket) requires( Multi) { return bucket<LinearSz ? bucket+1 : Sz(1)<<(bucket+n_bits(LinearSz+1)-LinearSz) ; } // inverse _s_bucket & return max possible val
-		static Sz      _s_sz    (uint8_t bucket) requires(!Multi) { SWEAR(bucket==0) ; return 1 ;                                                     } // .
+		static Sz      _s_sz    (uint8_t bucket) requires(!Multi) { SWEAR(bucket==0,bucket) ; return 1 ;                                              } // .
 		// cxtors
 	public :
 		using StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,LinearSz,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >::StructFile ;
@@ -147,8 +147,8 @@ namespace Store {
 		void chk() const requires(!HasData        ) {}
 		void chk() const requires(!is_void_v<Data>) ;                          // XXX : why cant we use HasData here with clang ?!?
 	private :
-		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ; }
-		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx))) ;                 }
+		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
+		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
 			ULock lock{_mutex} ;
 			SWEAR(writable) ;
@@ -183,7 +183,7 @@ namespace Store {
 		}
 		void _shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(Multi) {
 			if (!new_sz) { _pop(idx,old_sz) ; return ; }
-			SWEAR( writable && new_sz<=old_sz ) ;
+			SWEAR( writable && new_sz<=old_sz , new_sz , old_sz ) ;
 			ULock lock{_mutex} ;
 			uint8_t old_bucket = _s_bucket(old_sz) ;
 			uint8_t new_bucket = _s_bucket(new_sz) ;
@@ -194,7 +194,7 @@ namespace Store {
 				Sz extra_sz = old_sz-new_sz     ;
 				if (extra_sz<=LinearSz) {
 					uint8_t b = _s_bucket(extra_sz) ;
-					SWEAR(_s_sz(b)==extra_sz) ;                                // ensure allocation is perfect, which must be the case in the linear zone
+					SWEAR( _s_sz(b)==extra_sz , _s_sz(b) , extra_sz ) ;        // ensure allocation is perfect, which must be the case in the linear zone
 					_dealloc( static_cast<Sz>(+idx+new_sz) , b ) ;             // free remaining all at once, which is possible as soon as extra_sz is a perfect fit
 					break ;
 				}
@@ -202,7 +202,7 @@ namespace Store {
 				old_bucket  = _s_bucket(old_sz) ;
 				_dealloc( static_cast<Sz>(+idx+old_sz) , old_bucket ) ;
 			}
-			SWEAR(new_bucket<=old_bucket) ;
+			SWEAR( new_bucket<=old_bucket , new_bucket , old_bucket ) ;
 		}
 		void _pop( Idx idx , Sz sz ) requires( HasData) {
 			if (!idx) return ;
@@ -227,7 +227,7 @@ namespace Store {
 		for( uint8_t bucket = 0 ; bucket<BaseHdr::NFree ; bucket++ ) {
 			Sz sz = _s_sz(bucket) ;
 			for( Idx idx=_free(bucket) ; +idx ; idx=Base::at(idx).nxt ) {
-				SWEAR(static_cast<Sz>(+idx+_s_sz(bucket))<=size()) ;
+				SWEAR( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , idx , _s_sz(bucket) , size() ) ;
 				for( Sz i=0 ; i<sz ; i++ ) {
 					SWEAR(!free_map[+idx+i]) ;
 					free_map[+idx+i] = true ;

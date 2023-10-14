@@ -281,7 +281,9 @@ namespace Engine {
 				res.append(fixed) ;
 			}
 		,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
-				SWEAR( var_idxs.contains(k) && !star && !def ) ;
+				SWEAR(var_idxs.contains(k)) ;
+				SWEAR(!star               ) ;
+				SWEAR(!def                ) ;
 				size_t sz = res.size() ;
 				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
 				char* p = res.data()+sz ;
@@ -332,7 +334,7 @@ namespace Engine {
 	}
 
 	::vmap_s<pair_s<AccDflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
-		SWEAR( !(need&(NeedDeps|NeedRsrcs)) ) ;
+		SWEAR( !(need&(NeedDeps|NeedRsrcs)) , need ) ;
 		//
 		Accesses a = match.rule->cmd_needs_deps ? Accesses::All : Accesses::None ;
 		::vmap_s<pair_s<AccDflags>> res ;
@@ -361,8 +363,8 @@ namespace Engine {
 				::string dep = _split_flags(df,"dep "+key,py_val) ;        // updates df
 				match.rule->add_cwd( dep , df[Dflag::Top] ) ;
 				::pair_s<AccDflags> e { dep , {a,df} } ;
-				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key)) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
-				else                   {                                  res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
+				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
+				else                   {                                      res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
 			}
 			Py_DECREF(py_dct) ;
 		}
@@ -406,7 +408,7 @@ namespace Engine {
 		} else {
 			VarIdx n_unnamed = 0 ;
 			cmd = Attrs::subst_fstr(raw_cmd,var_idxs,n_unnamed,need) ;
-			SWEAR(!n_unnamed) ;
+			SWEAR( !n_unnamed , n_unnamed ) ;
 		}
 		return need ;
 	}
@@ -458,8 +460,8 @@ namespace Engine {
 	}
 
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) {
-		if (s<=Special::Shared) SWEAR(src_dir_s.empty()    ) ;                 // shared rules cannot have parameters as, precisely, they are shared
-		else                    SWEAR(src_dir_s.back()=='/') ;                 // ensure source dir ends with a /
+		if (s<=Special::Shared) SWEAR( src_dir_s.empty()     , src_dir_s ) ;   // shared rules cannot have parameters as, precisely, they are shared
+		else                    SWEAR( src_dir_s.back()=='/' , src_dir_s ) ;   // ensure source dir ends with a /
 		special = s           ;
 		prio    = Infinity    ;
 		name    = mk_snake(s) ;
@@ -488,7 +490,7 @@ namespace Engine {
 	}
 
 	template<class Flag> static BitMap<Flag> _get_flags( size_t n_ignore , Py::Sequence const& py_flags , BitMap<Flag> dflt ) {
-		SWEAR(size_t(py_flags.size())>=n_ignore) ;
+		SWEAR( size_t(py_flags.size())>=n_ignore , py_flags.size() , n_ignore ) ;
 		BitMap<Flag> flags[2/*inv*/] ;
 		for( auto const& k2 : py_flags ) {
 			if (n_ignore) { n_ignore-- ; continue ; }
@@ -1218,7 +1220,7 @@ namespace Engine {
 	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule} {
 		::string name_ = job.full_name() ;
 		//
-		SWEAR(Rule(name_)==rule) ;                                             // only name suffix is considered to make Rule
+		SWEAR( Rule(name_)==rule , name_ , rule->name ) ;                      // only name suffix is considered to make Rule
 		//
 		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
@@ -1321,14 +1323,14 @@ namespace Engine {
 
 	Py::Pattern const& Rule::FullMatch::_target_pattern(VarIdx t) const {
 		if (_target_patterns.empty()) _target_patterns.resize(rule->targets.size()) ;
-		SWEAR(_targets.size()>t) ;                                                    // _targets must have been computed up to t at least
+		SWEAR( _targets.size()>t , _targets.size() , t ) ;                            // _targets must have been computed up to t at least
 		if (!*_target_patterns[t]) _target_patterns[t] = _targets[t] ;
 		return _target_patterns[t] ;
 	}
 
 	bool Rule::FullMatch::_match( VarIdx t , ::string const& target ) const {
 		Py::Gil gil ;
-		SWEAR(_targets.size()>t) ;                                                   // _targets must have been computed up to t at least
+		SWEAR( _targets.size()>t , _targets.size() , t ) ;                           // _targets must have been computed up to t at least
 		if (rule->tflags(t)[Tflag::Star]) return +_target_pattern(t).match(target) ;
 		else                              return target==_targets[t]               ;
 	}

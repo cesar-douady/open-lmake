@@ -157,7 +157,7 @@ namespace Disk {
 		if (!buf) throw "cannot get cwd"s ;
 		::string res{buf} ;
 		::free(buf) ;
-		SWEAR(res[0]=='/') ;
+		SWEAR( res[0]=='/' , res[0] ) ;
 		if (res.size()==1) return {}  ;                                        // cwd_ contains components prefixed by /, if at root, it is logical for it to be empty
 		else               return res ;
 	}
@@ -171,7 +171,7 @@ namespace Disk {
 	/**/          ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
 	/**/          ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
 	static inline ::string mk_abs( ::string const& file , ::string const& dir_s ) { // return file (passed as from dir_s       ) as absolute
-		SWEAR(is_abs_s(dir_s)) ;
+		SWEAR( is_abs_s(dir_s) , dir_s ) ;
 		return mk_glb(file,dir_s) ;
 	}
 	static inline ::string mk_rel( ::string const& file , ::string const& dir_s ) {
@@ -211,7 +211,7 @@ namespace Disk {
 		::vector_s src_dirs_s  = {}               ;
 	} ;
 
-	// XXX : avoid duplicating RealPathEnv by storing a pointer to it here rather than inheritance
+	// XXX : avoid duplicating RealPathEnv by storing a pointer to it here rather than inheritance, which requires to cleanly separate global part (in RealPathEnv) and specific part (in RealPath)
 	struct RealPath : RealPathEnv {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;

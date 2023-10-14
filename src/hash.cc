@@ -97,7 +97,7 @@ namespace Hash {
 			uint32_t offset = _cnt & (sizeof(_blk)-1)   ;
 			uint8_t* bp     = _bblk() + offset          ;
 			uint32_t avail  = sizeof(_blk) - (offset+1) ;                      // _blk is never full, so this is always >=0
-			SWEAR(_salt.size()<0x80) ;
+			SWEAR( _salt.size()<0x80 , _salt.size() ) ;
 			*bp++ = 0x80 + _salt.size() ;                                      // if _salt is empty, it is plain md5, else it is guaranteed different than plain md5
 			if (avail<sizeof(uint64_t)) {
 				memset( bp , 0 , avail ) ;

@@ -20,7 +20,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	//
 	size_t reply_sz = MsgBuf::s_sz(reply.data()) ;
 	if (reply_sz) {
-		SWEAR(reply_sz<=reply.size()) ;                                        // check there was no overflow
+		SWEAR( reply_sz<=reply.size() , reply_sz , reply.size() ) ;            // check there was no overflow
 		return IMsgBuf::s_receive<JobExecRpcReply>(reply.data()) ;
 	}
 

@@ -80,7 +80,8 @@ namespace Time {
 		AutoCloseFd fd       = open_write(now_file)       ;                    // create a file, just to have the date for now, which must be a Ddate, not a Pdate
 		char        _        = 0                          ;
 		swear_prod(+fd,"cannot create ",now_file) ;
-		SWEAR(::write(fd,&_,1)==1) ;                                           // must write something to update mtime
+		ssize_t cnt = ::write(fd,&_,1) ;                                       // must write something to update mtime
+		SWEAR( cnt==1 , cnt ) ;
 		Ddate now = file_date(fd) ;
 		SWEAR(+now) ;
 		_t_now = now ;

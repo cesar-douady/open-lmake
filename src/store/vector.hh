@@ -64,7 +64,7 @@ namespace Store {
 			IdxSz n_items() const { return s_n_items(sz) ; } // to inform AllocFile of the size of the item
 			// services
 			void shorten_by(Sz by) {
-				SWEAR(by<sz) ;
+				SWEAR( by<sz , by , sz ) ;
 				for( Sz i=sz-by ; i<sz ; i++ ) items()[i].~Item() ;
 				sz = sz-by ;
 			}
@@ -128,7 +128,7 @@ namespace Store {
 		void clear(Idx idx) { pop(idx)      ; }
 		Idx shorten_by( Idx idx , Sz by ) {
 			Sz sz = size(idx) ;
-			SWEAR(by<=sz) ;
+			SWEAR( by<=sz , by , sz ) ;
 			if (by==sz) { clear(idx) ; return 0 ; }
 			ULock lock{_mutex} ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

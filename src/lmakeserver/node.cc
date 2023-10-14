@@ -65,7 +65,7 @@ namespace Engine {
 		JobTgts jts       = (*this)->job_tgts ;
 		Unode   un        { *this }           ;
 		Bool3   buildable = Yes               ;
-		if ( !jts.empty() && jts.back()->rule->is_special() ) SWEAR(jts.back()->rule->special==special) ;
+		if ( !jts.empty() && jts.back()->rule->is_special() ) SWEAR( jts.back()->rule->special==special , jts.back()->rule->special , special ) ;
 		else                                                  un->job_tgts.append(::vector<JobTgt>({{ Job(special,*this,Deps(deps,a,df,p)) , true/*is_sure*/ }})) ;
 		for( Dep const& d : (*this)->job_tgts.back()->deps ) {
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
@@ -90,7 +90,7 @@ namespace Engine {
 			}
 			return sjts.subvec(0,sz) ;
 		} else {
-			SWEAR( prio_idx==jts.size() || prio_idx==NoIdx ) ;
+			SWEAR( prio_idx==jts.size() || prio_idx==NoIdx , prio_idx , jts.size() ) ;
 		}
 		return {} ;
 	}
@@ -138,8 +138,8 @@ namespace Engine {
 			n++ ;
 			if ( !is_lcl_ && !rt->allow_ext ) continue ;
 			if (rt->is_anti()) {
-				if (+Rule::FullMatch(rt,name_)) { SWEAR(jts.empty()) ; clear = true ; goto Return ; }
-				else                            {                                     continue    ; }
+				if (+Rule::FullMatch(rt,name_)) { SWEAR(jts.empty(),jts) ; clear = true ; goto Return ; }
+				else                            {                                         continue    ; }
 			}
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
@@ -236,8 +236,8 @@ namespace Engine {
 		//                                 ^^^^^^^^^^^^^^^^^^
 		catch (::vector<Node> const& e) { set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ; }
 		if ((*this)->buildable==No) {                                                                      // avoid allocating ReqInfo for non-buildable Node's
-			SWEAR(make_action<MakeAction::Dec) ;
-			SWEAR(!cri.has_watchers()        ) ;
+			SWEAR( make_action<MakeAction::Dec , make_action ) ;
+			SWEAR( !cri.has_watchers()                       ) ;
 			trace("not_buildable",cri) ;
 			if ( (*this)->crc!=Crc::None && manual_ok()==Maybe ) {             // if file has been removed, everything is ok again : file is not buildable and does not exist
 				Unode un{*this} ;
@@ -277,7 +277,7 @@ namespace Engine {
 			ri.prio_idx = it.idx ;
 		}
 	Make :
-		SWEAR( prod_idx==NoIdx && !multi ) ;
+		SWEAR( prod_idx==NoIdx && !multi , prod_idx ) ;
 		for (;;) {
 			if (ri.prio_idx>=(*this)->job_tgts.size()) {
 				if (!(*this)->rule_tgts) break ;                               // fast path : avoid creating Unode(*this)

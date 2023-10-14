@@ -204,8 +204,8 @@ namespace Store {
 			//
 			Item( Sz sz , Kind kind_ , bool used_ , ChunkIdx chunk_sz_ , CharUint cmp_val_=0 , ChunkBit cmp_bit_=0 ) :
 				Base( sz , kind_ , used_ , chunk_sz_ , cmp_bit_ )
-			{	SWEAR( chunk_sz_<=max_chunk_sz() ) ;
-				if (cmp_val_) SWEAR(kind()==Kind::Split) ;
+			{	SWEAR( chunk_sz_<=max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
+				if (cmp_val_) SWEAR( kind()==Kind::Split , kind() ) ;
 				for( bool is_eq : Nxt(kind_) ) nxt_if(is_eq) = Idx() ;
 				if (kind()==Kind::Split) cmp_val() = cmp_val_ ;
 				_new_data() ;
@@ -243,17 +243,17 @@ namespace Store {
 			Char const& chunk(ChunkIdx i) const { return _at<Char const>(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; } // in reverse order
 			Char      & chunk(ChunkIdx i)       { return _at<Char      >(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; } // .
 			//
-			CharUint const& cmp_val(          ) const                   { SWEAR(kind()==Kind::Split       ) ; return _at<CharUint const>(_s_cmp_val_ofs(sz(),used      )) ; }
-			CharUint      & cmp_val(          )                         { SWEAR(kind()==Kind::Split       ) ; return _at<CharUint      >(_s_cmp_val_ofs(sz(),used      )) ; }
-			DataNv   const& data   (          ) const requires(HasData) { SWEAR(used                      ) ; return _at<Data     const>(_s_data_ofs   (sz(),kind()    )) ; }
-			DataNv        & data   (          )       requires(HasData) { SWEAR(used                      ) ; return _at<Data          >(_s_data_ofs   (sz(),kind()    )) ; }
-			Idx      const& nxt_if (bool is_eq) const                   { SWEAR(is_eq>=*begin(Nxt(kind()))) ; return _at<Idx      const>(_s_nxt_if_ofs (sz(),used,is_eq)) ; }
-			Idx           & nxt_if (bool is_eq)                         { SWEAR(is_eq>=*begin(Nxt(kind()))) ; return _at<Idx           >(_s_nxt_if_ofs (sz(),used,is_eq)) ; }
-			Idx      const& nxt    (          ) const                   { SWEAR(kind()==Kind::Prefix      ) ; return nxt_if(true)                                         ; }
-			Idx           & nxt    (          )                         { SWEAR(kind()==Kind::Prefix      ) ; return nxt_if(true)                                         ; }
+			CharUint const& cmp_val(          ) const                   { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint const>(_s_cmp_val_ofs(sz(),used      )) ; }
+			CharUint      & cmp_val(          )                         { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint      >(_s_cmp_val_ofs(sz(),used      )) ; }
+			DataNv   const& data   (          ) const requires(HasData) { SWEAR(used                                   ) ; return _at<Data     const>(_s_data_ofs   (sz(),kind()    )) ; }
+			DataNv        & data   (          )       requires(HasData) { SWEAR(used                                   ) ; return _at<Data          >(_s_data_ofs   (sz(),kind()    )) ; }
+			Idx      const& nxt_if (bool is_eq) const                   { SWEAR(is_eq>=*begin(Nxt(kind())),kind(),is_eq) ; return _at<Idx      const>(_s_nxt_if_ofs (sz(),used,is_eq)) ; }
+			Idx           & nxt_if (bool is_eq)                         { SWEAR(is_eq>=*begin(Nxt(kind())),kind(),is_eq) ; return _at<Idx           >(_s_nxt_if_ofs (sz(),used,is_eq)) ; }
+			Idx      const& nxt    (          ) const                   { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true)                                         ; }
+			Idx           & nxt    (          )                         { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true)                                         ; }
 			CharUint dvg_char( ChunkIdx pos , CharUint dvg_val ) const {
-				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ; // chunk is stored in reverse order
-				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit ) ;                       // cannot diverge past cmp_bit
+				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ;           // chunk is stored in reverse order
+				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit , cmp_val() , dvg_val , cmp_bit ) ; // cannot diverge past cmp_bit
 				return cmp_val() ;
 			}
 			static constexpr ChunkIdx s_max_chunk_sz( Sz sz , Kind k , bool used ) {
@@ -267,10 +267,10 @@ namespace Store {
 			}
 			static Sz s_min_sz( Kind k , bool used , ChunkIdx chunk_sz ) {
 				ChunkIdx max_chunk_sz = s_max_chunk_sz(k,used) ;
-				SWEAR(               max_chunk_sz>=chunk_sz ) ;
+				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz , chunk_sz ) ;
 				Sz min_sz = MaxSz - (max_chunk_sz- chunk_sz)/ItemSizeOf ;
 				if ( k==Kind::Terminal && min_sz<MinUsedSz ) return MinUsedSz ;
-				else                                         return min_sz        ;
+				else                                         return min_sz    ;
 			}
 		private :
 			template<class T> T      & _at(size_t ofs)       { return *reinterpret_cast<      T*>(reinterpret_cast<char      *>(this)+ofs) ; }
@@ -278,30 +278,30 @@ namespace Store {
 			//
 			static constexpr ItemOfs _s_end_ofs(Sz sz) { return ItemSizeOf*sz ; }
 			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) { // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs ) ;               // check no overlap with metadata
+				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;          // check no overlap with metadata
 				return _s_end_ofs(sz) -  DataSizeOf ;
 			}
-			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {           // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs ) ; // check no overlap with metadata
+			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {                    // data is before nxt
+				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs , sz , k ) ; // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( sizeof(Idx)*+k + DataSizeOf ) ;
 			}
-			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool u , bool is_eq ) requires(BigData) {    // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*u + sizeof(Idx)*2 ) + ChunkOfs ) ;        // check no overlap with metadata
+			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool u , bool is_eq ) requires(BigData) {      // data is after  nxt
+				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*u + sizeof(Idx)*2 ) + ChunkOfs , sz , u ) ; // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( DataSizeOf*u + sizeof(Idx)*2 ) + sizeof(Idx)*is_eq ;
 			}
 			static ItemOfs _s_nxt_if_ofs( Sz sz , bool /*u*/ , bool is_eq ) requires(!BigData) { // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs ) ;                            // check no overlap with metadata
+				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs , sz ) ;                       // check no overlap with metadata
 				return _s_end_ofs(sz) -  sizeof(Idx)*2 + sizeof(Idx)*is_eq ;
 			}
 			static ItemOfs _s_cmp_val_ofs( Sz sz , bool u ) {
 				ItemOfs end_ofs = round_up( DataSizeOf*u + sizeof(Idx)*2 , CharSizeOf ) + CharSizeOf ;
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs ) ;                            // check no overlap with metadata
+				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz ,end_ofs ) ;              // check no overlap with metadata
 				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(CharUint) ) ;
 			}
 			static constexpr ItemOfs _s_chunk_end_ofs( Sz sz , Kind k , bool u ) {
 				if (k==Kind::Split) return round_down( _s_cmp_val_ofs(sz,u) , alignof(Char) ) ;
 				ItemOfs end_ofs = DataSizeOf*u + sizeof(Idx)*+k ;                               // space for data, nxt & cmp_val
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs ) ;                     // check no overlap with metadata
+				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;      // check no overlap with metadata
 				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(Char) ) ;                // align
 			}
 			static constexpr bool _s_large_enough_empty( Sz sz , Kind k , bool u ) {
@@ -310,9 +310,9 @@ namespace Store {
 				if (k==Kind::Split) at_end  = round_up(at_end,CharSizeOf) + CharSizeOf ;
 				return _s_end_ofs(sz) >= ChunkOfs + sizeof(Char) + at_end ;              // used items must have a non-null chunk
 			}
-			size_t _data_ofs   () const { SWEAR(used                  ) ; return _s_data_ofs   (sz(),kind()     ) ; }
-			size_t _nxt_ofs    () const { SWEAR(kind()!=Kind::Terminal) ; return _s_nxt_ofs    (sz(),kind(),used) ; }
-			size_t _cmp_val_ofs() const { SWEAR(kind()==Kind::Split   ) ; return _s_cmp_val_ofs(sz(),       used) ; }
+			size_t _data_ofs   () const { SWEAR(used                         ) ; return _s_data_ofs   (sz(),kind()     ) ; }
+			size_t _nxt_ofs    () const { SWEAR(kind()!=Kind::Terminal       ) ; return _s_nxt_ofs    (sz(),kind(),used) ; }
+			size_t _cmp_val_ofs() const { SWEAR(kind()==Kind::Split   ,kind()) ; return _s_cmp_val_ofs(sz(),       used) ; }
 			// services
 			void _mk_down( bool keep_is_eq=true) {
 				if (!keep_is_eq) _at<Idx>(_s_nxt_if_ofs(sz(),used,true/*is_eq*/)) = nxt_if(false/*is_eq*/) ;
@@ -327,9 +327,9 @@ namespace Store {
 					cmp_val() = cmp_val_                    ;
 					cmp_bit   = s_cmp_bit(cmp_val_,dvg_val) ;
 				} else {
-					SWEAR(!dvg_val) ;
+					SWEAR( !dvg_val , dvg_val ) ;
 				}
-				SWEAR( chunk_sz <= max_chunk_sz() ) ;
+				SWEAR( chunk_sz<=max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
 			}
 		public :
 			bool     may_mk_up_empty() const { return _s_large_enough_empty(sz(),kind()+1,used         ) ; }
@@ -337,10 +337,10 @@ namespace Store {
 			ChunkIdx max_chunk_sz   () const { return s_max_chunk_sz       (sz(),kind()  ,used         ) ; }
 			Sz       min_sz         () const { return s_min_sz             (     kind()  ,used,chunk_sz) ; }
 			//
-			void mk_down(bool keep_is_eq                       ) { SWEAR(kind()==Kind::Split   ) ; SWEAR(!nxt_if(!keep_is_eq)) ; _mk_down(keep_is_eq      ) ; }
-			void mk_down(                                      ) { SWEAR(kind()==Kind::Prefix  ) ; SWEAR(!nxt   (           )) ; _mk_down(                ) ; }
-			void mk_up  ( CharUint cmp_val_ , CharUint dvg_val ) { SWEAR(kind()==Kind::Prefix  ) ;                               _mk_up  (cmp_val_,dvg_val) ; }
-			void mk_up  (                                      ) { SWEAR(kind()==Kind::Terminal) ;                               _mk_up  (                ) ; }
+			void mk_down(bool keep_is_eq                       ) { SWEAR(kind()==Kind::Split   ,kind()) ; SWEAR(!nxt_if(!keep_is_eq)) ; _mk_down(keep_is_eq      ) ; }
+			void mk_down(                                      ) { SWEAR(kind()==Kind::Prefix  ,kind()) ; SWEAR(!nxt   (           )) ; _mk_down(                ) ; }
+			void mk_up  ( CharUint cmp_val_ , CharUint dvg_val ) { SWEAR(kind()==Kind::Prefix  ,kind()) ;                               _mk_up  (cmp_val_,dvg_val) ; }
+			void mk_up  (                                      ) { SWEAR(kind()==Kind::Terminal,kind()) ;                               _mk_up  (                ) ; }
 			//
 			void mk_used(bool used_) {
 				if (used_==used) return ;
@@ -356,10 +356,10 @@ namespace Store {
 				//^^^^^^^^^^
 				if (kind()==Kind::Split) cmp_val() = cmp_val_ ;
 				_new_data() ;
-				SWEAR( chunk_sz <= max_chunk_sz() ) ;
+				SWEAR( chunk_sz< max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
 			}
 			bool need_mk_min_sz() {
-				SWEAR(min_sz()<=sz()) ;
+				SWEAR( min_sz()<=sz() , min_sz() , sz() ) ;
 				return min_sz()<sz() ;
 			}
 			void mk_min_sz() {
@@ -378,7 +378,7 @@ namespace Store {
 				//^^^^^^^^^
 			}
 			void shorten_by(ChunkIdx start) {
-				SWEAR(start<=chunk_sz) ;
+				SWEAR( start<=chunk_sz , start , chunk_sz ) ;
 				chunk_sz -= start ;                                            // because chunks are stored in reverse order, suppressing a prefix is merely adjusting the chunk_sz
 			}
 			// find diverging point and return status. chunk_pos is always updated, idx only if status is Dvg::Cont
@@ -445,7 +445,7 @@ namespace Store {
 				n_saved = 0 ;
 			}
 			void backup( I idx , Item_ const& item ) {
-				SWEAR( n_saved < ::size(save) ) ;
+				SWEAR( n_saved<::size(save) , n_saved , ::size(save) ) ;
 				save[n_saved].first = idx ;
 				save[n_saved].second.save(item) ;
 				fence() ;
@@ -600,7 +600,7 @@ namespace Store {
 		template<class... A> void init( ::string const&   name_ , bool writable_ , A&&... hdr_args ) {
 			Base::init( name_ , writable_ , ::forward<A>(hdr_args)... ) ;
 			// fix in case of crash during an operation
-			if (!writable_) { SWEAR(!_n_saved()) ; return ; }                  // cannot fix if not writable
+			if (!writable_) { SWEAR(!_n_saved(),_n_saved()) ; return ; }       // cannot fix if not writable
 			for( uint8_t i=0 ; i<_n_saved() ; i++ ) {
 				auto const& [idx,save_item] = _save()[i] ;
 				save_item.restore(_at(idx)) ;
@@ -710,7 +710,7 @@ namespace Store {
 		Idx _emplace( Kind k , bool used , Idx idx , ChunkIdx start , ChunkIdx chunk_sz ) {
 			if (k==Kind::Split) {
 				Item const& item = _at(idx) ;
-				SWEAR(item.kind()==Kind::Split) ;                                                      // else cannot find adequate cmp_val & cmp_bit
+				SWEAR( item.kind()==Kind::Split , item.kind() ) ;                                      // else cannot find adequate cmp_val & cmp_bit
 				return _emplace( k , used , idx , start , chunk_sz , item.cmp_val() , item.cmp_bit ) ;
 			} else {
 				return _emplace( k , used , idx , start , chunk_sz , 0/*cmp_val*/   , 0/*cmp_bit*/ ) ;
@@ -734,7 +734,7 @@ namespace Store {
 		}
 		// from->0->to ==> from->to
 		template<bool BuF,bool BuT> void _lnk( Idx from , Idx to ) {
-			SWEAR(_at(from).kind()==Kind::Prefix) ;
+			SWEAR( _at(from).kind()==Kind::Prefix , _at(from).kind() ) ;
 			_lnk<BuF,BuT>(from,true,to) ;
 		}
 
@@ -744,14 +744,14 @@ namespace Store {
 			_backup<BuT>(to  ) ;
 			Idx & nxt     = _at(from).nxt_if(is_eq) ;
 			Item& to_item = _at(nxt)                ;
-			SWEAR(nxt==to) ;
+			SWEAR( nxt==to , nxt , to ) ;
 			nxt                = Idx() ;
 			to_item.prev       = Idx() ;
 			to_item.prev_is_eq = true  ;
 		}
 		// from->to ==> from->0->to
 		template<bool BuF,bool BuT> void _unlnk( Idx from , Idx to ) {
-			SWEAR(_at(from).kind()==Kind::Prefix) ;
+			SWEAR( _at(from).kind()==Kind::Prefix , _at(from).kind() ) ;
 			_unlnk<BuF,BuT>(from,true,to) ;
 		}
 		// idx(is_eq)->... ==> idx(is_eq)->0->...
@@ -760,7 +760,7 @@ namespace Store {
 		}
 		// idx->... ==> idx->0->...
 		template<bool BuI,bool BuNxt> void _unlnk_after(Idx idx) {
-			SWEAR(_at(idx).kind()==Kind::Prefix) ;
+			SWEAR( _at(idx).kind()==Kind::Prefix , _at(idx).kind() ) ;
 			_unlnk_after<BuI,BuNxt>(idx,true) ;
 		}
 		// ...->idx ==> ...->0->idx
@@ -792,7 +792,7 @@ namespace Store {
 		// ...()->idx->... ==> ...()->...
 		template<bool BuPrev,bool BuI,bool BuNxt> Idx/*prev*/ _erase_prefix(Idx idx) {
 			Item& item = _at(idx) ;
-			SWEAR( item.kind()==Kind::Prefix && !item.used ) ;
+			SWEAR( item.kind()==Kind::Prefix && !item.used , item.kind() , item.used ) ;
 			Idx  prev  = item.prev       ;
 			bool is_eq = item.prev_is_eq ;
 			Idx  nxt   = item.nxt()      ;
@@ -820,7 +820,7 @@ namespace Store {
 		}
 		// before(*)->... ==> before(before_is_eq)->idx(*)->...
 		template<bool BuB,bool BuNxtEq,bool BuNxtNeq> void _insert_after( Idx before , bool before_is_eq , Idx idx ) {
-			SWEAR(_at(idx).kind()==Kind::Split) ;
+			SWEAR( _at(idx).kind()==Kind::Split , _at(idx).kind() ) ;
 			_insert_between<BuB  ,BuNxtEq       >( before , before_is_eq , idx ,  before_is_eq , _at(before).nxt_if( before_is_eq) ) ;
 			_mv_lnk_before <false,false,BuNxtNeq>(                         idx , !before_is_eq , _at(before).nxt_if(!before_is_eq) ) ; // from already backed up,idx was not in tree
 		}
@@ -829,7 +829,7 @@ namespace Store {
 		template<bool BuPrev,bool BuO,bool BuNxt0,bool BuNxt1> void _mv( Idx old_idx , Idx new_idx ) {
 			Item& old_item = _at(old_idx) ;
 			Item& new_item = _at(new_idx) ;
-			SWEAR(old_item.kind()==new_item.kind()) ;
+			SWEAR( old_item.kind()==new_item.kind() , old_item.kind() , new_item.kind() ) ;
 			/**/                              _mv_lnk_after <BuPrev,BuO  ,false >( old_item.prev , old_item.prev_is_eq , new_idx                                  ) ; // new_idx was not in tree
 			if(old_item.kind()>=Kind::Split ) _mv_lnk_before<false ,false,BuNxt0>(                                       new_idx , false , old_item.nxt_if(false) ) ; // . + old_idx already backed up
 			if(old_item.kind()>=Kind::Prefix) _mv_lnk_before<false ,false,BuNxt1>(                                       new_idx , true  , old_item.nxt_if(true ) ) ; // . + old_idx already backed up
@@ -928,8 +928,8 @@ namespace Store {
 			Item& item = _at(idx) ;
 			_backup<BuI   >(idx      ) ;
 			_backup<BuPrev>(item.prev) ;
-			/**/                 SWEAR(pos<item.chunk_sz) ;
-			if (k==Kind::Prefix) SWEAR(pos>0            ) ;
+			/**/                 SWEAR( pos<item.chunk_sz , pos , item.chunk_sz ) ;
+			if (k==Kind::Prefix) SWEAR( pos>0                                   ) ;
 			pos -= _add_prefix<BuPrev2_,false,false>( idx , pos , Item::s_max_chunk_sz(k,used) ) ;               // prev & idx already backed up
 			//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Idx dvg = _emplace( k , used , idx , 0/*start*/ , pos , cmp_val , Item::s_cmp_bit(cmp_val,dvg_val) ) ;
@@ -952,7 +952,7 @@ namespace Store {
 			Kind kind = item.kind() ;
 			if (kind==Kind::Split) {
 				ChunkBit cmp_bit = Item::s_cmp_bit( item.cmp_val() , dvg_val ) ;
-				SWEAR(cmp_bit<item.cmp_bit) ;
+				SWEAR( cmp_bit<item.cmp_bit , cmp_bit , item.cmp_bit ) ;
 				//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				Idx cpy = _emplace( Kind::Split , item.cmp_val() , item.cmp_bit ) ;
 				//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -971,9 +971,9 @@ namespace Store {
 				_minimize_sz<false>(idx) ;                                     // idx already backed up
 				return idx ;
 			}
-			SWEAR(+item.prev        ) ;                                                        // root has is always may_mk_up_empty()
-			SWEAR(kind==Kind::Prefix) ;                                                        // single char Terminal *must* be transformable into Prefix
-			SWEAR(item.used         ) ;                                                        // empty unused items are transformable into Split
+			SWEAR( +item.prev                ) ;                                               // root has is always may_mk_up_empty()
+			SWEAR( kind==Kind::Prefix , kind ) ;                                               // single char Terminal *must* be transformable into Prefix
+			SWEAR( item.used                 ) ;                                               // empty unused items are transformable into Split
 			//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Idx new_idx = _emplace( Kind::Split , cmp_val , Item::s_cmp_bit(cmp_val,dvg_val) ) ;
 			_insert_after<false,BuNxt1_>( idx , true/*before_is_eq*/ , new_idx , true/*is_eq*/ ) ; // idx already backed up
@@ -1007,7 +1007,7 @@ namespace Store {
 				return new_idx ;
 			}
 		InsertSplitAfter :
-			SWEAR(kind==Kind::Split) ;
+			SWEAR( kind==Kind::Split , kind ) ;
 			_insert_after<false,true,true>( idx , true/*is_eq*/ , _emplace( Kind::Split , item.cmp_val() , item.cmp_bit ) ) ; // insert empty Split after
 			item.mk_down(true/*keep_is_eq*/) ;
 		InPlaceWithPrefix :
@@ -1037,7 +1037,7 @@ namespace Store {
 			static constexpr ChunkIdx MaxTerminalChunkSz = Item::s_max_chunk_sz(                   Kind::Terminal , true /*used*/ ) ;
 			static constexpr ChunkIdx MinTerminalChunkSz = Item::s_max_chunk_sz( Item::MinUsedSz , Kind::Terminal , true /*used*/ ) ;
 			size_t total_sz = Prefix::size(name,psfx) ;
-			SWEAR(pos<=total_sz) ;
+			SWEAR( pos<=total_sz , pos , total_sz ) ;
 			//                        vvvvvvvvvvvvvvvvvvv
 			if (pos==total_sz) return _cut(idx,chunk_pos) ;                    // new item is a prefix of an existing one
 			//                        ^^^^^^^^^^^^^^^^^^^
@@ -1417,7 +1417,7 @@ namespace Store {
 	private :
 		void _boot() {
 			Idx root = Base::emplace_root() ;
-			SWEAR(root==Root) ;
+			SWEAR( root==Root , root ) ;
 		}
 		// services
 	public :

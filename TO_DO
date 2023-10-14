@@ -46,6 +46,12 @@ items :
 	- ensure it is also present in executable script
 	- apply same technic to called functions transported into script
 		- i.e. use technic in serialize module
+* generate performance metrics
+	- useful/useless created jobs
+	- number of non buildable nodes
+	- max number of resources slots in backend
+	- total number of deps
+	- total number of pressure updates
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
@@ -63,12 +69,9 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* generate performance metrics
-	- useful/useless created jobs
-	- number of non buildable nodes
-	- max number of resources slots in backend
-	- total number of deps
-	- total number of pressure updates
+* implement noexcept/except everywhere pertinent
+* use the Path struct instead of at/file
+	- everywhere applicable
 * make a class GenericBackend
 	- as a base class for LocalBackend and SlurmBackend
 	- when slurm is installed so tests are possible
@@ -125,20 +128,15 @@ items :
 		- difficulty is that there is no named group
 		- this means () from user regexprs must be counted to compute group indices
 		- which in turn means to do a expr analysis (lexical or syntaxic ?) to recognize true ()'s from escaped ones
-	- add a dep flag to say direct for use by depend
-	- add a target flag to say direct for use by pattern
+	- specify a target flag 'direct' for use by pattern
+	- specify a dep    flag 'direct' for dynamic use (through ldepend)
 	- pass known hidden deps to job_exec to avoid connection to server when known
 	- the difficult point : manage resource deadlocks
 		- suspend waiting job (tell backend job is suspended)
-		- kill it if necessary (at the will of backend)
 		- tell backend job is resumed
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
-! support direct dep rebuild
-	- specify a target flag 'direct'
-	- find a way to embed python regexprs into autodep w/o bring full python
-	- find a way to avoid conflict dead-locks
 ! record deps during attribute computation
 	- when dynamic
 * implement a ref/check mechanism
@@ -167,8 +165,6 @@ items :
 	? there must be one fuse mount for each job so as to recognize which job does the access
 	? how to manage so that the job sees the repository with its nominal name
 		? requires a chroot
-? lshow does not need to read Lmakefile
-	- this allows to use lshow even if Lmakefile is unreadable
 ? provide a lock mechanism in local backend
 	? much like a bunch of resources w/ capacity=1
 	? stored as a set
@@ -188,8 +184,6 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* provide a compile option w/o trace
-	- to measure tracing price more than to actually use it
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation

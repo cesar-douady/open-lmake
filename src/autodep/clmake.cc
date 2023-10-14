@@ -57,6 +57,17 @@ static ::vector_s _get_files( PyObject* args ) {
 	} else {
 		/**/                          { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) _push_str( res , PyTuple_GET_ITEM(args,i) ) ; }
 	}
+	for( size_t i=0 ; i<res.size() ; i++ )
+		if (res[i].empty()) {
+			const char* th = nullptr ;
+			switch ((i+1)%10) {
+				case 1  : th = "st" ; break ;
+				case 2  : th = "nd" ; break ;
+				case 3  : th = "rd" ; break ;
+				default : th = "th" ;
+			}
+			throw to_string(i+1,th," arg is empty") ;
+		}
 	return res ;
 }
 
@@ -92,7 +103,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                               ;
-		SWEAR(reply.infos.size()==jerr.files.size()) ;
+		SWEAR( reply.infos.size()==jerr.files.size() , reply.infos.size() , jerr.files.size() ) ;
 		PyObject* res = PyDict_New() ;
 		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
 			PyObject* v = PyTuple_New(2) ;
@@ -155,7 +166,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	}
 	::vector_s views = _get_files(args) ;
 	if (views.size()==0) views.push_back(cwd()) ;
-	SWEAR(views.size()==1) ;
+	SWEAR( views.size()==1 , views.size() ) ;
 	::string const& view = views[0] ;
 	if (view.empty()) return PyUnicode_FromString("") ;
 	//

@@ -79,8 +79,8 @@ namespace Engine {
 		struct FullMatch   ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
-		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                      } {                                      }
-		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx)) ; }
+		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                      } {                                                     }
+		Rule(::string const& job_sfx) : Rule    { decode_int<Idx>( &job_sfx[job_sfx.size()-sizeof(Idx)] ) } { SWEAR(job_sfx.size()>=sizeof(Idx),job_sfx.size()) ; }
 		// acesses
 		::string job_sfx() const ;
 		// services

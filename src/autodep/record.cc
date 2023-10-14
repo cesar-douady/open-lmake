@@ -63,10 +63,11 @@ AutodepEnv* Record::_s_autodep_env = nullptr ;                                 /
 Fd          Record::_s_root_fd     ;
 
 void Record::_report_access( JobExecRpcReq const& jerr ) const {
-	SWEAR(jerr.proc==JobExecRpcProc::Access) ;
+	SWEAR( jerr.proc==JobExecRpcProc::Access , jerr.proc ) ;
 	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
+			SWEAR( !f.empty() , jerr.comment ) ;
 			auto [it,inserted] = access_cache.emplace(f,Accesses::None) ;
 			Accesses old_accesses = it->second ;
 			it->second |= jerr.digest.accesses ;
@@ -100,6 +101,7 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		::vmap_s<Ddate> files       ;
 		bool            write       = jerr.digest.write   ;
 		for( auto const& [f,dd] : jerr.files ) {
+			SWEAR(!f.empty()) ;
 			Path        p  = {Fd::Cwd,f.c_str()}              ;                // we can play with the at field at will
 			SolveReport sr = _solve( p , jerr.no_follow , c ) ;
 			if (write?sr.kind==Kind::Repo:sr.kind<=Kind::Dep) files.emplace_back( sr.real , file_date(s_root_fd(),sr.real) ) ;
@@ -246,7 +248,6 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , u_int flags [[ma
 	#endif
 }
 int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
-	// XXX : protect code against access rights while walking : the rename of a dir can be ok while walking inside it could be forbidden
 	if (src.real==dst.real) return rc ;                                           // this includes case where both are outside repo as they would be both empty
 	if (exchange) {
 		src.comment += "<>" ;
@@ -261,12 +262,12 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		::vector_s reads  ;
 		::vector_s writes ;
 		if ( src.kind<=Kind::Dep || dst.kind==Kind::Repo ) {
-			::vector_s sfxs = walk(dst.at,dst.file) ;
+			::vector_s sfxs = walk(dst.at,dst.file) ;                                                    // list only accessible files
 			if (src.kind<=Kind::Dep ) for( ::string const& s : sfxs ) reads .push_back( src.real + s ) ;
 			if (dst.kind==Kind::Repo) for( ::string const& d : sfxs ) writes.push_back( dst.real + d ) ;
 		}
 		if ( exchange && ( dst.kind<=Kind::Dep || src.kind==Kind::Repo ) ) {
-			::vector_s sfxs = walk(src.at,src.file) ;
+			::vector_s sfxs = walk(src.at,src.file) ;                                                    // list only accessible files
 			if (dst.kind<=Kind::Dep ) for( ::string const& s : sfxs ) reads .push_back( dst.real + s ) ;
 			if (src.kind==Kind::Repo) for( ::string const& d : sfxs ) writes.push_back( src.real + d ) ;
 		}
@@ -275,14 +276,15 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 	} else if (no_file) {                                                         // rename has not occurred : the read part must still be reported
 		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
 		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
-		if ( src.kind<=Kind::Dep             ) r._report_deps( walk( s_root_fd() , src.real ) , DataAccesses , false/*unlink*/ , src.comment ) ; // src.comment is for the read part
-		if ( dst.kind<=Kind::Dep && exchange ) r._report_deps( walk( s_root_fd() , dst.real ) , DataAccesses , false/*unlink*/ , src.comment ) ; // .
+		// walk only lists accessibles files
+		if ( src.kind<=Kind::Dep             ) r._report_deps( walk(src.at,src.file) , DataAccesses , false/*unlink*/ , src.comment ) ; // src.comment is for the read part
+		if ( dst.kind<=Kind::Dep && exchange ) r._report_deps( walk(dst.at,dst.file) , DataAccesses , false/*unlink*/ , src.comment ) ; // .
 	}
 	return rc ;
 }
 
 Record::Search::Search( Record& r , Path const& path , bool exec , const char* path_var , ::string const& comment ) {
-	SWEAR(path.at==Fd::Cwd) ;                                                                                         // it is meaningless to search with a dir fd
+	SWEAR( path.at==Fd::Cwd , path.at ) ;                                                                             // it is meaningless to search with a dir fd
 	const char* file = path.file ;
 	if (!file) return ;
 	//

@@ -68,7 +68,7 @@ namespace Store {
 		void close() {
 			if (base) {
 				int rc = ::munmap( base , capacity ) ;
-				SWEAR(rc==0) ;
+				SWEAR( rc==0 , rc ) ;
 			}
 			_fd.close() ;
 		}
@@ -98,14 +98,14 @@ namespace Store {
 		}
 	private :
 		void _resize(size_t size_) {
-			SWEAR_PROD(writable       ) ;
-			SWEAR     (size_<=capacity) ;
+			SWEAR_PROD( writable                           ) ;
+			SWEAR     ( size_<=capacity , size_ , capacity ) ;
 			size_ = round_up( size_ , g_page ) ;
 			if (+_fd) {
 				//         vvvvvvvvvvvvvvvvvvvvvvvv
 				int rc = ::ftruncate( _fd , size_ ) ;                          // may increase file size
 				//         ^^^^^^^^^^^^^^^^^^^^^^^^
-				SWEAR_PROD(rc==0) ;
+				SWEAR_PROD( rc==0 , rc ) ;
 			}
 			fence() ;                                                          // update state when it is legal to do so
 			size = size_ ;

@@ -47,7 +47,7 @@ namespace Caches {
 
 	static ::string _unique_name(Job job) {
 		Rule     rule      = job->rule                              ;
-		::string full_name = job.full_name()                        ; SWEAR(Rule(full_name)==rule) ; // only name suffix is considered to make Rule
+		::string full_name = job.full_name()                        ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ; // only name suffix is considered to make Rule
 		size_t   user_sz   = full_name.size() - rule->job_sfx_len() ;
 		::string res       = full_name.substr(0,user_sz)            ; res.reserve(res.size()+1+rule->n_static_stems*(2*(3+1))+16) ; // allocate 2x3 digits per stem, this is comfortable
 		//
@@ -70,17 +70,17 @@ namespace Caches {
 		::ifstream head_stream { head_file }                                         ;
 		Lru        head        = head_stream ? deserialize<Lru>(head_stream) : Lru() ;
 		//
-		SWEAR(head.sz>=old_sz) ;
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
 			auto here = deserialize<Lru>(IFStream(to_string(dir,'/',head.prev,"/lru"))) ;
 			unlink(dir_fd,head.prev) ;
-			SWEAR(head.sz>here.sz) ;
+			SWEAR( head.sz>here.sz , head.sz , here.sz ) ;
 			head.sz   -= here.sz           ;
 			head.prev  = ::move(here.prev) ;
 		}
 		head.sz += new_sz ;
-		SWEAR(head.sz<=sz) ;
+		SWEAR( head.sz<=sz , head.sz ,sz ) ;
 		//
 		if (head.prev!="LMAKE") {
 			::string last_file = to_string(dir,'/',head.prev,"/lru")   ;
@@ -94,7 +94,7 @@ namespace Caches {
 	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlink_dst , bool mk_read_only ) {
 		FileInfo fi{src_at,src_file} ;
 		if (unlink_dst) unlink(dst_at,dst_file)            ;
-		else            SWEAR(!is_target(dst_at,dst_file)) ;
+		else            SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
 		switch (fi.tag) {
 			case FileTag::None : break ;
 			case FileTag::Reg  :
@@ -271,8 +271,8 @@ namespace Caches {
 			::vmap_s<DepDigest> deps ;
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {
 				Node d{dn} ;
-				if (dd.is_date) { SWEAR(dd.date()==d->date) ; dd.crc(d->crc) ; }
-				else            { SWEAR(d->up_to_date(dd)  ) ;                 }
+				if (dd.is_date) { SWEAR( dd.date()==d->date , dd.date() , d->date ) ; dd.crc(d->crc) ; }
+				else            { SWEAR( d->up_to_date(dd)                        ) ;                  }
 				deps.emplace_back(dn,dd) ;
 			}
 			// store meta-data

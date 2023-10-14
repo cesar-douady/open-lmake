@@ -28,7 +28,7 @@ void print_submit_attrs(SubmitAttrs const& sa) {
 }
 
 void print_pre_start(JobRpcReq const& jrr) {
-	SWEAR(jrr.proc==JobProc::Start) ;
+	SWEAR( jrr.proc==JobProc::Start , jrr.proc ) ;
 	::cout << "--req--\n" ;
 	//
 	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
@@ -37,7 +37,7 @@ void print_pre_start(JobRpcReq const& jrr) {
 }
 
 void print_start(JobRpcReply const& jrr) {
-	SWEAR(jrr.proc==JobProc::Start) ;
+	SWEAR( jrr.proc==JobProc::Start , jrr.proc ) ;
 	::cout << "--start--\n" ;
 	//
 	::cout << "addr        : "  << hex<<jrr.addr<<dec          <<'\n' ;
@@ -66,7 +66,7 @@ void print_start(JobRpcReply const& jrr) {
 void print_end(JobRpcReq const& jrr) {
 	JobDigest const& jd  = jrr.digest ;
 	JobStats  const& st  = jd.stats   ;
-	SWEAR(jrr.proc==JobProc::End) ;
+	SWEAR( jrr.proc==JobProc::End , jrr.proc ) ;
 	//
 	::cout << "--end--\n" ;
 	//

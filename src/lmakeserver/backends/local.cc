@@ -34,8 +34,8 @@ namespace Backends::Local {
 		RsrcsData( LocalBackend const& , ::vmap_ss const& ) ;
 		::vmap_ss mk_vmap(LocalBackend const&) const ;
 		// services
-		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] += rsrcs[i] ; return *this ; }
-		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] -= rsrcs[i] ; return *this ; }
+		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] += rsrcs[i] ; return *this ; }
+		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] -= rsrcs[i] ; return *this ; }
 	} ;
 
 	struct RsrcsData2 : ::vector<Rsrc2> {
@@ -44,7 +44,7 @@ namespace Backends::Local {
 		RsrcsData2( LocalBackend const& , ::vmap_ss const& ) ;
 		// services
 		bool fit_in(RsrcsData const& avail) const {                            // true if all resources fit within avail
-			SWEAR(size()==avail.size()) ;
+			SWEAR( size()==avail.size() , size() , avail.size() ) ;
 			for( size_t i=0 ; i<size() ; i++ ) if ((*this)[i].min>avail[i]) return false ;
 			return true ;
 		}
@@ -209,7 +209,7 @@ namespace Backends::Local {
 			capacity_ = RsrcsData( *this , config.dct ) ;
 			avail     = capacity_                       ;
 			//
-			SWEAR(rsrc_keys.size()==capacity_.size()) ;
+			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			Trace("config",MyTag,"capacity",'=',capacity_) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
@@ -374,7 +374,7 @@ namespace Backends::Local {
 					SWEAR(!re.started) ;                                       // when job starts, it is not in starting_jobs any more
 					if (--re.n_reqs) continue ;
 					res.insert(j) ;
-					SWEAR(re.pid>1) ;                                          // values -1, or 1 are unexpected
+					SWEAR( re.pid>1 , re.pid ) ;                               // values -1, or 1 are unexpected
 					//vvvvvvvvvvvvvvvvvvvvvvv
 					kill_group(re.pid,SIGHUP) ;
 					_wait_job(re) ;
@@ -483,7 +483,7 @@ namespace Backends::Local {
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
-			SWEAR(it->second<size()) ;
+			SWEAR( it->second<size() , it->second , size() ) ;
 			try        { (*this)[it->second] = from_string_rsrc(k,v) ;                       }
 			catch(...) { throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()) ; }
 		}
@@ -493,7 +493,7 @@ namespace Backends::Local {
 		for( auto const& [k,v] : m ) {
 			auto it = self.rsrc_idxs.find(k) ;
 			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
-			SWEAR(it->second<size()) ;
+			SWEAR( it->second<size() , it->second , size() ) ;
 			Rsrc2& entry = (*this)[it->second] ;
 			try {
 				size_t pos = v.find('<') ;

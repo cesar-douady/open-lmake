@@ -25,7 +25,8 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	trace("start") ;
 	for(;;) {
 		struct signalfd_siginfo _ ;
-		SWEAR( ::read(int_fd,&_,sizeof(_)) == sizeof(_) ) ;
+		ssize_t cnt = ::read(int_fd,&_,sizeof(_)) ;
+		SWEAR( cnt==sizeof(_) , cnt ) ;
 		if (stop.stop_requested()) {
 			trace("done") ;
 			return ;                                                           // not an interrupt, just normal exit
@@ -68,8 +69,9 @@ int main( int argc , char* argv[] ) {
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;
 	if ( cmd_line.flags[ReqFlag::Jobs] && ( n_jobs<=0 || n_jobs>=::numeric_limits<JobIdx>::max() ) ) syntax.usage("cannot understand max number of jobs") ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Make , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ; // start interrupt handling thread once server is started
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// start interrupt handling thread once server is started
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Make , true/*refresh_makefiles*/ , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

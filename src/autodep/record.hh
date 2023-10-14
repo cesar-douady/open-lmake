@@ -39,7 +39,7 @@ struct Record {
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
-		SWEAR(!_s_autodep_env) ;
+		SWEAR( !_s_autodep_env , _s_autodep_env ) ;
 		_s_autodep_env = new AutodepEnv{ade} ;
 		return *_s_autodep_env ;
 	}
@@ -81,8 +81,8 @@ private :
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , a , u , c ) ;
 	}
-	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.write =true} , c ) ) ; }
-	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::forward<string>(f),DD()}} , {.unlink=true} , c ) ) ; }
+	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.write =true} , c ) ) ; }
+	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.unlink=true} , c ) ) ; }
 	void _report_targets( ::vector_s&& fs , ::string const& c={} ) const {
 		vmap_s<DD> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),DD()) ;
@@ -132,7 +132,7 @@ public :
 		void allocate(        ::string const& f ) {                 allocate( Fd::Cwd , f.c_str() , f.size()     ) ; }
 		void allocate( Fd a , ::string const& f ) {                 allocate( a       , f.c_str() , f.size()     ) ; }
 		void allocate( Fd at_ , const char* file_ , size_t sz ) {
-			SWEAR( has_at || at_==Fd::Cwd ) ;
+			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
 			deallocate() ;
 			char* buf = new char[sz+1] ;                                       // +1 to account for terminating null
 			::memcpy(buf,file_,sz+1) ;
@@ -142,7 +142,7 @@ public :
 		}
 		void share(const char* file_) { share(Fd::Cwd,file_) ; }
 		void share( Fd at_ , const char* file_ ) {
-			SWEAR( has_at || at_==Fd::Cwd ) ;
+			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
 			deallocate() ;
 			file      = file_ ;
 			at        = at_   ;

@@ -85,13 +85,13 @@ namespace Store {
 		/**/ void chk() const {
 			SLock lock{_mutex} ;
 			Base::chk() ;
-			SWEAR( size()==_side_car.size() ) ;
+			SWEAR( size()==_side_car.size() , size() , _side_car.size() ) ;
 		}
 	private :
-		bool _at_end      (         Idx idx ) const requires(HasBoth) { SWEAR(idx<=_side_car.size()) ; return idx==_side_car.size() ;                             }
-		Idx  _cxt_side_car( Sz sz , Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(sz) ; else _side_car.emplace(idx) ; return idx ; }
-		Idx  _cxt_side_car(         Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(  ) ; else _side_car.emplace(idx) ; return idx ; }
-		Idx  _dxt_side_car(         Idx idx )       requires(HasBoth) { SWEAR(!_at_end(idx)) ;                              _side_car.pop    (idx) ; return idx ; }
+		bool _at_end      (         Idx idx ) const requires(HasBoth) { SWEAR( idx<=_side_car.size() , idx , _side_car.size() ) ; return idx==_side_car.size() ; }
+		Idx  _cxt_side_car( Sz sz , Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(sz) ; else _side_car.emplace(idx) ; return idx ;    }
+		Idx  _cxt_side_car(         Idx idx )       requires(HasBoth) { if (_at_end(idx)) _side_car.emplace_back(  ) ; else _side_car.emplace(idx) ; return idx ;    }
+		Idx  _dxt_side_car(         Idx idx )       requires(HasBoth) { SWEAR(!_at_end(idx)) ;                              _side_car.pop    (idx) ; return idx ;    }
 		// data
 		StructFile< false/*AutoLock*/ , void , Idx , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
 	} ;

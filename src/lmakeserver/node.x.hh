@@ -16,7 +16,6 @@ namespace Engine {
 	struct NodeReqInfo ;
 
 	struct Target  ;
-	struct Targets ;
 
 	struct Deps ;
 	struct Dep  ;
@@ -150,11 +149,7 @@ namespace Engine {
 		bool lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) ; // fm & tn are lazy evaluated
 	} ;
 
-	struct Targets : TargetsBase {
-		friend ::ostream& operator<<( ::ostream& , Targets const ) ;
-		// cxtors & casts
-		using TargetsBase::TargetsBase ;
-	} ;
+	using Targets = TargetsBase ;
 
 	//
 	// Deps
@@ -265,7 +260,7 @@ namespace Engine {
 			&&	!rule_tgts
 			&&	job_tgts.empty()
 			&&	!has_actual_job()
-			&&	(SWEAR(conform_idx==Node::NoIdx),true)                         // if no job_tgts, conform_idx must be NoIdx
+			&&	(SWEAR(conform_idx==Node::NoIdx,conform_idx),true)             // if no job_tgts, conform_idx must be NoIdx
 			//	match_gen                                                      // handled by shared nodes
 			//	buildable                                                      // handled by shared nodes
 			&&	(SWEAR(!uphill                 ),true)                         // if no job _tgts, it cannot be uphill

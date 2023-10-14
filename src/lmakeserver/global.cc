@@ -69,15 +69,18 @@ namespace Engine {
 		::string field   ;
 		try {
 			bool found_addr = false ;
-			for( auto const& [k,v] : Py::Mapping(py_map) ) {
-				field = Py::String(k) ;
+			for( auto const& [py_k,py_v] : Py::Mapping(py_map) ) {
+				field = Py::String(py_k) ;
+				::string v = py_v.str() ;
 				if (field=="interface") {
 					if (is_local) throw "interface is not supported for local backends"s ;
-					addr       = ServerSockFd::s_addr(Py::String(v)) ;
-					found_addr = true                                ;
-					continue ;
+					found_addr = true ;
+					try {
+						addr = ServerSockFd::s_addr(v) ;
+						continue ;
+					} catch (::string const&) {}                               // if we cannot interpret interface, leave decision to backend what to do
 				}
-				dct.emplace_back(field,v.str()) ;
+				dct.emplace_back(field,v) ;
 			}
 			field = "interface" ;
 			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(host()) ;
@@ -283,6 +286,18 @@ namespace Engine {
 	void Config::open() const {
 		Backends::Backend::s_config(backends) ;
 		Caches  ::Cache  ::s_config(caches  ) ;
+		// check non-local backends have non-local addresses
+		for( BackendTag t : BackendTag::N ) {
+			if (!Backends::Backend::s_ready[+t]) continue ;                    // backend is not supposed to be used
+			Backend           const& be  = backends[+t]                 ;
+			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
+			if (bbe->is_local()                    ) continue ;
+			if (be.addr!=ServerSockFd::LoopBackAddr) continue ;                                              // backend has an address
+			::string ifce ; for( auto const& [k,v] : be.dct ) { if (k=="interface") { ifce = v ; break ; } }
+			::string ts   = mk_snake(t) ;
+			if (ifce.empty()) throw to_string("cannot find host address. Consider adding in Lmakefile.py : lmake.config.backends.",ts,".interface = <something that works>") ;
+			else              throw to_string("bad interface ",ifce," for backend ",ts) ;
+		}
 	}
 
 	//

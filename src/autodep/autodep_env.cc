@@ -39,7 +39,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 		size_t sz = parse_c_str(env,pos) ;
 		if (sz==Npos) goto Fail ;
 		src_dirs_s.push_back(env.substr(pos+1,sz-2)) ;                     // account for quotes
-		SWEAR(src_dirs_s.back().back()=='/') ;
+		SWEAR( src_dirs_s.back().back()=='/' , src_dirs_s.back() ) ;
 		pos += sz ;
 	}
 	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; tmp_dir  = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=':') goto Fail ; }
@@ -68,7 +68,7 @@ AutodepEnv::operator ::string() const {
 	res += ':' ;
 	bool first = true ;
 	for( ::string const& sd_s : src_dirs_s ) {
-		SWEAR(sd_s.back()=='/') ;
+		SWEAR( sd_s.back()=='/' , sd_s.back() ) ;
 		if (first) first  = false ;
 		else       res   += ','   ;
 		res += mk_c_str(sd_s) ;

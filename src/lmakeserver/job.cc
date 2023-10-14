@@ -329,7 +329,7 @@ namespace Engine {
 
 	void JobExec::report_start( ReqInfo& ri , ::vector<Node> const& report_unlink , ::string const& txt ) const {
 		if ( ri.start_reported ) {
-			SWEAR(report_unlink.empty()) ;
+			SWEAR( report_unlink.empty() , report_unlink ) ;
 			return ;
 		}
 		ri.req->audit_job(Color::HiddenNote,"start",*this) ;
@@ -346,7 +346,7 @@ namespace Engine {
 
 	void JobExec::started( bool report , ::vector<Node> const& report_unlink , ::string const& txt ) {
 		Trace trace("started",*this) ;
-		SWEAR(!(*this)->rule->is_special()) ;
+		SWEAR( !(*this)->rule->is_special() , (*this)->rule->special ) ;
 		for( Req req : running_reqs() ) {
 			ReqInfo& ri = req_info(req) ;
 			ri.start_reported = false ;
@@ -396,7 +396,7 @@ namespace Engine {
 			case Status::Killed  : local_reason = JobReasonTag::Killed  ; break ;
 			case Status::ChkDeps : local_reason = JobReasonTag::ChkDeps ; break ;
 			case Status::Garbage :                                        break ; // Garbage is caught as a default message if none other ones is available
-			default              : SWEAR(status>Status::Garbage) ;                // ensure we have not forgotten a case
+			default              : SWEAR( status>Status::Garbage , status ) ;     // ensure we have not forgotten a case
 		}
 		//
 		(*this)->end_date = Pdate::s_now()                                  ;
@@ -583,7 +583,7 @@ namespace Engine {
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = req_info(req) ;
-			SWEAR(ri.lvl==JobLvl::Exec) ;                                      // update statistics if this does not hold
+			SWEAR( ri.lvl==JobLvl::Exec , ri.lvl ) ;                           // update statistics if this does not hold
 			ri.lvl = JobLvl::End ;                                             // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 		}
 		for( Req req : running_reqs_ ) {
@@ -699,13 +699,13 @@ namespace Engine {
 	static inline bool _inc_cur( Req req , JobLvl jl , int inc) {
 		if (jl==JobLvl::None) return false ;
 		JobIdx& stat = req->stats.cur(jl==JobLvl::End?JobLvl::Exec:jl) ;
-		if (inc<0) SWEAR(stat>=JobIdx(-inc)) ;
+		if (inc<0) SWEAR( stat>=JobIdx(-inc) , stat , inc ) ;
 		stat += inc ;
 		return jl!=JobLvl::Done ;
 	}
 	JobReason Job::_make_raw( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Lvl = ReqInfo::Lvl ;
-		SWEAR(!reason.err()) ;
+		SWEAR( !reason.err() , reason ) ;
 		Lvl  before_lvl = ri.lvl        ;                                      // capture previous state before any update
 		Req  req        = ri.req        ;
 		Rule rule       = (*this)->rule ;
@@ -747,7 +747,7 @@ namespace Engine {
 					RestartAnalysis :                                          // restart analysis here when it is discovered we need deps to run the job
 						if ( ri.dep_lvl==0 && +ri.force ) {                    // process command like a dep in parallel with static_deps
 							trace("force",ri.force) ;
-							SWEAR(state<=State::DanglingModif) ;               // ensure we dot mask anything important
+							SWEAR( state<=State::DanglingModif , state ) ;     // ensure we dot mask anything important
 							state       = State::DanglingModif ;
 							reason     |= ri.force             ;
 							ri.action   = RunAction::Run       ;
@@ -759,7 +759,7 @@ namespace Engine {
 						bool  critical_waiting = false ;
 						Bool3 seen_waiting     = No    ;                       // Maybe means that waiting has been seen in the same parallel deps (much like DanglingModif for modifs)
 						Dep  sentinel         ;
-						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps),true ; i_dep++ ) {
+						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps,i_dep,n_deps),true ; i_dep++ ) {
 							State dep_state   = State::Ok                                  ;
 							bool  seen_all    = i_dep==n_deps                              ;
 							Dep&  dep         = seen_all ? sentinel : (*this)->deps[i_dep] ; // use empty dep as sentinel
@@ -791,13 +791,13 @@ namespace Engine {
 								if ( critical_waiting                  ) goto Wait ;          // stop analysis as critical dep may be modified
 								if ( seen_all                          ) break     ;          // we are done
 							}
-							SWEAR( is_static <= required ) ;                                                    // static deps are necessarily required
+							SWEAR(is_static<=required) ;                                                        // static deps are necessarily required
 							Node::ReqInfo const* cdri              = &dep.c_req_info(req)                     ; // avoid allocating req_info as long as not necessary
 							bool                 overwritten       = false                                    ;
 							bool                 maybe_speculative = state==State::Modif || seen_waiting==Yes ; // this dep may disappear
 							//
-							if ( !care && !required ) {                        // dep is useless
-								SWEAR(special==Special::Infinite) ;            // this is the only case
+							if ( !care && !required ) {                         // dep is useless
+								SWEAR( special==Special::Infinite , special ) ; // this is the only case
 								goto Continue ;
 							}
 							if (!cdri->waiting()) {
@@ -1145,7 +1145,7 @@ namespace Engine {
 		}
 		if ((*this)->status==Status::Lost) {
 			trace("job_lost") ;
-			SWEAR((*this)->star_targets.empty()) ;                             // lost jobs report no targets at all
+			SWEAR( (*this)->star_targets.empty() , (*this)->star_targets ) ;   // lost jobs report no targets at all
 			return true ;                                                      // targets may have been modified but job may not have reported it
 		}
 		// check manual targets
@@ -1230,7 +1230,7 @@ namespace Engine {
 		ri.backend = submit_rsrcs_attrs.backend ;
 		for( Req r : running_reqs() ) if (r!=req) {
 			ReqInfo const& cri = c_req_info(r) ;
-			SWEAR( cri.backend == ri.backend ) ;
+			SWEAR( cri.backend==ri.backend , cri.backend , ri.backend ) ;
 			ri.n_wait++ ;
 			ri.lvl = cri.lvl ;                                                   // Exec or Queued, same as other reqs
 			if (ri.lvl==Lvl::Exec) req->audit_job(Color::Note,"started",*this) ;
@@ -1303,7 +1303,7 @@ namespace Engine {
 		Color  color  = status==Status::Ok ? Color::HiddenOk : status>=Status::Err ? Color::Err : Color::Warning ;
 		bool   frozen = JobData::s_frozen(status)                                                                ;
 		//
-		SWEAR(status>Status::Garbage) ;
+		SWEAR( status>Status::Garbage , status ) ;
 		Trace trace("audit_end_special",*this,req,step,modified,color,status) ;
 		//
 		::string stderr   = special_stderr(node) ;

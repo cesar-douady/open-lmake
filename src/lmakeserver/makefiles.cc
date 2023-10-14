@@ -70,7 +70,7 @@ namespace Engine {
 		if (!makefiles_stream     ) { trace("not_found",s_makefiles   ) ; return "makefiles were never read"                   ; }
 		char line[PATH_MAX+1] ;                                                                                                    // account for first char (+ or !)
 		while (makefiles_stream.getline(line,sizeof(line))) {
-			SWEAR( line[0]=='+' || line[0]=='!' ) ;
+			SWEAR( line[0]=='+' || line[0]=='!' , line ) ;
 			bool         exists    = line[0]=='+' ;
 			FileInfoDate file_info { line+1 } ;
 			latest_makefile = ::max(latest_makefile,file_info.date) ;
@@ -120,10 +120,10 @@ namespace Engine {
 		return { deps , content } ;
 	}
 
-	void Makefiles::s_refresh_makefiles(bool chk) {
+	void Makefiles::s_refresh_makefiles( bool chk , bool refresh ) {
 		Trace trace("s_refresh_makefiles") ;
 		Ddate    latest_makefile ;
-		::string reason          = _s_chk_makefiles(latest_makefile) ;
+		::string reason          = refresh ? _s_chk_makefiles(latest_makefile) : ""s ;
 		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv

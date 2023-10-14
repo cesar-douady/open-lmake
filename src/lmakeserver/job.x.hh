@@ -248,9 +248,9 @@ namespace Engine {
 			SWEAR(!rule.is_shared()) ;
 		}
 		//
-		JobData           (JobData&& jd) : JobData(jd) {                                 jd.star_targets.forget() ; jd.deps.forget() ;                }
-		~JobData          (            ) {                                                  star_targets.pop   () ;    deps.pop   () ;                }
-		JobData& operator=(JobData&& jd) { SWEAR(rule==jd.rule) ; *this = mk_const(jd) ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
+		JobData           (JobData&& jd) : JobData(jd) {                                              jd.star_targets.forget() ; jd.deps.forget() ;                }
+		~JobData          (            ) {                                                               star_targets.pop   () ;    deps.pop   () ;                }
+		JobData& operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = mk_const(jd) ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
 	private :
 		JobData           (JobData const&) = default ;
 		JobData& operator=(JobData const&) = default ;
@@ -261,7 +261,7 @@ namespace Engine {
 		bool frozen    () const { return s_frozen(status)                                  ; }
 		bool is_special() const { return rule->is_special() || frozen()                    ; }
 		//
-		void exec_ok(bool ok) { SWEAR(!rule->is_special()) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
+		void exec_ok(bool ok) { SWEAR(!rule->is_special(),rule->special) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
 		//
 		::pair<Delay,bool/*from_rule*/> best_exec_time() const {
 			if (rule->is_special()) return { {}              , false } ;
@@ -431,7 +431,7 @@ namespace Engine {
 			action  = run_action     ;
 		}
 		if (n_wait) {
-			SWEAR(make_action<MakeAction::End) ;
+			SWEAR( make_action<MakeAction::End , make_action ) ;
 		} else if (
 			req->zombie                                                        // zombie's need not check anything
 		||	make_action==MakeAction::PrematureEnd                              // if not started, no further analysis

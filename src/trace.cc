@@ -13,41 +13,46 @@ using namespace Time ;
 
 ::string* g_trace_file ;               // pointer to avoid init/fini order hazards, relative to admin dir
 
-thread_local int            Trace::t_lvl  = 0       ;
-thread_local char           Trace::t_key  = '?'     ;
-thread_local bool           Trace::t_hide = false   ;
-thread_local OStringStream* Trace::_t_buf = nullptr ;
+bool              Trace::s_backup_trace = false ;
+::atomic<size_t>  Trace::s_sz           = -1    ;          // do not limit trace as long as not instructed to
+thread_local char Trace::t_key          = '?'   ;
 
-size_t           Trace::s_pos          =  0    ;
-::atomic<size_t> Trace::s_sz           = -1    ;           // do not limit trace as long as not instructed to
-bool             Trace::s_ping         = false ;
-bool             Trace::s_backup_trace = false ;
-Fd               Trace::_s_fd          ;
-::mutex          Trace::_s_mutex       ;
+#ifndef NO_TRACE
 
-void Trace::s_start() {
-	if ( !g_trace_file || g_trace_file->empty() ) return ;
-	t_key         = 'M'         ;                                              // called from main thread
-	dir_guard(*g_trace_file) ;
-	_s_open() ;
-}
+	size_t           Trace::_s_pos   =  0    ;
+	bool             Trace::_s_ping  = false ;
+	Fd               Trace::_s_fd    ;
+	::mutex          Trace::_s_mutex ;
 
-void Trace::s_new_trace_file(::string const& trace_file) {
-	if (trace_file==*g_trace_file) return ;
-	//
-	::unique_lock lock{_s_mutex} ;
-	//
-	_s_fd.close() ;
-	*g_trace_file = trace_file ;
-	_s_open() ;
-}
-void Trace::_s_open() {
-	dir_guard(*g_trace_file) ;
-	if (s_backup_trace) {
-		::string prev_old ;
-		for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (!prev_old.empty()) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
-		/**/                                                                       if (!prev_old.empty()) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
+	thread_local int            Trace::_t_lvl  = 0       ;
+	thread_local bool           Trace::_t_hide = false   ;
+	thread_local OStringStream* Trace::_t_buf  = nullptr ;
+
+	void Trace::s_start() {
+		if ( !g_trace_file || g_trace_file->empty() ) return ;
+		t_key         = 'M'         ;                                          // called from main thread
+		dir_guard(*g_trace_file) ;
+		_s_open() ;
 	}
-	_s_fd = open_write(*g_trace_file) ;
-	_s_fd.no_std() ;
-}
+
+	void Trace::s_new_trace_file(::string const& trace_file) {
+		if (trace_file==*g_trace_file) return ;
+		//
+		::unique_lock lock{_s_mutex} ;
+		//
+		_s_fd.close() ;
+		*g_trace_file = trace_file ;
+		_s_open() ;
+	}
+	void Trace::_s_open() {
+		dir_guard(*g_trace_file) ;
+		if (s_backup_trace) {
+			::string prev_old ;
+			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (!prev_old.empty()) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
+			/**/                                                                       if (!prev_old.empty()) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
+		}
+		_s_fd = open_write(*g_trace_file) ;
+		_s_fd.no_std() ;
+	}
+
+#endif

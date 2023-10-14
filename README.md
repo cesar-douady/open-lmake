@@ -75,12 +75,20 @@ it has been tested with the dockers listed in the docker directory
 		- the relative positions of these 4 dirs must remain the same, i.e. they must stay in the same directory with the same names.
 - specialization
 	- you can specialize the build process to better suit your needs :
-	- this is done by modifying the first lines of Makefile, between the vvvvvvvvvvvvv line and the ^^^^^^^^^^^^^^^^ line
+	- this can be done by setting variables on the command line
+		- for example, you can run : make CC=/my/gcc
+		- PYTHON can be set to your preferred python. You will be told if it is not supported.
+		- CC can be set to your preferred compiler. You will be told if it is not supported.
+		- LMAKE_OPT_LVL can be defined between 0 and 5 inclusive :
+			- -O compiler option is given the provided value, up to 3
+			- if 0, the -g flag is also provided
+			- if 4 or above, -DNDEBUG is defined. There are *a lot* of assertions throughout the code, so it makes sens to run with -DNDEBUG.
+			  furthermore, a few essential assertions are left active, even with -DNDEBUG
+			- if 5, no trace is generated
+		- the -j flag of make is automatically set to the number of processors, you may want to override this, though
+	- it is up to you to provide a suitable LD_LIBRARY_PATH value.
+	  it will be transferred as a default value for rules, to the extent it is necessary to provide lmake semantic (mostly this means we keep what is necessary to run python)
 	- if you modify these variables, you should execute git clean as make will not detect this modification automatically
-	- reasonable specializations are :
-		- modify the -j option in the MAKEFLAGS variable to tailer the degree of parallelism of the build process
-		- modify the compiler you want to use through the CC variable
-		- modify the python you want to use through the PYTHON variable
 
 # coding rules
 

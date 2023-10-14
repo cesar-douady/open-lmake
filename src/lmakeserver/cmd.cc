@@ -72,7 +72,7 @@ namespace Engine {
 		}
 
 		if (glb) {
-			SWEAR(targets.empty()) ;
+			SWEAR( targets.empty() , targets ) ;
 			if (lst) {
 				{	::vector<Job> frozens = Job::s_frozens() ;
 					size_t        w       = 0                ;

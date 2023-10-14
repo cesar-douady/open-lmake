@@ -78,7 +78,7 @@ namespace Hash {
 				if      (!a[Access::Lnk]) { if (*this==None) t = ~uint64_t(0) ; if (other==None) o = ~uint64_t(0) ; } // if no stat & no lnk accesses, then no file is like a lnk
 				else if (!a[Access::Reg]) { if (*this==None) t = ~uint64_t(1) ; if (other==None) o = ~uint64_t(1) ; } // if no stat & no reg accesses, then no file is like a reg
 			}
-			// XXX : suppress this test on Stat when there is a working paradigm with pyc files (python stat the py and accesses the pyc, but actually needs the py semantic)
+			// XXX : suppress this test when there is a working paradigm with pyc files (python stats the py and accesses the pyc, but needs the py semantic, because deps on pyc are suppressed)
 			if (!a[Access::Stat]) {
 				if (!a[Access::Lnk]) { if (  is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if (  other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no lnk access, ignore lnk value
 				if (!a[Access::Reg]) { if ( !is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if ( !other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no reg access, ignore reg value

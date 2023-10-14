@@ -30,8 +30,8 @@ int main( int argc , char* argv[] ) {
 	//
 	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1                                     ) syntax.usage("must have a single argument to generate an executable script") ;
 	if ( cmd_line.key!=ReqKey::Deps && cmd_line.key!=ReqKey::Targets && cmd_line.flags[ReqFlag::Verbose] ) syntax.usage("verbose is only for showing deps or targets"                 ) ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Show , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ReqProc::Show , false/*refresh_makefiles*/ , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

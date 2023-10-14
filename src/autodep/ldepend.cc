@@ -34,7 +34,8 @@ int main( int argc , char* argv[]) {
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (cmd_line.args.empty()) return 0 ;                                      // fast path : depends on nothing
+	if (cmd_line.args.empty()) return 0 ;                                                           // fast path : depends on nothing
+	for( ::string const& f : cmd_line.args ) if (f.empty()) exit(2,"cannot depend on empty file") ;
 	//
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
@@ -48,7 +49,7 @@ int main( int argc , char* argv[]) {
 		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , Accesses::All , dflags , no_follow , "ldepend" ) ;
 		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                                     ;
 		//
-		SWEAR(reply.infos.size()==jerr.files.size()) ;
+		SWEAR( reply.infos.size()==jerr.files.size() , reply.infos.size() , jerr.files.size() ) ;
 		//
 		bool err = false ;
 		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {

@@ -18,7 +18,7 @@ using namespace Time   ;
 ENUM( EventKind , Master , Int , Slave , Std )
 
 static ServerSockFd   _g_server_fd      ;
-static bool           _g_is_daemon      = false  ;
+static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_server_mrkr    ;
@@ -141,7 +141,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 				// - lmake bar          => maybe we get this request in the same poll as the end of lmake foo and we would eroneously say that it cannot be processed
 				// solution is to delay master events after other events and ignore them if we are done inbetween
 				case EventKind::Master :
-					SWEAR(!new_fd) ;
+					SWEAR( !new_fd , new_fd ) ;
 					new_fd = true ;
 				break ;
 				case EventKind::Int : {
@@ -151,7 +151,8 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					}
 					trace("int") ;
 					struct signalfd_siginfo _ ;
-					SWEAR( ::read(int_fd,&_,sizeof(_)) == sizeof(_) ) ;
+					ssize_t cnt = ::read(int_fd,&_,sizeof(_)) ;
+					SWEAR( cnt==sizeof(_) , cnt ) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace(GlobalProc::Int) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -360,8 +361,16 @@ bool/*interrupted*/ engine_loop() {
 }
 
 int main( int argc , char** argv ) {
-	if(!( argc==1 || (argc==2&&!argv[1][0]) ))
-		exit(2,"syntax is lmakeserver '' (launched by lmake) or lmakeserver (no args, daemon)") ;
+	bool refresh = true ;
+	for( int i=1 ; i<argc ; i++ ) {
+		if ( argv[i][0]!='-' || argv[i][2]!=0 ) exit(2,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-r/*no makefile refresh*/]") ;
+		switch (argv[i][1]) {
+			case 'd' : _g_is_daemon = false ; break ;
+			case 'r' : refresh      = false ; break ;
+			case '-' :                        break ;
+			default : exit(2,"unrecognized option : ",argv[i]) ;
+		}
+	}
 	//
 	Fd int_fd = open_sig_fd(SIGINT,true/*block*/) ;                            // must be done before app_init so that all threads block the signal
 	block_sig(SIGCHLD) ;
@@ -373,17 +382,16 @@ int main( int argc , char** argv ) {
 	Py::init(true/*multi-thread*/) ;
 	_g_real_path.init({ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }) ;
 	_g_server_mrkr = to_string(AdminDir,'/',ServerMrkr) ;
-	_g_is_daemon   = argc==1                         ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
 	//             vvvvvvvvvvvvvv
 	bool crashed = start_server() ;
 	//             ^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) report_server(Fd::Stdout,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
-	//                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { Makefiles::s_refresh_makefiles(crashed) ; }
-	//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(2,e) ;                               }
+	//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try { Makefiles::s_refresh_makefiles(crashed,refresh) ; }
+	//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { exit(2,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                        // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_sz = g_config.trace_sz ;

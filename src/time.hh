@@ -33,8 +33,8 @@ namespace Time {
 		// cxtors & casts
 		constexpr          TimeBase(                  ) = default ;
 		constexpr explicit TimeBase(T               v ) : _val( v                                          ) {}
-		constexpr explicit TimeBase(double          v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR(v        >=0) ; }
-		constexpr explicit TimeBase(float           v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR(v        >=0) ; }
+		constexpr explicit TimeBase(double          v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(float           v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
 		constexpr explicit TimeBase(TimeSpec const& ts) : _val( ts.tv_sec*TicksPerSecond + ts.tv_nsec      ) { static_assert(TicksPerSecond==1'000'000'000l) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
 		constexpr explicit TimeBase(TimeVal  const& tv) : _val( tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 ) { static_assert(TicksPerSecond==1'000'000'000l) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
 		//

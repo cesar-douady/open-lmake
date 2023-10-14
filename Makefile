@@ -11,11 +11,7 @@ MAKEFLAGS := -j$(shell nproc||echo 1) -k
 
 PYTHON := $(shell bash -c 'type -p python3')
 
-CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc')
-#CC := $(shell bash -c 'type -p clang')
-
-OPT_FLAGS := -O3
-#OPT_FLAGS := -O3 -DNDEBUG                                                     # better, as there are numerous asserts that have a perf impact, but too early for now
+CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc || type -p clang')
 
 GIT := $(shell bash -c 'type -p git')
 
@@ -24,9 +20,22 @@ GIT := $(shell bash -c 'type -p git')
 
 MAKEFLAGS += -r -R
 
-ifneq ($(LMAKE_DEBUG),)
-OPT_FLAGS := -O0 -g
+ifeq ($(strip $(LMAKE_OPT_LVL)),)
+OPT_FLAGS   := -O3
+else ifeq ($(strip $(LMAKE_OPT_LVL)),0)
+OPT_FLAGS   := -O0 -g
+else ifeq ($(strip $(LMAKE_OPT_LVL)),1)
+OPT_FLAGS   := -O1
+else ifeq ($(strip $(LMAKE_OPT_LVL)),2)
+OPT_FLAGS   := -O2
+else ifeq ($(strip $(LMAKE_OPT_LVL)),3)
+OPT_FLAGS   := -O3
+else ifeq ($(strip $(LMAKE_OPT_LVL)),4)
+OPT_FLAGS := -O3 -DNDEBUG
+else ifeq ($(strip $(LMAKE_OPT_LVL)),5)
+OPT_FLAGS := -O3 -DNDEBUG -DNO_TRACE
 endif
+
 COVERAGE :=
 ifneq ($(LMAKE_COVERAGE),)
 COVERAGE := --coverage                                                         # XXX : not operational yet
@@ -77,7 +86,6 @@ endif
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA         := ,
 .DEFAULT_GOAL := DFLT
-
 
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
@@ -168,9 +176,6 @@ ALL : DFLT STORE_TEST $(DOC)/lmake.html
 
 %.inc_stamp : %                                                                # prepare a stamp to be included, so as to force availability of a file w/o actually including it
 	>$@
-
-lmake.tar.gz : $(LMAKE_ALL_FILES)
-	tar -cz -f $@ $^
 
 EXT : $(PYCXX).test.stamp
 
@@ -635,7 +640,10 @@ $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 #
 VERSION     := 0.1
 ARCHIVE_DIR := open-lmake-$(VERSION)
-%.tar.bz2 : LMAKE
-	mkdir -p $(ARCHIVE_DIR)
-	for d in bin _bin lib _lib ; do cp -r $$d $(ARCHIVE_DIR); done
-	tar cjvf $@ $(ARCHIVE_DIR)
+lmake.tar.gz  : TAR_COMPRESS := z
+lmake.tar.bz2 : TAR_COMPRESS := j
+lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
+	rm -rf $(ARCHIVE_DIR)
+	for d in $^ ; do mkdir -p $$(dirname $(ARCHIVE_DIR)/$$d) ; cp $$d $(ARCHIVE_DIR)/$$d ; done
+	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
+

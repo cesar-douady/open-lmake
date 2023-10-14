@@ -39,7 +39,7 @@ int np_ptrace_get_errno(int pid) {
 	#else
 		#error "np_get_errno not implemented for this architecture"            // if situation arises, please provide the adequate code using x86_64 case as a template
 	#endif
-	SWEAR(!errno) ;
+	SWEAR( !errno , errno ) ;
 	return res ;
 }
 

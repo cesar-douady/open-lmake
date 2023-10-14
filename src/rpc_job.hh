@@ -200,8 +200,8 @@ struct JobReason {
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason(                   ) = default ;
-	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       ) ; }
-	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n ) ; }
+	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
+	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
 	bool operator+() const { return +tag              ; }
 	bool operator!() const { return !tag              ; }
@@ -224,8 +224,8 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		if      (      tag==BackendTag::Unknown) tag = other.tag ;
-		else if (other.tag!=BackendTag::Unknown) SWEAR(tag==other.tag) ;
-		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries ) ; // n_retries does not depend on req, but may not always be present
+		else if (other.tag!=BackendTag::Unknown) SWEAR(tag==other.tag,tag,other.tag) ;
+		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries , n_retries , other.n_retries ) ; // n_retries does not depend on req, but may not always be present
 		n_retries  = ::max(n_retries,other.n_retries) ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		live_out  |= other.live_out                   ;
@@ -389,7 +389,7 @@ struct TargetSpec {
 	friend ::ostream& operator<<( ::ostream& , TargetSpec const& ) ;
 	// cxtors & casts
 	TargetSpec( ::string const& p={} , bool ins=false , Tflags f=DfltTflags , ::vector<VarIdx> c={} ) : pattern{p} , is_native_star{ins} , tflags{f} , conflicts{c} {
-		if (is_native_star) SWEAR(tflags[Tflag::Star]) ;
+		if (is_native_star) SWEAR( tflags[Tflag::Star] , tflags ) ;
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,pattern       ) ;

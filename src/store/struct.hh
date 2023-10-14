@@ -99,11 +99,11 @@ namespace Store {
 		void chk() const requires(HasFile) {
 			SLock lock{_mutex} ;
 			Base::chk() ;
-			SWEAR( _offset(size())<=Base::size ) ;
+			SWEAR( _offset(size())<=Base::size , size() , Base::size ) ;
 		}
 	private :
-		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR(sz==Idx(_at(idx).n_items())) ; }
-		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                      }
+		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }
+		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                                                  }
 		template<class... A> Idx _emplace_back( Sz sz , A&&... args ) requires(HasData) {
 			Sz old_sz ;
 			Sz new_sz ;

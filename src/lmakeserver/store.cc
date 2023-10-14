@@ -90,7 +90,7 @@ namespace Engine {
 			SWEAR_PROD(g_store.node_data_file.writable) ;
 			for( NodeIdx i=1 ; i<=NodeData::NShared ; i++ ) {
 				NodePtr np = g_store.node_data_file.emplace(NodeData::s_mk_shared(i)) ;
-				SWEAR(+np==i) ;
+				SWEAR( +np==i , np , i ) ;
 			}
 		}
 		trace("done",Pdate::s_now()) ;
@@ -282,7 +282,7 @@ namespace Engine {
 				new_rd.rsrcs_gen    = old_r->rsrcs_gen    ;
 				new_rd.exec_time    = old_r->exec_time    ;
 				new_rd.stats_weight = old_r->stats_weight ;
-				SWEAR(+old_r<keep_cmd_gens.size()) ;
+				SWEAR( +old_r<keep_cmd_gens.size() , old_r , keep_cmd_gens.size() ) ;
 				_s_set_exec_gen( new_rd , keep_cmd_gens[+old_r] , cmd_ok , rsrcs_ok ) ;
 				n_modified_cmd   += !cmd_ok              ;
 				n_modified_rsrcs +=  cmd_ok && !rsrcs_ok ;
@@ -312,8 +312,8 @@ namespace Engine {
 			for( PsfxIdx pfx_idx : g_store.pfxs.lst(pfx_root) ) {
 				RuleTgts rts = g_store.pfxs.at(pfx_idx) ;
 				::string pfx = g_store.pfxs.str_key(pfx_idx) ;
-				if (single) { SWEAR(pfx.empty()) ; trace2(         sfx.substr(1) , ':' ) ; }
-				else        {                      trace2( pfx+'*'+sfx           , ':' ) ; }
+				if (single) { SWEAR(pfx.empty(),pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
+				else        {                          trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
 				for( RuleTgt rt : rts.view() ) trace3( +Rule(rt) , ':' , rt->prio , rt->name , rt.key() ) ;
 			}
@@ -355,7 +355,7 @@ namespace Engine {
 			::string dn = d.name()+'/' ;
 			for( Node n : src_vec )
 				if ( n.name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n.name()) ;
-			FAIL(to_string(dn," is a source dir of no source")) ;
+			FAIL(dn,"is a source dir of no source") ;
 		}
 		// compute diff
 		for( Node n : srcs ) {

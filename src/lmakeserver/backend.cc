@@ -72,11 +72,15 @@ namespace Backends {
 		return res ;
 	}
 
+	static inline bool _localize( Tag t , ReqIdx ri ) {
+		return Req(ri)->options.flags[ReqFlag::Local] || !Backend::s_ready[+t] ; // if asked backend is not usable, force local execution
+	}
+
 	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace("s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
-		if ( tag!=Tag::Local && (Req(ri)->options.flags[ReqFlag::Local]||!s_ready[+tag]) ) {    // if asked backend is not usable, force local execution
+		if ( tag!=Tag::Local && _localize(tag,ri) ) {
 			SWEAR(+tag<+Tag::N) ;                                                               // prevent compiler array bound warning in next statement
 			if (!s_tab[+tag]) throw to_string("backend ",mk_snake(tag)," is not implemented") ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
@@ -87,26 +91,26 @@ namespace Backends {
 		s_tab[+tag]->submit(ji,ri,submit_attrs,::move(rsrcs)) ;
 	}
 
-	void Backend::s_add_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
-		if (Req(r)->options.flags[ReqFlag::Local]) t = Tag::Local ;
+	void Backend::s_add_pressure( Tag t , JobIdx j , ReqIdx ri , SubmitAttrs const& sa ) {
+		if (_localize(t,ri)) t = Tag::Local ;
 		::unique_lock lock{_s_mutex} ;
-		Trace trace("s_add_pressure",t,j,r,sa) ;
+		Trace trace("s_add_pressure",t,j,ri,sa) ;
 		auto it = _s_start_tab.find(j) ;
 		if (it==_s_start_tab.end()) {
-			s_tab[+t]->add_pressure(j,r,sa) ;                                  // if job is not started, ask sub-backend to raise its priority
+			s_tab[+t]->add_pressure(j,ri,sa) ;                                 // if job is not started, ask sub-backend to raise its priority
 		} else {
-			it->second.reqs.insert(r) ;                                        // else, job is already started, note the new Req as we maintain the list of Req's associated to each job
+			it->second.reqs.insert(ri) ;                                       // else, job is already started, note the new Req as we maintain the list of Req's associated to each job
 			it->second.submit_attrs |= sa ;                                    // and update submit_attrs in case job was not actually started
 		}
 	}
 
-	void Backend::s_set_pressure( Tag t , JobIdx j , ReqIdx r , SubmitAttrs const& sa ) {
-		if (Req(r)->options.flags[ReqFlag::Local]) t = Tag::Local ;
+	void Backend::s_set_pressure( Tag t , JobIdx j , ReqIdx ri , SubmitAttrs const& sa ) {
+		if (_localize(t,ri)) t = Tag::Local ;
 		::unique_lock lock{_s_mutex} ;
-		Trace trace("s_set_pressure",t,j,r,sa) ;
-		s_tab[+t]->set_pressure(j,r,sa) ;
+		Trace trace("s_set_pressure",t,j,ri,sa) ;
+		s_tab[+t]->set_pressure(j,ri,sa) ;
 		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) s_tab[+t]->set_pressure(j,r,sa) ;          // if job is not started, ask sub-backend to raise its priority
+		if (it==_s_start_tab.end()) s_tab[+t]->set_pressure(j,ri,sa) ;         // if job is not started, ask sub-backend to raise its priority
 		else                        it->second.submit_attrs |= sa ;            // and update submit_attrs in case job was not actually started
 	}
 
@@ -136,7 +140,7 @@ namespace Backends {
 		try {
 			// as job_exec is not waiting for this message, pretend we are the job, so use JobExecRpcReq instead of JobRpcReply
 			ClientSockFd fd(conn.job_addr,conn.job_port) ;
-			OMsgBuf().send( fd , JobExecRpcReq(proc) ) ;                       // XXX : for a mysterious reason, if send is called directly with ClientSockFd(...), fd is not closed
+			OMsgBuf().send( fd , JobExecRpcReq(proc) ) ;                       // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 		} catch (...) {
 			trace("no_job") ;
 			// if job cannot be connected to, assume it is dead and pretend it died after network_delay to give a chance to report if is already completed
@@ -387,8 +391,14 @@ namespace Backends {
 		Trace::t_key = 'J' ;
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ;
 		Epoll              epoll   { New }                  ;
-		::stop_callback    stop_cb { stop , [&](){ SWEAR(::write(stop_fd,&One,sizeof(One))==sizeof(One)) ; } } ; // transform request_stop into an event Epoll can wait for
 		::umap<Fd,IMsgBuf> slaves  ;
+		::stop_callback    stop_cb {
+			stop
+		,	[&](){
+				ssize_t cnt = ::write(stop_fd,&One,sizeof(One)) ;
+				SWEAR( cnt==sizeof(One) , cnt ) ;
+			}
+		} ; // transform request_stop into an event Epoll can wait for
 		//
 		s_server_fd.listen() ;
 		Trace trace("_s_job_exec_func",s_server_fd.port()) ;
@@ -413,7 +423,8 @@ namespace Backends {
 					} break ;
 					case EventKind::Stop : {
 						uint64_t _ ;
-						SWEAR(::read(fd,&_,sizeof(_))==sizeof(_)) ;
+						ssize_t cnt = ::read(fd,&_,sizeof(_)) ;
+						SWEAR( cnt==sizeof(_) , cnt ) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(sfd) ;
 						trace("done") ;
 						return ;

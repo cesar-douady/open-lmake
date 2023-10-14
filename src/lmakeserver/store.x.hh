@@ -240,7 +240,10 @@ namespace Engine {
 		template<IsA<Item> I> void append(::vector_view<I> const&) ;
 	} ;
 
+	template<class V> struct GenericVector ;
+	template<class V> ::ostream& operator<<( ::ostream& , GenericVector<V> const& ) ;
 	template<class V> struct GenericVector : V {
+		friend ::ostream& operator<< <>( ::ostream& , GenericVector const& ) ;
 		using Base       = V                   ;
 		using Idx        = typename Base::Idx  ;
 		using Item       = typename Base::Item ;
@@ -252,15 +255,16 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base  ;
 		//
-		template<IsA<Item> I> requires( ::is_const_v<I>) GenericVector(::vector           <::remove_const_t<I>> const& v) : Base(        vector_view_c<I>(v)) {}
-		template<IsA<Item> I> requires(!::is_const_v<I>) GenericVector(::vector           <                 I > const& v) : Base(        vector_view_c<I>(v)) {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string_view<                 I > const& s) : Base(        vector_view_c<I>(s)) {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string     <                 I > const& s) : Base(        vector_view_c<I>(s)) {}
-		template<IsA<Item> I>                            void assign  (::vector_view      <                 I > const& v) { Base::assign(                 v ) ; }
-		template<IsA<Item> I> requires( ::is_const_v<I>) void assign  (::vector           <::remove_const_t<I>> const& v) {       assign(vector_view_c<I>(v)) ; }
-		template<IsA<Item> I> requires(!::is_const_v<I>) void assign  (::vector           <                 I > const& v) {       assign(vector_view_c<I>(v)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign  (::basic_string_view<                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign  (::basic_string     <                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
+		template<IsA<Item> I> requires( ::is_const_v<I>) GenericVector(::vector           <::remove_const_t<I>> const& v) : Base{vector_view_c<I>(v)} {}
+		template<IsA<Item> I> requires(!::is_const_v<I>) GenericVector(::vector           <                 I > const& v) : Base{vector_view_c<I>(v)} {}
+		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string_view<                 I > const& s) : Base{vector_view_c<I>(s)} {}
+		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string     <                 I > const& s) : Base{vector_view_c<I>(s)} {}
+		//
+		template<IsA<Item> I>                            void assign(::vector_view      <                 I > const& v) { Base::assign(                 v ) ; }
+		template<IsA<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) {       assign(vector_view_c<I>(v)) ; }
+		template<IsA<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) {       assign(vector_view_c<I>(v)) ; }
+		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
+		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
 		//
 		operator ::vector_view_c    <Item>() const                 { return view    () ; }
 		operator ::vector_view      <Item>()                       { return view    () ; }
@@ -294,6 +298,12 @@ namespace Engine {
 		template<IsA<Item> I> void append(::basic_string_view<I> const& s) { return       append(::vector_view_c(s)) ; }
 		template<IsA<Item> I> void append(::basic_string     <I> const& s) { return       append(::vector_view_c(s)) ; }
 	} ;
+	template<class V> ::ostream& operator<<( ::ostream& os , GenericVector<V> const& gv ) {
+		bool first = true ;
+		/**/                                                                  os <<'[' ;
+		for( typename V::Item const& x : gv ) { if (first) first=false ; else os <<',' ; os << x ; }
+		return                                                                os <<']' ;
+	}
 
 	template<class Idx_,class Item_> using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_>> ;
 	template<class Idx_,class Item_> using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_>> ;
@@ -686,7 +696,7 @@ namespace Engine {
 	template<class Idx,class Item,uint8_t NGuardBits>
 		inline void CrunchVectorBase<Idx,Item,NGuardBits>::shorten_by(Sz by) {
 			Sz sz = size() ;
-			SWEAR(by<=sz) ;
+			SWEAR( by<=sz , by , sz ) ;
 			if (_multi()) {
 				if (by!=sz-1) { *this = VectorHelper<Idx,Item>::g_file().shorten_by( *this , by ) ;                           }
 				else          { Item save = (*this)[0] ; VectorHelper<Idx,Item>::g_file().pop(Vector(*this)) ; *this = save ; }
@@ -737,7 +747,7 @@ namespace Engine {
 		Name name_ = g_store.name_file.insert(name.first,name.second) ;
 		*this      = g_store.name_file.c_at(+name_).job() ;
 		if (+*this) {
-			SWEAR(name_==_name()) ;
+			SWEAR( name_==_name() , name_ , _name() ) ;
 			if (new_) **this = JobData(::forward<A>(args)...) ;
 		} else {
 			*this = g_store.job_file.emplace(::forward<A>(args)...) ;
@@ -802,7 +812,7 @@ namespace Engine {
 	inline NodeBase::NodeBase(Name name_) {
 		*this = g_store.name_file.c_at(name_).node() ;
 		if (+*this) {
-			SWEAR(name_==_name()) ;
+			SWEAR( name_==_name() , name_ , _name() ) ;
 		} else {
 			*this = g_store.node_idx_file.emplace(NodeData::s_shared_idx()) ;  // points to default NodeData
 			g_store.name_file.at(name_) = *this ;
