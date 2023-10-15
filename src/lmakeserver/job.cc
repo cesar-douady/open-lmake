@@ -388,7 +388,7 @@ namespace Engine {
 		try {
 			end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;
 		} catch (::string const& e) {
-			analysis_err.emplace_back( to_string("cannot compute ",EndCmdAttrs::Msg) , 0 ) ;
+			analysis_err.emplace_back( to_string("cannot compute ",EndCmdAttrs::Msg) , Node() ) ;
 		}
 		//
 		switch (status) {
@@ -409,7 +409,7 @@ namespace Engine {
 		//
 		auto report_missing_target = [&](::string const& tn)->void {
 			FileInfo fi{tn} ;
-			analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , +Node(tn) ) ;
+			analysis_err.emplace_back( to_string("missing target",(+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"")," :") , Node(tn) ) ;
 		} ;
 		::uset<Node> seen_static_targets ;
 		//
@@ -424,8 +424,8 @@ namespace Engine {
 			//
 			if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
 				err = true ;
-				if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",+target) ;
-				else if (td.write) analysis_err.emplace_back("unexpected write to source" ,+target) ;
+				if      (unlink  ) analysis_err.emplace_back("unexpected unlink of source",target) ;
+				else if (td.write) analysis_err.emplace_back("unexpected write to source" ,target) ;
 			}
 			if (
 				td.write                                                   // we actually wrote
@@ -476,7 +476,7 @@ namespace Engine {
 			}
 			if ( td.write && !unlink && !tflags[Tflag::Write] ) {
 				err = true ;
-				analysis_err.emplace_back("unexpected write to",+target) ;
+				analysis_err.emplace_back("unexpected write to",target) ;
 			}
 			//
 			if (tflags[Tflag::Star]) {
@@ -551,18 +551,18 @@ namespace Engine {
 		// wrap up
 		//
 		switch (status) {
-			case Status::Ok      : if ( !digest.stderr.empty() && !end_cmd_attrs.allow_stderr ) { analysis_err.emplace_back("non-empty stderr",0) ; err = true ; } break ;
-			case Status::Timeout :                                                              { analysis_err.emplace_back("timeout"         ,0) ;              } break ;
+			case Status::Ok      : if ( !digest.stderr.empty() && !end_cmd_attrs.allow_stderr ) { analysis_err.emplace_back("non-empty stderr",Node()) ; err = true ; } break ;
+			case Status::Timeout :                                                              { analysis_err.emplace_back("timeout"         ,Node()) ;              } break ;
 			default : ;
 		}
 		EndNoneAttrs end_none_attrs   ;
-		::string     analysis_err_txt ;
+		::string     attrs_err ;
 		try {
 			end_none_attrs = rule->end_none_attrs.eval(*this,match,rsrcs) ;
 		} catch (::string const& e) {
 			end_none_attrs = rule->end_none_attrs.spec ;
-			analysis_err.emplace_back(rule->end_none_attrs.s_exc_msg(true/*using_static*/),0) ;
-			analysis_err_txt = ensure_nl(e) ;
+			analysis_err.emplace_back(rule->end_none_attrs.s_exc_msg(true/*using_static*/),Node()) ;
+			attrs_err = ensure_nl(e) ;
 		}
 		//
 		(*this)->exec_ok(true) ;                                               // effect of old cmd has gone away with job execution
@@ -595,13 +595,20 @@ namespace Engine {
 			JobReason reason = make( ri , RunAction::Status , local_reason , MakeAction::End , &old_exec_time , false/*wakeup_watchers*/ ) ;
 			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (status<=Status::Garbage) reason |= JobReasonTag::Garbage ;                                                                 // default message
-			AnalysisErr        ae_reason ;                                                                                                 // we need a variable to own the data
-			AnalysisErr const& ae        = reason.err() ? (ae_reason={s_reason_str(reason)}) : analysis_err ;
+			bool        has_analysis_err = reason.err() || !analysis_err.empty() ;
+			AnalysisErr ae_buf           ;
+			if ( reason.err() ) {
+				ae_buf.push_back(s_reason_str(reason)) ;
+			} else if (!digest.analysis_err.empty()) {
+				for( auto const& [t,f] : digest.analysis_err ) ae_buf.emplace_back(t,Node(f)) ;
+				for( auto const& [t,n] : analysis_err        ) ae_buf.emplace_back(t,n      ) ;
+			}
+			AnalysisErr const& ae = !ae_buf.empty() ? ae_buf : analysis_err ;
 			if (ri.done()) {
 				audit_end(
 					{}
 				,	ri
-				,	reason.err() ? analysis_err_txt : analysis_err_txt.empty() ? digest.stderr : analysis_err_txt+digest.stderr // avoid concatenation unless necessary
+				,	reason.err() ? attrs_err : attrs_err.empty() ? digest.stderr : attrs_err+digest.stderr // avoid concatenation unless necessary
 				,	ae
 				,	end_none_attrs.stderr_len
 				,	any_modified
@@ -609,14 +616,15 @@ namespace Engine {
 				) ;
 				trace("wakeup_watchers",ri) ;
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
-				if ( !ae.empty() && !analysis_stamped ) {                      // this is code is done in such a way as to be fast in the common case (ae empty)
+				if ( has_analysis_err && !analysis_stamped ) {                 // this is code is done in such a way as to be fast in the common case (ae empty)
 					::string jaf = ancillary_file() ;
 					try {
 						IFStream is{jaf} ;
 						auto report_start = deserialize<JobInfoStart>(is) ;
 						auto report_end   = deserialize<JobInfoEnd  >(is) ;
 						//
-						report_end.end.digest.analysis_err = ae ;
+						report_end.end.digest.analysis_err.clear() ;
+						for( auto const& [t,n] : ae ) report_end.end.digest.analysis_err.emplace_back(t,+n?n.name():""s) ;
 						//
 						OFStream os{jaf} ;
 						serialize(os,report_start) ;
@@ -632,7 +640,7 @@ namespace Engine {
 				}
 				ri.wakeup_watchers() ;
 			} else {
-				audit_end( +local_reason?"":"may_" , ri , analysis_err_txt , {s_reason_str(reason)} , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
+				audit_end( +local_reason?"":"may_" , ri , attrs_err , {s_reason_str(reason)} , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				req->missing_audits[*this] = { false/*hit*/ , any_modified , ae } ;
 			}
 			trace("req_after",ri) ;
@@ -1172,8 +1180,8 @@ namespace Engine {
 		if (job_ok) return true ;
 		// generate a message that is simultaneously consise, informative and executable (with a copy/paste) with sh & csh syntaxes
 		req->audit_info( Color::Note , "consider :" , 1 ) ;
-		for( auto const& [t,ti] : static_target_map     ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; }
-		for( Node         t     : (*this)->star_targets ) if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; }
+		for( ::string const& tn : static_target_names   ) { Node t{tn} ; if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; } }
+		for( Node            t  : (*this)->star_targets ) {              if (!t->is_src()) { req->audit_node( Color::Note , "lmake -m" , t , 2 ) ; goto Advised ; } }
 	Advised :
 		for( auto const& [t,ok] : manual_targets ) {
 			if (ok) continue ;

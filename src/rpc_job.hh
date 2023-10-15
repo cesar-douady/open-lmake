@@ -330,15 +330,13 @@ struct TargetDigest {
 	Crc      crc      ;                // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
 } ;
 
-using AnalysisErr = ::vector<pair_s<NodeIdx>> ;
-
 struct JobDigest {
 	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
 	// data
 	Status                 status       = Status::New ;
 	::vmap_s<TargetDigest> targets      = {}          ;
 	::vmap_s<DepDigest   > deps         = {}          ;    // INVARIANT : sorted in first access order
-	AnalysisErr            analysis_err = {}          ;
+	::vector<pair_ss>      analysis_err = {}          ;    // pair_ss is (text,file)
 	::string               stderr       = {}          ;
 	::string               stdout       = {}          ;
 	int                    wstatus      = 0           ;
@@ -348,7 +346,6 @@ struct JobDigest {
 
 struct JobRpcReq {
 	using P   = JobProc             ;
-	using S   = Status              ;
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
@@ -356,7 +353,7 @@ struct JobRpcReq {
 	// cxtors & casts
 	JobRpcReq() = default ;
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI ui , JI j ,                     S s                    ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=S::Garbage      ) ; }
+	JobRpcReq( P p , SI ui , JI j ,                     Status s               ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d        } { SWEAR( p==P::End                       ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
 	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }

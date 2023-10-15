@@ -226,8 +226,7 @@ items :
 * TESTS
 ****************************************************************************************************
 
-*1 add a unit test for rename
-*2 add a unit test for dup2
+*1 add a unit test for dup2
 * add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...

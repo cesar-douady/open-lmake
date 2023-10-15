@@ -319,8 +319,8 @@ namespace Engine {
 							case ReqKey::Stderr :
 								if (!has_end) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl     ) ;
-								for( auto const& [pfx,ni] : digest.analysis_err ) audit( fd , ro , Color::Note , lvl+1 , pfx , ni?Node(ni).name():""s ) ;
-								/**/                                              audit( fd , ro , Color::None , lvl+1 , digest.stderr                ) ;
+								for( auto const& [pfx,n] : digest.analysis_err ) audit( fd , ro , Color::Note , lvl+1 , pfx , n       ) ;
+								/**/                                             audit( fd , ro , Color::None , lvl+1 , digest.stderr ) ;
 							break ;
 							case ReqKey::Backend :
 								if (!has_end ) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }

@@ -296,7 +296,9 @@ namespace Engine {
 					auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
 					auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
 					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
-					seen_stderr |= (*this)->audit_stderr( report_end.end.digest.analysis_err , report_end.end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
+					AnalysisErr       ae             ;
+					for( auto const& [t,n] : report_end.end.digest.analysis_err ) ae.emplace_back(t,Node(n)) ;
+					seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
 				} catch(...) {
 					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				}

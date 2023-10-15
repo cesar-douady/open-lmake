@@ -253,9 +253,9 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		src.comment += "<>" ;
 		dst.comment += "<>" ;
 	}
-	if (rc==0) {                                                                        // rename has occurred
+	if (rc==0) {
 		if ( dst.kind==Kind::Tmp || (exchange&&src.kind==Kind::Tmp) ) r._report_tmp() ;
-		// handle directories (remember that rename has already occured when we walk)
+		// handle directories : remember that rename has already occurred
 		// so for each directoty :
 		// - files are written
 		// - their coresponding files in the other directory are read and unlinked
@@ -273,12 +273,14 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		}
 		r._report_deps   ( ::move(reads ) , DataAccesses , true/*unlink*/ , src.comment ) ; // do unlink before write so write has priority
 		r._report_targets( ::move(writes) ,                                 dst.comment ) ;
-	} else if (no_file) {                                                         // rename has not occurred : the read part must still be reported
-		// old files may exist as the errno is for both old & new, use generic report which finds the date on the file
-		// if old/new are not dir, then assume they should be files as we do not have a clue of what should be inside
-		// walk only lists accessibles files
-		if ( src.kind<=Kind::Dep             ) r._report_deps( walk(src.at,src.file) , DataAccesses , false/*unlink*/ , src.comment ) ; // src.comment is for the read part
-		if ( dst.kind<=Kind::Dep && exchange ) r._report_deps( walk(dst.at,dst.file) , DataAccesses , false/*unlink*/ , src.comment ) ; // .
+	} else if (no_file) {                                                                   // rename has not occurred : the read part must still be reported
+		// similar to the no error case except that rename has not occurred so :
+		// directories to waks are reversed
+		// sources have not been unlinked
+		::vector_s reads ;
+		if (             src.kind<=Kind::Dep ) for( ::string const& s : walk(src.at,src.file) ) reads.push_back( src.real + s ) ;
+		if ( exchange && dst.kind<=Kind::Dep ) for( ::string const& s : walk(dst.at,dst.file) ) reads.push_back( dst.real + s ) ;
+		r._report_deps( ::move(reads ) , DataAccesses , false/*unlink*/ , src.comment+'!' ) ;
 	}
 	return rc ;
 }

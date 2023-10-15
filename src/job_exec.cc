@@ -115,10 +115,10 @@ int main( int argc , char* argv[] ) {
 			else                        target_patterns.emplace_back(          ) ;
 		}
 		//
-		::vmap_s<TargetDigest>              targets   ;
-		::vmap_s<DepDigest   >              deps      ;
-		ThreadQueue<::pair<NodeIdx,string>> crc_queue ;
-		::string                            err_str   ;
+		::vmap_s<TargetDigest>              targets      ;
+		::vmap_s<DepDigest   >              deps         ;
+		ThreadQueue<::pair<NodeIdx,string>> crc_queue    ;
+		::vector<pair_ss>                   analysis_err ;
 		//
 		auto analyze = [&](bool at_end)->void {
 			trace("analyze",STR(at_end)) ;
@@ -126,8 +126,8 @@ int main( int argc , char* argv[] ) {
 			for( auto const& [file,info] : gather_deps.accesses ) {
 				JobExecRpcReq::AccessDigest const& ad = info.digest ;
 				Accesses                           a  = ad.accesses ;  if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
-				try                       { chk(info.tflags) ;                                               ;            }
-				catch (::string const& e) { append_to_string( err_str , "bad flags for ",file," : ",e,'\n' ) ; continue ; } // dont know what to do with such an access
+				try                       { chk(info.tflags) ;                                                          }
+				catch (::string const& e) { analysis_err.emplace_back(to_string("bad flags (",e,')'),file) ; continue ; } // dont know what to do with such an access
 				if (info.is_dep()) {
 					bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
 					DepDigest dd       { a , ad.dflags , parallel }                             ;
@@ -260,26 +260,21 @@ int main( int argc , char* argv[] ) {
 			::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 			for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i) ; // just constructing a destructing the threads will execute & join them, resulting in computed crc's
 		}
-		if (!spurious_unlink_queue.empty()) {
-			append_to_string(err_str,"some targets were spuriously unlinked :\n") ;
-			while (!spurious_unlink_queue.empty()) append_to_string(err_str,'\t',spurious_unlink_queue.pop(),'\n') ;
-		}
+		while (!spurious_unlink_queue.empty())  analysis_err.emplace_back("target was spuriously unlinked",spurious_unlink_queue.pop()) ;
 		//
 		if ( gather_deps.seen_tmp && !start_info.keep_tmp ) unlink_inside(start_info.autodep_env.tmp_dir) ;
 		//
-		if (!err_str.empty()) {
-			status             |= Status::Err                          ;
-			gather_deps.stderr  = err_str + ::move(gather_deps.stderr) ;
-		}
+		if (!analysis_err.empty()) status |= Status::Err ;
 		trace("status",status) ;
 		end_report.digest = {
-			.status   = status
-		,	.targets  { targets                    }
-		,	.deps     { deps                       }
-		,	.stderr   { ::move(gather_deps.stderr) }
-		,	.stdout   { ::move(gather_deps.stdout) }
-		,	.wstatus  = gather_deps.wstatus
-		,	.end_date = end_job
+			.status       = status
+		,	.targets      { ::move(targets           ) }
+		,	.deps         { ::move(deps              ) }
+		,	.analysis_err { ::move(analysis_err      ) }
+		,	.stderr       { ::move(gather_deps.stderr) }
+		,	.stdout       { ::move(gather_deps.stdout) }
+		,	.wstatus      = gather_deps.wstatus
+		,	.end_date     = end_job
 		,	.stats{
 				.cpu  { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
 			,	.job  { end_job      - start_job                      }

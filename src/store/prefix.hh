@@ -356,7 +356,7 @@ namespace Store {
 				//^^^^^^^^^^
 				if (kind()==Kind::Split) cmp_val() = cmp_val_ ;
 				_new_data() ;
-				SWEAR( chunk_sz< max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
+				SWEAR( chunk_sz<=max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
 			}
 			bool need_mk_min_sz() {
 				SWEAR( min_sz()<=sz() , min_sz() , sz() ) ;

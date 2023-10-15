@@ -48,6 +48,8 @@ namespace Engine {
 
 	template<class JN> concept IsWatcher = IsOneOf<JN,Job,Node> ;
 
+	using AnalysisErr = ::vector<pair_s<Node>> ;
+
 	struct Req
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
@@ -284,7 +286,7 @@ namespace Engine {
 			} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 		}
 		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
-			for( auto const& [pfx,ni] : analysis_err ) audit_node( Color::Note , pfx , ni , lvl ) ;
+			for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n , lvl ) ;
 			if (stderr.empty()) return !analysis_err.empty() ;
 			if (max_stderr_lines!=size_t(-1)) {
 				::string_view shorten = first_lines(stderr,max_stderr_lines) ;
