@@ -7,11 +7,18 @@
 
 #include <sys/user.h>
 
+#include <array>
 #include <fstream>
+
+using namespace std ;
+
+static constexpr int MaxErrno = 255 ;  // this is pretty comfortable, actual value is 133 // XXX : find a way to use a documented value
 
 int np_get_fd(std::filebuf& fb) ;
 
 static constexpr char np_errno_symbol_name[] = "__errno_location" ;            // XXX : find a way to stick to documented interfaces
 
-int  np_ptrace_get_errno    (int pid) ;
+::array<uint64_t,6> np_ptrace_get_args(int pid) ;
+::pair<int64_t/*res*/,int/*errno*/> np_ptrace_get_res_errno(int pid) ;
+long np_ptrace_get_syscall  (int pid) ;
 void np_ptrace_clear_syscall(int pid) ;

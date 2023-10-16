@@ -11,17 +11,32 @@ mkdir -p trial
 cd       trial
 
 #
-# HAS_PTRACE
+# HAS_SECCOMP
 # test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
 #
-cat <<"EOF" > ptrace.c
+cat <<"EOF" > seccomp.c
 	#include<seccomp.h>
 	struct scmp_version v ;
 EOF
 # usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccompt.h) but some systems have seccomp.h directly installed in /usr/include/linux
-if $CC -c -idirafter /usr/include/linux -o ptrace.o ptrace.c
-then HAS_PTRACE=1
-else HAS_PTRACE=0
+if $CC -c -idirafter /usr/include/linux -o ptrace.o seccomp.c
+then HAS_SECCOMP=1
+else HAS_SECCOMP=0
+fi
+
+#
+# HAS_PTRACE_GET_SYSCALL_INFO
+#
+cat <<"EOF" > get_syscall_info.c
+	#include<sys/ptrace.h>
+	#include<linux/ptrace.h>
+	void foo() {
+		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
+	}
+EOF
+if $CC -c -idirafter /usr/include/linux -o get_syscall_info.o get_syscall_info.c
+then HAS_PTRACE_GET_SYSCALL_INFO=1
+else HAS_PTRACE_GET_SYSCALL_INFO=0
 fi
 
 #
@@ -101,12 +116,13 @@ else
 fi
 
 cat <<EOF
-	#define HAS_CLOSE_RANGE        $HAS_CLOSE_RANGE
-	#define HAS_PTRACE             $HAS_PTRACE
-	#define HAS_LD_AUDIT           $HAS_LD_AUDIT
-	#define NEED_STAT_WRAPPERS     $NEED_STAT_WRAPPERS
-	#define HAS_OSTRINGSTREAM_VIEW $HAS_OSTRINGSTREAM_VIEW
-	#define HAS_SLURM              $HAS_SLURM
-	#define PYTHON                 "$PYTHON"
-	#define PYTHON_LD_LIBRARY_PATH "$PYTHON_LD_LIBRARY_PATH"
+	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
+	#define HAS_SECCOMP                 $HAS_SECCOMP
+	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
+	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
+	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
+	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
+	#define HAS_SLURM                   $HAS_SLURM
+	#define PYTHON                      "$PYTHON"
+	#define PYTHON_LD_LIBRARY_PATH      "$PYTHON_LD_LIBRARY_PATH"
 EOF

@@ -8,48 +8,29 @@
 #include "gather_deps.hh"
 #include "record.hh"
 
-#if HAS_PTRACE
-
-	struct AutodepPtrace {
-		// statics
-		static void s_prepare_child() ;                    // must be called from child
-		// static data
-		static AutodepEnv* s_autodep_env ;                 // declare as pointer to avoid static late initialization
-		// cxtors & casts
-		AutodepPtrace(        ) = default ;
-		AutodepPtrace(pid_t cp) { _init(cp) ; }
-	private :
-		void _init(pid_t child_pid) ;
-		// services
-		::pair<bool/*done*/,int/*wstatus*/> _changed( int pid , int wstatus ) ;
-	public :
-		int/*wstatus*/ process() {
-			int  wstatus ;
-			int  pid     ;
-			bool done    ;
-			while( (pid=wait(&wstatus))>=0 ) {
-				::tie(done,wstatus) = _changed(pid,wstatus) ;
-				if (done) return wstatus ;
-			}
-			fail("process ",child_pid," did not exit nor was signaled") ;
+struct AutodepPtrace {
+	// statics
+	static void s_prepare_child() ;    // must be called from child
+	// static data
+	static AutodepEnv* s_autodep_env ; // declare as pointer to avoid static late initialization
+	// cxtors & casts
+	AutodepPtrace(        ) = default ;
+	AutodepPtrace(pid_t cp) { _init(cp) ; }
+private :
+	void _init(pid_t child_pid) ;
+	// services
+	::pair<bool/*done*/,int/*wstatus*/> _changed( int pid , int wstatus ) ;
+public :
+	int/*wstatus*/ process() {
+		int  wstatus ;
+		int  pid     ;
+		bool done    ;
+		while( (pid=wait(&wstatus))>=0 ) {
+			::tie(done,wstatus) = _changed(pid,wstatus) ;
+			if (done) return wstatus ;
 		}
-		// data
-		int child_pid ;
-	} ;
-
-#else
-
-	// useless but needed so that compilation can be carried out
-	struct AutodepPtrace {
-		// statics
-		[[noreturn]] static void bad() { fail_prod("autodep method ptrace not supported") ; }
-		static void s_prepare_child() { bad() ; }
-		// static data
-		static AutodepEnv* s_autodep_env ;
-		// cxtors & casts
-		AutodepPtrace() = default ;
-		AutodepPtrace(int /*child_pid*/) { bad() ; }
-		int/*wstatus*/ process() { bad() ; }
-	} ;
-
-#endif
+		fail("process ",child_pid," did not exit nor was signaled") ;
+	}
+	// data
+	int child_pid ;
+} ;

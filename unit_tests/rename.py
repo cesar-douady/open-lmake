@@ -9,7 +9,7 @@ if getattr(sys,'reading_makefiles',False) :
 
 	import lmake
 
-	from step import step
+	from step import step,python
 
 	lmake.sources = ('Lmakefile.py','step.py')
 
@@ -18,18 +18,21 @@ if getattr(sys,'reading_makefiles',False) :
 			'DST'        :   'test'
 		,	'SCRATCHPAD' : ( 'test.sp' , 'phony' )
 		}
-	#	if step==1 : cmd = '                             mv {SCRATCHPAD} {DST} ' # XXX : make mv work on CentOS 7
-	#	else       : cmd = ' echo hello > {SCRATCHPAD} ; mv {SCRATCHPAD} {DST} '
-		def cmd() :
-			import os
-			if step!=1 : print('hello',file=open(SCRATCHPAD,'w'))
-			os.rename(SCRATCHPAD,DST)
+		if python :
+			def cmd() :
+				import os
+				if step!=1 : print('hello',file=open(SCRATCHPAD,'w'))
+				os.rename(SCRATCHPAD,DST)
+		else :
+			if step==1 : cmd = '                             mv {SCRATCHPAD} {DST} '
+			else       : cmd = ' echo hello > {SCRATCHPAD} ; mv {SCRATCHPAD} {DST} '
 else :
 
 	import ut
 
-	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'test' , failed=1 , rc=1 )
+	for python in (False,True) :
+		print(f'step=1 ; python={python}',file=open('step.py','w'))
+		ut.lmake( 'test' , failed=1 , rc=1 )
 
-	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'test' , done=1 , rc=0 )
+		print(f'step=2 ; python={python}',file=open('step.py','w'))
+		ut.lmake( 'test' , done=1 , rc=0 )

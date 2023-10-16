@@ -37,6 +37,9 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* generate {Stem} instead of * in job_name when selecting star targets
+	- and recognize it when provided as command line target
+	- this way, it is easy to do a copy/paste
 * manage to output file name and line number back to Lmakefile.py when executing cmd
 	- as of now, line no depend on number of accessed variables, globals, etc.
 		- an easy step would be to define cmd before globals to at least have a stable transformation
@@ -100,9 +103,17 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement a lshow -r to see what is running now
 * provide the possibility to play dynamically with resources in config
-* report errors in title (split useful into done et err)
+	- split config / rules / sources
+	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
+		- reload rules when rules change (or when config.rules changes)
+		- sources when sources change (or when config.sources changes)
+		- config when config changes
+			- and allow config to be read dynamically, and recognize if this is acceptable
+* implement a lshow -r to see what is running now
+	- implement a generic walk through deps
+	- use it for check_deps, which will prevent jobs post critical deps to be run
+* report errors in title (split useful into done and err)
 * provide the possibility to prevent rebuild from a given file
 	- much like freeze, but the other way around
 	- useful to work on deep files such as utils to add a feature

@@ -215,7 +215,7 @@ namespace Engine {
 				}
 				switch (method) {
 					case AutodepMethod::None      :                                                                                 break ;
-					case AutodepMethod::Ptrace    : if (!HAS_PTRACE  ) throw to_string(method," is not supported on this system") ; break ;
+					case AutodepMethod::Ptrace    :                                                                                 break ;
 					case AutodepMethod::LdAudit   : if (!HAS_LD_AUDIT) throw to_string(method," is not supported on this system") ; break ;
 					case AutodepMethod::LdPreload :                                                                                 break ;
 					default : FAIL(method) ;

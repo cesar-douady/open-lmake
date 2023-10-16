@@ -405,7 +405,7 @@ struct TargetSpec {
 
 ENUM_2( AutodepMethod
 ,	Ld   = LdAudit                                         // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
-,	Dflt = AutodepMethod::LdPreload                        // by default, use  a compromize between speed an reliability, might sens HAS_LD_AUDIT and HAS_PTRACE if necessary
+,	Dflt = AutodepMethod::LdPreload                        // by default, use  a compromize between speed an reliability, might sense HAS_LD_AUDIT and HAS_SECCOMP if necessary
 ,	None
 ,	Ptrace
 ,	LdAudit

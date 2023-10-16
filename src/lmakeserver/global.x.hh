@@ -125,51 +125,54 @@ namespace Engine {
 		Config(Py::Mapping const& py_map) ;
 		// services
 		template<IsStream T> void serdes(T& s) {
-			::serdes(s,db_version) ;                                           // must always stay first field to ensure it is always understood
+			::serdes(s,db_version      ) ;                                     // must always stay first field to ensure it is always understood
+			::serdes(s,hash_algo       ) ;
 			//
-			::serdes(s,hash_algo            ) ;
-			::serdes(s,heartbeat            ) ;
-			::serdes(s,lnk_support          ) ;
-			::serdes(s,local_admin_dir      ) ;
-			::serdes(s,max_dep_depth        ) ;
-			::serdes(s,max_err_lines        ) ;
-			::serdes(s,network_delay        ) ;
-			::serdes(s,trace_sz             ) ;
-			::serdes(s,path_max             ) ;
-			::serdes(s,remote_admin_dir     ) ;
-			::serdes(s,remote_tmp_dir       ) ;
-			::serdes(s,src_dirs_s           ) ;
-			::serdes(s,sub_prio_boost       ) ;
-			::serdes(s,backends             ) ;
-			::serdes(s,rsrc_digits          ) ;
-			::serdes(s,caches               ) ;
-			::serdes(s,colors               ) ;
-			::serdes(s,console.date_prec    ) ;
-			::serdes(s,console.host_len     ) ;
-			::serdes(s,console.has_exec_time) ;
+			::serdes(s,lnk_support     ) ;
+			//
+			::serdes(s,caches          ) ;
+			::serdes(s,local_admin_dir ) ;
+			::serdes(s,max_dep_depth   ) ;
+			::serdes(s,path_max        ) ;
+			::serdes(s,src_dirs_s      ) ;
+			::serdes(s,sub_prio_boost  ) ;
+			::serdes(s,trace_sz        ) ;
+			//
+			::serdes(s,colors          ) ;
+			::serdes(s,heartbeat       ) ;
+			::serdes(s,max_err_lines   ) ;
+			::serdes(s,network_delay   ) ;
+			::serdes(s,remote_admin_dir) ;
+			::serdes(s,remote_tmp_dir  ) ;
+			::serdes(s,backends        ) ;
+			::serdes(s,rsrc_digits     ) ;
+			::serdes(s,console         ) ;
 		}
 		::string pretty_str() const ;
 		void open() const ;
 		// data
+		// changing these values require restarting from a clean base
 		Version        db_version                                      = {}               ; // by default, db cannot be understood
-		//
 		Hash::Algo     hash_algo                                       = Hash::Algo::Xxh  ;
-		Time::Delay    heartbeat                                       ;
+		// changing these invalidate all jobs
 		LnkSupport     lnk_support                                     = LnkSupport::Full ;
+		// changing these can only be done when lmake is not running
+		::map_s<Cache> caches                                          ;
 		::string       local_admin_dir                                 ;
 		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
-		size_t         max_err_lines                                   = 0                ; // unlimited
-		Time::Delay    network_delay                                   ;
-		size_t         trace_sz                                        = 0                ;
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
-		::string       remote_admin_dir                                ;
-		::string       remote_tmp_dir                                  ;
 		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
-		Backend        backends[+BackendTag::N]                        ;
-		uint8_t        rsrc_digits[+StdRsrc::N]                        = {}               ; // precision of standard resources
-		::map_s<Cache> caches                                          ;
+		size_t         trace_sz                                        = 0                ;
+		// changing these can be made dynamically (i.e. while lmake is running)
+		Backend        backends[+BackendTag::N]                        ;                    // backend may refuse dynamic modification
 		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
+		Time::Delay    heartbeat                                       ;
+		size_t         max_err_lines                                   = 0                ; // unlimited
+		Time::Delay    network_delay                                   ;
+		::string       remote_admin_dir                                ;
+		::string       remote_tmp_dir                                  ;
+		uint8_t        rsrc_digits[+StdRsrc::N]                        = {}               ; // precision of standard resources
 		struct {
 			uint8_t date_prec     = -1    ;                // -1 means no date at all in console output
 			uint8_t host_len      = 0     ;                //  0 means no host at all in console output

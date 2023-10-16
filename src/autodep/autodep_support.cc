@@ -15,7 +15,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 
 	// try backdoor
 	// worst data dependent reply size is a CRC per file, rest is a (small) constant size overhead
-	::string reply               ( sizeof(Crc)*jerr.files.size() + 100 , char(0) ) ;                                       // provide some margin for overhead
+	::string reply               ( (1+sizeof(Crc))*jerr.files.size() + 20 , char(0) ) ;                                    // status+crc for each file + provide some margin for overhead
 	int      rc [[maybe_unused]] = ::readlinkat( Backdoor , OMsgBuf::s_send(jerr).data() , reply.data() , reply.size() ) ; // no rc from backdoor
 	//
 	size_t reply_sz = MsgBuf::s_sz(reply.data()) ;

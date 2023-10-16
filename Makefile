@@ -128,7 +128,7 @@ PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 sys_config.h : sys_config
 	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
 
-HAS_PTRACE             := $(shell grep -q 'HAS_PTRACE *1' sys_config.h && echo 1)
+HAS_SECCOMP            := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h && echo 1)
 HAS_SLURM              := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
 PYTHON_LD_LIBRARY_PATH := $(shell awk '$$2=="PYTHON_LD_LIBRARY_PATH" { print substr($$3,2,length($$3)-2) }' sys_config.h)
 
@@ -292,7 +292,7 @@ INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCX
 #
 
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-LIB_SECCOMP := $(if $(HAS_PTRACE),-l:libseccomp.so.2)
+LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
 $(SBIN)/lmakeserver : \
 	$(PYCXX_LIB)/pycxx$(SAN).o                                   \
@@ -591,6 +591,7 @@ include Manifest.inc_stamp                                                     #
 
 UT_DIR      := unit_tests
 UT_BASE_DIR := $(UT_DIR)/base
+UT_BASE     := Manifest $(shell grep -x '$(UT_BASE_DIR)/.*' Manifest)
 
 UNIT_TESTS1 : Manifest $(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) )
 UNIT_TESTS2 : Manifest $(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )

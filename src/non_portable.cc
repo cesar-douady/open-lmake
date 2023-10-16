@@ -17,14 +17,18 @@ int np_get_fd(::filebuf& fb) {
 	return static_cast<FileBuf&>(fb).fd() ;
 }
 
-// Check : https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
-int np_ptrace_get_errno(int pid) {
+::array<uint64_t,6> np_ptrace_get_args(int pid) {
 	struct ::user_regs_struct regs ;
-	int                       res  ;
+	::array<uint64_t,6>       res  ;
 	errno = 0 ;
 	#ifdef __x86_64__
 		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		res = -regs.rax ;
+		res[0] = regs.rdi ;                                                    // from man 2 syscall
+		res[1] = regs.rsi ;
+		res[2] = regs.rdx ;
+		res[3] = regs.r10 ;
+		res[4] = regs.r8  ;
+		res[5] = regs.r9  ;
 	#elif __aarch64__ || __arm__
 		struct iovec iov ;
 		iov.iov_base = &regs                      ;
@@ -32,15 +36,76 @@ int np_ptrace_get_errno(int pid) {
 		long rc = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov) ;
 		SWEAR(rc!=-1) ;
 		#if __arm__
-			res = -regs.r0      ;
+			res[0] = regs.r0 ;                                                 // from man 2 syscall
+			res[1] = regs.r1 ;
+			res[2] = regs.r2 ;
+			res[3] = regs.r3 ;
+			res[4] = regs.r4 ;
+			res[5] = regs.r5 ;
 		#elif __aarch64__
-			res = -regs.regs[0] ;
+			res[0] = regs.regs[0] ;                                            // XXX : find a source of info
+			res[1] = regs.regs[1] ;
+			res[2] = regs.regs[2] ;
+			res[3] = regs.regs[3] ;
+			res[4] = regs.regs[4] ;
+			res[5] = regs.regs[5] ;
 		#endif
 	#else
 		#error "np_get_errno not implemented for this architecture"            // if situation arises, please provide the adequate code using x86_64 case as a template
 	#endif
 	SWEAR( !errno , errno ) ;
 	return res ;
+}
+
+// Check : https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
+::pair<int64_t/*res*/,int/*errno*/> np_ptrace_get_res_errno(int pid) {
+	struct ::user_regs_struct regs ;
+	int64_t                   res  ;
+	errno = 0 ;
+	#ifdef __x86_64__
+		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		res = regs.rax ;
+	#elif __aarch64__ || __arm__
+		struct iovec iov ;
+		iov.iov_base = &regs                      ;
+		iov.iov_len  = sizeof(unsigned long long) ;                            // read only the 1st register
+		long rc = ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &iov) ;
+		SWEAR(rc!=-1) ;
+		#if __arm__
+			res = regs.r0      ;
+		#elif __aarch64__
+			res = regs.regs[0] ;
+		#endif
+	#else
+		#error "np_get_errno not implemented for this architecture"            // if situation arises, please provide the adequate code using x86_64 case as a template
+	#endif
+	SWEAR( !errno , errno ) ;
+	if ( res<0 && -res<=MaxErrno ) return {res,-res} ;
+	return {res,0} ;
+}
+
+long np_ptrace_get_syscall(int pid) {
+	errno = 0 ;
+	struct ::user_regs_struct regs ;
+	#ifdef __x86_64__
+		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		if (errno) throw 0 ;
+		return regs.orig_rax ;
+	#elif __aarch64__ || __arm__
+		long          rc  ;
+		struct iovec  iov ;
+		iov.iov_base = &regs ;
+		iov.iov_len  = 9 * sizeof(unsigned long long) ;                        // read/write only 9 registers
+		rc  = ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+		if ( rc==-1 || errno ) throw 0 ;
+		#if __arm__
+			return regs.r7 ;
+		#elif __aarch64__
+			return regs.regs[8] ;
+		#endif
+	#else
+		#error "np_clear_syscall not implemented for this architecture"        // if situation arises, please provide the adequate code using x86_64 case as a template
+	#endif
 }
 
 void np_ptrace_clear_syscall(int pid) {

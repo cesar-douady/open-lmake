@@ -228,7 +228,7 @@ public :
 	struct Rename {
 		// cxtors & casts
 		Rename() = default ;
-		Rename( Record& , Path&& src , Path&& dst , unsigned int flags=0 , ::string const& comment="rename" ) ;
+		Rename( Record& , Path&& src , Path&& dst , uint flags=0 , ::string const& comment="rename" ) ;
 		// services
 		int operator()( Record& , int rc , bool no_file ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data
