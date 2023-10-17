@@ -64,8 +64,8 @@ extern "C" {
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
-static RecordSock& auditer() {
-	static RecordSock* s_res = new RecordSock ;
+static Record& auditer() {
+	static Record* s_res = new Record ;
 	return *s_res ;
 }
 
@@ -86,7 +86,7 @@ template<class Action,bool NF=false,bool DP=false> struct AuditAction : Ctx,Acti
 	template<class T> T operator()(bool has_fd,T res) requires( NF) { save_errno() ; return Action::operator()(auditer(),has_fd,res,get_no_file()) ; }
 } ;
 //                                          no_file,double_path
-using Chdir   = AuditAction<Record::Chdir                      > ;
+using ChDir   = AuditAction<Record::ChDir                      > ;
 using Exec    = AuditAction<Record::Exec                       > ;
 using Lnk     = AuditAction<Record::Lnk    ,true   ,true       > ;
 using Open    = AuditAction<Record::Open   ,true               > ;
@@ -128,6 +128,25 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 } ;
 
 //
+// SyscallDescr
+//
+
+static ::string get_str( pid_t , uint64_t val              ) { return {reinterpret_cast<const char*>(val)    } ; }
+static ::string get_str( pid_t , uint64_t val , size_t len ) { return {reinterpret_cast<const char*>(val),len} ; }
+
+template<class T> static T get( pid_t , uint64_t val ) {
+	T res ;
+	::memcpy( &res , reinterpret_cast<void const*>(val) , sizeof(T) ) ;
+	return res ;
+}
+
+static void put_str( pid_t , uint64_t val , ::string const& str ) {
+	::memcpy( reinterpret_cast<void*>(val) , str.data() , str.size() ) ;
+}
+
+#include "syscall.cc"
+
+//
 // Audited
 //
 
@@ -150,14 +169,14 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
-	#define _HEADER(syscall,args,cond) \
+	#define HEADER(syscall,args,cond) \
 		ORIG(syscall) ;                                    \
 		if ( Lock::t_busy() || (cond) ) return orig args ; \
 		Lock lock
 	// do a first check to see if it is obvious that nothing needs to be done
-	#define HEADER0(syscall,            args) _HEADER( syscall , args , false                                                    )
-	#define HEADER1(syscall,path,       args) _HEADER( syscall , args , auditer().is_simple(path )                               )
-	#define HEADER2(syscall,path1,path2,args) _HEADER( syscall , args , auditer().is_simple(path1) && auditer().is_simple(path2) )
+	#define HEADER0(syscall,            args) HEADER( syscall , args , false                                                    )
+	#define HEADER1(syscall,path,       args) HEADER( syscall , args , Record::s_is_simple(path )                               )
+	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , args , Record::s_is_simple(path1) && Record::s_is_simple(path2) )
 
 	#define CC   const char
 	#define P(r) r.at,r.file
@@ -168,18 +187,18 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 
 	// chdir
 	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
-	int chdir (CC* pth) NE { HEADER1(chdir ,pth,(pth)) ; Chdir r{pth   } ; return r(orig(F(r))) ; } // /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int fchdir(int fd ) NE { HEADER0(fchdir,    (fd )) ; Chdir r{Fd(fd)} ; return r(orig(A(r))) ; } // .
+	int chdir (CC* pth) NE { HEADER1(chdir ,pth,(pth)) ; ChDir r{pth   } ; return r(orig(F(r))) ; } // /!\ chdir manipulates cwd, which mandates an exclusive lock
+	int fchdir(int fd ) NE { HEADER0(fchdir,    (fd )) ; ChDir r{Fd(fd)} ; return r(orig(A(r))) ; } // .
 
 	// close
 	// close cannot be simple as we must call hide, which may make modifications
 	// /!\ : close can be recursively called by auditing code
 	// in case close is called with one our our fd's, we must hide somewhere else
-	// RecordSock::s_hide & s_hide_range are guaranteed syscall free, so no need to protect against errno
-	int  close      (int  fd                   )    { HEADER0(close      ,(fd          )) ;                                  RecordSock::s_hide      (fd     ) ; return orig(fd          ) ; }
-	int  __close    (int  fd                   )    { HEADER0(__close    ,(fd          )) ;                                  RecordSock::s_hide      (fd     ) ; return orig(fd          ) ; }
-	int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) RecordSock::s_hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
-	void closefrom  (int  fd1                  ) NE { HEADER0(closefrom  ,(fd1         )) ;                                  RecordSock::s_hide_range(fd1    ) ; return orig(fd1         ) ; }
+	// Record::s_hide & s_hide_range are guaranteed syscall free, so no need to protect against errno
+	int  close      (int  fd                   )    { HEADER0(close      ,(fd          )) ;                                  Record::s_hide      (fd     ) ; return orig(fd          ) ; }
+	int  __close    (int  fd                   )    { HEADER0(__close    ,(fd          )) ;                                  Record::s_hide      (fd     ) ; return orig(fd          ) ; }
+	int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) Record::s_hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
+	void closefrom  (int  fd1                  ) NE { HEADER0(closefrom  ,(fd1         )) ;                                  Record::s_hide_range(fd1    ) ; return orig(fd1         ) ; }
 
 	// dlopen
 	// dlopen cannot be simple as we do not know which file will be accessed
@@ -193,10 +212,10 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	// dup2
 	// /!\ : dup2/3 can be recursively called by auditing code
 	// in case dup2/3 is called with one our fd's, we must hide somewhere else
-	// RecordSock::s_hide is guaranteed syscall free, so no need to protect against errno
-	int dup2  ( int oldfd , int newfd            ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; RecordSock::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
-	int dup3  ( int oldfd , int newfd , int flgs ) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; RecordSock::s_hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
-	int __dup2( int oldfd , int newfd            ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; RecordSock::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
+	// Record::s_hide is guaranteed syscall free, so no need to protect against errno
+	int dup2  ( int oldfd , int newfd            ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
+	int dup3  ( int oldfd , int newfd , int flgs ) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Record::s_hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
+	int __dup2( int oldfd , int newfd            ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
 
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
@@ -247,35 +266,12 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 
 	// getcwd
 	// cf man 3 getcwd (Linux)
-	static char* _fix_cwd( char* buf , size_t sz , Bool3 allocated , decltype(::getcwd)* getcwd_=nullptr ) NE { // allocated=Maybe means allocated of fixed size, getcwd unused if no error is generated
-		//
-		::string const& tmp_dir  = RecordSock::s_autodep_env().tmp_dir  ;      // we need to call auditer() even for a static field to ensure it is initialized
-		::string const& tmp_view = RecordSock::s_autodep_env().tmp_view ;      // .
-		//
-		if ( !buf                                                                                                ) return buf ; // error
-		if ( tmp_view.empty()                                                                                    ) return buf ; // no mapping
-		if (!( ::string_view(buf,sz).starts_with(tmp_dir) && (buf[tmp_dir.size()]=='/'||buf[tmp_dir.size()]==0) )) return buf ; // no match
-		//
-		size_t new_len = strlen(buf) + tmp_view.size() - tmp_dir.size() ;
-		if (allocated==Yes) {
-			buf = static_cast<char*>(realloc(buf,new_len)) ;
-		} else if (new_len>=sz) {
-			char x ;
-			char* _ [[maybe_unused]] = getcwd_(&x,1) ;                         // force an error in user land as we have not enough space (a cwd cannot fit within 1 byte with its terminating null)
-			if (allocated!=No) free(buf) ;
-			return nullptr ;
-		}
-		if (tmp_view.size()>tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() , new_len-tmp_view.size()+1 ) ; // +1 for the terminating null
-		/**/                                ::memcpy ( buf                 , tmp_view.c_str()   ,         tmp_view.size()   ) ;
-		if (tmp_view.size()<tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() , new_len-tmp_view.size()+1 ) ; // .
-		return buf ;
-	}
-	//                                                                                                                                       allocated
-	char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; return _fix_cwd( orig(buf,sz) , sz       , buf?No:sz?Maybe:Yes , orig ) ; }
-	char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; return _fix_cwd( orig(      ) , -1       , Yes                        ) ; }
+	//                                                                                                                           buf_sz     sz  allocated
+	char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; return fix_cwd( orig(buf,sz) , sz       , 0 , buf?No:sz?Maybe:Yes ).first ; }
+	char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; return fix_cwd( orig(      ) , PATH_MAX , 0 , Yes                 ).first ; }
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-	char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; return _fix_cwd( orig(buf   ) , PATH_MAX , No                         ) ; }
+	char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; return fix_cwd( orig(buf   ) , PATH_MAX , 0                       ).first ; }
 	#pragma GCC diagnostic pop
 
 	// link
@@ -346,30 +342,6 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	int symlink  ( CC* target ,             CC* pth ) NE { HEADER1(symlink  ,pth,(target,      pth)) ; SymLnk r{       pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
 	int symlinkat( CC* target , int dirfd , CC* pth ) NE { HEADER1(symlinkat,pth,(target,dirfd,pth)) ; SymLnk r{{dirfd,pth},"symlinkat"} ; return r(orig(target,P(r))) ; }
 
-	// syscall
-	long syscall( long n , ... ) {
-		ORIG(syscall) ;
-		va_list lst ; va_start(lst,n) ;
-		long a1 = va_arg(lst,long) ;
-		long a2 = va_arg(lst,long) ;
-		long a3 = va_arg(lst,long) ;
-		long a4 = va_arg(lst,long) ;
-		long a5 = va_arg(lst,long) ;
-		long a6 = va_arg(lst,long) ;
-		va_end(lst) ;
-		if (!Lock::t_busy()) {
-			switch (n) {                                                       // XXX : leverage ptrace table
-				case SYS_renameat2 : {
-					Lock lock ;
-					Rename r{ {int(a1),(CC*)a2} , {int(a3),(CC*)a4} , uint(a5) } ;
-					return r(orig( long(r.src.at) , (long)r.src.file , long(r.dst.at) , (long)r.dst.file , a5 )) ;
-				}
-				default : ;
-			}
-		}
-		return orig(n,a1,a2,a3,a4,a5,a6) ;
-	}
-
 	// truncate
 	int truncate  (CC* pth,off_t len) NE { HEADER1(truncate  ,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate"  } ; return r(false/*has_fd*/,orig(F(r),len)) ; }
 	int truncate64(CC* pth,off_t len) NE { HEADER1(truncate64,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate64"} ; return r(false/*has_fd*/,orig(F(r),len)) ; }
@@ -385,7 +357,7 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},bool(f&ASLM),"faccessat"} ; return r(orig(P(r),m,f)) ; }
 	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true                    } ; return r(orig(F(r)    )) ; }
 	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true                    } ; return r(orig(F(r)    )) ; }
-	//                                                                                                               no_follow
+	//                                                                                                                 no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false       ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false       ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
 	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true        ,"__lxstat"    } ; return r(orig(v,F(r),b  )) ; }
@@ -404,11 +376,13 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { HEADER1(statx,p,(d,p,f,msk,b)) ; Stat r{{d,p},true/*no_follow*/,"statx"} ; return r(orig(P(r),f,msk,b)) ; }
 
 	// realpath
+	//                                                                                                                 no_follow
 	char* realpath              (CC* p,char* rp          ) NE { HEADER1(realpath              ,p,(p,rp   )) ; Stat r{p,false    ,"realpath              "} ; return r(orig(F(r),rp   )) ; }
 	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HEADER1(__realpath_chk        ,p,(p,rp,rl)) ; Stat r{p,false    ,"__realpath_chk        "} ; return r(orig(F(r),rp,rl)) ; }
 	char* canonicalize_file_name(CC* p                   ) NE { HEADER1(canonicalize_file_name,p,(p      )) ; Stat r{p,false    ,"canonicalize_file_name"} ; return r(orig(F(r)      )) ; }
 
 	// mkdir
+	//                                                                                no_follow
 	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Solve r{   p ,true     } ; return r(orig(F(r),m)) ; }
 	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Solve r{{d,p},true     } ; return r(orig(P(r),m)) ; }
 
@@ -419,7 +393,7 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	using Fltr64  = int (*)(const struct dirent64*                         ) ;
 	using Cmp     = int (*)(const struct dirent**  ,const struct dirent  **) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-	//                                                                                                            no_follow
+	//                                                                                                             no_follow
 	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true     } ; return r(orig(F(r),nl,f,c)) ; }
 	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true     } ; return r(orig(F(r),nl,f,c)) ; }
 	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     } ; return r(orig(P(r),nl,f,c)) ; }
@@ -428,13 +402,49 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	#undef P
 	#undef CC
 
+	#undef NE
+
+	// syscall
+	long syscall( long n , ... ) {                                             // XXX : support, or at least detect tmp mapping
+		uint64_t args[6] ;
+		{	va_list lst ; va_start(lst,n) ;
+			args[0] = va_arg(lst,uint64_t) ;
+			args[1] = va_arg(lst,uint64_t) ;
+			args[2] = va_arg(lst,uint64_t) ;
+			args[3] = va_arg(lst,uint64_t) ;
+			args[4] = va_arg(lst,uint64_t) ;
+			args[5] = va_arg(lst,uint64_t) ;
+			va_end(lst) ;
+		}
+		auto it = SyscallDescr::s_tab.find(n) ;
+		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , it==SyscallDescr::s_tab.end() ) ;
+		//
+		SyscallDescr const& descr     = it->second ;
+		void*               descr_ctx ;
+		{
+			[[maybe_unused]] Ctx audit_ctx ;                                                   // save user errno when required
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			bool skip = descr.entry( descr_ctx , auditer() , 0/*pid*/ , args , descr.comment ) ; // may modify args if tmp is mapped
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//
+			if (skip) return -1 ;                                              // return an error, as it is done in the ptrace case
+		}
+		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
+		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		[[maybe_unused]] Ctx audit_ctx ;                                                  // save user errno when required
+		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		return descr.exit( descr_ctx , auditer() , 0/*pid*/ , res , np_syscall_errno(res) ) ;
+		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	}
+
 	#undef HEADER2
 	#undef HEADER1
 	#undef HEADER0
-	#undef _HEADER
+	#undef HEADER
+
 	#undef ORIG
 
-	#undef NE
 }
 #ifdef LD_PRELOAD
 	#pragma GCC visibility pop

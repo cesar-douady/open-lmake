@@ -7,7 +7,7 @@
 
 #include "rpc_job.hh"
 
-#include "autodep_env.hh"
+#include "env.hh"
 
 struct Cmd {
 	bool sync     = false ;

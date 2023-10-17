@@ -13,7 +13,7 @@
 #include "serialize.hh"
 #include "time.hh"
 
-#include "autodep/autodep_env.hh"
+#include "autodep/env.hh"
 
 ENUM_1( BackendTag                     // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local

@@ -8,7 +8,7 @@
 #include "lib.hh"
 
 bool        g_force_orig = false   ;
-const char* g_libc_name  = nullptr ;   // .
+const char* g_libc_name  = nullptr ;
 
 void* get_libc_handle() {
 	static void* s_libc_handle = ::dlmopen( LM_ID_BASE , g_libc_name , RTLD_NOW|RTLD_NOLOAD ) ;
@@ -20,7 +20,7 @@ struct Ctx {
 	// Our errno is not the same as user's errno.
 	// This is practical so our accesses do not interferes with user's ones.
 	// However, accessing user's errno for our own use is a pain and in fact, there are system bugs that makes it impossible on some systems.
-	// So we will assume, when there is an access error, that this is due to a missing file, which should be the case most often and any way is conservative.
+	// So we will assume, when there is an access error, that this is due to a missing file, which should be the case most often and any way, this is conservative.
 	// For example a failed open because of no file triggers a dep, but if it is because, say, access rights, then we have not accessed the file and no reason to trigger a dep.
 	bool get_no_file  () const { return true ; }
 	void save_errno   ()       {}
@@ -28,8 +28,7 @@ struct Ctx {
 } ;
 
 struct Lock {
-	// no need for protection against recursive call as our accesses are not routed to us
-	static bool t_busy() { return false ; }                                   // .
+	static bool t_busy() { return false ; }                                    // no need for protection against recursive call as our accesses are not routed to us
 	static ::mutex s_mutex ;
 	Lock () { s_mutex.lock  () ; }
 	~Lock() { s_mutex.unlock() ; }
@@ -52,7 +51,7 @@ void* get_orig(const char* syscall) {
 }
 
 #define LD_AUDIT 1
-#include "autodep_ld.cc"
+#include "ld.cc"
 
 ::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{
 	{ "chdir"               , { reinterpret_cast<void*>(Audited::chdir               ) } }
@@ -182,9 +181,9 @@ template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int
 		if (it==g_syscall_tab->end()) goto Ignore ;
 		//
 		SymEntry const& entry = it->second ;
-		SWEAR(RecordSock::s_autodep_env().lnk_support!=LnkSupport::Unknown) ;
-		if ( RecordSock::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
-		if (!RecordSock::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
+		SWEAR(Record::s_autodep_env().lnk_support!=LnkSupport::Unknown) ;
+		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
+		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
 		goto Ignore ;
 	Catch :
 		entry.orig = reinterpret_cast<void*>(sym->st_value) ;

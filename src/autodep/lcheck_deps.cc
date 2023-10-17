@@ -5,7 +5,7 @@
 
 #include "app.hh"
 
-#include "autodep_support.hh"
+#include "support.hh"
 
 ENUM(Key,None)
 ENUM(Flag

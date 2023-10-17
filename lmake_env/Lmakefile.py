@@ -278,8 +278,8 @@ class TarLmake(BaseRule) :
 	deps = {
 		'SERIALIZE'          : '_lib/serialize.py'
 	,	'READ_MAKEFILES_PY'  : '_lib/read_makefiles.py'
-	,	'AUTODEP_LD_AUDIT'   : '_lib/autodep_ld_audit.so'
-	,	'AUTODEP_LD_PRELOAD' : '_lib/autodep_ld_preload.so'
+	,	'LD_AUDIT'           : '_lib/ld_audit.so'
+	,	'LD_PRELOAD'         : '_lib/ld_preload.so'
 	,	'AUTODEP'            : '_bin/autodep'
 	,	'JOB_EXEC'           : '_bin/job_exec'
 	,	'LDUMP'              : '_bin/ldump'
@@ -339,7 +339,7 @@ class LinkClientAppExe(LinkAppExe) :
 	}
 
 class LinkAutodepEnv(Link) :
-	deps = { 'AUTODEP_ENV' : 'src/autodep/autodep_env.o' }
+	deps = { 'ENV' : 'src/autodep/env.o' }
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
@@ -361,18 +361,18 @@ class LinkPythonAppExe(LinkAppExe) :
 	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
-	targets = { 'TARGET' : '_lib/autodep_ld_{Method:audit|preload}.so' }
+	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload}.so' }
 	deps = {
 		'LIB'    : None
 	,	'RECORD' : 'src/autodep/record.o'
-	,	'LD'     : 'src/autodep/autodep_ld_{Method}.o'
+	,	'LD'     : 'src/autodep/ld_{Method}.o'
 	}
 
 class LinkClmakeSo(LinkLibSo,LinkAutodep) :
 	targets = { 'TARGET' : 'lib/clmake.so' }
 	deps = {
 		'RECORD'  : 'src/autodep/record.o'
-	,	'SUPPORT' : 'src/autodep/autodep_support.o'
+	,	'SUPPORT' : 'src/autodep/support.o'
 	,	'MAIN'    : 'src/autodep/clmake.o'
 	}
 
@@ -443,7 +443,7 @@ class LinkLforget(LinkClientAppExe) :
 
 class LinkJobSupport(LinkClientAppExe) :
 	deps = {
-		'SUPPORT' : 'src/autodep/autodep_support.o'
+		'SUPPORT' : 'src/autodep/support.o'
 	,	'RECORD'  : 'src/autodep/record.o'
 	,	'RPC_JOB' : 'src/rpc_job.o'
 	}

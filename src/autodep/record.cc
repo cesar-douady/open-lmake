@@ -24,7 +24,7 @@ using namespace Time         ;
 // Record
 //
 
-bool Record::is_simple(const char* file) const {
+bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                          // no file is simple (not documented, but used in practice)
 	if (!file[0]     ) return true  ;                                          // empty file is simple
 	if ( file[0]!='/') return false ;                                          // relative files are complex
@@ -61,6 +61,7 @@ bool Record::is_simple(const char* file) const {
 
 AutodepEnv* Record::_s_autodep_env = nullptr ;                                 // declare as pointer to avoid late initialization
 Fd          Record::_s_root_fd     ;
+Fd          Record::_s_report_fd   ;
 
 void Record::_report_access( JobExecRpcReq const& jerr ) const {
 	SWEAR( jerr.proc==JobExecRpcProc::Access , jerr.proc ) ;
@@ -76,7 +77,7 @@ void Record::_report_access( JobExecRpcReq const& jerr ) const {
 		}
 		if (!miss) return ;
 	}
-	report_cb(jerr) ;
+	_s_report(jerr) ;
 }
 
 Record::SolveReport Record::_solve( Path& path , bool no_follow , ::string const& comment ) {
@@ -113,8 +114,8 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 	}
 	jerr.date = Pdate::s_now() ;                                               // ensure date is posterior to links encountered while solving
 	if (jerr.proc==JobExecRpcProc::Access) _report_access(jerr) ;
-	else                                   report_cb     (jerr) ;
-	if (jerr.sync) return get_reply_cb() ;
+	else                                   _s_report     (jerr) ;
+	if (jerr.sync) return _s_get_reply() ;
 	else           return {}             ;
 }
 
@@ -135,10 +136,10 @@ ssize_t Record::backdoor( const char* msg , char* buf , size_t sz ) {
 	return             os << p.file             ;
 }
 
-Record::Chdir::Chdir( Record& r , Path&& path ) : Solve{r,::move(path),true/*no_follow*/} {
-	if (s_autodep_env().auto_mkdir && !real.empty() ) Disk::make_dir(s_root_fd(),real,false/*unlink_ok*/) ;
+Record::ChDir::ChDir( Record& r , Path&& path ) : Solve{r,::move(path),true/*no_follow*/} {
+	if ( s_autodep_env().auto_mkdir && kind==Kind::Repo ) Disk::make_dir(s_root_fd(),real,false/*unlink_ok*/) ;
 }
-int Record::Chdir::operator()( Record& r , int rc , pid_t pid ) {
+int Record::ChDir::operator()( Record& r , int rc , pid_t pid ) {
 	if (rc!=0) return rc ;
 	if (pid  ) r.chdir(Disk::read_lnk("/proc/"+::to_string(pid)+"/cwd").c_str()) ;
 	else       r.chdir(Disk::cwd()                                     .c_str()) ;
@@ -211,7 +212,7 @@ Record::ReadLnk::ReadLnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::
 }
 
 ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
-	if ( r.real_path.has_tmp_view && kind==Kind::Proc && len>0 ) {             // /proc my contain links to tmp_dir that we must show to job as pointing to tmp_view
+	if ( Record::s_has_tmp_view() && kind==Kind::Proc && len>0 ) {             // /proc my contain links to tmp_dir that we must show to job as pointing to tmp_view
 		::string const& tmp_dir  = s_autodep_env().tmp_dir  ;
 		::string const& tmp_view = s_autodep_env().tmp_view ;
 		size_t          ulen     = len                      ;
@@ -239,7 +240,7 @@ ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 }
 
 // flags is not used if echange is not supported
-Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , u_int flags [[maybe_unused]] , ::string const& comment_ ) :
+Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , uint flags [[maybe_unused]] , ::string const& comment_ ) :
 	src{ r , ::move(src_) , true/*no_follow*/ , to_string(comment_+".rd",::hex,'.',flags) }
 ,	dst{ r , ::move(dst_) , true/*no_follow*/ , to_string(comment_+".wr",::hex,'.',flags) }
 {
@@ -262,12 +263,12 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		::vector_s reads  ;
 		::vector_s writes ;
 		if ( src.kind<=Kind::Dep || dst.kind==Kind::Repo ) {
-			::vector_s sfxs = walk(dst.at,dst.file) ;                                                    // list only accessible files
+			::vector_s sfxs = walk(s_root_fd(),dst.real) ;                                               // list only accessible files
 			if (src.kind<=Kind::Dep ) for( ::string const& s : sfxs ) reads .push_back( src.real + s ) ;
 			if (dst.kind==Kind::Repo) for( ::string const& d : sfxs ) writes.push_back( dst.real + d ) ;
 		}
 		if ( exchange && ( dst.kind<=Kind::Dep || src.kind==Kind::Repo ) ) {
-			::vector_s sfxs = walk(src.at,src.file) ;                                                    // list only accessible files
+			::vector_s sfxs = walk(s_root_fd(),src.real) ;                                               // list only accessible files
 			if (dst.kind<=Kind::Dep ) for( ::string const& s : sfxs ) reads .push_back( dst.real + s ) ;
 			if (src.kind==Kind::Repo) for( ::string const& d : sfxs ) writes.push_back( src.real + d ) ;
 		}
@@ -278,8 +279,8 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 		// directories to waks are reversed
 		// sources have not been unlinked
 		::vector_s reads ;
-		if (             src.kind<=Kind::Dep ) for( ::string const& s : walk(src.at,src.file) ) reads.push_back( src.real + s ) ;
-		if ( exchange && dst.kind<=Kind::Dep ) for( ::string const& s : walk(dst.at,dst.file) ) reads.push_back( dst.real + s ) ;
+		if (             src.kind<=Kind::Dep ) for( ::string const& s : walk(s_root_fd(),src.real) ) reads.push_back( src.real + s ) ;
+		if ( exchange && dst.kind<=Kind::Dep ) for( ::string const& s : walk(s_root_fd(),dst.real) ) reads.push_back( dst.real + s ) ;
 		r._report_deps( ::move(reads ) , DataAccesses , false/*unlink*/ , src.comment+'!' ) ;
 	}
 	return rc ;
@@ -344,9 +345,3 @@ int Record::Unlink::operator()( Record& r , int rc ) {
 	if ( kind==Kind::Repo && rc>=0 ) r._report_unlink( ::move(real) , comment ) ;
 	return rc ;
 }
-
-//
-// RecordSock
-//
-
-Fd RecordSock::_s_report_fd ;

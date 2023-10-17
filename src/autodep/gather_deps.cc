@@ -149,8 +149,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			bool     is_audit = method==AutodepMethod::LdAudit ;
 			::string env_var  ;
 			//
-			if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/autodep_ld_audit.so"   ; }
-			else          { env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/autodep_ld_preload.so" ; }
+			if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"   ; }
+			else          { env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so" ; }
 			//
 			if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }

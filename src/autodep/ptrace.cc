@@ -31,6 +31,71 @@ AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
 
 using namespace Disk ;
 
+static ::string get_str( pid_t pid , uint64_t val ) {
+	if (!pid) return {reinterpret_cast<const char*>(val)} ;
+	::string res ;
+	errno = 0 ;
+	for(;;) {
+		uint64_t offset = val%sizeof(long)                                               ;
+		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
+		if (errno) throw 0 ;
+		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
+		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
+		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
+		val += sizeof(long)-offset ;
+	}
+}
+
+static ::string get_str( pid_t pid , uint64_t val , size_t len ) {
+	if (!pid) return {reinterpret_cast<const char*>(val),len} ;
+	::string res ; res.reserve(len) ;
+	errno = 0 ;
+	for(;;) {
+		uint64_t offset = val%sizeof(long)                                               ;
+		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
+		if (errno) throw 0 ;
+		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
+		if (offset+len<=sizeof(long)) { res.append( buf+offset , len                 ) ; return res ; }
+		/**/                            res.append( buf+offset , sizeof(long)-offset ) ;
+		val += sizeof(long)-offset ;
+		len -= sizeof(long)-offset ;
+	}
+}
+
+template<class T> static T get( pid_t pid , uint64_t val ) {
+	T res ;
+	if (pid) ::memcpy( &res , get_str(pid,val,sizeof(T)).data()  , sizeof(T) ) ;
+	else     ::memcpy( &res , reinterpret_cast<void const*>(val) , sizeof(T) ) ;
+	return res ;
+}
+
+static void put_str( pid_t pid , uint64_t val , ::string const& str ) {
+	if (!pid) {
+		::memcpy( reinterpret_cast<void*>(val) , str.data() , str.size() ) ;
+		return ;
+	}
+	errno = 0 ;
+	for( size_t i=0 ; i<str.size() ;) {
+		uint64_t offset = val%sizeof(long)                            ;
+		size_t   len    = ::min( str.size()-i , sizeof(long)-offset ) ;
+		char     buf[sizeof(long)] ;
+		if ( offset || len<sizeof(long) ) {
+			long word = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
+			if (errno) throw 0 ;
+			::memcpy( buf , &word , sizeof(long) ) ;
+		}
+		::memcpy( buf+offset , str.data()+i , len ) ;
+		long word ;  ::memcpy( &word , buf , sizeof(long) ) ;
+		ptrace( PTRACE_POKEDATA , pid , val-offset , reinterpret_cast<void*>(word) ) ;
+		if (errno) throw 0 ;
+		i   += len ;
+		val += len ;
+	}
+}
+
+#define PTRACE
+#include "syscall.cc"
+
 // When tracing a child, initially, the child will run till first signal and only then will follow the specified seccomp filter.
 // If a traced system call (as per the seccomp filter) is done before, it will fail.
 // This typically happen with the initial exec call.
@@ -41,41 +106,22 @@ static constexpr auto StopAtNextSyscallEntry = HAS_SECCOMP ? PTRACE_CONT : PTRAC
 static constexpr auto StopAtSyscallExit      =                             PTRACE_SYSCALL ;
 
 struct PidInfo {
-	struct Action {
-		RecordSock::Chdir   chdir    = {} ;
-		RecordSock::Lnk     lnk      = {} ;
-		RecordSock::Open    open     = {} ;
-		RecordSock::ReadLnk read_lnk = {} ;
-		RecordSock::Rename  rename   = {} ;
-		RecordSock::SymLnk  sym_lnk  = {} ;
-		RecordSock::Unlink  unlink   = {} ;
-	} ;
 	// static data
 	static ::umap<pid_t,PidInfo> s_tab ;
 	// cxtors & casts
 	PidInfo(pid_t pid) : record{pid} {}
 	// data
-	RecordSock record        ;
-	size_t     idx           = 0     ;
-	Action     action        ;
-	bool       has_exit_proc = false ;
-	bool       on_going      = false ;
+	Record record        ;
+	size_t idx           = 0       ;
+	void*  ctx           = nullptr ;
+	bool   has_exit_proc = false   ;
+	bool   on_going      = false   ;
 } ;
-
-struct SyscallDescr {
-	// static data
-	static ::umap<int/*syscall*/,SyscallDescr> const s_tab ;
-	// data
-	void        (*entry)( PidInfo& , pid_t , uint64_t const args[6] , const char* comment ) = nullptr ;
-	void        (*exit )( PidInfo& , pid_t , int64_t res , int errno_                     ) = nullptr ;
-	uint8_t     prio                                                                        = 0       ;
-	bool        data_access                                                                 = false   ;
-	const char* comment                                                                     = nullptr ;
-} ;
+::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
 void AutodepPtrace::_init(pid_t cp) {
 	SWEAR( s_autodep_env->tmp_view.empty() , s_autodep_env->tmp_view ) ;       // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
-	RecordSock::s_autodep_env(*s_autodep_env) ;
+	Record::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
 	int   wstatus ;
@@ -91,7 +137,7 @@ void AutodepPtrace::_init(pid_t cp) {
 }
 
 void AutodepPtrace::s_prepare_child() {
-	AutodepEnv const& ade = RecordSock::s_autodep_env(*s_autodep_env) ;
+	AutodepEnv const& ade = Record::s_autodep_env(*s_autodep_env) ;
 	SWEAR( ade.tmp_view.empty()                 , ade.tmp_view ) ;             // cannot support directory mapping as there is no way to allocate memory in the traced process
 	SWEAR( ade.lnk_support!=LnkSupport::Unknown )                ;
 	#if HAS_SECCOMP
@@ -136,9 +182,9 @@ void AutodepPtrace::s_prepare_child() {
 				#if HAS_PTRACE_GET_SYSCALL_INFO
 					SWEAR( syscall_info.op==(HAS_SECCOMP?PTRACE_SYSCALL_INFO_SECCOMP:PTRACE_SYSCALL_INFO_ENTRY) ) ;
 					#if HAS_SECCOMP
-						auto const& entry_info = syscall_info.seccomp ;        // access available info upon syscall entry, i.e. seccomp field when seccomp is     used
+						auto& entry_info = syscall_info.seccomp ;              // access available info upon syscall entry, i.e. seccomp field when seccomp is     used
 					#else
-						auto const& entry_info = syscall_info.entry   ;        // access available info upon syscall entry, i.e. entry   field when seccomp is not used
+						auto& entry_info = syscall_info.entry   ;              // access available info upon syscall entry, i.e. entry   field when seccomp is not used
 					#endif
 					int syscall = entry_info.nr ;
 				#else
@@ -152,13 +198,15 @@ void AutodepPtrace::s_prepare_child() {
 					#if HAS_PTRACE_GET_SYSCALL_INFO                            // use portable calls if implemented
 						// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
 						static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<remove_reference_t<decltype(entry_info.args[0])>> ) ;
-						uint64_t const* args = reinterpret_cast<uint64_t const*>(entry_info.args) ;
+						uint64_t* args = reinterpret_cast<uint64_t*>(entry_info.args) ;
 					#else
 						::array<uint64_t,6> arg_array = np_ptrace_get_args(pid) ; // use non-portable calls if portable accesses are not implemented
-						uint64_t const*     args      = arg_array.data()        ; // we need a variable to hold the data while we pass the pointer
+						uint64_t *          args      = arg_array.data()        ; // we need a variable to hold the data while we pass the pointer
 					#endif
-					descr.entry( info , pid , args , descr.comment ) ;
-					info.has_exit_proc = descr.exit ;
+					bool skip = descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
+					if (skip) np_ptrace_clear_syscall(pid) ;
+					info.has_exit_proc = descr.exit && !skip ;
+					if (!info.has_exit_proc) SWEAR(!info.ctx) ;                // no need for a context if we are not called at exit
 				} else {
 					info.has_exit_proc = false ;
 				}
@@ -171,12 +219,16 @@ void AutodepPtrace::s_prepare_child() {
 				#endif
 				if (HAS_SECCOMP) SWEAR(info.has_exit_proc,"should not have been stopped on exit") ;
 				if (info.has_exit_proc) {
-					#if HAS_PTRACE_GET_SYSCALL_INFO                            // use portable calls if implemented
-						::pair<int64_t/*res*/,int/*errno*/> r = { syscall_info.exit.rval , syscall_info.exit.is_error?-syscall_info.exit.rval:0 } ;
+					#if HAS_PTRACE_GET_SYSCALL_INFO                                                 // use portable calls if implemented
+						int64_t res    = syscall_info.exit.rval                                   ;
+						int     errno_ = syscall_info.exit.is_error ? -syscall_info.exit.rval : 0 ;
 					#else
-						::pair<int64_t/*res*/,int/*errno*/> r = np_ptrace_get_res_errno(pid) ; // use non-portable calls if portable accesses are not implemented
+						int64_t res    = np_ptrace_get_res(pid) ;              // use non-portable calls if portable accesses are not implemented
+						int     errno_ = np_syscall_errno(res)  ;
 					#endif
-					SyscallDescr::s_tab.at(info.idx).exit( info , pid , r.first , r.second ) ;
+					int64_t new_res = SyscallDescr::s_tab.at(info.idx).exit( info.ctx , info.record , pid , res , errno_ ) ;
+					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ;  // there is no such cases for now, if it arises, new_res must be reported
+					info.ctx = nullptr ;                                                                                     // ctx is used to retain some info between syscall entry and exit
 				}
 				info.on_going = false ;
 				goto NextSyscall ;
@@ -197,314 +249,3 @@ void AutodepPtrace::s_prepare_child() {
 Done :
 	return {false/*done*/,0} ;
 }
-
-//
-// PidInfo
-//
-
-::umap<pid_t,PidInfo > PidInfo::s_tab ;
-
-::string get_str( pid_t pid , uint64_t val ) {
-	::string res ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = val%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
-		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
-		val += sizeof(long)-offset ;
-	}
-}
-
-::string get_str( pid_t pid , uint64_t val , size_t len ) {
-	::string res ; res.reserve(len) ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = val%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
-		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		if (offset+len<=sizeof(long)) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                            res.append( buf+offset , sizeof(long)-offset ) ;
-		val += sizeof(long)-offset ;
-		len -= sizeof(long)-offset ;
-	}
-}
-
-template<class T> T get( pid_t pid , uint64_t val ) {
-	::string buf = get_str(pid,val,sizeof(T)) ;
-	T        res ; ::memcpy(&res,buf.data(),sizeof(T)) ;
-	return res ;
-}
-
-void put_str( pid_t pid , uint64_t val , ::string const& str ) {
-	errno = 0 ;
-	for( size_t i=0 ; i<str.size() ;) {
-		uint64_t offset = val%sizeof(long)                            ;
-		size_t   len    = ::min( str.size()-i , sizeof(long)-offset ) ;
-		char     buf[sizeof(long)] ;
-		if ( offset || len<sizeof(long) ) {
-			long word = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-			if (errno) throw 0 ;
-			::memcpy( buf , &word , sizeof(long) ) ;
-		}
-		::memcpy( buf+offset , str.data()+i , len ) ;
-		long word ;  ::memcpy( &word , buf , sizeof(long) ) ;
-		ptrace( PTRACE_POKEDATA , pid , val-offset , reinterpret_cast<void*>(word) ) ;
-		if (errno) throw 0 ;
-		i   += len ;
-		val += len ;
-	}
-}
-
-//
-// SyscallDescr
-//
-
-template<bool At> Fd _at(uint64_t val) { if (At) return val ; else return Fd::Cwd ; }
-
-// chdir
-template<bool At> void entry_chdir( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* ) {
-	try {
-		if (At) info.action.chdir = RecordSock::Chdir( info.record , { Fd(args[0])          } ) ;
-		else    info.action.chdir = RecordSock::Chdir( info.record , { get_str(pid,args[0]) } ) ;
-	} catch (int) {}
-}
-void exit_chdir( PidInfo& info , pid_t pid , int64_t res , int /*errno*/ ) {
-	info.action.chdir( info.record , res , pid ) ;
-}
-
-// execve
-// must be called before actual syscall execution as after execution, info is no more available
-template<bool At,bool Flags> void entry_execve( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	int flags = args[3+At] ;
-	try {
-		RecordSock::Exec( info.record , { _at<At>(args[0]) , get_str(pid,args[0+At]) } , Flags&&(flags&AT_SYMLINK_NOFOLLOW) , comment ) ;
-	} catch (int) {}
-}
-
-// link
-template<bool At,bool Flags> void entry_lnk( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	int flags = Flags ? args[2+At*2] : 0 ;
-	try {
-		info.action.lnk = RecordSock::Lnk(
-			info.record
-		,	{ _at<At>(args[0   ]) , get_str(pid,args[0+At  ]) }
-		,	{ _at<At>(args[1+At]) , get_str(pid,args[1+At*2]) }
-		,	flags
-		,	comment
-		) ;
-	} catch (int) {}
-}
-void exit_lnk( PidInfo& info , pid_t /*pid */, int64_t res , int errno_ ) {
-	info.action.lnk( info.record , res , errno_ ) ;
-}
-
-// open
-template<bool At> void entry_open( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	int flags = args[1+At] ;
-	try {
-		info.action.open = RecordSock::Open( info.record , { _at<At>(args[0]) , get_str(pid,args[0+At]) } , flags , comment ) ;
-	}
-	catch (int) {}
-}
-void exit_open( PidInfo& info , pid_t /*pid*/ , int64_t res , int errno_ ) {
-	info.action.open( info.record , false/*has_fd*/ , res , errno_ ) ;
-}
-
-// read_lnk
-template<bool At> void entry_read_lnk( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	using Len = MsgBuf::Len ;
-	Fd at = _at<At>(args[0]) ;
-	try {
-		if (at==Backdoor) {
-			::string data = get_str( pid , args[0+At] , sizeof(Len)+get<size_t>(pid,args[0+At]) ) ;
-			::string buf  ( args[2+At] , char(0) )                                                ;
-			ssize_t  len  = info.record.backdoor( data.data(), buf.data() , buf.size() )          ;
-			buf.resize(len) ;
-			put_str( pid , args[1+At] , buf ) ;
-			np_ptrace_clear_syscall(pid) ;
-		} else {
-			info.action.read_lnk = RecordSock::ReadLnk( info.record , { at , get_str(pid,args[0+At]) } , comment ) ;
-		}
-	} catch (int) {}
-}
-void exit_read_lnk( PidInfo& info , pid_t /*pid*/ , int64_t res , int /*errno*/ ) {
-	info.action.read_lnk( info.record , res ) ;
-}
-
-// rename
-template<bool At,bool Flags> void entry_rename( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	int flags = Flags ? args[2+At*2] : 0 ;
-	try {
-		info.action.rename = RecordSock::Rename(
-			info.record
-		,	{ _at<At>(args[0   ]) , get_str(pid,args[0+At  ]) }
-		,	{ _at<At>(args[1+At]) , get_str(pid,args[1+At*2]) }
-		,	flags
-		,	comment
-		) ;
-	} catch (int) {}
-}
-void exit_rename( PidInfo& info , pid_t /*pid*/ , int64_t res , int errno_ ) {
-	info.action.rename( info.record , res , errno_ ) ;
-}
-
-// symlink
-template<bool At> void entry_sym_lnk( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment) {
-	try {
-		info.action.sym_lnk = RecordSock::SymLnk( info.record , { _at<At>(args[1]) , get_str(pid,args[1+At]) } , comment ) ;
-	} catch (int) {}
-}
-void exit_sym_lnk( PidInfo& info , pid_t , int64_t res , int /*errno*/ ) {
-	info.action.sym_lnk( info.record , res ) ;
-}
-
-// unlink
-template<bool At> void entry_unlink( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	int flags = At ? args[1+At] : 0 ;
-	try {
-		info.action.unlink = RecordSock::Unlink( info.record , { _at<At>(args[0]) , get_str(pid,args[0+At]) } , flags&AT_REMOVEDIR , comment ) ;
-	} catch (int) {}
-}
-void exit_unlink( PidInfo& info , pid_t , int64_t res , int /*errno*/ ) {
-	info.action.unlink( info.record , res ) ;
-}
-
-// access
-static constexpr int FlagAlways = -1 ;
-static constexpr int FlagNever  = -2 ;
-template<bool At,int FlagArg> void entry_stat( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	bool no_follow ;
-	switch (FlagArg) {
-		case FlagAlways : no_follow = true                                   ; break ;
-		case FlagNever  : no_follow = false                                  ; break ;
-		default         : no_follow = args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
-	}
-	try {
-		RecordSock::Stat( info.record , { _at<At>(args[0]) , get_str(pid,args[0+At]) } , no_follow , comment )(info.record) ;
-	} catch (int) {}
-}
-template<bool At,int FlagArg> void entry_solve( PidInfo& info , pid_t pid , uint64_t const args[6] , const char* comment ) {
-	bool no_follow ;
-	switch (FlagArg) {
-		case FlagAlways : no_follow = true                                   ; break ;
-		case FlagNever  : no_follow = false                                  ; break ;
-		default         : no_follow = args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
-	}
-	try {
-		RecordSock::Solve( info.record , { _at<At>(args[0]) , get_str(pid,args[0+At]) } , no_follow , comment ) ;
-	} catch (int) {}
-}
-
-// ordered by priority of generated seccomp filter (more frequent first)
-::umap<int/*syscall*/,SyscallDescr> const SyscallDescr::s_tab = {
-	{-1,{}}                                                                    // first entry is ignored so each active line contains a ','
-#ifdef SYS_faccessat
-,	{ SYS_faccessat         , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat"         } }
-#endif
-#ifdef SYS_access
-,	{ SYS_access            , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "access"            } }
-#endif
-#ifdef SYS_faccessat2
-,	{ SYS_faccessat2        , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat2"        } }
-#endif
-#ifdef SYS_chdir
-,	{ SYS_chdir             , { entry_chdir   <false/*At*/>                , exit_chdir    , 1 , true                        } }
-#endif
-#ifdef SYS_fchdir
-,	{ SYS_fchdir            , { entry_chdir   <true /*At*/>                , exit_chdir    , 1 , true                        } }
-#endif
-#ifdef SYS_execve
-,	{ SYS_execve            , { entry_execve  <false/*At*/,false/*Flags*/> , nullptr       , 1 , true  , "execve"            } }
-#endif
-#ifdef SYS_execveat
-,	{ SYS_execveat          , { entry_execve  <true /*At*/,true /*Flags*/> , nullptr       , 1 , true  , "execveat"          } }
-#endif
-#ifdef SYS_link
-,	{ SYS_link              , { entry_lnk     <false/*At*/,false/*Flags*/> , exit_lnk      , 1 , true  , "link"              } }
-#endif
-#ifdef SYS_linkat
-,	{ SYS_linkat            , { entry_lnk     <true /*At*/,true /*Flags*/> , exit_lnk      , 1 , true  , "linkat"            } }
-#endif
-#ifdef SYS_mkdir
-,	{ SYS_mkdir             , { entry_solve   <false/*At*/,FlagNever     > , nullptr       , 1 , false , "mkdir"             } }
-#endif
-#ifdef SYS_mkdirat
-,	{ SYS_mkdirat           , { entry_solve   <true /*At*/,FlagNever     > , nullptr       , 1 , false , "mkdirat"           } }
-#endif
-#ifdef SYS_name_to_handle_at
-,	{ SYS_name_to_handle_at , { entry_open    <true /*At*/>                , exit_open     , 1 , true  , "name_to_handle_at" } }
-#endif
-#ifdef SYS_open
-,	{ SYS_open              , { entry_open    <false/*At*/>                , exit_open     , 2 , true  , "open"              } }
-#endif
-#ifdef SYS_openat
-,	{ SYS_openat            , { entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat"            } }
-#endif
-#ifdef SYS_openat2
-,	{ SYS_openat2           , { entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat2"           } }
-#endif
-#ifdef SYS_open_tree
-,	{ SYS_open_tree         , { entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "open_tree"         } }
-#endif
-#ifdef SYS_readlink
-,	{ SYS_readlink          , { entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  , "readlink"          } }
-#endif
-#ifdef SYS_readlinkat
-,	{ SYS_readlinkat        , { entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  , "readlinkat"        } }
-#endif
-#if SYS_rename
-,	{ SYS_rename            , { entry_rename  <false/*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "rename"            } }
-#endif
-#ifdef SYS_renameat
-,	{ SYS_renameat          , { entry_rename  <true /*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "renameat"          } }
-#endif
-#ifdef SYS_renameat2
-,	{ SYS_renameat2         , { entry_rename  <true /*At*/,true /*Flags*/> , exit_rename   , 1 , true  , "renameat2"         } }
-#endif
-#ifdef SYS_rmdir
-,	{ SYS_rmdir             , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "rmdir"             } }
-#endif
-#ifdef SYS_stat
-,	{ SYS_stat              , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 2 , false , "stat"              } }
-#endif
-#ifdef SYS_stat64
-,	{ SYS_stat64            , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "stat64"            } }
-#endif
-#ifdef SYS_fstatat64
-,	{ SYS_fstatat64         , { entry_stat    <true /*At*/,2             > , nullptr       , 1 , false , "fstatat64"         } }
-#endif
-#ifdef SYS_lstat
-,	{ SYS_lstat             , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 2 , false , "lstat"             } }
-#endif
-#ifdef SYS_lstat64
-,	{ SYS_lstat64           , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "lstat64"           } }
-#endif
-#ifdef SYS_statx
-,	{ SYS_statx             , { entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "statx"             } }
-#endif
-#if SYS_newfstatat
-,	{ SYS_newfstatat        , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "newfstatat"        } }
-#endif
-#ifdef SYS_oldstat
-,	{ SYS_oldstat           , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "oldstat"           } }
-#endif
-#ifdef SYS_oldlstat
-,	{ SYS_oldlstat          , { entry_stat    <false/*At*/,FlagAlways>     , nullptr       , 1 , false , "oldlstat"          } }
-#endif
-#ifdef SYS_symlink
-,	{ SYS_symlink           , { entry_sym_lnk <false/*At*/>                , exit_sym_lnk  , 1 , true  , "symlink"           } }
-#endif
-#ifdef SYS_symlinkat
-,	{ SYS_symlinkat         , { entry_sym_lnk <true /*At*/>                , exit_sym_lnk  , 1 , true  , "symlinkat"         } }
-#endif
-#ifdef SYS_unlink
-,	{ SYS_unlink            , { entry_unlink  <false/*At*/>                , exit_unlink   , 1 , true  , "unlink"            } }
-#endif
-#ifdef SYS_unlinkat
-,	{ SYS_unlinkat          , { entry_unlink  <true /*At*/>                , exit_unlink   , 1 , true  , "unlinkat"          } }
-#endif
-} ;

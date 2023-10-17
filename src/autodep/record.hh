@@ -25,6 +25,9 @@ struct Record {
 	using GetReplyCb = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
+	static bool s_is_simple   (const char*) ;
+	static bool s_has_tmp_view(           ) { return !s_autodep_env().tmp_view.empty() ; }
+	//
 	static Fd s_root_fd() {
 		if (!_s_root_fd) {
 			_s_root_fd = Disk::open_read(s_autodep_env().root_dir) ;
@@ -32,6 +35,17 @@ struct Record {
 			_s_root_fd.no_std() ;                                              // avoid poluting standard descriptors
 		}
 		return _s_root_fd ;
+	}
+	static Fd s_report_fd() {
+		if (!_s_report_fd) {
+			// establish connection with server
+			::string const& service = s_autodep_env().service ;
+			if (service.back()==':') _s_report_fd = Disk::open_write(service,true/*append*/) ;
+			else                     _s_report_fd = ClientSockFd    (service               ) ;
+			_s_report_fd.no_std() ;                                                            // avoid poluting standard descriptors
+			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
+		}
+		return _s_report_fd ;
 	}
 	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
 	static AutodepEnv const& s_autodep_env() {
@@ -43,25 +57,25 @@ struct Record {
 		_s_autodep_env = new AutodepEnv{ade} ;
 		return *_s_autodep_env ;
 	}
-	static void s_hide      ( int fd                ) { if ( _s_root_fd.fd==fd                        ) _s_root_fd.detach() ; } // guaranteed syscall free, so no need for caller to protect errno
-	static void s_hide_range( int min , int max=~0u ) { if ( _s_root_fd.fd>=min && _s_root_fd.fd<=max ) _s_root_fd.detach() ; } // .
-
-	// static data
+	static void s_hide(int fd) {                                               // guaranteed syscall free, so no need for caller to protect errno
+		if (_s_root_fd  .fd==fd) _s_root_fd  .detach() ;
+		if (_s_report_fd.fd==fd) _s_report_fd.detach() ;
+	}
+	static void s_hide_range( int min , int max=~0u ) {                             // guaranteed syscall free, so no need for caller to protect errno
+		if ( _s_root_fd  .fd>=min && _s_root_fd  .fd<=max ) _s_root_fd  .detach() ;
+		if ( _s_report_fd.fd>=min && _s_report_fd.fd<=max ) _s_report_fd.detach() ;
+	}
 private :
+	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_report_fd(),jerr) ;                       }
+	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ; }
+	// static data
 	static Fd          _s_root_fd     ;
+	static Fd          _s_report_fd   ;
 	static AutodepEnv* _s_autodep_env ;
 	// cxtors & casts
 public :
-	Record() = default ;
-	//
-	Record   ( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) { init(rcb,grcb,pid) ; }
-	void init( ReportCb const& rcb , GetReplyCb const& grcb , pid_t pid=0 ) {
-		real_path.init( s_autodep_env() , pid ) ;
-		report_cb    = rcb  ;
-		get_reply_cb = grcb ;
-	}
+	Record(pid_t pid=0) : real_path{s_autodep_env(),pid} {}
 	// services
-	bool is_simple(const char*) const ;
 private :
 	void _report_access( ::string&& f , DD d , Accesses a , bool update , ::string const& c={} ) const {
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , c ) ) ;
@@ -91,11 +105,11 @@ private :
 	void _report_tmp( bool sync=false , ::string const& comment={} ) const {
 		if      (!tmp_cache) tmp_cache = true ;
 		else if (!sync     ) return ;
-		report_cb(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
+		_s_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
 	}
 public :
 	template<class... A> void report_trace(A const&... args) {
-		report_cb( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;
+		_s_report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;
 	}
 	JobExecRpcReply backdoor( JobExecRpcReq&& jerr                    ) ;
 	ssize_t         backdoor( const char* msg , char* buf , size_t sz ) ;
@@ -172,10 +186,10 @@ public :
 			real = r._solve( *this , no_follow , comment ).real ;
 		}
 	} ;
-	struct Chdir : Solve {
+	struct ChDir : Solve {
 		// cxtors & casts
-		Chdir() = default ;
-		Chdir( Record& , Path&& ) ;
+		ChDir() = default ;
+		ChDir( Record& , Path&& ) ;
 		// services
 		int operator()( Record& , int rc , pid_t pid=0 ) ;
 	} ;
@@ -274,35 +288,7 @@ protected :
 	//
 	// data
 protected :
-	ReportCb                   report_cb    = nullptr ;
-	GetReplyCb                 get_reply_cb = nullptr ;
 	Disk::RealPath             real_path    ;
 	mutable bool               tmp_cache    = false   ;    // record that tmp usage has been reported, no need to report any further
 	mutable ::umap_s<Accesses> access_cache ;              // map file to read accesses
-} ;
-
-struct RecordSock : Record {
-	// statics
-	static Fd s_get_report_fd() {
-		if (!_s_report_fd) {
-			// establish connection with server
-			::string const& service = s_autodep_env().service ;
-			if (service.back()==':') _s_report_fd = Disk::open_write(service,true/*append*/) ;
-			else                     _s_report_fd = ClientSockFd    (service               ) ;
-			_s_report_fd.no_std() ;                                                            // avoid poluting standard descriptors
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
-		}
-		return _s_report_fd ;
-	}
-	// these 2 functions are guaranteed syscall free, so there is no need for caller to protect errno
-	static void s_hide      ( int fd                ) { Record::s_hide      (fd     ) ; if ( _s_report_fd.fd==fd                          ) _s_report_fd.detach() ; }
-	static void s_hide_range( int min , int max=~0u ) { Record::s_hide_range(min,max) ; if ( _s_report_fd.fd>=min && _s_report_fd.fd<=max ) _s_report_fd.detach() ; }
-private :
-	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_get_report_fd(),jerr) ;                       }
-	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_get_report_fd()) ; }
-	// static data
-	static Fd _s_report_fd ;
-	// cxtors & casts
-public :
-	RecordSock( pid_t p=0 ) : Record{ _s_report , _s_get_reply , p } {}
 } ;

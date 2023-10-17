@@ -53,4 +53,4 @@ void* get_orig(const char* syscall) {
 }
 
 #define LD_PRELOAD 1
-#include "autodep_ld.cc"
+#include "ld.cc"

@@ -6,7 +6,7 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "autodep_support.hh"
+#include "support.hh"
 
 #include "rpc_job.hh"
 

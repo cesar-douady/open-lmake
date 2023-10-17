@@ -11,7 +11,7 @@
 #include "rpc_job.hh"
 #include "time.hh"
 
-#include "autodep_env.hh"
+#include "env.hh"
 
 // When several sockets are opened to send depend & target data, we are not sure of the order between these reports because of system buffers.
 // We could have decided to synchronize each report, which may be expensive in performance.

@@ -6,7 +6,7 @@
 #include "hash.hh"
 #include "serialize.hh"
 
-#include "autodep_support.hh"
+#include "support.hh"
 #include "record.hh"
 
 using namespace Hash ;
@@ -26,7 +26,7 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 
 	// backdoor did not work, try direct connection to server
 	if (!get_env("LMAKE_AUTODEP_ENV","").empty()) {
-		return RecordSock().backdoor(JobExecRpcReq(jerr)) ;
+		return Record().backdoor(JobExecRpcReq(jerr)) ;
 	}
 
 	// nothing worked, try to mimic server as much as possible, but of course no crc is available

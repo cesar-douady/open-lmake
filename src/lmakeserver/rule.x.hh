@@ -239,7 +239,7 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& ) ;
 		void           update(                       PyObject* py_dct                    ) {
-			Attrs::acquire_from_dct(cmd  ,py_dct,"cmd") ;
+			Attrs::acquire_from_dct(cmd,py_dct,"cmd") ;
 		}
 		// data
 		bool     is_python = false/*garbage*/ ;

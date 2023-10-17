@@ -10,7 +10,7 @@
 #include "hash.hh"
 #include "time.hh"
 
-#include "autodep_support.hh"
+#include "support.hh"
 
 using namespace Disk ;
 using namespace Hash ;
