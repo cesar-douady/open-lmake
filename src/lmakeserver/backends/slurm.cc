@@ -177,7 +177,6 @@ namespace Backends::Slurm {
 			s_register(MyTag,self) ;
 		}
 		~SlurmBackend() {
-			DYNAPI_slurm_fini();
 			if(slurmHandler) dlclose(slurmHandler);
 		}
 
@@ -187,14 +186,6 @@ namespace Backends::Slurm {
 		}
 		virtual bool config(Config::Backend const& config) {
 			if(loadSlurmApi()) return false;
-
-			DYNAPI_slurm_init(nullptr);
-			slurmd_status_t * slurmd_status;
-			if (DYNAPI_slurm_load_slurmd_status(&slurmd_status)) {
-				return false; //Probably no service slurmd available
-			}
-			DYNAPI_slurm_free_slurmd_status(slurmd_status);
-
 			for( auto const& [k,v] : config.dct ) {
 				if(k=="n_max_queue_jobs") {
 					auto [ptr, ec] = ::from_chars(v.data(), v.data()+v.size(), n_max_queue_jobs);
@@ -265,10 +256,6 @@ namespace Backends::Slurm {
 		#define DECL_DYN_SYMBOL(symbol) decltype(symbol)* DYNAPI_ ## symbol
 		uint32_t n_max_queue_jobs = -1     ; //no limit by default
 		void *   slurmHandler     = nullptr;
-		DECL_DYN_SYMBOL(slurm_init                             );
-		DECL_DYN_SYMBOL(slurm_fini                             );
-		DECL_DYN_SYMBOL(slurm_load_slurmd_status               );
-		DECL_DYN_SYMBOL(slurm_free_slurmd_status               );
 		DECL_DYN_SYMBOL(slurm_kill_job                         );
 		DECL_DYN_SYMBOL(slurm_get_errno                        );
 		DECL_DYN_SYMBOL(slurm_strerror                         );
@@ -484,10 +471,6 @@ namespace Backends::Slurm {
 			#define SET_SLURM_API(func) \
 				DYNAPI_ ## func = reinterpret_cast<decltype(func)*>(dlsym(slurmHandler, #func)); \
 				if(DYNAPI_ ## func==NULL) return 1;
-			SET_SLURM_API(slurm_init                             );
-			SET_SLURM_API(slurm_fini                             );
-			SET_SLURM_API(slurm_load_slurmd_status               );
-			SET_SLURM_API(slurm_free_slurmd_status               );
 			SET_SLURM_API(slurm_kill_job                         );
 			SET_SLURM_API(slurm_get_errno                        );
 			SET_SLURM_API(slurm_strerror                         );
