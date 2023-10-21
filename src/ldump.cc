@@ -9,7 +9,8 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	::cout << ::setw(13)<<jn <<" : "<< ::setw(8)<<r  <<" : "<< n <<'\n' ;
+	::string cn = mk_c_str(n) ;                                                                                 // ensure n is non-ambiguous
+	::cout << ::setw(13)<<jn <<" : "<< ::setw(8)<<r  <<" : "<< ::string_view(cn).substr(1,cn.size()-2) <<'\n' ; // suppress useless " around n
 }
 
 int main( int argc , char* /*argv*/[] ) {
@@ -20,9 +21,9 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	EngineStore::s_keep_config(false/*rescue*/) ;
 	//
-	for( const Rule r : g_store.rule_lst() ) _out( {}           , to_string(r      ) , r->name       ) ;
-	for( const Job  j : g_store.job_lst () ) _out( to_string(j) , to_string(j->rule) , j.user_name() ) ;
-	for( const Node n : g_store.node_lst() ) _out( to_string(n) , n.shared()?"!":""  , n.name     () ) ;
+	for( const Rule r : g_store.rule_lst() ) _out( {}           , to_string(r                ) , r->name       ) ;
+	for( const Job  j : g_store.job_lst () ) _out( to_string(j) , to_string(j->rule          ) , j.user_name() ) ;
+	for( const Node n : g_store.node_lst() ) _out( to_string(n) , to_string(n->actual_job_tgt) , n.name     () ) ;
 	//
 	g_store.chk() ;
 	//

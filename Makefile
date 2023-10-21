@@ -146,10 +146,12 @@ LMAKE_SERVER_FILES = \
 	$(SBIN)/ldump             \
 	$(SBIN)/ldump_job         \
 	$(LIB)/lmake.py           \
+	$(LIB)/debug.py           \
 	$(BIN)/autodep            \
+	$(BIN)/ldebug             \
 	$(BIN)/lforget            \
-	$(BIN)/lfreeze            \
 	$(BIN)/lmake              \
+	$(BIN)/lmark              \
 	$(BIN)/lshow              \
 	$(BIN)/xxhsum
 
@@ -214,6 +216,14 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	cp $<    $@
 	echo "_git = '$(GIT)'" >>$@
 	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
+# for other files, just copy
+$(LIB)/% : $(SLIB)/%
+	mkdir -p $(@D)
+	cp $< $@
+# idem for bin
+$(BIN)/% : $(SBIN)/%
+	mkdir -p $(@D)
+	cp $< $@
 
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
 LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)
@@ -410,6 +420,20 @@ $(BIN)/lmake : \
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
+$(BIN)/ldebug : \
+	$(SRC)/app$(SAN).o        \
+	$(SRC)/client$(SAN).o     \
+	$(SRC)/disk$(SAN).o       \
+	$(SRC)/lib$(SAN).o        \
+	$(SRC)/non_portable.o     \
+	$(SRC)/rpc_client$(SAN).o \
+	$(SRC)/time$(SAN).o       \
+	$(SRC)/trace$(SAN).o      \
+	$(SRC)/utils$(SAN).o      \
+	$(SRC)/ldebug$(SAN).o
+	mkdir -p $(BIN)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+
 $(BIN)/lshow : \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
@@ -438,7 +462,7 @@ $(BIN)/lforget : \
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
-$(BIN)/lfreeze : \
+$(BIN)/lmark : \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
 	$(SRC)/disk$(SAN).o       \
@@ -448,7 +472,7 @@ $(BIN)/lfreeze : \
 	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/utils$(SAN).o      \
-	$(SRC)/lfreeze$(SAN).o
+	$(SRC)/lmark$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 

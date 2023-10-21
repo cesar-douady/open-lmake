@@ -227,7 +227,8 @@ namespace Backends::Slurm {
 				uint32_t   nArgs      = 1;
 				uint8_t    compIdx    = 0;
 
-				argv[0] = "slurm"s.data();
+				::string slurm = "slurm" ;
+				argv[0] = slurm.data();                                        // apparently "slurm"s.data() does not work as memory is freed right away
 				for(::string &ca: v_compArgs) {
 					if(ca!=":") {
 						argv[nArgs++] = ca.data();

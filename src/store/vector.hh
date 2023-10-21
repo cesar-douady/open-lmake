@@ -72,7 +72,7 @@ namespace Store {
 
 	}
 
-	template<bool AutoLock,class Hdr_,class Idx_,class Item_,class Sz=IntIdx<Idx_>,size_t MinSz=1,size_t LinearSz=16> struct VectorFile
+	template<bool AutoLock,class Hdr_,class Idx_,class Item_,class Sz=IntIdx<Idx_>,size_t MinSz=1,size_t LinearSz=16*MinSz> struct VectorFile
 	:	              AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Vector::Chunk<Idx_,Item_,Sz,MinSz>::s_n_items(LinearSz) >
 	{	using Base  = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Vector::Chunk<Idx_,Item_,Sz,MinSz>::s_n_items(LinearSz) > ;
 		using Chunk =                                              Vector::Chunk<Idx_,Item_,Sz,MinSz>                                                             ;

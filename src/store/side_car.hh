@@ -52,15 +52,18 @@ namespace Store {
 		void _fix_side_car() requires(  HasBoth &&  Multi ) { Sz scs = _side_car.size() ; SWEAR(scs<=size()) ; if (scs<size()) {                        _side_car.emplace_back(size()-scs) ; } }
 		void _fix_side_car() requires(  HasBoth && !Multi ) { Sz scs = _side_car.size() ; SWEAR(scs<=size()) ; if (scs<size()) { SWEAR(size()-scs==1) ; _side_car.emplace_back(          ) ; } }
 		// accesses
-		DataNv    const& at        (Idx idx) const requires(HasData       ) { return Base::at    (idx) ; }
-		DataNv         & at        (Idx idx)       requires(HasData       ) { return Base::at    (idx) ; }
-		DataNv    const& c_at      (Idx idx) const requires(HasData       ) { return Base::at    (idx) ; }
-		SideCarNv const& side_car  (Idx idx) const requires(HasBoth       ) { return _side_car.at(idx) ; }
-		SideCarNv      & side_car  (Idx idx)       requires(HasBoth       ) { return _side_car.at(idx) ; }
-		SideCarNv const& c_side_car(Idx idx) const requires(HasBoth       ) { return _side_car.at(idx) ; }
-		SideCarNv const& side_car  (Idx idx) const requires(HasSideCarOnly) { return Base::at    (idx) ; }
-		SideCarNv      & side_car  (Idx idx)       requires(HasSideCarOnly) { return Base::at    (idx) ; }
-		SideCarNv const& c_side_car(Idx idx) const requires(HasSideCarOnly) { return Base::at    (idx) ; }
+		DataNv    const& at          (Idx              idx) const requires(HasData       ) { return Base::at     (idx) ; } // suppress method if there is no data
+		DataNv         & at          (Idx              idx)       requires(HasData       ) { return Base::at     (idx) ; } // .
+		DataNv    const& c_at        (Idx              idx) const requires(HasData       ) { return Base::at     (idx) ; } // .
+		Idx              idx         (DataNv    const& at ) const requires(HasData       ) { return Base::idx    (at ) ; } // .
+		SideCarNv const& side_car    (Idx              idx) const requires(HasBoth       ) { return _side_car.at (idx) ; }
+		SideCarNv      & side_car    (Idx              idx)       requires(HasBoth       ) { return _side_car.at (idx) ; }
+		SideCarNv const& c_side_car  (Idx              idx) const requires(HasBoth       ) { return _side_car.at (idx) ; }
+		Idx              side_car_idx(SideCarNv const& at ) const requires(HasBoth       ) { return _side_car.idx(at ) ; }
+		SideCarNv const& side_car    (Idx              idx) const requires(HasSideCarOnly) { return Base::at     (idx) ; }
+		SideCarNv      & side_car    (Idx              idx)       requires(HasSideCarOnly) { return Base::at     (idx) ; }
+		SideCarNv const& c_side_car  (Idx              idx) const requires(HasSideCarOnly) { return Base::at     (idx) ; }
+		Idx              side_car_idx(SideCarNv const& at ) const requires(HasSideCarOnly) { return Base::idx    (at ) ; }
 		// services
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires( HasDataOnly    &&  Multi ) { ULock lock{_mutex} ; return                  Base::emplace(sz,::forward<A>(args)...)  ; }
 		template<class... A> Idx emplace(         A&&... args ) requires( HasDataOnly    && !Multi ) { ULock lock{_mutex} ; return                  Base::emplace(   ::forward<A>(args)...)  ; }

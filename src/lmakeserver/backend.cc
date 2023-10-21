@@ -124,10 +124,10 @@ namespace Backends {
 			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
 				for( auto& [ji,re] : err_list ) {
 					JobExec           je     { ji , Pdate::s_now()                                                                                      } ;
-					Rule::SimpleMatch match  = je.simple_match()                                                                                          ;
+					Rule::SimpleMatch match  = je->simple_match()                                                                                         ;
 					JobDigest         digest { .status=Status::Err , .deps=_mk_digest_deps(je->rule->deps_attrs.eval(match)) , .stderr=::move(re.first) } ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report*/ , je.wash(match)   ) ;
+					g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report*/ , je->wash(match)  ) ;
 					g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(re.second) , ::move(digest) ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
@@ -188,7 +188,7 @@ namespace Backends {
 				trace("lost",info,it->second.submit_attrs.n_retries) ;
 				s = it->second.lost() ;
 			}
-			::string host = deserialize<JobInfoStart>(IFStream(Job(info.job).ancillary_file())).pre_start.host ;
+			::string host = deserialize<JobInfoStart>(IFStream(Job(info.job)->ancillary_file())).pre_start.host ;
 			_s_handle_job_req( JobRpcReq( JobProc::End , info.seq_id , info.job , host , JobDigest{.status=s,.stderr="vanished after start"} ) ) ;
 		}
 		trace("done") ;
@@ -234,14 +234,14 @@ namespace Backends {
 					entry.start                 = job_exec.start_date     ;
 					//                            ^^^^^^^^^^^^^^^^^^^
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-					Rule::SimpleMatch match = job.simple_match() ;
+					Rule::SimpleMatch match = job->simple_match() ;
 					try {
 						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs) ;
 					} catch (::string const& e) {
 						start_none_attrs = rule->start_none_attrs.spec ;
 						start_exc_txt    = e                           ;
 					}
-					report_unlink = job.wash(match) ;
+					report_unlink = job->wash(match) ;
 					bool deps_attrs_passed = false            ;
 					bool cmd_attrs_passed  = false            ;
 					bool cmd_passed        = false            ;
@@ -270,7 +270,7 @@ namespace Backends {
 						s_end(tag,+job,Status::Lost) ;
 						JobDigest digest { .status=Status::Err , .deps=_mk_digest_deps(deps_attrs) , .stderr=::move(err_str) }  ;
 						trace("early_err",digest) ;
-						{	OFStream ofs { dir_guard(job.ancillary_file()) } ;
+						{	OFStream ofs { dir_guard(job->ancillary_file()) } ;
 							serialize( ofs , JobInfoStart({ .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .pre_start=jrr , .start=reply , .backend_msg=backend_msg }) ) ;
 							serialize( ofs , JobInfoEnd  ( JobRpcReq( JobProc::End , {} , jrr.job , {} , digest )                                                            ) ) ;
 						}
@@ -286,7 +286,7 @@ namespace Backends {
 					SmallId    small_id = _s_small_ids.acquire() ;
 					//
 					::string tmp_dir = keep_tmp ?
-						to_string(*g_root_dir,'/',job.ancillary_file(AncillaryTag::KeepTmp))
+						to_string(*g_root_dir,'/',job->ancillary_file(AncillaryTag::KeepTmp))
 					:	to_string(g_config.remote_tmp_dir,"/job_tmp/",small_id)
 					;
 					//
@@ -352,7 +352,7 @@ namespace Backends {
 				OMsgBuf().send(fd,reply) ;
 				//^^^^^^^^^^^^^^^^^^^^^^
 				serialize(
-					OFStream(dir_guard(job.ancillary_file()))
+					OFStream(dir_guard(job->ancillary_file()))
 				,	JobInfoStart({
 						.eta          = eta
 					,	.submit_attrs = submit_attrs
@@ -375,8 +375,8 @@ namespace Backends {
 			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.txt)              ) ;                  break ;
 			//                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			case JobProc::End :
-				serialize( OFStream(job.ancillary_file(),::ios::app) , JobInfoEnd(jrr,::move(backend_msg)) ) ;
-				job.end_exec() ;
+				serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr,::move(backend_msg)) ) ;
+				job->end_exec() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(rsrcs) , ::move(jrr.digest) ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -470,12 +470,12 @@ namespace Backends {
 					trace("handle_job",je,entry,s) ;
 					if (s>Status::Garbage) {
 						auto [eta,keep_tmp] = entry.req_info() ;
-						serialize( OFStream(dir_guard(je.ancillary_file())) , JobInfoStart({ .eta=eta , .submit_attrs=entry.submit_attrs , .rsrcs=entry.rsrcs , .backend_msg=he.first }) ) ;
+						serialize( OFStream(dir_guard(je->ancillary_file())) , JobInfoStart({ .eta=eta , .submit_attrs=entry.submit_attrs , .rsrcs=entry.rsrcs , .backend_msg=he.first }) ) ;
 						_s_start_tab.erase(it) ;
 					}
 					// signal jobs that have disappeared so they can be relaunched or reported in error
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , ::move(je) , false/*report_now*/ , je.wash(je.simple_match())              ) ;
+					g_engine_queue.emplace( JobProc::Start , ::move(je) , false/*report_now*/ , je->wash(je->simple_match())            ) ;
 					g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(rsrcs) , JobDigest{.status=s,.stderr=::move(he.first)} ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}

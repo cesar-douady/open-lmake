@@ -20,12 +20,20 @@ if getattr(sys,'reading_makefiles',False) :
 			'File1' : r'.*'
 		,	'File2' : r'.*'
 		}
-		target = '{File1}+{File2}'
 		deps = {
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		cmd = 'cat {FIRST} {SECOND}'
+
+	class CatSh(Cat) :
+		target = '{File1}+{File2}_sh'
+		cmd    = 'cat {FIRST} {SECOND}'
+
+	class CatPy(Cat,lmake.PyRule) :
+		target = '{File1}+{File2}_py'
+		def cmd() :
+			print(open(FIRST ).read(),end='')
+			print(open(SECOND).read(),end='')
 
 else :
 
@@ -34,6 +42,6 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world' ,                 done=1 , new=2 )                 # check target is out of date
-	ut.lmake( 'hello+world' ,                 done=0 , new=0 )                 # check target is up to date
-	ut.lmake( 'hello+hello' , 'world+world' , done=2         )                 # check reconvergence
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )           # check targets are out of date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 )           # check targets are up to date
+	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         )           # check reconvergence

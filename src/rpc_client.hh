@@ -14,7 +14,7 @@ ENUM( ReqProc      // PER_CMD : add a value that represents your command
 ,	None           // must stay first
 ,	Close
 ,	Forget
-,	Freeze
+,	Mark
 ,	Kill
 ,	Make
 ,	Show
@@ -22,18 +22,18 @@ ENUM( ReqProc      // PER_CMD : add a value that represents your command
 
 ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None           // must stay first
-,	Add            // if proc==Freeze
+,	Add            // if proc==Mark
 ,	AllDeps        // if proc==Show
 ,	Backend        // if proc==Show
-,	DeleteAll      // if proc==Freeze
-,	Delete         // if proc==Freeze
+,	Clear          // if proc==Mark
+,	Delete         // if proc==Mark
 ,	Deps           // if proc==Show
 ,	Env            // if proc==Show
 ,	Error          // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
 ,	ExecScript     // if proc==Show
 ,	Info           // if proc==Show
 ,	InvDeps        // if proc==Show
-,	List           // if proc==Freeze
+,	List           // if proc==Mark
 ,	Resources      // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
 ,	Script         // if proc==Show
 ,	Stderr         // if proc==Show
@@ -42,19 +42,22 @@ ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other c
 )
 
 ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-,	Archive                            // if proc==                   Make        , all intermediate files are generated
-,	Backend                            // if proc==                   Make        , send argument to backends
-,	Deps                               // if proc== Forget                        , forget deps
-,	Force                              // if proc==          Freeze               , act if doable, even if awkward
-,	ForgetOldErrors                    // if proc==                   Make        , assume old errors are transcient
-,	KeepTmp                            // if proc==                   Make        , keep tmp dir after job execution
-,	Jobs                               // if proc==                   Make        , max number of jobs
-,	LiveOut                            // if proc==                   Make        , generate live output for last job
-,	Local                              // if proc==                   Make        , lauch all jobs locally
-,	ManualOk                           // if proc==                   Make        , allow lmake to overwrite manual files
-,	SourceOk                           // if proc==                   Make        , allow lmake to overwrite source files
-,	Targets                            // if proc== Forget                        , forget targets
-,	Verbose                            // if proc==                   Make | Show , generate generous output
+,	Archive                            // if proc==          Make               , all intermediate files are generated
+,	Backend                            // if proc==          Make               , send argument to backends
+,	Debug                              // if proc==                        Show , generate debug executable script
+,	Deps                               // if proc== Forget                      , forget deps
+,	Force                              // if proc==                 Mark        , act if doable, even if awkward
+,	ForgetOldErrors                    // if proc==          Make               , assume old errors are transcient
+,	Freeze                             // if proc==                 Mark        , prevent job rebuild
+,	KeepTmp                            // if proc==          Make               , keep tmp dir after job execution
+,	Jobs                               // if proc==          Make               , max number of jobs
+,	LiveOut                            // if proc==          Make               , generate live output for last job
+,	Local                              // if proc==          Make               , lauch all jobs locally
+,	ManualOk                           // if proc==          Make | Mark        , allow lmake to overwrite manual files
+,	NoTrigger                          // if proc==                 Mark        , prevent lmake from rebuilding dependent jobs
+,	SourceOk                           // if proc==          Make               , allow lmake to overwrite source files
+,	Targets                            // if proc== Forget                      , forget targets
+,	Verbose                            // if proc==          Make        | Show , generate generous output
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -66,8 +69,24 @@ static constexpr char ServerMrkr[] = "server" ;
 struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
 	// cxtors & casts
-	ReqOptions(                          ) = default ;
-	ReqOptions( Bool3 rv , ReqCmdLine cl ) : startup_dir_s{*g_startup_dir_s} , reverse_video{rv} , key{cl.key} , flags{cl.flags} , n_jobs{JobIdx(::atol(cl.flag_args[+ReqFlag::Jobs].c_str()))}, backend_args{cl.flag_args[+ReqFlag::Backend]} {}
+	ReqOptions() = default ;
+	//
+	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , JobIdx nj=0 , ::string const& ba={} ) :
+		startup_dir_s { sds }
+	,	reverse_video { rv  }
+	,	key           { k   }
+	,	flags         { f   }
+	,	n_jobs        { nj  }
+	,	backend_args  { ba  }
+	{}
+	ReqOptions( Bool3 rv , ReqCmdLine cl ) :
+		startup_dir_s { *g_startup_dir_s                                     }
+	,	reverse_video { rv                                                   }
+	,	key           { cl.key                                               }
+	,	flags         { cl.flags                                             }
+	,	n_jobs        { JobIdx(::atol(cl.flag_args[+ReqFlag::Jobs].c_str())) }
+	,	backend_args  { cl.flag_args[+ReqFlag::Backend]                      }
+	{}
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,startup_dir_s) ;
@@ -80,10 +99,10 @@ struct ReqOptions {
 	// data
 	::string startup_dir_s ;
 	Bool3    reverse_video = Maybe        ;                // if Maybe <=> not a terminal, do not colorize
-	ReqKey   key           = ReqKey::None ;                // if proc==         Freeze          | Show
-	ReqFlags flags         ;                               // if proc==Forget | Freeze   | Make
-	JobIdx   n_jobs        = 0            ;                // if proc==                    Make
-	::string backend_args  ;                               // if proc==                    Make
+	ReqKey   key           = ReqKey::None ;                // if proc==                 Mark | Show
+	ReqFlags flags         ;                               // if proc== Forget | Make | Mark
+	JobIdx   n_jobs        = 0            ;                // if proc==          Make
+	::string backend_args  ;                               // if proc==          Make
 } ;
 
 struct ReqRpcReq {

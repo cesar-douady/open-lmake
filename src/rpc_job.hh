@@ -77,9 +77,7 @@ ENUM( Status       // result of job execution
 ,	ChkDeps        // dep check failed
 ,	Garbage        // <=Garbage means job has not run reliably
 ,	Ok             // job execution ended successfully
-,	Frozen         // job behaves as a source
 ,	Err            // >=Err means job ended in error
-,	ErrFrozen      // job is frozen in error
 ,	Timeout        // job timed out
 )
 
@@ -214,6 +212,11 @@ struct JobReason {
 		/**/          return jr    ;
 	}
 	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
+	::pair_s<NodeIdx> str() const {
+		if (tag<Tag::HasNode) SWEAR(node==0,node) ;
+		return { JobReasonTagStrs[+tag] , node } ;
+	}
+
 	// data
 	Tag     tag  = JobReasonTag::None ;
 	NodeIdx node = 0                  ;

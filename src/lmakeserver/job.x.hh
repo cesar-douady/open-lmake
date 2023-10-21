@@ -43,18 +43,10 @@ namespace Engine {
 
 	struct Job : JobBase {
 		friend ::ostream& operator<<( ::ostream& , Job const ) ;
-		using MakeAction = JobMakeAction ;
 		using JobBase::side ;
-
-		using ReqInfo = JobReqInfo ;
-
-		// statics
-		static ::pair_s<NodeIdx> s_reason_str(JobReason) ;
-		// static data
-	private :
-		static ::shared_mutex    _s_target_dirs_mutex ;
-		static ::umap_s<NodeIdx> _s_target_dirs       ;    // dirs created for job execution that must not be deleted // XXX : use Node rather than string
-
+		//
+		using ReqInfo    = JobReqInfo    ;
+		using MakeAction = JobMakeAction ;
 		// cxtors & casts
 	public :
 		using JobBase::JobBase ;
@@ -63,58 +55,10 @@ namespace Engine {
 		Job( Special ,               Deps deps               ) ;               // Job used to represent a Req
 		Job( Special , Node target , Deps deps               ) ;               // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;               // multi
-
 		// accesses
 		::string name     () const ;
 		::string user_name() const ;
-		//
-		bool           has_req      (Req           ) const ;
-		ReqInfo const& c_req_info   (Req           ) const ;
-		ReqInfo      & req_info     (Req           ) const ;
-		ReqInfo      & req_info     (ReqInfo const&) const ;                   // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs         (              ) const ;
-		::vector<Req>  running_reqs (              ) const ;
-		::vector<Req>  old_done_reqs(              ) const ;
-		//
-		bool active() const ;
-		//
-		//services
-		::pair<vector_s,vector<Node>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
-		::vector<Node>/*report*/                wash           (Rule::SimpleMatch const&) const ; // thread-safe
-		//
-		void     end_exec      (                               ) const ;       // thread-safe
-		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
-		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;       // cannot declare a default value for incomplete type Node
-		//
-		void              invalidate_old() ;
-		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
-		Rule::FullMatch   full_match    () const ;
-		//
-		void set_pressure( ReqInfo& , CoarseDelay ) const ;
-		//
-		JobReason make( ReqInfo& , RunAction , JobReason={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
-		//
-		JobReason make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::None,{},ma) ; } // need same signature as for Node::make to use in templated watcher wake up
-		//
-		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
-		//
-		bool/*ok*/ forget( bool targets , bool deps ) ;
-		//
-		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
-		//
-		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ; // modified=Maybe means file is new
-		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ; // cannot use default Node={} as Node is incomplete
-		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
-		//
-	private :
-		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
-		bool                   _targets_ok      ( Req      , Rule::SimpleMatch const&                                                                     ) ;
-		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
-		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
-		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
-
+		bool     active   () const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -196,7 +140,7 @@ namespace Engine {
 		}
 		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
 		// services
-		void update( RunAction , MakeAction , Job ) ;
+		void update( RunAction , MakeAction , JobData const& ) ;
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { Base::add_watcher(watcher,watcher_req_info) ; }
 		void chk() const {
 			SWEAR(done_<=RunAction::Dsk) ;
@@ -235,10 +179,15 @@ namespace Engine {
 	)
 
 	struct JobData {
-		using Idx = Job::Idx ;
-		// statics
-		static bool s_frozen(Status status) { return status==Status::Frozen || status==Status::ErrFrozen ; }
+		using Idx        = JobIdx        ;
+		using ReqInfo    = JobReqInfo    ;
+		using MakeAction = JobMakeAction ;
+		// static data
+	private :
+		static ::shared_mutex    _s_target_dirs_mutex ;
+		static ::umap_s<NodeIdx> _s_target_dirs       ;    // dirs created for job execution that must not be deleted // XXX : use Node rather than string
 		// cxtors & casts
+	public :
 		JobData() = default ;
 		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
 			SWEAR(sp!=Special::Unknown) ;
@@ -256,10 +205,24 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		// accesses
 	public :
-		bool cmd_ok    () const { return                       exec_gen >= rule->cmd_gen   ; }
-		bool rsrcs_ok  () const { return status<Status::Err || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
-		bool frozen    () const { return s_frozen(status)                                  ; }
-		bool is_special() const { return rule->is_special() || frozen()                    ; }
+		Job      idx      () const { return Job::s_idx(*this) ; }
+		::string name     () const { return idx().name()      ; }
+		::string user_name() const { return idx().user_name() ; }
+		//
+		bool active() const { return !rule.old() ; }
+		//
+		ReqInfo const& c_req_info   (Req           ) const ;
+		ReqInfo      & req_info     (Req           ) const ;
+		ReqInfo      & req_info     (ReqInfo const&) const ;                   // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs         (              ) const ;
+		::vector<Req>  running_reqs (              ) const ;
+		::vector<Req>  old_done_reqs(              ) const ;
+		//
+		bool cmd_ok    (   ) const { return                       exec_gen >= rule->cmd_gen   ; }
+		bool rsrcs_ok  (   ) const { return status<Status::Err || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
+		bool frozen    (   ) const { return idx().frozen()                                    ; }
+		bool is_special(   ) const { return rule->is_special() || frozen()                    ; }
+		bool has_req   (Req) const ;
 		//
 		void exec_ok(bool ok) { SWEAR(!rule->is_special(),rule->special) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
 		//
@@ -277,21 +240,56 @@ namespace Engine {
 				else                                 return status>=Status::Err ;
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
+		//services
+		::pair<vector_s,vector<Node>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
+		::vector<Node>/*report*/                wash           (Rule::SimpleMatch const&) const ; // thread-safe
 		//
-		// data
-		Ddate            db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
-		Pdate            end_date                 ;                                                         //     64 bits,
-		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
-		Deps             deps                     ;                                                         // 31<=32 bits, owned
-		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                ;                                                         //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status    :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
+		void     end_exec      (                               ) const ;       // thread-safe
+		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
+		::string special_stderr(Node                           ) const ;
+		::string special_stderr(                               ) const ;       // cannot declare a default value for incomplete type Node
+		//
+		void              invalidate_old() ;
+		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
+		Rule::FullMatch   full_match    () const ;
+		//
+		void set_pressure( ReqInfo& , CoarseDelay ) const ;
+		//
+		JobReason make( ReqInfo& , RunAction , JobReason={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		//
+		JobReason make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::None,{},ma) ; } // need same signature as for Node::make to use in templated watcher wake up
+		//
+		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
+		//
+		bool/*ok*/ forget( bool targets , bool deps ) ;
+		//
+		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
+		//
+		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ; // modified=Maybe means file is new
+		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ; // cannot use default Node={} as Node is incomplete
+		//
+		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 	private :
-		mutable bool     _sure     :1             = false               ;                                   //      1 bit
+		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
+		bool                   _targets_ok      ( Req      , Rule::SimpleMatch const&                                                                     ) ;
+		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
+		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
+		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
+		// data
+	public :
+		Ddate            db_date                    ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
+		Pdate            end_date                   ;                                                         //     64 bits,
+		Targets          star_targets               ;                                                         //     32 bits, owned, for plain jobs
+		Deps             deps                       ;                                                         // 31<=32 bits, owned
+		Rule             rule                       ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                  ;                                                         //     16 bits,        for plain jobs
+		ExecGen          exec_gen    :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen   :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                    = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		RunStatus        run_status  :3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
+		Status           status      :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
+	private :
+		mutable bool     _sure       :1             = false               ;                                   //      1 bit
 	} ;
 	static_assert(sizeof(JobData)==32) ;                                       // check expected size
 
@@ -305,79 +303,6 @@ namespace Engine {
 #endif
 #ifdef IMPL
 namespace Engine {
-
-	//
-	// Job
-	//
-
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
-
-	inline ::string Job::name() const {
-		return full_name((*this)->rule->job_sfx_len()) ;
-	}
-	inline ::string Job::user_name() const {
-		::string res = name() ;
-		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
-		return res ;
-	}
-
-	inline bool Job::has_req(Req r) const {
-		return Req::s_store[+r].jobs.contains(*this) ;
-	}
-	inline Job::ReqInfo const& Job::c_req_info(Req r) const {
-		::umap<Job,ReqInfo> const& req_infos = Req::s_store[+r].jobs ;
-		auto                       it        = req_infos.find(*this) ;         // avoid double look up
-		if (it==req_infos.end()) return Req::s_store[+r].jobs.dflt ;
-		else                     return it->second                 ;
-	}
-	inline Job::ReqInfo& Job::req_info(Req r) const {
-		return Req::s_store[+r].jobs.try_emplace(*this,ReqInfo(r)).first->second ;
-	}
-	inline Job::ReqInfo& Job::req_info(ReqInfo const& cri) const {
-		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
-		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
-	}
-	inline ::vector<Req> Job::reqs() const { return Req::reqs(*this) ; }
-
-	inline ::string Job::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
-	inline void     Job::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
-
-	inline Rule::SimpleMatch Job::simple_match() const { return Rule::SimpleMatch(*this) ; }
-	inline Rule::FullMatch   Job::full_match  () const { return Rule::FullMatch  (*this) ; }
-
-	inline void Job::invalidate_old() {
-		if ( +(*this)->rule && (*this)->rule.old() ) pop() ;
-	}
-
-	inline void Job::add_watcher( ReqInfo& ri , Node watcher , Node::ReqInfo& wri , CoarseDelay pressure ) {
-		ri.add_watcher(watcher,wri) ;
-		set_pressure(ri,pressure) ;
-	}
-
-	inline void Job::set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
-		if (!ri.set_pressure(pressure)) return ;                              // if pressure is not significantly higher than already existing, nothing to propagate
-		if (!ri.waiting()             ) return ;
-		_set_pressure_raw(ri,pressure) ;
-	}
-
-	inline bool Job::active() const { return +*this && !(*this)->rule.old() ; }
-
-	inline JobReason Job::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
-		if ( ri.done(run_action) && !make_action ) return JobReasonTag::None ; // fast path
-		return _make_raw(ri,run_action,reason,make_action,old_exec_time,wakeup_watchers) ;
-	}
-
-	inline bool/*maybe_new_deps*/ Job::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		ri.force = JobReasonTag::None ;                                         // job is submitted, that was the goal, now void looping
-		if ((*this)->is_special()) return _submit_special(ri                ) ;
-		else                       return _submit_plain  (ri,reason,pressure) ;
-	}
-
-	inline void Job::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
-		Pdate now = Pdate::s_now() ;
-		JobExec(*this,::string(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
-	}
 
 	//
 	// JobTgt
@@ -397,8 +322,63 @@ namespace Engine {
 	}
 
 	//
+	// Job
+	//
+
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
+
+	inline ::string Job::name() const {
+		return full_name((*this)->rule->job_sfx_len()) ;
+	}
+	inline ::string Job::user_name() const {
+		::string res = name() ;
+		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
+		return res ;
+	}
+
+	inline bool Job::active() const { return +*this && (*this)->active() ; }
+
+	//
 	// JobData
 	//
+
+	inline ::string JobData::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
+	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
+
+	inline Rule::SimpleMatch JobData::simple_match() const { return Rule::SimpleMatch(idx()) ; }
+	inline Rule::FullMatch   JobData::full_match  () const { return Rule::FullMatch  (idx()) ; }
+
+	inline void JobData::invalidate_old() {
+		if ( +rule && rule.old() ) idx().pop() ;
+	}
+
+	inline void JobData::add_watcher( ReqInfo& ri , Node watcher , Node::ReqInfo& wri , CoarseDelay pressure ) {
+		ri.add_watcher(watcher,wri) ;
+		set_pressure(ri,pressure) ;
+	}
+
+	inline void JobData::set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
+		if (!ri.set_pressure(pressure)) return ;                                   // if pressure is not significantly higher than already existing, nothing to propagate
+		if (!ri.waiting()             ) return ;
+		_set_pressure_raw(ri,pressure) ;
+	}
+
+	inline JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
+		if ( ri.done(run_action) && !make_action ) return JobReasonTag::None ; // fast path
+		return _make_raw(ri,run_action,reason,make_action,old_exec_time,wakeup_watchers) ;
+	}
+
+	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
+		ri.force = JobReasonTag::None ;                                                                      // job is submitted, that was the goal, now void looping
+		if (is_special()) return _submit_special(ri                ) ;
+		else              return _submit_plain  (ri,reason,pressure) ;
+	}
+
+	inline void JobData::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
+		Pdate now = Pdate::s_now() ;
+		JobExec(idx(),::string(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
+	}
 
 	inline bool JobData::sure() const {
 		if (match_gen<Rule::s_match_gen) {
@@ -415,12 +395,31 @@ namespace Engine {
 		return _sure ;
 	}
 
+	inline JobData::ReqInfo const& JobData::c_req_info(Req r) const {
+		::umap<Job,ReqInfo> const& req_infos = Req::s_store[+r].jobs ;
+		auto                       it        = req_infos.find(idx()) ;         // avoid double look up
+		if (it==req_infos.end()) return Req::s_store[+r].jobs.dflt ;
+		else                     return it->second                 ;
+	}
+	inline JobData::ReqInfo& JobData::req_info(Req r) const {
+		return Req::s_store[+r].jobs.try_emplace(idx(),ReqInfo(r)).first->second ;
+	}
+	inline JobData::ReqInfo& JobData::req_info(ReqInfo const& cri) const {
+		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
+		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
+	}
+	inline ::vector<Req> JobData::reqs() const { return Req::reqs(*this) ; }
+
+	inline bool JobData::has_req(Req r) const {
+		return Req::s_store[+r].jobs.contains(idx()) ;
+	}
+
 	//
 	// JobReqInfo
 	//
 
-	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , Job job ) {
-		if ( job->status<=Status::Garbage && run_action>=RunAction::Status ) run_action = RunAction::Run ;
+	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , JobData const& job ) {
+		if ( job.status<=Status::Garbage && run_action>=RunAction::Status ) run_action = RunAction::Run ;
 		if (make_action>=MakeAction::Dec) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
@@ -435,7 +434,7 @@ namespace Engine {
 		} else if (
 			req->zombie                                                        // zombie's need not check anything
 		||	make_action==MakeAction::PrematureEnd                              // if not started, no further analysis
-		||	( action==RunAction::Makable && job->sure() )                      // no need to check deps, they are guaranteed ok if sure
+		||	( action==RunAction::Makable && job.sure() )                       // no need to check deps, they are guaranteed ok if sure
 		) {
 			lvl   = Lvl::Done      ;
 			done_ = done_ | action ;

@@ -7,7 +7,7 @@
 namespace Engine {
 
 	bool forget( Fd fd , ReqOptions const& , ::vector<Node> const& targets ) ;
-	bool freeze( Fd fd , ReqOptions const& , ::vector<Node> const& targets ) ;
+	bool mark  ( Fd fd , ReqOptions const& , ::vector<Node> const& targets ) ;
 	bool show  ( Fd fd , ReqOptions const& , ::vector<Node> const& targets ) ;
 
 	using CmdFunc = bool (*)(Fd,ReqOptions const&,::vector<Node> const&) ;

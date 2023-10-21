@@ -64,8 +64,7 @@ namespace Engine {
 		g_store.deps_file        .init( dir+"/deps"         , writable ) ;
 		g_store.star_targets_file.init( dir+"/star_targets" , writable ) ;
 		// nodes
-		g_store.node_idx_file    .init( dir+"/node_idx"     , writable ) ;
-		g_store.node_data_file   .init( dir+"/node_data"    , writable ) ;
+		g_store.node_file        .init( dir+"/node"         , writable ) ;
 		g_store.job_tgts_file    .init( dir+"/job_tgts"     , writable ) ;
 		// rules
 		g_store.rule_str_file    .init( dir+"/rule_str"     , writable ) ;
@@ -79,20 +78,18 @@ namespace Engine {
 			if (!*g_seq_id) *g_seq_id = 1 ;                                    // avoid 0 (when store is brand new) to decrease possible confusion
 		}
 		// memory
+		// Rule
 		g_store.sfxs.init(New) ;
 		g_store.pfxs.init(New) ;
-		// Rule
 		if (g_store.rule_file.empty()) for( [[maybe_unused]] Special s : Special::N ) g_store.rule_file.emplace() ;
 		RuleBase::s_match_gen = g_store.rule_file.c_hdr() ;
 		g_store._compile_rules() ;
-		// Node
-		if (g_store.node_data_file.empty()) {
-			SWEAR_PROD(g_store.node_data_file.writable) ;
-			for( NodeIdx i=1 ; i<=NodeData::NShared ; i++ ) {
-				NodePtr np = g_store.node_data_file.emplace(NodeData::s_mk_shared(i)) ;
-				SWEAR( +np==i , np , i ) ;
-			}
-		}
+		// jobs
+		for( Job  j : g_store.job_file .c_hdr().frozens     ) g_store.frozens    .insert(j) ;
+		// nodes
+		for( Node n : g_store.node_file.c_hdr().manual_oks  ) g_store.manual_oks .insert(n) ;
+		for( Node n : g_store.node_file.c_hdr().no_triggers ) g_store.no_triggers.insert(n) ;
+		//
 		trace("done",Pdate::s_now()) ;
 		//
 		if (rescue) {
@@ -368,14 +365,15 @@ namespace Engine {
 		//
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs.size()) ;
 		// commit
-		//    vvvvvvvvvvvvvvvvvvvvvvv
-		Node::s_srcs(mk_vector(srcs)) ;
-		//    ^^^^^^^^^^^^^^^^^^^^^^^
+		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Node::s_srcs(false/*add*/,mk_vector(old_srcs)) ;
+		Node::s_srcs(true /*add*/,mk_vector(new_srcs)) ;
+		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		{	Trace trace2 ;
-			for( Node n : old_srcs     ) { Node (n). mk_no_src  () ; trace2('-',n) ; }
-			for( Node d : old_src_dirs ) { d       . mk_no_src  () ;                 }
-			for( Node n : new_srcs     ) { Node (n). mk_src     () ; trace2('+',n) ; }
-			for( Node d : new_src_dirs ) { d       . mk_anti_src() ;                 }
+			for( Node n : old_srcs     ) { n->mk_no_src  () ; trace2('-',n) ; }
+			for( Node d : old_src_dirs ) { d->mk_no_src  () ;                 }
+			for( Node n : new_srcs     ) { n->mk_src     () ; trace2('+',n) ; }
+			for( Node d : new_src_dirs ) { d->mk_anti_src() ;                 }
 		}
 		// user report
 		{	OFStream srcs_stream{AdminDir+"/sources"s} ;
@@ -404,10 +402,10 @@ namespace Engine {
 	void EngineStore::_s_collect_old_rules() {                                 // may be long, avoid as long as possible
 		MatchGen& match_gen = g_store.rule_file.hdr() ;
 		Trace("_s_collect_old_rules","reset",1) ;
-		for( Node     n   : g_store.node_lst          () ) n  .mk_old()         ; // handle nodes first as jobs are necessary at this step
-		for( Job      j   : g_store.job_lst           () ) j  .invalidate_old() ;
-		for( RuleTgts rts : g_store.rule_tgts_file.lst() ) rts.invalidate_old() ;
-		for( Rule     r   : g_store.rule_lst          () ) r  .invalidate_old() ; // now that old rules are not referenced any more, they can be suppressed
+		for( Node     n   : g_store.node_lst          () ) n  ->mk_old()         ; // handle nodes first as jobs are necessary at this step
+		for( Job      j   : g_store.job_lst           () ) j  ->invalidate_old() ;
+		for( RuleTgts rts : g_store.rule_tgts_file.lst() ) rts. invalidate_old() ;
+		for( Rule     r   : g_store.rule_lst          () ) r  . invalidate_old() ; // now that old rules are not referenced any more, they can be suppressed
 		Rule::s_match_gen = match_gen = 1 ;
 	}
 	void EngineStore::s_invalidate_match() {

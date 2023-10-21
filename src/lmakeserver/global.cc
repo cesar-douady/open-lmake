@@ -55,13 +55,13 @@ namespace Engine {
 			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
-		if (sc.max_dep_depth      ) os <<','<< sc.max_dep_depth          ;
-		if (sc.max_err_lines      ) os <<','<< sc.max_err_lines          ;
-		if (sc.path_max           ) os <<','<< sc.path_max               ;
-		if (sc.sub_prio_boost     ) os <<','<< sc.sub_prio_boost         ;
-		if (!sc.caches.empty()    ) os <<','<< sc.caches                 ;
-		for( Tag t : Tag::N       ) os <<','<< t <<':'<< sc.backends[+t] ;
-		if (!sc.src_dirs_s.empty()) os <<','<< sc.src_dirs_s             ;
+		if (sc.max_dep_depth      ) os <<",MD" << sc.max_dep_depth          ;
+		if (sc.max_err_lines      ) os <<",EL" << sc.max_err_lines          ;
+		if (sc.path_max           ) os <<",PM" << sc.path_max               ;
+		if (sc.sub_prio_boost     ) os <<",SPB"<< sc.sub_prio_boost         ;
+		if (!sc.caches.empty()    ) os <<','   << sc.caches                 ;
+		for( Tag t : Tag::N       ) os <<','   << t <<':'<< sc.backends[+t] ;
+		if (!sc.src_dirs_s.empty()) os <<','   << sc.src_dirs_s             ;
 		return os<<')' ;
 	}
 
@@ -308,7 +308,7 @@ namespace Engine {
 		os << "Req(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Forget :
-			case ReqProc::Freeze :
+			case ReqProc::Mark   :
 			case ReqProc::Make   :
 			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.targets ; break ;
 			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                     ; break ;

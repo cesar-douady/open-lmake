@@ -328,7 +328,11 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port ) {
 	,	.sin_zero   = {}
 	} ;
 	int rc = ::connect( fd , reinterpret_cast<sockaddr*>(&addr) , sizeof(sockaddr) ) ;
-	if (rc!=0) close() ;
+	if (rc!=0) {
+		int errno_ = errno ;
+		close() ;
+		throw ::string(strerror(errno_)) ;
+	}
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {

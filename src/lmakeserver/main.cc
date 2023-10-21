@@ -176,7 +176,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 							}
 						} [[fallthrough]] ;
 						case ReqProc::Forget :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
-						case ReqProc::Freeze :
+						case ReqProc::Mark   :
 						case ReqProc::Show   : {
 							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ;                           // typically, there is no bads
 							::vector_s     bads      ;
@@ -278,7 +278,7 @@ bool/*interrupted*/ engine_loop() {
 				EngineClosure::Req& req = closure.req ;
 				switch (req.proc) {
 					case ReqProc::Forget :                                     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
-					case ReqProc::Freeze :
+					case ReqProc::Mark   :
 					case ReqProc::Show   :
 						trace(req) ;
 						OMsgBuf().send( req.out_fd , ReqRpcReply(g_cmd_tab[+req.proc]( req.out_fd , req.options , req.targets )) ) ;

@@ -12,7 +12,7 @@ namespace Engine {
 	CmdFunc g_cmd_tab[+ReqProc::N] ;
 	static bool _inited = (                                                    // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
 		g_cmd_tab[+ReqProc::Forget] = forget
-	,	g_cmd_tab[+ReqProc::Freeze] = freeze
+	,	g_cmd_tab[+ReqProc::Mark  ] = mark
 	,	g_cmd_tab[+ReqProc::Show  ] = show
 	,	true
 	) ;
@@ -21,7 +21,7 @@ namespace Engine {
 		bool ok = true ;
 		switch (ro.key) {
 			case ReqKey::None :
-				for( Node t : targets ) ok &= t.forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
+				for( Node t : targets ) ok &= t->forget( ro.flags[ReqFlag::Targets] , ro.flags[ReqFlag::Deps] ) ;
 			break ;
 			case ReqKey::Error :
 				g_store.invalidate_exec(true/*cmd_ok*/) ;
@@ -39,115 +39,125 @@ namespace Engine {
 		return ok ;
 	}
 
-	static void _freeze( Fd fd , ReqOptions const& ro , Job j , bool add , size_t w ) {
-		Trace trace("_freeze_job",STR(add),j) ;
-		SWEAR(j.active()) ;
-		j->status = add ? Status::Frozen : Status::New ;
-		audit( fd , ro  , add?Color::Warning:Color::Note , 0 , to_string(add?"froze job ":"melted job ",::setw(w),j->rule->user_name(),' ') , j.user_name() ) ;
-	}
-	static void _freeze( Fd fd , ReqOptions const& ro , Node t , bool add ) {
-		Trace trace("_freeze_node",STR(add),t) ;
-		if (add) {
-			::string     tn  = t.name() ;
-			Unode        un  { t      } ;
-			FileInfoDate fid { tn     } ;
-			t .mk_src() ;
-			un.refresh( Crc(tn,g_config.hash_algo) , fid.date ) ;
-			un->actual_job_tgt->status = Status::Frozen ;
-		} else {
-			t.mk_no_src() ;
-		}
-		audit( fd , ro  , add?Color::Warning:Color::Note , 0 , add?"froze file":"melted file" , t.name() ) ;
-	}
-	bool/*ok*/ freeze( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
-		bool force = ro.flags[ReqFlag::Force] ;
-		bool add   = ro.key==ReqKey::Add      ;
-		bool lst   = ro.key==ReqKey::List     ;
-		bool glb   = false                    ;
+	static bool/*ok*/ _freeze( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
 		Trace trace("freeze",ro,targets) ;
 		switch (ro.key) {
-			case ReqKey::DeleteAll :
-			case ReqKey::List      : glb = true ; break ;
-			default : ;
-		}
-
-		if (glb) {
-			SWEAR( targets.empty() , targets ) ;
-			if (lst) {
-				{	::vector<Job> frozens = Job::s_frozens() ;
-					size_t        w       = 0                ;
-					trace("job_list",frozens) ;
-					for( Job j : frozens ) w = ::max(w,j->rule->user_name().size()) ;
-					/**/                   audit(fd,ro,Color::Note   ,0,"jobs :"                                               ) ;
-					for( Job j : frozens ) audit(fd,ro,Color::Warning,1,to_string(::setw(w),j->rule->user_name()),j.user_name()) ;
+			case ReqKey::Clear :
+			case ReqKey::List  : {
+				SWEAR( targets.empty() , targets ) ;
+				::vector<Job> markeds = Job ::s_frozens() ;
+				size_t        w       = 0                 ; for( Job j : markeds ) w = ::max(w,j->rule->user_name().size()) ;
+				if (ro.key==ReqKey::Clear) {
+					for( Job j : markeds ) if (j->rule->is_src()) Node(j.name())->mk_no_src() ;
+					Job::s_clear_frozens() ;
 				}
-				{	::vector<Node> frozens = Node::s_frozens() ;
-					trace("node_list",frozens) ;
-					/**/                    audit(fd,ro,Color::Note   ,0,"files :"  ) ;
-					for( Node t : frozens ) audit(fd,ro,Color::Warning,1,{},t.name()) ;
-				}
-			} else {
-				size_t w = 0 ;
-				for( Job  j : Job ::s_frozens() ) w = ::max(w,j->rule->user_name().size()) ;
-				for( Job  j : Job ::s_frozens() ) _freeze(fd,ro,j,false/*add*/,w) ;
-				for( Node t : Node::s_frozens() ) _freeze(fd,ro,t,false/*add*/  ) ;
-				Job ::s_frozens({}) ;
-				Node::s_frozens({}) ;
-			}
-		} else {
-			::string       err        ;
-			::vector<Node> to_do_node ;
-			::vector<Job > to_do_job  ;
-			size_t         w          = 0 ;
-			//check
-			for( Node t : targets ) {
-				Job j = t->actual_job_tgt ;
-				if (!j.active()) {
-					if (add) to_do_node.push_back(t) ;
-					else     err = "file is already melted" ;
-				} else if ( j->frozen() && add ) {
-					err = "target is already frozen" ;
-				} else if (t->is_src()) {
-					if (j->frozen()) to_do_node.push_back(t) ;
-					else             err = "file is a source" ;
-				} else {
-					if      ( !force && !t->conform() ) err = "target was not produced by its offical job" ;
-					else if ( add                     ) for( Req r [[maybe_unused]] : j.running_reqs() ) err = "job is running" ;
-					else if ( !j->frozen()            ) err = "target is already melted" ;
-					if (err.empty()) {
-						to_do_job.push_back(j) ;
-						w = ::max( w , j->rule->user_name().size() ) ;
+				for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.user_name() ) ;
+			} break ;
+			case ReqKey::Add    :
+			case ReqKey::Delete : {
+				bool           add        = ro.key==ReqKey::Add ;
+				::string       err        ;
+				::vector<Node> to_do_node ;
+				::vector<Job > to_do_job  ;
+				size_t         w          = 0 ;
+				//check
+				for( Node t : targets ) {
+					Job j = t->actual_job_tgt ;
+					if      ( !j.active()                                ) { if (add) to_do_node.push_back(t)        ; else err = "file is not frozen" ; }
+					else if ( j->frozen()==add                           ) { if (add) err = "file is already frozen" ; else err = "file is not frozen" ; }
+					else if ( t->is_src()                                ) { if (add) err = "file is a source"       ; else to_do_node.push_back(t)    ; }
+					else if ( !ro.flags[ReqFlag::Force] && !t->conform() ) { err = "target was not produced by its offical job" ;                        }
+					else if ( !j->running_reqs().empty()                 ) { err = "job is running"                             ;                        }
+					else                                                   { to_do_job.push_back(j) ; w = ::max( w , j->rule->user_name().size() ) ;     }
+					if (!err.empty()) {
+						audit(fd,ro,Color::Err,0,to_string(err," :"),t.name()) ;
+						return false ;
 					}
 				}
-				if (!err.empty()) {
-					audit(fd,ro,Color::Err,0,to_string(err ," :"),t .name()) ;
+				if ( !to_do_node.empty() && Req::s_n_reqs() ) {
+					audit( fd , ro , Color::Err , 0/*lvl*/ , to_string("cannot ",add?"add":"remove"," frozen source file while running :") , to_do_node[0].name() ) ;
 					return false ;
 				}
-			}
-			if ( !to_do_node.empty() && Req::s_n_reqs() ) {
-				audit(fd,ro,Color::Err,0,"cannot freeze/melt files while running") ;
-				return false ;
-			}
-			// do what is asked
-			{	::uset<Job> frozens = mk_uset(Job::s_frozens()) ;
-				for( Job j : to_do_job ) {
-					_freeze(fd,ro,j,add,w) ;
-					if (add) frozens.insert(j) ;
-					else     frozens.erase (j) ;
-				}
-				Job::s_frozens(mk_vector(frozens)) ;
-			}
-			{	::uset<Node> frozens = mk_uset(Node::s_frozens()) ;
+				// do what is asked
 				for( Node t : to_do_node ) {
-					_freeze(fd,ro,t,add) ;
-					if (add) frozens.insert(t) ;
-					else     frozens.erase (t) ;
+					if (add) t->mk_src() ;
+					to_do_job.push_back(t->actual_job_tgt) ;
 				}
-				Node::s_frozens(mk_vector(frozens)) ;
-				EngineStore::s_invalidate_match() ;                            // seen from the engine, we have modified sources, we must rematch everything
-			}
+				if (!to_do_job.empty()) {
+					Job::s_frozens(add,to_do_job) ;
+					for( Job j : to_do_job ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.user_name() ) ;
+				}
+				if (!add) for( Node t : to_do_node )
+					t->mk_no_src() ;
+				if (!to_do_node.empty()) EngineStore::s_invalidate_match() ; // seen from the engine, we have modified sources, we must rematch everything
+			} break ;
+			default : FAIL(ro.key) ;
 		}
 		return true ;
+	}
+
+	static bool/*ok*/ _manual_ok( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
+		Trace trace("manual_ok",ro,targets) ;
+		switch (ro.key) {
+			case ReqKey::Clear :
+			case ReqKey::List  : {
+				SWEAR( targets.empty() , targets ) ;
+				::vector<Node> markeds = Node::s_manual_oks() ;
+				if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
+				for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n.name() ) ;
+			} break ;
+			case ReqKey::Add    :
+			case ReqKey::Delete : {
+				bool add = ro.key==ReqKey::Add ;
+				//check
+				for( Node t : targets )
+					if (t.manual_ok()==add) {
+						audit(fd,ro,Color::Err,0,to_string("file is ",add?"already":"not"," manual-ok :"),t.name()) ;
+						return false ;
+					}
+				// do what is asked
+				Node::s_manual_oks(add,targets) ;
+				for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t.name() ) ;
+			} break ;
+			default : FAIL(ro.key) ;
+		}
+		return true ;
+	}
+
+	static bool/*ok*/ _no_trigger( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
+		Trace trace("no_trigger",ro,targets) ;
+		switch (ro.key) {
+			case ReqKey::Clear :
+			case ReqKey::List  : {
+				SWEAR( targets.empty() , targets ) ;
+				::vector<Node> markeds = Node::s_no_triggers() ;
+				if (ro.key==ReqKey::Clear) Node::s_clear_no_triggers() ;
+				for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n.name() ) ;
+			} break ;
+			case ReqKey::Add    :
+			case ReqKey::Delete : {
+				bool add = ro.key==ReqKey::Add ;
+				//check
+				for( Node t : targets )
+					if (t.no_trigger()==add) {
+						audit(fd,ro,Color::Err,0,to_string("file is ",add?"already":"not"," no-trigger :"),t.name()) ;
+						return false ;
+					}
+				// do what is asked
+				Node::s_no_triggers(add,targets) ;
+				for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t.name() ) ;
+			} break ;
+			default : FAIL(ro.key) ;
+		}
+		return true ;
+	}
+
+	bool/*ok*/ mark( Fd fd , ReqOptions const& ro , ::vector<Node> const& targets ) {
+		bool ok = true ;
+		if (ro.flags[ReqFlag::Freeze   ]) ok &= _freeze    (fd,ro,targets) ;
+		if (ro.flags[ReqFlag::ManualOk ]) ok &= _manual_ok (fd,ro,targets) ;
+		if (ro.flags[ReqFlag::NoTrigger]) ok &= _no_trigger(fd,ro,targets) ;
+		return ok ;
 	}
 
 	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
@@ -170,7 +180,7 @@ namespace Engine {
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;
-		for( auto const& [k,d] : rule->deps_attrs.eval(job.simple_match()) ) {
+		for( auto const& [k,d] : rule->deps_attrs.eval(job->simple_match()) ) {
 			w                = ::max( w , k.size() ) ;
 			rev_map[d.first] = k                     ;
 		}
@@ -209,13 +219,13 @@ namespace Engine {
 				}
 			}
 			trace("target",target,jt) ;
-			Rule             rule         = jt->rule              ;
-			::ifstream       job_stream   { jt.ancillary_file() } ;
+			Rule             rule         = jt->rule               ;
+			::ifstream       job_stream   { jt->ancillary_file() } ;
 			JobInfoStart     report_start ;
 			JobInfoEnd       report_end   ;
-			bool             has_start    = false                 ;
-			bool             has_end      = false                 ;
-			JobDigest const& digest       = report_end.end.digest ;
+			bool             has_start    = false                  ;
+			bool             has_end      = false                  ;
+			JobDigest const& digest       = report_end.end.digest  ;
 			try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
 			try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
 		Go :
@@ -232,7 +242,7 @@ namespace Engine {
 							case ReqKey::Info :
 							case ReqKey::Stderr : {
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl ) ;
-								audit    ( fd , ro , Color::None , lvl+1 , jt.special_stderr()  ) ;
+								audit    ( fd , ro , Color::None , lvl+1 , jt->special_stderr() ) ;
 							} break ;
 							case ReqKey::ExecScript :
 							case ReqKey::Script     :
@@ -243,73 +253,87 @@ namespace Engine {
 							default : FAIL(ro.key) ;
 						}
 					} else {
+						JobRpcReq   const& pre_start = report_start.pre_start ;
+						JobRpcReply const& start     = report_start.start     ;
 						switch (ro.key) {
 							case ReqKey::Env : {
 								size_t w = 0 ;
 								if (!has_start) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
-								for( auto const& [k,v] : report_start.start.env ) w = max(w,k.size()) ;
-								for( auto const& [k,v] : report_start.start.env ) audit( fd , ro , Color::None , lvl , to_string(::setw(w),k," : ",v) ) ;
+								for( auto const& [k,v] : start.env ) w = max(w,k.size()) ;
+								for( auto const& [k,v] : start.env ) audit( fd , ro , Color::None , lvl , to_string(::setw(w),k," : ",v) ) ;
 							} break ;
 							case ReqKey::ExecScript : {
 								if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
+								bool dbg       = ro.flags[ReqFlag::Debug] ;
+								bool is_python = rule->cmd.spec.is_python ;
 								//
 								::string abs_cwd = *g_root_dir ;
-								if (!report_start.start.cwd_s.empty()) {
-									append_to_string(abs_cwd,'/',report_start.start.cwd_s) ;
+								if (!start.cwd_s.empty()) {
+									append_to_string(abs_cwd,'/',start.cwd_s) ;
 									abs_cwd.pop_back() ;
 								}
-								Rule::SimpleMatch             match           = jt.simple_match()         ;
-								::string                      script          = "#!/bin/bash\n"           ;
-								::pair<vector_s,vector<Node>> targets_to_wash = jt.targets_to_wash(match) ;
-								::vector_s const&             to_wash         = targets_to_wash.first     ;
+								Rule::SimpleMatch             match           = jt->simple_match()         ;
+								::string                      script          = "#!/bin/bash\n"            ;
+								::pair<vector_s,vector<Node>> targets_to_wash = jt->targets_to_wash(match) ;
+								::vector_s const&             to_wash         = targets_to_wash.first      ;
 								::uset_s                      to_report       ; for( Node t : targets_to_wash.second ) to_report.insert(t.name()) ;
 								//
 								for( ::string const& tn : to_wash ) if (!to_report.contains(tn)) append_to_string( script , "rm -f " , tn , '\n' ) ;
 								if (!to_report.empty()) {
-									script += "set -x\n" ;
+									script += "( set -x\n" ;
 									for( ::string const& tn : to_wash ) if (to_report.contains(tn)) append_to_string( script , "rm -f " , tn , '\n' ) ;
-									script += "set +x\n" ;
+									script += ")\n" ;
 								}
 								for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;
 								script += to_string("mkdir -p ${TMPDIR:-",P_tmpdir,"}\n") ;
 								script += "exec env -i \\\n"   ;
-								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
-								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
-								append_to_string( script , "\tSMALL_ID="          , to_string   (report_start.start.small_id  ) , " \\\n" ) ;
-								append_to_string( script , "\tLMAKE_AUTODEP_ENV=" , "\"$LMAKE_AUTODEP_ENV\""                    , " \\\n" ) ;
-								switch (report_start.start.method) {
+								append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir     ) , " \\\n" ) ;
+								append_to_string( script , "\tSEQUENCE_ID="       , to_string   (pre_start.seq_id) , " \\\n" ) ;
+								append_to_string( script , "\tSMALL_ID="          , to_string   (start.small_id  ) , " \\\n" ) ;
+								append_to_string( script , "\tLMAKE_AUTODEP_ENV=" , "\"$LMAKE_AUTODEP_ENV\""       , " \\\n" ) ;
+								switch (start.method) {
 									case AutodepMethod::LdAudit   : append_to_string( script , "\tLD_AUDIT="   , "\"$LD_AUDIT\""   , " \\\n" ) ; break ;
 									case AutodepMethod::LdPreload : append_to_string( script , "\tLD_PRELOAD=" , "\"$LD_PRELOAD\"" , " \\\n" ) ; break ;
 									default : ;
 								}
 								bool seen_tmp_dir = false ;
-								for( auto const& [k,v] : report_start.start.env ) {
+								for( auto const& [k,v] : start.env ) {
 									if (k=="TMPDIR") {
-										if (report_start.start.keep_tmp) continue ;
+										if (start.keep_tmp) continue ;
 										seen_tmp_dir = true ;
 									}
-									if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                                        ," \\\n") ;
-									else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,report_start.start.local_mrkr,abs_cwd))," \\\n") ;
+									if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                           ," \\\n") ;
+									else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,start.local_mrkr,abs_cwd))," \\\n") ;
 								}
 								// if tmp directory is viewed by job under another name, provide it as the script may work only with that name
-								::string const& tmp_dir = report_start.start.autodep_env.tmp_view.empty() ? report_start.start.autodep_env.tmp_dir : report_start.start.autodep_env.tmp_view ;
-								if (!seen_tmp_dir) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
+								::string const& tmp_dir = start.autodep_env.tmp_view.empty() ? start.autodep_env.tmp_dir : start.autodep_env.tmp_view ;
+								// add debug prelude if asked to do so
+								::string cmd = (dbg&&is_python?"from debug import *\n":"") + start.cmd ;
 								//
-								for( ::string const& c : report_start.start.interpreter ) append_to_string(script,      mk_shell_str(c                     ),' ') ;
-								/**/                                                      append_to_string(script,"-c ",mk_shell_str(report_start.start.cmd)    ) ;
+								if (!seen_tmp_dir                          ) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
+								for( ::string const& c : start.interpreter ) append_to_string( script , mk_shell_str(c) , ' '                                                 ) ;
+								if (dbg                                    ) append_to_string( script , is_python?"":"-x "                                                    ) ;
+								/**/                                         append_to_string( script , "-c " , mk_shell_str(cmd)                                             ) ;
 								//
-								if (!report_start.start.stdout.empty()) append_to_string(script," > ",mk_shell_str(report_start.start.stdout)) ;
-								if (!report_start.start.stdin .empty()) append_to_string(script," < ",mk_shell_str(report_start.start.stdin )) ;
-								else                                    append_to_string(script," < /dev/null"                               ) ;
+								if      (dbg                  ) append_to_string(script," 3<&0 4>&1"                    ) ;
+								if      (!start.stdout.empty()) append_to_string(script," > ",mk_shell_str(start.stdout)) ;
+								if      (!start.stdin .empty()) append_to_string(script," < ",mk_shell_str(start.stdin )) ;
+								else                            append_to_string(script," < /dev/null"                  ) ;
 								audit( fd , ro , Color::None , 0 , script ) ;
+								if (ro.flags[ReqFlag::ManualOk]) {
+									::vector<Node> targets ;
+									for( ::string const& tn : jt->simple_match().static_targets() ) { Node t{tn} ; if (t.manual_ok()) targets.push_back(t) ; }
+									for( Node t             : jt->star_targets                    ) {              if (t.manual_ok()) targets.push_back(t) ; }
+									Node::s_manual_oks(true/*add*/,targets) ;
+								}
 							} break ;
 							case ReqKey::Script : {
 								if (!has_start) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
 								::string hdr = "#!" ;
 								::string sep ; sep.reserve(1) ;
-								for( ::string const& c : report_start.start.interpreter ) { hdr+=sep ; hdr+=c ; sep=" " ; } hdr+='\n' ;
-								audit( fd , ro , Color::None , lvl , hdr                    ) ;
-								audit( fd , ro , Color::None , lvl , report_start.start.cmd ) ;
+								for( ::string const& c : start.interpreter ) { hdr+=sep ; hdr+=c ; sep=" " ; } hdr+='\n' ;
+								audit( fd , ro , Color::None , lvl , hdr       ) ;
+								audit( fd , ro , Color::None , lvl , start.cmd ) ;
 							} break ;
 							case ReqKey::Stdout :
 								if (!has_end ) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
@@ -328,21 +352,21 @@ namespace Engine {
 								audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
 							break ;
 							case ReqKey::Info : {
-								::string ids      = to_string( "job=",report_start.pre_start.job , " , small=",report_start.start.small_id )                                          ;
-								bool     has_host = !report_start.pre_start.host.empty()                                                                                              ;
-								if (report_start.pre_start.seq_id) append_to_string(ids," , seq=",report_start.pre_start.seq_id) ; // there may be no seq_id if job hit the cache
+								::string ids      = to_string( "job=",pre_start.job , " , small=",start.small_id )                                          ;
+								bool     has_host = !pre_start.host.empty()                                                                                 ;
+								if (pre_start.seq_id) append_to_string(ids," , seq=",pre_start.seq_id) ; // there may be no seq_id if job hit the cache
 								//
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , jt , lvl ) ;
 								if (has_start) {
-									::pair_s<Node> reason = Job::s_reason_str(report_start.submit_attrs.reason) ;
+									::pair_s<NodeIdx> reason = report_start.submit_attrs.reason.str() ;
 									if (+reason.second) {
 										bool err = report_start.submit_attrs.reason.err() ;
-										_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason         : ",reason.first," :") , reason.second.name() , lvl+1 ) ;
+										_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason         : ",reason.first," :") , Node(reason.second).name() , lvl+1 ) ;
 									} else {
 										audit( fd , ro , Color::None , lvl+1 , "reason         : "+reason.first ) ;
 									}
 								}
-								if (has_host) audit( fd , ro , Color::None , lvl+1 , to_string("host           : ",report_start.pre_start.host) ) ;
+								if (has_host) audit( fd , ro , Color::None , lvl+1 , to_string("host           : ",pre_start.host) ) ;
 								if (has_start) {
 									static constexpr AutodepMethod AdMD = AutodepMethod::Dflt ;
 									//
@@ -438,9 +462,9 @@ namespace Engine {
 					if (rule->is_special()) {
 						_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target , lvl ) ;
 					} else {
-						Rule::FullMatch match      = jt.full_match() ;
-						::string        unexpected = "<unexpected>"  ;
-						size_t          wk         = 0               ;
+						Rule::FullMatch match      = jt->full_match() ;
+						::string        unexpected = "<unexpected>"   ;
+						size_t          wk         = 0                ;
 						for( auto const& [tn,td] : digest.targets ) {
 							VarIdx ti = match.idx(tn) ;
 							wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;

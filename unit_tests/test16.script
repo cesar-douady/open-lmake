@@ -6,16 +6,16 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 ut_launch -done 0 -failed 0 -frozen 0                    -rc 1 -steady 0 lmake src3.cpy
-lfreeze -a src3
+lmark -f -a src3
 ut_launch -done 0 -failed 0 -frozen 1 -failed_frozen  1  -rc 1 -steady 0 lmake src3.cpy
 echo 1 >src3
 ut_launch -done 1 -failed 0 -frozen 1 -new_frozen     1  -rc 0 -steady 0 lmake src3.cpy
-lfreeze -d src3
+lmark -f -d src3
 ut_launch -done 0 -failed 0 -frozen 0                    -rc 1 -steady 0 lmake src3.cpy
-lfreeze -a src3
-ut_launch -done 0 -failed 0 -frozen 2                    -rc 0 -steady 0 lmake src3.cpy
+lmark -f -a src3
+ut_launch -done 0 -failed 0 -frozen 1 -new_frozen     1  -rc 0 -steady 0 lmake src3.cpy
 echo 2 >src3
 ut_launch -done 1 -failed 0 -frozen 1 -changed_frozen 1  -rc 0 -steady 0 lmake src3.cpy
-lfreeze -a src3.cpy
+lmark -f -a src3.cpy
 echo 3 >src3
 ut_launch -done 1 -failed 0 -frozen 2                    -rc 0 -steady 0 lmake src3.cpy.cpy

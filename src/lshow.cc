@@ -25,13 +25,15 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
 	},{
 		{ ReqFlag::Verbose , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts" } }
+	,	{ ReqFlag::Debug   , { .short_name='u' , .has_arg=false , .doc="generate debug executable script"           } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1                                     ) syntax.usage("must have a single argument to generate an executable script") ;
-	if ( cmd_line.key!=ReqKey::Deps && cmd_line.key!=ReqKey::Targets && cmd_line.flags[ReqFlag::Verbose] ) syntax.usage("verbose is only for showing deps or targets"                 ) ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Show , false/*refresh_makefiles*/ , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( cmd_line.flags[ReqFlag::Verbose] && cmd_line.key!=ReqKey::Deps && cmd_line.key!=ReqKey::Targets ) syntax.usage("verbose is only for showing deps or targets"                 ) ;
+	if ( cmd_line.flags[ReqFlag::Debug  ] && cmd_line.key!=ReqKey::ExecScript                            ) syntax.usage("debug is only for showing executable script"                 ) ;
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Show , false/*refresh_makefiles*/ , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

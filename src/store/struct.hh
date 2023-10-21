@@ -49,10 +49,11 @@ namespace Store {
 		using Base::writable ;
 		// statics
 	private :
-		static size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return sizeof(StructHdr)+sizeof(DataNv)*(idx-1) ; }
+		static constexpr size_t _offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                   // unsigned types handle negative values modulo 2^n, which is ok
+		static size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _offset0 + sizeof(DataNv)*idx ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
-			Base::expand(_offset(1)) ;                                 // 1 is the first used idx
+			Base::expand(_offset(1)) ;                                            // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -72,15 +73,16 @@ namespace Store {
 		}
 		// accesses
 	public :
-		Sz            size (       ) const requires(HasFile) { return _struct_hdr().sz ; }
-		bool          empty(       ) const                   { return size()==1        ; }
-		HdrNv  const& hdr  (       ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                  ; }
-		HdrNv       & hdr  (       )       requires(HasHdr ) { SWEAR(writable) ; return _struct_hdr().hdr                                  ; }
-		HdrNv  const& c_hdr(       ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                  ; }
-		DataNv const& at   (Idx idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx)) ; }
-		DataNv      & at   (Idx idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_offset(+idx)) ; }
-		DataNv const& c_at (Idx idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx)) ; }
-		void          clear(Idx idx)       requires(HasData) { if (!idx) return ; at(idx) = Data() ; }
+		Sz            size (                 ) const requires(HasFile) { return _struct_hdr().sz ; }
+		bool          empty(                 ) const                   { return size()==1        ; }
+		HdrNv  const& hdr  (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
+		HdrNv       & hdr  (                 )       requires(HasHdr ) { SWEAR(writable) ; return _struct_hdr().hdr                                     ; }
+		HdrNv  const& c_hdr(                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
+		DataNv const& at   (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
+		DataNv      & at   (Idx           idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_offset(+idx))    ; }
+		DataNv const& c_at (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
+		Idx           idx  (DataNv const& at ) const requires(HasData) {                   return Idx(&at-reinterpret_cast<Data const*>(base+_offset0)) ; }
+		void          clear(Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                ; }
 	private :
 		StructHdr const& _struct_hdr() const requires(HasFile) {                   return *reinterpret_cast<StructHdr const*>(base) ; }
 		StructHdr      & _struct_hdr()       requires(HasFile) { SWEAR(writable) ; return *reinterpret_cast<StructHdr      *>(base) ; }
@@ -99,7 +101,7 @@ namespace Store {
 		void chk() const requires(HasFile) {
 			SLock lock{_mutex} ;
 			Base::chk() ;
-			SWEAR( _offset(size())<=Base::size , size() , Base::size ) ;
+			if (size()) SWEAR( _offset(size())<=Base::size , size() , Base::size ) ;
 		}
 	private :
 		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }

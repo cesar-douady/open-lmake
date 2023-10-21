@@ -46,7 +46,7 @@ int main( int argc , char* argv[] ) {
 		/**/         OMsgBuf().send                ( fd , req_info ) ;
 		start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ;
 		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch(...) { return 2 ; }                                                // if server is dead, give up
+	} catch(::string const& e) { exit(2,e) ; }                                 // if server is dead, give up
 
 	if (::chdir(start_info.autodep_env.root_dir.c_str())!=0) {
 		JobRpcReq end_report = JobRpcReq(
@@ -58,7 +58,7 @@ int main( int argc , char* argv[] ) {
 		) ;
 		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
 		catch (...) {                                                        } // if server is dead, we cant do much about it
-		return 2 ;
+		exit(3,end_report.digest.stderr) ;
 	}
 	//
 	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
@@ -289,7 +289,7 @@ End :
 	//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	try { OMsgBuf().send(ClientSockFd(service),end_report) ; }
 	//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (...) { return 2 ; }                                                 // if server is dead, we cant do much about it
+	catch (::string const& e) { exit(6,e) ; }                                  // if server is dead, we cant do much about it
 	//
 	trace("end") ;
 	return 0 ;

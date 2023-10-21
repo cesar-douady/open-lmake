@@ -217,7 +217,7 @@ namespace Engine {
 			bool has_targets() const {
 				switch (proc) {
 					case RP::Forget :
-					case RP::Freeze :
+					case RP::Mark   :
 					case RP::Make   :
 					case RP::Show   : return true  ;
 					default         : return false ;

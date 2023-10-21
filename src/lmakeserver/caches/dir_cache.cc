@@ -170,7 +170,7 @@ namespace Caches {
 				for( auto const& [dn,dd] : deps ) {
 					if ( critical && !dd.parallel ) break ;                    // if a critical dep needs reconstruction, do not proceed past parallel deps
 					Node d{dn} ;
-					if (!d.done(req)) {
+					if (!d->done(req)) {
 						nds.insert(d) ;
 						critical |= dd.dflags[Dflag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
 					} else if (!d->up_to_date(dd)) {
@@ -218,14 +218,14 @@ namespace Caches {
 				auto     report_start = deserialize<JobInfoStart>(is)   ;
 				/**/     report_end   = deserialize<JobInfoEnd  >(is)   ;
 				// update some info
-				report_start.pre_start.job    = +job ;                         // this id does not come cached entry since it may not be the same value in the original repo
+				report_start.pre_start.job = +job ;                            // this id does not come cached entry since it may not be the same value in the original repo
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
 					::string const& tn = report_end.end.digest.targets[ti].first ;
 					copied.push_back(tn) ;
 					_copy( dfd , to_string(ti) , tn , true/*unlink_dst*/ , false/*mk_read_only*/ ) ;
 				}
-				copied.push_back(job.ancillary_file()) ;
+				copied.push_back(job->ancillary_file()) ;
 				OFStream os { dir_guard(copied.back()) } ;
 				serialize( os , report_start ) ;
 				serialize( os , report_end   ) ;
@@ -260,7 +260,7 @@ namespace Caches {
 		unlink_inside(dfd) ;
 		//
 		try {
-			IFStream is           { job.ancillary_file() }        ;
+			IFStream is           { job->ancillary_file() }       ;
 			auto     report_start = deserialize<JobInfoStart>(is) ;
 			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
 			// update some specific info

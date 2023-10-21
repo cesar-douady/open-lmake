@@ -58,8 +58,8 @@ namespace Engine {
 		// init
 		static void s_init() {}
 		// statics
-		template<IsWatcher T> static ::vector<Req> reqs(T jn) {                  // sorted by start
-			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;            // pessimistic
+		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) { // sorted by start
+			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                    // pessimistic
 			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;
 		}
@@ -89,8 +89,8 @@ namespace Engine {
 		void close  () ;
 		void chk_end() ;
 		//
-		void inc_rule_exec_time( Rule ,                                 Delay delta     , Tokens1 ) ;
-		void new_exec_time     ( Job , bool remove_old , bool add_new , Delay old_exec_time       ) ;
+		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
+		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;
 	private :
 		void _adjust_eta(bool push_self=false) ;
 		//
@@ -202,8 +202,8 @@ namespace Engine {
 			_n_watchers = 0 ;
 			// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
 			for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
-				if (waiting()) _add_watcher(*it) ;                                     // if waiting again, add back watchers we have got and that we no more want to call
-				else           it->make( it->req_info(req) , W::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
+				if (waiting()) _add_watcher(*it) ;                                           // if waiting again, add back watchers we have got and that we no more want to call
+				else           (*it)->make( (*it)->req_info(req) , W::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
 		}
 		::vector<W> watchers() const {
 			if (_n_watchers==VectorMrkr) return _watchers_v                                              ;

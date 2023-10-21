@@ -103,6 +103,14 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+*1 ldebug
+	- set manual_ok on targets
+	- reset manual_ok upon normal execution
+*1 provide the possibility to prevent rebuild from a given file
+	- set no_trigger on targets
+	- useful to work on deep files such as utils to add a feature
+	- just check before push
+	- work as a resource : rebuild if dependent is in error
 * provide the possibility to play dynamically with resources in config
 	- split config / rules / sources
 	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
@@ -114,26 +122,12 @@ items :
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * report errors in title (split useful into done and err)
-* provide the possibility to prevent rebuild from a given file
-	- much like freeze, but the other way around
-	- useful to work on deep files such as utils to add a feature
-	- just check before push
-	- can be a flag to freeze (such as freeze forward, meaning jobs see file as frozen, even if it moves)
-	- possibly work as a resource : rebuild if dependent is in error
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
 	- warning : links change cdate
 		- and cdates are used as dates
 		- because exec bit is part of crc
-* ldebug
-	- low priority (wait for user experience)
-	- for python execution
-		- add -i to make it interactive
-		- add import pdb so typing pdb.pm() is easy
-			- register exception handling to call it automatically
-		- suppress input redirection to /dev/null
-			- what if stdin is actively used ?
 ! support direct rebuild of deps
 	- switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
 		- difficulty is that there is no named group

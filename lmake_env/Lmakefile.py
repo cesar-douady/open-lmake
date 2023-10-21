@@ -290,9 +290,10 @@ class TarLmake(BaseRule) :
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
 	,	'LDEPEND'            : 'bin/ldepend'
 	,	'LTARGET'            : 'bin/ltarget'
-	,	'LFREEZE'            : 'bin/lfreeze'
+	,	'LMARK'              : 'bin/lmark'
 	,	'LFORGET'            : 'bin/lforget'
 	,	'LMAKE'              : 'bin/lmake'
+	,	'LDBG'               : 'bin/ldebug'
 	,	'LSHOW'              : 'bin/lshow'
 	,	'XXHSUM'             : 'bin/xxhsum'
 	,	'DOC'                : 'doc/lmake.html'
@@ -433,9 +434,13 @@ class LinkLmake(LinkClientAppExe) :
 	targets = { 'TARGET' : 'bin/lmake'   }
 	deps    = { 'MAIN'   : 'src/lmake.o' }
 
+class LinkLdebug(LinkClientAppExe) :
+	targets = { 'TARGET' : 'bin/ldebug'   }
+	deps    = { 'MAIN'   : 'src/ldebug.o' }
+
 class LinkLshow(LinkClientAppExe) :
-	targets = { 'TARGET'  : 'bin/lshow'   }
-	deps    = { 'MAIN' : 'src/lshow.o' }
+	targets = { 'TARGET' : 'bin/lshow'   }
+	deps    = { 'MAIN'   : 'src/lshow.o' }
 
 class LinkLforget(LinkClientAppExe) :
 	targets = { 'TARGET' : 'bin/lforget'   }
@@ -460,9 +465,9 @@ class LinkLChkDeps(LinkJobSupport,LinkAutodepEnv) :
 	targets = { 'TARGET' : 'bin/lcheck_deps'           }
 	deps    = { 'MAIN'   : 'src/autodep/lcheck_deps.o' }
 
-class LinkLfreeze(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lfreeze'   }
-	deps    = { 'MAIN'   : 'src/lfreeze.o' }
+class LinkLmark(LinkClientAppExe) :
+	targets = { 'TARGET' : 'bin/lmark'   }
+	deps    = { 'MAIN'   : 'src/lmark.o' }
 
 class LinkXxhsum(LinkClientAppExe) :
 	targets = { 'TARGET' : 'bin/xxhsum'   }

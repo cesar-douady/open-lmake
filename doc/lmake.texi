@@ -614,25 +614,69 @@ The letter is the short option name if set, else @code{-}.
 If a target does not exist, it is deemed secondary information and is shown in gray.
 @end itemize
 
-@section @code{lfreeze}
+@section @code{ldebug}
 
-Usage : @code{lfreeze [ [-a|--add] | [-d|--delete] ] targets...} or @code{lfreeze [-l|--list] | [-D|--delete-all]}
+Usage : @code{ldebug target}
 
-@code{lfreeze} is used to manipulate frozen jobs and files.
-Frozen files are considered by @lmake as sources although they are not listed as such by @Lmakefile.
-Frozen jobs are not run and considered up to date.
-Each time such a file or job is referenced by @lmake, an output line is generated mentioning it and such usages appear in the summary.
+@code{ldebug} runs a job in a debug environment.
 
-These precautions are taken because frozen files presence goes against repeatability.
+The job must have been run with @lmake before (but may not have finished, it just need to be started).
+For now, this command is rudimentary :
+@itemize @minus
+@item it runs the script under @code{pdb} for python rules
+@item it runs the script with @code{-x} flag set for shell rules
+@end itemize
 
-Frozen files and jobs are useful to run a flow from A to B. To do that you type @code{lfreeze A} followed by @code{lmake B}.
+@section @code{lmark}
+
+Usage : @code{lmark [ [-a|--add] | [-d|--delete] ] [-f|--freeze] [-m|--manual-ok] [-t|--no-trigger] [-F|--force] targets...}
+or      @code{lmark [-l|--list] | [-c|--clear] [-f|--freeze] [-m|--manual-ok] [-t|--no-trigger]}
+
+@code{lmark} is used to mark jobs and files with specific attributes.
+
+@itemize @bullet
+@item freeze : This mark prevents jobs from being run.
+Instead its targets (as built during the last run for star targets) behave as sources.
+If no job generated a file provided in arguments, this file behave as a source.
+@item manual ok  : This mark allow @lmake to overwrite a modification made outside its control (i.e. a modification made by a manual action, so called manual modification).
+These marks are transcient : they are suppressed as soon as files are rebuilt.
+@item no trigger : This mark prevents @lmake to trigger builds of dependent jobs after modifications of provided files.
+However, this applies only if job was last run with success.
+@end itemize
+
+Jobs marked with freeze and files marked with manual ok are repeated in the summary.
+This precaution is taken because such presence goes against repeatability and should be suppressed before commiting the repository.
+
+Frozen jobs are useful to run a flow from A to B. To do that you type @code{lmark -f -a A} followed by @code{lmake B}.
+
+Manual ok files are useful when doing debug to allow @lmake to wash out files genereated during such sessions.
+@code{ldebug} automatically sets this mark on its targets.
+A user probably do not need to set them by hand.
+
+No trigger files are useful when working on a foundation file (called @file{utils.h} hereinafter).
+It is common to work on @file{utils.h} to add new features.
+During such developments, it is practical to run a test suite that checks the new feature.
+But to run this test suite, you probably need a lot a derived files that depend on @file{utils.h} without using the new feature.
+It is then a waste of time and resources to rebuild these derived files at each tiny modification.
+An easy way is :
+@itemize @minus
+@item mark @file{utils.h}) with @code{no-trigger}
+@item write the new test that uses this new feature.
+@item modify @file{utils.h} to implement the new feature.
+@item run your test.
+Files not using the new feature will likely be successfully built and will not be uselessly rebuilt.
+File using the new feature will likely fail and will be usefully rebuilt.
+If no error is generated, it is easy to run @code{rm} or @code{lforget} to force rebuild.
+@item loop on modify/test until feature is ok.
+@item when you are satisfied with the new feature, suppress the no-trigger mark and rerun your test suite to ensure repeatability.
+@end itemize
 
 Options :
 @itemize @bullet
-@item @code{-a}|@code{--add} : add targets to the list of frozen files.
-@item @code{-d}|@code{--delete} : remove targets from the list of frozen files.
-@item @code{-l}|@code{--list} : list frozen files.
-@item @code{-D}|@code{--delete-all} : delete all frozen files.
+@item @code{-a}|@code{--add}    : mark mentioned jobs or files.
+@item @code{-d}|@code{--delete} : remove mark from mentioned jobs or files.
+@item @code{-l}|@code{--list}   : list marked files.
+@item @code{-c}|@code{--clear}  : delete all marks.
 @end itemize
 
 @section @code{lforget}

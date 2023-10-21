@@ -131,7 +131,7 @@ Restore :
 	return Maybe ;
 }
 
-Bool3/*ok*/ out_proc( ReqProc proc , bool refresh , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
+Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
 	Trace trace("out_proc") ;
 	ReqRpcReq rrr{ proc , cmd_line.files() , { is_reverse_video(Fd::Stdin,Fd::Stdout) , cmd_line } } ;
 	connect_to_server(refresh) ;
@@ -143,7 +143,7 @@ Bool3/*ok*/ out_proc( ReqProc proc , bool refresh , ReqCmdLine const& cmd_line ,
 			switch (report.kind) {
 				case ReqKind::None   : trace("none"               ) ;  return Maybe            ;
 				case ReqKind::Status : trace("done",STR(report.ok)) ;  return report.ok?Yes:No ;
-				case ReqKind::Txt    : ::cout << report.txt << flush ; break                   ;
+				case ReqKind::Txt    : os << report.txt << flush ; break                       ;
 				default : FAIL(report.kind) ;
 			}
 		}

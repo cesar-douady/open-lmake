@@ -133,7 +133,6 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	<tr> <td> regexpr   </td> <td> regular expression     </td> </tr>
 	<tr> <td> serdes    </td> <td> serialize, deserialize </td> </tr>
 	<tr> <td> tflag     </td> <td> target flag            </td> </tr>
-	<tr> <td> unode     </td> <td> unique node            </td> </tr>
 	<tr> <td> wakeup    </td> <td> wake_up                </td> </tr>
 	<tr> <td> wrt       </td> <td> with respect to        </td> </tr>
 	</table>

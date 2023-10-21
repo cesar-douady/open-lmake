@@ -33,51 +33,42 @@ namespace Engine {
 		return  os << ')'  ;
 	}
 
-	static inline ::pair<Bool3,bool/*refreshed*/> _manual_ok_refresh( Node n , FileInfoDate const& fid ) {
-		Bool3 mok = n.manual_ok(fid) ;
-		if (mok!=No          ) return {mok,false/*refreshed*/} ;               // file was not modified
-		if (n->crc==Crc::None) return {mok,false/*refreshed*/} ;               // file appeared, it cannot be steady
-		//
-		::string nm  = n.name()                  ;
-		Crc      crc { nm , g_config.hash_algo } ;
-		if (!n->crc.match(Crc(nm,g_config.hash_algo))) return {No,false/*refreshed*/} ; // real modif
-		//
-		Unode(n)->date = file_date(nm) ;                                       // file is steady
-		return {Yes,true/*refreshed*/} ;
-	}
-	Bool3 Node::manual_ok_refresh( Req req , FileInfoDate const& fid ) {
-		auto [mok,refreshed] = _manual_ok_refresh(*this,fid) ;
-		if (refreshed) req->audit_node(Color::Note,"manual_steady",*this) ;
-		return mok ;
-	}
-	Bool3 Node::manual_ok_refresh( Job job , FileInfoDate const& fid ) {
-		auto [mok,refreshed] = _manual_ok_refresh(*this,fid) ;
-		if (refreshed) for( Req r : job.reqs() ) r->audit_node(Color::Note,"manual_steady",*this) ;
-		return mok ;
+	//
+	// NodeData
+	//
+
+	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
+		/**/                             os << '(' << nd.crc           ;
+		/**/                             os << ',' << nd.date          ;
+		/**/                             os << ','                     ;
+		if (!nd.match_ok()             ) os << '~'                     ;
+		/**/                             os << "job:"                  ;
+		/**/                             os << +Job(nd.actual_job_tgt) ;
+		if (nd.actual_job_tgt.is_sure()) os << '+'                     ;
+		return                           os << ")"                     ;
 	}
 
-	void Node::_set_pressure_raw( ReqInfo& ri ) const {
-		for( Job job : conform_job_tgts(ri) ) job.set_pressure(job.req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
+	void NodeData::_set_pressure_raw( ReqInfo& ri ) const {
+		for( Job job : conform_job_tgts(ri) ) job->set_pressure(job->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
-	void Node::set_special( Special special , ::vector<Node> const& deps , Accesses a , Dflags df , bool p ) {
+	void NodeData::set_special( Special special , ::vector<Node> const& deps , Accesses a , Dflags df , bool p ) {
 		Trace trace("set_special",*this,special,deps) ;
-		JobTgts jts       = (*this)->job_tgts ;
-		Unode   un        { *this }           ;
-		Bool3   buildable = Yes               ;
+		JobTgts jts       = job_tgts ;
+		Bool3   buildable = Yes      ;
 		if ( !jts.empty() && jts.back()->rule->is_special() ) SWEAR( jts.back()->rule->special==special , jts.back()->rule->special , special ) ;
-		else                                                  un->job_tgts.append(::vector<JobTgt>({{ Job(special,*this,Deps(deps,a,df,p)) , true/*is_sure*/ }})) ;
-		for( Dep const& d : (*this)->job_tgts.back()->deps ) {
+		else                                                  job_tgts.append(::vector<JobTgt>({{ Job(special,idx(),Deps(deps,a,df,p)) , true/*is_sure*/ }})) ;
+		for( Dep const& d : job_tgts.back()->deps ) {
 			if (d->buildable==Bool3::Unknown) buildable &= Maybe        ; // if not computed yet, well note we do not know
 			else                              buildable &= d->buildable ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
 		}
 		SWEAR(buildable!=No) ;
-		if (buildable==Yes) un->rule_tgts.clear() ;
+		if (buildable==Yes) rule_tgts.clear() ;
 		_set_buildable(buildable) ;
 	}
 
-	::vector_view_c<JobTgt> Node::prio_job_tgts(RuleIdx prio_idx) const {
-		JobTgts const& jts = (*this)->job_tgts ;                               // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
+	::vector_view_c<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
+		JobTgts const& jts = job_tgts ;                                       // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
 		if (prio_idx<jts.size()) {
 			RuleIdx                 sz   = 0                    ;
 			::vector_view_c<JobTgt> sjts = jts.subvec(prio_idx) ;
@@ -95,15 +86,15 @@ namespace Engine {
 		return {} ;
 	}
 
-	template<class N> struct JobTgtIter {
+	struct JobTgtIter {
 		// cxtors
-		JobTgtIter( N n , RuleIdx i=0 ) : node{n} , idx{i} {}
+		JobTgtIter( NodeData& n , RuleIdx i=0 ) : node{n} , idx{i} {}
 		// services
-		JobTgtIter&   operator++(int)                                      { _prev_prio = _cur_prio() ; idx++ ; return *this ;             }
-		JobTgt        operator* (   ) const                                { return node->job_tgts[idx] ;                                  }
-		JobTgt*       operator->(   )       requires(::is_same_v<N,Unode>) { return node->job_tgts.begin()+idx ;                           }
-		JobTgt const* operator->(   ) const                                { return node->job_tgts.begin()+idx ;                           }
-		operator bool           (   ) const                                { return idx<node->job_tgts.size() && _cur_prio()>=_prev_prio ; }
+		JobTgtIter&   operator++(int)       { _prev_prio = _cur_prio() ; idx++ ; return *this ;            }
+		JobTgt        operator* (   ) const { return node.job_tgts[idx] ;                                  }
+		JobTgt const* operator->(   ) const { return node.job_tgts.begin()+idx ;                           }
+		JobTgt      * operator->(   )       { return node.job_tgts.begin()+idx ;                           }
+		operator bool           (   ) const { return idx<node.job_tgts.size() && _cur_prio()>=_prev_prio ; }
 		void reset(RuleIdx i=0) {
 			idx        = i         ;
 			_prev_prio = -Infinity ;
@@ -112,8 +103,8 @@ namespace Engine {
 		Prio _cur_prio() const { return (**this)->rule->prio ; }
 		// data
 	public :
-		N       node ;
-		RuleIdx idx  ;
+		NodeData& node ;
+		RuleIdx   idx  ;
 	private :
 		Prio _prev_prio = -Infinity ;
 	} ;
@@ -121,7 +112,7 @@ namespace Engine {
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and return how many rule_tgts were consumed
 	// - anti-rules always precede regular rules at given prio and are deemed to be of higher prio (and thus in different iso-prio chunks)
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
-	::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> Node::_gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req req , DepDepth lvl ) {
+	::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> NodeData::_gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req req , DepDepth lvl ) {
 		//
 		if (rule_tgts.empty()) return {No,NoIdx} ;                             // fast path : avoid computing name()
 		//
@@ -152,26 +143,22 @@ namespace Engine {
 		}
 		clear = true ;
 	Done :
-		//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (!jts.empty()) Unode(*this)->job_tgts.append(jts) ;
-		//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                vvvvvvvvvvvvvvvvvvvv
+		if (!jts.empty()) job_tgts.append(jts) ;
+		//                ^^^^^^^^^^^^^^^^^^^^
 	Return :
 		if (clear) return {buildable,NoIdx} ;
 		else       return {buildable,n    } ;
 	}
 
-	void Node::_set_buildable_raw( Req req , DepDepth lvl ) {
+	void NodeData::_set_buildable_raw( Req req , DepDepth lvl ) {
 		Trace trace("set_buildable",*this,lvl) ;
-		if (lvl>=g_config.max_dep_depth) throw ::vector<Node>({*this}) ; // infinite dep path
-		::vector<RuleTgt> rule_tgts = raw_rule_tgts() ;
-		if (!shared()) {
-			Unode un{*this} ;
-			un->rule_tgts.clear() ;
-			un->job_tgts .clear() ;
-			un->conform_idx = NoIdx ;
-			un->uphill      = false ;
-			share() ;
-		}
+		if (lvl>=g_config.max_dep_depth) throw ::vector<Node>({idx()}) ; // infinite dep path
+		::vector<RuleTgt> rule_tgts_ = raw_rule_tgts() ;
+		rule_tgts.clear() ;
+		job_tgts .clear() ;
+		conform_idx = NoIdx ;
+		uphill      = false ;
 		//                                                       vvvvvvvvvvvvvvvvvv
 		if ( g_config.path_max && name_sz()>g_config.path_max) { _set_buildable(No) ; goto Return ; } // path is ridiculously long, make it unbuildable
 		//                                                       ^^^^^^^^^^^^^^^^^^
@@ -179,12 +166,12 @@ namespace Engine {
 		// in case of crash, rescue mode is used and ensures all matches are recomputed
 		_set_buildable(Yes) ;
 		try {
-			if (!(*this)->external) {
-				Node dir_=dir() ;
+			if (!external) {
+				Node dir_ = dir() ;
 				if (+dir_) {
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvv
-					dir_.set_buildable(req,lvl+1) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					dir_->set_buildable(req,lvl+1) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (dir_->buildable!=No) {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						set_special( Special::Uphill , ::vector<Node>({dir_}) , Access::Lnk ) ;
@@ -195,65 +182,62 @@ namespace Engine {
 				}
 			}
 			//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			auto [buildable,shorten_by] = _gather_prio_job_tgts(rule_tgts,req,lvl) ;
+			auto [buildable,shorten_by] = _gather_prio_job_tgts(rule_tgts_,req,lvl) ;
 			//vvvvvvvvvvvvvvvvvvvvvvv     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			_set_buildable(buildable) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^
 			//
 			if (shorten_by) {
-				//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (shorten_by!=NoIdx) Unode(*this)->rule_tgts = ::vector_view_c<RuleTgt>(rule_tgts,shorten_by) ;
-				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if (shorten_by!=NoIdx) rule_tgts = ::vector_view_c<RuleTgt>(rule_tgts_,shorten_by) ;
+				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
 			}
 		} catch (::vector<Node>& e) {
 			//vvvvvvvvvvvvvv
 			_set_buildable() ;                                                 // restore Unknown as we do not want to appear as having been analyzed
 			//^^^^^^^^^^^^^^
-			e.push_back(*this) ;
+			e.push_back(idx()) ;
 			throw ;
 		}
 	AllRules :
-		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (!(*this)->rule_tgts) Unode(*this)->rule_tgts = rule_tgts ;
-		//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//              vvvvvvvvvvvvvvvvvvvvvv
+		if (!rule_tgts) rule_tgts = rule_tgts_ ;
+		//              ^^^^^^^^^^^^^^^^^^^^^^
 	Return :
-		SWEAR((*this)->match_ok()) ;
-		trace("summary",(*this)->buildable) ;
+		SWEAR(match_ok()) ;
+		trace("summary",buildable) ;
 		return ;
 	}
 
-	Node::ReqInfo const& Node::_make_raw( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
-		bool    multi          = false   ;
+	NodeData::ReqInfo const& NodeData::_make_raw( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
+		bool    multi_         = false   ;
 		RuleIdx prod_idx       = NoIdx   ;
 		Req     req            = cri.req ;
-		Bool3   clean          = Maybe   ;                                     // lazy evaluate manual_ok()==Yes
+		Bool3   clean          = Maybe   ;                                     // lazy evaluate manual()==No
 		Job     regenerate_job ;
-		Trace trace("Nmake",*this,cri,run_action,make_action) ;
+		Trace trace("Nmake",idx(),cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
-		//                                 vvvvvvvvvvvvvvvvvv
-		try                              { set_buildable(req) ;                                          }
-		//                                 ^^^^^^^^^^^^^^^^^^
+		//                                vvvvvvvvvvvvvvvvvv
+		try                             { set_buildable(req) ;                                           }
+		//                                ^^^^^^^^^^^^^^^^^^
 		catch (::vector<Node> const& e) { set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ; }
-		if ((*this)->buildable==No) {                                                                      // avoid allocating ReqInfo for non-buildable Node's
+		if (buildable==No) {                                                                               // avoid allocating ReqInfo for non-buildable Node's
 			SWEAR( make_action<MakeAction::Dec , make_action ) ;
 			SWEAR( !cri.has_watchers()                       ) ;
 			trace("not_buildable",cri) ;
-			if ( (*this)->crc!=Crc::None && manual_ok()==Maybe ) {             // if file has been removed, everything is ok again : file is not buildable and does not exist
-				Unode un{*this} ;
-				un.refresh( Crc::None , Ddate::s_now() ) ;
-				un.share() ;                                                   // now that there is no more crc, maybe node is sharable
-			}
+			// if file has been removed, everything is ok again : file is not buildable and does not exist
+			if ( crc!=Crc::None && manual()==Maybe ) refresh( Crc::None , Ddate::s_now() ) ;
 			return cri ;
 		}
 		ReqInfo& ri = req_info(cri) ;                                          // past this point, cri must not be used as it may be obsolete, use ri instead
 		ri.update( run_action , make_action , *this ) ;
 		if (ri.waiting()) goto Wait ;
 		if (ri.done) {
-			if ( run_action<=RunAction::Status || !(*this)->unlinked ) goto Wakeup ;
-			if ( !(*this)->makable()                                 ) goto Wakeup ; // no hope to regenerate, proceed as a done target
+			if ( run_action<=RunAction::Status || !unlinked ) goto Wakeup ;
+			if ( !makable()                                 ) goto Wakeup ;    // no hope to regenerate, proceed as a done target
 			ri.done        = false                      ;
-			regenerate_job = (*this)->conform_job_tgt() ;                      // we must regenerate target, only run the conform job
+			regenerate_job = conform_job_tgt() ;                               // we must regenerate target, only run the conform job
 		}
 		//
 		if (ri.prio_idx==NoIdx) {
@@ -263,81 +247,84 @@ namespace Engine {
 			JobTgtIter it{*this,ri.prio_idx} ;
 			SWEAR(it) ;                                                        // how can it be that we were waiting for nothing ?
 			for(; it ; it++ ) {
-				trace("check",*it,it->c_req_info(req)) ;
-				if (!it->c_req_info(req).done(run_action)) {                   // if it needed to be regenerated, it may not be done any more although we waited for it
+				JobTgt jt = *it ;
+				trace("check",jt,jt->c_req_info(req)) ;
+				if (!jt->c_req_info(req).done(run_action)) {                   // if it needed to be regenerated, it may not be done any more although we waited for it
 					prod_idx = NoIdx ;                                         // safer to restart analysis at same level, although this may not be absolutely necessary
-					multi    = false ;                                         // this situation is exceptional enough not to bother trying to avoid this analysis restart
+					multi_   = false ;                                         // this situation is exceptional enough not to bother trying to avoid this analysis restart
 					goto Make ;
 				}
-				if (!it->produces(*this)) continue ;                           // if Maybe, job is in error and is deemed to produce all its potential targets
+				if (!jt.produces(idx())) continue ;                            // if Maybe, job is in error and is deemed to produce all its potential targets
 				if (prod_idx==NoIdx) prod_idx = it.idx ;
-				else                 multi    = true   ;
+				else                 multi_   = true   ;
 			}
 			if (prod_idx!=NoIdx) goto DoWakeup ;                               // we have done job, no need to investigate any further
 			ri.prio_idx = it.idx ;
 		}
 	Make :
-		SWEAR( prod_idx==NoIdx && !multi , prod_idx ) ;
+		SWEAR( prod_idx==NoIdx && !multi_ , prod_idx ) ;
 		for (;;) {
-			if (ri.prio_idx>=(*this)->job_tgts.size()) {
-				if (!(*this)->rule_tgts) break ;                               // fast path : avoid creating Unode(*this)
+			if (ri.prio_idx>=job_tgts.size()) {
+				if (!rule_tgts) break ;                                        // fast path
 				try {
-					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					RuleIdx shorten_by = _gather_prio_job_tgts((*this)->rule_tgts.view(),req).second ;
-					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (shorten_by==NoIdx) { if (!shared()) { Unode(*this)->rule_tgts.clear()                ; share() ; } }
-					else                   {                  Unode(*this)->rule_tgts.shorten_by(shorten_by) ;             }
-					if (ri.prio_idx>=(*this)->job_tgts.size()) break ;                                                       // fast path
+					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					RuleIdx shorten_by = _gather_prio_job_tgts(rule_tgts.view(),req).second ;
+					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (shorten_by==NoIdx) { rule_tgts.clear()                ; }
+					else                   { rule_tgts.shorten_by(shorten_by) ; }
+					if (ri.prio_idx>=job_tgts.size()) break ;                     // fast path
 				} catch (::vector<Node> const& e) {
 					set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ;
 					break ;
 				}
 			}
-			JobTgtIter it{ Unode(*this) , ri.prio_idx } ;
+			JobTgtIter it{ *this , ri.prio_idx } ;
 			for(; it ; it++ ) {                                                // check if we obviously have several jobs, in which case make nothing
-				if      (it->sure()                 ) _set_buildable(Yes) ;    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
-				else if (!it->c_req_info(req).done()) continue ;
-				else if (!it->produces(*this)       ) continue ;
+				JobTgt jt = *it ;
+				if      (jt.sure()                  ) _set_buildable(Yes) ;    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+				else if (!jt->c_req_info(req).done()) continue ;
+				else if (!jt.produces(idx())        ) continue ;
 				if      (prod_idx==NoIdx            ) prod_idx = it.idx ;
-				else                                  multi    = true   ;
+				else                                  multi_   = true   ;
 			}
-			if (multi) break ;
+			if (multi_) break ;
 			prod_idx = NoIdx ;
 			// make eligible jobs
 			{	SaveInc save{ri.n_wait} ;                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
 				for( it.reset(ri.prio_idx) ; it ; it++ ) {
+					JobTgt    jt     = *it             ;
 					RunAction action = RunAction::None ;
 					if (+regenerate_job) {
-						if (*it==regenerate_job) action = RunAction::Run ;
+						if (jt==regenerate_job) action = RunAction::Run ;
 					} else {
 						switch (ri.action) {
-							case RunAction::Makable : action = it->is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
-							case RunAction::Status  : action =                 RunAction::Status                      ; break ;
+							case RunAction::Makable : action = jt.is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
+							case RunAction::Status  : action =                RunAction::Status                      ; break ;
 							case RunAction::Dsk     :
-								if ( it->is_sure() && !(*this)->has_actual_job_tgt(*it) ) action = RunAction::Run ; // wash polution
+								if ( jt.is_sure() && !has_actual_job_tgt(jt) ) action = RunAction::Run ; // wash polution
 								else {
-									if (clean==Maybe) {                                                             // solve lazy evaluation
-										if ((*it)->rule->is_special()) clean = No | (manual_ok        (   )==Yes) ; // special rules handle manual targets specially
-										else                           clean = No | (manual_ok_refresh(req)==Yes) ;
+									if (clean==Maybe) {                                                      // solve lazy evaluation
+										if (jt->rule->is_special()) clean = No | (manual        (   )==No) ; // special rules handle manual targets specially
+										else                        clean = No | (manual_refresh(req)==No) ;
 									}
-									if      ( clean==Yes                                         ) action = RunAction::Status ;
-									else if ( !it->c_req_info(req).done() || it->produces(*this) ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
+									if      ( clean==Yes                                        ) action = RunAction::Status ;
+									else if ( !jt->c_req_info(req).done() || jt.produces(idx()) ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
 								}
 							break ;
 							default : FAIL(ri.action) ;
 						}
 					}
-					trace("make_job",ri,clean,action,*it) ;
-					Job::ReqInfo& jri = it->req_info(req) ;
+					trace("make_job",ri,clean,action,jt) ;
+					Job::ReqInfo& jri = jt->req_info(req) ;
 					jri.live_out = ri.live_out ;                                                                 // transmit user request to job for last level live output
 					//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if      (action==RunAction::Run ) it->make( jri , action , {JobReasonTag::NoTarget,+*this} ) ;
-					else if (action!=RunAction::None) it->make( jri , action                                   ) ;
+					if      (action==RunAction::Run ) jt->make( jri , action , {JobReasonTag::NoTarget,+idx()} ) ;
+					else if (action!=RunAction::None) jt->make( jri , action                                   ) ;
 					//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (jri.waiting()       ) { it->add_watcher(jri,*this,ri,ri.pressure) ; continue ; }
-					if (!it->produces(*this)) {                                             continue ; }
-					if (prod_idx==NoIdx     ) { prod_idx = it.idx ;                                    }
-					else                      { multi    = true   ;                                    }
+					if (jri.waiting()      ) { jt->add_watcher(jri,idx(),ri,ri.pressure) ; continue ; }
+					if (!jt.produces(idx())) {                                             continue ; }
+					if (prod_idx==NoIdx    ) { prod_idx = it.idx ;                                    }
+					else                     { multi_   = true   ;                                    }
 				}
 			}
 			if (ri.waiting()   ) goto Wait ;
@@ -345,23 +332,14 @@ namespace Engine {
 			ri.prio_idx = it.idx ;
 		}
 	DoWakeup :
-		if (multi) {
-			Unode            un  {*this} ;
+		multi       = multi_                                                                   ;
+		conform_idx = multi_ ? NoIdx : prod_idx                                                ;
+		uphill      = conform_idx!=NoIdx && job_tgts[prod_idx]->rule->special==Special::Uphill ;
+		if (multi_) {
 			::vector<JobTgt> jts ;
-			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(*this)) jts.push_back(jt) ;
-			trace("multi",ri,(*this)->job_tgts.size(),conform_job_tgts(ri),jts) ;
-			un->conform_idx = NoIdx ;
-			un->multi       = true  ;
-			un->uphill      = false ;
+			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(idx())) jts.push_back(jt) ;
+			trace("multi",ri,job_tgts.size(),conform_job_tgts(ri),jts) ;
 			audit_multi(req,jts) ;
-		} else {
-			bool uphill =
-				prod_idx!=NoIdx
-			&&	(*this)->job_tgts[prod_idx]->rule->special==Special::Uphill
-			;
-			if ((*this)->conform_idx!=prod_idx) Unode(*this)->conform_idx = prod_idx ;
-			if ((*this)->multi                ) Unode(*this)->multi       = false    ;
-			if ((*this)->uphill     !=uphill  ) Unode(*this)->uphill      = uphill   ;
 		}
 		ri.done = true ;
 	Wakeup :
@@ -372,110 +350,96 @@ namespace Engine {
 		return ri ;
 	}
 
-	void Node::audit_multi( Req req , ::vector<JobTgt> const& jts ) {
-		/**/                   req->audit_node(Color::Err ,"multi",*this            ) ;
+	void NodeData::audit_multi( Req req , ::vector<JobTgt> const& jts ) {
+		/**/                   req->audit_node(Color::Err ,"multi",idx()            ) ;
 		/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
 		for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->user_name()  ,2) ;
 	}
 
-	bool/*ok*/ Node::forget( bool targets , bool deps ) {
-		Trace trace("Nforget",*this,STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
+	bool/*ok*/ NodeData::forget( bool targets , bool deps ) {
+		Trace trace("Nforget",idx(),STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
 		if (waiting()) return false ;
 		//
 		bool res = true ;
 		RuleIdx k =0 ;
-		for( Job j : (*this)->job_tgts ) {
-			/**/                                                             res &= j.forget(targets,deps) ;           // all jobs above conform jobs
-			if (k==(*this)->conform_idx) { for( Job j : conform_job_tgts() ) res &= j.forget(targets,deps) ; break ; } // conform jobs
+		for( Job j : job_tgts ) {
+			/**/                                                    res &= j->forget(targets,deps) ;           // all jobs above conform jobs
+			if (k==conform_idx) { for( Job j : conform_job_tgts() ) res &= j->forget(targets,deps) ; break ; } // conform jobs
 			k++ ;
 		}
 		_set_buildable() ;                                                     // wash cache
 		return res ;
 	}
 
-	void Node::mk_old() {
-		Trace trace("mk_old",*this) ;
-		if ((*this)->match_gen==NMatchGen) { trace("locked") ; return ; }      // node is locked
-		if (shared()) {
-			mk_shared(0) ;
-		} else {
-			Unode un{*this} ;
-			if ( +un->actual_job_tgt && un->actual_job_tgt->rule.old() )
-				un->actual_job_tgt.clear() ;                                   // old jobs may be collected, do not refer to them anymore
-			un._set_buildable() ;
-			share() ;
-		}
+	void NodeData::mk_old() {
+		Trace trace("mk_old",idx()) ;
+		if (match_gen==NMatchGen) { trace("locked") ; return ; }                      // node is locked
+		if ( +actual_job_tgt && actual_job_tgt->rule.old() ) actual_job_tgt.clear() ; // old jobs may be collected, do not refer to them anymore
+		_set_buildable() ;
 	}
 
-	void Node::mk_no_src() {
-		Trace trace("mk_no_src",*this) ;
-		if (shared()) { mk_shared(0) ; return ; }
-		Unode un{*this} ;
-		un._set_buildable() ;
+	void NodeData::mk_no_src() {
+		Trace trace("mk_no_src",idx()) ;
+		_set_buildable() ;
 		fence() ;
-		un->rule_tgts     .clear() ;
-		un->job_tgts      .clear() ;
-		un->actual_job_tgt.clear() ;
-		un.refresh() ;
-		share() ;
+		rule_tgts     .clear() ;
+		job_tgts      .clear() ;
+		actual_job_tgt.clear() ;
+		refresh() ;
 	}
 
-	void Node::mk_anti_src() {
-		Trace trace("mk_anti_src",*this) ;
-		if (shared()) { mk_shared(NMatchGen,No) ; return ; }
-		Unode un{*this} ;
-		un._set_buildable(No) ;
+	void NodeData::mk_anti_src() {
+		Trace trace("mk_anti_src",idx()) ;
+		_set_buildable(No) ;
 		fence() ;
-		un->rule_tgts     .clear() ;
-		un->job_tgts      .clear() ;
-		un->actual_job_tgt.clear() ;
-		un->match_gen = NMatchGen ;                                            // sources are locked match_ok
-		un.refresh( Crc::None , Ddate::s_now() ) ;
-		share() ;
+		rule_tgts     .clear() ;
+		job_tgts      .clear() ;
+		actual_job_tgt.clear() ;
+		match_gen = NMatchGen ;                                                // sources are locked match_ok
+		refresh( Crc::None , Ddate::s_now() ) ;
 	}
 
-	void Node::mk_src() {
-		Trace trace("mk_src",*this) ;
+	void NodeData::mk_src() {
+		Trace trace("mk_src",idx()) ;
 		trace.hide() ;
 		mk_anti_src() ;
 		set_special(Special::Src) ;
-		Unode un{*this} ;
-		un->actual_job_tgt = { (*this)->job_tgts[0] , true/*is_sure*/ } ;
-		un.refresh() ;
+		actual_job_tgt = { job_tgts[0] , true/*is_sure*/ } ;
+		refresh() ;
 	}
 
-	//
-	// Unode
-	//
-
-	::ostream& operator<<( ::ostream& os , Unode const n ) {
-		return os<<'U'<<Node(n) ;
-	}
-
-	bool/*modified*/ Unode::refresh( Crc crc , Ddate date ) {
-		bool steady = (*this)->crc.match(crc) ;
-		Trace trace("refresh",*this,STR(steady),(*this)->crc,"->",crc,(*this)->date,"->",date) ;
-		if (steady) {                               (*this)->date = date ;                                } // regulars and links cannot have the same crc
-		else        { (*this)->crc = {} ; fence() ; (*this)->date = date ; fence() ; (*this)->crc = crc ; } // ensure crc is never associated with a wrong date
+	bool/*modified*/ NodeData::refresh( Crc crc_ , Ddate date_ ) {
+		bool steady = crc.match(crc_) ;
+		Trace trace("refresh",idx(),STR(steady),crc,"->",crc_,date,"->",date_) ;
+		if (steady) {                      date = date_ ;                        } // regulars and links cannot have the same crc
+		else        { crc = {} ; fence() ; date = date_ ; fence() ; crc = crc_ ; } // ensure crc is never associated with a wrong date
 		//
-		if ((*this)->unlinked) trace("!unlinked") ;
-		(*this)->unlinked = false ;                                            // dont care whether file exists, it have been generated according to its job
+		if (unlinked) trace("!unlinked") ;
+		unlinked = false ;                                            // dont care whether file exists, it have been generated according to its job
 		return !steady ;
 	}
 
-	//
-	// NodeData
-	//
-
-	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
-		/**/                             os << '(' << nd.crc           ;
-		/**/                             os << ',' << nd.date          ;
-		/**/                             os << ','                     ;
-		if (!nd.match_ok()             ) os << '~'                     ;
-		/**/                             os << "job:"                  ;
-		/**/                             os << +Job(nd.actual_job_tgt) ;
-		if (nd.actual_job_tgt.is_sure()) os << '+'                     ;
-		return                           os << ")"                     ;
+	static inline ::pair<Bool3,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileInfoDate const& fid ) {
+		Bool3 m = nd.manual(fid) ;
+		if (m!=Yes         ) return {m,false/*refreshed*/} ;                   // file was not modified
+		if (nd.crc==Crc::None) return {m,false/*refreshed*/} ;                 // file appeared, it cannot be steady
+		//
+		::string nm  = nd.name()                 ;
+		Crc      crc { nm , g_config.hash_algo } ;
+		if (!nd.crc.match(Crc(nm,g_config.hash_algo))) return {Yes,false/*refreshed*/} ; // real modif
+		//
+		nd.date = file_date(nm) ;
+		return {No,true/*refreshed*/} ;                                        // file is steady
+	}
+	Bool3 NodeData::manual_refresh( Req req , FileInfoDate const& fid ) {
+		auto [m,refreshed] = _manual_refresh(*this,fid) ;
+		if (refreshed) req->audit_node(Color::Note,"manual_steady",idx()) ;
+		return m ;
+	}
+	Bool3 NodeData::manual_refresh( JobData const& j , FileInfoDate const& fid ) {
+		auto [m,refreshed] = _manual_refresh(*this,fid) ;
+		if (refreshed) for( Req r : j.reqs() ) r->audit_node(Color::Note,"manual_steady",idx()) ;
+		return m ;
 	}
 
 	//

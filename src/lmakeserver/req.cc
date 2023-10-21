@@ -77,9 +77,9 @@ namespace Engine {
 		Trace trace("make",*this,(*this)->job->deps) ;
 		//
 		Job job = (*this)->job ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		job.make(job.req_info(*this),RunAction::Status) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		job->make(job->req_info(*this),RunAction::Status) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		chk_end() ;
 	}
 
@@ -118,20 +118,20 @@ namespace Engine {
 			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ;    // adjust req ete's that are computed after this exec_time, accounting for parallel execution
 			_adjust_eta() ;
 	}
-	void Req::new_exec_time( Job job , bool remove_old , bool add_new , Delay old_exec_time ) {
-		SWEAR( !job->rule->is_special() , job->rule->special ) ;
+	void Req::new_exec_time( JobData const& job , bool remove_old , bool add_new , Delay old_exec_time ) {
+		SWEAR( !job.rule->is_special() , job.rule->special ) ;
 		if ( !remove_old && !add_new ) return ;                                // nothing to do
 		Delay delta ;
-		Rule  rule  = job->rule ;
+		Rule  rule  = job.rule ;
 		if (remove_old) {                                                      // use old info
 			if (+old_exec_time) { delta -= old_exec_time   ;                                                                         }
 			else                { delta -= rule->exec_time ; SWEAR((*this)->ete_n_rules[rule]>0) ; (*this)->ete_n_rules[rule] -= 1 ; }
 		}
 		if (add_new) {                                                         // use new info
-			if (+job->exec_time) { delta += job ->exec_time ;                                   }
-			else                 { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
+			if (+job.exec_time) { delta += job.exec_time ;                                     }
+			else                { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
 		}
-		(*this)->ete += delta * (job->tokens1+1) / rule->n_tokens ;            // account for parallel execution when computing ete
+		(*this)->ete += delta * (job.tokens1+1) / rule->n_tokens ;             // account for parallel execution when computing ete
 		_adjust_eta() ;
 	}
 	void Req::_adjust_eta(bool push_self) {
@@ -159,8 +159,8 @@ namespace Engine {
 	}
 
 	void Req::_report_no_rule( Node node , DepDepth lvl ) {
-		::string                        name      = node.name()          ;
-		::vector<RuleTgt>               rrts      = node.raw_rule_tgts() ;
+		::string                        name      = node.name()           ;
+		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
 		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
 		RuleTgt                         art       ;                            // set if an anti-rule matches
 		RuleIdx                         n_missing = 0                    ;     // number of rules missing deps
@@ -231,14 +231,14 @@ namespace Engine {
 		::vector<Node> to_forget ;
 		for( Node d=node ; !seen.contains(d) ;) {
 			seen.insert(d) ;
-			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) )             // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
-				if (j.c_req_info(*this).done()) to_raise.insert(j->rule) ;
-			for( Job j : d.conform_job_tgts(d.c_req_info(*this)) ) {           // 2nd pass to find the loop
-				Job::ReqInfo const& cjri = j.c_req_info(*this) ;
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )           // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
+				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {         // 2nd pass to find the loop
+				Job::ReqInfo const& cjri = j->c_req_info(*this) ;
 				if (cjri.done()) continue ;
 				if (cjri.speculative) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
-					if (dd.done(*this)) continue ;
+					if (dd->done(*this)) continue ;
 					d = dd ;
 					goto Next ;
 				}
@@ -271,17 +271,17 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri = dep.c_req_info(*this) ;
+		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
 		if (!dep->makable()) {
-			if      (dep.err(cri)               ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
+			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
 			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
 		} else if (dep->multi) {
 			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
 		}
-		for( Job job : dep.conform_job_tgts(cri) ) {
+		for( Job job : dep->conform_job_tgts(cri) ) {
 			if (seen_jobs.contains(job)) return false ;
 			seen_jobs.insert(job) ;
-			Job::ReqInfo const& jri = job.c_req_info(*this) ;
+			Job::ReqInfo const& jri = job->c_req_info(*this) ;
 			if (!jri.done()) return false ;
 			if (!job->err()) return false ;
 			bool intermediate = job->run_status==RunStatus::DepErr ;
@@ -292,7 +292,7 @@ namespace Engine {
 				try {
 					// show first stderr
 					Rule::SimpleMatch match          ;
-					IFStream          job_stream     { job.ancillary_file() }                                       ;
+					IFStream          job_stream     { job->ancillary_file() }                                      ;
 					auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
 					auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
 					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
@@ -311,9 +311,9 @@ namespace Engine {
 	}
 	void Req::chk_end() {
 		if ((*this)->n_running()) return ;
-		Job::ReqInfo const& cri     = (*this)->job.c_req_info(*this) ;
-		Job                 job     = (*this)->job                   ;
-		bool                job_err = job->status!=Status::Ok        ;
+		Job::ReqInfo const& cri     = (*this)->job->c_req_info(*this) ;
+		Job                 job     = (*this)->job                    ;
+		bool                job_err = job->status!=Status::Ok         ;
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
 		(*this)->audit_stats() ;
 		if (!(*this)->zombie) {
@@ -342,9 +342,9 @@ namespace Engine {
 				::uset<Job > seen_jobs   ;
 				::uset<Node> seen_nodes  ;
 				for( Dep const& d : job->deps ) {
-					if      (!d.done(*this)) _report_cycle  ( d                                                ) ;
-					else if (d->makable()  ) _report_err    ( d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
-					else                     _report_no_rule( d                                                ) ;
+					if      (!d->done(*this)) _report_cycle  ( d                                                ) ;
+					else if (d->makable()   ) _report_err    ( d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
+					else                      _report_no_rule( d                                                ) ;
 				}
 			}
 		}

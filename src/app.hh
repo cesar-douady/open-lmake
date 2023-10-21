@@ -49,6 +49,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 
 template<StdEnum Key,StdEnum Flag> struct CmdLine {
 	// cxtors & casts
+	CmdLine() = default ;
 	template<bool OAW> CmdLine( Syntax<Key,Flag,OAW> const& , int argc , const char* const* argv ) ;
 	// services
 	::vector_s files() const {
@@ -137,7 +138,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					SWEAR(f!=Flag::Unknown) ;
-					if (!syntax.flags[+f].short_name) {
+					if (syntax.flags[+f].short_name) {
 						if (syntax.flags[+f].has_arg) { if (*p!='=') throw to_string("no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
 						else                          { if (*p     ) throw to_string("unexpected value for option --",option) ;                       }
 						flags |= f ;

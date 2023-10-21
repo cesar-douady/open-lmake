@@ -43,7 +43,6 @@ static constexpr uint8_t NCrcGuardBits = 8 ;
 // maximum number of rule generation before a Job/Node clean up is necessary
 // minimum is 2 : we need a value for bad and ok
 // Node's store a generation, so this must not be too high
-// also, there are 2 shared Node's for each generation
 static constexpr size_t NMatchGen = 255 ;
 static_assert(NMatchGen>=2) ;
 

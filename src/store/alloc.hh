@@ -122,6 +122,13 @@ namespace Store {
 		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data ; }
 		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data ; }
 		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data ; }
+		//
+		Idx idx(DataNv const& at) const requires(HasData) {
+			// the fancy following expr does a very simple thing : it transforms at into the corresponding ref for our Base
+			uintptr_t DataOffset = reinterpret_cast<uintptr_t>(&reinterpret_cast<Base::Data*>(4096)->data) - 4096 ;                      // cannot use 0 as gcc refuses to "dereference" null
+			typename Base::Data const& base_at = *reinterpret_cast<Base::Data const*>( reinterpret_cast<uintptr_t>(&at) - DataOffset ) ;
+			return Base::idx(base_at) ;
+		}
 	private :
 		Idx const& _free(uint8_t bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
 		Idx      & _free(uint8_t bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
