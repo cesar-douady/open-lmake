@@ -133,7 +133,7 @@ HAS_SLURM              := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1
 PYTHON_LD_LIBRARY_PATH := $(shell awk '$$2=="PYTHON_LD_LIBRARY_PATH" { print substr($$3,2,length($$3)-2) }' sys_config.h)
 
 # Slurm
-SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lslurm -lresolv)
+SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lresolv)
 
 # Engine
 ENGINE_LIB := $(SRC)/lmakeserver
