@@ -13,7 +13,7 @@ native_version = (1,0)
 import sys     as _sys
 import os.path as _osp
 
-_reading_makefiles = getattr(_sys,'reading_makefiles',False)
+_lmake_read_makefiles = getattr(_sys,'lmake_read_makefiles',False)
 
 from clmake import *                                                           # if not in an lmake repo, root_dir is not set to current dir
 
@@ -38,7 +38,7 @@ class pdict(dict) :
 		try             : del self[attr]
 		except KeyError : raise AttributeError(attr)
 
-if _reading_makefiles :
+if _lmake_read_makefiles :
 	#
 	# read lmakefile
 	#

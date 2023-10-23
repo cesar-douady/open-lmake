@@ -317,9 +317,13 @@ namespace Engine {
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
 		(*this)->audit_stats() ;
 		if (!(*this)->zombie) {
-			SWEAR(!job->frozen()) ;                                            // what does it mean for job of a Req to be frozen ?
-			bool job_warning = !(*this)->frozens.empty() ;
-			(*this)->audit_info( job_err ? Color::Err : job_warning? Color::Warning : Color::Note ,
+			SWEAR(!job->frozen()) ;                                                         // what does it mean for job of a Req to be frozen ?
+			bool warning =
+				!(*this)->frozens    .empty()
+			||	!(*this)->no_triggers.empty()
+			||	!(*this)->clash_nodes.empty()
+			;
+			(*this)->audit_info( job_err ? Color::Err : warning ? Color::Warning : Color::Note ,
 				"+---------+\n"
 				"| SUMMARY |\n"
 				"+---------+\n"
@@ -330,11 +334,22 @@ namespace Engine {
 			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str() ) ) ;
 			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str() ) ) ;
 			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-(*this)->stats.start)    .short_str() ) ) ;
-			for( Job j : (*this)->frozens ) (*this)->audit_job( j->err()?Color::Err:Color::Warning , "frozen" , j ) ;
+			{	::vmap<Job,JobIdx> frozens = mk_vmap((*this)->frozens) ;
+				::sort( frozens , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+				size_t w = 0 ;
+				for( auto [j,_] : frozens ) w = ::max( w , j->rule->user_name().size() ) ;
+				for( auto [j,_] : frozens ) (*this)->audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->user_name()) , j ) ;
+			}
+			{	::vmap<Node,NodeIdx> no_triggers = mk_vmap((*this)->no_triggers) ;
+				::sort( no_triggers , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+				for( auto [n,_] : no_triggers ) (*this)->audit_node( Color::Warning , "no-trigger" , n ) ;
+			}
 			if (!(*this)->clash_nodes.empty()) {
-				(*this)->audit_info( Color::Warning , "These files have been written by several simultaneous jobs" ) ;
-				(*this)->audit_info( Color::Warning , "Re-executing all lmake commands that were running in parallel is strongly recommanded" ) ;
-				for( Node n : (*this)->clash_nodes ) (*this)->audit_node(Color::Warning,{},n,1) ;
+				::vmap<Node,NodeIdx> clash_nodes = mk_vmap((*this)->clash_nodes) ;
+				::sort( clash_nodes , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+				(*this)->audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover" ) ;
+				(*this)->audit_info( Color::Warning , "Re-executing all lmake commands that were running in parallel is strongly recommanded"               ) ;
+				for( auto [n,_] : clash_nodes ) (*this)->audit_node(Color::Warning,{},n,1) ;
 			}
 			if (job_err) {
 				size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;

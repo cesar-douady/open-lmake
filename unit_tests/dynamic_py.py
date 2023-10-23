@@ -5,7 +5,7 @@
 
 import sys
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 
@@ -42,7 +42,7 @@ else :
 	import ut
 
 	print('1',file=open('ref','w'))
-	ut.lmake( 'chk' , done=3 , may_rerun=1 , new=1 )
+	ut.lmake( 'chk' , done=3 , may_rerun=1 , new=2 )                           # Python reads Lmakefile.py to display backtrace
 	ut.lmake( 'chk' , done=0                       )
 
 	time.sleep(1)                                                              # Python .pyc validation is only sensitive to seconds ! so to ensure .py are seen as different, we must wait 1s.

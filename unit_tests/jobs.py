@@ -7,7 +7,7 @@ import sys
 
 n_jobs = 4
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import os
 
@@ -41,6 +41,6 @@ else :
 
 	n = n_jobs*2+10
 	print(1,file=open('trig','w'))
-	ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , may_rerun=1 , done=n , steady=1 , new=1 )
+	ut.lmake( '-j' , str(n_jobs) , f'out_{n}' , new=1 , may_rerun=1 , done=n , steady=1 )
 	print(2,file=open('trig','w'))
-	ut.lmake(                      f'out_{n}' , failed=... , steady=... , changed=1 , rc=1 )
+	ut.lmake(                      f'out_{n}' , new=1 , failed=... , steady=... , changed=1 , rc=1 ) # python reads Lmakefile.py to display backtrace

@@ -14,7 +14,7 @@ if lmake.has_ptrace     : autodeps.append('ptrace'    )
 if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
 if lmake.has_ld_preload : autodeps.append('ld_preload')
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import step
 
@@ -68,6 +68,9 @@ else :
 
 	n_ads = len(autodeps)
 
+	print(f"p=0\nlink_support='none'",file=open('step.py','w'))
+	ut.lmake( 'Lmakefile.py' , new=1 )                                         # prevent new Lmakefile.py in case of error as python reads it to display backtrace
+	#
 	for ls in ('none','file','full') :
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))

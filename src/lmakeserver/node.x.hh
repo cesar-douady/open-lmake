@@ -448,8 +448,7 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date() const {
-		if ( !is_date && crc().match((*this)->crc,accesses) ) return true         ;
-		else                                                  return no_trigger() ;
+		return !is_date && crc().match((*this)->crc,accesses) ;
 	}
 
 	inline void Dep::acquire_crc() {

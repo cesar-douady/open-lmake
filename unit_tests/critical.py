@@ -7,7 +7,7 @@ import sys
 
 n_good = 2
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 	from step import step

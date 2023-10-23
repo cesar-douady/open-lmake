@@ -5,7 +5,7 @@
 
 import sys
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	from step import step
 

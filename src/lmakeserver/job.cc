@@ -422,7 +422,7 @@ namespace Engine {
 						continue ;
 					Clash :                                                // one of the targets is done, this is the annoying case
 						trace("critical_clash") ;
-						r->clash_nodes.insert(target) ;
+						r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 					}
 				}
 			}
@@ -810,6 +810,10 @@ namespace Engine {
 							{	SWEAR(dep->done(*cdri)) ;                      // after having called make, dep must be either waiting or done
 								dep.acquire_crc() ;                            // 2nd chance : after make is called as if dep is steady (typically a source), crc may have been computed
 								bool is_modif = !dep.up_to_date() ;
+								if ( is_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
+									req->no_triggers.emplace(dep,req->no_triggers.size()) ; // record to repeat in summary, value is just to order summary in discovery order
+									is_modif = false ;
+								}
 								if ( is_modif                          ) dep_state = State::DanglingModif ; // if not overridden by an error
 								if ( !is_static && state>=State::Modif ) goto Continue ;                    // if not static, maybe all the following errors will be washed by previous modif
 								//
@@ -1028,11 +1032,11 @@ namespace Engine {
 		Special special = rule->special ;
 		bool    frozen_ = frozen()      ;
 		//
-		if (frozen_) req->frozens.push_back(idx()) ;
+		if (frozen_) req->frozens.emplace(idx(),req->frozens.size()) ;         // record to repeat in summary, value is only for ordering summary in discovery order
 		//
 		switch (special) {
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                              // only case where we are here without special rule
+				SWEAR(frozen_) ;                                               // only case where we are here without special rule
 				Rule::SimpleMatch match          { idx() }                ;    // match lifetime must be at least as long as static_targets lifetime
 				::vector_view_c_s static_targets = match.static_targets() ;
 				SpecialStep       special_step   = SpecialStep::Idle      ;

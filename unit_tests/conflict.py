@@ -5,7 +5,7 @@
 
 import sys
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 
@@ -46,5 +46,5 @@ else :
 
 	import ut
 
-	ut.lmake( 'res1' , done=3 , may_rerun=1 , steady=1 )
-	ut.lmake( 'res2' , done=3 , may_rerun=1 )
+	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 )               # python reads Lmakefile.py in case of error to display backtrace
+	ut.lmake( 'res2' ,         done=3 , may_rerun=1            )

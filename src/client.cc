@@ -35,13 +35,15 @@ static void connect_to_server(bool refresh) {
 			if (!::getline(server_mrkr_stream,server_service)) goto LaunchServer ;
 			if (!::getline(server_mrkr_stream,pid_str       )) goto LaunchServer ;
 			server_pid = atol(pid_str.c_str()) ;
-			ClientSockFd req_fd{server_service} ;
-			if (!req_fd                                      ) goto LaunchServer ;
+			ClientSockFd req_fd ;
+			try {
+				ClientSockFd req_fd{server_service} ;
+				if (server_ok(req_fd,"old")) {
+					g_server_fds = ::move(req_fd) ;
+					return ;
+				}
+			} catch(::string const&) {}
 			//
-			if (server_ok(req_fd,"old")) {
-				g_server_fds = ::move(req_fd) ;
-				return ;
-			}
 		}
 	LaunchServer :
 		trace("try_new",i) ;

@@ -264,8 +264,10 @@ namespace Engine {
 							} break ;
 							case ReqKey::ExecScript : {
 								if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
-								bool dbg       = ro.flags[ReqFlag::Debug] ;
-								bool is_python = rule->cmd.spec.is_python ;
+								bool dbg        = ro.flags[ReqFlag::Debug]                      ;
+								bool redirected = !start.stdin.empty() || !start.stdout.empty() ;
+								bool is_python  = rule->cmd.spec.is_python                      ;
+								bool use_pdb    = dbg && is_python                              ;
 								//
 								::string abs_cwd = *g_root_dir ;
 								if (!start.cwd_s.empty()) {
@@ -308,22 +310,33 @@ namespace Engine {
 								// if tmp directory is viewed by job under another name, provide it as the script may work only with that name
 								::string const& tmp_dir = start.autodep_env.tmp_view.empty() ? start.autodep_env.tmp_dir : start.autodep_env.tmp_view ;
 								// add debug prelude if asked to do so
-								::string cmd = (dbg&&is_python?"from debug import *\n":"") + start.cmd ;
+								// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
+								::string cmd ;
+								if (use_pdb) {
+									/**/            cmd += "import sys\n"                                                                      ;
+									/**/            cmd += "sys.lmake_read_makefiles = True\nimport Lmakefile\ndel sys.lmake_read_makefiles\n" ;
+									if (redirected) cmd += "import os\nsys.dbg_console = ( os.fdopen(3,'r') , os.fdopen(4,'w') )\ndel os\n"    ;
+									/**/            cmd += "from debug import *\n"                                                             ;
+									if (redirected) cmd += "del sys.dbg_console\n"                                                             ;
+									/**/            cmd += "del sys\n"                                                                         ;
+								}
+								cmd += start.cmd ;
 								//
-								if (!seen_tmp_dir                          ) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
+								if ( !seen_tmp_dir                         ) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n" ) ;
 								for( ::string const& c : start.interpreter ) append_to_string( script , mk_shell_str(c) , ' '                                                 ) ;
-								if (dbg                                    ) append_to_string( script , is_python?"":"-x "                                                    ) ;
+								if ( dbg && !is_python                     ) append_to_string( script , "-x "                                                                 ) ;
 								/**/                                         append_to_string( script , "-c " , mk_shell_str(cmd)                                             ) ;
 								//
-								if      (dbg                  ) append_to_string(script," 3<&0 4>&1"                    ) ;
-								if      (!start.stdout.empty()) append_to_string(script," > ",mk_shell_str(start.stdout)) ;
-								if      (!start.stdin .empty()) append_to_string(script," < ",mk_shell_str(start.stdin )) ;
-								else                            append_to_string(script," < /dev/null"                  ) ;
+								if      (  use_pdb && redirected ) append_to_string(script," 3<&0 4>&1"                    ) ;
+								if      ( !start.stdout.empty()  ) append_to_string(script," > ",mk_shell_str(start.stdout)) ;
+								if      ( !start.stdin .empty()  ) append_to_string(script," < ",mk_shell_str(start.stdin )) ;
+								else if ( !use_pdb || redirected ) append_to_string(script," < /dev/null"                  ) ;
 								audit( fd , ro , Color::None , 0 , script ) ;
 								if (ro.flags[ReqFlag::ManualOk]) {
-									::vector<Node> targets ;
-									for( ::string const& tn : jt->simple_match().static_targets() ) { Node t{tn} ; if (t.manual_ok()) targets.push_back(t) ; }
-									for( Node t             : jt->star_targets                    ) {              if (t.manual_ok()) targets.push_back(t) ; }
+									::vector<Node>    targets ;
+									Rule::SimpleMatch match   = jt->simple_match() ;                                 // match holds static target names
+									for( ::string const& tn : match.static_targets() ) targets.push_back(Node(tn)) ;
+									for( Node t             : jt->star_targets       ) targets.push_back(     t  ) ;
 									Node::s_manual_oks(true/*add*/,targets) ;
 								}
 							} break ;

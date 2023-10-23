@@ -7,7 +7,7 @@ import os
 import sys
 import time
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 

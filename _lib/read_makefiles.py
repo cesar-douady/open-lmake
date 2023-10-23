@@ -3,23 +3,25 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os
 import os.path as osp
 import sys
 import re
 
-lmake_s_dir = osp.dirname(osp.dirname(__file__))
+lmake_dir = osp.dirname(osp.dirname(__file__))
+root_dir  = os.getcwd()
 
 sys.implementation.cache_tag = None
 sys.dont_write_bytecode      = True
 save_path                    = list(sys.path)
-sys.path                     = [lmake_s_dir+'/_lib',lmake_s_dir+'/lib',*save_path]
+sys.path                     = [lmake_dir+'/_lib',lmake_dir+'/lib',*save_path]
 
-sys.reading_makefiles        = True                                            # signal we are reading makefiles to define the proper primitives
+sys.lmake_read_makefiles     = True                                            # signal we are reading makefiles to define the proper primitives
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict
 
-sys.path = [lmake_s_dir+'/lib','.',*save_path]
+sys.path = [lmake_dir+'/lib','.',*save_path]
 import Lmakefile
 
 sys.path = save_path                                                           # restore sys.path in case user played with it
@@ -462,9 +464,11 @@ class Handle :
 				cmd = cmd_lst
 			cmd , cmd_ctx = serialize.get_src(
 				*cmd
-			,	ctx        = serialize_ctx
-			,	no_imports = self.no_imports
-			,	force      = True
+			,	ctx           = serialize_ctx
+			,	no_imports    = self.no_imports
+			,	force         = True
+			,	with_dbg_info = True
+			,	root_dir      = root_dir
 			)
 			if multi :
 				x = 'x'                                                        # find a non-conflicting name

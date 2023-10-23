@@ -9,7 +9,7 @@ import time
 
 import lmake
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	lmake.sources = (
 		'Lmakefile.py'

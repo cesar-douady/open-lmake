@@ -215,7 +215,7 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	mkdir -p $(@D)
 	cp $<    $@
 	echo "_git = '$(GIT)'" >>$@
-	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "if _reading_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
+	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "if _lmake_read_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
 # for other files, just copy
 $(LIB)/% : $(SLIB)/%
 	mkdir -p $(@D)
@@ -635,7 +635,8 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	mkdir -p $(@D)
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; rm $@ ; exit 1 )
+	cat $@.err
 
 #
 # lmake env

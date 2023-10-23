@@ -14,15 +14,17 @@ int main( int argc , char* argv[] ) {
 
 	ReqSyntax syntax{{},{}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
-	cmd_line.key   = ReqKey::ExecScript ;
-	cmd_line.flags = ReqFlag::Debug     ;
 
 	if (cmd_line.args.size()<1) syntax.usage(          "need a target to debug"                                ) ;
 	if (cmd_line.args.size()>1) syntax.usage(to_string("cannot debug ",cmd_line.args.size()," targets at once")) ;
+	ReqCmdLine lshow_cmd_line ;
+	lshow_cmd_line.key   = ReqKey::ExecScript                     ;
+	lshow_cmd_line.flags = { ReqFlag::Debug , ReqFlag::ManualOk } ;
+	lshow_cmd_line.args  = cmd_line.args                          ;
 	::ostringstream dbg_script ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( dbg_script ,ReqProc::Show , false/*refresh_makefiles*/ , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( dbg_script , ReqProc::Show , false/*refresh_makefiles*/ , lshow_cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( int rc=mk_rc(ok) ) {
 		::cout << dbg_script.str() ;
 		return rc ;

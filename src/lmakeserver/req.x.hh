@@ -316,9 +316,10 @@ namespace Engine {
 		ReqOptions           options        ;
 		Ddate                start          ;
 		Delay                ete            ;              // Estimated Time Enroute
-		::umap<Rule,JobIdx>  ete_n_rules    ;              // number of jobs participating to stats.ete with exec_time from rule
-		::vector<Job>        frozens        ;              // frozen jobs to report in summary
-		::uset<Node>         clash_nodes    ;              // nodes that have been written by simultaneous jobs
+		::umap<Rule,JobIdx > ete_n_rules    ;              // number of jobs participating to stats.ete with exec_time from rule
+		::umap<Job ,JobIdx > frozens        ;              // frozen     jobs  to report in summary             (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx> no_triggers    ;              // no-trigger nodes to report in summary             (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx> clash_nodes    ;              // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

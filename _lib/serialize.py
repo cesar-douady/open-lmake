@@ -6,6 +6,7 @@
 import builtins
 import dis
 import inspect
+import os.path as osp
 import pickle
 import re
 import sys
@@ -17,18 +18,21 @@ __all__ = ('get_src','get_code_ctx')                                           #
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 
-def get_src(*args,no_imports=(),ctx=(),force=False) :
+_Code = (lambda:None).__code__.__class__
+
+def get_src(*args,no_imports=(),ctx=(),force=False,with_dbg_info=False,root_dir=None) :
 	'''
 		get a source text that reproduce args :
 		- args must be composed of named objects such as functions or classes or dicts mapping names to values.
 		- no_imports is a list of modules or module names that must not be imported in the resulting source.
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
+		- if root_dir is provided, source filename info are reported relative to this directory
 		The return value is (source,names) where :
 			- source is the source text that reproduces args
 			- names is the set of names found in sets in ctx
 	'''
-	s = Serialize(no_imports,ctx)
+	s = Serialize(no_imports,ctx,with_dbg_info,root_dir)
 	for a in args :
 		if isinstance(a,dict) :
 			for k,v in a.items() : s.val_src(k,v,force)
@@ -111,11 +115,13 @@ def _analyze(filename) :
 
 class Serialize :
 	InSet = object()                                                           # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	def __init__(self,no_imports,ctx) :
-		self.seen    = {}
-		self.src_lst = []
-		self.in_sets = set()
-		self.ctx     = list(ctx)
+	def __init__(self,no_imports,ctx,with_dbg_info=False,root_dir=None) :
+		self.seen            = {}
+		self.src             = []
+		self.in_sets         = set()
+		self.ctx             = list(ctx)
+		self.with_dbg_info = with_dbg_info
+		self.root_dir        = root_dir
 		if isinstance(no_imports,str) : self.by_values =    {no_imports}
 		else                          : self.by_values = set(no_imports)
 
@@ -139,12 +145,12 @@ class Serialize :
 			else         : raise
 
 	def get_src(self) :
-		if len(self.src_lst) and len(self.src_lst[-1]) : self.src_lst.append('') # ensure there is \n at the end
-		return '\n'.join(self.src_lst) , {k for k,v in self.seen.items() if v is self.InSet}
+		if len(self.src) and len(self.src[-1]) : self.src.append('')                     # ensure there is \n at the end
+		return '\n'.join(self.src) , {k for k,v in self.seen.items() if v is self.InSet}
 
 	have_name = {
-		'LOAD_GLOBAL' , 'STORE_GLOBAL' , 'DELETE_GLOBAL'
-	,	'LOAD_NAME'   , 'STORE_NAME'   , 'DELETE_NAME'
+		'LOAD_GLOBAL','STORE_GLOBAL','DELETE_GLOBAL'
+	,	'LOAD_NAME'  ,'STORE_NAME'  ,'DELETE_NAME'
 	}
 	@staticmethod
 	def get_glbs(code) :
@@ -173,30 +179,30 @@ class Serialize :
 				else                    : raise f'name conflict : {name} is both {val} and {self.seen[name]}'
 			self.seen[name] = val
 		if isinstance(val,types.ModuleType) :
-			if name==val.__name__ : self.src_lst.append(f'import {val.__name__}'          )
-			else                  : self.src_lst.append(f'import {val.__name__} as {name}')
+			if name==val.__name__ : self.src.append(f'import {val.__name__}'          )
+			else                  : self.src.append(f'import {val.__name__} as {name}')
 		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
 			if '.' in val.__qualname__ :
 				# use {name} to temporarily hold the module as it is guaranteed to be an available name
-				self.src_lst.append(f'import {val.__module__} as {name} ; {name} = {name}.{val.__qualname__}')
+				self.src.append(f'import {val.__module__} as {name} ; {name} = {name}.{val.__qualname__}')
 			else :
-				if name==val.__qualname__ : self.src_lst.append(f'from {val.__module__} import {val.__qualname__}'          )
-				else                      : self.src_lst.append(f'from {val.__module__} import {val.__qualname__} as {name}')
+				if name==val.__qualname__ : self.src.append(f'from {val.__module__} import {val.__qualname__}'          )
+				else                      : self.src.append(f'from {val.__module__} import {val.__qualname__} as {name}')
 		elif isinstance(val,types.FunctionType) :
 			self.func_src(name,val)
 		elif name :
-			self.src_lst.append(f'{name} = {self.expr_src(val,force=force)}')
+			self.src.append(f'{name} = {self.expr_src(val,force=force)}')
 
 	def expr_src(self,val,*,force=False,call_callables=False) :
 		if isinstance(val,types.ModuleType) :
-			self.src_lst.append(f'import {val.__name__}')
+			self.src.append(f'import {val.__name__}')
 			return val.__name__
 		sfx = ''
 		if call_callables and callable(val) :
 			inspect.signature(val).bind()                                                                                     # check val can be called with no argument
 			sfx = '()'                                                                                                        # call val if possible and required
 		if hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
-			self.src_lst.append(f'import {val.__module__}')
+			self.src.append(f'import {val.__module__}')
 			return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
 			self.func_src(val.__name__,val)
@@ -220,7 +226,7 @@ class Serialize :
 			# inconvenient is that the resulting source is everything but readable
 			# protocol 0 is the least unreadable, though, so use it
 			val_str = pickle.dumps(val,protocol=0).decode()
-			self.src_lst.append(f'import pickle')
+			self.src.append(f'import pickle')
 			return f'pickle.loads({val_str!r}.encode()){sfx}'
 		raise ValueError(f'dont know how to serialize {val}')
 
@@ -248,18 +254,46 @@ class Serialize :
 
 	def func_src(self,name,func) :
 		code     = func.__code__
-		filename = code.co_filename
+		module   = func.__module__
+		filename = osp.abspath(code.co_filename)
 		_analyze(filename)
 		file_src       = srcs      [filename]
 		file_end_lines = end_liness[filename]
-		first_line_no  = code.co_firstlineno-1
-		end_line_no    = file_end_lines.get(first_line_no)
-		if first_line_no!=0 and file_src[first_line_no-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
-		assert end_line_no,f'{filename}:{first_line_no+1} : cannot find def {name}'
+		first_line_no1 = code.co_firstlineno                                   # first line is 1
+		first_line_no0 = first_line_no1-1                                      # first line is 0
+		end_line_no    = file_end_lines.get(first_line_no0)
+		if first_line_no0>0 and file_src[first_line_no0-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
+		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
 		#
 		if func.__globals__ not in self.ctx : self.ctx.append(func.__globals__)
 		for glb_var in self.get_glbs(code) :
 			self.gather_ctx(glb_var)
 		#
-		self.src_lst.append( self.get_first_line( name , func , file_src[first_line_no] ) ) # first line
-		self.src_lst.extend( file_src[ first_line_no+1 : end_line_no ]                    ) # other lines
+		if self.root_dir      : filename = osp.relpath(filename,self.root_dir)
+		if True               : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] )                                            ) # first line
+		if True               : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                                                               ) # other lines
+		if self.with_dbg_info :
+			# appear in the original location
+			if hasattr(_Code,'replace') :
+				self.src.append( f'{name}.__code__ = {name}.__code__.replace(co_filename={filename!r},co_firstlineno={first_line_no1!r})' )
+			else :
+				self.src += [
+					f'{name}.__code__ = {name}.__code__.__class__('
+				,	f'\t{name}.__code__.co_argcount'
+				+	( f'\n,\t{name}.__code__.co_posonlyargcount' if hasattr(_Code,'co_posonlyargcount') else '' )
+				+	( f'\n,\t{name}.__code__.co_kwonlyargcount'  if hasattr(_Code,'co_kwonlyargcount' ) else '' )
+				,	f',\t{name}.__code__.co_nlocals'
+				,	f',\t{name}.__code__.co_stacksize'
+				,	f',\t{name}.__code__.co_flags'
+				,	f',\t{name}.__code__.co_code'
+				,	f',\t{name}.__code__.co_consts'
+				,	f',\t{name}.__code__.co_names'
+				,	f',\t{name}.__code__.co_varnames'
+				,	f',\t{filename!r}'                                          # co_filename
+				,	f',\t{name}.__code__.co_name'
+				,	f',\t{first_line_no1!r}'                                    # co_firstlineno
+				,	f',\t{name}.__code__.co_linetable' if hasattr(_Code,'co_linetable') else f',\t{name}.__code__.co_lnotab'
+				,	f',\t{name}.__code__.co_freevars'
+				,	f',\t{name}.__code__.co_cellvars'
+				,	f')'
+				]

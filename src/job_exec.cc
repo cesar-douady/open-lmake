@@ -40,13 +40,21 @@ int main( int argc , char* argv[] ) {
 	GatherDeps  gather_deps { New                                                                    } ;
 	JobRpcReq   req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
 	JobRpcReply start_info  ;
-	try {
-		ClientSockFd fd{service} ;
-		//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		/**/         OMsgBuf().send                ( fd , req_info ) ;
-		start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ;
-		//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch(::string const& e) { exit(2,e) ; }                                 // if server is dead, give up
+	for( int i=3 ; i>0 ; i-- )                                      // insist as server may be quite busy // XXX : find a better way to extend timeout
+		try {
+			ClientSockFd fd{service} ;
+			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try { /**/         OMsgBuf().send                ( fd , req_info ) ; } catch(::string const& e) { exit(2,e) ; } // once connection is established, everything should be smooth
+			try { start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const& e) { exit(3,e) ; } // .
+			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			break ;
+		} catch (::string const& e) { if (i==1) exit(4,e) ; }
+
+	switch (start_info.proc) {
+		case JobProc::None  : return 0 ;                                       // server ask us to give up
+		case JobProc::Start : break    ;                                       // normal case
+		default : FAIL(start_info.proc) ;
+	}
 
 	if (::chdir(start_info.autodep_env.root_dir.c_str())!=0) {
 		JobRpcReq end_report = JobRpcReq(
@@ -58,7 +66,7 @@ int main( int argc , char* argv[] ) {
 		) ;
 		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
 		catch (...) {                                                        } // if server is dead, we cant do much about it
-		exit(3,end_report.digest.stderr) ;
+		exit(5,end_report.digest.stderr) ;
 	}
 	//
 	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;

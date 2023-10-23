@@ -8,7 +8,7 @@ import sys
 try    : import numba
 except : numba = None
 
-if getattr(sys,'reading_makefiles',False) :
+if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 

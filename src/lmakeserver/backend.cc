@@ -254,6 +254,10 @@ namespace Backends {
 						cmd               = rule->cmd              .eval(match,rsrcs) ; cmd_passed        = true ;
 						start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs) ;
 					} catch (::string const& e) {
+						reply.proc = JobProc::None ;                           // instruct job_exec to give up
+						//vvvvvvvvvvvvvvvvvvvvvv
+						OMsgBuf().send(fd,reply) ;
+						//^^^^^^^^^^^^^^^^^^^^^^
 						_s_small_ids.release(entry.conn.small_id) ;
 						trace("erase_start_tab",job,it->second,STR(cmd_attrs_passed),STR(cmd_passed),e) ;
 						Tag       tag   = entry.tag           ;

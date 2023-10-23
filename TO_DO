@@ -103,14 +103,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 ldebug
-	- set manual_ok on targets
-	- reset manual_ok upon normal execution
-*1 provide the possibility to prevent rebuild from a given file
-	- set no_trigger on targets
-	- useful to work on deep files such as utils to add a feature
-	- just check before push
-	- work as a resource : rebuild if dependent is in error
 * provide the possibility to play dynamically with resources in config
 	- split config / rules / sources
 	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
