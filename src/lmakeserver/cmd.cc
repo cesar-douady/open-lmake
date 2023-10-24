@@ -51,7 +51,7 @@ namespace Engine {
 					for( Job j : markeds ) if (j->rule->is_src()) Node(j.name())->mk_no_src() ;
 					Job::s_clear_frozens() ;
 				}
-				for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.user_name() ) ;
+				for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.name() ) ;
 			} break ;
 			case ReqKey::Add    :
 			case ReqKey::Delete : {
@@ -85,7 +85,7 @@ namespace Engine {
 				}
 				if (!to_do_job.empty()) {
 					Job::s_frozens(add,to_do_job) ;
-					for( Job j : to_do_job ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.user_name() ) ;
+					for( Job j : to_do_job ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->user_name()) , j.name() ) ;
 				}
 				if (!add) for( Node t : to_do_node )
 					t->mk_no_src() ;
@@ -176,7 +176,7 @@ namespace Engine {
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job->frozen()          ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		audit( fd , ro , color , lvl , rule->user_name() , job.user_name() ) ;
+		audit( fd , ro , color , lvl , rule->user_name() , job.name() ) ;
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;

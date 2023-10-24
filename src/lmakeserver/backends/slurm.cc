@@ -648,7 +648,7 @@ namespace Backends::Slurm {
 			uint32_t  n_comp   = rsrcs.size(); SWEAR(n_comp>0) ;
 			static char*env[1] = {const_cast<char *>("")};
 			::string  wd       = *g_root_dir;
-			auto      job_name = *(--::filesystem::path(wd).end()) / Job(job).user_name(); // ="repoDir/target"
+			auto      job_name = *(--::filesystem::path(wd).end()) / Job(job).name(); // ="repoDir/target"
 			::string  script   = cmd_to_string(cmd_line);
 			::string  s_errPath;
 			::string  s_outPath;

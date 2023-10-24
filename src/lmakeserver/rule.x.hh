@@ -560,11 +560,10 @@ namespace Engine {
 		void _compute_targets() const ;
 		// services
 	public :
-		::pair_ss  name       () const ;
-		::string   user_name  () const ;
+		::pair_ss  full_name  () const ;
+		::string   name       () const { return full_name().first ; }
 		::vector_s target_dirs() const ;
 		// data
-	public :
 		Rule       rule  ;
 		::vector_s stems ;             // static stems only of course
 		// cache

@@ -635,7 +635,7 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	mkdir -p $(@D)
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; cat $@.err ; rm $@ ; exit 1 )
 	cat $@.err
 
 #

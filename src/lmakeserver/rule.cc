@@ -1220,7 +1220,7 @@ namespace Engine {
 	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule} {
 		::string name_ = job.full_name() ;
 		//
-		SWEAR( Rule(name_)==rule , name_ , rule->name ) ;                      // only name suffix is considered to make Rule
+		SWEAR( Rule(name_)==rule , mk_c_str(name_) , rule->name ) ;            // only name suffix is considered to make Rule
 		//
 		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
@@ -1264,32 +1264,26 @@ namespace Engine {
 		return mk_vector(dirs) ;
 	}
 
-	::pair_ss Rule::SimpleMatch::name() const {
-		::vector<FileNameIdx> poss ; poss.resize(rule->n_static_stems) ;
+	::pair_ss Rule::SimpleMatch::full_name() const {
+		::vector<FileNameIdx> poss(rule->n_static_stems) ;
 		::string name = _subst_target( rule->job_name ,
 			[&]( FileNameIdx p , VarIdx s ) -> ::string {
-				if (s<rule->n_static_stems) { poss[s] = p ; return stems[s]   ; }
-				else                        {               return {StarMrkr} ; }
+				if (s<rule->n_static_stems) {
+					poss[s] = p ;
+					return stems[s] ;
+				}
+				::string const& key = rule->stems[s].first ;
+				if ( key.front()=='<' && key.back()=='>' ) return "{*}"                   ;
+				else                                       return to_string('{',key,"*}") ;
 			}
 		) ;
 		::string sfx = rule.job_sfx() ;                                        // provides room for stems, but we have to fill it
-		size_t i = 1 ;                                                         // skip initial JobMrkr
+		size_t   i   = 1              ;                                        // skip initial JobMrkr
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
-			FileNameIdx p  = poss [s]        ;
-			FileNameIdx sz = stems[s].size() ;
-			encode_int( &sfx[i] , p  ) ; i+= sizeof(FileNameIdx) ;
-			encode_int( &sfx[i] , sz ) ; i+= sizeof(FileNameIdx) ;
+			encode_int<FileNameIdx>( &sfx[i] , poss [s]        ) ; i+= sizeof(FileNameIdx) ;
+			encode_int<FileNameIdx>( &sfx[i] , stems[s].size() ) ; i+= sizeof(FileNameIdx) ; // /!\ beware of selecting encode_int of the right size
 		}
 		return {name,sfx} ;
-	}
-
-	::string Rule::SimpleMatch::user_name() const {
-		return _subst_target( rule->job_name ,
-			[&](VarIdx s)->::string {
-				if (s<rule->n_static_stems) return stems[s] ;
-				else                        return {'*'}    ;
-			}
-		) ;
 	}
 
 	//

@@ -309,6 +309,7 @@ namespace Engine {
 		}
 		return false ;
 	}
+
 	void Req::chk_end() {
 		if ((*this)->n_running()) return ;
 		Job::ReqInfo const& cri     = (*this)->job->c_req_info(*this) ;
@@ -318,39 +319,7 @@ namespace Engine {
 		(*this)->audit_stats() ;
 		if (!(*this)->zombie) {
 			SWEAR(!job->frozen()) ;                                                         // what does it mean for job of a Req to be frozen ?
-			bool warning =
-				!(*this)->frozens    .empty()
-			||	!(*this)->no_triggers.empty()
-			||	!(*this)->clash_nodes.empty()
-			;
-			(*this)->audit_info( job_err ? Color::Err : warning ? Color::Warning : Color::Note ,
-				"+---------+\n"
-				"| SUMMARY |\n"
-				"+---------+\n"
-			) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  jobs : " , (*this)->stats.useful()                               ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "hit     jobs : " , (*this)->stats.ended(JobReport::Hit  )                ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   jobs : " , (*this)->stats.ended(JobReport::Rerun)                ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "useful  time : " , (*this)->stats.jobs_time[true /*useful*/].short_str() ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "rerun   time : " , (*this)->stats.jobs_time[false/*useful*/].short_str() ) ) ;
-			(*this)->audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-(*this)->stats.start)    .short_str() ) ) ;
-			{	::vmap<Job,JobIdx> frozens = mk_vmap((*this)->frozens) ;
-				::sort( frozens , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-				size_t w = 0 ;
-				for( auto [j,_] : frozens ) w = ::max( w , j->rule->user_name().size() ) ;
-				for( auto [j,_] : frozens ) (*this)->audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->user_name()) , j ) ;
-			}
-			{	::vmap<Node,NodeIdx> no_triggers = mk_vmap((*this)->no_triggers) ;
-				::sort( no_triggers , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-				for( auto [n,_] : no_triggers ) (*this)->audit_node( Color::Warning , "no-trigger" , n ) ;
-			}
-			if (!(*this)->clash_nodes.empty()) {
-				::vmap<Node,NodeIdx> clash_nodes = mk_vmap((*this)->clash_nodes) ;
-				::sort( clash_nodes , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-				(*this)->audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover" ) ;
-				(*this)->audit_info( Color::Warning , "Re-executing all lmake commands that were running in parallel is strongly recommanded"               ) ;
-				for( auto [n,_] : clash_nodes ) (*this)->audit_node(Color::Warning,{},n,1) ;
-			}
+			(*this)->audit_summary(job_err) ;
 			if (job_err) {
 				size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
 				bool         seen_stderr = false ;
@@ -380,6 +349,44 @@ namespace Engine {
 		*this = ReqData() ;
 	}
 
+	void ReqData::audit_summary(bool err) const {
+		bool warning =
+			!frozens    .empty()
+		||	!no_triggers.empty()
+		||	!clash_nodes.empty()
+		;
+		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
+			"+---------+\n"
+			"| SUMMARY |\n"
+			"+---------+\n"
+		) ;
+		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )               ) ) ;
+		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)               ) ) ;
+		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )               ) ) ;
+		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )               ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str() ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str() ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
+		{	::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
+			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			size_t w = 0 ;
+			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->user_name().size() ) ;
+			for( auto [j,_] : frozens_ ) audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->user_name()) , j ) ;
+		}
+		{	::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
+			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no-trigger" , n ) ;
+		}
+		if (!clash_nodes.empty()) {
+			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
+			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover" ) ;
+			audit_info( Color::Warning , "Re-executing all lmake commands that were running in parallel is strongly recommanded"               ) ;
+			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
+		}
+	}
+
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , ::string const& host , Delay exec_time ) const {
 		::OStringStream msg ;
 		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
@@ -388,6 +395,42 @@ namespace Engine {
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
 		audit( audit_fd , trace_stream , options , c , 0 , msg.str() , job_name ) ;
+	}
+
+	void ReqData::audit_status(bool ok) const {
+		try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
+		catch (::string const&) {                                                } // if client has disappeared, well, we cannot do much
+		trace_stream << "status : " << (ok?"ok":"failed") << '\n' ;
+	}
+
+	bool/*seen*/ ReqData::audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
+		for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n , lvl ) ;
+		if (stderr.empty()) return !analysis_err.empty() ;
+		if (max_stderr_lines!=size_t(-1)) {
+			::string_view shorten = first_lines(stderr,max_stderr_lines) ;
+			if (shorten.size()<stderr.size()) {
+				audit_info( Color::None , ::string(shorten) , lvl ) ;
+				audit_info( Color::Note , "..."             , lvl ) ;
+				return true ;
+			}
+		}
+		audit_info( Color::None , stderr , lvl ) ;
+		return true ;
+	}
+
+	void ReqData::audit_stats() const {
+		try {
+			OMsgBuf().send( audit_fd , ReqRpcReply( title(
+				options
+			,	stats.ended(JobReport::Failed)==0 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
+			,	                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
+			,	g_config.caches.empty()           ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
+			,	                                                    " rerun:"   , stats.ended(JobReport::Rerun )
+			,	                                                    " running:" , stats.cur  (JobLvl::Exec     )
+			,	                                                    " queued:"  , stats.cur  (JobLvl::Queued   )
+			,	                                                    " waiting:" , stats.cur  (JobLvl::Dep      )
+			) ) ) ;
+		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 	}
 
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , size_t& n_err , DepDepth lvl ) {

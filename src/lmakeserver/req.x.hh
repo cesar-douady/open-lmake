@@ -256,6 +256,8 @@ namespace Engine {
 		bool   is_open  () const { return idx_by_start!=Idx(-1)                             ; }
 		JobIdx n_running() const { return stats.cur(JobLvl::Queued)+stats.cur(JobLvl::Exec) ; }
 		// services
+		void audit_summary(bool err) const ;
+		//
 		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
 		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }
 		//
@@ -267,38 +269,9 @@ namespace Engine {
 		void audit_job( Color c , ::string const& s , Job j                       , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
 		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je    ,et) ; }
 		//
-		void audit_status(bool ok) const {
-			try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
-			catch (::string const&) {                                                } // if client has disappeared, well, we cannot do much
-			trace_stream << "status : " << (ok?"ok":"failed") << '\n' ;
-		}
-		void audit_stats() const {
-			try {
-				OMsgBuf().send( audit_fd , ReqRpcReply( title(
-					options
-				,	                                          "useful:"   , stats.useful()
-				,	g_config.caches.empty() ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit  ))
-				,	                                          " rerun:"   , stats.ended(JobReport::Rerun)
-				,	                                          " running:" , stats.cur  (JobLvl::Exec    )
-				,	                                          " queued:"  , stats.cur  (JobLvl::Queued  )
-				,	                                          " waiting:" , stats.cur  (JobLvl::Dep     )
-				) ) ) ;
-			} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
-		}
-		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
-			for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n , lvl ) ;
-			if (stderr.empty()) return !analysis_err.empty() ;
-			if (max_stderr_lines!=size_t(-1)) {
-				::string_view shorten = first_lines(stderr,max_stderr_lines) ;
-				if (shorten.size()<stderr.size()) {
-					audit_info( Color::None , ::string(shorten) , lvl ) ;
-					audit_info( Color::Note , "..."             , lvl ) ;
-					return true ;
-				}
-			}
-			audit_info( Color::None , stderr , lvl ) ;
-			return true ;
-		}
+		void         audit_status( bool ok                                                                                                ) const ;
+		void         audit_stats (                                                                                                        ) const ;
+		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
 	private :
 		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , size_t& n_err , DepDepth lvl ) ;
 		// data
@@ -346,8 +319,8 @@ namespace Engine {
 	// ReqData
 	//
 
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h , Delay et ) const { audit_job( c , d , s , j->rule , j.user_name() , h       , et ) ; }
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je         , Delay et ) const { audit_job( c , d , s , je                      , je.host , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h , Delay et ) const { audit_job( c , d , s , j->rule , j.name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je         , Delay et ) const { audit_job( c , d , s , je                 , je.host , et ) ; }
 
 }
 #endif

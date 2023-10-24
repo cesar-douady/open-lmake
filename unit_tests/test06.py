@@ -11,28 +11,33 @@ if getattr(sys,'lmake_read_makefiles',False) :
 
 	lmake.sources = (
 		'Lmakefile.py'
-	,	'hello'
-	,	'world'
-	,	'hello.cpy+world.ref'
+	,	'src1'
+	,	'src2'
+	,	'src1+src2.ref'
 	)
 
+	def balanced(n) :
+		if not n : return '[^{}]*'
+		p = balanced(n-1)
+		return f'{p}({{{p}}}{p})*'
 	class BaseRule(lmake.Rule) :
-		stems = { 'File' : r'.*' }
-		stems['File1'] = stems['File']
-		stems['File2'] = stems['File']
+		stems = {
+			'File'    : r'.*'
+		,	'SubExpr' : balanced(0)
+		,	'Expr'    : balanced(1)
+		,	'Digit'   : r'\d'
+		}
+		stems['Expr1'] = stems['Expr']
+		stems['Expr2'] = stems['Expr']
+		shell = lmake.Rule.shell + ('-e',)
 
 	class Cat(BaseRule) :
-		target = '{File1}+{File2}'
+		target = '{Expr1}+{Expr2}'
 		deps = {
-			'FIRST'  : '{File1}'
-		,	'SECOND' : '{File2}'
+			'FIRST'  : '{Expr1}'
+		,	'SECOND' : '{Expr2}'
 		}
 		cmd = 'cat {FIRST} {SECOND}'
-
-	class Cpy(BaseRule) :
-		target = '{File:.*}.cpy'
-		dep    = '{File}'
-		cmd = 'cat'
 
 	class Cmp(BaseRule) :
 		target = '{File}.ok'
@@ -42,12 +47,17 @@ if getattr(sys,'lmake_read_makefiles',False) :
 		}
 		cmd = 'diff {REF} {DUT}'
 
+	class Cpy(BaseRule) :
+		target = '{File}.cpy'
+		dep    = '{File}'
+		cmd    = 'cat'
+
 else :
 
 	import ut
 
-	print( 'hello'        , file=open('hello'              ,'w') )
-	print( 'world'        , file=open('world'              ,'w') )
-	print( 'hello\nworld' , file=open('hello.cpy+world.ref','w') )
+	print('#src1'       ,file=open('src1'         ,'w'))
+	print('#src2'       ,file=open('src2'         ,'w'))
+	print('#src1\n#src2',file=open('src1+src2.ref','w'))
 
-	ut.lmake( 'hello.cpy+world.ok' , done=3 , new=3 )
+	ut.lmake( 'src1+src2.ok.cpy' , done=3 , new=3 )

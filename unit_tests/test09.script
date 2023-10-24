@@ -5,20 +5,20 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-ut_launch -dangling 0 -done 1 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
+ut_launch -dangling 0 -done 2 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
 
 touch src3
 rm src3.hide
-ut_launch -dangling 1 -done 0 -failed 0 -steady 0 -manual 0 -rc 1 lmake src3.hide
+ut_launch -dangling 1 -done 1 -failed 1 -steady 0 -manual 0 -rc 1 lmake src3.hide
 
 rm src3
-ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hide
+ut_launch -dangling 0 -done 1 -failed 0 -steady 2 -manual 0 -rc 0 lmake src3.hide
 
-ut_launch -dangling 0 -done 0 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
+ut_launch -dangling 0 -done 1 -failed 0 -steady 0 -manual 0 -rc 0 lmake src3.hide
 
 echo forget
 lshow   -dv src3.hide
 lforget -d  src3.hide
 lshow   -dv src3.hide
 echo forgotten
-ut_launch -dangling 0 -done 0 -failed 0 -steady 1 -manual 0 -rc 0 lmake src3.hide
+ut_launch -dangling 0 -done 1 -failed 0 -steady 2 -manual 0 -rc 0 lmake src3.hide

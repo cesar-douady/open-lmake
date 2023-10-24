@@ -20,8 +20,16 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
-static constexpr uint8_t TraceNameSz = JobHistorySz<= 10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
-static_assert(JobHistorySz<=10000) ;                                                       // above, we need to make hierarchical names
+static constexpr int     NRetries    = 3                                                ; // number of retries when connecting to server // XXX : find a better way to extend timeout
+static constexpr uint8_t TraceNameSz = JobHistorySz<=10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
+static_assert(JobHistorySz<=10000) ;                                                      // above, we need to make hierarchical names
+
+
+ClientSockFd connect_retry(::string const& service) {
+	for( int i=NRetries ;; i-- )                                                          // insist as server may be quite busy // XXX : find a better way to extend timeout
+		try                       { return ClientSockFd(service) ;                                                       }
+		catch (::string const& e) { if (i==1) throw to_string("cannot contact server after ",NRetries," retries : ",e) ; }
+}
 
 int main( int argc , char* argv[] ) {
 	//
@@ -40,15 +48,13 @@ int main( int argc , char* argv[] ) {
 	GatherDeps  gather_deps { New                                                                    } ;
 	JobRpcReq   req_info    { JobProc::Start , seq_id , job , host_ , gather_deps.master_sock.port() } ;
 	JobRpcReply start_info  ;
-	for( int i=3 ; i>0 ; i-- )                                      // insist as server may be quite busy // XXX : find a better way to extend timeout
-		try {
-			ClientSockFd fd{service} ;
-			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try { /**/         OMsgBuf().send                ( fd , req_info ) ; } catch(::string const& e) { exit(2,e) ; } // once connection is established, everything should be smooth
-			try { start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const& e) { exit(3,e) ; } // .
-			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			break ;
-		} catch (::string const& e) { if (i==1) exit(4,e) ; }
+	try {
+		ClientSockFd fd = connect_retry(service) ;
+		//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv     // once connection is established, everything should be smooth
+		try {              OMsgBuf().send                ( fd , req_info ) ; } catch(::string const& e) { exit(2,"cannot send request to server : "   ,e) ; }
+		try { start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const& e) { exit(2,"cannot receive reply from server : ",e) ; }
+		//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	} catch (::string const& e) { exit(2,"before job execution : ",e) ; }
 
 	switch (start_info.proc) {
 		case JobProc::None  : return 0 ;                                       // server ask us to give up
@@ -66,7 +72,7 @@ int main( int argc , char* argv[] ) {
 		) ;
 		try         { OMsgBuf().send( ClientSockFd(service) , end_report ) ; }
 		catch (...) {                                                        } // if server is dead, we cant do much about it
-		exit(5,end_report.digest.stderr) ;
+		exit(2,end_report.digest.stderr) ;
 	}
 	//
 	g_trace_file = new ::string{to_string(start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),seq_id%JobHistorySz)} ;
@@ -294,10 +300,10 @@ End :
 	Pdate end_overhead = Pdate::s_now() ;
 	trace("end_overhead",end_overhead) ;
 	end_report.digest.stats.total = end_overhead - start_overhead ;            // measure overhead as late as possible
-	//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try { OMsgBuf().send(ClientSockFd(service),end_report) ; }
-	//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(6,e) ; }                                  // if server is dead, we cant do much about it
+	//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try { OMsgBuf().send(connect_retry(service),end_report) ; }
+	//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { exit(2,"after job execution : ",e) ; }         // if server is dead, we cant do much about it
 	//
 	trace("end") ;
 	return 0 ;

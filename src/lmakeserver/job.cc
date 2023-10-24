@@ -184,7 +184,7 @@ namespace Engine {
 		} catch (::string const& e) {
 			trace("no_dep_subst") ;
 			if (+req) {
-				req->audit_job(Color::Note,"no_deps",rule_tgt,match.user_name()) ;
+				req->audit_job(Color::Note,"no_deps",rule_tgt,match.name()) ;
 				req->audit_stderr({{rule_tgt->deps_attrs.s_exc_msg(false/*using_static*/),{}}},e,-1,1) ;
 			}
 			return ;
@@ -200,7 +200,7 @@ namespace Engine {
 		}
 		//      vvvvvvvvvvvvvvvvv
 		*this = Job(
-			match.name() , Dflt                                                // args for store
+			match.full_name() , Dflt                                           // args for store
 		,	rule_tgt , Deps(deps)                                              // args for JobData
 		) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^
@@ -682,7 +682,7 @@ namespace Engine {
 	,	MissingStatic
 	)
 
-	static inline bool _inc_cur( Req req , JobLvl jl , int inc) {
+	static inline bool _inc_cur( Req req , JobLvl jl , int inc ) {
 		if (jl==JobLvl::None) return false ;
 		JobIdx& stat = req->stats.cur(jl==JobLvl::End?JobLvl::Exec:jl) ;
 		if (inc<0) SWEAR( stat>=JobIdx(-inc) , stat , inc ) ;

@@ -8,24 +8,24 @@ import sys
 if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
-	from step import step
 
 	lmake.sources = (
 		'Lmakefile.py'
-	,	'step.py'
 	,	'hello'
 	)
 
-	if   step==1 : phony = (        )
-	elif step==2 : phony = ('phony',)
-
 	class Star(lmake.Rule) :
-		targets = { 'DST' : ('{File:.*}.star{*:\\d+}',*phony) }
+		targets = { 'DST' : ('{File:.*}.star{D*:\\d+}',) }
 		dep     = '{File}'
 		def cmd() :
 			text = sys.stdin.read()
 			open(f'{File}.star1','w').write(text)
 			open(f'{File}.star2','w').write(text)
+
+	class Cpy(lmake.Rule) :
+		target = '{File:.*}.cpy'
+		dep    = '{File}'
+		cmd    = 'cat'
 
 else :
 
@@ -33,8 +33,7 @@ else :
 
 	print( 'hello' , file=open('hello','w') )
 
-	print( 'step=1' , file=open('step.py','w') )
-	ut.lmake( 'hello.star1' ,        done=1 , new=1 )
-	ut.lmake( 'hello.star2' ,        done=0 , new=0 )
-	ut.lmake( 'hello.star3' , rc=1 , done=0 , new=0 )
+	ut.lmake( 'hello.star1.cpy' ,        done=2 , new=1 )
+	ut.lmake( 'hello.star2'     ,        done=0 , new=0 )
+	ut.lmake( 'hello.star3'     , rc=1 , done=0 , new=0 )
 

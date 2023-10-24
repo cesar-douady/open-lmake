@@ -71,7 +71,7 @@ StdExecAttrs = {
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
-SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                     # include {{ and }} to exclude them being recognized as stem, as in '{{foo}}'
+SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                     # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
 SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                          # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
 SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                          # this means string has no variable parts
 

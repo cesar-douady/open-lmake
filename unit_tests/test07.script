@@ -10,30 +10,30 @@ TARGET=src1+{src2.version}.ok
 ( cat src1 src2 ; echo '#version1' ) > $REF
 echo $REF >>Manifest
 
-ut_launch -done 5 -new 3 lmake $TARGET.cpy
+ut_launch -done 6 -new 3 lmake $TARGET.cpy
 
 # update source
 echo x >> src2
-ut_launch -done 3 -failed 1 -changed 1 -rc 1 lmake $TARGET.cpy
+ut_launch -done 4 -failed 2 -changed 1 -rc 1 lmake $TARGET.cpy
 
 ( cat src1 src2 ; echo '#version1' ) > $REF
-ut_launch -done 1 -changed 1 -rc 0 -steady 0 lmake $TARGET.cpy
+ut_launch -done 2 -changed 1 -rc 0 -steady 0 lmake $TARGET.cpy
 
 # update rule cmd
 echo 'version = 2' >> Lmakefile.py
-ut_launch -done 3 -failed 1 -rc 1 lmake $TARGET
+ut_launch -done 4 -failed 2 -rc 1 lmake $TARGET
 
 ( cat src1 src2 ; echo '#version2' ) > $REF
-ut_launch -steady 0 -done 1 -changed 1 -rc 0 lmake $TARGET
+ut_launch -steady 0 -done 2 -changed 1 -rc 0 lmake $TARGET
 
 echo 'version = 3' >> Lmakefile.py
-ut_launch -done 3 -failed 1 -rc 1 lmake $TARGET
+ut_launch -done 4 -failed 2 -rc 1 lmake $TARGET
 
 ( cat src1 src2 ; echo '#version3' ) > $REF
-ut_launch -done 1 -changed 1 -rc 0 -steady 0 lmake $TARGET
+ut_launch -done 2 -changed 1 -rc 0 -steady 0 lmake $TARGET
 
 # update rules
-ut_launch -done 0 -rc 1 lmake $TARGET.cpyn
+ut_launch -done 1 -rc 1 lmake $TARGET.cpyn
 
 echo 'add_rule()' >> Lmakefile.py
-ut_launch -done 1 -rc 0 lmake $TARGET.cpyn
+ut_launch -done 2 -rc 0 lmake $TARGET.cpyn

@@ -157,11 +157,9 @@ unit_tests/star.py
 unit_tests/tar.py
 unit_tests/target.py
 unit_tests/target2.py
-unit_tests/test04.script
-unit_tests/test05.script
-unit_tests/test06.script
+unit_tests/test05.py
+unit_tests/test06.py
 unit_tests/test07.script
-unit_tests/test08.script
 unit_tests/test09.script
 unit_tests/test10.script
 unit_tests/test11.script

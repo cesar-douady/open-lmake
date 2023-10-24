@@ -113,7 +113,6 @@ items :
 * implement a lshow -r to see what is running now
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-* report errors in title (split useful into done and err)
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy

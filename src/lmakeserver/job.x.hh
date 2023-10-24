@@ -56,9 +56,8 @@ namespace Engine {
 		Job( Special , Node target , Deps deps               ) ;               // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;               // multi
 		// accesses
-		::string name     () const ;
-		::string user_name() const ;
-		bool     active   () const ;
+		::string name  () const ;
+		bool     active() const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -205,9 +204,8 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		// accesses
 	public :
-		Job      idx      () const { return Job::s_idx(*this) ; }
-		::string name     () const { return idx().name()      ; }
-		::string user_name() const { return idx().user_name() ; }
+		Job      idx () const { return Job::s_idx(*this) ; }
+		::string name() const { return idx().name()      ; }
 		//
 		bool active() const { return !rule.old() ; }
 		//
@@ -328,14 +326,7 @@ namespace Engine {
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 
-	inline ::string Job::name() const {
-		return full_name((*this)->rule->job_sfx_len()) ;
-	}
-	inline ::string Job::user_name() const {
-		::string res = name() ;
-		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
-		return res ;
-	}
+	inline ::string Job::name() const { return full_name((*this)->rule->job_sfx_len()) ; }
 
 	inline bool Job::active() const { return +*this && (*this)->active() ; }
 

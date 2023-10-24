@@ -361,11 +361,10 @@ namespace Engine {
 		JobData const* operator->() const { return &**this ; }
 		JobData      * operator->()       { return &**this ; }
 		//
-		RuleIdx  rule_idx    (                    ) const ;
-		bool     has_name    (                    ) const ;
-		::string full_name   (FileNameIdx sfx_sz=0) const ;
-		size_t   full_name_sz(FileNameIdx sfx_sz=0) const ;
-		bool     frozen      (                    ) const ;
+		RuleIdx  rule_idx (                    ) const ;
+		bool     has_name (                    ) const ;
+		::string full_name(FileNameIdx sfx_sz=0) const ;
+		bool     frozen   (                    ) const ;
 		//
 	private :
 		Name const& _name() const ;
@@ -773,10 +772,9 @@ namespace Engine {
 		clear() ;
 	}
 	// accesses
-	inline bool     JobBase::has_name    (                  ) const { return +_name()                              ; }
-	inline ::string JobBase::full_name   (FileNameIdx sfx_sz) const { return  _name().str   (sfx_sz)               ; }
-	inline size_t   JobBase::full_name_sz(FileNameIdx sfx_sz) const { return  _name().str_sz(sfx_sz)               ; }
-	inline bool     JobBase::frozen      (                  ) const { return g_store.frozens.contains(Job(+*this)) ; }
+	inline bool     JobBase::has_name (                  ) const { return +_name()                              ; }
+	inline ::string JobBase::full_name(FileNameIdx sfx_sz) const { return  _name().str(sfx_sz)                  ; }
+	inline bool     JobBase::frozen   (                  ) const { return g_store.frozens.contains(Job(+*this)) ; }
 	//
 	inline JobData const& JobBase::operator*() const { return g_store.job_file.c_at      (+*this) ; }
 	inline JobData      & JobBase::operator*()       { return g_store.job_file.at        (+*this) ; }

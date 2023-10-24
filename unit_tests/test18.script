@@ -19,8 +19,8 @@ class ChDir(BaseRule) :
 
 EOF
 
-ut_launch -failed 1 -rc 1 lmake chdir1
+ut_launch -failed 2 -rc 1 lmake chdir1
 
 echo 'ChDir.auto_mkdir = True' >> Lmakefile.py
 
-ut_launch -may_rerun 1 -done 2 lmake chdir1
+ut_launch -may_rerun 1 -done 3 lmake chdir1

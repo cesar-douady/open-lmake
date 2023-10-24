@@ -27,7 +27,7 @@ void app_init( bool search_root , bool cd_root ) {
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	try {
-		::string root_dir = ::string{cwd()} ;
+		::string root_dir = cwd() ;
 		if (search_root) {
 			g_startup_dir_s = new ::string ;
 			tie(root_dir,*g_startup_dir_s) = search_root_dir(root_dir) ;
