@@ -1,5 +1,5 @@
 # open lmake
-This file is part of the lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 
 Copyright (c) 2023 Doliam
 
