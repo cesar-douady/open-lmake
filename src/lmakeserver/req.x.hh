@@ -258,8 +258,8 @@ namespace Engine {
 		// services
 		void audit_summary(bool err) const ;
 		//
-		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,t                  ) ; }
-		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,trace_stream,options,c,l,p, +n?n.name():""s ) ; }
+		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,t                  ) ; }
+		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,p, +n?n.name():""s ) ; }
 		//
 		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , ::string const& host={} , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , ::string const& step , Job                             , ::string const& host={} , Delay exec_time={} ) const ;
@@ -285,7 +285,7 @@ namespace Engine {
 		bool                 zombie         = false   ;    // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;              // to report to user
-		OFStream  mutable    trace_stream   ;              // saved output
+		OFStream  mutable    log_stream     ;              // saved output
 		ReqOptions           options        ;
 		Ddate                start          ;
 		Delay                ete            ;              // Estimated Time Enroute

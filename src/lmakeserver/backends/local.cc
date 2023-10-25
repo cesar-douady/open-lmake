@@ -475,8 +475,8 @@ namespace Backends::Local {
 	bool _inited = (LocalBackend::s_init(),true) ;
 
 	static inline Rsrc from_string_rsrc( ::string const& k , ::string const& v ) {
-		if ( k=="mem" || k=="tmp" ) return from_string_with_units<Rsrc,'M'>(v) ;
-		else                        return from_string_with_units<Rsrc    >(v) ;
+		if ( k=="mem" || k=="tmp" ) return from_string_with_units<'M',Rsrc>(v) ;
+		else                        return from_string_with_units<    Rsrc>(v) ;
 	}
 	inline RsrcsData::RsrcsData( LocalBackend const& self , ::vmap_ss const& m ) {
 		resize(self.rsrc_keys.size()) ;

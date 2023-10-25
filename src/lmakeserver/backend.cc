@@ -211,7 +211,7 @@ namespace Backends {
 		JobRpcReply                 reply              { JobProc::Start                 } ;
 		::vector<Node>              report_unlink      ;
 		StartCmdAttrs               start_cmd_attrs    ;
-		::string                    cmd                ;
+		::pair_ss/*script,call*/    cmd                ;
 		::vmap_s<pair_s<AccDflags>> deps_attrs         ;
 		StartRsrcsAttrs             start_rsrcs_attrs  ;
 		StartNoneAttrs              start_none_attrs   ;
@@ -396,15 +396,15 @@ namespace Backends {
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
-		::stop_callback    stop_cb {
+		::stop_callback    stop_cb {                                           // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
 				ssize_t cnt = ::write(stop_fd,&One,sizeof(One)) ;
 				SWEAR( cnt==sizeof(One) , cnt ) ;
 			}
-		} ; // transform request_stop into an event Epoll can wait for
+		} ;
 		//
-		s_server_fd.listen() ;
+		s_server_fd.listen(JobExecBacklog) ;
 		Trace trace("_s_job_exec_func",s_server_fd.port()) ;
 		s_service_ready.count_down() ;
 		//

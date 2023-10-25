@@ -74,6 +74,41 @@ using namespace std ;                                                          /
 using std::getline ;                                                           // special case getline which also has a C version that hides std::getline
 
 //
+// meta programming
+//
+
+template<class T,class... Ts> struct LargestHelper ;
+template<class T1,class T2,class... Ts> struct LargestHelper<T1,T2,Ts...> {
+	private : using _rest_type = typename LargestHelper<T2,Ts...>::type ;
+	public  : using type       = ::conditional_t<sizeof(T1)>=sizeof(_rest_type),T1,_rest_type> ;
+} ;
+template<class T1> struct LargestHelper<T1> { using type = T1 ; } ;
+template<class T,class... Ts> using Largest = typename LargestHelper<T,Ts...>::type ;
+
+template<bool C,class T> using Const = ::conditional_t<C,const T,T> ;
+// place holder when you need a type which is semantically void but syntactically needed
+struct Void {} ;
+template<class T,class D=Void> using NoVoid = ::conditional_t<is_void_v<T>,D,T> ;
+template<class T,T... X> requires(false) struct Err {} ; // for debug purpose, to be used as a tracing point through the diagnostic message
+
+template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
+
+template<class T,class... Ts> struct IsOneOfHelper ;
+template<class T,class... Ts> concept IsOneOf = IsOneOfHelper<T,Ts...>::yes ;
+template<class T                     > struct IsOneOfHelper<T         > { static constexpr bool yes = false                                 ; } ;
+template<class T,class T0,class... Ts> struct IsOneOfHelper<T,T0,Ts...> { static constexpr bool yes = ::is_same_v<T,T0> || IsOneOf<T,Ts...> ; } ;
+
+template<class T> concept IsChar = ::is_trivial_v<T> && ::is_standard_layout_v<T> ; // necessary property to make a ::basic_string
+template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;                // provide default value if not a Char so as to make ::basic_string before knowing if it is possible
+
+template<class D,class B> concept IsA       = ::is_same_v<B,D> || ::is_base_of_v<B,D> ;
+template<class T        > concept IsNotVoid = !::is_void_v<T>                         ;
+
+template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
+
+template<class T> T const& mk_const(T const& x) { return x ; }
+
+//
 // std lib name simplification
 //
 
@@ -396,8 +431,20 @@ template<::integral I> static inline void encode_int( char* p , I x ) {
 
 ::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) ;
 
-template<::integral T,char U=0> T        from_string_with_units(::string const& s) ; // provide default unit in U. If provided, return value is expressed in this unit
-template<::integral T,char U=0> ::string to_string_with_units  (T               x) ; // .
+template<char U,::integral I> I        from_string_with_units(::string const& s) ; // provide default unit in U. If provided, return value is expressed in this unit
+template<char U,::integral I> ::string to_string_with_units  (I               x) ; // .
+template<       ::integral I> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
+template<       ::integral I> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
+
+using ::std::from_chars ;
+template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
+	if ( empty_ok && txt.empty() ) return 0 ;
+	I                   res = 0/*garbage*/                                                       ;
+	::from_chars_result rc  = ::from_chars( txt.data() , txt.data()+txt.size() , res,hex?16:10 ) ;
+	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
+	else                 return res ;
+}
+template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 
 //
 // assert
@@ -471,41 +518,6 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
 #define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
-
-//
-// meta programming
-//
-
-template<class T,class... Ts> struct LargestHelper ;
-template<class T1,class T2,class... Ts> struct LargestHelper<T1,T2,Ts...> {
-	private : using _rest_type = typename LargestHelper<T2,Ts...>::type ;
-	public  : using type       = ::conditional_t<sizeof(T1)>=sizeof(_rest_type),T1,_rest_type> ;
-} ;
-template<class T1> struct LargestHelper<T1> { using type = T1 ; } ;
-template<class T,class... Ts> using Largest = typename LargestHelper<T,Ts...>::type ;
-
-template<bool C,class T> using Const = ::conditional_t<C,const T,T> ;
-// place holder when you need a type which is semantically void but syntactically needed
-struct Void {} ;
-template<class T,class D=Void> using NoVoid = ::conditional_t<is_void_v<T>,D,T> ;
-template<class T,T... X> requires(false) struct Err {} ; // for debug purpose, to be used as a tracing point through the diagnostic message
-
-template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
-
-template<class T,class... Ts> struct IsOneOfHelper ;
-template<class T,class... Ts> concept IsOneOf = IsOneOfHelper<T,Ts...>::yes ;
-template<class T                     > struct IsOneOfHelper<T         > { static constexpr bool yes = false                                 ; } ;
-template<class T,class T0,class... Ts> struct IsOneOfHelper<T,T0,Ts...> { static constexpr bool yes = ::is_same_v<T,T0> || IsOneOf<T,Ts...> ; } ;
-
-template<class T> concept IsChar = ::is_trivial_v<T> && ::is_standard_layout_v<T> ; // necessary property to make a ::basic_string
-template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;                // provide default value if not a Char so as to make ::basic_string before knowing if it is possible
-
-template<class D,class B> concept IsA       = ::is_same_v<B,D> || ::is_base_of_v<B,D> ;
-template<class T        > concept IsNotVoid = !::is_void_v<T>                         ;
-
-template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
-
-template<class T> T const& mk_const(T const& x) { return x ; }
 
 //
 // vector_view
@@ -1333,9 +1345,9 @@ static constexpr inline int _unit_val(char u) {
 		default  : throw to_string("unrecognized suffix ",u) ;
 	}
 }
-template<::integral T,char U> T from_string_with_units(::string const& s) {
-	using T64 = ::conditional_t<is_signed_v<T>,int64_t,uint64_t> ;
-	T64                 val     = 0 /*garbage*/                   ;
+template<char U,::integral I> I from_string_with_units(::string const& s) {
+	using I64 = ::conditional_t<is_signed_v<I>,int64_t,uint64_t> ;
+	I64                 val     = 0 /*garbage*/                   ;
 	const char*         s_start = s.c_str()                       ;
 	const char*         s_end   = s.c_str()+s.size()              ;
 	::from_chars_result fcr     = ::from_chars(s_start,s_end,val) ;
@@ -1348,17 +1360,17 @@ template<::integral T,char U> T from_string_with_units(::string const& s) {
 	//
 	if (B>=b) {
 		val >>= B-b ;
-		if ( val > ::numeric_limits<T>::max() ) throw "overflow"s  ;
-		if ( val < ::numeric_limits<T>::min() ) throw "underflow"s ;
-		return T(val) ;
+		if ( val > ::numeric_limits<I>::max() ) throw "overflow"s  ;
+		if ( val < ::numeric_limits<I>::min() ) throw "underflow"s ;
+		return I(val) ;
 	} else {
-		if ( val > ::numeric_limits<T>::max()>>(b-B) ) throw "overflow"s  ;
-		if ( val < ::numeric_limits<T>::min()>>(b-B) ) throw "underflow"s ;
-		return T(val<<(b-B)) ;
+		if ( val > ::numeric_limits<I>::max()>>(b-B) ) throw "overflow"s  ;
+		if ( val < ::numeric_limits<I>::min()>>(b-B) ) throw "underflow"s ;
+		return I(val<<(b-B)) ;
 	}
 }
 
-template<::integral T,char U> ::string to_string_with_units(T x) {
+template<char U,::integral I> ::string to_string_with_units(I x) {
 	if (!x) return to_string(0,U) ;
 	switch (U) {
 		case 'a' : if (x&0x3ff) return to_string(x,'a') ; x >>= 10 ; [[fallthrough]] ;

@@ -5,8 +5,8 @@ Manifest
 README.md
 TO_DO
 _bin/ut_launch
-_lib/debug.py
 _lib/lmake.src.py
+_lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py
 _lib/ut.py

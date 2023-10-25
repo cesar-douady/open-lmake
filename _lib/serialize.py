@@ -20,19 +20,21 @@ comment_re = re.compile(r'^\s*(#.*)?$')
 
 _Code = (lambda:None).__code__.__class__
 
-def get_src(*args,no_imports=(),ctx=(),force=False,with_dbg_info=False,root_dir=None) :
+def get_src(*args,no_imports=(),ctx=(),force=False,decorator=None,root_dir=None) :
 	'''
 		get a source text that reproduce args :
 		- args must be composed of named objects such as functions or classes or dicts mapping names to values.
 		- no_imports is a list of modules or module names that must not be imported in the resulting source.
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
-		- if root_dir is provided, source filename info are reported relative to this directory
+		- if decorator is true, use it to decorate all generated functions
+		- if root_dir is provided, source filename debug info are reported relative to this directory
 		The return value is (source,names) where :
 			- source is the source text that reproduces args
 			- names is the set of names found in sets in ctx
+			- debug_info contains a dict mapping generated function names to (module,qualname,file,firstlineno)
 	'''
-	s = Serialize(no_imports,ctx,with_dbg_info,root_dir)
+	s = Serialize(no_imports,ctx,decorator,root_dir)
 	for a in args :
 		if isinstance(a,dict) :
 			for k,v in a.items() : s.val_src(k,v,force)
@@ -115,13 +117,14 @@ def _analyze(filename) :
 
 class Serialize :
 	InSet = object()                                                           # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	def __init__(self,no_imports,ctx,with_dbg_info=False,root_dir=None) :
+	def __init__(self,no_imports,ctx,decorator=None,root_dir=None) :
 		self.seen            = {}
 		self.src             = []
 		self.in_sets         = set()
 		self.ctx             = list(ctx)
-		self.with_dbg_info = with_dbg_info
+		self.decorator       = decorator
 		self.root_dir        = root_dir
+		self.debug_info      = {}
 		if isinstance(no_imports,str) : self.by_values =    {no_imports}
 		else                          : self.by_values = set(no_imports)
 
@@ -146,7 +149,11 @@ class Serialize :
 
 	def get_src(self) :
 		if len(self.src) and len(self.src[-1]) : self.src.append('')                     # ensure there is \n at the end
-		return '\n'.join(self.src) , {k for k,v in self.seen.items() if v is self.InSet}
+		return (
+			'\n'.join(self.src)
+		,	{k for k,v in self.seen.items() if v is self.InSet}
+		,	self.debug_info
+		)
 
 	have_name = {
 		'LOAD_GLOBAL','STORE_GLOBAL','DELETE_GLOBAL'
@@ -269,31 +276,8 @@ class Serialize :
 		for glb_var in self.get_glbs(code) :
 			self.gather_ctx(glb_var)
 		#
-		if self.root_dir      : filename = osp.relpath(filename,self.root_dir)
-		if True               : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] )                                            ) # first line
-		if True               : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                                                               ) # other lines
-		if self.with_dbg_info :
-			# appear in the original location
-			if hasattr(_Code,'replace') :
-				self.src.append( f'{name}.__code__ = {name}.__code__.replace(co_filename={filename!r},co_firstlineno={first_line_no1!r})' )
-			else :
-				self.src += [
-					f'{name}.__code__ = {name}.__code__.__class__('
-				,	f'\t{name}.__code__.co_argcount'
-				+	( f'\n,\t{name}.__code__.co_posonlyargcount' if hasattr(_Code,'co_posonlyargcount') else '' )
-				+	( f'\n,\t{name}.__code__.co_kwonlyargcount'  if hasattr(_Code,'co_kwonlyargcount' ) else '' )
-				,	f',\t{name}.__code__.co_nlocals'
-				,	f',\t{name}.__code__.co_stacksize'
-				,	f',\t{name}.__code__.co_flags'
-				,	f',\t{name}.__code__.co_code'
-				,	f',\t{name}.__code__.co_consts'
-				,	f',\t{name}.__code__.co_names'
-				,	f',\t{name}.__code__.co_varnames'
-				,	f',\t{filename!r}'                                          # co_filename
-				,	f',\t{name}.__code__.co_name'
-				,	f',\t{first_line_no1!r}'                                    # co_firstlineno
-				,	f',\t{name}.__code__.co_linetable' if hasattr(_Code,'co_linetable') else f',\t{name}.__code__.co_lnotab'
-				,	f',\t{name}.__code__.co_freevars'
-				,	f',\t{name}.__code__.co_cellvars'
-				,	f')'
-				]
+		if self.root_dir  : filename = osp.relpath(filename,self.root_dir)
+		if True           : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
+		if True           : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
+		if self.decorator : self.src.append( f'{name} = {self.decorator}({name})'                          ) # dont synthetize a decorator as this would mix up line numbers in pdb/pudb
+		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

@@ -28,8 +28,9 @@ items :
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
 ! before erasing a dir, check for phony targets, not only files on disk
-! find a means to lshow a job, even if we have no target
-	- or to lshow a job that does not produce a target
+! find a means to lshow/lmake a job, even if we have no target
+	- recognize by job name ?
+	- this would allow to copy/paste from jobs with star stems in name
 ? report resources even when job spawn process groups
 	- dont know how to do that
 
@@ -37,18 +38,6 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* generate {Stem} instead of * in job_name when selecting star targets
-	- and recognize it when provided as command line target
-	- this way, it is easy to do a copy/paste
-* manage to output file name and line number back to Lmakefile.py when executing cmd
-	- as of now, line no depend on number of accessed variables, globals, etc.
-		- an easy step would be to define cmd before globals to at least have a stable transformation
-	- define a runtime package
-	- implement a decorator to change code object of cmd function
-	- synthesize call to decorator
-	- ensure it is also present in executable script
-	- apply same technic to called functions transported into script
-		- i.e. use technic in serialize module
 * generate performance metrics
 	- useful/useless created jobs
 	- number of non buildable nodes
@@ -180,6 +169,10 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* process specifically uphill
+	- directly depend node->node
+	- avoid creating an intermediate job
+	- there are a lot of them an bring no value
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation

@@ -67,8 +67,9 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                   } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
-	long n_jobs = atol(cmd_line.flag_args[+ReqFlag::Jobs].c_str() ) ;
-	if ( cmd_line.flags[ReqFlag::Jobs] && ( n_jobs<=0 || n_jobs>=::numeric_limits<JobIdx>::max() ) ) syntax.usage("cannot understand max number of jobs") ;
+	::string const& n_jobs = cmd_line.flag_args[+ReqFlag::Jobs] ;
+	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
+	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ;

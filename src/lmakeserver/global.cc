@@ -11,24 +11,24 @@ namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
 
-	void audit( Fd out_fd, ::ostream& trace , ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name , ::string const& sfx ) {
+	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name , ::string const& sfx ) {
+		SWEAR(Trace::t_key=='=',Trace::t_key) ;
 		::string report_txt = color_pfx(ro,c) ;
-		::string trace_txt  ;
+		::string log_txt    ;
 		//
-		if (!pfx .empty()) {                                                                report_txt += pfx                                         ; trace_txt += pfx                 ; }
-		if (!name.empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += mk_printable(mk_rel(name,ro.startup_dir_s)) ; trace_txt += mk_printable(name ) ; }
-		if (!sfx .empty()) { if (!trace_txt.empty()) { report_txt+=' ' ; trace_txt+=' ' ; } report_txt += sfx                                         ; trace_txt += sfx                 ; }
+		if (!pfx .empty()) {                                                            report_txt += pfx                                         ; log_txt += pfx                 ; }
+		if (!name.empty()) { if (!log_txt.empty()) { report_txt+=' ' ; log_txt+=' ' ; } report_txt += mk_printable(mk_rel(name,ro.startup_dir_s)) ; log_txt += mk_printable(name ) ; }
+		if (!sfx .empty()) { if (!log_txt.empty()) { report_txt+=' ' ; log_txt+=' ' ; } report_txt += sfx                                         ; log_txt += sfx                 ; }
 		//
-		if (trace_txt.empty()     ) return ;
-		if (trace_txt.back()=='\n') { report_txt.pop_back() ; trace_txt.pop_back() ; } // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
+		if (log_txt.empty()     ) return ;
+		if (log_txt.back()=='\n') { report_txt.pop_back() ; log_txt.pop_back() ; } // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
 		report_txt += color_sfx(ro,c) ;
 		//
-		if (lvl) { report_txt  = indent<' ',2>(report_txt,lvl) ; trace_txt  = indent<' ',2>(trace_txt,lvl) ; }
-		/**/     { report_txt += '\n'                          ; trace_txt += '\n'                         ; }
-		//
-		try                     { OMsgBuf().send( out_fd , ReqRpcReply(report_txt) ) ; }
-		catch (::string const&) {                                                      } // we lost connection with client, what can we do about it ? ignore
-		trace << trace_txt << flush ;
+		if (lvl) { report_txt  = indent<' ',2>(report_txt,lvl) ; log_txt  = indent<' ',2>(log_txt,lvl) ; }
+		/**/     { report_txt += '\n'                          ; log_txt += '\n'                       ; }
+		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace
+		try { OMsgBuf().send( out_fd , ReqRpcReply(report_txt) ) ; } catch (::string const& e) { Trace("audit","lost_client",e,report_txt) ; }
+		try { log << log_txt << ::flush ;                          } catch (::string const& e) { Trace("audit","lost_log"   ,e,log_txt   ) ; }
 	}
 
 	//
@@ -307,12 +307,13 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , EngineClosure::Req const& ecr ) {
 		os << "Req(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
+			case ReqProc::Debug  :                                             // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Make   :
 			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.targets ; break ;
-			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                     ; break ;
-			case ReqProc::Close  : os << ecr.req                                           ; break ;
+			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                         ; break ;
+			case ReqProc::Close  : os << ecr.req                                                               ; break ;
 			default : FAIL(ecr.proc) ;
 		}
 		return os << ')' ;

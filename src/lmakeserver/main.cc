@@ -29,11 +29,11 @@ static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { _g_server_mrkr } ;
 	::string   service            ;
 	::string   server_pid         ;
-	if (!server_mrkr_stream                      ) { return { {}                      , 0                          } ; }
-	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                          } ; }
-	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                          } ; }
-	try                                            { return { SockFd::s_host(service) , ::atol(server_pid.c_str()) } ; }
-	catch (::string const&)                        { return { {}                      , 0                          } ; }
+	if (!server_mrkr_stream                      ) { return { {}                      , 0                             } ; }
+	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                             } ; }
+	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                             } ; }
+	try                                            { return { SockFd::s_host(service) , from_chars<pid_t>(server_pid) } ; }
+	catch (::string const&)                        { return { {}                      , 0                             } ; }
 }
 
 void server_cleanup() {
@@ -175,10 +175,11 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 								goto Bad ;
 							}
 						} [[fallthrough]] ;
-						case ReqProc::Forget :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
+						case ReqProc::Debug  :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
+						case ReqProc::Forget :
 						case ReqProc::Mark   :
 						case ReqProc::Show   : {
-							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ;                           // typically, there is no bads
+							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
 							::vector_s     bads      ;
 							for( ::string const& target : rrr.targets ) {
 								RealPath::SolveReport rp = _g_real_path.solve(target,true/*no_follow*/) ; // ignore links that lead to real path
@@ -277,7 +278,8 @@ bool/*interrupted*/ engine_loop() {
 			case EngineClosureKind::Req : {
 				EngineClosure::Req& req = closure.req ;
 				switch (req.proc) {
-					case ReqProc::Forget :                                     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Debug  :                                     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Forget :
 					case ReqProc::Mark   :
 					case ReqProc::Show   :
 						trace(req) ;

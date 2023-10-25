@@ -35,20 +35,16 @@ namespace Engine {
 		}
 		ReqData& data = **this ;
 		//
-		for( int i=0 ;; i++ ) {
-			::string trace_file      = "outputs/"+Pdate::s_now().str(i)                   ;
-			::string fast_trace_file = to_string(g_config.local_admin_dir,'/',trace_file) ;
-			if (is_reg(fast_trace_file)) { SWEAR(i<=9,i) ; continue ; }                     // at ns resolution, it impossible to have a conflict
+		for( int i=0 ;; i++ ) {                                                            // try increasing resolution in file name until no conflict
+			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)                     ;
+			::string log_file     = to_string(g_config.local_admin_dir,'/',lcl_log_file) ;
+			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
-			data.trace_stream.open(fast_trace_file) ;
-			try {
-				unlink(last           ) ;
-				lnk   (last,trace_file) ;
-			} catch (...) {
-				exit(2,"cannot create symlink ",last," to ",trace_file) ;
-			}
+			data.log_stream.open(log_file) ;
+			try         { unlink(last) ; lnk(last,lcl_log_file) ;                     }
+			catch (...) { exit(2,"cannot create symlink ",last," to ",lcl_log_file) ; }
 			break ;
 		}
 		//
@@ -67,8 +63,8 @@ namespace Engine {
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
-		try                       { Backend::s_open_req(+*this,options.n_jobs) ; }
-		catch (::string const& e) { close() ; throw ;                            }
+		try                       { Backend::s_open_req(+*this,from_chars<JobIdx>(options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/)) ; }
+		catch (::string const& e) { close() ; throw ;                                                                                    }
 		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
 	}
@@ -394,13 +390,13 @@ namespace Engine {
 		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
-		audit( audit_fd , trace_stream , options , c , 0 , msg.str() , job_name ) ;
+		audit( audit_fd , log_stream , options , c , 0 , msg.str() , job_name ) ;
 	}
 
 	void ReqData::audit_status(bool ok) const {
 		try                     { OMsgBuf().send( audit_fd , ReqRpcReply(ok) ) ; }
 		catch (::string const&) {                                                } // if client has disappeared, well, we cannot do much
-		trace_stream << "status : " << (ok?"ok":"failed") << '\n' ;
+		log_stream << "status : " << (ok?"ok":"failed") << '\n' ;
 	}
 
 	bool/*seen*/ ReqData::audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {

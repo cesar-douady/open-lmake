@@ -20,15 +20,15 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
-static constexpr int     NRetries    = 3                                                ; // number of retries when connecting to server // XXX : find a better way to extend timeout
-static constexpr uint8_t TraceNameSz = JobHistorySz<=10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
-static_assert(JobHistorySz<=10000) ;                                                      // above, we need to make hierarchical names
+static constexpr int     NConnectionTrials = 3                                                ; // number of times to try connect when connecting to server
+static constexpr uint8_t TraceNameSz       = JobHistorySz<=10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
+static_assert(JobHistorySz<=1000) ;                                                             // above, it would be wise to make hierarchical names
 
 
 ClientSockFd connect_retry(::string const& service) {
-	for( int i=NRetries ;; i-- )                                                          // insist as server may be quite busy // XXX : find a better way to extend timeout
-		try                       { return ClientSockFd(service) ;                                                       }
-		catch (::string const& e) { if (i==1) throw to_string("cannot contact server after ",NRetries," retries : ",e) ; }
+	for( int i=NConnectionTrials ;; i-- )                                                                                          // insist as server may be quite busy
+		try                       { return ClientSockFd(service) ;                                                               }
+		catch (::string const& e) { if (i==1) throw to_string("cannot contact server after ",NConnectionTrials," trials : ",e) ; }
 }
 
 int main( int argc , char* argv[] ) {
@@ -38,8 +38,8 @@ int main( int argc , char* argv[] ) {
 	block_sig(SIGCHLD) ;
 	swear_prod(argc==5,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
 	::string service   =      argv[1]                ;
-	SeqId    seq_id    = atol(argv[2])               ;
-	JobIdx   job       = atol(argv[3])               ;
+	SeqId    seq_id    = from_chars<SeqId >(argv[2]) ;
+	JobIdx   job       = from_chars<JobIdx>(argv[3]) ;
 	bool     is_remote = strcmp(argv[4],"remote")==0 ; if (!is_remote) SWEAR( strcmp(argv[4],"local")==0 , argv[4] ) ;
 	::string host_     = is_remote?host():""s        ;
 	//
@@ -119,8 +119,8 @@ int main( int argc , char* argv[] ) {
 		Fd child_stdout = Child::Pipe ;
 		//
 		::vector_s args = start_info.interpreter ; args.reserve(args.size()+2) ;
-		args.emplace_back("-c"          ) ;
-		args.push_back   (start_info.cmd) ;
+		args.emplace_back("-c"                                      ) ;
+		args.push_back   (start_info.cmd.first+start_info.cmd.second) ;
 		//
 		::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(start_info.targets.size()) ;
 		for( VarIdx t=0 ; t<start_info.targets.size() ; t++ ) {

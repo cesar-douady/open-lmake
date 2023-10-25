@@ -236,15 +236,29 @@ namespace Engine {
 
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
+		struct DbgEntry {
+			friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
+			bool operator +() const { return first_line_no1 ; }
+			bool operator !() const { return !+*this ;        }
+			::string module         ;
+			::string qual_name      ;
+			::string filename       ;
+			size_t   first_line_no1 = 0 ;                  // illegal value as lines start at 1
+		} ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& ) ;
 		void           update(                       PyObject* py_dct                    ) {
 			Attrs::acquire_from_dct(cmd,py_dct,"cmd") ;
 		}
 		// data
-		bool     is_python = false/*garbage*/ ;
-		::string cmd       ;
+		bool               is_python = false/*garbage*/ ;
+		::string           cmd       ;
+		::string           decorator ;
+		::vmap_s<DbgEntry> dbg       ;
 	} ;
+	namespace Attrs {
+		bool/*updated*/ acquire( Cmd::DbgEntry& dst , PyObject* py_src ) ;
+	}
 
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
@@ -415,8 +429,8 @@ namespace Engine {
 		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::string eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
-		::string eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
+		::pair_ss/*script,call*/ eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
+		::pair_ss/*script,call*/ eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
 			return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; // m cannot be lazy evaluated w/o a job
 		}
 	} ;

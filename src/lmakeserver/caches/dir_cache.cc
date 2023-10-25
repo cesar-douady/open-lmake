@@ -36,9 +36,9 @@ namespace Caches {
 		::map_ss dct = mk_map(config.dct) ;
 		//
 		Hash::Xxh repo_hash ;
-		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))         ; else throw "repo not found"s ;
-		if (dct.contains("dir" )) dir       =      dct.at("dir" )          ; else throw "dir not found"s  ;
-		if (dct.contains("size")) sz        = atol(dct.at("size").c_str()) ; else throw "size not found"s ;
+		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))     ; else throw "repo not found"s ;
+		if (dct.contains("dir" )) dir =                dct.at("dir" )  ; else throw "dir not found"s  ;
+		if (dct.contains("size")) sz  = from_chars<Sz>(dct.at("size")) ; else throw "size not found"s ;
 		repo   = ::string(repo_hash.digest()) ;
 		dir_fd = open_read(dir)               ;
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;

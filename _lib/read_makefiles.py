@@ -234,6 +234,12 @@ def static_fstring(s) :
 	assert prev_c not in '{}'
 	return res
 
+def avoid_ctx(name,ctxs) :
+	for i in range(sum(len(ks) for ks in ctxs)) :
+		n = name + (f'_{i}' if i else '')
+		if not any(n in ks for ks in ctxs) : return n
+	assert False,f'cannot find suffix to make {name} an available name'
+
 class Handle :
 	def __init__(self,rule) :
 		attrs           = handle_inheritance(rule)
@@ -313,7 +319,7 @@ class Handle :
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val : return (static_val,)
-		code,ctx,names = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
+		code,ctx,names,dbg = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
 		return ( static_val , tuple(names) , ctx , code )
 
 	def _fmt_deps_targets(self,key,entry) :
@@ -456,34 +462,33 @@ class Handle :
 			if multi :
 				cmd_lst = []
 				cmd_idx = 0
-				for c in cmd :
-					cmd_idx += 1
-					while any( any(y==f'cmd{cmd_idx}' for y in x) for x in serialize_ctx ) : cmd_idx += 1 # protect against user having defined names such as cmd1, cmd2, ...
+				for ci,c in enumerate(cmd) :
 					# create a copy of c with its name modified (dont modify in place as this would be visible for other rules inheriting from the same parent)
-					cmd_lst.append(c.__class__( c.__code__ , c.__globals__ , f'cmd{cmd_idx}' , c.__defaults__ , c.__closure__ ))
+					cc                 = c.__class__( c.__code__ , c.__globals__ , avoid_ctx(f'cmd{ci}',serialize_ctx) , c.__defaults__ , c.__closure__ )
+					cc.__annotations__ = c.__annotations__
+					cc.__kwdefaults__  = c.__kwdefaults__
+					cc.__module__      = c.__module__
+					cc.__qualname__    = c.__qualname__
+					cmd_lst.append(cc)
 				cmd = cmd_lst
-			cmd , cmd_ctx = serialize.get_src(
+			decorator = avoid_ctx('lmake_func',serialize_ctx)
+			cmd , cmd_ctx , dbg = serialize.get_src(
 				*cmd
-			,	ctx           = serialize_ctx
-			,	no_imports    = self.no_imports
-			,	force         = True
-			,	with_dbg_info = True
-			,	root_dir      = root_dir
+			,	ctx        = serialize_ctx
+			,	no_imports = self.no_imports
+			,	force      = True
+			,	decorator  = decorator
+			,	root_dir   = root_dir
 			)
 			if multi :
-				x = 'x'                                                        # find a non-conflicting name
-				if x in cmd_ctx :
-					for i in range(1000) :
-						x = f'x{i}'
-						if x not in cmd_ctx : break
-					else : assert False,'cannot find available name'
-				cmd += 'def cmd() :\n'
+				cmd += 'def cmd() : \n'
+				x = avoid_ctx('x',serialize_ctx)                               # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
 					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
 					else                                   : cmd += f'\t{       c.__name__}({a})\n'
-			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True} , tuple(cmd_ctx) )
+			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True,'decorator':decorator,'dbg':dbg} , tuple(cmd_ctx) )
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			self._init()

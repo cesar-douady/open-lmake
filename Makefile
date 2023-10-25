@@ -146,7 +146,7 @@ LMAKE_SERVER_FILES = \
 	$(SBIN)/ldump             \
 	$(SBIN)/ldump_job         \
 	$(LIB)/lmake.py           \
-	$(LIB)/debug.py           \
+	$(LIB)/lmake_runtime.py   \
 	$(BIN)/autodep            \
 	$(BIN)/ldebug             \
 	$(BIN)/lforget            \

@@ -463,7 +463,7 @@ struct JobRpcReply {
 	in_addr_t                 addr             = 0                   ;         // proc == Start   , the address at which server can contact job, it is assumed that it can be used by subprocesses
 	AutodepEnv                autodep_env      ;                               // proc == Start
 	::string                  chroot           ;                               // proc == Start
-	::string                  cmd              ;                               // proc == Start
+	::pair_ss/*script,call*/  cmd              ;                               // proc == Start
 	::string                  cwd_s            ;                               // proc == Start
 	::vmap_ss                 env              ;                               // proc == Start
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start

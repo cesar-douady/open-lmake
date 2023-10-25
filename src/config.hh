@@ -59,6 +59,9 @@ static constexpr NodeIdx RuleWeight = 100 ;
 // number of job traces to keep (indexed by unique id)
 static constexpr SeqId JobHistorySz = 1000 ;
 
+// backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
+static constexpr int JobExecBacklog = 1000 ;
+
 //
 // derived info
 //

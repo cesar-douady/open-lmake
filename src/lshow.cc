@@ -13,19 +13,20 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{
-		{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                         } }
-	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                            } }
+		{ ReqKey::Backend    , { .short_name='b' , .doc="show messages from backend"                 } }
+	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
+	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                         } }
 	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job"   } }
+	,	{ ReqKey::ExecScript , { .short_name='s' , .doc="show a sh-executable script"                } }
 	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"      } }
-	,	{ ReqKey::Script     , { .short_name='s' , .doc="show script"                                } }
-	,	{ ReqKey::ExecScript , { .short_name='S' , .doc="show a sh-executable script"                } }
+	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                            } }
 	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                                } }
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
-	,	{ ReqKey::Backend    , { .short_name='b' , .doc="show messages from backend"                 } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
 	},{
-		{ ReqFlag::Verbose , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts" } }
-	,	{ ReqFlag::Debug   , { .short_name='u' , .has_arg=false , .doc="generate debug executable script"           } }
+		{ ReqFlag::Debug   , { .short_name='u' , .has_arg=false , .doc="generate debug executable script"           } }
+	,	{ ReqFlag::Graphic , { .short_name='g' , .has_arg=false , .doc="use GUI"                                    } }
+	,	{ ReqFlag::Verbose , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//

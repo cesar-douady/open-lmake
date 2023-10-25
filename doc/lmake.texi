@@ -616,16 +616,25 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug target}
+Usage : @code{ldebug [-g|--graphic] target}
 
 @code{ldebug} runs a job in a debug environment.
 
 The job must have been run with @lmake before (but may not have finished, it just need to be started).
 For now, this command is rudimentary :
 @itemize @minus
-@item it runs the script under @code{pdb} for python rules
+@item it runs the script under @code{pdb} or (@code{pudb} with the graphic option) for python rules
 @item it runs the script with @code{-x} flag set for shell rules
 @end itemize
+
+Special care has been taken so that :
+@itemize
+@item debug session do not interfere with I/O redirection (when the @code{target} and @code{dep} @code{Rule} attributes are used instead of @code{targets} and @code{deps}).
+@item the module list contains all read modules and no more
+@end itemize
+
+These items necessitated to patch pudb (but the patch is dynamically applied, standard pudb can be used).
+Further details can be seen by looking at file @file{lib/lmake_runtime.py} about what is patched, how it is done, and why (i.e. the consequence of not patching).
 
 @section @code{lmark}
 

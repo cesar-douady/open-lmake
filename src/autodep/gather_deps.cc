@@ -261,7 +261,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 							fail("unexpected wstatus : ",wstatus) ;
 						}
 					}
-					trace("status",status) ;
+					trace("status",status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
 					epoll.cnt-- ;                                              // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
 				} break ;

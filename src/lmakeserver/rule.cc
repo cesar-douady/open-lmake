@@ -230,72 +230,91 @@ namespace Engine {
 	// Attrs
 	//
 
-	bool/*updated*/ Attrs::acquire( bool& dst , PyObject* py_src ) {
-		if (!py_src        ) {           return false ;                              }
-		if (py_src==Py_None) { if (!dst) return false ; dst = false ; return true  ; }
-		//
-		int v = PyObject_IsTrue(py_src) ;
-		if (v==-1) throw "cannot determine truth value"s ;
-		dst = v ;
-		return true ;
-	}
+	namespace Attrs {
 
-	bool/*updated*/ Attrs::acquire( Time::Delay& dst , PyObject* py_src ) {
-		if (!py_src        ) {           return false ;                           }
-		if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
-		//
-		if (PyFloat_Check(py_src)) {
-			dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
-		} else if (PyLong_Check(py_src)) {
-			long sd = PyLong_AsLong(py_src) ;
-			if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
-			if ( sd<0                       )                   throw "underflow"s ;
-			dst = Time::Delay(double(sd)) ;
-		} else if (PyUnicode_Check(py_src)) {
-			PyObject* f = PyFloat_FromString(py_src) ;
-			if (!f) throw "cannot convert to float"s ;
-			dst = Time::Delay(PyFloat_AsDouble(f)) ;
-			Py_DECREF(f) ;
-		} else {
-			throw "cannot convert to float"s ;
+		bool/*updated*/ acquire( bool& dst , PyObject* py_src ) {
+			if (!py_src        ) {           return false ;                              }
+			if (py_src==Py_None) { if (!dst) return false ; dst = false ; return true  ; }
+			//
+			int v = PyObject_IsTrue(py_src) ;
+			if (v==-1) throw "cannot determine truth value"s ;
+			dst = v ;
+			return true ;
 		}
-		return true ;
-	}
 
-	bool/*updated*/ Attrs::acquire( ::string& dst , PyObject* py_src ) {
-		if (!py_src        ) {                  return false ;                           }
-		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
-		//
-		bool is_str = PyUnicode_Check(py_src) ;
-		if (!is_str) py_src = PyObject_Str(py_src) ;
-		if (!py_src) throw "cannot convert to str"s ;
-		dst = PyUnicode_AsUTF8(py_src) ;
-		if (!is_str) Py_DECREF(py_src) ;
-		return true ;
-	}
+		bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) {
+			if (!py_src        ) {           return false ;                           }
+			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
+			//
+			if (PyFloat_Check(py_src)) {
+				dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
+			} else if (PyLong_Check(py_src)) {
+				long sd = PyLong_AsLong(py_src) ;
+				if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
+				if ( sd<0                       )                   throw "underflow"s ;
+				dst = Time::Delay(double(sd)) ;
+			} else if (PyUnicode_Check(py_src)) {
+				PyObject* f = PyFloat_FromString(py_src) ;
+				if (!f) throw "cannot convert to float"s ;
+				dst = Time::Delay(PyFloat_AsDouble(f)) ;
+				Py_DECREF(f) ;
+			} else {
+				throw "cannot convert to float"s ;
+			}
+			return true ;
+		}
 
-	::string Attrs::subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
-		::string res ;
-		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
-			[&]( ::string const& fixed )->void {
-				res.append(fixed) ;
-			}
-		,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
-				SWEAR(var_idxs.contains(k)) ;
-				SWEAR(!star               ) ;
-				SWEAR(!def                ) ;
-				size_t sz = res.size() ;
-				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
-				char* p = res.data()+sz ;
-				auto it = var_idxs.find(k)    ;
-				p[0] = Rule::StemMrkr ;
-				need |= it->second.bucket ;
-				encode_enum( p+1                , it->second.bucket ) ;
-				encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
-				n_unnamed += unnamed ;
-			}
-		) ;
-		return res ;
+		bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
+			if (!py_src        ) {                  return false ;                           }
+			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			//
+			bool is_str = PyUnicode_Check(py_src) ;
+			if (!is_str) py_src = PyObject_Str(py_src) ;
+			if (!py_src) throw "cannot convert to str"s ;
+			dst = PyUnicode_AsUTF8(py_src) ;
+			if (!is_str) Py_DECREF(py_src) ;
+			return true ;
+		}
+
+		bool/*updated*/ acquire( Cmd::DbgEntry& dst , PyObject* py_src ) {
+			if (!py_src        ) {                          return false ;                           }
+			if (py_src==Py_None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
+			//
+			if (!PySequence_Check(py_src)) throw "not a sequence"s ;
+			PyObject* fast_val = PySequence_Fast(py_src,"")                 ; SWEAR(fast_val  ) ;
+			size_t     n       = size_t(PySequence_Fast_GET_SIZE(fast_val)) ; SWEAR(n==4    ,n) ;
+			PyObject** p       =        PySequence_Fast_ITEMS   (fast_val)  ;
+			acquire(dst.module        ,p[0]) ;
+			acquire(dst.qual_name     ,p[1]) ;
+			acquire(dst.filename      ,p[2]) ;
+			acquire(dst.first_line_no1,p[3]) ; SWEAR(+dst.first_line_no1) ;
+			return true ;
+		}
+
+		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , BitMap<VarCmd>& need ) {
+			::string res ;
+			_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
+				[&]( ::string const& fixed )->void {
+					res.append(fixed) ;
+				}
+			,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
+					SWEAR(var_idxs.contains(k)) ;
+					SWEAR(!star               ) ;
+					SWEAR(!def                ) ;
+					size_t sz = res.size() ;
+					res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
+					char* p = res.data()+sz ;
+					auto it = var_idxs.find(k)    ;
+					p[0] = Rule::StemMrkr ;
+					need |= it->second.bucket ;
+					encode_enum( p+1                , it->second.bucket ) ;
+					encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
+					n_unnamed += unnamed ;
+				}
+			) ;
+			return res ;
+		}
+
 	}
 
 	//
@@ -383,14 +402,14 @@ namespace Engine {
 			if (k!=mk_snake(r)     ) continue ;                                // .
 			uint64_t val = 0 /*garbage*/ ;
 			try                     { val = from_string_with_units<uint64_t>(v) ; }
-			catch (::string const&) { continue ;                                  }   // value is not recognized
+			catch (::string const&) { continue ;                                  } // value is not recognized
 			//
 			if ( g_config.rsrc_digits[+r] && val ) {
 				uint8_t sw = ::max(0,int(bit_width(val))-int(g_config.rsrc_digits[+r])) ; // compute necessary shift for rounding, /!\ beware of signness with unsigned arithmetic
 				val = (((val-1)>>sw)+1)<<sw ;                                             // quantify by rounding up
 			}
 			//
-			v = to_string_with_units<uint64_t>(val) ;
+			v = to_string_with_units(val) ;
 		}
 	}
 
@@ -401,8 +420,10 @@ namespace Engine {
 	BitMap<VarCmd> Cmd::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
 		BitMap<VarCmd> need    ;
 		::string       raw_cmd ;
-		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
 		Attrs::acquire_from_dct(is_python,py_src,"is_python") ;
+		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
+		Attrs::acquire_from_dct(decorator,py_src,"decorator") ;
+		Attrs::acquire_from_dct(dbg      ,py_src,"dbg"      ) ;
 		if (is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
@@ -413,37 +434,49 @@ namespace Engine {
 		return need ;
 	}
 
-	::string DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	::pair_ss/*script,call*/ DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		if (spec.is_python) {
-			::string res ;
+			OStringStream res ;
+			res<<"from lmake_runtime import lmake_func" ; if (spec.decorator!="lmake_func") res<<" as "<<spec.decorator ; res<<'\n' ;
+			res<<spec.decorator<<".dbg = {\n" ;
+			bool first = true ;
+			for( auto const& [k,v] : spec.dbg ) {
+				if (!first) res<<',' ;
+				first = false ;
+				res<<'\t'<<mk_py_str(k)<<" : ("<<mk_py_str(v.module)<<','<<mk_py_str(v.qual_name)<<','<<mk_py_str(v.filename)<<','<<v.first_line_no1<<")\n" ;
+			}
+			res<<"}\n" ;
 			eval_ctx( job , match , rsrcs
 			,	[&]( ::string const& key , ::string const& val ) -> void {
-					res += to_string(key," = ",mk_py_str(val),'\n') ;
+					res<<key<<" = "<<mk_py_str(val)<<'\n' ;
 				}
 			,	[&]( ::string const& key , ::vmap_ss const& val ) -> void {
-					res += to_string(key," = {\n") ;
+					res<<key<<" = {\n" ;
 					bool first = true ;
 					for( auto const& [k,v] : val ) {
-						if (!first) res += ',' ;
-						res += to_string('\t',mk_py_str(k)," : ",mk_py_str(v),'\n') ;
+						if (!first) res<<',' ;
+						res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
 						first = false ;
 					}
-					res += "}\n" ;
+					res<<"}\n" ;
 				}
 			) ;
-			/**/                       res += spec.cmd  ;
-			if (spec.cmd.back()!='\n') res += '\n'      ;
-			/**/                       res += "cmd()\n" ;
-			return res ;
+			res<<ensure_nl(spec.cmd) ;
+			return {res.str(),"cmd()\n"} ;
 		} else {
-			if (!is_dynamic) return parse_fstr(spec.cmd,job,match,rsrcs) ;
+			if (!is_dynamic) return {parse_fstr(spec.cmd,job,match,rsrcs),{}} ;
 			::string  cmd ;
 			Py::Gil   gil ;
 			PyObject* d   = _mk_dct(job,match,rsrcs) ;
 			Attrs::acquire_from_dct(cmd,d,"cmd") ;
 			Py_DECREF(d)  ;
-			return cmd ;
+			return {cmd,{}} ;
 		}
+	}
+
+	::ostream& operator<<( ::ostream& os , Cmd::DbgEntry const& de ) {
+		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.filename<<" , "<<de.first_line_no1<<" )" ;
+		else     return os<<"()"                                                                                     ;
 	}
 
 	//
@@ -868,7 +901,7 @@ namespace Engine {
 		catch(Py::Exception & e) { throw to_string("while processing ",user_name()," :\n\t",e.errorValue()) ; }
 	}
 
-	static ::string _pretty_vmap( size_t i , ::vmap_ss const& m ) {
+	template<class T> static ::string _pretty_vmap( size_t i , ::vmap_s<T> const& m ) {
 		OStringStream res ;
 		size_t        wk  = 0 ;
 		//
@@ -1081,14 +1114,15 @@ namespace Engine {
 		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
 		return res.str() ;
 	}
-	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
+	static ::string _pretty( size_t i , StartNoneAttrs const& sna , RuleData const& rd ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		if ( sna.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
 		if (+sna.start_delay      ) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
 		if (!sna.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
-		/**/                  res << _pretty_vmap(i,entries) ;
-		if (!sna.env.empty()) res << indent("environ :\n",i) << _pretty_env( i+1 , sna.env ) ;
+		/**/                          res << _pretty_vmap(i,entries) ;
+		if (!sna.env.empty()        ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env         ) ;
+		if (!rd.cmd.spec.dbg.empty()) res << indent("debug info :\n",i) << _pretty_vmap( i+1 , rd.cmd.spec.dbg ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
@@ -1141,7 +1175,7 @@ namespace Engine {
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
 			res << _pretty_str(1,submit_none_attrs       ) ;
-			res << _pretty_str(1,start_none_attrs        ) ;
+			res << _pretty_str(1,start_none_attrs  ,*this) ;
 			res << _pretty_str(1,start_cmd_attrs         ) ;
 			res << _pretty_str(1,cmd               ,*this) ;
 			res << _pretty_str(1,start_rsrcs_attrs       ) ;

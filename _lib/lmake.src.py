@@ -214,7 +214,7 @@ if _lmake_read_makefiles :
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 			HOME       = '$CWD'                            # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
-		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' ,           ))
+		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' , '$CWD'    ))
 		)
 		environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
 		environ_ancillary = pdict(                         # job execution environment, does not trigger rebuild upon modification

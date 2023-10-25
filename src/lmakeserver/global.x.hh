@@ -216,6 +216,7 @@ namespace Engine {
 			// accesses
 			bool has_targets() const {
 				switch (proc) {
+					case RP::Debug  :                                          // PER_CMD : decide whether command has arguments or not
 					case RP::Forget :
 					case RP::Mark   :
 					case RP::Make   :

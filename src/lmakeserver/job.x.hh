@@ -23,6 +23,7 @@ namespace Engine {
 
 	ENUM( AncillaryTag
 	,	Data
+	,	Dbg
 	,	KeepTmp
 	)
 

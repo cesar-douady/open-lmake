@@ -34,7 +34,7 @@ static void connect_to_server(bool refresh) {
 			if (!server_mrkr_stream                          ) goto LaunchServer ;
 			if (!::getline(server_mrkr_stream,server_service)) goto LaunchServer ;
 			if (!::getline(server_mrkr_stream,pid_str       )) goto LaunchServer ;
-			server_pid = atol(pid_str.c_str()) ;
+			server_pid = from_chars<pid_t>(pid_str) ;
 			ClientSockFd req_fd ;
 			try {
 				ClientSockFd req_fd{server_service} ;
@@ -124,7 +124,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		//
 		::vector_s t = split(reply.substr(pos+5),'/') ;
 		if (t.size()!=3) goto Restore ;
-		for( size_t i=0 ; i<3 ; i++ ) lum[fg] += strtol(t[i].c_str(),nullptr,16) ; // add all 3 components as a rough approximation of the luminance
+		for( size_t i=0 ; i<3 ; i++ ) lum[fg] += from_chars<uint32_t>(t[i],false/*empty_ok*/,16) ; // add all 3 components as a rough approximation of the luminance
 	}
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
 	return lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;

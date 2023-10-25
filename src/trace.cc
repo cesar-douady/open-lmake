@@ -19,10 +19,10 @@ thread_local char Trace::t_key          = '?'   ;
 
 #ifndef NO_TRACE
 
-	size_t           Trace::_s_pos   =  0    ;
-	bool             Trace::_s_ping  = false ;
-	Fd               Trace::_s_fd    ;
-	::mutex          Trace::_s_mutex ;
+	size_t  Trace::_s_pos   =  0    ;
+	bool    Trace::_s_ping  = false ;
+	Fd      Trace::_s_fd    ;
+	::mutex Trace::_s_mutex ;
 
 	thread_local int            Trace::_t_lvl  = 0       ;
 	thread_local bool           Trace::_t_hide = false   ;
@@ -30,7 +30,7 @@ thread_local char Trace::t_key          = '?'   ;
 
 	void Trace::s_start() {
 		if ( !g_trace_file || g_trace_file->empty() ) return ;
-		t_key         = 'M'         ;                                          // called from main thread
+		t_key = '=' ;                                                          // called from main thread
 		dir_guard(*g_trace_file) ;
 		_s_open() ;
 	}

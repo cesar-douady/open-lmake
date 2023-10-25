@@ -113,8 +113,8 @@ namespace Backends::Slurm {
 
 	constexpr Tag MyTag = Tag::Slurm ;
 
-	template<::integral T> static inline T s2val(const ::string& s) {return from_string_with_units<T    >(s);}
-	template<::integral T> static inline T m2val(const ::string& m) {return from_string_with_units<T,'M'>(m);}
+	template<::integral T> static inline T s2val(const ::string& s) {return from_string_with_units<    T>(s);}
+	template<::integral T> static inline T m2val(const ::string& m) {return from_string_with_units<'M',T>(m);}
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
@@ -209,7 +209,7 @@ namespace Backends::Slurm {
 			::vmap_ss lclRsrc;
 			for(auto [k,v] : rs) {
 				size_t   val   = single ? capa[k] : ::min(static_cast<size_t>(v),capa[k]);
-				::string val_s = (k=="tmp" || k=="mem") ? to_string_with_units<size_t,'M'>(val) : to_string(val);
+				::string val_s = (k=="tmp" || k=="mem") ? to_string_with_units<'M'>(val) : to_string_with_units(val);
 				lclRsrc.emplace_back(k, val_s);
 			}
 			return lclRsrc;
@@ -218,7 +218,7 @@ namespace Backends::Slurm {
  			SWEAR(!req_map.contains(req)) ;
 			bool verbose = Req(req)->options.flags[ReqFlag::Verbose];
 			req_map.insert({req,{n_jobs,verbose}}) ;
-			::string args = Req(req)->options.backend_args;
+			::string args = Req(req)->options.flag_args[+ReqFlag::Backend] ;
 			if(!args.empty()) {
 				ReqEntry&  entry      = req_map[req];
 				p_cxxopts  optParse   = createParser();
@@ -714,17 +714,17 @@ namespace Backends::Slurm {
 		const auto s2u32 = s2val<uint32_t>;
 		for( auto const& [k,v] : m ) {
 			switch (k[0]) {
-				case 'p' : if (k.starts_with("part"    )) grow(*this,::atoi(&k[4])).part     =         v  ; else rsrcThrow(k); break ;
-				case 't' : if (k.starts_with("tmp"     )) grow(*this,::atoi(&k[3])).tmp      =   m2u32(v) ; else rsrcThrow(k); break ;
-				case 'g' : if (k.starts_with("gres"    )) grow(*this,::atoi(&k[4])).gres     = "gres:"+v  ; else rsrcThrow(k); break ;
-				case 'f' : if (k.starts_with("feature" )) grow(*this,::atoi(&k[7])).feature  =         v  ; else rsrcThrow(k); break ;
-				case 'l' : if (k.starts_with("licence" )) grow(*this,::atoi(&k[7])).licence  =         v  ; else rsrcThrow(k); break ;
-				case 'c' : if (k.starts_with("cpu"     )) grow(*this,::atoi(&k[3])).cpu      =   s2u32(v) ; else rsrcThrow(k); break ;
-				case 'm' : if (k.starts_with("mem"     )) grow(*this,::atoi(&k[3])).mem      =   m2u32(v) ; else rsrcThrow(k); break ;
-				case 'q' : if (k.starts_with("qos"     )) grow(*this,::atoi(&k[3])).qos      =         v  ; else rsrcThrow(k); break ;
-				case 'r' : if (k.starts_with("reserv"  )) grow(*this,::atoi(&k[6])).reserv   =         v  ; else rsrcThrow(k); break ;
-				case 'n' : if (k.starts_with("nodes"   )) grow(*this,::atoi(&k[5])).nodes    =         v  ; else rsrcThrow(k); break ;
-				case 'e' : if (k.starts_with("excludes")) grow(*this,::atoi(&k[8])).excludes =         v  ; else rsrcThrow(k); break ;
+				case 'p' : if (k.starts_with("part"    )) grow(*this,from_chars<uint32_t>(&k[4],true/*empty_ok*/)).part     =         v  ; else rsrcThrow(k); break ;
+				case 't' : if (k.starts_with("tmp"     )) grow(*this,from_chars<uint32_t>(&k[3],true/*empty_ok*/)).tmp      =   m2u32(v) ; else rsrcThrow(k); break ;
+				case 'g' : if (k.starts_with("gres"    )) grow(*this,from_chars<uint32_t>(&k[4],true/*empty_ok*/)).gres     = "gres:"+v  ; else rsrcThrow(k); break ;
+				case 'f' : if (k.starts_with("feature" )) grow(*this,from_chars<uint32_t>(&k[7],true/*empty_ok*/)).feature  =         v  ; else rsrcThrow(k); break ;
+				case 'l' : if (k.starts_with("licence" )) grow(*this,from_chars<uint32_t>(&k[7],true/*empty_ok*/)).licence  =         v  ; else rsrcThrow(k); break ;
+				case 'c' : if (k.starts_with("cpu"     )) grow(*this,from_chars<uint32_t>(&k[3],true/*empty_ok*/)).cpu      =   s2u32(v) ; else rsrcThrow(k); break ;
+				case 'm' : if (k.starts_with("mem"     )) grow(*this,from_chars<uint32_t>(&k[3],true/*empty_ok*/)).mem      =   m2u32(v) ; else rsrcThrow(k); break ;
+				case 'q' : if (k.starts_with("qos"     )) grow(*this,from_chars<uint32_t>(&k[3],true/*empty_ok*/)).qos      =         v  ; else rsrcThrow(k); break ;
+				case 'r' : if (k.starts_with("reserv"  )) grow(*this,from_chars<uint32_t>(&k[6],true/*empty_ok*/)).reserv   =         v  ; else rsrcThrow(k); break ;
+				case 'n' : if (k.starts_with("nodes"   )) grow(*this,from_chars<uint32_t>(&k[5],true/*empty_ok*/)).nodes    =         v  ; else rsrcThrow(k); break ;
+				case 'e' : if (k.starts_with("excludes")) grow(*this,from_chars<uint32_t>(&k[8],true/*empty_ok*/)).excludes =         v  ; else rsrcThrow(k); break ;
 				default  : rsrcThrow(k);
 			}
 		}

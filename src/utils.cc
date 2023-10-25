@@ -212,14 +212,14 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 		size_t col = -1 ;
 		for( size_t i=0 ;;) {                                                  // read first line to the end, even in case of sp.func overflows
 			char c ;
-			if (::read(c2p.read,&c,1)!=1) {                    goto Return ; }   // if we cannot read a line, we are done
+			if (::read(c2p.read,&c,1)!=1) {                  goto Return ; }   // if we cannot read a line, we are done
 			if (c==':'                ) { col = i          ;               }
 			if (c=='\n'               ) { sp.file[i] = 0   ; break       ; }
 			if (i<sizeof(sp.file)-1   ) { sp.file[i++] = c ;               }
 		}
 		if (col<sizeof(sp.file)-1) {
-			sp.file[col] = 0                     ;
-			sp.line      = ::atol(sp.file+col+1) ;
+			sp.file[col] = 0                                 ;
+			sp.line      = from_chars<size_t>(sp.file+col+1,true/*empty_ok*/) ;
 		}
 		_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names and alignment makes all lines very long
 	}

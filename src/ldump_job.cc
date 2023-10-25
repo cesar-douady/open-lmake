@@ -58,9 +58,9 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "tmp_dir     : "  << jrr.autodep_env.tmp_dir     <<'\n' ;        // tmp directory on disk
 	::cout << "tmp_view    : "  << jrr.autodep_env.tmp_view    <<'\n' ;        // tmp directory as viewed by job
 	//
-	::cout << "static_deps :\n" ; _print_map(jrr.static_deps) ;
-	::cout << "env :\n"         ; _print_map(jrr.env        ) ;
-	::cout << "cmd :\n"         ; ::cout << ensure_nl(indent(jrr.cmd)) ;
+	::cout << "static_deps :\n" ; _print_map(jrr.static_deps)                               ;
+	::cout << "env :\n"         ; _print_map(jrr.env        )                               ;
+	::cout << "cmd :\n"         ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }
 
 void print_end(JobRpcReq const& jrr) {
