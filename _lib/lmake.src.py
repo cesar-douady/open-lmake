@@ -137,11 +137,18 @@ if _lmake_read_makefiles :
 		# for set , a key   of -<key> discards <key>    , sequences are mapped to set                  and non sequence is like a singleton
 		# for list & tuple, entries are concatenated    , sequences are mapped to list/tuple           and non sequence is like a singleton
 		combine = {
-			'stems'
+			'path'
+		,	'stems'
 		,	'targets'     , 'post_targets'
 		,	'deps'
 		,	'environ_cmd' , 'environ_resources' , 'environ_ancillary'
 		,	'resources'
+		}
+		# path atributes are part of a combined dict and values are concatenated separated by a separator along the hierarchy
+		path = {
+			'environ_cmd.PATH'            : ':'
+		,	'environ_cmd.PYTHONPATH'      : ':'
+		,	'environ_cmd.LD_LIBRARY_PATH' : ':'
 		}
 	#	name                                               # must be specific for each rule, defaults to class name
 	#	job_name                                           # defaults to first target

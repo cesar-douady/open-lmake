@@ -144,6 +144,7 @@ unit_tests/misc2.py
 unit_tests/name.py
 unit_tests/numba.py
 unit_tests/numpy.py
+unit_tests/path.py
 unit_tests/perf.py
 unit_tests/phony.py
 unit_tests/py_rule.py

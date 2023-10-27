@@ -71,14 +71,20 @@ StdExecAttrs = {
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
-SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                     # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
-SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                          # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
-SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                          # this means string has no variable parts
+SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
+SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
+SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                           # this means string has no variable parts
 
-def update_dct(acc,new) :
+def update_dct(acc,new,path_dct=None,prefix=None) :
 	for k,v in new.items() :
-		acc.pop(k,None)                                                        # ensure entry is put at the end of dict order
-		if v is not None : acc[k] = v                                          # None is used to suppress entries
+		old_v = acc.pop(k,None)                                                # ensure entry is put at the end of dict order
+		if v is None : continue                                                # None is used to suppress entries
+		if path_dct :
+			pk = prefix+'.'+k
+			if pk in path_dct and old_v is not None :
+				acc[k] = old_v+path_dct[pk]+v
+				continue
+		acc[k] = v
 def update_set(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
 	for k in new :
@@ -87,12 +93,12 @@ def update_set(acc,new) :
 def update_lst(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
 	acc += new
-def update(acc,new) :
+def update(acc,new,path_dct=None,prefix=None) :
 	if   callable  (acc     ) : acc = top(new)
 	elif callable  (new     ) : acc = top(new)
-	elif isinstance(acc,dict) : update_dct(acc,new)
-	elif isinstance(acc,set ) : update_set(acc,new)
-	elif isinstance(acc,list) : update_lst(acc,new)
+	elif isinstance(acc,dict) : update_dct(acc,new,path_dct,prefix)
+	elif isinstance(acc,set ) : update_set(acc,new                )
+	elif isinstance(acc,list) : update_lst(acc,new                )
 	else                      : raise TypeError(f'cannot combine {acc.__class__.__name__} and {new.__class__.__name__}')
 	return acc
 def top(new) :
@@ -133,6 +139,7 @@ def qualify(attrs) :
 def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
 	combine = set()
+	path    = {}
 	dct     = pdict(cmd=[])                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
@@ -144,6 +151,7 @@ def handle_inheritance(rule) :
 				for k in d['combine'] :
 					if k in dct and k not in combine : dct[k] = top(dct[k])    # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
 				combine = update(combine,d['combine'])                         # process combine first so we use the freshest value
+			if 'path' in d : path = update(path,d['path'])
 			for k,v in d.items() :
 				if k.startswith('__') and k.endswith('__') : continue          # do not process standard python attributes
 				if k=='combine'                            : continue
@@ -155,8 +163,8 @@ def handle_inheritance(rule) :
 						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.__name__}')
 					dct[k].append(v)
 				elif k in combine :
-					if k in dct : dct[k] = update(dct[k],v)
-					else        : dct[k] = top(v)                              # make a fresh copy as it may be modified by further combine's
+					if k in dct : dct[k] = update(dct[k],v,path,k)
+					else        : dct[k] = top   (       v       )             # make a fresh copy as it may be modified by further combine's
 				else :
 					dct[k] = v
 	except Exception as e :

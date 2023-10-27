@@ -1334,9 +1334,31 @@ Note that regarding resources available in the function environment, the values 
 @end multitable
 
 This attribute specify a set of attribute names to be processed with combined inheritance (@pxref{rule-inheritance}).
+
 Combined attributes may only be @code{dict}, @code{set} and @code{list}.
 @code{dict}'s and @code{set}'s are @code{update}d, @code{list}'s are @code{append}ed.
 @code{dict}'s and @code{list}'s are ordered in reverse MRO, base classes being before derived classes.
+
+Note that this attribute is itself combined, and thus can easily be extended.
+
+@section @code{path}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{dict}
+@item Default
+@tab @code{@{ 'environ_cmd.PATH':':' , 'environ_cmd.PYTHONPATH':':' , 'environ_cmd.LD_LIBRARY_PATH':':' @}}
+@item Dynamic
+@tab No.
+@item Example
+@tab @code{@{'environ_resources.LM_LICENSE_FILE':':'@}}
+@end multitable
+
+This attribute specify a set of entries in @code{dict} combined attributes (i.e. listed in the @code{combine} attribute) that must be handled by joining values with a separator.
+
+It is a @code{dict} whose keys are of the form <attribute>.<key> and values are the separator to use.
 
 @section @code{name}
 
