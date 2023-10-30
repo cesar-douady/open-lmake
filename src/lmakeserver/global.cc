@@ -104,7 +104,6 @@ namespace Engine {
 		::string field ;
 		try {
 			field = "hash_algo"        ; if (py_map.hasKey(field)) hash_algo        = mk_enum<Hash::Algo>(Py::String(py_map[field])) ; else throw "not found"s ;
-			field = "heartbeat"        ; if (py_map.hasKey(field)) heartbeat        = Time::Delay        (Py::Float (py_map[field])) ;
 			field = "local_admin_dir"  ; if (py_map.hasKey(field)) local_admin_dir  =                     Py::String(py_map[field])  ; else local_admin_dir = AdminDir ;
 			field = "max_dep_depth"    ; if (py_map.hasKey(field)) max_dep_depth    = size_t             (Py::Long  (py_map[field])) ; else throw "not found"s ;
 			field = "max_error_lines"  ; if (py_map.hasKey(field)) max_err_lines    = size_t             (Py::Long  (py_map[field])) ;
@@ -228,7 +227,6 @@ namespace Engine {
 	::string Config::pretty_str() const {
 		OStringStream res ;
 		/**/          res << "db_version       : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		/**/          res << "heartbeat        : " <<          heartbeat    .short_str()      <<'\n' ;
 		/**/          res << "hash_algo        : " << mk_snake(hash_algo    )                 <<'\n' ;
 		/**/          res << "link_support     : " << mk_snake(lnk_support  )                 <<'\n' ;
 		/**/          res << "local_admin_dir  : " <<          local_admin_dir                <<'\n' ;

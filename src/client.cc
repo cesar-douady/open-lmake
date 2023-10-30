@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "process.hh"
 #include "rpc_client.hh"
 #include "trace.hh"
 

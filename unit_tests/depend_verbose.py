@@ -17,6 +17,8 @@ if lmake.has_ld_preload : autodeps.append('ld_preload')
 
 if getattr(sys,'lmake_read_makefiles',False) :
 
+	from lmake import multi_strip
+
 	import step
 
 	lmake.sources = (
@@ -43,12 +45,12 @@ if getattr(sys,'lmake_read_makefiles',False) :
 			name    = f'cpy-sh-{ad}'
 			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
 			autodep = ad
-			cmd = '''
+			cmd = multi_strip('''
 				from_server=$(ldepend -v {File} | awk '{{print $2}}')
 				expected=$(   xxhsum     {File}                     )
 				echo $from_server
 				[ $from_server = $expected ] || echo expected $expected got $from_server >&2
-			'''
+			''')
 		class CpyPy(Base) :
 			name    = f'cpy-py-{ad}'
 			target  = f'{{File}}.py.{ad}.{step.link_support}.cpy'

@@ -346,21 +346,17 @@ namespace Backends::Slurm {
 			spawned_map.erase(it) ;
 			return msg;
 		}
-		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() {
-			// as soon as jobs are started, top-backend handles heart beat
-			::vmap<JobIdx,pair_s<bool/*err*/>> res ;
-			for( auto& [job,entry] : spawned_map ) {
-				::string info;
-				job_states js = slurm_job_state(entry.slurm_jobid, info);
-				if(js>JOB_COMPLETE) {
-					bool isErr = js==JOB_FAILED || js==JOB_OOM;
-					if(isErr && entry.verbose) info = info + "\n" + readStderrLog(job);
-					Trace trace("heartbeat job: ",job, " slurm jobid: ",entry.slurm_jobid," state is: ", js);
-					res.emplace_back(job,pair(info,isErr)) ;
-				}
-			}
-			for(auto& [job,entry] : res) spawned_map.erase(job);
-			return res ;
+		virtual ::pair_s<bool/*err*/> heartbeat(JobIdx job) {                  // called on jobs spawned but not started yet
+			SpawnedEntry& entry = spawned_map.at(job) ;
+			::string info;
+			job_states js = slurm_job_state(entry.slurm_jobid, info);
+			if(js<=JOB_COMPLETE) return {{},false/*err*/} ;                    // ok
+			bool isErr = js==JOB_FAILED || js==JOB_OOM;
+			if(isErr && entry.verbose) { info += "\n" ; info += readStderrLog(job); }
+			Trace trace("heartbeat job: ",job, " slurm jobid: ",entry.slurm_jobid," state is: ", js);
+			spawned_map.erase(job) ;
+			launch() ;
+			return {info,isErr} ;
 		}
 		// kill all if req==0
 		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {
@@ -620,7 +616,7 @@ namespace Backends::Slurm {
 							case JOB_BOOT_FAIL: info = to_string("Job terminated due to node boot failure on node(s): ", ji->nodes  ); break;
 							case JOB_DEADLINE : info = to_string("Job terminated on deadline on node(s): "             , ji->nodes  ); break;
 							default:
-								swear(0, to_string("Slurm: wrong job state return for job (", jobid, "): ", job_state));               break;
+								FAIL("Slurm: wrong job state return for job (", jobid, "): ", job_state);
 						}
 					}
 				}

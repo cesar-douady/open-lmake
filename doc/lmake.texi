@@ -909,14 +909,38 @@ These are described in their respective chapters below.
 Besides necessary variables, functions and classes to write @Lmakefile, the config, rules and sources parts are described in their respective chapters below,
 the @lmake module defines a few constants that are of general use.
 
-Some variables fo this module can be defined in @Lmakefile for some specific purposees.
-
-@section specific variables
+Some variables of this module can be defined in @Lmakefile for some specific purposees.
 
 @section @code{class pdict}
 
 This is a helpful tiny @code{class} deriving from @code{dict} that allows item access as attribute.
 This is just syntactic sugar to help the manipulation of configuration @code{dict} objects.
+
+@section @code{def multi_strip(txt)}
+
+This is a helpful tiny function that strips its argument and suppresses the common leading spaces of all lines.
+This allows and easy way to define commands using triple quote strings while maintaining a clean indentation but without such indentation appearing in the resulting string.
+
+For example, in this code :
+
+@example
+@group
+class X(lmake.Rule) :
+	cmd = multi_strip('''
+		line1
+			indented line2
+	''')
+@end group
+@end example
+
+The resulting value for @code{X.cmd} is :
+
+@example
+@group
+line1
+	indented line2
+@end group
+@end example
 
 @section @code{def version(major,minor)}
 
@@ -1094,15 +1118,6 @@ Actually most of the accesses are made in this directory (@pxref{dir-local_admin
 @tab @code{LMAKE}
 @tab This variable contains a directory to be used as a temporary storage for remote execution (@pxref{dir-remote_tmp_dir}).
 
-@item @code{heartbeat}
-@tab @code{60}
-@tab @lmake launches job through a batcher, one of them being the @code{local} batcher that launches jobs locally.
-Also, a remote host executing job may reboot, or the job may be killed, or ... the batcher may simply lose it (yes, it happens from time to time, for example with SGE or Slurm).
-In order to save resources (file descriptors), no connection is maintained between @lmake and jobs while they are running (there may be thousands of them).
-As a consequence, @lmake has no idea whether a job is running or disappeared.
-Without protection, a killed job would lead @lmake to block, waiting undefinitely (or until its timeout if it already started) for it to start or complete.
-To avoid this, submitted jobs are watched periodically to check if they still exist.
-This attribute provides the interval in seconds between such heartbeats.
 @item @code{link_support}
 @tab @code{'Full'}
 @tab @lmake has several levels of symbolic link support (@pxref{link-support}).

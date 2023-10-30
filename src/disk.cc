@@ -404,14 +404,14 @@ namespace Disk {
 	::vmap_s<Accesses> RealPath::exec(SolveReport& sr) {
 		::vmap_s<Accesses> res         ;
 		::string           interpreter ; interpreter.reserve(256) ;
-		//
 		// from tmp, we can go back to repo
-		for( int i=0 ; i<=4 ; i++ ) {                                          // interpret #!<interpreter> recursively (4 levels as per man execve)
+		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
+			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
+			//
 			if (sr.kind>Kind::Dep && sr.kind!=Kind::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
 			//
 			if (sr.mapped) throw to_string("executing ",sr.real," with mapped files along its interpreter path from ",tmp_view," to ",tmp_dir," would require to modify the file content") ;
 			//
-			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			::ifstream real_stream { mk_abs(sr.real,root_dir) } ;
 			Accesses   a           = Access::Reg                ;
 			if (sr.kind<=Kind::Dep) res.emplace_back(sr.real,a) ;

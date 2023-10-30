@@ -178,8 +178,11 @@ def handle_inheritance(rule) :
 			if v is None : continue                                            # None is not transported
 			typ,dyn = StdAttrs[k]
 			if typ and not ( dyn and callable(v) ) :
-				try    : v = typ(v)
-				except : raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
+				try :
+					if typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
+					else                                                      : v = typ( v  )
+				except :
+					raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
 		attrs[k] = v
 	attrs.name        = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__special__ = rule.__special__
@@ -381,7 +384,14 @@ class Handle :
 			*self.static_stems
 		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
+		#
 		self.attrs.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
+		ai = osp.abspath(self.attrs.interpreter[0])
+		ri = osp.relpath(ai)
+		if not ri.startswith('../')                                                        : self.attrs.deps['<interpreter>'] = ri # interpreter is in repo
+		elif any( ai.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]=='/' ) : self.attrs.deps['<interpreter>'] = ai # interpreter is in abs source dirs
+		elif any( ri.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]!='/' ) : self.attrs.deps['<interpreter>'] = ri # interpreter is in rel source dirs
+		#
 		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
 		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
 

@@ -139,7 +139,6 @@ namespace Engine {
 			::serdes(s,trace_sz        ) ;
 			//
 			::serdes(s,colors          ) ;
-			::serdes(s,heartbeat       ) ;
 			::serdes(s,max_err_lines   ) ;
 			::serdes(s,network_delay   ) ;
 			::serdes(s,remote_admin_dir) ;
@@ -167,7 +166,6 @@ namespace Engine {
 		// changing these can be made dynamically (i.e. while lmake is running)
 		Backend        backends[+BackendTag::N]                        ;                    // backend may refuse dynamic modification
 		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
-		Time::Delay    heartbeat                                       ;
 		size_t         max_err_lines                                   = 0                ; // unlimited
 		Time::Delay    network_delay                                   ;
 		::string       remote_admin_dir                                ;

@@ -8,26 +8,30 @@
 #include <linux/sched.h>
 #include <syscall.h>                   // for SYS_* macros
 
-#include <sys/ptrace.h>
-#include <linux/ptrace.h>              // must be after sys/ptrace.h to avoid stupid request macro definitions
-#undef PTRACE_CONT                     // stupid linux/ptrace.h define ptrace requests as macros !
-#undef PTRACE_GET_SYSCALL_INFO         // .
-#undef PTRACE_PEEKDATA                 // .
-#undef PTRACE_POKEDATA                 // .
-#undef PTRACE_SETOPTIONS               // .
-#undef PTRACE_SYSCALL                  // .
-#undef PTRACE_TRACEME                  // .
-
 #include "disk.hh"
 #include "record.hh"
 
 #include "ptrace.hh"
 
-AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
-
-#if HAS_SECCOMP
-	#include "seccomp.h"
+#include <sys/ptrace.h>
+#if HAS_PTRACE_GET_SYSCALL_INFO        // must be after utils.hh include, use portable calls if implemented
+	#include <linux/ptrace.h>          // for struct ptrace_syscall_info, must be after sys/ptrace.h to avoid stupid request macro definitions
+	#if MUST_UNDEF_PTRACE_MACROS       // must be after utils.hh include
+		#undef PTRACE_CONT             // /!\ stupid linux/ptrace.h defines ptrace requests as macros while ptrace expects an enum on some systems
+		#undef PTRACE_GET_SYSCALL_INFO // .
+		#undef PTRACE_PEEKDATA         // .
+		#undef PTRACE_POKEDATA         // .
+		#undef PTRACE_SETOPTIONS       // .
+		#undef PTRACE_SYSCALL          // .
+		#undef PTRACE_TRACEME          // .
+	#endif
 #endif
+
+#if HAS_SECCOMP                        // must be after utils.hh include
+	#include <seccomp.h>
+#endif
+
+AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
 
 using namespace Disk ;
 

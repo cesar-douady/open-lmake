@@ -10,6 +10,8 @@ import time
 
 import lmake
 
+from lmake import multi_strip
+
 version = 1
 
 def balanced(n) :

@@ -165,6 +165,26 @@ LMAKE_REMOTE_FILES = \
 	$(BIN)/ltarget        \
 	$(LIB)/clmake.so
 
+LMAKE_BASIC_SAN_OBJS = \
+	src/disk$(SAN).o         \
+	src/fd$(SAN).o           \
+	src/hash$(SAN).o         \
+	src/lib$(SAN).o          \
+	src/non_portable$(SAN).o \
+	src/process$(SAN).o      \
+	src/time$(SAN).o         \
+	src/utils$(SAN).o
+
+LMAKE_BASIC_OBJS = \
+	src/disk.o         \
+	src/fd.o           \
+	src/hash.o         \
+	src/lib.o          \
+	src/non_portable.o \
+	src/process.o      \
+	src/time.o         \
+	src/utils.o
+
 LMAKE_FILES = $(LMAKE_SERVER_FILES) $(LMAKE_REMOTE_FILES)
 
 LMAKE_ALL_FILES = \
@@ -255,14 +275,10 @@ $(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx
 STORE_TEST : $(STORE_LIB)/unit_test.dir/tok $(STORE_LIB)/big_test.dir/tok
 
 $(STORE_LIB)/unit_test : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(STORE_LIB)/file$(SAN).o \
 	$(SRC)/app$(SAN).o        \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(STORE_LIB)/unit_test$(SAN).o
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
@@ -282,10 +298,10 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk hash lib non_portable pycxx rpc_client rpc_job serialize time trace utils          )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                     )
-STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                        )
-ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx rpc_client rpc_job serialize thread time trace utils )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                              )
+STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                 )
+ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x          )
 
 ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp ext/xxhash.patched.h
 ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
@@ -309,18 +325,13 @@ $(SRC)/autodep/ld_audit.o   : $(SRC)/autodep/ld.cc $(SRC)/autodep/syscall.cc
 $(SRC)/autodep/ptrace.o             :              $(SRC)/autodep/syscall.cc
 
 $(SBIN)/lmakeserver : \
+	$(LMAKE_BASIC_SAN_OBJS)                                      \
 	$(PYCXX_LIB)/pycxx$(SAN).o                                   \
 	$(SRC)/app$(SAN).o                                           \
-	$(SRC)/disk$(SAN).o                                          \
-	$(SRC)/hash$(SAN).o                                          \
-	$(SRC)/lib$(SAN).o                                           \
-	$(SRC)/non_portable.o                                        \
 	$(SRC)/pycxx$(SAN).o                                         \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
-	$(SRC)/time$(SAN).o                                          \
 	$(SRC)/trace$(SAN).o                                         \
-	$(SRC)/utils$(SAN).o                                         \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather_deps$(SAN).o                           \
@@ -344,18 +355,13 @@ $(SBIN)/lmakeserver : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(SLURM_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/ldump : \
+	$(LMAKE_BASIC_SAN_OBJS)                     \
 	$(PYCXX_LIB)/pycxx$(SAN).o                  \
 	$(SRC)/app$(SAN).o                          \
-	$(SRC)/disk$(SAN).o                         \
-	$(SRC)/hash$(SAN).o                         \
-	$(SRC)/lib$(SAN).o                          \
-	$(SRC)/non_portable.o                       \
 	$(SRC)/pycxx$(SAN).o                        \
 	$(SRC)/rpc_client$(SAN).o                   \
 	$(SRC)/rpc_job$(SAN).o                      \
-	$(SRC)/time$(SAN).o                         \
 	$(SRC)/trace$(SAN).o                        \
-	$(SRC)/utils$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
 	$(SRC)/store/file$(SAN).o                   \
 	$(SRC)/lmakeserver/backend$(SAN).o          \
@@ -372,32 +378,22 @@ $(SBIN)/ldump : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
+	$(LMAKE_BASIC_SAN_OBJS)    \
 	$(SRC)/app$(SAN).o         \
-	$(SRC)/disk$(SAN).o        \
-	$(SRC)/hash$(SAN).o        \
-	$(SRC)/lib$(SAN).o         \
-	$(SRC)/non_portable.o      \
 	$(SRC)/rpc_job$(SAN).o     \
-	$(SRC)/time$(SAN).o        \
 	$(SRC)/trace$(SAN).o       \
-	$(SRC)/utils$(SAN).o       \
 	$(SRC)/autodep/env$(SAN).o \
 	$(SRC)/ldump_job$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
 
 $(SBIN)/job_exec : \
+	$(LMAKE_BASIC_SAN_OBJS)            \
 	$(PYCXX_LIB)/pycxx$(SAN).o         \
 	$(SRC)/app$(SAN).o                 \
-	$(SRC)/disk$(SAN).o                \
-	$(SRC)/hash$(SAN).o                \
-	$(SRC)/lib$(SAN).o                 \
-	$(SRC)/non_portable.o              \
 	$(SRC)/pycxx$(SAN).o               \
 	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/time$(SAN).o                \
 	$(SRC)/trace$(SAN).o               \
-	$(SRC)/utils$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
@@ -407,82 +403,57 @@ $(SBIN)/job_exec : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lmake : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(SRC)/lmake$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ldebug : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(SRC)/ldebug$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lshow : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(SRC)/lshow$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lforget : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(SRC)/lforget$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lmark : \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/app$(SAN).o        \
 	$(SRC)/client$(SAN).o     \
-	$(SRC)/disk$(SAN).o       \
-	$(SRC)/lib$(SAN).o        \
-	$(SRC)/non_portable.o     \
 	$(SRC)/rpc_client$(SAN).o \
-	$(SRC)/time$(SAN).o       \
 	$(SRC)/trace$(SAN).o      \
-	$(SRC)/utils$(SAN).o      \
 	$(SRC)/lmark$(SAN).o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/xxhsum : \
-	$(SRC)/disk.o         \
-	$(SRC)/hash.o         \
-	$(SRC)/lib.o          \
-	$(SRC)/non_portable.o \
-	$(SRC)/time.o         \
-	$(SRC)/utils.o        \
+	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/xxhsum.o
 	mkdir -p $(BIN)
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
@@ -493,15 +464,10 @@ $(BIN)/xxhsum : \
 
 # ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
 $(BIN)/ldepend : \
+	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/disk.o            \
-	$(SRC)/hash.o            \
-	$(SRC)/lib.o             \
-	$(SRC)/non_portable.o    \
 	$(SRC)/rpc_job.o         \
-	$(SRC)/time.o            \
 	$(SRC)/trace.o           \
-	$(SRC)/utils.o           \
 	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -510,15 +476,10 @@ $(BIN)/ldepend : \
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ltarget : \
+	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/disk.o            \
-	$(SRC)/hash.o            \
-	$(SRC)/lib.o             \
-	$(SRC)/non_portable.o    \
 	$(SRC)/rpc_job.o         \
-	$(SRC)/time.o            \
 	$(SRC)/trace.o           \
-	$(SRC)/utils.o           \
 	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -527,15 +488,10 @@ $(BIN)/ltarget : \
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lcheck_deps : \
+	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
-	$(SRC)/disk.o            \
-	$(SRC)/hash.o            \
-	$(SRC)/lib.o             \
-	$(SRC)/non_portable.o    \
 	$(SRC)/rpc_job.o         \
-	$(SRC)/time.o            \
 	$(SRC)/trace.o           \
-	$(SRC)/utils.o           \
 	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
@@ -544,15 +500,10 @@ $(BIN)/lcheck_deps : \
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/autodep : \
+	$(LMAKE_BASIC_SAN_OBJS)            \
 	$(SRC)/app$(SAN).o                 \
-	$(SRC)/disk$(SAN).o                \
-	$(SRC)/hash$(SAN).o                \
-	$(SRC)/lib$(SAN).o                 \
-	$(SRC)/non_portable.o              \
 	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/time$(SAN).o                \
 	$(SRC)/trace$(SAN).o               \
-	$(SRC)/utils$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
@@ -562,13 +513,8 @@ $(BIN)/autodep : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SLIB)/ld_preload.so : \
-	$(SRC)/disk.o           \
-	$(SRC)/hash.o           \
-	$(SRC)/lib.o            \
-	$(SRC)/non_portable.o   \
+	$(LMAKE_BASIC_OBJS)     \
 	$(SRC)/rpc_job.o        \
-	$(SRC)/time.o           \
-	$(SRC)/utils.o          \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/ld_preload.o
@@ -576,13 +522,8 @@ $(SLIB)/ld_preload.so : \
 	$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(SLIB)/ld_audit.so : \
-	$(SRC)/disk.o           \
-	$(SRC)/hash.o           \
-	$(SRC)/lib.o            \
-	$(SRC)/non_portable.o   \
+	$(LMAKE_BASIC_OBJS)     \
 	$(SRC)/rpc_job.o        \
-	$(SRC)/time.o           \
-	$(SRC)/utils.o          \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/ld_audit.o
@@ -590,13 +531,8 @@ $(SLIB)/ld_audit.so : \
 	$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(LIB)/clmake.so : \
-	$(SRC)/disk.o            \
-	$(SRC)/hash.o            \
-	$(SRC)/lib.o             \
-	$(SRC)/non_portable.o    \
+	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/rpc_job.o         \
-	$(SRC)/time.o            \
-	$(SRC)/utils.o           \
 	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \

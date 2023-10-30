@@ -10,6 +10,7 @@
 #include "app.hh"
 #include "client.hh"
 #include "disk.hh"
+#include "process.hh"
 #include "rpc_client.hh"
 #include "trace.hh"
 

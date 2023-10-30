@@ -15,8 +15,6 @@ using namespace Disk   ;
 using namespace Engine ;
 using namespace Time   ;
 
-ENUM( EventKind , Master , Int , Slave , Std )
-
 static ServerSockFd   _g_server_fd      ;
 static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
@@ -129,7 +127,6 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 	for(;;) {
 		::vector<Epoll::Event> events = epoll.wait() ;
 		bool                   new_fd = false        ;
-		Ddate::s_refresh_now() ;                                               // we may have waited, refresh now
 		for( Epoll::Event event : events ) {
 			EventKind kind = event.data<EventKind>() ;
 			Fd        fd   = event.fd()              ;
@@ -257,9 +254,8 @@ bool/*interrupted*/ engine_loop() {
 			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
 			next_stats_date = now+Delay(1.) ;
 		}
-		if (empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
+		if ( empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
 		EngineClosure closure = g_engine_queue.pop() ;
-		if (empty) Ddate::s_refresh_now() ;                                    // we may have waited, refresh now
 		switch (closure.kind) {
 			case EngineClosureKind::Global : {
 				switch (closure.global_proc) {
@@ -358,7 +354,7 @@ bool/*interrupted*/ engine_loop() {
 			default : FAIL(closure.kind) ;
 		}
 	}
-	trace("end_loop") ;
+	trace("done") ;
 	return false ;
 }
 

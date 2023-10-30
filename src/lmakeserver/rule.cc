@@ -1140,11 +1140,9 @@ namespace Engine {
 		OStringStream res ;
 		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
 		if ( !s.empty() || d.is_dynamic ) res << indent(to_string(T::Msg," :\n"),i) << s ;
-		if (d.is_dynamic) {
-			if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
-			if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << ensure_nl(indent(d.glbs_str,i+2)) ;                                      }
-			if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << ensure_nl(indent(d.code_str,i+2)) ;                                      }
-		}
+		if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
+		if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << ensure_nl(indent(d.glbs_str,i+2)) ;                                      }
+		if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << ensure_nl(indent(d.code_str,i+2)) ;                                      }
 		return res.str() ;
 	}
 

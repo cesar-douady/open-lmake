@@ -108,85 +108,83 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	//
 	if (env) swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	else     swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
-	autodep_env.service  = master_sock.service(addr) ;
-	autodep_env.root_dir = *g_root_dir               ;
+	autodep_env.service  = master_fd.service(addr) ;
+	autodep_env.root_dir = *g_root_dir             ;
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
-	if (method==AutodepMethod::Ptrace) {
-		// cannot simultaneously watch for data & child events using ptrace as SIGCHLD is not delivered for sub-processes of tracee
-		// so we split the responsability into 2 processes :
-		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
-		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
-		if (!in_parent) {
-			Child grand_child ;
-			AutodepPtrace::s_autodep_env = new AutodepEnv{autodep_env} ;
+	{	::unique_lock lock{_pid_mutex} ;
+		if (killed) return Status::Killed ;                                        // dont start if we are already killed before starting
+		if (method==AutodepMethod::Ptrace) {
+			// cannot simultaneously watch for data & child events using ptrace as SIGCHLD is not delivered for sub-processes of tracee
+			// so we split the responsability into 2 processes :
+			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
+			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
+			bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
+			if (!in_parent) {
+				Child grand_child ;
+				AutodepPtrace::s_autodep_env = new AutodepEnv{autodep_env} ;
+				try {
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					grand_child.spawn(
+						false/*as_group*/ , args
+					,	Fd::Stdin , Fd::Stdout , Fd::Stderr
+					,	env , &add_env
+					,	chroot
+					,	cwd
+					,	AutodepPtrace::s_prepare_child
+					) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				} catch(::string const& e) {
+					exit(2,e) ;
+				}
+				trace("pid",grand_child.pid) ;
+				AutodepPtrace autodep_ptrace { grand_child.pid }        ;
+				int           wstatus        = autodep_ptrace.process() ;
+				grand_child.waited() ;                                             // grand_child has already been waited
+				if      (WIFEXITED  (wstatus)) ::_exit(WEXITSTATUS(wstatus)) ;
+				else if (WIFSIGNALED(wstatus)) ::_exit(2                   ) ;
+				fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
+			}
+		} else {
+			if (method>=AutodepMethod::Ld) {
+				bool     is_audit = method==AutodepMethod::LdAudit ;
+				::string env_var  ;
+				//
+				if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"   ; }
+				else          { env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so" ; }
+				//
+				if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
+				else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }
+			}
+			new_exec( PD::s_now() , args[0] ) ;
 			try {
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				grand_child.spawn(
-					false/*as_group*/ , args
-				,	Fd::Stdin , Fd::Stdout , Fd::Stderr
-				,	env , &add_env
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				child.spawn(
+					create_group , args
+				,	child_stdin  , child_stdout , child_stderr
+				,	env          , &add_env
 				,	chroot
 				,	cwd
-				,	AutodepPtrace::s_prepare_child
 				) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} catch(::string const& e) {
-				exit(2,e) ;
+				if (child_stderr==Child::Pipe) stderr = e ;
+				else                           child_stderr.write(e) ;
+				return Status::Err ;
 			}
-			trace("pid",grand_child.pid) ;
-			AutodepPtrace autodep_ptrace { grand_child.pid }        ;
-			int           wstatus        = autodep_ptrace.process() ;
-			grand_child.waited() ;                                             // grand_child has already been waited
-			if      (WIFEXITED  (wstatus)) ::_exit  (WEXITSTATUS(wstatus)) ;
-			else if (WIFSIGNALED(wstatus)) ::_exit(2) ;
-			fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
+			trace("pid",child.pid) ;
 		}
-	} else {
-		if (method>=AutodepMethod::Ld) {
-			bool     is_audit = method==AutodepMethod::LdAudit ;
-			::string env_var  ;
-			//
-			if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"   ; }
-			else          { env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so" ; }
-			//
-			if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
-			else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }
-		}
-		new_exec( PD::s_now() , args[0] ) ;
-		try {
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			child.spawn(
-				create_group , args
-			,	child_stdin  , child_stdout , child_stderr
-			,	env          , &add_env
-			,	chroot
-			,	cwd
-			) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch(::string const& e) {
-			if (child_stderr==Child::Pipe) stderr = e ;
-			else                           child_stderr.write(e) ;
-			return Status::Err ;
-		}
-		trace("pid",child.pid) ;
+		pid = child.pid ;
 	}
 	//
 	Fd                                child_fd           = open_sig_fd(SIGCHLD) ;
 	Epoll                             epoll              { New }                ;
 	Status                            status             = Status::New          ;
-	size_t                            kill_cnt           = 0                    ; // number of times child has been killed so far
 	PD                                end                ;
 	::umap<Fd         ,IMsgBuf      > slaves             ;
 	::umap<Fd/*reply*/,ServerReply  > server_replies     ;
-	::umap<Fd         ,JobExecRpcReq> delayed_check_deps ;                     // check_deps events are delayed to ensure all previous deps are taken into account
-	auto kill_job = [&](Status s)->void {
-		if (status!=Status::New) return ;
-		status  = s           ;
-		end     = PD::s_now() ;
-	} ;
+	::umap<Fd         ,JobExecRpcReq> delayed_check_deps ;                                  // check_deps events are delayed to ensure all previous deps are taken into account
 	auto handle_req_to_server = [&]( Fd fd , JobExecRpcReq&& jerr ) -> bool/*still_sync*/ {
 		trace("slave",fd,jerr) ;
 		reorder() ;                                        // ensure server sees a coherent view
@@ -212,23 +210,20 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	if (child_stdout==Child::Pipe) epoll.add_read(child.stdout,Kind::Stdout  ) ;
 	if (child_stderr==Child::Pipe) epoll.add_read(child.stderr,Kind::Stderr  ) ;
 	/**/                           epoll.add_read(child_fd    ,Kind::ChildEnd) ;
-	/**/                           epoll.add_read(master_sock ,Kind::Master  ) ;
+	/**/                           epoll.add_read(master_fd   ,Kind::Master  ) ;
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
 		if (+end) {
 			PD now = PD::s_now() ;
 			if (now>=end) {
-				if (status==Status::New) status = Status::Timeout ;
-				/**/                     end    = now + Delay(1.) ;
-				//
-				if (kill_cnt<kill_sigs.size()) child.kill(kill_sigs[kill_cnt++]) ;
-				else                           child.kill(SIGKILL              ) ;
+				if (status==Status::New) status = Status::Timeout ;            // else there is already another reason for job termination
+				kill_job_cb() ;
 			}
 			wait_ns = (end-now).nsec() ;
 		}
 		if (!delayed_check_deps.empty()) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
-		if ( events.empty() && !delayed_check_deps.empty() ) {  // process delayed check deps after all other events
+		if ( events.empty() && !delayed_check_deps.empty() ) {                                  // process delayed check deps after all other events
 			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
 			delayed_check_deps.clear() ;
 			continue ;
@@ -246,17 +241,18 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					else                    { if (cnt) { stdout.append(buf,cnt) ; } else { trace("close_stdout") ; epoll.close(fd) ; } }
 				} break ;
 				case Kind::ChildEnd : {
+					{ ::unique_lock lock{_pid_mutex} ; pid = -1 ; }            // too late to kill job
 					struct signalfd_siginfo child_info ;
 					int                     cnt        = ::read( fd , &child_info , sizeof(child_info) ) ;
 					SWEAR( cnt==sizeof(child_info) , cnt ) ;
 					wstatus = child.wait() ;
 					if (status==Status::New) {
 						if (WIFEXITED(wstatus)) {
-							if (WEXITSTATUS(wstatus)!=0       ) status = Status::Err     ;
-							else                                status = Status::Ok      ;
+							if (WEXITSTATUS(wstatus)!=0       ) status = Status::Err    ;
+							else                                status = Status::Ok     ;
 						} else if (WIFSIGNALED(wstatus)) {
-							if (is_sig_sync(WTERMSIG(wstatus))) status = Status::Err     ; // synchronous signal : actually an error
-							else                                status = Status::Killed  ;
+							if (is_sig_sync(WTERMSIG(wstatus))) status = Status::Err    ; // synchronous signal : actually an error
+							else                                status = Status::Killed ;
 						} else {
 							fail("unexpected wstatus : ",wstatus) ;
 						}
@@ -266,7 +262,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					epoll.cnt-- ;                                              // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
 				} break ;
 				case Kind::Master : {
-					Fd slave{master_sock.accept()} ;
+					Fd slave{master_fd.accept()} ;
 					epoll.add_read(slave,Kind::Slave) ;
 					slaves[slave] ;                                            // allocate entry
 					trace("master",slave) ;
@@ -278,10 +274,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					try         { if (!it->second.buf.receive_step(fd,jrr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
 					trace("server_reply",fd,jrr) ;
-					//                                                      vvvvvvvvvvvvvvvvvvvvvvvvv
-					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) kill_job(Status::ChkDeps) ;
-					else if ( +it->second.fd                              ) sync(it->second.fd,JobExecRpcReply(jrr)) ;
-					//                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                                                                                                         vvvvvvvvvvvvv
+					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) { if(status==Status::New) status=Status::ChkDeps ; kill_job_cb() ;                            }
+					else if ( +it->second.fd                              ) {                                                  sync(it->second.fd,JobExecRpcReply(jrr)) ; }
+					//                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					server_replies.erase(it) ;
 					epoll.close(fd) ;
 				} break ;
@@ -292,16 +288,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					bool sync_ = jerr.sync ;                                             // capture essential info so as to be able to move jerr
 					Proc proc  = jerr.proc ;                                             // .
 					switch (proc) {
-						case Proc::None      :                                                                              goto Close ;
-						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ;                                   break      ;
-						case Proc::Heartbeat :                                                                              goto Close ; // no reply, accept & read is enough to acknowledge
-						//                    vvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Kill     : kill_job(Status::Killed) ;                                                    goto Close ; // .
-						case Proc::Access   : _new_accesses(jerr) ;                                                         break ;
-						case Proc::DepInfos : _new_accesses(jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ;      // if sync, handle_req_to_server replies
-						//                    ^^^^^^^^^^^^^^^^^^^
-						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;                       sync_ = false ; break ;      // if sync, reply is delayed as well
-						case Proc::Trace    : trace("from_job",jerr.comment) ;                                              break ;
+						case Proc::None      :                                                     goto Close ;
+						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ;          break      ;
+						//                     vvvvvvvvvvvvvvvvvvv
+						case Proc::Access    : _new_accesses(jerr) ;                                                         break ;
+						case Proc::DepInfos  : _new_accesses(jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ;      // if sync, handle_req_to_server replies
+						//                     ^^^^^^^^^^^^^^^^^^^
+						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ;                       sync_ = false ; break ;      // if sync, reply is delayed as well
+						case Proc::Trace     : trace("from_job",jerr.comment) ;                                              break ;
 						default : fail(proc) ;
 					}
 					//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

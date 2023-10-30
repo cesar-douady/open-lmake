@@ -7,6 +7,7 @@
 #include "trace.hh"
 
 #include "app.hh"
+#include "process.hh"
 
 using namespace Disk ;
 using namespace Time ;

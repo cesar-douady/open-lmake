@@ -31,8 +31,8 @@ namespace Backends {
 		using CoarseDelay = Time::CoarseDelay ;
 		using Pdate       = Time::Pdate       ;
 
-		struct StartTabEntry {
-			friend ::ostream& operator<<( ::ostream& , StartTabEntry const& ) ;
+		struct StartEntry {
+			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
 			struct Conn {
 				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
 				in_addr_t job_addr = 0 ;
@@ -41,22 +41,15 @@ namespace Backends {
 				SmallId   small_id = 0 ;
 			} ;
 			// cxtors & casts
-			StartTabEntry(       ) = default ;
-			StartTabEntry(NewType) { open() ; }
-			//
+			StartEntry(       ) = default ;
+			StartEntry(NewType) { open() ; }
+			// accesses
+			bool operator+() const { return conn.seq_id ; }
+			bool operator!() const { return !+*this     ; }
 			// services
-			void clear() {                                                     // retain n_retries so counting down number of retries goes on
-				uint8_t nr = submit_attrs.n_retries ;
-				*this = StartTabEntry() ;
-				submit_attrs.n_retries = nr ;
-			}
 			void open() {
+				SWEAR(!*this) ;
 				conn.seq_id = (*Engine::g_seq_id)++ ;
-			}
-			Status lost() {
-				if (submit_attrs.n_retries==0) return Status::Err ;
-				submit_attrs.n_retries-- ;
-				return Status::Lost ;
 			}
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
@@ -66,24 +59,15 @@ namespace Backends {
 			::vmap_ss      rsrcs        ;
 			::uset<ReqIdx> reqs         ;
 			SubmitAttrs    submit_attrs ;
-			ConnState      state        = ConnState::New ; // if true <=> heartbeat has been seen
-            Tag            tag          = Tag::Unknown   ;
+			bool           old          = false        ;   // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
+            Tag            tag          = Tag::Unknown ;
 		} ;
 
 		struct DeferredReportEntry {
 			friend ::ostream& operator<<( ::ostream& , DeferredReportEntry const& ) ;
 			// data
-			Pdate   date     ;         // date at which report must be displayed if job is not done yet
-			SeqId   seq_id   ;
+			SeqId   seq_id   = 0 ;
 			JobExec job_exec ;
-		} ;
-
-		struct DeferredLostEntry {
-			friend ::ostream& operator<<( ::ostream& , DeferredLostEntry const& ) ;
-			// data
-			Pdate  date   ;            // date at which job must be declared lost if it has not completed by then
-			SeqId  seq_id ;
-			JobIdx job    ;
 		} ;
 
 		// statics
@@ -103,38 +87,37 @@ namespace Backends {
 		static void s_new_req_eta(ReqIdx    ) ;
 		static void s_launch     (          ) ;
 		// called by job_exec thread
-		static ::pair_s<uset<ReqIdx>> s_start( Tag t , JobIdx j            ) ; // sub-backend lock must have been takend by caller
-		static ::string/*msg*/        s_end  ( Tag t , JobIdx j , Status s ) ; // .
-		// called by heartbeat thread
-		static ::vmap<JobIdx,pair_s<bool/*err*/>> s_heartbeat() ;
+		static ::pair_s<uset<ReqIdx>> s_start   ( Tag , JobIdx          ) ; // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::string/*msg*/        s_end     ( Tag , JobIdx , Status ) ; // .
+		static ::pair_s<bool/*err*/> s_heartbeat( Tag , JobIdx          ) ; // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req                   ( ReqIdx=0                                             ) ; // kill all if req==0
-		static void            _s_wakeup_remote              ( JobIdx , StartTabEntry::Conn const& , JobExecRpcProc ) ;
-		static bool/*keep_fd*/ _s_handle_job_req             ( JobRpcReq && , Fd={}                                 ) ;
-		static void            _s_job_exec_thread_func       ( ::stop_token                                         ) ;
-		static void            _s_heartbeat_thread_func      ( ::stop_token                                         ) ;
-		static void            _s_deferred_report_thread_func( ::stop_token                                         ) ;
-		static void            _s_deferred_lost_thread_func  ( ::stop_token                                         ) ;
+		static void            _s_kill_req              ( ReqIdx=0                                            ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , JobServerRpcProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                        ) ;
+		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                ) ;
+		static void            _s_handle_deferred_report( DeferredReportEntry&&                               ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status         ) ;
+		//
+		using JobExecThread        = ServerThread<JobRpcReq          > ;
+		using DeferredReportThread = QueueThread <DeferredReportEntry> ;
 		// static data
 	public :
-		static ::latch        s_service_ready  ;
 		static ::string       s_executable     ;
 		static Backend*       s_tab  [+Tag::N] ;
 		static ::atomic<bool> s_ready[+Tag::N] ;
 
-		static ServerSockFd s_server_fd        ;
 	private :
-		static ::mutex                          _s_mutex                 ;
-		static ::umap<JobIdx,StartTabEntry>     _s_start_tab             ;
-		static SmallIds<SmallId>                _s_small_ids             ;
-		static SmallId                          _s_max_small_id          ;
-		static ThreadQueue<DeferredReportEntry> _s_deferred_report_queue ;
-		static ThreadQueue<DeferredLostEntry  > _s_deferred_lost_queue   ;
+		static JobExecThread       *    _s_job_exec_thread        ;
+		static DeferredReportThread*    _s_deferred_report_thread ;
+		static ::mutex                  _s_mutex                  ;
+		static ::map<JobIdx,StartEntry> _s_start_tab              ;            // use map instead of umap because heartbeat iterates over while tab is moving
+		static SmallIds<SmallId>        _s_small_ids              ;
+		static SmallId                  _s_max_small_id           ;
 	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
@@ -150,12 +133,11 @@ namespace Backends {
 		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // add a new req for an already submitted job
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
-		virtual void                   launch(              ) {}               // called to trigger launch of waiting jobs
-		virtual ::pair_s<uset<ReqIdx>> start (JobIdx        ) = 0 ;            // inform job actually starts, return an informative message and reqs for which job has been launched
-		virtual ::string               end   (JobIdx,Status) { return {} ; }   // inform job ended, return a message such as the stdout/stderr from slurm
-		//
-		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() { return {} ; } // regularly called (~ every minute) to give opportunity to backend to check jobs...
-		/**/                                                                   // (typically between launch and start), return lost jobs with error indications (message,is_error)
+		virtual void                   launch   (             ) {                            } // called to trigger launch of waiting jobs
+		virtual ::pair_s<uset<ReqIdx>> start    (JobIdx       ) = 0 ;                          // inform job actually starts, return an informative message and reqs for which job has been launched
+		virtual ::string               end      (JobIdx,Status) { return {}                ; } // inform job ended, return a message such as the stdout/stderr from slurm
+		virtual ::pair_s<bool/*err*/>  heartbeat(JobIdx       ) { return {{},false/*err*/} ; } // regularly called (~ every minute) to give opportunity to backend to check jobs...
+		/**/                                                                                   // (typically between launch and start), return lost jobs with error indications (message,is_error)
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
 		//
@@ -177,8 +159,9 @@ namespace Backends {
 	inline void Backend::s_close_req  (ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
 	//
-	inline ::pair_s<uset<ReqIdx>> Backend::s_start( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start",t,j) ; return s_tab[+t]->start(j  ) ; }
-	inline ::string/*msg*/        Backend::s_end  ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"  ,t,j) ; return s_tab[+t]->end  (j,s) ; }
+	inline ::pair_s<uset<ReqIdx>> Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
+	inline ::string/*msg*/        Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
+	inline ::pair_s<bool/*err*/>  Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 }
 

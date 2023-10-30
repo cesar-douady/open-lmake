@@ -14,23 +14,16 @@
 #include <link.h>
 #include <netdb.h>
 #include <netinet/ip.h>
-#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>                     // for P_tmpdir
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/file.h>
-#include <sys/signalfd.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
-#include <wait.h>
 
 #include <cctype>
 #include <climits>
 #include <cmath>
-#include <csignal>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -450,9 +443,9 @@ template<::integral I> static inline I from_chars( const char* txt , bool empty_
 // assert
 //
 
-static bool/*done*/ kill_self      ( int sig_num                        ) ;
-/**/   void         set_sig_handler( int sig_num , void (*handler)(int) ) ;
-/**/   void         write_backtrace( ::ostream& os , int hide_cnt       ) ;
+static bool/*done*/ kill_self      ( int sig                        ) ;
+/**/   void         set_sig_handler( int sig , void (*handler)(int) ) ;
+/**/   void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
 
 template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
 	::cerr << ensure_nl(to_string(args...)) ;
@@ -518,6 +511,10 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
 #define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
+
+static inline bool/*done*/ kill_process(pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid," !") ; return ::kill  (pid,sig)==0 ;         } // ensure no system wide catastrophe !
+static inline bool/*done*/ kill_group  (pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid," !") ; return ::killpg(pid,sig)==0 ;         } // .
+static inline bool/*done*/ kill_self   (          int sig) {                                                 return kill_process(::getpid(),sig) ; } // raise kills the thread, not the process
 
 //
 // vector_view
@@ -844,346 +841,8 @@ static inline Bool3  common     ( bool   b1 , Bool3 b2 ) {                return
 static inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
-// sockets
+// miscellaneous
 //
-
-::string host() ;
-
-struct Fd {
-	friend ::ostream& operator<<( ::ostream& , Fd const& ) ;
-	static const Fd Cwd    ;
-	static const Fd Stdin  ;
-	static const Fd Stdout ;
-	static const Fd Stderr ;
-	static const Fd Std    ;           // the highest standard fd
-	// cxtors & casts
-	constexpr Fd(                              ) = default ;
-	constexpr Fd( Fd const& fd_                )           { *this =        fd_  ;   }
-	constexpr Fd( Fd     && fd_                )           { *this = ::move(fd_) ;   }
-	constexpr Fd( int       fd_                ) : fd{fd_} {                         }
-	/**/      Fd( int       fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
-	//
-	constexpr Fd& operator=(int       fd_) { fd = fd_    ;                return *this ; }
-	constexpr Fd& operator=(Fd const& fd_) { fd = fd_.fd ;                return *this ; }
-	constexpr Fd& operator=(Fd     && fd_) { fd = fd_.fd ; fd_.detach() ; return *this ; }
-	//
-	constexpr operator int  () const { return fd      ; }
-	constexpr bool operator+() const { return fd>=0   ; }
-	constexpr bool operator!() const { return !+*this ; }
-	// services
-	bool              operator== (Fd const&) const = default ;
-	::strong_ordering operator<=>(Fd const&) const = default ;
-	void write(::string_view const& data) {
-		for( size_t cnt=0 ; cnt<data.size() ;) {
-			ssize_t c = ::write(fd,data.data(),data.size()) ;
-			SWEAR(c>0) ;
-			cnt += c ;
-		}
-	}
-	Fd             dup   () const { return ::dup(fd) ;                  }
-	constexpr void close ()       { if (fd!=-1) ::close(fd) ; fd = -1 ; }
-	constexpr void detach()       {                           fd = -1 ; }
-	void no_std( int min_fd=Std.fd+1 ) {
-		if ( !*this || fd>=min_fd ) return ;
-		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , min_fd ) ;
-		swear_prod(new_fd>=min_fd,"cannot duplicate ",fd) ;
-		::close(fd) ;
-		fd = new_fd ;
-	}
-	in_addr_t peer_addr() {
-		static_assert(sizeof(in_addr_t)==4) ;                                  // else use adequate ntohs/ntohl according to the size
-		struct sockaddr_in peer_addr ;
-		socklen_t          len       = sizeof(peer_addr)                                                           ;
-		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
-		SWEAR( rc ==0                 , rc  ) ;
-		SWEAR( len==sizeof(peer_addr) , len ) ;
-		return ntohl(peer_addr.sin_addr.s_addr) ;
-	}
-	// data
-	int fd = -1 ;
-} ;
-constexpr Fd Fd::Cwd   {int(AT_FDCWD)} ;
-constexpr Fd Fd::Stdin {0            } ;
-constexpr Fd Fd::Stdout{1            } ;
-constexpr Fd Fd::Stderr{2            } ;
-constexpr Fd Fd::Std   {2            } ;
-
-struct AutoCloseFd : Fd {
-	friend ::ostream& operator<<( ::ostream& , AutoCloseFd const& ) ;
-	// cxtors & casts
-	using Fd::Fd ;
-	AutoCloseFd(AutoCloseFd&& acfd) : Fd{::move(acfd)} { acfd.detach() ; }
-	AutoCloseFd(Fd         && fd_ ) : Fd{::move(fd_ )} {                 }
-	//
-	~AutoCloseFd() { close() ; }
-	//
-	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd&& acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
-	AutoCloseFd& operator=(Fd         && fd_ ) { *this = fd_ .fd ;                 return *this ; }
-} ;
-
-struct LockedFd : Fd {
-	friend ::ostream& operator<<( ::ostream& , LockedFd const& ) ;
-	// cxtors & casts
-	LockedFd(                         ) = default ;
-	LockedFd( Fd fd_ , bool exclusive ) : Fd{fd_}         { lock(exclusive) ; }
-	LockedFd(LockedFd&& lfd           ) : Fd{::move(lfd)} { lfd.detach() ;    }
-	//
-	~LockedFd() { unlock() ; }
-	//
-	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return *this ; }
-	//
-	void lock  (bool e) { if (fd>=0) flock(fd,e?LOCK_EX:LOCK_SH) ; }
-	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
-} ;
-
-struct SockFd : AutoCloseFd {
-	friend ::ostream& operator<<( ::ostream& , SockFd const& ) ;
-	static constexpr in_addr_t LoopBackAddr = 0x7f000001 ;
-	// statics
-	static in_addr_t           s_addr     (::string const& server ) ;
-	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                    ; }
-	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           ::stoul(service.substr(col+1))   ; }
-	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , ::stoul(service.substr(col+1)) } ; }
-private :
-	static size_t _s_col(::string const& service) {
-		size_t col = service.rfind(':') ;
-		if (col==Npos) throw "bad service : "+service ;
-		return col ;
-	}
-	// cxtors & casts
-public :
-	using AutoCloseFd::AutoCloseFd ;
-	SockFd(NewType) { init() ; }
-	//
-	void init() {
-		*this = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
-		no_std() ;
-	}
-	// services
-	in_port_t port() const {
-		struct sockaddr_in my_addr ;
-		socklen_t          len     = sizeof(my_addr)                                                           ;
-		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
-		SWEAR( rc ==0               , rc  ) ;
-		SWEAR( len==sizeof(my_addr) , len ) ;
-		return ntohs(my_addr.sin_port) ;
-	}
-} ;
-
-struct SlaveSockFd : SockFd {
-	friend ::ostream& operator<<( ::ostream& , SlaveSockFd const& ) ;
-	// cxtors & casts
-	using SockFd::SockFd ;
-} ;
-
-struct ServerSockFd : SockFd {
-	// statics
-	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;                                       // 3 digits per level + 5 digits for the port
-		/**/         res += to_string((addr>>24)&0xff) ;
-		res += '.' ; res += to_string((addr>>16)&0xff) ;
-		res += '.' ; res += to_string((addr>> 8)&0xff) ;
-		res += '.' ; res += to_string((addr>> 0)&0xff) ;
-		return res ;
-	}
-
-	// cxtors & casts
-	using SockFd::SockFd ;
-	// services
-	void listen(int backlog=100) {
-		if (!*this) init() ;
-		int rc = ::listen(fd,backlog) ;
-		swear_prod(rc==0,"cannot listen on ",*this," with backlog ",backlog," (",rc,')') ;
-	}
-	::string service(in_addr_t addr) { return to_string(s_addr_str(addr),':',port()) ; }
-	::string service() const {
-		return to_string(host(),':',port()) ;
-	}
-	SlaveSockFd accept() {
-		SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
-		swear_prod(+slave_fd,"cannot accept from ",*this) ;
-		return slave_fd ;
-	}
-} ;
-
-struct ClientSockFd : SockFd {
-	// cxtors & casts
-	using SockFd::SockFd ;
-	template<class... A> ClientSockFd(A&&... args) { connect(::forward<A>(args)...) ; }
-	// services
-	void connect( in_addr_t       server , in_port_t port ) ;
-	void connect( ::string const& server , in_port_t port ) { connect( s_addr(server) , port ) ; }
-	void connect( ::string const& service ) {
-		::pair_s<in_port_t> host_port = s_host_port(service) ;
-		connect( host_port.first , host_port.second ) ;
-	}
-} ;
-
-namespace std {
-	template<> struct hash<Fd          > { size_t operator()(Fd           const& fd) const { return fd ; } } ;
-	template<> struct hash<AutoCloseFd > { size_t operator()(AutoCloseFd  const& fd) const { return fd ; } } ;
-	template<> struct hash<SockFd      > { size_t operator()(SockFd       const& fd) const { return fd ; } } ;
-	template<> struct hash<SlaveSockFd > { size_t operator()(SlaveSockFd  const& fd) const { return fd ; } } ;
-	template<> struct hash<ServerSockFd> { size_t operator()(ServerSockFd const& fd) const { return fd ; } } ;
-	template<> struct hash<ClientSockFd> { size_t operator()(ClientSockFd const& fd) const { return fd ; } } ;
-}
-
-//
-// Epoll
-//
-
-struct Epoll {
-	static constexpr uint64_t Forever = -1 ;
-	struct Event : epoll_event {
-		friend ::ostream& operator<<( ::ostream& , Event const& ) ;
-		// cxtors & casts
-		using epoll_event::epoll_event ;
-		Event() { epoll_event::data.u64 = -1 ; }
-		// access
-		template<class T=uint32_t> T  data() const requires(sizeof(T)<=4) { return T       (epoll_event::data.u64>>32) ; }
-		/**/                       Fd fd  () const                        { return uint32_t(epoll_event::data.u64)     ; }
-	} ;
-	// cxtors & casts
-	Epoll (       ) = default ;
-	Epoll (NewType) { init () ; }
-	~Epoll(       ) { close() ; }
-	// services
-	void init() { fd = ::epoll_create1(EPOLL_CLOEXEC) ; }
-	template<class T> void add( bool write , Fd fd_ , T data ) {
-		static_assert(sizeof(T)<=4) ;
-		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;
-		int rc = epoll_ctl( int(fd) , EPOLL_CTL_ADD , int(fd_) , &event ) ;
-		swear_prod(rc==0,"cannot add ",fd_," to epoll ",fd," (",strerror(errno),')') ;
-		cnt++ ;
-	}
-	template<class T> void add_read ( Fd fd_ , T data ) { add(false/*write*/,fd_,data) ; }
-	template<class T> void add_write( Fd fd_ , T data ) { add(true /*write*/,fd_,data) ; }
-	void add      ( bool write , Fd fd_ ) { add(write         ,fd_,0) ; }
-	void add_read (              Fd fd_ ) { add(false/*write*/,fd_  ) ; }
-	void add_write(              Fd fd_ ) { add(true /*write*/,fd_  ) ; }
-	void del(Fd fd_) {
-		int rc = epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
-		swear_prod(rc==0,"cannot del ",fd_," from epoll ",fd," (",strerror(errno),')') ;
-		cnt-- ;
-	}
-	void close(Fd fd_) { SWEAR(+fd_) ; del(fd_) ; fd_.close() ; }
-	void close(      ) {                          fd .close() ; }
-	::vector<Event> wait(uint64_t timeout_ns=Forever) const ;
-	// data
-	Fd  fd  ;
-	int cnt = 0 ;
-} ;
-::ostream& operator<<( ::ostream& , Epoll::Event const& ) ;
-
-//
-// threads
-//
-
-template<class T> struct ThreadQueue : private ::deque<T> {
-private :
-	using Base = ::deque<T> ;
-public :
-	using Base::empty ;
-	using Base::size  ;
-	// cxtors & casts
-	ThreadQueue() = default ;
-	bool operator+() const {
-		::unique_lock lock{_mutex} ;
-		return !Base::empty() ;
-	}
-	bool operator!() const { return !+*this ; }
-	// services
-	/**/                 void push   (T const& x) { ::unique_lock lock{_mutex} ; Base::push_back   (x                 ) ; _cond.notify_one() ; }
-	template<class... A> void emplace(A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
-	T pop() {
-		::unique_lock lock{_mutex} ;
-		_cond.wait( lock , [&](){ return !Base::empty() ; } ) ;
-		return _pop() ;
-	}
-	::pair<bool/*popped*/,T> try_pop() {
-		::unique_lock lock{_mutex} ;
-		if (empty()) return {false/*popped*/,T()} ;
-		return {true/*popped*/,_pop()} ;
-	}
-	::pair<bool/*popped*/,T> pop(::stop_token tkn) {
-		::unique_lock lock{_mutex} ;
-		if (!_cond.wait( lock , tkn , [&](){ return !Base::empty() ; } )) return {false/*popped*/,T()} ;
-		return {true/*popped*/,_pop()} ;
-	}
-private :
-	T _pop() {
-		T res = ::move(Base::front()) ;
-		Base::pop_front() ;
-		return res ;
-	}
-	// data
-	::mutex mutable          _mutex ;
-	::condition_variable_any _cond  ;
-} ;
-
-//
-// processes
-//
-
-static inline bool/*done*/ kill_process(pid_t pid,int sig_num) { swear_prod(pid>1,"killing process ",pid," !") ; return ::kill  (pid,sig_num)==0 ;         } // ensure no system wide catastrophe !
-static inline bool/*done*/ kill_group  (pid_t pid,int sig_num) { swear_prod(pid>1,"killing process ",pid," !") ; return ::killpg(pid,sig_num)==0 ;         } // .
-static inline bool/*done*/ kill_self   (          int sig_num) {                                                 return kill_process(::getpid(),sig_num) ; } // raise kills the thread, not the process
-
-struct Pipe {
-	// cxtors & casts
-	Pipe(       ) = default ;
-	Pipe(NewType) { open() ; }
-	void open() {
-		int fds[2] ;
-		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
-		read  = fds[0] ;
-		write = fds[1] ;
-	}
-	void close() {
-		read .close() ;
-		write.close() ;
-	}
-	// data
-	Fd read  ;     // read  side of the pipe
-	Fd write ;     // write side of the pipe
-} ;
-
-static inline bool/*was_blocked*/ set_sig( int sig_num , Bool3 block ) {
-	sigset_t mask ;
-	sigemptyset(&mask        ) ;
-	sigaddset  (&mask,sig_num) ;
-	//
-	SWEAR(pthread_sigmask( block==Yes?SIG_BLOCK:SIG_UNBLOCK , block==Maybe?nullptr:&mask , &mask )==0) ;
-	//
-	return sigismember(&mask,sig_num)!=(block==Yes) ;
-}
-static inline bool/*did_block  */ block_sig  (int sig_num) { return set_sig(sig_num,Yes  ) ; }
-static inline bool/*did_unblock*/ unblock_sig(int sig_num) { return set_sig(sig_num,No   ) ; }
-static inline bool/*is_blocked */ probe_sig  (int sig_num) { return set_sig(sig_num,Maybe) ; }
-
-static inline Fd open_sig_fd( int sig_num , bool block=false ) {
-	if (block) swear_prod(block_sig(sig_num),"signal ",::strsignal(sig_num)," is already blocked") ;
-	else       swear_prod(probe_sig(sig_num),"signal ",::strsignal(sig_num)," is not blocked"    ) ;
-	//
-	sigset_t mask ;
-	sigemptyset(&mask        ) ;
-	sigaddset  (&mask,sig_num) ;
-	//
-	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
-}
-
-static inline bool is_sig_sync(int sig_num) {
-	switch (sig_num) {
-		case SIGILL  :
-		case SIGTRAP :
-		case SIGABRT :
-		case SIGBUS  :
-		case SIGFPE  :
-		case SIGSEGV : return true  ;
-		default      : return false ;
-	}
-}
 
 static inline bool has_env(::string const& name) {
 	return ::getenv(name.c_str()) ;
@@ -1200,74 +859,6 @@ static inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
 	swear_prod(rc==0,"cannot unsetenv ",name) ;
 }
-
-struct Child {
-	static constexpr Fd None{-1} ;
-	static constexpr Fd Pipe{-2} ;
-	// cxtors & casts
-	Child() = default ;
-	Child(
-		bool            as_group_          , ::vector_s const& args
-	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& chroot  ={}
-	,	::string const& cwd     ={}
-	,	void (*pre_exec)()      =nullptr
-	) {
-		spawn(as_group_,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,chroot,cwd,pre_exec) ;
-	}
-	~Child() {
-		swear_prod(pid==-1,"bad pid ",pid) ;
-	}
-	// services
-	bool/*parent*/ spawn(
-		bool            as_group_          , ::vector_s const& args
-	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
-	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
-	,	::string const& chroot  ={}
-	,	::string const& cwd     ={}
-	,	void (*pre_exec)()      =nullptr
-	) ;
-	void mk_daemon() {
-		pid = -1 ;
-		stdin .detach() ;
-		stdout.detach() ;
-		stderr.detach() ;
-	}
-	void waited() {
-		pid = -1 ;
-	}
-	int/*wstatus*/ wait() {
-		SWEAR(pid!=-1) ;
-		int wstatus ;
-		int rc = waitpid(pid,&wstatus,0) ;
-		swear_prod(rc==pid,"cannot wait for pid ",pid) ;
-		waited() ;
-		return wstatus ;
-	}
-	bool wait_ok() {
-		int wstatus = wait() ;
-		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
-	}
-	bool/*done*/ kill(int sig) {
-		if (!sig    ) return true                  ;
-		if (as_group) return kill_group  (pid,sig) ;
-		else          return kill_process(pid,sig) ;
-	}
-	bool is_alive() const {
-		return kill_process(pid,0) ;
-	}
-	//data
-	pid_t       pid      = -1    ;
-	AutoCloseFd stdin    ;
-	AutoCloseFd stdout   ;
-	AutoCloseFd stderr   ;
-	bool        as_group = false ;
-} ;
-
-//
-// miscellaneous
-//
 
 ::string beautify_filename(::string const&) ;
 

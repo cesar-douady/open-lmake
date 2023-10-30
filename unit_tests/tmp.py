@@ -9,6 +9,8 @@ if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 
+	from lmake import multi_strip
+
 	lmake.sources = ('Lmakefile.py',)
 
 	class Base(lmake.Rule) :
@@ -18,7 +20,7 @@ if getattr(sys,'lmake_read_makefiles',False) :
 		target  = 'dut{N}'
 		targets = { 'LNK' : 'lnk{N}' }
 		tmp = '/tmp'
-		cmd = '''
+		cmd = multi_strip('''
 			ln -s /tmp/a          {LNK}
 			ln -s $ROOT_DIR/{LNK} /tmp/b
 			cd $TMPDIR
@@ -30,16 +32,16 @@ if getattr(sys,'lmake_read_makefiles',False) :
 			cd $ROOT_DIR
 			cat {LNK}
 			cat /tmp/b
-		'''
+		''')
 	class Ref(Base) :
 		target = 'ref{N}'
-		cmd = '''
+		cmd = multi_strip('''
 			echo /tmp                  # echo $TMPDIR
 			echo /tmp                  # pwd
 			echo {N}                   # cat a
 			echo {N}                   # cat LNK
 			echo {N}                   # cat /tmp/b
-		'''
+		''')
 	class Cmp(Base) :
 		target = 'ok{N}'
 		deps = {

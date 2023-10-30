@@ -12,6 +12,25 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+*1 rework heartbeat
+	- establish a second server in a dedicated thread in job_exec
+		- manage heartbeat/kill requests from server
+		- this way, hearbeat server is always available
+			- as of now, it is not available while computing target crcs
+	- send an acknowledge to end of job
+		- so that hearbeat server is available until end of job
+		- no race in server when heartbeat sees a non responding job
+		- no deferred_lost
+	- send an acknowledge to heartbeat requests
+		- this way, if port is reused by a later job, heartbeat can see job is missing
+		- same for kill so that server knows if job is killed
+		- this may explain why ^C is sometimes very slow
+	- suppress heartbeat config
+		- maintain a table of running jobs indexed by small_id
+		- check 10 jobs/s
+		- but no more than the full table every second
+		- this way, we do not send 100's of checks at once
+			- and risk false connection refusals
 ! ^C is sometimes very slow
 	- and may crash the server
 	- hard to reproduce
@@ -61,6 +80,11 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+*2 if a job cannot connect to job_exec to report deps
+	- note fact in a marker file
+		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
+	- check marker file existence in job_exec
+		- and retry job in that case rather than generating job in error
 * implement noexcept/except everywhere pertinent
 * use the Path struct instead of at/file
 	- everywhere applicable
@@ -92,22 +116,28 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide the possibility to play dynamically with resources in config
+*3 implement a lshow -r to see what is running now
+	- implement a generic walk through deps
+	- use it for check_deps, which will prevent jobs post critical deps to be run
+*4 provide the possibility to play dynamically with resources in config
 	- split config / rules / sources
 	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
 		- reload rules when rules change (or when config.rules changes)
 		- sources when sources change (or when config.sources changes)
 		- config when config changes
 			- and allow config to be read dynamically, and recognize if this is acceptable
-* implement a lshow -r to see what is running now
-	- implement a generic walk through deps
-	- use it for check_deps, which will prevent jobs post critical deps to be run
 * result cache v2 (copy & link) :
 	- 2 levels : disk level, global level
 	- use link instead of copy
 	- warning : links change cdate
 		- and cdates are used as dates
 		- because exec bit is part of crc
+* implement a ref/check mechanism
+	- record a map file:crc under git
+	- err if generated crc does not match recorded crc
+	- implement "lref file crc" to record/update map
+* allow dynamic attribute functions to have inherited values (passing inherited value as argument)
+	- maybe not strictly necessary, but this is what is done for cmd
 ! support direct rebuild of deps
 	- switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
 		- difficulty is that there is no named group
@@ -124,12 +154,6 @@ items :
 		- then resume participates to allocation competition
 ! record deps during attribute computation
 	- when dynamic
-* implement a ref/check mechanism
-	- record a map file:crc under git
-	- err if generated crc does not match recorded crc
-	- implement "lref file crc" to record/update map
-* allow dynamic attribute functions to have inherited values (passing inherited value as argument)
-	- maybe not strictly necessary, but this is what is done for cmd
 ! implement star optional :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr
@@ -169,25 +193,32 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* process specifically uphill
+*5 process specifically uphill
 	- directly depend node->node
 	- avoid creating an intermediate job
 	- there are a lot of them an bring no value
+*6 record dep crcs in Job rather than in Dep
+	- store crc just before dep error parallel chunk
+	- dont store deps after first dep error parallel chunk as they are useless
+	- this way we can severely reduce the Deps size (4x if we can manage accesses)
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
-* launch deps as soon as they are discovered
-	- w/o waiting for dependent job to complete
-	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going
-		- or record close & dup so as to know when a file is no longer needed
-		- gather crc before dep launch in case dep is steady
-	- possibly upon declaration by user
+* trap close in autodep
+	- so as to know when a dep was last accessed
+	- and avoid too may overwrites
 * gprof
 * get rid of pycxx
 ! manage HUGE pages in store
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
+? launch deps as soon as they are discovered
+	- w/o waiting for dependent job to complete
+	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going
+		- or record close & dup so as to know when a file is no longer needed
+		- gather crc before dep launch in case dep is steady
+	- possibly upon declaration by user
 ? set an access cache in autodep
 	? put only static info
 	? mark target dirs & tmp as beginning of writable area -> do not cache within
@@ -215,7 +246,7 @@ items :
 * TESTS
 ****************************************************************************************************
 
-*1 add a unit test for dup2
+* add a unit test for dup2
 * add a unit test for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...

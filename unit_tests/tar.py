@@ -10,17 +10,19 @@ if getattr(sys,'lmake_read_makefiles',False) :
 
 	import lmake
 
+	from lmake import multi_strip
+
 	lmake.sources = ('Lmakefile.py',)
 
 	file = 'a/b/c'
 	class Tar(lmake.Rule) :
 		targets = { 'TAR' : r'hello.tar{*:.*}' }
-		cmd = '''
+		cmd = multi_strip('''
 			cd $TMPDIR
 			mkdir -p $(dirname {file})
 			echo yes >{file}
 			tar cf $ROOT_DIR/hello.tar {file}
-		'''
+		''')
 	class Untar(lmake.Rule) :
 		targets = { 'TARGET' : '{File:.*}.tardir/{*:.*}' }
 		deps    = { 'TAR'    : '{File}.tar'              }

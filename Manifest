@@ -48,6 +48,8 @@ src/client.hh
 src/config.hh
 src/disk.cc
 src/disk.hh
+src/fd.cc
+src/fd.hh
 src/hash.cc
 src/hash.hh
 src/job_exec.cc
@@ -89,6 +91,8 @@ src/lmark.cc
 src/lshow.cc
 src/non_portable.cc
 src/non_portable.hh
+src/process.cc
+src/process.hh
 src/pycxx.cc
 src/pycxx.hh
 src/rpc_client.cc
@@ -107,6 +111,7 @@ src/store/store_utils.hh
 src/store/struct.hh
 src/store/unit_test.cc
 src/store/vector.hh
+src/thread.hh
 src/time.cc
 src/time.hh
 src/trace.cc

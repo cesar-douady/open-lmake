@@ -132,12 +132,12 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
-	os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if (jerr.sync            ) os << ",sync"            ;
-	if (jerr.auto_date       ) os << ",auto_date"       ;
-	if (jerr.no_follow       ) os << ",no_follow"       ;
-	/**/                       os <<',' << jerr.digest  ;
-	if (!jerr.comment.empty()) os <<',' << jerr.comment ;
+	/**/                       os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
+	if (jerr.sync            ) os << ",sync"                                         ;
+	if (jerr.auto_date       ) os << ",auto_date"                                    ;
+	if (jerr.no_follow       ) os << ",no_follow"                                    ;
+	/**/                       os <<',' << jerr.digest                               ;
+	if (!jerr.comment.empty()) os <<',' << jerr.comment                              ;
 	if (jerr.has_files()) {
 		if ( +jerr.digest.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
@@ -162,6 +162,16 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 		default : ;
 	}
 	return os << ')' ;
+}
+
+//
+// JobSserverRpcReq
+//
+
+::ostream& operator<<( ::ostream& os , JobServerRpcReq const& jsrr ) {
+	/**/                                        os << "JobServerRpcReq(" << jsrr.proc <<','<< jsrr.seq_id ;
+	if (jsrr.proc==JobServerRpcProc::Heartbeat) os <<','<< jsrr.job                                       ;
+	return                                      os <<')'                                                  ;
 }
 
 //

@@ -9,6 +9,9 @@
 
 #include "utils.hh"
 
+#include "fd.hh"
+#include "process.hh"
+
 //
 // string
 //
@@ -110,13 +113,13 @@ size_t parse_c_str( ::string const& s , size_t start ) {
 // assert
 //
 
-void set_sig_handler( int sig_num , void (*handler)(int) ) {
+void set_sig_handler( int sig , void (*handler)(int) ) {
 	sigset_t         empty  ; ::sigemptyset(&empty) ;
 	struct sigaction action ;
 	action.sa_handler = handler    ;
 	action.sa_mask    = empty      ;
 	action.sa_flags   = SA_RESTART ;
-	::sigaction( sig_num , &action , nullptr ) ;
+	::sigaction( sig , &action , nullptr ) ;
 }
 
 static size_t/*len*/ _beautify(char* filename) {                               // does not call malloc for use in src_point
@@ -218,8 +221,9 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 			if (i<sizeof(sp.file)-1   ) { sp.file[i++] = c ;               }
 		}
 		if (col<sizeof(sp.file)-1) {
-			sp.file[col] = 0                                 ;
-			sp.line      = from_chars<size_t>(sp.file+col+1,true/*empty_ok*/) ;
+			/**/                        sp.file[col] = 0                                                  ;
+			try                       { sp.line      = from_chars<size_t>(sp.file+col+1,true/*empty_ok*/) ; }
+			catch (::string const& e) { sp.line      = 0                                                  ; }
 		}
 		_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names and alignment makes all lines very long
 	}
@@ -255,222 +259,4 @@ void write_backtrace( ::ostream& os , int hide_cnt ) {
 		/**/                        os <<" : " << ::setw(0 )<<          symbolic_stack[i].func         ;
 		/**/                        os <<::endl ;
 	}
-}
-
-ostream& operator<<( ostream& os , Epoll::Event const& e ) {
-	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
-}
-
-::vector<Epoll::Event> Epoll::wait(uint64_t timeout_ns) const {
-	struct ::timespec now ;
-	struct ::timespec end ;
-	SWEAR(cnt) ;
-	bool has_timeout = timeout_ns>0 && timeout_ns<Forever ;
-	if (has_timeout) {
-		::clock_gettime(CLOCK_MONOTONIC,&now) ;
-		end.tv_sec  = now.tv_sec  + timeout_ns/1'000'000'000l ;
-		end.tv_nsec = now.tv_nsec + timeout_ns%1'000'000'000l ;
-		if (end.tv_nsec>=1'000'000'000l) {
-			end.tv_nsec -= 1'000'000'000l ;
-			end.tv_sec  += 1              ;
-		}
-	}
-	for(;;) {
-		::vector<Event> events        ; events.resize(cnt) ;
-		int             cnt_          ;
-		int             wait_ms       = -1    ;
-		bool            wait_overflow = false ;
-		if (has_timeout) {
-			time_t wait_s   = end.tv_sec - now.tv_sec               ;
-			time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
-			if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
-			wait_ms  = wait_s                    * 1'000      ;
-			wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;                // protect against possible conversion to time_t which may be unsigned
-		} else {
-			wait_ms = timeout_ns ? -1 : 0 ;
-		}
-		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
-		switch (cnt_) {
-			case  0 : if (!wait_overflow)             return {}     ; break ;  // timeout
-			case -1 : SWEAR( errno==EINTR , errno ) ;                 break ;
-			default : events.resize(cnt_) ;           return events ;
-		}
-		if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
-	}
-}
-
-//
-// sockets
-//
-
-::ostream& operator<<( ::ostream& os , Fd           const& fd ) { return os << "Fd("           << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , AutoCloseFd  const& fd ) { return os << "AutoCloseFd("  << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }
-::ostream& operator<<( ::ostream& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; }
-
-::string host() {
-	char buf[HOST_NAME_MAX+1] ;
-	int rc = ::gethostname(buf,sizeof(buf)) ;
-	swear_prod(rc==0,"cannot get host name") ;
-	return buf ;
-}
-
-void ClientSockFd::connect( in_addr_t server , in_port_t port ) {
-	if (!*this) init() ;
-	swear_prod(fd>=0,"cannot create socket") ;
-	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;            // else use adequate htons/htonl according to the sizes
-	struct sockaddr_in addr {
-		.sin_family = AF_INET
-	,	.sin_port   = htons(port)
-	,	.sin_addr   = { .s_addr=htonl(server) }
-	,	.sin_zero   = {}
-	} ;
-	int rc = ::connect( fd , reinterpret_cast<sockaddr*>(&addr) , sizeof(sockaddr) ) ;
-	if (rc!=0) {
-		int errno_ = errno ;
-		close() ;
-		throw ::string(strerror(errno_)) ;
-	}
-}
-
-in_addr_t SockFd::s_addr(::string const& server) {
-	if (server.empty()) return LoopBackAddr ;
-	// by standard dot notation
-	{	in_addr_t addr  = 0     ;                                              // address being decoded
-		int       byte  = 0     ;                                              // ensure component is less than 256
-		int       n     = 0     ;                                              // ensure there are 4 components
-		bool      first = true  ;                                              // prevent empty components
-		bool      last  = false ;                                              // prevent leading 0's (unless component is 0)
-		for( char c : server ) {
-			if (c=='.') {
-				if (n>=4 ) goto Next ;
-				if (first) goto Next ;
-				addr  = (addr<<8) | byte ;                                     // network order is big endian
-				byte  = 0                ;
-				first = true             ;
-				n++ ;
-				continue ;
-			}
-			if ( c>='0' && c<='9' ) {
-				if (last) goto Next ;
-				if ( first && c=='0' ) last = true ;
-				last  = false             ;
-				first = false             ;
-				byte  = byte*10 + (c-'0') ;
-				if (byte>=256) goto Next ;
-				continue ;
-			}
-			goto Next ;
-		}
-		if (first) goto Next ;
-		if (n!=4 ) goto Next ;
-		return addr ;
-	Next : ;
-	}
-	{	struct ifaddrs* ifa ;
-		if (::getifaddrs(&ifa)==0) {
-			for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next )
-				if ( p->ifa_addr && p->ifa_addr->sa_family==AF_INET  && p->ifa_name==server ) {
-					in_addr_t addr = ::ntohl( reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr ) ;
-					freeifaddrs(ifa) ;
-					return addr ;
-				}
-			freeifaddrs(ifa) ;
-		}
-	}
-	// by name
-	{	struct addrinfo hint = {} ;
-		hint.ai_family   = AF_INET     ;
-		hint.ai_socktype = SOCK_STREAM ;
-		struct addrinfo* ai ;
-		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
-		if (rc!=0) throw to_string("cannot get addr of ",server," (",rc,')') ;
-		static_assert(sizeof(in_addr_t)==4) ;                                                 // else use adequate ntohl/ntohs
-		in_addr_t addr = ::ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;
-		freeaddrinfo(ai) ;
-		return addr ;
-	}
-}
-
-//
-// processes
-//
-
-bool/*parent*/ Child::spawn(
-	bool            as_group_ , ::vector_s const& args
-,	Fd              stdin_fd  , Fd                stdout_fd , Fd stderr_fd
-,	::map_ss const* env       , ::map_ss   const* add_env
-,	::string const& chroot_
-,	::string const& cwd_
-,	void (*pre_exec)()
-) {
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ; // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ; // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ; // .
-	SWEAR(!( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                   ) ; // .
-	::Pipe p2c  ;
-	::Pipe c2po ;
-	::Pipe c2pe ;
-	if (stdin_fd ==Pipe) p2c .open() ; else if (+stdin_fd ) p2c .read  = stdin_fd  ;
-	if (stdout_fd==Pipe) c2po.open() ; else if (+stdout_fd) c2po.write = stdout_fd ;
-	if (stderr_fd==Pipe) c2pe.open() ; else if (+stderr_fd) c2pe.write = stderr_fd ;
-	as_group = as_group_ ;
-	pid      = fork()    ;
-	if (!pid) { // child
-		if (as_group) ::setpgid(0,0) ;
-		//
-		sigset_t full_mask ; ::sigfillset(&full_mask) ;
-		::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                        // restore default behavior
-		//
-		if (stdin_fd ==Pipe) { p2c .write.close() ; p2c .read .no_std() ; }    // could be optimized, but too complex to manage
-		if (stdout_fd==Pipe) { c2po.read .close() ; c2po.write.no_std() ; }    // .
-		if (stderr_fd==Pipe) { c2pe.read .close() ; c2pe.write.no_std() ; }    // .
-		// set up std fd
-		if (stdin_fd ==None) ::close(Fd::Stdin ) ; else if (p2c .read !=Fd::Stdin ) ::dup2(p2c .read ,Fd::Stdin ) ;
-		if (stdout_fd==None) ::close(Fd::Stdout) ; else if (c2po.write!=Fd::Stdout) ::dup2(c2po.write,Fd::Stdout) ; // save stdout in case it is modified and we want to redirect stderr to it
-		if (stderr_fd==None) ::close(Fd::Stderr) ; else if (c2pe.write!=Fd::Stderr) ::dup2(c2pe.write,Fd::Stderr) ;
-		//
-		if (p2c .read >Fd::Std) p2c .read .close() ;                           // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-		if (c2po.write>Fd::Std) c2po.write.close() ;                           // .
-		if (c2pe.write>Fd::Std) c2pe.write.close() ;                           // .
-		//
-		const char** child_env  = const_cast<const char**>(environ) ;
-		::vector_s   env_vector ;                                              // ensure actual env strings lifetime last until execve call
-		if (env) {
-			SWEAR(!args.empty()) ;                                             // cannot fork with env
-			size_t n_env = env->size() + (add_env?add_env->size():0) ;
-			env_vector.reserve(n_env) ;
-			for( auto const* e : {env,add_env} )
-				if (e)
-					for( auto const& [k,v] : *e )
-						env_vector.push_back(k+'='+v) ;
-			child_env = new const char*[n_env+1] ;
-			// /!\ : c_str() seems to be invalidated by vector reallocation although this does not appear in doc : https://en.cppreference.com/w/cpp/string/basic_string/c_str
-			for( size_t i=0 ; i<n_env ; i++ ) child_env[i] = env_vector[i].c_str() ;
-			child_env[n_env] = nullptr ;
-		} else {
-			if (add_env) for( auto const& [k,v] : *add_env ) set_env(k,v) ;
-		}
-		if (!chroot_.empty()) { if (::chroot(chroot_.c_str())!=0) throw to_string("cannot chroot to : ",chroot_) ; }
-		if (!cwd_   .empty()) { if (::chdir (cwd_   .c_str())!=0) throw to_string("cannot chdir to : " ,cwd_   ) ; }
-		if (pre_exec        ) { pre_exec() ;                                                                       }
-		//
-		if (args.empty()) return false ;
-		#if HAS_CLOSE_RANGE
-			//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                       // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
-		#endif
-		const char** child_args = new const char*[args.size()+1] ;
-		for( size_t i=0 ; i<args.size() ; i++ ) child_args[i] = args[i].c_str() ;
-		child_args[args.size()] = nullptr ;
-		if (env) ::execve( child_args[0] , const_cast<char**>(child_args) , const_cast<char**>(child_env) ) ;
-		else     ::execv ( child_args[0] , const_cast<char**>(child_args)                                 ) ;
-		pid = -1 ;
-		throw to_string("cannot exec (",strerror(errno),") : ",args) ;         // in case exec fails
-	}
-	if (stdin_fd ==Pipe) { stdin  = p2c .write ; p2c .read .close() ; }
-	if (stdout_fd==Pipe) { stdout = c2po.read  ; c2po.write.close() ; }
-	if (stderr_fd==Pipe) { stderr = c2pe.read  ; c2pe.write.close() ; }
-	return true ;
 }

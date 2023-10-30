@@ -42,7 +42,6 @@ def hack_pdb(dbg_dir,redirected) :
 	# as pdb.set_trace and other pdb commands call pdb.Pdb without arguments
 	import pdb
 	load_modules()
-	main_file = lmake_func.dbg['cmd'][2]
 	class Pdb(pdb.Pdb) :
 		if redirected :
 			def __init__(self,*args,stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'),**kwds) :

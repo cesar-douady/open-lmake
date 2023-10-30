@@ -261,7 +261,10 @@ PyMODINIT_FUNC PyInit_clmake() {
 	PyObject* mod = PyModule_Create(&lmake_module) ;
 	//
 	_g_autodep_support = New ;
-	if (!has_env("LMAKE_AUTODEP_ENV")) _g_autodep_support.root_dir = search_root_dir().first ;
+	if (!has_env("LMAKE_AUTODEP_ENV")) {
+		try                     { _g_autodep_support.root_dir = search_root_dir().first ; }
+		catch (::string const&) { _g_autodep_support.root_dir = cwd()                   ; }
+	}
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_support.root_dir.c_str() ) ;
 	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False   ) ;

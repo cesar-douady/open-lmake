@@ -70,9 +70,9 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 			_first = false ;
 		}
 		// services
-		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                         }
-		template<class... Ts> void operator()(Ts const&... args) { if ( s_sz && !_save_hide.saved ) _record<false/*protect*/>(args...) ; }
-		template<class... Ts> void protect   (Ts const&... args) { if ( s_sz && !_save_hide.saved ) _record<true /*protect*/>(args...) ; }
+		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                   }
+		template<class... Ts> void operator()(Ts const&... args) { if ( +_s_fd && s_sz && !_save_hide.saved ) _record<false/*protect*/>(args...) ; }
+		template<class... Ts> void protect   (Ts const&... args) { if ( +_s_fd && s_sz && !_save_hide.saved ) _record<true /*protect*/>(args...) ; }
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }

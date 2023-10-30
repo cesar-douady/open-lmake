@@ -14,6 +14,8 @@ if lmake.has_ld_preload : autodeps.append('ld_preload')
 
 if getattr(sys,'lmake_read_makefiles',False) :
 
+	from lmake import multi_strip
+
 	lmake.sources = (
 		'Lmakefile.py'
 	,	'hello'
@@ -25,11 +27,11 @@ if getattr(sys,'lmake_read_makefiles',False) :
 			target  = f'{{File:.*}}.{ad}'
 			dep     = '{File}'
 			autodep = ad
-			cmd = '''
+			cmd = multi_strip('''
 				echo tmp > scratch.$$
 				cat
 				rm scratch.$$
-			'''
+			''')
 
 else :
 

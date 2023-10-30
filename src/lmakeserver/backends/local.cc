@@ -153,9 +153,8 @@ namespace Backends::Local {
 		struct RunningEntry {
 			Rsrcs  rsrcs   ;
 			pid_t  pid     = -1    ;
-			ReqIdx n_reqs  =  0    ;                       // number of reqs waiting for this job to start
-			bool   old     = false ;                       // if true <=> heartbeat has been seen
-			bool   started = false ;                       // if true <=> start() has been called for this job
+			ReqIdx n_reqs  =  0    ;   // number of reqs waiting for this job to start
+			bool   started = false ;   // if true <=> start() has been called for this job
 		} ;
 
 		struct PressureEntry {
@@ -318,30 +317,17 @@ namespace Backends::Local {
 			launch() ;
 			return {} ;
 		}
-		virtual ::vmap<JobIdx,pair_s<bool/*err*/>> heartbeat() {
-			// as soon as jobs are started, top-backend handles heart beat
-			::vmap<JobIdx,pair_s<bool/*err*/>> res ;
-			Trace trace("Local::hearbeat") ;
-			for( auto it = running_map.begin() ; it!=running_map.end() ; ) {   // /!\ we delete entries in running_map, beware of iterator management
-				RunningEntry& entry = it->second ;
-				if (entry.started) { it++ ; continue ; }                       // we do not manage started jobs
-				if (entry.old) {
-					trace("kill_old",entry.pid) ;
-					kill_process(entry.pid,SIGKILL) ;                          // kill job in case it is still alive (it has not started yet, so just kill job_exec)
-				} else if (::waitpid(entry.pid,nullptr,WNOHANG)==0) {          // job still exists but should start soon, mark it for next turn
-					trace("exists",entry.pid) ;
-					entry.old = true ;
-					it++ ;
-					continue ;
-				} else {
-					trace("vanished",entry.pid) ;
-				}
-				res.emplace_back(it->first,pair("vanished"s,false/*err*/)) ;
-				_wait_job(entry) ;
-				running_map.erase(it++) ;                                      // /!\ erase must be called with it before ++, but it must be incremented before erase
-			}
-			if (!res.empty()) launch() ;
-			return res ;
+		virtual ::pair_s<bool/*err*/> heartbeat(JobIdx j) {                    // called on jobs that did not start after at least newwork_delay time
+			auto          it    = running_map.find(j) ;
+			RunningEntry& entry = it->second          ;
+			pid_t         pid   = entry.pid           ;
+			SWEAR(!entry.started) ;                                            // we should not be called on started jobs
+			Trace trace("vanished",j,pid) ;
+			kill_process(pid,SIGKILL) ;                                        // job has had time to start and did not, kill job_exec
+			_wait_job(entry) ;
+			running_map.erase(it) ;
+			launch() ;
+			return {"vanished",false/*err*/} ;
 		}
 		// kill all if req==0
 		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {
@@ -449,7 +435,6 @@ namespace Backends::Local {
 			Trace trace("_wait_jobs",MyTag) ;
 			for(;;) {
 				auto [popped,pid] = _wait_queue.pop(stop) ;
-				Ddate::s_refresh_now() ;                                       // we have waited, refresh now
 				if (!popped) return ;
 				trace("wait",pid) ;
 				::waitpid(pid,nullptr,0) ;

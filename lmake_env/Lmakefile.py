@@ -29,7 +29,6 @@ lmake.version = (1,0)
 lmake.config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
 lmake.config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
 
-config.heartbeat    = 5
 config.link_support = 'full'
 
 config.backends.local.cpu = int(os.cpu_count()*1.5)
@@ -316,9 +315,11 @@ opt_tab.update({
 class Link(BaseRule) :
 	deps = {
 		'DISK'         : 'src/disk.o'
+	,	'FD'           : 'src/fd.o'
 	,	'HASH'         : 'src/hash.o'
 	,	'LIB'          : 'src/lib.o'
 	,	'NON_PORTABLE' : 'src/non_portable.o'
+	,	'PROCESS'      : 'src/process.o'
 	,	'TIME'         : 'src/time.o'
 	,	'UTILS'        : 'src/utils.o'
 	}

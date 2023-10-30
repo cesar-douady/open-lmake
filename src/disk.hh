@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "fd.hh"
 #include "lib.hh"
 #include "time.hh"
 

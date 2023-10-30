@@ -12,10 +12,10 @@ class NewDep(BaseRule) :
 	cmd    = 'echo dep{Digit}'
 class ChDir(BaseRule) :
 	target = 'chdir{Digit}'
-	cmd = '''
+	cmd = multi_strip('''
 		cd new_dir
 		cat dep{Digit}
-	'''
+	''')
 
 EOF
 

@@ -28,6 +28,8 @@ def version(major,minor) :
 	if major!=native_version[0] or minor<native_version[1] : raise RuntimeError(f'required version {(major,minor)} is incompatible with native version {native_version}')
 
 class pdict(dict) :
+	'This class is a dict whose items can also be accessed as attributes.'
+	'This greatly improves readability of configurations'
 	def __getattr__(self,attr) :
 		try             : return self[attr]
 		except KeyError : raise AttributeError(attr)
@@ -37,6 +39,17 @@ class pdict(dict) :
 	def __delattr__(self,attr) :
 		try             : del self[attr]
 		except KeyError : raise AttributeError(attr)
+
+def multi_strip(txt) :
+	'in addition to stripping its input, this function also suppresses the common blank prefix of all lines'
+	ls = txt.strip().split('\n')
+	if not ls: return ''
+	l0 = ls[0]
+	assert l0,'first line cannot be empty because input was stripped'
+	while l0[0].isspace() and all(not l or l[0]==l0[0] for l in ls) :
+		ls = [ l[1:] for l in ls ]
+		l0 = ls[0]
+	return '\n'.join(ls)
 
 if _lmake_read_makefiles :
 	#

@@ -355,11 +355,11 @@ struct JobRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{ui} , job{j} , host{h} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI ui , JI j ,                     Status s               ) : proc{p} , seq_id{ui} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{d        } { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{ui} , job{j} , host{h} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
-	JobRpcReq( P p , SI ui , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{ui} , job{j} , host{h} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
+	JobRpcReq( P p , SI si , JI j , ::string const& h , in_port_t pt           ) : proc{p} , seq_id{si} , job{j} , host{h} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
+	JobRpcReq( P p , SI si , JI j ,                     Status s               ) : proc{p} , seq_id{si} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
+	JobRpcReq( P p , SI si , JI j , ::string const& h , JobDigest const& d     ) : proc{p} , seq_id{si} , job{j} , host{h} , digest{d        } { SWEAR( p==P::End                       ) ; }
+	JobRpcReq( P p , SI si , JI j , ::string const& h , ::string_view const& t ) : proc{p} , seq_id{si} , job{j} , host{h} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI si , JI j , ::string const& h , MDD const& ds          ) : proc{p} , seq_id{si} , job{j} , host{h} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
@@ -431,6 +431,7 @@ struct JobRpcReply {
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None     :                     break ;
+			case Proc::End      :                     break ;
 			case Proc::DepInfos : ::serdes(s,infos) ; break ;
 			case Proc::ChkDeps  : ::serdes(s,ok   ) ; break ;
 			case Proc::Start :
@@ -489,8 +490,6 @@ ENUM( JobExecRpcProc
 ,	ChkDeps
 ,	CriticalBarrier
 ,	DepInfos
-,	Heartbeat
-,	Kill
 ,	Tmp                                // write activity in tmp has been detected (hence clean up is required)
 ,	Trace                              // no algorithmic info, just for tracing purpose
 ,	Access
@@ -543,9 +542,9 @@ private :
 	static ::vmap_s<DD> _s_mk_mdd(::vector_s     && fs) { ::vmap_s<DD> res ; for( ::string      & f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
 	// cxtors & casts
 public :
-	JobExecRpcReq(                ::string const& c={} ) :                     comment{c} {                       }
-	JobExecRpcReq( P p , bool s , ::string const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(!has_files()) ; }
-	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p} ,           comment{c} { SWEAR(!has_files()) ; }
+	JobExecRpcReq(                  ::string const& c={} ) :                        comment{c} {                       }
+	JobExecRpcReq( P p , bool s   , ::string const& c={} ) : proc{p} , sync{s}    , comment{c} { SWEAR(!has_files()) ; }
+	JobExecRpcReq( P p ,            ::string const& c={} ) : proc{p} ,              comment{c} { SWEAR(!has_files()) ; }
 	//
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , Dflags dfs , bool nf , ::string const& c={} ) :
 		proc     {p                      }
@@ -579,7 +578,7 @@ public :
 	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ad,nf   ,s    ,c} {}
 	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf ,          ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true /*audo_date*/,ad,nf   ,false,c} {}
 	//
-	bool has_files() const { return proc==P::DepInfos || proc==P::Access ; }
+	bool has_files  () const { return proc==P::DepInfos  || proc==P::Access ; }
 	// services
 public :
 	template<IsStream T> void serdes(T& s) {
@@ -597,6 +596,7 @@ public :
 	}
 	// data
 	P            proc      = P::None     ;
+	SeqId        seq_id    = 0           ;                 // if Proc=Heartbeat|Kill (i.e. message comes from server)
 	PD           date      = PD::s_now() ;                 // access date to reorder accesses during analysis
 	bool         sync      = false       ;
 	bool         auto_date = false       ;                 // if has_files(), if true <=> files must be solved and dates added by probing disk (for autodep internal use, not to be sent to job_exec)
@@ -637,6 +637,38 @@ struct JobExecRpcReply {
 	Proc                            proc  = Proc::None ;
 	Bool3                           ok    = Maybe      ;   // if proc==ChkDeps
 	::vector<pair<Bool3/*ok*/,Crc>> infos ;                // if proc==DepInfos
+} ;
+
+//
+// JobSserverRpcReq
+//
+
+ENUM( JobServerRpcProc
+,	Heartbeat
+,	Kill
+)
+
+struct JobServerRpcReq {
+	friend ::ostream& operator<<( ::ostream& , JobServerRpcReq const& ) ;
+	using Proc = JobServerRpcProc ;
+	// cxtors & casts
+	JobServerRpcReq(                              ) = default ;
+	JobServerRpcReq( Proc p , SeqId si            ) : proc{p} , seq_id{si}          { SWEAR(proc==Proc::Kill     ) ; }
+	JobServerRpcReq( Proc p , SeqId si , JobIdx j ) : proc{p} , seq_id{si} , job{j} {                                } // need a job for heartbeat as we may have to reply on its behalf
+	// services
+	template<IsStream S> void serdes(S& s) {
+		::serdes(s,proc  ) ;
+		::serdes(s,seq_id) ;
+		switch (proc) {
+			case Proc::Heartbeat : ::serdes(s,job) ;                          break ;
+			case Proc::Kill      : if (::is_base_of_v<::istream,S>) job = 0 ; break ;
+			default : FAIL(proc) ;
+		}
+	}
+	// data
+	Proc   proc   = Proc::Unknown ;
+	SeqId  seq_id = 0             ;
+	JobIdx job    = 0             ;
 } ;
 
 struct JobInfoStart {
