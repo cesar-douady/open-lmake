@@ -95,16 +95,15 @@ size_t parse_c_str( ::string const& s , size_t start ) {
 }
 
 ::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {
-	if (sub.empty()) return txt ;
-	size_t pos = txt.find(sub) ;
-	if (pos==Npos) return txt ;
+	/**/                                     if (sub.empty()) return txt ;
+	size_t        pos = txt.find(sub)      ; if (pos==Npos  ) return txt ;
 	::string_view sv  = txt                ;
 	::string      res { sv.substr(0,pos) } ; res.reserve(sv.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
 	while (pos!=Npos) {
 		size_t p = pos+sub.size() ;
-		pos  = sv.find(sub,p)   ;
-		res += repl             ;
-		res += sv.substr(p,pos) ;
+		pos  = sv.find(sub,p)     ;
+		res += repl               ;
+		res += sv.substr(p,pos-p) ;
 	}
 	return res ;
 }

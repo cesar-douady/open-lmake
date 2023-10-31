@@ -1088,7 +1088,7 @@ namespace Engine {
 			if ( sca.ignore_stat        ) do_field( "ignore_stat"  , to_string(sca.ignore_stat) ) ;
 			/**/                          do_field( "autodep"      , mk_snake (sca.method     ) ) ;
 			if (!sca.chroot     .empty()) do_field( "chroot"       ,           sca.chroot       ) ;
-			if (!sca.local_mrkr .empty()) do_field( "local_marker" ,           sca.local_mrkr   ) ;
+			if (!sca.lcl_mrkr   .empty()) do_field( "local_marker" ,           sca.lcl_mrkr     ) ;
 			if (!sca.tmp        .empty()) do_field( "tmp"          ,           sca.tmp          ) ;
 			if (!sca.interpreter.empty()) {
 				OStringStream i ;

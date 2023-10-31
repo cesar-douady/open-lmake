@@ -446,7 +446,7 @@ struct JobRpcReply {
 				::serdes(s,keep_tmp        ) ;
 				::serdes(s,kill_sigs       ) ;
 				::serdes(s,live_out        ) ;
-				::serdes(s,local_mrkr      ) ;
+				::serdes(s,lcl_mrkr        ) ;
 				::serdes(s,method          ) ;
 				::serdes(s,remote_admin_dir) ;
 				::serdes(s,small_id        ) ;
@@ -472,7 +472,7 @@ struct JobRpcReply {
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
-	::string                  local_mrkr       ;                               // proc == Start
+	::string                  lcl_mrkr         ;                               // proc == Start
 	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start

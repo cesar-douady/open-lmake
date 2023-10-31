@@ -441,7 +441,7 @@ class Handle :
 		self._handle_val('autodep'                   )
 		self._handle_val('chroot'                    )
 		self._handle_val('interpreter'               )
-		self._handle_val('local_mrkr' ,'local_marker')
+		self._handle_val('lcl_mrkr'   ,'local_marker')
 		self._handle_val('tmp'                       )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 

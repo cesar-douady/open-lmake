@@ -127,7 +127,7 @@ int main( int argc , char* argv[] ) {
 	cmd_env["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
 	cmd_env["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
 	for( auto const& [k,v] : g_start_info.env )
-		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,g_start_info.local_mrkr,abs_cwd) ;
+		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,g_start_info.lcl_mrkr,abs_cwd) ;
 		else if (has_env(k)    ) cmd_env[k] = get_env(k)                                   ; // if value is special illegal value, use value from environement (typically from slurm)
 	if ( g_start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
 		cmd_env["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory

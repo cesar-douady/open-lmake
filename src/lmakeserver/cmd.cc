@@ -242,8 +242,8 @@ namespace Engine {
 				if (start.keep_tmp) continue ;
 				seen_tmp_dir = true ;
 			}
-			if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                           ," \\\n") ;
-			else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,start.local_mrkr,abs_cwd))," \\\n") ;
+			if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                                         ," \\\n") ;
+			else                append_to_string(script,'\t',k,'=',mk_shell_str(glb_subst(v,start.lcl_mrkr,abs_cwd))," \\\n") ;
 		}
 		// if tmp directory is viewed by job under another name, provide it as the script may work only with that name
 		::string const& tmp_dir = start.autodep_env.tmp_view.empty() ? start.autodep_env.tmp_dir : start.autodep_env.tmp_view ;

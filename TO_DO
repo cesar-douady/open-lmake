@@ -12,28 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-*1 rework heartbeat
-	- establish a second server in a dedicated thread in job_exec
-		- manage heartbeat/kill requests from server
-		- this way, hearbeat server is always available
-			- as of now, it is not available while computing target crcs
-	- send an acknowledge to end of job
-		- so that hearbeat server is available until end of job
-		- no race in server when heartbeat sees a non responding job
-		- no deferred_lost
-	- send an acknowledge to heartbeat requests
-		- this way, if port is reused by a later job, heartbeat can see job is missing
-		- same for kill so that server knows if job is killed
-		- this may explain why ^C is sometimes very slow
-	- suppress heartbeat config
-		- maintain a table of running jobs indexed by small_id
-		- check 10 jobs/s
-		- but no more than the full table every second
-		- this way, we do not send 100's of checks at once
-			- and risk false connection refusals
-! ^C is sometimes very slow
-	- and may crash the server
-	- hard to reproduce
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -43,15 +21,31 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+*2 recognize by job name ?
+	- when no rule as file
+	- this would allow to copy/paste from jobs with star stems in name
+* automatic versioning of internal info
+	- extend serdes to enumerate fields & types
+	- for data base
+		- Store
+		- JobInfoStart
+		- JobInfoEnd
+		? ...
+	- for cache
+		- JobInfoStart
+		- JobInfoEnd
+		- find a way to identify LRU structure
+* mimic slurm killing procedure
+	- follow process hierarchy
+	- recognize stdin, stdout, stderr
+	- do it in 2 passes
+		- as process hierarchy moves while we walk through it
+		- stop during discovery pass
+		- kill when everything is steady
 ! in autodep dlopen/ld_preload (cf man 3 dlopen)
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
 ! before erasing a dir, check for phony targets, not only files on disk
-! find a means to lshow/lmake a job, even if we have no target
-	- recognize by job name ?
-	- this would allow to copy/paste from jobs with star stems in name
-? report resources even when job spawn process groups
-	- dont know how to do that
 
 ****************************************************************************************************
 * COSMETIC (ugly as long as not implemented)
@@ -68,19 +62,18 @@ items :
 	- dates, justifications go to log while essential info is shown on screen
 	- e.g. 'dep changed' on screen and actual dates (before, after) in log
 	- same for manual, etc.
-! Ensure we have a proper error message when job_exec cannot contact server
-	- must work with both local and slurm backends
-	- generally speaking, when job is lost, we want to know why if possible
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
 ? if actual_job!=conform_job, show both with warning in lshow
+? report resources even when job spawn process groups
+	- dont know how to do that
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-*2 if a job cannot connect to job_exec to report deps
+*1 if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
 	- check marker file existence in job_exec
@@ -126,12 +119,13 @@ items :
 		- sources when sources change (or when config.sources changes)
 		- config when config changes
 			- and allow config to be read dynamically, and recognize if this is acceptable
+* put exec bit in Ddate
+	- and use mtime instead of ctime
 * result cache v2 (copy & link) :
+	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
 	- use link instead of copy
-	- warning : links change cdate
-		- and cdates are used as dates
-		- because exec bit is part of crc
+	- warning : only when mtime is used instead of ctime
 * implement a ref/check mechanism
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc

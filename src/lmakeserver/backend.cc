@@ -282,7 +282,7 @@ namespace Backends {
 					reply.keep_tmp                = keep_tmp                            ;
 					reply.kill_sigs               = ::move(start_none_attrs.kill_sigs)  ;
 					reply.live_out                = entry.submit_attrs.live_out         ;
-					reply.local_mrkr              = ::move(start_cmd_attrs.local_mrkr)  ;
+					reply.lcl_mrkr                = ::move(start_cmd_attrs.lcl_mrkr)    ;
 					reply.method                  = start_cmd_attrs.method              ;
 					reply.small_id                = small_id                            ;
 					reply.timeout                 = start_rsrcs_attrs.timeout           ;
@@ -411,12 +411,12 @@ namespace Backends {
 		Wakeup :
 			_s_wakeup_remote(job,conn,JobServerRpcProc::Heartbeat) ;
 		Next :
-			if (!Delay(0.1).sleep_for(stop)) break ;                           // limit job checks to 10/s
+			if (!Delay(0.1).sleep_for(stop)) break ;                           // limit job checks to 10/s overall
 			continue ;
 		WrapAround :
 			job = 0 ;
-			Delay d{1.} ; if (d<g_config.network_delay) d = g_config.network_delay ;                       // ensure jobs have had a minimal time to start
-			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate::s_now() ; continue ; } // limit job checks 1/s per job
+			Delay d = Delay(10.) + g_config.network_delay ;                                                // ensure jobs have had a minimal time to start and signal it
+			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate::s_now() ; continue ; } // limit job checks 1/10s per job
 			else                                        {                                     break    ; }
 		}
 		trace("done") ;

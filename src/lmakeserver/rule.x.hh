@@ -196,14 +196,14 @@ namespace Engine {
 		BitMap<VarCmd> init  ( bool is_dynamic , PyObject* py_src , ::umap_s<CmdIdx> const&                 ) { update(py_src,!is_dynamic) ; return {} ; }
 		void           update(                   PyObject* py_dct                           , bool chk=true ) {
 			using namespace Attrs ;
-			acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir" ) ;
-			acquire_from_dct(chroot     ,py_dct,"chroot"     ) ;
-			acquire_env     (env        ,py_dct,"env"        ) ;
-			acquire_from_dct(ignore_stat,py_dct,"ignore_stat") ;
-			acquire_from_dct(interpreter,py_dct,"interpreter") ;
-			acquire_from_dct(local_mrkr ,py_dct,"local_mrkr" ) ;
-			acquire_from_dct(method     ,py_dct,"autodep"    ) ;
-			acquire_from_dct(tmp        ,py_dct,"tmp"        ) ;
+			acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir"   ) ;
+			acquire_from_dct(chroot     ,py_dct,"chroot"       ) ;
+			acquire_env     (env        ,py_dct,"env"          ) ;
+			acquire_from_dct(ignore_stat,py_dct,"ignore_stat"  ) ;
+			acquire_from_dct(interpreter,py_dct,"interpreter"  ) ;
+			acquire_from_dct(lcl_mrkr   ,py_dct,"lcl_mrkr"     ) ;
+			acquire_from_dct(method     ,py_dct,"autodep"      ) ;
+			acquire_from_dct(tmp        ,py_dct,"tmp"          ) ;
 			//
 			if (chk) {
 				if (!tmp.empty()) {
@@ -229,7 +229,7 @@ namespace Engine {
 		::string      chroot      ;
 		::vmap_ss     env         ;
 		::vector_s    interpreter ;
-		::string      local_mrkr  ;
+		::string      lcl_mrkr    ;
 		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      tmp         ;
 	} ;
