@@ -12,6 +12,8 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+*1 trap chmod as a modification
+	- and also fchmod & fchmodat
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -21,7 +23,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*2 recognize by job name ?
+*3 recognize by job name ?
 	- when no rule as file
 	- this would allow to copy/paste from jobs with star stems in name
 * automatic versioning of internal info
@@ -73,7 +75,7 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-*1 if a job cannot connect to job_exec to report deps
+*2 if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
 	- check marker file existence in job_exec
@@ -109,10 +111,10 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*3 implement a lshow -r to see what is running now
+*4 implement a lshow -r to see what is running now
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-*4 provide the possibility to play dynamically with resources in config
+*5 provide the possibility to play dynamically with resources in config
 	- split config / rules / sources
 	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
 		- reload rules when rules change (or when config.rules changes)
@@ -187,11 +189,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*5 process specifically uphill
+*6 process specifically uphill
 	- directly depend node->node
 	- avoid creating an intermediate job
 	- there are a lot of them an bring no value
-*6 record dep crcs in Job rather than in Dep
+*7 record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)

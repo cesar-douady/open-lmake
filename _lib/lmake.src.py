@@ -30,6 +30,12 @@ def version(major,minor) :
 class pdict(dict) :
 	'This class is a dict whose items can also be accessed as attributes.'
 	'This greatly improves readability of configurations'
+	@staticmethod
+	def mk_deep(x) :
+		if isinstance(x,dict ) : return pdict({ k : pdict.mk_deep(v) for k,v in x.items() })
+		if isinstance(x,tuple) : return tuple(      pdict.mk_deep(v) for   v in x         )
+		if isinstance(x,list ) : return [           pdict.mk_deep(v) for   v in x         ]
+		return x
 	def __getattr__(self,attr) :
 		try             : return self[attr]
 		except KeyError : raise AttributeError(attr)

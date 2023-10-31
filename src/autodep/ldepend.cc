@@ -24,8 +24,8 @@ ENUM(Flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::Verbose   , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                    } }
-	,	{ Flag::NoFollow  , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links"  } }
+		{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                    } }
+	,	{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links"  } }
 	//
 	,	{ Flag::Critical    , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::Essential   , { .short_name=DflagChars[+Dflag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }

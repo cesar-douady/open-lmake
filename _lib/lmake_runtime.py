@@ -3,13 +3,15 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import sys
+
 deps = ()                                                                      # this is overwritten by calling script when debugging before calling hack_* functions
 
 Code = (lambda:None).__code__.__class__
 
 def load_modules() :
-	import sys
 	import importlib.util
+	import keyword
 	import os.path as osp
 	#
 	# load modules containing serialized functions and substitute corresponding code
@@ -37,19 +39,15 @@ def load_modules() :
 			except : pass                                                      # this is a cosmetic improvement, no harm if we fail
 			break                                                              # found, go to next dep
 
-def hack_pdb(dbg_dir,redirected) :
-	# hack pdb.Pdb class so that we can redirect stdin & stdout while still debugging from the console
-	# as pdb.set_trace and other pdb commands call pdb.Pdb without arguments
+def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 	import pdb
 	load_modules()
-	class Pdb(pdb.Pdb) :
-		if redirected :
-			def __init__(self,*args,stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'),**kwds) :
-				super().__init__(*args,stdin=stdin,stdout=stdout,**kwds)
-	pdb.Pdb = Pdb
-	return pdb
+	if redirected : debugger = pdb.Pdb(stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'))
+	else          : debugger = pdb.Pdb(                                                      )
+	try    : debugger.runcall(func,*args,**kwds)
+	except : debugger.interaction(None,sys.exc_info()[2])
 
-def hack_pudb(dbg_dir,redirected) :
+def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 	import os
 	import pudb.debugger
 	#
@@ -142,7 +140,8 @@ def hack_pudb(dbg_dir,redirected) :
 
 	else :
 		raise RuntimeError(f'cannot hack pudb with unknown version {pudb.NUM_VERSION}')
-	return pudb
+	try    : pudb.runcall(func,*args,**kwds)
+	except : pass
 
 # add original debug info to func
 def lmake_func(func) :

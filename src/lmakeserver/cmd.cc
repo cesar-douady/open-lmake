@@ -194,8 +194,7 @@ namespace Engine {
 			}
 			res += ")\n" ;
 			//
-			res += "pdb = lmake_runtime.hack_"+pdb+"("+mk_py_str(dbg_dir)+','+r+")\n" ;
-			res += "pdb.runcall("+run_call+")\n"                                      ;
+			res += to_string("lmake_runtime.run_",pdb,'(',mk_py_str(dbg_dir),',',r,',',run_call,")\n") ;
 		} else {
 			res += start.cmd.second ;
 		}

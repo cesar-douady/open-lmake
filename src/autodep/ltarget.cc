@@ -13,13 +13,13 @@ ENUM(Key,None)
 ENUM(Flag
 ,	Unlink
 ,	NoFollow
-,	Crc                                // generate a crc for this target (compulsery if Match)
-,	Dep                                // reads not followed by writes trigger dependencies
-,	Essential                          // show when generating user oriented graphs
-,	Phony                              // unlinks are allowed (possibly followed by reads which are ignored)
-,	SourceOk                           // ok to overwrite source files
-,	Stat                               // inode accesses (stat-like) are not ignored
-,	Write                              // writes are allowed (possibly followed by reads which are ignored)
+,	Crc            // generate a crc for this target (compulsery if Match)
+,	Dep            // reads not followed by writes trigger dependencies
+,	Essential      // show when generating user oriented graphs
+,	Phony          // unlinks are allowed (possibly followed by reads which are ignored)
+,	SourceOk       // ok to overwrite source files
+,	Stat           // inode accesses (stat-like) are not ignored
+,	Write          // writes are allowed (possibly followed by reads which are ignored)
 ,	NoCrc
 ,	NoDep
 ,	NoEssential

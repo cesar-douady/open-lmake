@@ -916,6 +916,8 @@ Some variables of this module can be defined in @Lmakefile for some specific pur
 This is a helpful tiny @code{class} deriving from @code{dict} that allows item access as attribute.
 This is just syntactic sugar to help the manipulation of configuration @code{dict} objects.
 
+Also, a @code{mk_deep} method exists to transform a @code{dict} into a @code{pdict} in a deep way (i.e. sub-@code{dict}'s are transformed into @code{pdict} as well).
+
 @section @code{def multi_strip(txt)}
 
 This is a helpful tiny function that strips its argument and suppresses the common leading spaces of all lines.
