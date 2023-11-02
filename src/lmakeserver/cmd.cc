@@ -467,21 +467,24 @@ namespace Engine {
 								} catch(::string const&) {}
 								//
 								if (has_end) {
-									bool overflow = !allocated_rsrcs.contains("mem") || digest.stats.mem>from_string_with_units<size_t>(allocated_rsrcs.at("mem")) ;
-									int  ws       = digest.wstatus                                                                                                 ;
-									bool ok       = WIFEXITED(ws) && WEXITSTATUS(ws)==0                                                                            ;
+									bool     overflow = !allocated_rsrcs.contains("mem") || digest.stats.mem>from_string_with_units<size_t>(allocated_rsrcs.at("mem")) ;
+									int      ws       = digest.wstatus                                                                                                 ;
+									bool     ok       = WIFEXITED(ws) && WEXITSTATUS(ws)==0                                                                            ;
+									::string mem_str  = to_string_with_units<'M'>(digest.stats.mem>>20)+'B' ;
+									if ( overflow && allocated_rsrcs.contains("mem") ) mem_str += " > "+allocated_rsrcs.at("mem")+'B' ;
 									::string rc =
 										ok              ? "ok"s
 									:	WIFEXITED  (ws) ? to_string("exited "  ,            WEXITSTATUS(ws) )
 									:	WIFSIGNALED(ws) ? to_string("signaled ",::strsignal(WTERMSIG   (ws)))
 									:	"??"s
 									;
-									audit( fd , ro ,                         Color::None , lvl+1 , to_string("end date       : ",digest.end_date.str()                              ) ) ;
-									audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , to_string("rc             : ",rc                                                 ) ) ;
-									audit( fd , ro ,                         Color::None , lvl+1 , to_string("cpu time       : ",digest.stats.cpu  .short_str()                     ) ) ;
-									audit( fd , ro ,                         Color::None , lvl+1 , to_string("elapsed in job : ",digest.stats.job  .short_str()                     ) ) ;
-									audit( fd , ro ,                         Color::None , lvl+1 , to_string("elapsed total  : ",digest.stats.total.short_str()                     ) ) ;
-									audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , to_string("used mem       : ",to_string_with_units<'M'>(digest.stats.mem>>20),'B') ) ;
+									//
+									audit( fd , ro ,                         Color::None , lvl+1 , "end date       : "+digest.end_date.str()          ) ;
+									audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , "rc             : "+rc                             ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , "cpu time       : "+digest.stats.cpu  .short_str() ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , "elapsed in job : "+digest.stats.job  .short_str() ) ;
+									audit( fd , ro ,                         Color::None , lvl+1 , "elapsed total  : "+digest.stats.total.short_str() ) ;
+									audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , "used mem       : "+mem_str                        ) ;
 								}
 								//
 								bool   has_required  = !required_rsrcs .empty() ;

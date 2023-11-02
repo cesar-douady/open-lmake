@@ -57,7 +57,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
 				try {
 					OMsgBuf().send(
 						ClientSockFd( g_service , NConnectionTrials )
-					,	JobRpcReq(JobProc::End , jsrr.seq_id , jsrr.job , g_host , {.status=Status::Lost} )
+					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , g_host , {.status=Status::Lost} )
 					) ;
 				} catch (::string const& e) {}                                 // if server is dead, no harm
 		break ;
@@ -83,15 +83,15 @@ int main( int argc , char* argv[] ) {
 	//
 	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;       // threads must only be launched once SIGCHLD is blocked or they may receive said signal
 	//
-	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , g_host , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
 	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , g_host , server_thread.fd.port()                        } ;
+	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , g_host , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
 	try {
 		ClientSockFd fd {g_service,NConnectionTrials} ;
 		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv     // once connection is established, everything should be smooth
-		try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const& e) { exit(3) ; }
-		try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const& e) { exit(4) ; }
+		try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { exit(3) ; } // maybe normal in case ^C was hit
+		try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { exit(4) ; } // .
 		//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch (::string const& e) { exit(2,"before job execution : ",e) ; }
+	} catch (::string const&) { exit(5) ; }                                    // maybe normal in case ^C was hit
 
 	switch (g_start_info.proc) {
 		case JobProc::None  : return 0 ;                                       // server ask us to give up
@@ -100,59 +100,51 @@ int main( int argc , char* argv[] ) {
 	}
 
 	if (::chdir(g_start_info.autodep_env.root_dir.c_str())!=0) {
-		JobRpcReq end_report = JobRpcReq(
-			JobProc::End
-		,	g_seq_id
-		,	g_job
-		,	g_host
-		,	{ .status =Status::Err , .stderr {to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir)} }
-		) ;
-		try         { OMsgBuf().send( ClientSockFd(g_service) , end_report ) ; }
-		catch (...) {                                                          } // if server is dead, we cant do much about it
-		exit(2,end_report.digest.stderr) ;
+		end_report.digest.stderr = to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
+		goto End ;
 	}
-	//
-	g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),g_seq_id%JobHistorySz)} ;
-	::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
-	//
-	::string cwd_    = g_start_info.cwd_s ;
-	::string abs_cwd = g_start_info.autodep_env.root_dir ;
-	if (!g_start_info.cwd_s.empty()) {
-		cwd_.pop_back() ;
-		append_to_string(abs_cwd,'/',cwd_) ;
-	}
-	::map_ss cmd_env ;
-	cmd_env["PWD"        ] = abs_cwd                           ;
-	cmd_env["ROOT_DIR"   ] = g_start_info.autodep_env.root_dir ;
-	cmd_env["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
-	cmd_env["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
-	for( auto const& [k,v] : g_start_info.env )
-		if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,g_start_info.lcl_mrkr,abs_cwd) ;
-		else if (has_env(k)    ) cmd_env[k] = get_env(k)                                   ; // if value is special illegal value, use value from environement (typically from slurm)
-	if ( g_start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
-		cmd_env["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
-	g_start_info.autodep_env.tmp_dir = cmd_env["TMPDIR"] ;
-	if (!g_start_info.autodep_env.tmp_view.empty()) cmd_env["TMPDIR"] = g_start_info.autodep_env.tmp_view ; // job must use the job view
-	//
-	app_init() ;
-	Py::init() ;
-	//
-	Trace trace("main",g_service,g_seq_id,g_job) ;
-	trace("start_overhead",start_overhead) ;
-	trace("g_start_info"  ,g_start_info  ) ;
-	trace("cmd_env"       ,cmd_env       ) ;
-	//
-	try {
-		unlink_inside(g_start_info.autodep_env.tmp_dir) ;                      // be certain that tmp dir is clean
-	} catch (::string const&) {
-		try {
-			make_dir(g_start_info.autodep_env.tmp_dir) ;                       // and that it exists
-		} catch (::string const& e) {
-			end_report.digest.stderr = "cannot create tmp dir : "+e ;
-			goto End ;
+	{
+		g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),g_seq_id%JobHistorySz)} ;
+		::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+		//
+		::string cwd_    = g_start_info.cwd_s ;
+		::string abs_cwd = g_start_info.autodep_env.root_dir ;
+		if (!g_start_info.cwd_s.empty()) {
+			cwd_.pop_back() ;
+			append_to_string(abs_cwd,'/',cwd_) ;
 		}
-	}
-	{	Fd child_stdin  = Child::None ;
+		::map_ss cmd_env ;
+		cmd_env["PWD"        ] = abs_cwd                           ;
+		cmd_env["ROOT_DIR"   ] = g_start_info.autodep_env.root_dir ;
+		cmd_env["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
+		cmd_env["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
+		for( auto const& [k,v] : g_start_info.env )
+			if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,g_start_info.lcl_mrkr,abs_cwd) ;
+			else if (has_env(k)    ) cmd_env[k] = get_env(k)                                   ; // if value is special illegal value, use value from environement (typically from slurm)
+		if ( g_start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
+			cmd_env["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
+		g_start_info.autodep_env.tmp_dir = cmd_env["TMPDIR"] ;
+		if (!g_start_info.autodep_env.tmp_view.empty()) cmd_env["TMPDIR"] = g_start_info.autodep_env.tmp_view ; // job must use the job view
+		//
+		app_init() ;
+		Py::init() ;
+		//
+		Trace trace("main",g_service,g_seq_id,g_job) ;
+		trace("start_overhead",start_overhead) ;
+		trace("g_start_info"  ,g_start_info  ) ;
+		trace("cmd_env"       ,cmd_env       ) ;
+		//
+		try {
+			unlink_inside(g_start_info.autodep_env.tmp_dir) ;                      // be certain that tmp dir is clean
+		} catch (::string const&) {
+			try {
+				make_dir(g_start_info.autodep_env.tmp_dir) ;                       // and that it exists
+			} catch (::string const& e) {
+				end_report.digest.stderr = "cannot create tmp dir : "+e ;
+				goto End ;
+			}
+		}
+		Fd child_stdin  = Child::None ;
 		Fd child_stdout = Child::Pipe ;
 		//
 		::vector_s args = g_start_info.interpreter ; args.reserve(args.size()+2) ;
@@ -207,13 +199,13 @@ int main( int argc , char* argv[] ) {
 			switch (jerr.proc) {
 				case JobExecRpcProc::ChkDeps :
 					analyze(false/*at_end*/) ;
-					jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , g_host , ::move(deps) ) ;
+					jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , {} , ::move(deps) ) ;
 					deps.clear() ;
 				break ;
 				case JobExecRpcProc::DepInfos : {
 					::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
 					for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
-					jrr = JobRpcReq( JobProc::DepInfos , g_seq_id , g_job , g_host , ::move(ds) ) ;
+					jrr = JobRpcReq( JobProc::DepInfos , g_seq_id , g_job , {} , ::move(ds) ) ;
 				} break ;
 				default : FAIL(jerr.proc) ;
 			}
@@ -245,9 +237,9 @@ int main( int argc , char* argv[] ) {
 			size_t pos = live_out_buf.rfind('\n') ;
 			if (pos==Npos) return ;
 			pos++ ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send( ClientSockFd(g_service) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , g_host , live_out_buf.substr(0,pos) ) ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( ClientSockFd(g_service) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , {} , live_out_buf.substr(0,pos) ) ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			live_out_buf = live_out_buf.substr(pos) ;
 		} ;
 		//
@@ -336,7 +328,7 @@ int main( int argc , char* argv[] ) {
 	}
 End :
 	Pdate end_overhead = Pdate::s_now() ;
-	trace("end_overhead",end_overhead) ;
+	Trace trace("end",end_overhead) ;
 	end_report.digest.stats.total = end_overhead - start_overhead ;            // measure overhead as late as possible
 	try {
 		// although there is no info in the acknowledge, we need it to be sure that we stay alive to answer to heartbeat requests until the report is seen by the server
@@ -347,6 +339,6 @@ End :
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) { exit(2,"after job execution : ",e) ; }
 	//
-	trace("end") ;
+	trace("done") ;
 	return 0 ;
 }

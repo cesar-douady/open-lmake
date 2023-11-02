@@ -129,7 +129,7 @@ namespace Backends {
 		}
 	}
 
-	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , JobServerRpcProc proc ) {
+	void Backend::_s_wakeup_remote( Tag tag , JobIdx job , StartEntry::Conn const& conn , JobServerRpcProc proc ) {
 		Trace trace("_s_wakeup_remote",job,conn,proc) ;
 		try {
 			ClientSockFd fd(conn.job_addr,conn.job_port) ;
@@ -137,8 +137,9 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died
-			::string host = deserialize<JobInfoStart>(IFStream(Job(job)->ancillary_file())).pre_start.host ;
-			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , host , JobDigest{.status=Status::Lost,.stderr=to_string("vanished after start : ",e)} ) ) ;
+			::string  h  = deserialize<JobInfoStart>(IFStream(Job(job)->ancillary_file())).pre_start.host ;
+			JobDigest jd { .status=Status::Lost , .stderr=s_lost_err(tag,job) }                           ;
+			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , h , ::move(jd) ) ) ;
 		}
 	}
 
@@ -351,8 +352,9 @@ namespace Backends {
 			case JobProc::End :
 				if (+fd)                                                       // if we have no fd, job end was invented by heartbeat, no acknowledge
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					OMsgBuf().send(fd,JobRpcReply(JobProc::End)) ;             // acknowledge end report as job_exec stays alive till then to answer to heartbeats
+					try { OMsgBuf().send(fd,JobRpcReply(JobProc::End)) ; }     // acknowledge end report as job_exec stays alive till then to answer to heartbeats
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					catch (::string const&) {}                                                                  // if job disappeared, no harm, we are done
 				serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr,::move(backend_msg)) ) ;
 				job->end_exec() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -370,46 +372,48 @@ namespace Backends {
 		Pdate  last_wrap_around = Pdate::s_now() ;
 		//
 		for( JobIdx job=0 ;; job++ ) {
-			StartEntry::Conn conn         ;
-			::string         lost_str     ;
-			Status           status       = Status::Unknown ;
-			Pdate            eta          ;
-			::vmap_ss        rsrcs        ;
-			SubmitAttrs      submit_attrs ;
+			StartEntry::Conn      conn         ;
+			::pair_s<Bool3/*ok*/> lost_report  = {{},Yes/*garbage*/} ;
+			Status                status       = Status::Unknown     ;
+			Pdate                 eta          ;
+			::vmap_ss             rsrcs        ;
+			SubmitAttrs           submit_attrs ;
+			Tag                   tag          = Tag::Unknown    ;
 			{	::unique_lock lock { _s_mutex }                    ;           // lock _s_start_tab for minimal time
 				auto          it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
 				//
-				/**/        job   = it->first  ;
-				StartEntry& entry = it->second ;
+				/**/        job   = it->first      ;
+				StartEntry& entry = it->second     ;
 				//
 				if (!entry      ) {                          continue    ; }   // not a real entry ==> no check, no wait
 				if (!entry.old  ) { entry.old = true       ; continue    ; }   // entry is too new ==> no check, no wait
 				if (+entry.start) { conn      = entry.conn ; goto Wakeup ; }
-				bool err ;
-				::tie(lost_str,err) = s_heartbeat(entry.tag,job) ;
-				if ( lost_str.empty() && !err ) goto Next ;                    // job is still alive
+				tag = entry.tag ;
+				lost_report = s_heartbeat(tag,job) ;
+				if (lost_report.second==Yes) goto Next ; // job is still alive
+				if (lost_report.first.empty()) lost_report.first = "vanished" ;
 				//
 				trace("handle_job",job,entry,status) ;
-				rsrcs        = ::move(entry.rsrcs       )                                  ;
-				submit_attrs = ::move(entry.submit_attrs)                                  ;
-				eta          = entry.req_info().first                                      ;
-				status       = _s_release_start_entry( it , err?Status::Err:Status::Lost ) ;
+				rsrcs        = ::move(entry.rsrcs       )                                                     ;
+				submit_attrs = ::move(entry.submit_attrs)                                                     ;
+				eta          = entry.req_info().first                                                         ;
+				status       = _s_release_start_entry( it , lost_report.second==No?Status::Err:Status::Lost ) ;
 			}
 			{	JobExec je { job , Pdate::s_now() } ;
 				if (status>Status::Garbage) {
-					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .backend_msg=lost_str } ;
+					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .backend_msg=lost_report.first } ;
 					serialize( OFStream(dir_guard(je->ancillary_file())) , jis ) ;
 				}
 				// signal jobs that have disappeared so they can be relaunched or reported in error
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report_now*/ , je->wash(je->simple_match())                 ) ;
-				g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(rsrcs) , JobDigest{.status=status,.stderr=::move(lost_str)} ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report_now*/ , je->wash(je->simple_match())                          ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(rsrcs) , JobDigest{.status=status,.stderr=::move(lost_report.first)} ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				goto Next ;
 			}
 		Wakeup :
-			_s_wakeup_remote(job,conn,JobServerRpcProc::Heartbeat) ;
+			_s_wakeup_remote(tag,job,conn,JobServerRpcProc::Heartbeat) ;
 		Next :
 			if (!Delay(0.1).sleep_for(stop)) break ;                           // limit job checks to 10/s overall
 			continue ;
@@ -463,7 +467,7 @@ namespace Backends {
 	// kill all if req==0
 	void Backend::_s_kill_req(ReqIdx req) {
 		Trace trace("s_kill_req",req) ;
-		::vmap<JobIdx,StartEntry::Conn> to_kill ;
+		::vmap<JobIdx,pair<Tag,StartEntry::Conn>> to_kill ;
 		{	::unique_lock lock { _s_mutex }     ;                              // lock for minimal time
 			Pdate         now  = Pdate::s_now() ;
 			for( Tag t : Tag::N ) {
@@ -487,12 +491,12 @@ namespace Backends {
 						continue ;
 					}
 				}
-				to_kill.emplace_back(j,e.conn) ;
+				to_kill.emplace_back(j,::pair(e.tag,e.conn)) ;
 			}
 		}
-		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		for( auto const& [j,c] : to_kill ) _s_wakeup_remote(j,c,JobServerRpcProc::Kill) ;
-		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( auto const& [j,c] : to_kill ) _s_wakeup_remote(c.first,j,c.second,JobServerRpcProc::Kill) ;
+		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 }

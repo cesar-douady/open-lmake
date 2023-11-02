@@ -287,14 +287,14 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 		if (F(r)!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , F(r)+strlen(F(r))-sfx_len-6 , 6 ) ;            \
 		if (fd>=0     ) Record::Open(auditer(),F(r),O_CWT|O_NOFOLLOW,"mkstemp")(auditer(),true/*has_fd*/,fd) ; \
 		return fd
-	int mkostemp   ( char* tmpl , int flags               ) { MKSTEMP( mkostemp    , tmpl , 0       , (tmpl,flags        ) ) ; }
-	int mkostemp64 ( char* tmpl , int flags               ) { MKSTEMP( mkostemp64  , tmpl , 0       , (tmpl,flags        ) ) ; }
-	int mkostemps  ( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps   , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
-	int mkostemps64( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps64 , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
 	int mkstemp    ( char* tmpl                           ) { MKSTEMP( mkstemp     , tmpl , 0       , (tmpl              ) ) ; }
-	int mkstemp64  ( char* tmpl                           ) { MKSTEMP( mkstemp64   , tmpl , 0       , (tmpl              ) ) ; }
+	int mkostemp   ( char* tmpl , int flags               ) { MKSTEMP( mkostemp    , tmpl , 0       , (tmpl,flags        ) ) ; }
 	int mkstemps   ( char* tmpl ,             int sfx_len ) { MKSTEMP( mkstemps    , tmpl , sfx_len , (tmpl,      sfx_len) ) ; }
+	int mkostemps  ( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps   , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
+	int mkstemp64  ( char* tmpl                           ) { MKSTEMP( mkstemp64   , tmpl , 0       , (tmpl              ) ) ; }
+	int mkostemp64 ( char* tmpl , int flags               ) { MKSTEMP( mkostemp64  , tmpl , 0       , (tmpl,flags        ) ) ; }
 	int mkstemps64 ( char* tmpl ,             int sfx_len ) { MKSTEMP( mkstemps64  , tmpl , sfx_len , (tmpl,      sfx_len) ) ; }
+	int mkostemps64( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps64 , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
 	#undef MKSTEMP
 
 	// open
@@ -416,11 +416,12 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		auto it = SyscallDescr::s_tab.find(n) ;
-		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , it==SyscallDescr::s_tab.end() ) ;
+		::umap<int/*syscall*/,SyscallDescr> const& s_tab = SyscallDescr::s_tab() ;
+		auto                                       it    = s_tab.find(n)         ;
+		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , it==s_tab.end() ) ;
 		//
 		SyscallDescr const& descr     = it->second ;
-		void*               descr_ctx ;
+		void*               descr_ctx = nullptr    ;
 		{
 			[[maybe_unused]] Ctx audit_ctx ;                                                   // save user errno when required
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

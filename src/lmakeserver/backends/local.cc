@@ -317,7 +317,7 @@ namespace Backends::Local {
 			launch() ;
 			return {} ;
 		}
-		virtual ::pair_s<bool/*err*/> heartbeat(JobIdx j) {                    // called on jobs that did not start after at least newwork_delay time
+		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx j) {                    // called on jobs that did not start after at least newwork_delay time
 			auto          it    = running_map.find(j) ;
 			RunningEntry& entry = it->second          ;
 			pid_t         pid   = entry.pid           ;
@@ -327,7 +327,7 @@ namespace Backends::Local {
 			_wait_job(entry) ;
 			running_map.erase(it) ;
 			launch() ;
-			return {"vanished",false/*err*/} ;
+			return {"vanished",Maybe/*ok*/} ;
 		}
 		// kill all if req==0
 		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {

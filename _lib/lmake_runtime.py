@@ -3,13 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 deps = ()                                                                      # this is overwritten by calling script when debugging before calling hack_* functions
 
 Code = (lambda:None).__code__.__class__
 
 def load_modules() :
+	import sys
 	import importlib.util
 	import keyword
 	import os.path as osp
@@ -29,8 +28,8 @@ def load_modules() :
 	path = sorted( (osp.abspath(p)+'/' for p in sys.path) , key=lambda x:-len(x) ) # longest first to have the best possible match when trying with startswith
 	for d in deps :
 		d = osp.abspath(d)
-		if d.endswith('.pyc')    : d = importlib.util.source_from_cache(d)
-		if not d.endswith('.py') : continue                                    # not an importable module
+		if     d.endswith('.pyc') : d = importlib.util.source_from_cache(d)
+		if not d.endswith('.py' ) : continue                                   # not an importable module
 		for p in path :
 			if not d.startswith(p) : continue
 			m = d[len(p):].split('/')
@@ -44,8 +43,12 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 	load_modules()
 	if redirected : debugger = pdb.Pdb(stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'))
 	else          : debugger = pdb.Pdb(                                                      )
-	try    : debugger.runcall(func,*args,**kwds)
-	except : debugger.interaction(None,sys.exc_info()[2])
+	try :
+		debugger.runcall(func,*args,**kwds)
+	except BaseException as e :
+		import traceback
+		traceback.print_exception(e)
+		debugger.interaction(None,e.__traceback__)
 
 def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 	import os

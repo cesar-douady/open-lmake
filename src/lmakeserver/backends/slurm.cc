@@ -346,17 +346,17 @@ namespace Backends::Slurm {
 			spawned_map.erase(it) ;
 			return msg;
 		}
-		virtual ::pair_s<bool/*err*/> heartbeat(JobIdx job) {                  // called on jobs spawned but not started yet
+		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx job) {                  // called on jobs spawned but not started yet
 			SpawnedEntry& entry = spawned_map.at(job) ;
 			::string info;
 			job_states js = slurm_job_state(entry.slurm_jobid, info);
-			if(js<=JOB_COMPLETE) return {{},false/*err*/} ;                    // ok
+			if(js<=JOB_COMPLETE) return {{},Yes/*ok*/} ;
 			bool isErr = js==JOB_FAILED || js==JOB_OOM;
 			if(isErr && entry.verbose) { info += "\n" ; info += readStderrLog(job); }
 			Trace trace("heartbeat job: ",job, " slurm jobid: ",entry.slurm_jobid," state is: ", js);
 			spawned_map.erase(job) ;
 			launch() ;
-			return {info,isErr} ;
+			return {info,Maybe&!isErr} ;
 		}
 		// kill all if req==0
 		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {
@@ -623,8 +623,7 @@ namespace Backends::Slurm {
 				DYNAPI_slurm_free_job_info_msg( resp );
 				return job_state;
 			} else {
-				swear(0,to_string("Error while loading job info (", jobid, "): ", DYNAPI_slurm_strerror(errno)));
-				return JOB_RUNNING;
+				fail_prod("Error while loading job info (", jobid, "): ", DYNAPI_slurm_strerror(errno)); // XXX : why not returning JOB_BOOT_FAIL which will trigger a retry ?
 			}
 		}
 		inline ::string cmd_to_string(::vector_s& cmd_line) const {
