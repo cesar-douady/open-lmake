@@ -134,8 +134,12 @@ Restore :
 	return Maybe ;
 }
 
-Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
+Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
 	Trace trace("out_proc") ;
+	//
+	if (  cmd_line.flags[ReqFlag::AsJob] && cmd_line.args.size()!=1       ) syntax.usage("can only make a single job"             ) ;
+	if ( !cmd_line.flags[ReqFlag::AsJob] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule when making a job") ;
+	//
 	ReqRpcReq rrr{ proc , cmd_line.files() , { is_reverse_video(Fd::Stdin,Fd::Stdout) , cmd_line } } ;
 	connect_to_server(refresh) ;
 	started_cb() ;

@@ -294,14 +294,32 @@ struct IStringStream : ::istringstream {
 
 static constexpr size_t Npos = ::string::npos ;
 
-::string mk_printable( ::string const&                  ) ;
-::string mk_py_str   ( ::string const&                  ) ;
-::string mk_shell_str( ::string const&                  ) ;
-::string mk_c_str    ( ::string const&                  ) ;
-size_t   parse_c_str ( ::string const& , size_t start=0 ) ;                    // the size of the initial part that is a c str
+template<class... A> static inline ::string to_string(A const&... args) {
+	OStringStream res ;
+	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
+	return res.str() ;
+}
+//
+static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
+static inline ::string to_string(const char*     s) { return  s  ; }           // .
+static inline ::string to_string(char            c) { return {c} ; }           // .
+static inline ::string to_string(                 ) { return {}  ; }           // .
+
+using ::std::from_chars ;
+template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
+	if ( empty_ok && txt.empty() ) return 0 ;
+	I                   res = 0/*garbage*/                                                       ;
+	::from_chars_result rc  = ::from_chars( txt.data() , txt.data()+txt.size() , res,hex?16:10 ) ;
+	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
+	else                 return res ;
+}
+template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
+
+::string mk_py_str   ( ::string const&) ;
+::string mk_shell_str( ::string const&) ;
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
-static inline bool is_space(char c) {
+static inline constexpr bool is_space(char c) {
 	switch (c) {
 		case '\f' :
 		case '\n' :
@@ -314,23 +332,15 @@ static inline bool is_space(char c) {
 }
 
 // ::isprint is too high level as it accesses environment, which may not be available during static initialization
-static inline bool is_print(char c) {
+static inline constexpr bool is_print(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
 
+template<char Delimiter=0> ::string         mk_printable   ( ::string const&                ) ;
+template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
+
 static inline ::string ensure_nl(::string     && txt) { if (txt.back()!='\n') txt += '\n' ; return txt ; }
 static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                }
-
-template<class... A> ::string to_string(A const&... args) {
-	OStringStream res ;
-	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
-	return res.str() ;
-}
-//
-static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
-static inline ::string to_string(const char*     s) { return  s  ; }           // .
-static inline ::string to_string(char            c) { return {c} ; }           // .
-static inline ::string to_string(                 ) { return {}  ; }           // .
 
 template<class T> static inline void _append_to_string( ::string& dst , T               x ) { dst += to_string(x) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=           s  ; } // fast path
@@ -414,7 +424,7 @@ static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep
 
 template<::integral I> static inline I decode_int(const char* p) {
 	I r = 0 ;
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ;      // little endian, /!\ : beware of signs, casts, integer promotion, ...
+	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ;      // little endian, /!\ : beware of signs, casts & integer promotion
 	return r ;
 }
 
@@ -422,22 +432,12 @@ template<::integral I> static inline void encode_int( char* p , I x ) {
 	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;             // little endian
 }
 
-::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) ;
+::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
 template<char U,::integral I> I        from_string_with_units(::string const& s) ; // provide default unit in U. If provided, return value is expressed in this unit
 template<char U,::integral I> ::string to_string_with_units  (I               x) ; // .
 template<       ::integral I> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
 template<       ::integral I> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
-
-using ::std::from_chars ;
-template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
-	if ( empty_ok && txt.empty() ) return 0 ;
-	I                   res = 0/*garbage*/                                                       ;
-	::from_chars_result rc  = ::from_chars( txt.data() , txt.data()+txt.size() , res,hex?16:10 ) ;
-	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
-	else                 return res ;
-}
-template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 
 //
 // assert
@@ -663,7 +663,7 @@ namespace std {
 //
 
 // use N as unknown val, efficient and practical
-// usage of iterator over E : for( E e : E::N ) ...
+// usage of iterator over E : for( E e : E::N ) {...}
 #define ENUM(   E ,                               ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N                    } ; _ENUM(E,#__VA_ARGS__)
 #define ENUM_1( E , eq1 ,                         ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1                } ; _ENUM(E,#__VA_ARGS__)
 #define ENUM_2( E , eq1 , eq2 ,                   ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1,eq2            } ; _ENUM(E,#__VA_ARGS__)
@@ -917,6 +917,64 @@ template<class T> using FenceSaveInc = SaveInc<T,true> ;
 //
 // string
 //
+
+template<char Delimiter> ::string mk_printable(::string const& s) {
+	static_assert( (Delimiter<'a'||Delimiter>'z') && Delimiter!='\\' && (!Delimiter||is_print(Delimiter)) ) ; // ensure delimiter does not clash with encoding
+	::string res ; res.reserve(s.size()) ;                                                                    // typically, all characters are printable and nothing to add
+	for( char c : s ) {
+		switch (c) {
+			case '\a' : res += "\\a"  ; break ;
+			case '\b' : res += "\\b"  ; break ;
+			case 0x1b : res += "\\e"  ; break ;
+			case '\f' : res += "\\f"  ; break ;
+			case '\n' : res += "\\n"  ; break ;
+			case '\r' : res += "\\r"  ; break ;
+			case '\t' : res += "\\t"  ; break ;
+			case '\v' : res += "\\v"  ; break ;
+			case '\\' : res += "\\\\" ; break ;
+			case Delimiter :
+				if (Delimiter) { res += '\\'    ; res += Delimiter ; }         // protect delimiter
+				else           { res += "\\x00" ;                    }         // no delimiter, use default encoding
+			break ;
+			default   :
+				if (is_print(c)) res +=                                                            c   ;
+				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+		}
+	}
+	return res ;
+}
+
+template<char Delimiter> ::pair_s<size_t> parse_printable( ::string const& s , size_t pos ) {
+	static_assert( (Delimiter<'a'||Delimiter>'z') && Delimiter!='\\' && (!Delimiter||is_print(Delimiter)) ) ; // ensure delimiter does not clash with encoding
+	SWEAR(pos<=s.size(),s,pos) ;
+	::string res ; res.reserve(s.size()) ;                                     // string can only shrink and typically does not
+	const char* start = s.c_str()+pos ;
+	for( const char* p=start ; *p ; p++ )
+		if      (*p==Delimiter) return {res,p-start} ;
+		else if (*p!='\\'     ) res += *p ;
+		else {
+			p++ ;
+			switch (*p) {
+				case 'a'  : res += '\a' ; break ;
+				case 'b'  : res += '\b' ; break ;
+				case 'e'  : res += 0x1b ; break ;
+				case 'f'  : res += '\f' ; break ;
+				case 'n'  : res += '\n' ; break ;
+				case 'r'  : res += '\r' ; break ;
+				case 't'  : res += '\t' ; break ;
+				case 'v'  : res += '\v' ; break ;
+				case '\\' : res += '\\' ; break ;
+				case 'x' :
+					p++ ;
+					res += char(from_chars<uint8_t>(::string_view(p,2),false/*empty_ok*/,true/*hex*/)) ;
+					p += 2 ;
+				break ;
+				default : throw "illegal \\ code"s ;
+			}
+		}
+	if (Delimiter) throw "cannot find delimiter"s ;
+	else           return {res,s.size()-pos}      ;
+}
 
 static constexpr inline int _unit_val(char u) {
 	switch (u) {

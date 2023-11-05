@@ -16,27 +16,6 @@
 // string
 //
 
-::string mk_printable(::string const& s) {
-	::string res ; res.reserve(s.size()) ;                                     // typically, all characters are printable and nothing to add
-	for( char c : s ) {
-		switch (c) {
-			case '\a' : res += "\\a"  ; break ;
-			case '\b' : res += "\\b"  ; break ;
-			case 0x1b : res += "\\e"  ; break ;
-			case '\f' : res += "\\f"  ; break ;
-			case '\n' : res += "\\n"  ; break ;
-			case '\r' : res += "\\r"  ; break ;
-			case '\t' : res += "\\t"  ; break ;
-			case '\v' : res += "\\v"  ; break ;
-			case '\\' : res += "\\\\" ; break ;
-			default   :
-				if (is_print(c)) res +=                                                            c   ;
-				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
-		}
-	}
-	return res ;
-}
-
 ::string mk_py_str(::string const& s) {
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
@@ -70,40 +49,15 @@
 	return res ;
 }
 
-::string mk_c_str(::string const& s) {
-	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + quotes
-	for( char c : s )
-		switch (c) {
-			case '\\' :                                 // must be escaped
-			case '\'' : res += '\\' ; [[fallthrough]] ; // .
-			default   : res += c    ;
-		}
-	res += '"' ;
-	return res ;
-}
-
-size_t parse_c_str( ::string const& s , size_t start ) {
-	if (s[start]!='"') return Npos ;                                           // cannot find initial "
-	for ( size_t n=start+1 ; n<s.size() ; n++ ) {
-		switch (s[n]) {
-			case '"'  :       return n+1-start ;                               // account for final "
-			case '\\' : n++ ; break            ;                               // escape
-			default : ;
-		}
-	}
-	return Npos ;                                                              // cannot find final "
-}
-
-::string glb_subst( ::string const& txt , ::string const& sub , ::string const& repl ) {
-	/**/                                     if (sub.empty()) return txt ;
-	size_t        pos = txt.find(sub)      ; if (pos==Npos  ) return txt ;
-	::string_view sv  = txt                ;
-	::string      res { sv.substr(0,pos) } ; res.reserve(sv.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
+::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) {
+	SWEAR(!sub.empty()) ;
+	size_t      pos   = txt.find(sub)     ; if (pos==Npos) return ::move(txt) ;
+	::string    res   = txt.substr(0,pos) ; res.reserve(txt.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
 	while (pos!=Npos) {
 		size_t p = pos+sub.size() ;
-		pos  = sv.find(sub,p)     ;
-		res += repl               ;
-		res += sv.substr(p,pos-p) ;
+		pos = txt.find(sub,p) ;
+		res.append(repl       ) ;
+		res.append(txt,p,pos-p) ;
 	}
 	return res ;
 }

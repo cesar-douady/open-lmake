@@ -11,10 +11,12 @@
 #ifdef STRUCT_DECL
 namespace Engine {
 
-	struct Config        ;
-	struct EngineClosure ;
+	struct Config           ;
+	struct EngineClosure    ;
+	struct EngineClosureReq ;
+	struct EngineClosureJob ;
 
-	ENUM( CacheTag                                                             // PER_CACHE : add a tag for each cache method
+	ENUM( CacheTag // PER_CACHE : add a tag for each cache method
 	,	None
 	,	Dir
 	)
@@ -42,21 +44,21 @@ namespace Engine {
 	)
 
 	ENUM( JobEvent
-	,	Submit                                                                 // job is submitted
-	,	Add                                                                    // add a Req monitoring job
-	,	Start                                                                  // job execution starts
-	,	Done                                                                   // job done successfully
-	,	Steady                                                                 // job done successfully
-	,	Rerun                                                                  // job must rerun
-	,	Killed                                                                 // job has been killed
-	,	Del                                                                    // delete a Req monitoring job
-	,	Err                                                                    // job done in error
+	,	Submit     // job is submitted
+	,	Add        // add a Req monitoring job
+	,	Start      // job execution starts
+	,	Done       // job done successfully
+	,	Steady     // job done successfully
+	,	Rerun      // job must rerun
+	,	Killed     // job has been killed
+	,	Del        // delete a Req monitoring job
+	,	Err        // job done in error
 	)
 
 	ENUM( NodeEvent
-	,	Done                                                                   // node was modified
-	,	Steady                                                                 // node was remade w/o modification
-	,	Uphill                                                                 // uphill dir was makable
+	,	Done                           // node was modified
+	,	Steady                         // node was remade w/o modification
+	,	Uphill                         // uphill dir was makable
 	)
 
 	ENUM( ReportBool
@@ -193,66 +195,68 @@ namespace Engine {
 #ifdef DATA_DEF
 namespace Engine {
 
+	struct EngineClosureReq {
+		friend ::ostream& operator<<( ::ostream& , EngineClosureReq const& ) ;
+		// accesses
+		bool as_job() const {
+			if (options.flags[ReqFlag::AsJob]) { SWEAR(files.size()==1,files) ; return true  ; }
+			else                               {                                return false ; }
+		}
+		// services
+		::vector<Node> targets(::string const& startup_dir_s={}) const ;       // startup_dir_s for error reporting only
+		Job            job    (                                ) const ;
+		// data
+		ReqProc    proc    = ReqProc::None ;
+		Req        req     = {}            ;               // if proc==Close
+		Fd         in_fd   = {}            ;
+		Fd         out_fd  = {}            ;
+		::vector_s files   = {}            ;
+		ReqOptions options = {}            ;
+	} ;
+
+	struct EngineClosureJob {
+		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
+		JobProc        proc          = JobProc::None ;
+		JobExec        exec          = {}            ;
+		bool           report        = false         ;     // if proc==Start
+		::vector<Node> report_unlink = {}            ;     // if proc==Start
+		::string       txt           = {}            ;     // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
+		Req            req           = {}            ;     // if proc==Continue
+		::vmap_ss      rsrcs         = {}            ;
+		JobDigest      digest        = {}            ;     // if proc==End
+		Fd             reply_fd      = {}            ;     // if proc==ChkDeps
+	} ;
+
 	struct EngineClosure {
 		friend ::ostream& operator<<( ::ostream& , EngineClosure const& ) ;
 		//
 		using Kind = EngineClosureKind ;
-		using Req_ = Engine::Req       ;
-		using Job_ = Engine::Job       ;
+		using Req_ = EngineClosureReq  ;
+		using Job_ = EngineClosureJob  ;
 		//
 		using GP = GlobalProc     ;
 		using RP = ReqProc        ;
+		using J  = Engine::Job    ;
 		using JP = JobProc        ;
 		using JD = JobDigest      ;
 		using JE = JobExec        ;
 		using K  = Kind           ;
+		using R  = Engine::Req    ;
 		using RO = ReqOptions     ;
 		using VN = ::vector<Node> ;
+		using VS = ::vector_s     ;
 		//
-		struct Req {
-			friend ::ostream& operator<<( ::ostream& , Req const& ) ;
-			// accesses
-			bool has_targets() const {
-				switch (proc) {
-					case RP::Debug  :                                          // PER_CMD : decide whether command has arguments or not
-					case RP::Forget :
-					case RP::Mark   :
-					case RP::Make   :
-					case RP::Show   : return true  ;
-					default         : return false ;
-				}
-			}
-			// data
-			ReqProc        proc    = RP::None ;
-			Req_           req     = {}       ;            // if proc== Close
-			Fd             in_fd   = {}       ;            // if proc==          Forget or Kill or Make or Show
-			Fd             out_fd  = {}       ;            // if proc==          Forget or Kill or Make or Show
-			::vector<Node> targets = {}       ;            // if proc==          Forget or         Make or Show
-			ReqOptions     options = {}       ;            // if proc==          Forget or         Make or Show
-		} ;
-		struct Job {
-			friend ::ostream& operator<<( ::ostream& , Job const& ) ;
-			JP        proc          = JP::None ;
-			JE        exec          = {}       ;
-			bool      report        = false    ;           // if proc==Start
-			VN        report_unlink = {}       ;           // if proc==Start
-			::string  txt           = {}       ;           // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
-			Req_      req           = {}       ;           // if proc==Continue
-			::vmap_ss rsrcs         = {}       ;
-			JD        digest        = {}       ;           // if proc==End
-			Fd        reply_fd      = {}       ;           // if proc==ChkDeps
-		} ;
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
 		//
-		EngineClosure(RP p,Fd ifd,Fd ofd,VN const& ts,RO const& ro) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd,.targets=ts,.options=ro} { SWEAR(req.has_targets()) ; }
-		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                        } { SWEAR(p==RP::Kill )      ; }
-		EngineClosure(RP p,Req_ r                                 ) : kind{K::Req},req{.proc=p,.req=r                                        } { SWEAR(p==RP::Close)      ; }
+		EngineClosure(RP p,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(has_args(p))  ; }
+		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill ) ; }
+		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close) ; }
 		//
 		EngineClosure( JP p , JE&& je , bool r , VN const& ru={} , ::string const& t={} ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=r,.report_unlink=ru,.txt=t} { SWEAR(p==JP::Start) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::string const& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=t             } { SWEAR( p==JP::LiveOut                          ) ; }
-		EngineClosure( JP p , JE&& je , Req_            r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }
+		EngineClosure( JP p , JE&& je , R               r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }
 		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
 		//
 		EngineClosure( JP p , JE&& je , Status s                ) : kind{K::Job} , job{.proc=p,.exec=::move(je),                 .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
@@ -265,16 +269,16 @@ namespace Engine {
 		EngineClosure(EngineClosure&& ec) : kind(ec.kind) {
 			switch (ec.kind) {
 				case K::Global : new(&global_proc) GlobalProc{::move(ec.global_proc)} ; break ;
-				case K::Req    : new(&req        ) Req       {::move(ec.req        )} ; break ;
-				case K::Job    : new(&job        ) Job       {::move(ec.job        )} ; break ;
+				case K::Req    : new(&req        ) Req_      {::move(ec.req        )} ; break ;
+				case K::Job    : new(&job        ) Job_      {::move(ec.job        )} ; break ;
 				default : FAIL(ec.kind) ;
 			}
 		}
 		~EngineClosure() {
 			switch (kind) {
 				case K::Global : global_proc.~GlobalProc() ; break ;
-				case K::Req    : req        .~Req       () ; break ;
-				case K::Job    : job        .~Job       () ; break ;
+				case K::Req    : req        .~Req_      () ; break ;
+				case K::Job    : job        .~Job_      () ; break ;
 				default : FAIL(kind) ;
 			}
 		}
@@ -284,8 +288,8 @@ namespace Engine {
 		Kind kind = K::Global ;
 		union {
 			GlobalProc global_proc = GP::None ;            // if kind==Global
-			Req        req         ;
-			Job        job         ;
+			Req_       req         ;
+			Job_       job         ;
 		} ;
 	} ;
 

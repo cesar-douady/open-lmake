@@ -182,12 +182,12 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- `//vvvvvvvvvvvvvvvvvvvvvvvvvv`
 	- `main purpose of the function`
 	- `//^^^^^^^^^^^^^^^^^^^^^^^^^^`
-	- `XXX`            means something has to be reworked
-	- `/!\`            means something requires your special attention
+	- `XXX`            means something has to be reworked              (it is recommanded to highlight it in you editor)
+	- `/!\`            means something requires your special attention (it is recommanded to highlight it in you editor)
 	- `INVARIANT`      means an invariant is described
 	- `fast path`      means that the corresponding code can be suppressed without altering the semantic
 	- `.`              means same as above
-	- `...` at the end means comment continue on next line
+	- ` ...` at the end means comment continue on next line where `...` appears again
 	- `/*garbage*/`    means we dont care about the value, it is only there to be certain having no uninitialized values
 
 - apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the best extent

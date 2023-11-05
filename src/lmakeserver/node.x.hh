@@ -193,12 +193,8 @@ namespace Engine {
 			/**/                          return !uphill ;
 		}
 		bool is_src() const {
-			if (job_tgts.empty()) return false ;
-			switch (job_tgts[0]->rule->special) {
-				case Special::Src        :
-				case Special::GenericSrc : return true  ;
-				default                  : return false ;
-			}
+			if (job_tgts.empty()) return false                 ;
+			else                  return job_tgts[0]->is_src() ;
 		}
 		JobTgt conform_job_tgt() const {
 			SWEAR(makable(true/*uphill_ok*/)) ;                                // we are not going to pass an argument just for a SWEAR, uphill_ok is conservative

@@ -188,17 +188,17 @@ int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file
 	} else if (do_write) {
 		comment += do_read ? ".upd" : ".wr" ;
 		if (do_read) {
-			if        (ok     ) { if (kind==Kind::Repo) r._report_update( ::move(real) , date , a  ,               comment  ) ; // file date is updated if created, use original date
-			/**/                  else                  r._report_dep   ( ::move(real) , date , a  ,               comment  ) ; // in src dirs, only the read side is reported
-			} else if (no_file)                         r._report_dep   ( ::move(real) , DD() , a  , (comment+='!',comment) ) ;
-		} else       {
-			if        (ok     )   if (kind==Kind::Repo) r._report_target( ::move(real) ,                           comment  ) ;
+			if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , a  ,               comment  ) ; // file date is updated if created, use original date
+			else if ( ok                     ) r._report_dep   ( ::move(real) , date , a  ,               comment  ) ; // in src dirs, only the read side is reported
+			else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , a  , (comment+='!',comment) ) ;
+		} else {
+			if      ( ok && kind==Kind::Repo ) r._report_target( ::move(real) ,                           comment  ) ;
 		}
 	} else {
 		comment += do_read ? ".rd" : ".path" ;
-		if        (ok     ) { if (has_fd) r._report_dep( ::move(real) , file_date(fd_rc) , a ,               comment  ) ;
-		/**/                  else        r._report_dep( ::move(real) ,                    a , (comment+="*",comment) ) ; // if no fd available, use auto-date
-		} else if (no_file)               r._report_dep( ::move(real) , DD()             , a , (comment+='!',comment) ) ;
+		if      ( ok && has_fd ) r._report_dep( ::move(real) , file_date(fd_rc) , a ,               comment  ) ;
+		else if ( ok           ) r._report_dep( ::move(real) ,                    a , (comment+="*",comment) ) ; // if no fd available, use auto-date
+		else if ( no_file      ) r._report_dep( ::move(real) , DD()             , a , (comment+='!',comment) ) ;
 	}
 	return fd_rc ;
 }
@@ -235,7 +235,7 @@ ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 	if (kind<=Kind::Dep) {
 		if (len>=0) r._report_dep( ::move(real) , Access::Lnk , comment     ) ;
 		else        r._report_dep( ::move(real) , Access::Lnk , comment+'~' ) ; // file may be regular, so let _report_dep determine the date ...
-	}                                                                           // optimizing based on no_file (date is DD()) is not reliable as no_file may have false positives
+	}                                                                           // ... optimizing based on no_file (date is DD()) is not reliable as no_file may have false positives
 	return len ;
 }
 
@@ -332,16 +332,27 @@ int Record::Stat::operator()( Record& r , int rc , bool no_file ) {
 	return rc ;
 }
 
-Record::SymLnk::SymLnk( Record& r , Path&& path , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} {}
-int Record::SymLnk::operator()( Record& r , int rc ) {
-	if ( kind==Kind::Repo && rc>=0 ) r._report_target( ::move(real) , comment ) ;
-	return rc ;
-}
-
 Record::Unlink::Unlink( Record& r , Path&& path, bool remove_dir , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} {
 	if (remove_dir) kind = Kind::Ext ;
 }
 int Record::Unlink::operator()( Record& r , int rc ) {
 	if ( kind==Kind::Repo && rc>=0 ) r._report_unlink( ::move(real) , comment ) ;
+	return rc ;
+}
+
+Record::Write::Write( Record& r , Path&& path , bool u , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} , update{u} {
+	if ( update && kind<=Kind::Dep ) date = file_date(s_root_fd(),real) ; // file date is updated, capture date before
+}
+int Record::Write::operator()( Record& r , int rc , bool no_file ) {
+	if (kind<=Kind::Dep) {
+		bool ok = rc>=0  ;
+		if (update) {
+			if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , Accesses::All ,               comment  ) ; // file date is updated if created, use original date
+			else if ( ok                     ) r._report_dep   ( ::move(real) , date , Accesses::All ,               comment  ) ; // in src dirs, only the read side is reported
+			else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , Accesses::All , (comment+='!',comment) ) ;
+		} else {
+			if      ( ok && kind==Kind::Repo ) r._report_target( ::move(real) ,                                      comment  ) ;
+		}
+	}
 	return rc ;
 }

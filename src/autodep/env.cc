@@ -17,6 +17,7 @@ using namespace Disk ;
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (env.empty()) return ;
+	size_t sz  = 0/*garbage*/        ;
 	size_t pos = env.find(':'      ) ; if (pos==Npos) goto Fail ;
 	/**/   pos = env.find(':',pos+1) ; if (pos==Npos) goto Fail ;
 	// service
@@ -36,15 +37,17 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	pos++ ;
 	for ( bool first=true ; env[pos]!=':' ; first=false ) {
 		if ( !first && env[pos++]!=',' ) goto Fail ;
-		size_t sz = parse_c_str(env,pos) ;
-		if (sz==Npos) goto Fail ;
-		src_dirs_s.push_back(env.substr(pos+1,sz-2)) ;                     // account for quotes
-		SWEAR( src_dirs_s.back().back()=='/' , src_dirs_s.back() ) ;
-		pos += sz ;
+		::string src_dir_s ;
+		SWEAR(env[pos]=='"',env) ;
+		tie(src_dir_s,sz) = parse_printable<'"'>(env,pos+1) ;
+		SWEAR( src_dir_s.back()=='/' , src_dir_s ) ;
+		src_dirs_s.push_back(::move(src_dir_s)) ;
+		pos += sz+2 ;                                                          // account for quotes
 	}
-	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; tmp_dir  = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=':') goto Fail ; }
-	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; tmp_view = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=':') goto Fail ; }
-	{ pos++ ; size_t sz = parse_c_str(env,pos) ; if (sz==Npos) goto Fail ; root_dir = env.substr(pos+1,sz-2) ; pos += sz ; if (env[pos]!=0  ) goto Fail ; }
+	pos++ ;
+	{ SWEAR(env[pos]=='"',env) ; tie(tmp_dir ,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos++]!=':') goto Fail ; } // account for quotes
+	{ SWEAR(env[pos]=='"',env) ; tie(tmp_view,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos++]!=':') goto Fail ; } // .
+	{ SWEAR(env[pos]=='"',env) ; tie(root_dir,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos  ]!=0  ) goto Fail ; } // .
 	return ;
 Fail :
 	fail_prod( "bad autodep env format at pos ",pos," : " , env ) ;
@@ -71,10 +74,12 @@ AutodepEnv::operator ::string() const {
 		SWEAR( sd_s.back()=='/' , sd_s.back() ) ;
 		if (first) first  = false ;
 		else       res   += ','   ;
-		res += mk_c_str(sd_s) ;
+		res +=              '"'        ;
+		res += mk_printable<'"'>(sd_s) ;
+		res +=              '"'        ;
 	}
 	// other dirs
-	append_to_string( res ,':', mk_c_str(tmp_dir) ,':', mk_c_str(tmp_view) ,':', mk_c_str(root_dir) ) ;
+	append_to_string( res ,":\"", mk_printable<'"'>(tmp_dir) ,"\":\"", mk_printable<'"'>(tmp_view) ,"\":\"", mk_printable<'"'>(root_dir) ,'"' ) ;
 	//
 	return res ;
 }

@@ -6,7 +6,7 @@
 #ifdef DATA_DEF
 namespace Engine {
 
-	using CmdFunc = bool (*)(Fd,ReqOptions const&,::vector<Node> const&) ;
+	using CmdFunc = bool (*)(EngineClosureReq const&) ;
 	extern CmdFunc g_cmd_tab[+ReqProc::N] ;
 
 }

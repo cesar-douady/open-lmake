@@ -11,6 +11,8 @@ namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
 
+	static inline ::string _audit_indent( ::string const& txt , size_t lvl ) { return indent<' ',2>(txt,lvl) ; }
+
 	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name , ::string const& sfx ) {
 		SWEAR(Trace::t_key=='=',Trace::t_key) ;
 		::string report_txt = color_pfx(ro,c) ;
@@ -24,7 +26,7 @@ namespace Engine {
 		if (log_txt.back()=='\n') { report_txt.pop_back() ; log_txt.pop_back() ; } // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
 		report_txt += color_sfx(ro,c) ;
 		//
-		if (lvl) { report_txt  = indent<' ',2>(report_txt,lvl) ; log_txt  = indent<' ',2>(log_txt,lvl) ; }
+		if (lvl) { report_txt  = _audit_indent(report_txt,lvl) ; log_txt  = _audit_indent(log_txt,lvl) ; }
 		/**/     { report_txt += '\n'                          ; log_txt += '\n'                       ; }
 		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace
 		try { OMsgBuf().send( out_fd , ReqRpcReply(report_txt) ) ; } catch (::string const& e) { Trace("audit","lost_client",e,report_txt) ; }
@@ -302,22 +304,22 @@ namespace Engine {
 	// EngineClosure
 	//
 
-	::ostream& operator<<( ::ostream& os , EngineClosure::Req const& ecr ) {
+	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
 		os << "Req(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::Debug  :                                             // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Make   :
-			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.targets ; break ;
-			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                         ; break ;
-			case ReqProc::Close  : os << ecr.req                                                               ; break ;
+			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                        ; break ;
+			case ReqProc::Close  : os << ecr.req                                                              ; break ;
 			default : FAIL(ecr.proc) ;
 		}
 		return os << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , EngineClosure::Job const& ecj ) {
+	::ostream& operator<<( ::ostream& os , EngineClosureJob const& ecj ) {
 		os << "Job(" << ecj.proc <<','<< ecj.exec ;
 		switch (ecj.proc) {
 			case JobProc::Start       : if (ecj.report) os <<",report" ; break ;
@@ -341,6 +343,44 @@ namespace Engine {
 			default : FAIL(ec.kind) ;
 		}
 		return os << ')' ;
+	}
+
+	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
+		SWEAR(!as_job()) ;
+		RealPath       real_path {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                 // typically, there is no bads
+		::string       err_str   ;
+		for( ::string const& target : files ) {
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                    // we may refer to a symbolic link
+			if (rp.kind==Kind::Repo) { targets.emplace_back(rp.real) ;                                              }
+			else                     { err_str += _audit_indent(mk_rel(target,startup_dir_s),1) ; err_str += '\n' ; }
+		}
+		//
+		if (err_str.empty()) return targets                                         ;
+		else                 throw  to_string("files are outside repo :\n",err_str) ;
+	}
+
+	Job EngineClosureReq::job() const {
+		SWEAR(as_job()) ;
+		Rule r ;
+		if (options.flags[ReqFlag::Rule]) {
+			auto it = Rule::s_by_name.find(options.flag_args[+ReqFlag::Rule]) ;
+			if (it!=Rule::s_by_name.end()) r = it->second ;
+		}
+		if (+r) return Job(r,files[0]) ;
+		::vector<Job> candidates ;
+		for( Rule r : Rule::s_lst() ) {
+			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
+		}
+		if (candidates.empty()  ) return {}            ;
+		if (candidates.size()==1) return candidates[0] ;
+		//
+		::string err_str = "several rules match, consider :\n" ;
+		for( Job j : candidates ) {
+			err_str += _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) ;
+			err_str += '\n' ;
+		}
+		throw err_str ;
 	}
 
 }

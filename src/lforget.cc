@@ -26,8 +26,8 @@ int main( int argc , char* argv[] ) {
 		case ReqKey::Resources : if (!cmd_line.args.empty()) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
 		default : ;
 	}
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ::cout , ReqProc::Forget , false/*refresh_makefiles*/ , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Forget , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

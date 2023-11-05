@@ -26,15 +26,13 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	switch (cmd_line.key) {
-		case ReqKey::Clear :
-		case ReqKey::List  :
-			if (!cmd_line.args.empty()) syntax.usage("cannot have files when listing or deleting all") ;
-		break ;
-		default : ;
-	}
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ::cout , ReqProc::Mark , true/*refresh_makefiles*/ , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( is_mark_glb(cmd_line.key) && !cmd_line.args.empty() )
+		syntax.usage("cannot have files when listing or deleting all") ;
+	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::ManualOk] + cmd_line.flags[ReqFlag::NoTrigger] !=1 )
+		syntax.usage("can only process a single attribute among freeze manual-ok and no-trigger") ;
+	//
+	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Mark , true/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

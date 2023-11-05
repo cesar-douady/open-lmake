@@ -85,18 +85,6 @@ namespace Engine {
 	template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
 	template<Engine::IsIdxed I> ::ostream& operator<<( ::ostream& os , I const i ) { return os<<+i ; }
 
-	template<IsIdxed T> struct Owned : T {
-		using T::T ;
-		//
-		Owned           (Owned const&) = delete ;                              // cannot duplicate ownership
-		Owned& operator=(Owned const&) = delete ;                              // .
-		//
-		Owned           (Owned && t) : T{::move(t)} {                                                 t.clear() ;                }
-		Owned& operator=(T     && t)                { T::pop() ; static_cast<T&>(*this) = ::move(t) ;             return *this ; }
-		Owned& operator=(Owned && t)                { T::pop() ; static_cast<T&>(*this) = ::move(t) ; t.clear() ; return *this ; }
-		~Owned          (          )                { T::pop() ;                                                                 }
-	} ;
-
 }
 
 namespace std {
@@ -347,12 +335,12 @@ namespace Engine {
 		static void          s_clear_frozens(                                       ) ;
 		// cxtors & casts
 		using Base::Base ;
-		template<class... A> JobBase(                         NewType  , A&&...      ) ;
-		template<class... A> JobBase( ::pair_ss const& name , NewType  , A&&... args ) : JobBase(name,true /*new*/,::forward<A>(args)...) {}
-		template<class... A> JobBase( ::pair_ss const& name , DfltType , A&&... args ) : JobBase(name,false/*new*/,::forward<A>(args)...) {}
-		/**/                 JobBase( ::pair_ss const& name                          ) : JobBase(name,Dflt                              ) {}
+		template<class... A> JobBase(                             NewType  , A&&...      ) ;
+		template<class... A> JobBase( ::pair_ss const& name_sfx , NewType  , A&&... args ) : JobBase(name_sfx,true /*new*/,::forward<A>(args)...) {}
+		template<class... A> JobBase( ::pair_ss const& name_sfx , DfltType , A&&... args ) : JobBase(name_sfx,false/*new*/,::forward<A>(args)...) {}
+		/**/                 JobBase( ::pair_ss const& name_sfx                          ) : JobBase(name_sfx,Dflt                              ) {}
 	private :
-		template<class... A> JobBase( ::pair_ss const& name , bool new_  , A&&... ) ;
+		template<class... A> JobBase( ::pair_ss const& name_sfx , bool new_  , A&&... ) ;
 	public :
 		void pop() ;
 		// accesses
@@ -423,7 +411,8 @@ namespace Engine {
 		// statics
 		static ::vector<Rule> s_lst() ;
 		// static data
-		static MatchGen s_match_gen ;
+		static MatchGen         s_match_gen ;
+		static umap_s<RuleBase> s_by_name   ;
 		// cxtors & casts
 		using Base::Base ;
 		constexpr RuleBase(Special s ) : Base{RuleIdx(+s)} { SWEAR( +s && s!=Special::Unknown ) ; } // Special::0 is a marker that says not special
@@ -753,8 +742,8 @@ namespace Engine {
 	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {    // 1st arg is only used to disambiguate
 		*this = g_store.job_file.emplace(::forward<A>(args)...) ;
 	}
-	template<class... A> inline JobBase::JobBase( ::pair_ss const& name , bool new_ , A&&... args ) {
-		Name name_ = g_store.name_file.insert(name.first,name.second) ;
+	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) {
+		Name name_ = g_store.name_file.insert(name_sfx.first,name_sfx.second) ;
 		*this      = g_store.name_file.c_at(+name_).job() ;
 		if (+*this) {
 			SWEAR( name_==_name() , name_ , _name() ) ;

@@ -96,8 +96,8 @@ using Rename  = AuditAction<Record::Rename ,true   ,true       > ;
 using Search  = AuditAction<Record::Search                     > ;
 using Solve   = AuditAction<Record::Solve                      > ;
 using Stat    = AuditAction<Record::Stat   ,true               > ;
-using SymLnk  = AuditAction<Record::SymLnk                     > ;
 using Unlink  = AuditAction<Record::Unlink                     > ;
+using Write   = AuditAction<Record::Write  ,true               > ;
 
 struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	using Base = AuditAction<Record::Open,true/*no_file*/> ;
@@ -120,7 +120,7 @@ struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 		if (c       ) return O_PATH ;                                                         // gnu extension, no access
 		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
 	}
-	Fopen( const char* pth , const char* mode , ::string const& comment="fopen" ) : Base{ pth , mk_flags(mode) , to_string(comment,'.',mode) } {}
+	Fopen( Path&& pth , const char* mode , ::string const& comment="fopen" ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
 	FILE* operator()(FILE* fp) {
 		Base::operator()( true/*has_fd*/ , fp?::fileno(fp):-1 ) ;
 		return fp ;
@@ -160,7 +160,8 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	namespace Audited
 #endif
 {
-	#define NE noexcept
+	#define NE           noexcept
+	#define ASLNF(flags) bool(flags&AT_SYMLINK_NOFOLLOW)
 
 	#define ORIG(syscall) static decltype(::syscall)* orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall))
 	// cwd is implicitely accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
@@ -179,16 +180,24 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , args , Record::s_is_simple(path1) && Record::s_is_simple(path2) )
 
 	#define CC   const char
-	#define P(r) r.at,r.file
-	#define A(r) r.at
-	#define F(r)      r.file
+	#define P(r)                           r.at,r.file
+	#define A(r) (SWEAR(!r.file||!*r.file),r.at       )
+	#define F(r)                                r.file
 
 	static constexpr int Cwd = Fd::Cwd ;
 
 	// chdir
 	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
-	int chdir (CC* pth) NE { HEADER1(chdir ,pth,(pth)) ; ChDir r{pth   } ; return r(orig(F(r))) ; } // /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int fchdir(int fd ) NE { HEADER0(fchdir,    (fd )) ; ChDir r{Fd(fd)} ; return r(orig(A(r))) ; } // .
+	// /!\ chdir manipulates cwd, which mandates an exclusive lock
+	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; ChDir r{pth   } ; return r(orig(F(r))) ; }
+	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; ChDir r{Fd(fd)} ; return r(orig(A(r))) ; }
+
+	// chmod
+
+	//                                                                                                                   update,no_follow
+	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Write r{     pth ,true  ,false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
+	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Write r{Fd(fd)   ,true  ,false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
+	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Write r{{dfd,pth},true  ,ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
 
 	// close
 	// close cannot be simple as we must call hide, which may make modifications
@@ -206,28 +215,28 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	// for dlopen, we cannot transform access into real access as for other system calls as a lot of other directories may be searched (that we should do by the way)
 	// When we do the correct interpretation, we can replace pth below by r.real to have a secure mecanism
 	// XXX : do the full library search for dlopen/dlmopen (requires DT_RPATH & DT_RUNPATH interpretation)
-	void* dlopen (             CC* pth , int fs ) NE { HEADER0(dlopen ,(   pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlopen" } ; return r(orig(   pth,fs)) ; }
-	void* dlmopen( Lmid_t lm , CC* pth , int fs ) NE { HEADER0(dlmopen,(lm,pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlmopen"} ; return r(orig(lm,pth,fs)) ; }
+	void* dlopen (          CC* pth,int fs) NE { HEADER0(dlopen ,(   pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlopen" } ; return r(orig(   pth,fs)) ; }
+	void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER0(dlmopen,(lm,pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlmopen"} ; return r(orig(lm,pth,fs)) ; }
 
 	// dup2
 	// /!\ : dup2/3 can be recursively called by auditing code
 	// in case dup2/3 is called with one our fd's, we must hide somewhere else
 	// Record::s_hide is guaranteed syscall free, so no need to protect against errno
-	int dup2  ( int oldfd , int newfd            ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
-	int dup3  ( int oldfd , int newfd , int flgs ) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Record::s_hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
-	int __dup2( int oldfd , int newfd            ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
+	int dup2  (int oldfd,int newfd         ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
+	int dup3  (int oldfd,int newfd,int flgs) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Record::s_hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
+	int __dup2(int oldfd,int newfd         ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
 
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
 	// exec does not support tmp mapping as this could require modifying file content along the interpreter path
-	int execv  ( CC* pth , char* const argv[]                      ) NE { HEADER1(execv  ,pth,(pth,argv     )) ; Exec   r{pth,false/*no_follow*/ ,"execv"  } ; return r(orig(pth,argv     )) ; }
-	int execve ( CC* pth , char* const argv[] , char* const envp[] ) NE { HEADER1(execve ,pth,(pth,argv,envp)) ; Exec   r{pth,false/*no_follow*/ ,"execve" } ; return r(orig(pth,argv,envp)) ; }
-	int execvp ( CC* pth , char* const argv[]                      ) NE { HEADER0(execvp ,    (pth,argv     )) ; Search r{pth,true/*exec*/,"PATH","execvp" } ; return r(orig(pth,argv     )) ; }
-	int execvpe( CC* pth , char* const argv[] , char* const envp[] ) NE { HEADER0(execvpe,    (pth,argv,envp)) ; Search r{pth,true/*exec*/,"PATH","execvpe"} ; return r(orig(pth,argv,envp)) ; }
+	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER1(execv  ,pth,(pth,argv     )) ; Exec   r{pth,false/*no_follow*/ ,"execv"  } ; return r(orig(pth,argv     )) ; }
+	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER1(execve ,pth,(pth,argv,envp)) ; Exec   r{pth,false/*no_follow*/ ,"execve" } ; return r(orig(pth,argv,envp)) ; }
+	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,    (pth,argv     )) ; Search r{pth,true/*exec*/,"PATH","execvp" } ; return r(orig(pth,argv     )) ; }
+	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,    (pth,argv,envp)) ; Search r{pth,true/*exec*/,"PATH","execvpe"} ; return r(orig(pth,argv,envp)) ; }
 	//
 	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
 		HEADER1(execveat,pth,(dfd,pth,argv,envp,flgs)) ;
-		Exec r { {dfd,pth} , bool(flgs&AT_SYMLINK_NOFOLLOW) , "execveat" } ;
+		Exec r { {dfd,pth} , ASLNF(flgs) , "execveat" } ;
 		return r(orig(dfd,pth,argv,envp,flgs)) ;
 	}
 	// execl
@@ -243,22 +252,23 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 		end_action                                                           \
 		va_end(arg_cnt_lst) ;                                                \
 		va_end(args_lst   )
-	int execl ( CC* pth , CC* arg , ... ) NE { MK_ARGS(                                               ) ; int rc = execv (pth,args     ) ; delete[] args ; return rc ; }
-	int execle( CC* pth , CC* arg , ... ) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) ; ) ; int rc = execve(pth,args,envp) ; delete[] args ; return rc ; }
-	int execlp( CC* pth , CC* arg , ... ) NE { MK_ARGS(                                               ) ; int rc = execvp(pth,args     ) ; delete[] args ; return rc ; }
+	int execl (CC* pth,CC* arg,...) NE { MK_ARGS(                                               ) ; int rc = execv (pth,args     ) ; delete[] args ; return rc ; }
+	int execle(CC* pth,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) ; ) ; int rc = execve(pth,args,envp) ; delete[] args ; return rc ; }
+	int execlp(CC* pth,CC* arg,...) NE { MK_ARGS(                                               ) ; int rc = execvp(pth,args     ) ; delete[] args ; return rc ; }
 	#undef MK_ARGS
 
 	// fopen
-	FILE* fopen    ( CC* pth , CC* mode            ) { HEADER1(fopen    ,pth,(pth,mode   )) ; Fopen r{pth,mode,"fopen"    } ; return r(orig(F(r),mode   )) ; }
-	FILE* fopen64  ( CC* pth , CC* mode            ) { HEADER1(fopen64  ,pth,(pth,mode   )) ; Fopen r{pth,mode,"fopen64"  } ; return r(orig(F(r),mode   )) ; }
-	FILE* freopen  ( CC* pth , CC* mode , FILE* fp ) { HEADER1(freopen  ,pth,(pth,mode,fp)) ; Fopen r{pth,mode,"freopen"  } ; return r(orig(F(r),mode,fp)) ; }
-	FILE* freopen64( CC* pth , CC* mode , FILE* fp ) { HEADER1(freopen64,pth,(pth,mode,fp)) ; Fopen r{pth,mode,"freopen64"} ; return r(orig(F(r),mode,fp)) ; }
+	FILE* fopen    (CC* pth,CC* mod         ) { HEADER1(fopen    ,pth,(pth,mod   )) ; Fopen r{pth   ,mod,"fopen"    } ; return r(orig(F(r),mod   )) ; }
+	FILE* fopen64  (CC* pth,CC* mod         ) { HEADER1(fopen64  ,pth,(pth,mod   )) ; Fopen r{pth   ,mod,"fopen64"  } ; return r(orig(F(r),mod   )) ; }
+	FILE* freopen  (CC* pth,CC* mod,FILE* fp) { HEADER1(freopen  ,pth,(pth,mod,fp)) ; Fopen r{pth   ,mod,"freopen"  } ; return r(orig(F(r),mod,fp)) ; }
+	FILE* freopen64(CC* pth,CC* mod,FILE* fp) { HEADER1(freopen64,pth,(pth,mod,fp)) ; Fopen r{pth   ,mod,"freopen64"} ; return r(orig(F(r),mod,fp)) ; }
+	FILE* fdopen   (int fd ,CC* mod         ) { HEADER0(fdopen   ,    (fd ,mod   )) ; Fopen r{Fd(fd),mod,"fdopen"   } ; return r(orig(A(r),mod   )) ; }
 
 	// fork
 	// not recursively called by auditing code
 	pid_t fork       () NE { HEADER0(fork       ,()) ; return orig()   ; }     // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated ...
-	pid_t __fork     () NE { HEADER0(__fork     ,()) ; return orig()   ; }     //     imagine the lock is held by another thread while we fork => child will have dead lock                        ...
-	pid_t __libc_fork() NE { HEADER0(__libc_fork,()) ; return orig()   ; }     //     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
+	pid_t __fork     () NE { HEADER0(__fork     ,()) ; return orig()   ; }     //     ... imagine the lock is held by another thread while we fork => child will have dead lock                    ...
+	pid_t __libc_fork() NE { HEADER0(__libc_fork,()) ; return orig()   ; }     //     ... a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
 	pid_t vfork      () NE {                           return fork  () ; }     // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
 	pid_t __vfork    () NE {                           return __fork() ; }     // .
 	//
@@ -287,38 +297,38 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 		if (F(r)!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , F(r)+strlen(F(r))-sfx_len-6 , 6 ) ;            \
 		if (fd>=0     ) Record::Open(auditer(),F(r),O_CWT|O_NOFOLLOW,"mkstemp")(auditer(),true/*has_fd*/,fd) ; \
 		return fd
-	int mkstemp    ( char* tmpl                           ) { MKSTEMP( mkstemp     , tmpl , 0       , (tmpl              ) ) ; }
-	int mkostemp   ( char* tmpl , int flags               ) { MKSTEMP( mkostemp    , tmpl , 0       , (tmpl,flags        ) ) ; }
-	int mkstemps   ( char* tmpl ,             int sfx_len ) { MKSTEMP( mkstemps    , tmpl , sfx_len , (tmpl,      sfx_len) ) ; }
-	int mkostemps  ( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps   , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
-	int mkstemp64  ( char* tmpl                           ) { MKSTEMP( mkstemp64   , tmpl , 0       , (tmpl              ) ) ; }
-	int mkostemp64 ( char* tmpl , int flags               ) { MKSTEMP( mkostemp64  , tmpl , 0       , (tmpl,flags        ) ) ; }
-	int mkstemps64 ( char* tmpl ,             int sfx_len ) { MKSTEMP( mkstemps64  , tmpl , sfx_len , (tmpl,      sfx_len) ) ; }
-	int mkostemps64( char* tmpl , int flags , int sfx_len ) { MKSTEMP( mkostemps64 , tmpl , sfx_len , (tmpl,flags,sfx_len) ) ; }
+	int mkstemp    (char* tmpl                     ) { MKSTEMP( mkstemp     , tmpl , 0       , (tmpl             ) ) ; }
+	int mkostemp   (char* tmpl,int flgs            ) { MKSTEMP( mkostemp    , tmpl , 0       , (tmpl,flgs        ) ) ; }
+	int mkstemps   (char* tmpl,         int sfx_len) { MKSTEMP( mkstemps    , tmpl , sfx_len , (tmpl,     sfx_len) ) ; }
+	int mkostemps  (char* tmpl,int flgs,int sfx_len) { MKSTEMP( mkostemps   , tmpl , sfx_len , (tmpl,flgs,sfx_len) ) ; }
+	int mkstemp64  (char* tmpl                     ) { MKSTEMP( mkstemp64   , tmpl , 0       , (tmpl             ) ) ; }
+	int mkostemp64 (char* tmpl,int flgs            ) { MKSTEMP( mkostemp64  , tmpl , 0       , (tmpl,flgs        ) ) ; }
+	int mkstemps64 (char* tmpl,         int sfx_len) { MKSTEMP( mkstemps64  , tmpl , sfx_len , (tmpl,     sfx_len) ) ; }
+	int mkostemps64(char* tmpl,int flgs,int sfx_len) { MKSTEMP( mkostemps64 , tmpl , sfx_len , (tmpl,flgs,sfx_len) ) ; }
 	#undef MKSTEMP
 
 	// open
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
-	//                                                                                                                                                       has_fd
-	int open             (         CC* p , int f , ... ) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f    ,"open"             } ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open           (         CC* p , int f , ... ) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open"           } ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open_nocancel  (         CC* p , int f , ... ) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open_nocancel"  } ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open_2         (         CC* p , int f       ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f    ,"__open_2"         } ; return r(true  ,orig(F(r),f  )) ; }
-	int open64           (         CC* p , int f , ... ) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f    ,"open64"           } ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open64         (         CC* p , int f , ... ) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64"         } ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open64_nocancel(         CC* p , int f , ... ) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64_nocancel"} ; return r(true  ,orig(F(r),f,m)) ; }
-	int __open64_2       (         CC* p , int f       ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f    ,"__open64_2"       } ; return r(true  ,orig(F(r),f  )) ; }
-	int openat           ( int d , CC* p , int f , ... ) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat"           } ; return r(true  ,orig(P(r),f,m)) ; }
-	int __openat_2       ( int d , CC* p , int f       ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat_2"       } ; return r(true  ,orig(P(r),f  )) ; }
-	int openat64         ( int d , CC* p , int f , ... ) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat64"         } ; return r(true  ,orig(P(r),f,m)) ; }
-	int __openat64_2     ( int d , CC* p , int f       ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat64_2"     } ; return r(true  ,orig(P(r),f  )) ; }
-	int creat            (         CC* p , mode_t m    ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat"            } ; return r(true  ,orig(F(r),  m)) ; }
-	int creat64          (         CC* p , mode_t m    ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat64"          } ; return r(true  ,orig(F(r),  m)) ; }
+	//                                                                                                                                                 has_fd
+	int open             (      CC* p,int f , ...) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f    ,"open"             } ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open           (      CC* p,int f , ...) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open"           } ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open_nocancel  (      CC* p,int f , ...) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open_nocancel"  } ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open_2         (      CC* p,int f      ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f    ,"__open_2"         } ; return r(true  ,orig(F(r),f  )) ; }
+	int open64           (      CC* p,int f , ...) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f    ,"open64"           } ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open64         (      CC* p,int f , ...) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64"         } ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open64_nocancel(      CC* p,int f , ...) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64_nocancel"} ; return r(true  ,orig(F(r),f,m)) ; }
+	int __open64_2       (      CC* p,int f      ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f    ,"__open64_2"       } ; return r(true  ,orig(F(r),f  )) ; }
+	int openat           (int d,CC* p,int f , ...) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat"           } ; return r(true  ,orig(P(r),f,m)) ; }
+	int __openat_2       (int d,CC* p,int f      ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat_2"       } ; return r(true  ,orig(P(r),f  )) ; }
+	int openat64         (int d,CC* p,int f , ...) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat64"         } ; return r(true  ,orig(P(r),f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f      ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat64_2"     } ; return r(true  ,orig(P(r),f  )) ; }
+	int creat            (      CC* p,mode_t m   ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat"            } ; return r(true  ,orig(F(r),  m)) ; }
+	int creat64          (      CC* p,mode_t m   ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat64"          } ; return r(true  ,orig(F(r),  m)) ; }
 	#undef MOD
 	//
-	int name_to_handle_at( int dirfd , CC* pth , struct ::file_handle *h , int *mount_id , int flgs ) NE {
-		HEADER1(name_to_handle_at,pth,(dirfd,pth,h,mount_id,flgs)) ;
-		Open r{{dirfd,pth},flgs,"name_to_handle_at"} ;
+	int name_to_handle_at( int dfd , CC* pth , struct ::file_handle *h , int *mount_id , int flgs ) NE {
+		HEADER1(name_to_handle_at,pth,(dfd,pth,h,mount_id,flgs)) ;
+		Open r{{dfd,pth},flgs,"name_to_handle_at"} ;
 		return r(false/*has_fd*/,orig(P(r),h,mount_id,flgs)) ;
 	}
 	#undef O_CWT
@@ -339,39 +349,39 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},f ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
 	// symlink
-	int symlink  ( CC* target ,             CC* pth ) NE { HEADER1(symlink  ,pth,(target,      pth)) ; SymLnk r{       pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
-	int symlinkat( CC* target , int dirfd , CC* pth ) NE { HEADER1(symlinkat,pth,(target,dirfd,pth)) ; SymLnk r{{dirfd,pth},"symlinkat"} ; return r(orig(target,P(r))) ; }
+	//                                                                                                         update,no_follow
+	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Write r{     pth ,false ,true     ,"symlink"  } ; return r(orig(target,F(r))) ; }
+	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Write r{{dfd,pth},false ,true     ,"symlinkat"} ; return r(orig(target,P(r))) ; }
 
 	// truncate
 	int truncate  (CC* pth,off_t len) NE { HEADER1(truncate  ,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate"  } ; return r(false/*has_fd*/,orig(F(r),len)) ; }
 	int truncate64(CC* pth,off_t len) NE { HEADER1(truncate64,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate64"} ; return r(false/*has_fd*/,orig(F(r),len)) ; }
 
 	// unlink
-	int unlink  (             CC* pth             ) NE { HEADER1(unlink  ,pth,(      pth      )) ; Unlink r{       pth ,false/*remove_dir*/     ,"unlink"  } ; return r(orig(F(r)      )) ; }
-	int unlinkat( int dirfd , CC* pth , int flags ) NE { HEADER1(unlinkat,pth,(dirfd,pth,flags)) ; Unlink r{{dirfd,pth},bool(flags&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flags)) ; }
+	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlink r{     pth ,false/*remove_dir*/    ,"unlink"  } ; return r(orig(F(r)     )) ; }
+	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlink r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	#define ASLM AT_SYMLINK_NOFOLLOW
 	//                                                                                          no_follow
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false       ,"access"   } ; return r(orig(F(r),m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},bool(f&ASLM),"faccessat"} ; return r(orig(P(r),m,f)) ; }
-	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true                    } ; return r(orig(F(r)    )) ; }
-	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true                    } ; return r(orig(F(r)    )) ; }
+	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,"access"   } ; return r(orig(F(r),m  )) ; }
+	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,"faccessat"} ; return r(orig(P(r),m,f)) ; }
+	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true                 } ; return r(orig(F(r)    )) ; }
+	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true                 } ; return r(orig(F(r)    )) ; }
 	//                                                                                                                 no_follow
-	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false       ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
-	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false       ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
-	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true        ,"__lxstat"    } ; return r(orig(v,F(r),b  )) ; }
-	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,p,(v,  p,b  )) ; Stat r{   p ,true        ,"__lxstat64"  } ; return r(orig(v,F(r),b  )) ; }
-	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HEADER1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},bool(f&ASLM),"__fxstatat"  } ; return r(orig(v,P(r),b,f)) ; }
-	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},bool(f&ASLM),"__fxstatat64"} ; return r(orig(v,P(r),b,f)) ; }
+	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
+	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
+	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true     ,"__lxstat"    } ; return r(orig(v,F(r),b  )) ; }
+	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__lxstat64  ,p,(v,  p,b  )) ; Stat r{   p ,true     ,"__lxstat64"  } ; return r(orig(v,F(r),b  )) ; }
+	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HEADER1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f) ,"__fxstatat"  } ; return r(orig(v,P(r),b,f)) ; }
+	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HEADER1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f) ,"__fxstatat64"} ; return r(orig(v,P(r),b,f)) ; }
 	#if !NEED_STAT_WRAPPERS
 		//                                                                                                   no_follow
-		int stat     (      CC* p,struct stat  * b      ) NE { HEADER1(stat     ,p,(  p,b  )) ; Stat r{   p ,false       ,"stat"     } ; return r(orig(F(r),b  )) ; }
-		int stat64   (      CC* p,struct stat64* b      ) NE { HEADER1(stat64   ,p,(  p,b  )) ; Stat r{   p ,false       ,"stat64"   } ; return r(orig(F(r),b  )) ; }
-		int lstat    (      CC* p,struct stat  * b      ) NE { HEADER1(lstat    ,p,(  p,b  )) ; Stat r{   p ,true        ,"lstat"    } ; return r(orig(F(r),b  )) ; }
-		int lstat64  (      CC* p,struct stat64* b      ) NE { HEADER1(lstat64  ,p,(  p,b  )) ; Stat r{   p ,true        ,"lstat64"  } ; return r(orig(F(r),b  )) ; }
-		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,p,(d,p,b,f)) ; Stat r{{d,p},bool(f&ASLM),"fstatat"  } ; return r(orig(P(r),b,f)) ; }
-		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,p,(d,p,b,f)) ; Stat r{{d,p},bool(f&ASLM),"fstatat64"} ; return r(orig(P(r),b,f)) ; }
+		int stat     (      CC* p,struct stat  * b      ) NE { HEADER1(stat     ,p,(  p,b  )) ; Stat r{   p ,false    ,"stat"     } ; return r(orig(F(r),b  )) ; }
+		int stat64   (      CC* p,struct stat64* b      ) NE { HEADER1(stat64   ,p,(  p,b  )) ; Stat r{   p ,false    ,"stat64"   } ; return r(orig(F(r),b  )) ; }
+		int lstat    (      CC* p,struct stat  * b      ) NE { HEADER1(lstat    ,p,(  p,b  )) ; Stat r{   p ,true     ,"lstat"    } ; return r(orig(F(r),b  )) ; }
+		int lstat64  (      CC* p,struct stat64* b      ) NE { HEADER1(lstat64  ,p,(  p,b  )) ; Stat r{   p ,true     ,"lstat64"  } ; return r(orig(F(r),b  )) ; }
+		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HEADER1(fstatat  ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f) ,"fstatat"  } ; return r(orig(P(r),b,f)) ; }
+		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HEADER1(fstatat64,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f) ,"fstatat64"} ; return r(orig(P(r),b,f)) ; }
 	#endif
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE { HEADER1(statx,p,(d,p,f,msk,b)) ; Stat r{{d,p},true/*no_follow*/,"statx"} ; return r(orig(P(r),f,msk,b)) ; }
 
@@ -401,8 +411,6 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 
 	#undef P
 	#undef CC
-
-	#undef NE
 
 	// syscall
 	long syscall( long n , ... ) {                                             // XXX : support, or at least detect tmp mapping
@@ -445,6 +453,9 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#undef HEADER
 
 	#undef ORIG
+
+	#undef ASLNF
+	#undef NE
 
 }
 #ifdef LD_PRELOAD

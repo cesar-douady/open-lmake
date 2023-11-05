@@ -105,9 +105,12 @@ int main( int argc , char* argv[] ) {
 	}
 	{
 		g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),g_seq_id%JobHistorySz)} ;
-		::unlink(g_trace_file->c_str()) ;                                          // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+		::unlink(g_trace_file->c_str()) ;                                      // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 		//
-		::string cwd_    = g_start_info.cwd_s ;
+		app_init() ;
+		Py::init() ;
+		//
+		::string cwd_    = g_start_info.cwd_s                ;
 		::string abs_cwd = g_start_info.autodep_env.root_dir ;
 		if (!g_start_info.cwd_s.empty()) {
 			cwd_.pop_back() ;
@@ -118,16 +121,14 @@ int main( int argc , char* argv[] ) {
 		cmd_env["ROOT_DIR"   ] = g_start_info.autodep_env.root_dir ;
 		cmd_env["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
 		cmd_env["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
-		for( auto const& [k,v] : g_start_info.env )
-			if      (v!=EnvPassMrkr) cmd_env[k] = glb_subst(v,g_start_info.lcl_mrkr,abs_cwd) ;
-			else if (has_env(k)    ) cmd_env[k] = get_env(k)                                   ; // if value is special illegal value, use value from environement (typically from slurm)
+		for( auto&& [k,v] : g_start_info.env ) {
+			if      (v!=EnvPassMrkr) cmd_env[k] = env_decode(::move(v)) ;
+			else if (has_env(k)    ) cmd_env[k] = get_env(k)            ;      // if value is special illegal value, use value from environement (typically from slurm)
+		}
 		if ( g_start_info.keep_tmp || !cmd_env.contains("TMPDIR") )
 			cmd_env["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
 		g_start_info.autodep_env.tmp_dir = cmd_env["TMPDIR"] ;
 		if (!g_start_info.autodep_env.tmp_view.empty()) cmd_env["TMPDIR"] = g_start_info.autodep_env.tmp_view ; // job must use the job view
-		//
-		app_init() ;
-		Py::init() ;
 		//
 		Trace trace("main",g_service,g_seq_id,g_job) ;
 		trace("start_overhead",start_overhead) ;
@@ -135,10 +136,10 @@ int main( int argc , char* argv[] ) {
 		trace("cmd_env"       ,cmd_env       ) ;
 		//
 		try {
-			unlink_inside(g_start_info.autodep_env.tmp_dir) ;                      // be certain that tmp dir is clean
+			unlink_inside(g_start_info.autodep_env.tmp_dir) ;                  // be certain that tmp dir is clean
 		} catch (::string const&) {
 			try {
-				make_dir(g_start_info.autodep_env.tmp_dir) ;                       // and that it exists
+				make_dir(g_start_info.autodep_env.tmp_dir) ;                   // and that it exists
 			} catch (::string const& e) {
 				end_report.digest.stderr = "cannot create tmp dir : "+e ;
 				goto End ;

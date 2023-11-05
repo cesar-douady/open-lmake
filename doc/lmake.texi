@@ -463,6 +463,15 @@ The colors bears a semantic :
 @item Uncolored means output from user code. This output can be colored by user code (e.g. gcc generates colored error messages, which is very helpful).
 @end itemize
 
+@section Global options
+In addition to options described for each user command, the following options are supported by all of them.
+@itemize @bullet
+@item @code{-J}|@code{--as-job} : passed arguments are interpreted as job names rather than as file names.
+Job names are the names that appear, for example, on start and done lines when @lmake executes a job.
+@item @code{-R}|@code{--rule} : when the previous option is used, this options allows the specification of a rule, given by its name.
+This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+@end itemize
+
 @section @lmake
 
 Usage : @code{lmake [-a|--archive] [-e|--forget-old-errors] [[-j|--jobs] max_jobs] [-m|--manual-ok] [-o|--live-out] [-l|--local] [-v|--versbose-backend] targets...}
@@ -1706,29 +1715,6 @@ This means the job runs in a sand box in which the temporary directory is mapped
 This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
 
 This attribute is also prepended to targets and deps unless they start with a @code{/}.
-
-@section @code{local_marker}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{str}
-@item Default
-@tab @code{'$CWD'} (i.e. the string @code{$CWD} it self, not the value of the CWD environment variable)
-@item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
-@end multitable
-
-This attribute defines a marker which is search in environment variables present in the @code{environ_*} attributes.
-When an occurrence is found, it is replaced by the value of the @code{cwd} attribute.
-
-The goal of this attribute is to allow to express rules without explicite reference to the repository.
-This in turn allow the cache to provide results computed in a repository to another another repository, which is mostly its purpose.
-If the repository (i.e. the directory holding it) is part of the command of a rule, then when the cache check for command coherence, it will find a discrepency, preventing result forwarding.
-
-This mechanism apply to the environment variables as the other attributes need not refer explicitely to the repository.
-On the contrary, it would be cumbersome if such environment variables as PATH, PYTHONPATH, HOME, ... could not refer the repository.
 
 @section @code{environ_cmd}
 

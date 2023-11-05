@@ -264,18 +264,6 @@ namespace Engine {
 			return true ;
 		}
 
-		bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
-			if (!py_src        ) {                  return false ;                           }
-			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
-			//
-			bool is_str = PyUnicode_Check(py_src) ;
-			if (!is_str) py_src = PyObject_Str(py_src) ;
-			if (!py_src) throw "cannot convert to str"s ;
-			dst = PyUnicode_AsUTF8(py_src) ;
-			if (!is_str) Py_DECREF(py_src) ;
-			return true ;
-		}
-
 		bool/*updated*/ acquire( Cmd::DbgEntry& dst , PyObject* py_src ) {
 			if (!py_src        ) {                          return false ;                           }
 			if (py_src==Py_None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
@@ -847,43 +835,45 @@ namespace Engine {
 				break ;
 			}
 		}
-		catch(::string const& e) { throw to_string("while processing ",user_name(),'.',field," :\n"  ,indent(e)     ) ; }
-		catch(Py::Exception & e) { throw to_string("while processing ",user_name(),'.',field," :\n\t",e.errorValue()) ; }
+		catch(::string const& e) { throw to_string("while processing ",name,'.',field," :\n"  ,indent(e)     ) ; }
+		catch(Py::Exception & e) { throw to_string("while processing ",name,'.',field," :\n\t",e.errorValue()) ; }
 	}
 
+	Py::Pattern RuleData::_mk_pattern(::string const& target) const {
+		// Generate and compile Python pattern
+		// target has the same syntax as Python f-strings except expressions must be named as found in stems
+		// we transform that into a pattern by :
+		// - escape specials outside keys
+		// - transform f-string syntax into Python regexpr syntax
+		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(?P<_0>.*)c\.d"
+		// remember that what is stored in targets is actually a stem idx, not a stem key
+		::uset<VarIdx> seen       ;
+		::uset<VarIdx> seen_twice ;
+		_parse_target( target ,
+			[&](VarIdx s)->void {
+				if (seen.contains(s)) seen_twice.insert(s) ;
+				else                  seen      .insert(s) ;
+			}
+		) ;
+		seen.clear() ;
+		Py::Pattern res = _subst_target(
+			target
+		,	[&](VarIdx s)->::string {
+				if      ( seen.contains(s)                           ) {                  return to_string("(?P=",to_string('_',s),                    ')') ; }
+				else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",to_string('_',s),'>',stems[s].second,')') ; }
+				else                                                   {                  return to_string('('   ,                     stems[s].second,')') ; }
+			}
+		,	true/*escape*/
+		) ;
+		Py::boost(res) ;                                                       // prevent deallocation at end of execution that generates crashes
+		return res ;
+	}
 	void RuleData::_compile() {
 		Py::Gil gil ;
 		try {
-			// targets
-			// Generate and compile Python pattern
-			// target has the same syntax as Python f-strings except expressions must be named found in stems
-			// we transform that into a pattern by :
-			// - escape specials outside keys
-			// - transform f-string syntax into Python regexpr syntax
-			// for example "a{b}c.d" with stems["b"]==".*" becomes "a(?P<b>.*)c\.d"
-			// remember that what is stored in targets is actually a stem idx, not a stem key
-			for( auto const& [k,tf] : targets ) {
-				::uset<VarIdx> seen       ;
-				::uset<VarIdx> seen_twice ;
-				_parse_target( tf.pattern ,
-					[&](VarIdx s)->void {
-						if (seen.contains(s)) seen_twice.insert(s) ;
-						else                  seen      .insert(s) ;
-					}
-				) ;
-				seen.clear() ;
-				::string pattern = _subst_target(
-					tf.pattern
-				,	[&](VarIdx s)->::string {
-						if      ( seen.contains(s)                           ) {                  return to_string("(?P=",to_string('_',s),                    ')') ; }
-						else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",to_string('_',s),'>',stems[s].second,')') ; }
-						else                                                   {                  return to_string('('   ,                     stems[s].second,')') ; }
-					}
-				,	true/*escape*/
-				) ;
-				target_patterns.emplace_back(pattern) ;
-				Py::boost(target_patterns.back()) ;                            // prevent deallocation at end of execution that generates crashes
-			}
+			// job_name & targets
+			/**/                                name_pattern =            _mk_pattern(job_name  )  ;
+			for( auto const& [k,tf] : targets ) target_patterns.push_back(_mk_pattern(tf.pattern)) ;
 			_set_crcs() ;
 			deps_attrs        .compile() ;
 			create_none_attrs .compile() ;
@@ -897,8 +887,8 @@ namespace Engine {
 			end_cmd_attrs     .compile() ;
 			end_none_attrs    .compile() ;
 		}
-		catch(::string const& e) { throw to_string("while processing ",user_name()," :\n"  ,indent(e)     ) ; }
-		catch(Py::Exception & e) { throw to_string("while processing ",user_name()," :\n\t",e.errorValue()) ; }
+		catch(::string const& e) { throw to_string("while processing ",name," :\n"  ,indent(e)     ) ; }
+		catch(Py::Exception & e) { throw to_string("while processing ",name," :\n\t",e.errorValue()) ; }
 	}
 
 	template<class T> static ::string _pretty_vmap( size_t i , ::vmap_s<T> const& m ) {
@@ -1068,8 +1058,8 @@ namespace Engine {
 		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) {
 			res << ::string(i,'\t') << ::setw(wk)<<k ;
-			if (v==EnvPassMrkr) res << " ...\n"        ;
-			else                res <<" : "<< v <<'\n' ;
+			if (v==EnvPassMrkr) res << " ...\n"                              ;
+			else                res <<" : "<< env_decode(::string(v)) <<'\n' ;
 		}
 		//
 		return res.str() ;
@@ -1083,13 +1073,12 @@ namespace Engine {
 			if (pass==1) key_sz = ::max(key_sz,key.size()) ;                                 // during 1st pass, compute max key size ;
 			else         res << indent( to_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
 		} ;
-		for( pass=1 ; pass<=2 ; pass++ ) {                                          // on 1st pass we compute key size, on 2nd pass we do the job
-			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"   , to_string(sca.auto_mkdir ) ) ;
-			if ( sca.ignore_stat        ) do_field( "ignore_stat"  , to_string(sca.ignore_stat) ) ;
-			/**/                          do_field( "autodep"      , mk_snake (sca.method     ) ) ;
-			if (!sca.chroot     .empty()) do_field( "chroot"       ,           sca.chroot       ) ;
-			if (!sca.lcl_mrkr   .empty()) do_field( "local_marker" ,           sca.lcl_mrkr     ) ;
-			if (!sca.tmp        .empty()) do_field( "tmp"          ,           sca.tmp          ) ;
+		for( pass=1 ; pass<=2 ; pass++ ) {                                                         // on 1st pass we compute key size, on 2nd pass we do the job
+			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
+			if ( sca.ignore_stat        ) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
+			/**/                          do_field( "autodep"     , mk_snake (sca.method     ) ) ;
+			if (!sca.chroot     .empty()) do_field( "chroot"      ,           sca.chroot       ) ;
+			if (!sca.tmp        .empty()) do_field( "tmp"         ,           sca.tmp          ) ;
 			if (!sca.interpreter.empty()) {
 				OStringStream i ;
 				for( ::string const& c : sca.interpreter ) i <<' '<<c ;
@@ -1252,7 +1241,7 @@ namespace Engine {
 	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule} {
 		::string name_ = job.full_name() ;
 		//
-		SWEAR( Rule(name_)==rule , mk_c_str(name_) , rule->name ) ;            // only name suffix is considered to make Rule
+		SWEAR( Rule(name_)==rule , mk_printable(name_) , rule->name ) ;        // only name suffix is considered to make Rule
 		//
 		char* p = &name_[name_.size()-( rule->n_static_stems*(sizeof(FileNameIdx)*2) + sizeof(Idx) )] ; // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
@@ -1322,24 +1311,28 @@ namespace Engine {
 	// Rule::FullMatch
 	//
 
-	Rule::FullMatch::FullMatch( RuleTgt rt , ::string const& target ) {
-		Trace trace("FullMatch",rt,target) ;
+	Rule::FullMatch::FullMatch( Rule r , Py::Pattern const& pattern , ::string const& name ) {
+		Trace trace("FullMatch",r,name) ;
 		Py::Gil   gil ;
-		Py::Match m   = rt.pattern().match(target) ;
+		Py::Match m   = pattern.match(name) ;
 		if (!m) { trace("no_match") ; return ; }
-		rule = rt ;
-		for( VarIdx s=0 ; s<rt->n_static_stems ; s++ ) stems.push_back(m[to_string('_',s)]) ;
+		rule = r ;
+		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(m[to_string('_',s)]) ;
+		trace("stems",stems) ;
+	}
+
+	Rule::FullMatch::FullMatch( RuleTgt rt , ::string const& target ) : FullMatch{rt,rt.pattern(),target} {
+		if (!*this) return ;
 		::vector<VarIdx> const& conflicts = rt->targets[rt.tgt_idx].second.conflicts ;
-		if (conflicts.empty()) { trace("stems",stems) ; return ; }                     // fast path : avoid computing targets()
+		if (conflicts.empty()) return ;                                                // fast path : avoid computing targets()
 		targets() ;                                                                    // _match needs targets but do not compute them as targets computing needs _match
 		for( VarIdx t : rt->targets[rt.tgt_idx].second.conflicts )
 			if (_match(t,target)) {                                            // if target matches an earlier target, it is not a match for this one
 				rule .clear() ;
 				stems.clear() ;
-				trace("conflict") ;
+				Trace("FullMatch","conflict",rt.tgt_idx,t) ;
 				return ;
 			}
-		trace("stems",stems) ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Rule::FullMatch const& m ) {

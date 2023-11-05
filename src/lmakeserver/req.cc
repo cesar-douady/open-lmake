@@ -26,7 +26,7 @@ namespace Engine {
 		return os << "Rq(" << int(+r) << ')' ;
 	}
 
-	Req::Req( Fd fd , ::vector<Node> const& targets , ReqOptions const& options ) : Base{s_small_ids.acquire()} {
+	Req::Req(EngineClosureReq const& ecr) : Base{s_small_ids.acquire()} {
 		SWEAR( +*this<=s_store.size() , +*this , s_store.size() ) ;
 		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
 		if (+*this>=s_store.size()) {
@@ -48,34 +48,40 @@ namespace Engine {
 			break ;
 		}
 		//
-		::vmap<Node,Dflags> ts ; for( Node t : targets ) ts.emplace_back(t,StaticDflags) ;
-		//
 		data.idx_by_start = s_n_reqs()           ;
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
 		data.start        = Ddate::s_now()       ;
-		data.options      = options              ;
-		data.audit_fd     = fd                   ;
+		data.options      = ecr.options          ;
+		data.audit_fd     = ecr.out_fd           ;
 		data.stats.start  = Pdate::s_now()       ;
-		//
-		data.job = Job( Special::Req , Deps(targets,Accesses::All,StaticDflags,true/*parallel*/) ) ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
-		try                       { Backend::s_open_req(+*this,from_chars<JobIdx>(options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/)) ; }
-		catch (::string const& e) { close() ; throw ;                                                                                    }
+		//
+		try {
+			JobIdx n_jobs = from_chars<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
+			if (ecr.as_job()) data.job = ecr.job()                                                                             ;
+			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,StaticDflags,true/*parallel*/) ) ;
+			Backend::s_open_req( +*this , n_jobs ) ;
+		} catch (::string const& e) {
+			close() ;
+			throw ;
+		}
 		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
 	}
 
 	void Req::make() {
-		Trace trace("make",*this,(*this)->job->deps) ;
-		//
 		Job job = (*this)->job ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		job->make(job->req_info(*this),RunAction::Status) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		Trace trace("make",*this,job) ;
+		//
+		Job::ReqInfo& jri = job->req_info(*this) ;
+		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		job->make(jri,RunAction::Status) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		chk_end() ;
 	}
 
@@ -174,8 +180,8 @@ namespace Engine {
 			if (!match       ) {            continue ; }
 			if (rt->is_anti()) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {                                                                               // do not pass *this as req to avoid generating error message at cxtor time
-				swear_prod(!jt.produces(node),"no rule for ",node.name()," but ",jt->rule->user_name()," may produce it") ;
+			if ( JobTgt jt{rt,name} ; +jt ) {                                                                        // do not pass *this as req to avoid generating error message at cxtor time
+				swear_prod(!jt.produces(node),"no rule for ",node.name()," but ",jt->rule->name," may produce it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
 			try                     { rt->deps_attrs.eval(match) ; }
@@ -211,13 +217,13 @@ namespace Engine {
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
-			if (!missing_dep) (*this)->audit_info( Color::Note , to_string("rule ",rt->user_name(),' ',reason     ) ,               lvl+1 ) ;
-			else              (*this)->audit_node( Color::Note , to_string("rule ",rt->user_name(),' ',reason," :") , missing_dep , lvl+1 ) ;
+			if (!missing_dep) (*this)->audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
+			else              (*this)->audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
 		}
 		//
-		if (+art) (*this)->audit_info( Color::Note , to_string("anti-rule ",art->user_name()," matches") , lvl+1 ) ;
+		if (+art) (*this)->audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;
 	}
 
 	void Req::_report_cycle(Node node) {
@@ -231,14 +237,14 @@ namespace Engine {
 				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {         // 2nd pass to find the loop
 				Job::ReqInfo const& cjri = j->c_req_info(*this) ;
-				if (cjri.done()) continue ;
+				if (cjri.done()     ) continue ;
 				if (cjri.speculative) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
 					if (dd->done(*this)) continue ;
 					d = dd ;
 					goto Next ;
 				}
-				fail_prod("not done but all deps are done : ",j) ;
+				fail_prod("not done but all deps are done : ",j.name()) ;
 			}
 			fail_prod("not done but all possible jobs are done : ",d.name()) ;
 		Next :
@@ -259,8 +265,8 @@ namespace Engine {
 		}
 		if (!to_forget.empty() || !to_raise.empty() ) {
 			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d ",n                                   , 1 ) ;
-			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->user_name(),".prio = ",r->prio,"+1") , 1 ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d ",n                            , 1 ) ;
+			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 1 ) ;
 		}
 	}
 
@@ -269,40 +275,45 @@ namespace Engine {
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
 		if (!dep->makable()) {
-			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep , n_err , lvl ) ;
-			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep , n_err , lvl ) ;
+			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep.name() , n_err , lvl ) ;
+			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ;
 		} else if (dep->multi) {
-			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep , n_err , lvl ) ;
+			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep.name() , n_err , lvl ) ;
 		}
-		for( Job job : dep->conform_job_tgts(cri) ) {
-			if (seen_jobs.contains(job)) return false ;
-			seen_jobs.insert(job) ;
-			Job::ReqInfo const& jri = job->c_req_info(*this) ;
-			if (!jri.done()) return false ;
-			if (!job->err()) return false ;
-			bool intermediate = job->run_status==RunStatus::DepErr ;
-			bool overflow = (*this)->_send_err( intermediate , job->rule->name , dep , n_err , lvl ) ;
-			if (overflow) {
-				return true ;
-			} else if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule->is_special() ) {
-				try {
-					// show first stderr
-					Rule::SimpleMatch match          ;
-					IFStream          job_stream     { job->ancillary_file() }                                      ;
-					auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
-					auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
-					EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
-					AnalysisErr       ae             ;
-					for( auto const& [t,n] : report_end.end.digest.analysis_err ) ae.emplace_back(t,Node(n)) ;
-					seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
-				} catch(...) {
-					(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-				}
+		for( Job job : dep->conform_job_tgts(cri) )
+			if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+		return false ;
+	}
+
+	bool/*overflow*/ Req::_report_err( Job job , Node target , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
+		if (seen_jobs.contains(job)) return false ;
+		seen_jobs.insert(job) ;
+		Job::ReqInfo const& jri = job->c_req_info(*this) ;
+		if (!jri.done()) return false ;
+		if (!job->err()) return false ;
+		//
+		bool intermediate = job->run_status==RunStatus::DepErr                                                                    ;
+		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target.name():job.name() , n_err , lvl ) ;
+		if (overflow) return true ;
+		//
+		if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule->is_special() ) {
+			try {
+				// show first stderr
+				Rule::SimpleMatch match          ;
+				IFStream          job_stream     { job->ancillary_file() }                                      ;
+				auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
+				auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
+				EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
+				AnalysisErr       ae             ;
+				for( auto const& [t,n] : report_end.end.digest.analysis_err ) ae.emplace_back(t,Node(n)) ;
+				seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
+			} catch(...) {
+				(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 			}
-			if (intermediate)
-				for( Dep const& d : job->deps )
-					if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
 		}
+		if (intermediate)
+			for( Dep const& d : job->deps )
+				if ( _report_err( d , n_err , seen_stderr , seen_jobs , seen_nodes , lvl+1 ) ) return true ;
 		return false ;
 	}
 
@@ -313,21 +324,26 @@ namespace Engine {
 		bool                job_err = job->status!=Status::Ok         ;
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
 		(*this)->audit_stats() ;
-		if (!(*this)->zombie) {
-			SWEAR(!job->frozen()) ;                                                         // what does it mean for job of a Req to be frozen ?
-			(*this)->audit_summary(job_err) ;
-			if (job_err) {
-				size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
-				bool         seen_stderr = false ;
-				::uset<Job > seen_jobs   ;
-				::uset<Node> seen_nodes  ;
-				for( Dep const& d : job->deps ) {
-					if      (!d->done(*this)) _report_cycle  ( d                                                ) ;
-					else if (d->makable()   ) _report_err    ( d , n_err , seen_stderr , seen_jobs , seen_nodes ) ;
-					else                      _report_no_rule( d                                                ) ;
-				}
+		if ((*this)->zombie) goto Done ;
+		(*this)->audit_summary(job_err) ;
+		if (!job_err) goto Done ;
+		if (!job->c_req_info(*this).done()) {
+			for( Dep const& d : job->deps )
+				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
+			fail_prod("job not done but all deps are done : ",job.name()) ;
+		} else {
+			size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
+			bool         seen_stderr = false                                                        ;
+			::uset<Job > seen_jobs   ;
+			::uset<Node> seen_nodes  ;
+			if (job->rule->special==Special::Req) {
+				for( Dep const& d : job->deps ) if ( d->makable()) _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				for( Dep const& d : job->deps ) if (!d->makable()) _report_no_rule(d                                            ) ;
+			} else {
+				/**/                                               _report_err    (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
 		}
+	Done :
 		(*this)->audit_status(!job_err) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,*this) ;
@@ -342,6 +358,7 @@ namespace Engine {
 
 	void ReqData::clear() {
 		SWEAR( !n_running() , n_running() ) ;
+		if (job->rule->special==Special::Req) job.pop();
 		*this = ReqData() ;
 	}
 
@@ -367,8 +384,8 @@ namespace Engine {
 		{	::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
 			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
-			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->user_name().size() ) ;
-			for( auto [j,_] : frozens_ ) audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->user_name()) , j ) ;
+			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->name.size() ) ;
+			for( auto [j,_] : frozens_ ) audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j ) ;
 		}
 		{	::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
 			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
@@ -429,11 +446,11 @@ namespace Engine {
 		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 	}
 
-	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , Node node , size_t& n_err , DepDepth lvl ) {
+	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_node( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , node , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                                ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                                  ) ;
 		return !n_err/*overflow*/ ;
 	}
 

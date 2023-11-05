@@ -32,4 +32,4 @@ static inline int mk_rc(Bool3 ok) {
 	}
 }
 
-Bool3/*ok*/ out_proc( ::ostream& , ReqProc , bool refresh , ReqCmdLine const& , ::function<void()> const& started_cb = []()->void{} ) ;
+Bool3/*ok*/ out_proc( ::ostream& , ReqProc , bool refresh , ReqSyntax const& , ReqCmdLine const& , ::function<void()> const& started_cb = []()->void{} ) ;

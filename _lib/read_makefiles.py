@@ -57,7 +57,6 @@ StdExecAttrs = {
 ,	'job_tokens'        : ( int   , True    )
 ,	'keep_tmp'          : ( bool  , True    )
 ,	'kill_sigs'         : ( tuple , True    )
-,	'local_marker'      : ( str   , True    )
 ,	'n_retries'         : ( int   , True    )
 ,	'n_tokens'          : ( int   , False   )
 ,	'python'            : ( tuple , False   )
@@ -435,14 +434,13 @@ class Handle :
 
 	def handle_start_cmd(self) :
 		self._init()
-		self._handle_val('auto_mkdir'                )
-		self._handle_val('env'        ,'environ_cmd' )
-		self._handle_val('ignore_stat'               )
-		self._handle_val('autodep'                   )
-		self._handle_val('chroot'                    )
-		self._handle_val('interpreter'               )
-		self._handle_val('lcl_mrkr'   ,'local_marker')
-		self._handle_val('tmp'                       )
+		self._handle_val('auto_mkdir'               )
+		self._handle_val('env'        ,'environ_cmd')
+		self._handle_val('ignore_stat'              )
+		self._handle_val('autodep'                  )
+		self._handle_val('chroot'                   )
+		self._handle_val('interpreter'              )
+		self._handle_val('tmp'                      )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

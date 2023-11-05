@@ -218,7 +218,7 @@ public :
 		// data
 		bool do_read  = false ;
 		bool do_write = false ;
-		DD   date     ;                // if file is updated and did not exist, its date must be capture before the actual syscall
+		DD   date     ;                // if file is updated and did not exist, its date must be captured before the actual syscall
 	} ;
 	struct Read : Solve {
 		// cxtors & casts
@@ -266,19 +266,22 @@ public :
 			return res ;
 		}
 	} ;
-	struct SymLnk : Solve {
-		// cxtors & casts
-		SymLnk() = default ;
-		SymLnk( Record& , Path&& , ::string const& comment="sym_lnk" ) ;
-		// services
-		int operator()( Record& , int rc ) ;
-	} ;
 	struct Unlink : Solve {
 		// cxtors & casts
 		Unlink() = default ;
 		Unlink( Record& , Path&& , bool remove_dir=false , ::string const& comment="unlink" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
+	} ;
+	struct Write : Solve {
+		// cxtors & casts
+		Write() = default ;
+		Write( Record& , Path&& , bool update , bool no_follow , ::string const& comment="write" ) ;
+		// services
+		int operator()( Record& , int rc , bool no_file=true ) ;
+		// data
+		DD   date   ;                    // if file is updated, its date may have to be captured before the actual syscall
+		bool update = false/*garbage*/ ;
 	} ;
 	//
 	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }

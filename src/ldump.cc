@@ -9,8 +9,7 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	::string cn = mk_c_str(n) ;                                                                                 // ensure n is non-ambiguous
-	::cout << ::setw(13)<<jn <<" : "<< ::setw(8)<<r  <<" : "<< ::string_view(cn).substr(1,cn.size()-2) <<'\n' ; // suppress useless " around n
+	::cout << ::setw(13)<<jn <<" : "<< ::setw(8)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
 }
 
 int main( int argc , char* /*argv*/[] ) {

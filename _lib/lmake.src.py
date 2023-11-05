@@ -219,7 +219,6 @@ if _lmake_read_makefiles :
 		ignore_stat  = False                               # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
 		keep_tmp     = False                               # keep tmp dir after job execution
 		kill_sigs    = (_signal.SIGKILL,)                  # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
-		local_marker = '$CWD'                              # a marker recognized in environ_* attributes and replaced by the cwd of the rule to allow cache effenciency
 	#	n_retries    = 1                                   # number of retries in case of job lost. 1 might be a reasonable value
 		n_tokens     = 1                                   # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 		prio         = 0                                   # in case of ambiguity, rules are selected with highest prio first
@@ -238,9 +237,9 @@ if _lmake_read_makefiles :
 	#	,	'tmp' : '0M'                                   # temporary disk space to allocate to job
 		}                                                  # follow the same syntax as deps
 		environ_cmd = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
-			HOME       = '$CWD'                            # favor repeatability by hiding use home dir some tools use at start up time
+			HOME       = root_dir                          # favor repeatability by hiding use home dir some tools use at start up time
 		,	PATH       = ':'.join(( _lmake_dir+'/bin' , _std_path ))
-		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' , '$CWD'    ))
+		,	PYTHONPATH = ':'.join(( _lmake_dir+'/lib' , root_dir  ))
 		)
 		environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
 		environ_ancillary = pdict(                         # job execution environment, does not trigger rebuild upon modification
@@ -321,7 +320,6 @@ if _lmake_read_makefiles :
 		#
 		# compute directories
 		#
-		root_dir    = _os.getcwd()
 		git_dir     = root_dir
 		rel_git_dir = ''
 		while git_dir!='/' and not _osp.isdir(_osp.join(git_dir,'.git')) :

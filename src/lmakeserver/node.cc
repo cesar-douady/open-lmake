@@ -353,7 +353,7 @@ namespace Engine {
 	void NodeData::audit_multi( Req req , ::vector<JobTgt> const& jts ) {
 		/**/                   req->audit_node(Color::Err ,"multi",idx()            ) ;
 		/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
-		for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->user_name()  ,2) ;
+		for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->name         ,2) ;
 	}
 
 	bool/*ok*/ NodeData::forget( bool targets , bool deps ) {

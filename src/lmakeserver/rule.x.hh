@@ -96,7 +96,7 @@ namespace Engine {
 		// statics
 		/**/                                  bool/*updated*/ acquire( bool       & dst , PyObject* py_src ) ;
 		/**/                                  bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) ;
-		/**/                                  bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
+		template<             bool Env=false> bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
 		template<class      T               > bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
 		template<class      T,bool Env=false> bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
 		template<::integral I               > bool/*updated*/ acquire( I          & dst , PyObject* py_src ) ;
@@ -201,7 +201,6 @@ namespace Engine {
 			acquire_env     (env        ,py_dct,"env"          ) ;
 			acquire_from_dct(ignore_stat,py_dct,"ignore_stat"  ) ;
 			acquire_from_dct(interpreter,py_dct,"interpreter"  ) ;
-			acquire_from_dct(lcl_mrkr   ,py_dct,"lcl_mrkr"     ) ;
 			acquire_from_dct(method     ,py_dct,"autodep"      ) ;
 			acquire_from_dct(tmp        ,py_dct,"tmp"          ) ;
 			//
@@ -229,7 +228,6 @@ namespace Engine {
 		::string      chroot      ;
 		::vmap_ss     env         ;
 		::vector_s    interpreter ;
-		::string      lcl_mrkr    ;
 		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      tmp         ;
 	} ;
@@ -484,7 +482,6 @@ namespace Engine {
 		//
 		vmap_view_c_ss static_stems() const { return vmap_view_c_ss(stems).subvec(0,n_static_stems) ; }
 		//
-		::string    user_name  () const { return is_identifier(name) ? name : to_string('"',name,'"') ; }
 		FileNameIdx job_sfx_len() const {
 			return
 				1                                                              // null to disambiguate w/ Node names
@@ -499,7 +496,7 @@ namespace Engine {
 		}
 	private :
 		bool _get_cmd_needs_deps() const {                                     // if deps are needed for cmd computation, then static deps are deemed to be read...
-			return                                                             // as accesses are not recorded and we need to be pessimistic
+			return                                                             // ... as accesses are not recorded and we need to be pessimistic
 				submit_rsrcs_attrs.is_dynamic
 			||	start_cmd_attrs   .is_dynamic
 			||	cmd               .is_dynamic
@@ -507,8 +504,9 @@ namespace Engine {
 			||	end_cmd_attrs     .is_dynamic
 			;
 		}
-		::vector_s _list_ctx(::vector<CmdIdx> const& ctx) const ;
-		void _set_crcs() ;
+		::vector_s  _list_ctx  (::vector<CmdIdx> const& ctx) const ;
+		void        _set_crcs  (                           ) ;
+		Py::Pattern _mk_pattern(::string const&            ) const ;
 
 		// user data
 	public :
@@ -550,6 +548,7 @@ namespace Engine {
 		mutable JobIdx stats_weight = 0  ;                                     // number of jobs used to compute average
 		// not stored on disk
 		::vector<Py::Pattern> target_patterns ;
+		Py::Pattern           name_pattern    ;
 		Crc                   match_crc       = Crc::None ;
 		Crc                   cmd_crc         = Crc::None ;
 		Crc                   rsrcs_crc       = Crc::None ;
@@ -588,21 +587,22 @@ namespace Engine {
 
 	struct Rule::FullMatch : SimpleMatch {
 		friend ::ostream& operator<<( ::ostream& , FullMatch const& ) ;
-		// helper functions
+		// statics
 	private :
 		static ::string _group( Py::Object match_object , ::string const& key ) {
 			return Py::String(_s_py_group.apply(Py::TupleN(match_object,Py::String(key)))) ;
 		}
-		// statics
-		// Python callables that actually do the job
+		// static data
 		static Py::Callable _s_py_group ;                                      // access named groups in a match object
 		// cxtors & casts
 	public :
 		using SimpleMatch::SimpleMatch ;
-		FullMatch( SimpleMatch const& sm            ) : SimpleMatch(sm) {}
-		FullMatch( RuleTgt , ::string const& target ) ;
-		// accesses
+		FullMatch( SimpleMatch const& sm                ) : SimpleMatch{sm} {}
+		FullMatch( Rule    r , ::string const& job_name ) : FullMatch{r,r->name_pattern,job_name} {}
+		FullMatch( RuleTgt   , ::string const& target   ) ;
 	private :
+		FullMatch( Rule , Py::Pattern const& , ::string const& ) ;
+		// accesses
 		Py::Pattern const& _target_pattern(VarIdx) const ;                     // solve lazy evaluation
 		// services
 	public :
@@ -660,84 +660,102 @@ namespace Engine {
 	// Attrs
 	//
 
-	template<::integral I> bool/*updated*/ Attrs::acquire( I& dst , PyObject* py_src ) {
-		if (!py_src        ) {           return false ; }
-		if (py_src==Py_None) { dst = 0 ; return true  ; }
-		//
-		PyObject* py_src_long = PyNumber_Long(py_src) ;
-		if (!py_src_long) throw "cannot convert to an int"s ;
-		int  ovrflw = 0                                             ;
-		long v      = PyLong_AsLongAndOverflow(py_src_long,&ovrflw) ;
-		Py_DECREF(py_src_long) ;
-		if (ovrflw                                     ) throw "overflow when converting to an int"s ;
-		if (::cmp_less   (v,::numeric_limits<I>::min())) throw "underflow"s                          ;
-		if (::cmp_greater(v,::numeric_limits<I>::max())) throw "overflow"s                           ;
-		dst = I(v) ;
-		return true ;
-	}
+	namespace Attrs {
 
-	template<StdEnum E> bool/*updated*/ Attrs::acquire( E& dst , PyObject* py_src ) {
-		if (!py_src        ) {                 return false ; }
-		if (py_src==Py_None) { dst = E::Dflt ; return true  ; }
-		//
-		if (!PyUnicode_Check(py_src)) throw "not a str"s ;
-		dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
-		return true ;
-	}
-
-	template<class T> bool/*updated*/ Attrs::acquire( ::vector<T>& dst , PyObject* py_src ) {
-		if (!py_src        ) {                  return false ;                           }
-		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
-		//
-		bool updated = false ;
-		if (!PySequence_Check(py_src)) throw "not a sequence"s ;
-		PyObject* fast_val = PySequence_Fast(py_src,"") ;
-		SWEAR(fast_val) ;
-		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
-		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
-		for( size_t i=0 ; i<n ; i++ ) {
-			if (i>=dst.size()) { updated = true ; dst.push_back(T()) ; }       // create empty entry
-			if (p[i]==Py_None) continue ;
-			try                       { updated |= acquire(dst.back(),p[i]) ;    }
-			catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
+		template<::integral I> bool/*updated*/ acquire( I& dst , PyObject* py_src ) {
+			if (!py_src        ) {           return false ; }
+			if (py_src==Py_None) { dst = 0 ; return true  ; }
+			//
+			PyObject* py_src_long = PyNumber_Long(py_src) ;
+			if (!py_src_long) throw "cannot convert to an int"s ;
+			int  ovrflw = 0                                             ;
+			long v      = PyLong_AsLongAndOverflow(py_src_long,&ovrflw) ;
+			Py_DECREF(py_src_long) ;
+			if (ovrflw                                     ) throw "overflow when converting to an int"s ;
+			if (::cmp_less   (v,::numeric_limits<I>::min())) throw "underflow"s                          ;
+			if (::cmp_greater(v,::numeric_limits<I>::max())) throw "overflow"s                           ;
+			dst = I(v) ;
+			return true ;
 		}
-		if (n!=dst.size()) { updated = true ; dst.resize(n) ; }
-		return updated ;
-	}
 
-	template<class T,bool Env> bool/*updated*/ Attrs::acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-		if (!py_src        ) {                  return false ;                           }
-		if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
-		//
-		bool updated = false ;
-		::map_s<T> map = mk_map(dst) ;
-		if (!PyDict_Check(py_src)) throw "not a dict"s ;
-		PyObject*  py_key = nullptr/*garbage*/ ;
-		PyObject*  py_val = nullptr/*garbage*/ ;
-		ssize_t    pos    = 0                  ;
-		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
-			if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
-			const char* key = PyUnicode_AsUTF8(py_key) ;
-			if (py_val==Py_None) {
-				updated |= map.emplace(key,T()).second ;
-				continue ;
+		template<StdEnum E> bool/*updated*/ acquire( E& dst , PyObject* py_src ) {
+			if (!py_src        ) {                 return false ; }
+			if (py_src==Py_None) { dst = E::Dflt ; return true  ; }
+			//
+			if (!PyUnicode_Check(py_src)) throw "not a str"s ;
+			dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
+			return true ;
+		}
+
+		template<bool Env> bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
+			if (!py_src        ) {                  return false ;                           }
+			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			//
+			bool is_str = PyUnicode_Check(py_src) ;
+			if (!is_str) py_src = PyObject_Str(py_src) ;
+			if (!py_src) throw "cannot convert to str"s ;
+			if (Env) dst = env_encode(PyUnicode_AsUTF8(py_src)) ;                  // for environment, replace occurrences of lmake & root absolute paths par markers ...
+			else     dst =            PyUnicode_AsUTF8(py_src)  ;                  // ... so as to make repo rebust to moves of lmake or itself
+			if (!is_str) Py_DECREF(py_src) ;
+			return true ;
+		}
+
+		template<class T> bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) {
+			if (!py_src        ) {                  return false ;                           }
+			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			//
+			bool updated = false ;
+			if (!PySequence_Check(py_src)) throw "not a sequence"s ;
+			PyObject* fast_val = PySequence_Fast(py_src,"") ;
+			SWEAR(fast_val) ;
+			size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
+			PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
+			for( size_t i=0 ; i<n ; i++ ) {
+				if (i>=dst.size()) { updated = true ; dst.push_back(T()) ; }       // create empty entry
+				if (p[i]==Py_None) continue ;
+				try                       { updated |= acquire(dst.back(),p[i]) ;    }
+				catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
 			}
-			if constexpr (Env)
-				if (py_val==Py::g_ellipsis) {
-					updated  = true        ;
-					map[key] = EnvPassMrkr ;                                   // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
+			if (n!=dst.size()) { updated = true ; dst.resize(n) ; }
+			return updated ;
+		}
+
+		template<class T,bool Env> bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+			if (!py_src        ) {                  return false ;                           }
+			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			//
+			bool updated = false ;
+			::map_s<T> map = mk_map(dst) ;
+			if (!PyDict_Check(py_src)) throw "not a dict"s ;
+			PyObject*  py_key = nullptr/*garbage*/ ;
+			PyObject*  py_val = nullptr/*garbage*/ ;
+			ssize_t    pos    = 0                  ;
+			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
+				if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
+				const char* key = PyUnicode_AsUTF8(py_key) ;
+				if (py_val==Py_None) {
+					updated |= map.emplace(key,T()).second ;
 					continue ;
 				}
-			try {
-				auto [it,inserted] = map.emplace(key,T()) ;
-				updated |= inserted                   ;
-				updated |= acquire(it->second,py_val) ;
-			} catch (::string const& e) {
-				throw to_string("for item ",key," : ",e) ;
+				if constexpr (Env)
+					if (py_val==Py::g_ellipsis) {
+						updated  = true        ;
+						map[key] = EnvPassMrkr ;                                   // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
+						continue ;
+					}
+				try {
+					auto [it,inserted] = map.emplace(key,T()) ;
+					/**/               updated |= inserted                        ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					if constexpr (Env) updated |= acquire<Env>(it->second,py_val) ; // ... to make repo robust to moves of lmake or itself
+					else               updated |= acquire     (it->second,py_val) ;
+				} catch (::string const& e) {
+					throw to_string("for item ",key," : ",e) ;
+				}
 			}
+			dst = mk_vmap(map) ;
+			return updated ;
 		}
-		dst = mk_vmap(map) ;
-		return updated ;
+
 	}
 
 	//
@@ -863,7 +881,7 @@ namespace Engine {
 	}
 
 	template<class T> PyObject* Dynamic<T>::_mk_dct( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
-		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not...
+		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::vector_s to_del ;
 		eval_ctx( job , match , rsrcs
@@ -890,7 +908,7 @@ namespace Engine {
 		//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		PyObject* d = PyEval_EvalCode( code , glbs , nullptr ) ;
 		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( ::string const& key : to_del ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs...
+		for( ::string const& key : to_del ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs
 		//
 		if (!d) throw Py::err_str() ;
 		SWEAR(PyDict_Check(d)) ;

@@ -12,8 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-*1 trap chmod as a modification
-	- and also fchmod & fchmodat
 ! sometimes losing terminal colors
 	- hard to reproduce
 	- maybe, if reporting is done from several threads (but normally it is not)
@@ -23,9 +21,14 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*3 recognize by job name ?
-	- when no rule as file
-	- this would allow to copy/paste from jobs with star stems in name
+* use env_decode/env_encode for the interpreter attribute
+* support hard links
+	- put exec bit in Ddate
+		- and use mtime instead of ctime
+	- for incremental targets, uniquify targets
+		- if link count>1, copy it aside and rename it to its original name
+		- ensure mtime is not modified
+		- so that the other names of the file are not modified (i.e. implement copy on write semantic)
 * automatic versioning of internal info
 	- extend serdes to enumerate fields & types
 	- for data base
@@ -75,11 +78,7 @@ items :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-*2 if a job cannot connect to job_exec to report deps
-	- note fact in a marker file
-		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
-	- check marker file existence in job_exec
-		- and retry job in that case rather than generating job in error
+*1 simplify Accesses into a bool
 * implement noexcept/except everywhere pertinent
 * use the Path struct instead of at/file
 	- everywhere applicable
@@ -99,6 +98,11 @@ items :
 		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
 	- allow check that dynamic attributes only access what they are allowed to access
 ! find a use case to ensure dates are correctly handled with NFS
+? if a job cannot connect to job_exec to report deps
+	- note fact in a marker file
+		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
+	- check marker file existence in job_exec
+		- and retry job in that case rather than generating job in error
 ? split utils.hh into several smaller files in utils directory
 ? implement class path_?? (x, n or s) in path.hh
 	- semantic : path w/ & w/o / at beginning and end
@@ -111,18 +115,16 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*4 implement a lshow -r to see what is running now
+*2 implement a lshow -r to see what is running now
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-*5 provide the possibility to play dynamically with resources in config
+*3 provide the possibility to play dynamically with resources in config
 	- split config / rules / sources
 	- provide possibility to declare a module to import for rules and sources (default auto-source as today)
 		- reload rules when rules change (or when config.rules changes)
 		- sources when sources change (or when config.sources changes)
 		- config when config changes
 			- and allow config to be read dynamically, and recognize if this is acceptable
-* put exec bit in Ddate
-	- and use mtime instead of ctime
 * result cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
@@ -189,11 +191,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*6 process specifically uphill
+*4 process specifically uphill
 	- directly depend node->node
 	- avoid creating an intermediate job
 	- there are a lot of them an bring no value
-*7 record dep crcs in Job rather than in Dep
+*5 record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)

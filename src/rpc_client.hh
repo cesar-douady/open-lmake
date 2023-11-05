@@ -15,16 +15,25 @@ ENUM( ReqProc      // PER_CMD : add a value that represents your command
 ,	Close
 ,	Debug
 ,	Forget
-,	Mark
 ,	Kill
 ,	Make
+,	Mark
 ,	Show
 )
+static inline bool has_args(ReqProc proc) {
+	switch (proc) {                                                            // PER_CMD : decide whether command has args
+		case ReqProc::Debug  :
+		case ReqProc::Forget :
+		case ReqProc::Make   :
+		case ReqProc::Mark   :
+		case ReqProc::Show   : return true  ;
+		default              : return false ;
+	}
+}
 
 ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None           // must stay first
 ,	Add            // if proc==Mark
-,	AllDeps        // if proc==Show
 ,	Backend        // if proc==Show
 ,	Clear          // if proc==Mark
 ,	Cmd            // if proc==Show
@@ -41,9 +50,19 @@ ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other c
 ,	Stdout         // if proc==Show
 ,	Targets        // if proc==Show
 )
+static inline bool is_mark_glb(ReqKey key) {
+	switch (key) {
+		case ReqKey::Clear  :
+		case ReqKey::List   : return true  ;
+		case ReqKey::Add    :
+		case ReqKey::Delete : return false ;
+		default : FAIL(key) ;
+	}
+}
 
 ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
 ,	Archive                            // if proc==                  Make               , all intermediate files are generated
+,	AsJob                              // if proc==                  Make               , interpret (unique) arg as job name
 ,	Backend                            // if proc==                  Make               , send argument to backends
 ,	Debug                              // if proc==                                Show , generate debug executable script
 ,	Deps                               // if proc==         Forget                      , forget deps
@@ -57,13 +76,24 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	Local                              // if proc==                  Make               , lauch all jobs locally
 ,	ManualOk                           // if proc==                  Make | Mark        , allow lmake to overwrite manual files
 ,	NoTrigger                          // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
+,	Rule                               // if proc==                  Make               , rule name when interpreting arg as job name
 ,	SourceOk                           // if proc==                  Make               , allow lmake to overwrite source files
 ,	Targets                            // if proc==         Forget                      , forget targets
 ,	Verbose                            // if proc==                  Make        | Show , generate generous output
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
-using ReqSyntax  = Syntax <ReqKey,ReqFlag> ;
+struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
+	ReqSyntax() = default ;
+	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs    ) : ReqSyntax{{},fs} {}
+	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs={} ) : Syntax   {ks,fs} {
+		// add standard options
+		flags[+ReqFlag::AsJob] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
+		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
+	}
+
+} ;
+
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 
 static constexpr char ServerMrkr[] = "server" ;
@@ -98,9 +128,9 @@ struct ReqOptions {
 	// data
 	::string               startup_dir_s ;
 	Bool3                  reverse_video = Maybe        ;  // if Maybe <=> not a terminal, do not colorize
-	ReqKey                 key           = ReqKey::None ;  // if proc==                 Mark | Show
-	ReqFlags               flags         ;                 // if proc== Forget | Make | Mark | Show
-	::array_s<+ReqFlag::N> flag_args     ;                 // if proc==          Make        | Show
+	ReqKey                 key           = ReqKey::None ;
+	ReqFlags               flags         ;
+	::array_s<+ReqFlag::N> flag_args     ;
 } ;
 
 struct ReqRpcReq {
@@ -108,24 +138,19 @@ struct ReqRpcReq {
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
-	ReqRpcReq( Proc p                                               ) : proc{p}                             { SWEAR(!has_options()) ; }
-	ReqRpcReq( Proc p , ::vector_s const& ts , ReqOptions const& ro ) : proc{p} , targets{ts} , options{ro} { SWEAR( has_options()) ; }
-	bool has_options() const {
-		switch (proc) {
-			case Proc::Kill  : return false ;
-			case Proc::Close : return false ;
-			default          : return true  ;
-		}
-	}
+	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(!has_args(proc)) ; }
+	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR( has_args(proc)) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,proc   ) ;
-		::serdes(s,targets) ;
-		::serdes(s,options) ;
+		::serdes(s,proc) ;
+		if (has_args(proc)) {
+			::serdes(s,files  ) ;
+			::serdes(s,options) ;
+		}
 	}
 	// data
 	Proc       proc    = ReqProc::None ;
-	::vector_s targets ;
+	::vector_s files   ;
 	ReqOptions options ;
 } ;
 

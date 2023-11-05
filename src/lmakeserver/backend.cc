@@ -283,15 +283,14 @@ namespace Backends {
 					reply.keep_tmp                = keep_tmp                            ;
 					reply.kill_sigs               = ::move(start_none_attrs.kill_sigs)  ;
 					reply.live_out                = entry.submit_attrs.live_out         ;
-					reply.lcl_mrkr                = ::move(start_cmd_attrs.lcl_mrkr)    ;
 					reply.method                  = start_cmd_attrs.method              ;
 					reply.small_id                = small_id                            ;
 					reply.timeout                 = start_rsrcs_attrs.timeout           ;
 					reply.remote_admin_dir        = g_config.remote_admin_dir           ;
 					// fancy attrs
-					for( ::pair_ss const& kv : start_cmd_attrs  .env ) reply.env.push_back(::move(kv)) ;
-					for( ::pair_ss const& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
-					for( ::pair_ss const& kv : start_none_attrs .env ) reply.env.push_back(::move(kv)) ;
+					for( ::pair_ss& kv : start_cmd_attrs  .env ) reply.env.push_back(::move(kv)) ;
+					for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
+					for( ::pair_ss& kv : start_none_attrs .env ) reply.env.push_back(::move(kv)) ;
 					//
 					if ( rule->stdin_idx !=Rule::NoVar && +job->deps[rule->stdin_idx] ) reply.stdin  = deps_attrs[rule->stdin_idx ].second.first ;
 					if ( rule->stdout_idx!=Rule::NoVar                                ) reply.stdout = targets   [rule->stdout_idx]              ;

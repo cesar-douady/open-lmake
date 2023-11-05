@@ -88,14 +88,14 @@ bool/*crashed*/ start_server() {
 	return crashed ;
 }
 
-void record_targets( ::vector<Node> const& targets ) {
+void record_targets(Job job) {
 	::string targets_file    = AdminDir+"/targets"s ;
 	::vector_s known_targets ;
 	{	::ifstream targets_stream { targets_file } ;
 		::string   target         ;
 		while (::getline(targets_stream,target)) known_targets.push_back(target) ;
 	}
-	for( Node t : targets ) {
+	for( Node t : job->deps ) {
 		::string tn = t.name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
@@ -161,60 +161,30 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					catch (...) { rrr.proc = ReqProc::None ;                          }
 					Fd out_fd = kind==EventKind::Std ? Fd::Stdout : fd ;
 					trace("req",fd,rrr) ;
-					switch (rrr.proc) {
-						case ReqProc::Make : {
+					if (has_args(rrr.proc)) {
+						if (rrr.proc==ReqProc::Make) {
 							::string reason = Makefiles::s_chk_makefiles() ;
 							if (!reason.empty()) {
+								trace("modified_makefiles") ;
 								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 								audit( out_fd , rrr.options , Color::Err , 0 , to_string("cannot make with modified makefiles (",reason,") while other lmake is running\n") ) ;
-								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-								trace("modified_makefiles") ;
-								goto Bad ;
+								OMsgBuf().send( out_fd , ReqRpcReply(false/*ok*/) ) ;
+								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								epoll.close (fd) ;
+								in_tab.erase(fd) ;
+								break ;
 							}
-						} [[fallthrough]] ;
-						case ReqProc::Debug  :                                 // PER_CMD : handle request coming from command, just add your Proc here if the request is answered immediately
-						case ReqProc::Forget :
-						case ReqProc::Mark   :
-						case ReqProc::Show   : {
-							::vector<Node> targets   ; targets.reserve(rrr.targets.size()) ; // typically, there is no bads
-							::vector_s     bads      ;
-							for( ::string const& target : rrr.targets ) {
-								RealPath::SolveReport rp = _g_real_path.solve(target,true/*no_follow*/) ; // ignore links that lead to real path
-								if (rp.kind==Kind::Repo) targets.emplace_back(rp.real) ;
-								else                     bads   .emplace_back(target ) ;
-							}
-							if (bads.empty()) {
-								trace("targets",targets) ;
-								if (rrr.proc!=ReqProc::Make) {                 // Make requests are not answered immediately
-									epoll.del(fd) ;
-									in_tab.erase(fd) ;
-								}
-								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								g_engine_queue.emplace( rrr.proc , fd , out_fd , targets , rrr.options ) ;
-								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							} else {
-								trace("bads",bads) ;
-								//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								for( ::string const& bad : bads ) audit( out_fd , rrr.options , Color::Err , 0 , "cannot make target outside repository : ",bad) ;
-								//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-								goto Bad ;
-							}
-						} break ;
-						Bad :
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							OMsgBuf().send( out_fd , ReqRpcReply(false/*ok*/) ) ;
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							trace("bad",fd) ;
-							epoll.close (fd) ;
-							in_tab.erase(fd) ;
-						break ;
-						default :
-							trace("close",fd) ;
-							epoll.del(fd) ;                                       // must precede close(fd)
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace( ReqProc::Kill , fd , out_fd ) ; // this will close out_fd when done writing to it
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							in_tab.erase(fd) ;
+						}
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( rrr.proc , fd , out_fd , rrr.files , rrr.options ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					} else {
+						trace("close",fd) ;
+						epoll.del(fd) ;                                        // must precede close(fd)
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( ReqProc::Kill , fd , out_fd ) ; // this will close out_fd when done writing to it
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						in_tab.erase(fd) ;
 					}
 				} break ;
 				default : fail("kind=",kind,"fd=",fd) ;
@@ -272,25 +242,29 @@ bool/*interrupted*/ engine_loop() {
 				}
 			} break ;
 			case EngineClosureKind::Req : {
-				EngineClosure::Req& req = closure.req ;
+				EngineClosureReq& req = closure.req ;
 				switch (req.proc) {
 					case ReqProc::Debug  :                                     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
 					case ReqProc::Mark   :
-					case ReqProc::Show   :
+					case ReqProc::Show   : {
 						trace(req) ;
-						OMsgBuf().send( req.out_fd , ReqRpcReply(g_cmd_tab[+req.proc]( req.out_fd , req.options , req.targets )) ) ;
-					break ;
+						bool ok = true/*garbage*/ ;
+						try                        { ok = g_cmd_tab[+req.proc](req) ;                                                           }
+						catch (::string  const& e) { ok = false ; if (!e.empty()) audit(req.out_fd,req.options,Color::Err,0,e               ) ; }
+						catch (::pair_ss const& e) { ok = false ;                 audit(req.out_fd,req.options,Color::Err,0,e.first,e.second) ; }
+						OMsgBuf().send( req.out_fd , ReqRpcReply(ok) ) ;
+					} break ;
 					case ReqProc::Make : {
-						record_targets(req.targets) ;
 						Req r ;
 						try {
-							r = { req.out_fd , req.targets , req.options } ;
+							r = Req(req) ;
 						} catch(::string const& e) {
 							audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
 							OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
 							break ;
 						}
+						if (!req.as_job()) record_targets(r->job) ;
 						req_tab[req.out_fd] = r                      ;
 						fd_tab [r         ] = {req.in_fd,req.out_fd} ;
 						trace("new_req",r) ;
@@ -327,8 +301,8 @@ bool/*interrupted*/ engine_loop() {
 				}
 			} break ;
 			case EngineClosureKind::Job : {
-				EngineClosure::Job& job = closure.job ;
-				JobExec           & je  = job.exec    ;
+				EngineClosureJob& job = closure.job ;
+				JobExec         & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
 					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

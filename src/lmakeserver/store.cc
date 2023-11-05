@@ -36,7 +36,8 @@ namespace Engine {
 	// RuleBase
 	//
 
-	MatchGen RuleBase::s_match_gen ;
+	MatchGen         RuleBase::s_match_gen ;
+	umap_s<RuleBase> RuleBase::s_by_name   ;
 
 	//
 	// Store
@@ -228,6 +229,8 @@ namespace Engine {
 	void EngineStore::_compile_rules() {
 		_compile_rule_datas() ;
 		_compile_psfxs     () ;
+		RuleBase::s_by_name.clear() ;
+		for( Rule r : rule_lst() ) RuleBase::s_by_name[r->name] = r ;
 	}
 
 	void EngineStore::_save_rules() {

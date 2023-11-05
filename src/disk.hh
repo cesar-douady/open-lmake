@@ -218,7 +218,7 @@ namespace Disk {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
 			::string   real   = {}        ;                // real path relative to root if in_repo or found in a relative src_dir ...
-			//                                             // or absolute if found in an absolute src_dir or mapped in tmp, else empty
+			//                                             // ... or absolute if found in an absolute src_dir or mapped in tmp, else empty
 			::vector_s lnks   = {}        ;                // links followed to get to real
 			Kind       kind   = Kind::Ext ;                // do not process awkard files
 			bool       mapped = false     ;                // if true <=> tmp mapping has been used

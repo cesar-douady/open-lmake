@@ -72,8 +72,8 @@ int main( int argc , char* argv[] ) {
 	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

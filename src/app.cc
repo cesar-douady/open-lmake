@@ -28,12 +28,11 @@ void app_init( bool search_root , bool cd_root ) {
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
 	try {
-		::string root_dir = cwd() ;
+		g_root_dir = new ::string{cwd()} ;
 		if (search_root) {
 			g_startup_dir_s = new ::string ;
-			tie(root_dir,*g_startup_dir_s) = search_root_dir(root_dir) ;
+			tie(*g_root_dir,*g_startup_dir_s) = search_root_dir(*g_root_dir) ;
 		}
-		g_root_dir = new ::string{root_dir} ;
 	} catch (::string const& e) { exit(2,e) ; }
 	if (cd_root) {
 		SWEAR(search_root) ;                                                          // it is meaningless to cd to root dir if we do not search it
@@ -46,4 +45,27 @@ void app_init( bool search_root , bool cd_root ) {
 	//
 	Trace::s_start() ;
 	Trace trace("app_init",g_startup_dir_s?*g_startup_dir_s:""s) ;
+}
+
+//
+// env encoding
+//
+
+ENUM( EnvMrkr
+,	Root
+,	Lmake
+)
+
+static constexpr char LmakeMrkrData[2] = {0,+EnvMrkr::Lmake} ; static const ::string LmakeMrkr {LmakeMrkrData,2} ;
+static constexpr char RootMrkrData [2] = {0,+EnvMrkr::Root } ; static const ::string RootMrkr  {RootMrkrData ,2} ;
+::string env_encode(::string&& txt) {
+	txt = glb_subst(::move(txt),*g_root_dir ,RootMrkr ) ;
+	txt = glb_subst(::move(txt),*g_lmake_dir,LmakeMrkr) ;
+	return txt ;
+}
+
+::string env_decode(::string&& txt) {
+	txt = glb_subst(::move(txt),RootMrkr ,*g_root_dir ) ;
+	txt = glb_subst(::move(txt),LmakeMrkr,*g_lmake_dir) ;
+	return txt ;
 }

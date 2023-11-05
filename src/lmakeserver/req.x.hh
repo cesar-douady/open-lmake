@@ -77,7 +77,7 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		Req( Fd , ::vector<Node> const& targets , ReqOptions const& ) ;
+		Req(EngineClosureReq const&) ;
 		// accesses
 		ReqData const& operator* () const ;
 		ReqData      & operator* ()       ;
@@ -99,6 +99,7 @@ namespace Engine {
 		/**/                 ::string _color_sfx(Color ) const ;
 		//
 		bool/*overflow*/ _report_err    ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
+		bool/*overflow*/ _report_err    ( Job , Node , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
 		void             _report_cycle  ( Node                                                                                                                ) ;
 		void             _report_no_rule( Node                                                                                               , DepDepth lvl=0 ) ;
 	} ;
@@ -258,8 +259,9 @@ namespace Engine {
 		// services
 		void audit_summary(bool err) const ;
 		//
-		void audit_info( Color c , ::string const& t ,          DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,t                  ) ; }
-		void audit_node( Color c , ::string const& p , Node n , DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,p, +n?n.name():""s ) ; }
+		void audit_info( Color c , ::string const& t , ::string const& lt , DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,t,lt) ; }
+		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}              , l )   ; }
+		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const { audit_info( c , p , +n?n.name():""s , l )   ; }
 		//
 		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , ::string const& host={} , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , ::string const& step , Job                             , ::string const& host={} , Delay exec_time={} ) const ;
@@ -273,12 +275,12 @@ namespace Engine {
 		void         audit_stats (                                                                                                        ) const ;
 		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
 	private :
-		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , Node , size_t& n_err , DepDepth lvl ) ;
+		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl ) ;
 		// data
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
-		Owned<Job>           job            ;
+		Job                  job            ;              // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;

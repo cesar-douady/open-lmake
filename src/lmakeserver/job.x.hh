@@ -9,6 +9,7 @@
 namespace Engine {
 
 	struct Job        ;
+	struct JobExec    ;
 	struct JobTgt     ;
 	struct JobTgts    ;
 	struct JobData    ;
@@ -49,9 +50,12 @@ namespace Engine {
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
-	public :
 		using JobBase::JobBase ;
-		Job( RuleTgt , ::string const& target , Req={} , DepDepth lvl=0 ) ;    // plain Job, match on target, req is only for error reporting
+	private :
+		Job( Rule::FullMatch&& , Req={} , DepDepth lvl=0 ) ;                   // plain Job, req is only for error reporting
+	public :
+		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ;        // plain Job, match on target
+		Job( Rule    , ::string const& jn , Req={} , DepDepth lvl=0 ) ;        // plain Job, match on name, for use when required from command line
 		//
 		Job( Special ,               Deps deps               ) ;               // Job used to represent a Req
 		Job( Special , Node target , Deps deps               ) ;               // special job
@@ -208,7 +212,8 @@ namespace Engine {
 		Job      idx () const { return Job::s_idx(*this) ; }
 		::string name() const { return idx().name()      ; }
 		//
-		bool active() const { return !rule.old() ; }
+		bool active() const { return !rule.old()                                                                   ; }
+		bool is_src() const { return active() && (rule->special==Special::Src||rule->special==Special::GenericSrc) ; }
 		//
 		ReqInfo const& c_req_info   (Req           ) const ;
 		ReqInfo      & req_info     (Req           ) const ;
@@ -251,6 +256,7 @@ namespace Engine {
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
 		Rule::FullMatch   full_match    () const ;
+		::vector<Node>    targets       () const ;
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -276,19 +282,19 @@ namespace Engine {
 		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
 		// data
 	public :
-		Ddate            db_date                    ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
-		Pdate            end_date                   ;                                                         //     64 bits,
-		Targets          star_targets               ;                                                         //     32 bits, owned, for plain jobs
-		Deps             deps                       ;                                                         // 31<=32 bits, owned
-		Rule             rule                       ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                  ;                                                         //     16 bits,        for plain jobs
-		ExecGen          exec_gen    :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen   :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                    = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status  :3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status      :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
+		Ddate            db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
+		Pdate            end_date                 ;                                                         //     64 bits,
+		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
+		Deps             deps                     ;                                                         // 31<=32 bits, owned
+		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                ;                                                         //     16 bits,        for plain jobs
+		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
+		Status           status    :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
 	private :
-		mutable bool     _sure       :1             = false               ;                                   //      1 bit
+		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
 	static_assert(sizeof(JobData)==32) ;                                       // check expected size
 
@@ -324,6 +330,9 @@ namespace Engine {
 	// Job
 	//
 
+	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::FullMatch(rt,t ),req,lvl} {}
+	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::FullMatch(r ,jn),req,lvl} {}
+	//
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 

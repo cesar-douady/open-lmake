@@ -58,10 +58,11 @@ template<bool At> static inline void _update( uint64_t* args , Record::Path cons
 }
 
 // chdir
-template<bool At> bool/*skip_syscall*/ entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
+template<bool At,bool Path> bool/*skip_syscall*/ entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
 	try {
-		if (At) { Record::ChDir* cd = new Record::ChDir( r , {Fd(args[0])         } ) ; ctx = cd ;                              }
-		else    { Record::ChDir* cd = new Record::ChDir( r , {get_str(pid,args[0])} ) ; ctx = cd ; _update<false>(args+0,*cd) ; }
+		static_assert(At!=Path) ;
+		if (Path) { Record::ChDir* cd = new Record::ChDir( r , {_path<At>(pid,args+0)} ) ; ctx = cd ; _update<At>(args+0,*cd) ; }
+		else      { Record::ChDir* cd = new Record::ChDir( r , {Fd(args[0])          } ) ; ctx = cd ;                           }
 	} catch (int) {}
 	return false ;
 }
@@ -73,12 +74,28 @@ int64_t/*res*/ exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res , int
 	return res ;
 }
 
+// chmod
+template<bool At,bool Path,bool Flags> bool/*skip_syscall*/ entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	try {
+		Record::Write* cm = new Record::Write( r , _path<At>(pid,args+0) , true/*update*/ , Flags&&(args[2+At]&AT_SYMLINK_NOFOLLOW) , comment ) ;
+		ctx = cm ;
+		_update<At>(args+0,*cm) ;
+	} catch (int) {}
+	return false ;
+}
+int64_t/*res*/ exit_chmod( void* ctx , Record& r , pid_t , int64_t res , int errno_ ) {
+	if (!ctx) return res ;
+	Record::Write* cm = static_cast<Record::Write*>(ctx) ;
+	(*cm)(r,res,errno_==ENOENT) ;
+	delete cm ;
+	return res ;
+}
+
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,bool Flags> bool/*skip_syscall*/ entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	int flags = args[3+At] ;
 	try {
-		Record::Exec e{ r , _path<At>(pid,args+0) , Flags&&(flags&AT_SYMLINK_NOFOLLOW) , comment } ;
+		Record::Exec e{ r , _path<At>(pid,args+0) , Flags&&(args[3+At]&AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,e) ;
 	} catch (int) {}
 	return false ;
@@ -104,9 +121,8 @@ int64_t/*res*/ exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res , int 
 
 // link
 template<bool At,bool Flags> bool/*skip_syscall*/ entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	int flags = Flags ? args[2+At*2] : 0 ;
 	try {
-		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , flags , comment ) ;
+		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , Flags?args[2+At*2]:0 , comment ) ;
 		ctx = l ;
 		_update<At>(args+0,l->src) ;
 		_update<At>(args+2,l->dst) ;
@@ -116,16 +132,15 @@ template<bool At,bool Flags> bool/*skip_syscall*/ entry_lnk( void* & ctx , Recor
 int64_t/*res*/ exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res , int errno_ ) {
 	if (!ctx) return res ;
 	Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
-	(*l)(r,res,errno_) ;
+	(*l)(r,res,errno_==ENOENT) ;
 	delete l ;
 	return res ;
 }
 
 // open
 template<bool At> bool/*skip_syscall*/ entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	int flags = args[1+At] ;
 	try {
-		Record::Open* o = new Record::Open( r , _path<At>(pid,args+0) , flags , comment ) ;
+		Record::Open* o = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
 		ctx = o ;
 		_update<At>(args+0,*o) ;
 	}
@@ -135,7 +150,7 @@ template<bool At> bool/*skip_syscall*/ entry_open( void* & ctx , Record& r , pid
 int64_t/*res*/ exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res , int errno_ ) {
 	if (!ctx) return res ;
 	Record::Open* o = static_cast<Record::Open*>(ctx) ;
-	(*o)( r , false/*has_fd*/ , res , errno_ ) ;
+	(*o)( r , false/*has_fd*/ , res , errno_==ENOENT ) ;
 	delete o ;
 	return res ;
 }
@@ -170,9 +185,8 @@ int64_t/*res*/ exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res , 
 
 // rename
 template<bool At,bool Flags> bool/*skip_syscall*/ entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	int flags = Flags ? args[2+At*2] : 0 ;
 	try {
-		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , flags , comment ) ;
+		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , Flags?args[2+At*2]:0 , comment ) ;
 		ctx = rn ;
 		_update<At>(args+0,rn->src) ;
 		_update<At>(args+2,rn->dst) ;
@@ -182,15 +196,15 @@ template<bool At,bool Flags> bool/*skip_syscall*/ entry_rename( void* & ctx , Re
 int64_t/*res*/ exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res , int errno_ ) {
 	if (!ctx) return res ;
 	Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
-	(*rn)(r,res,errno_) ;
+	(*rn)(r,res,errno_==ENOENT) ;
 	delete rn ;
 	return res ;
 }
 
 // symlink
-template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment) {
+template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::SymLnk* sl = new Record::SymLnk( r , _path<At>(pid,args+1) , comment ) ;
+		Record::Write* sl = new Record::Write( r , _path<At>(pid,args+1) ,false/*update*/ , true/*no_follow*/ , comment ) ;
 		ctx = sl ;
 		_update<At>(args+1,*sl) ;
 	} catch (int) {}
@@ -198,17 +212,16 @@ template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , 
 }
 int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res , int /*errno_*/ ) {
 	if (!ctx) return res ;
-	Record::SymLnk* sl = static_cast<Record::SymLnk*>(ctx) ;
+	Record::Write* sl = static_cast<Record::Write*>(ctx) ;
 	(*sl)(r,res) ;
 	delete sl ;
 	return res ;
 }
 
 // unlink
-template<bool At> bool/*skip_syscall*/ entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	int flags = At ? args[1+At] : 0 ;
+template<bool At,bool Flags> bool/*skip_syscall*/ entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , flags&AT_REMOVEDIR , comment ) ;
+		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , Flags&&(args[1+At]&AT_REMOVEDIR) , comment ) ;
 		ctx = u ;
 		_update<At>(args+0,*u) ;
 	} catch (int) {}
@@ -257,112 +270,121 @@ template<bool At,int FlagArg> bool/*skip_syscall*/ entry_solve( void* & /*ctx*/ 
 	static ::umap<int/*syscall*/,SyscallDescr> const s_tab = {
 		{-1,{}}                                                                // first entry is ignored so each active line contains a ','
 	#ifdef SYS_faccessat
-	,	{ SYS_faccessat         , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat"         } }
+	,	{ SYS_faccessat         , { entry_stat    <true /*At*/              ,2             > , nullptr       , 2 , false , "faccessat"         } }
 	#endif
 	#ifdef SYS_access
-	,	{ SYS_access            , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "access"            } }
+	,	{ SYS_access            , { entry_stat    <false/*At*/              ,FlagNever     > , nullptr       , 1 , false , "access"            } }
 	#endif
 	#ifdef SYS_faccessat2
-	,	{ SYS_faccessat2        , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "faccessat2"        } }
+	,	{ SYS_faccessat2        , { entry_stat    <true /*At*/              ,2             > , nullptr       , 2 , false , "faccessat2"        } }
 	#endif
 	#ifdef SYS_chdir
-	,	{ SYS_chdir             , { entry_chdir   <false/*At*/>                , exit_chdir    , 1 , true                        } }
+	,	{ SYS_chdir             , { entry_chdir   <false/*At*/,true /*Path*/               > , exit_chdir    , 1 , true                        } }
 	#endif
 	#ifdef SYS_fchdir
-	,	{ SYS_fchdir            , { entry_chdir   <true /*At*/>                , exit_chdir    , 1 , true                        } }
+	,	{ SYS_fchdir            , { entry_chdir   <true /*At*/,false/*Path*/               > , exit_chdir    , 1 , true                        } }
+	#endif
+	#ifdef SYS_chmod
+	,	{ SYS_chmod             , { entry_chmod   <false/*At*/,true/*Path*/ ,false/*Flags*/> , exit_chmod    , 1 , true  , "chmod"             } }
+	#endif
+	#ifdef SYS_fchmod
+	,	{ SYS_fchmod            , { entry_chmod   <true /*At*/,false/*Path*/,false/*Flags*/> , exit_chmod    , 1 , true  , "fchmod"            } }
+	#endif
+	#ifdef SYS_fchmodat
+	,	{ SYS_fchmodat          , { entry_chmod   <true /*At*/,true /*Path*/,true /*Flags*/> , exit_chmod    , 1 , true  , "fchmodat"          } }
 	#endif
 	#ifdef SYS_execve
-	,	{ SYS_execve            , { entry_execve  <false/*At*/,false/*Flags*/> , nullptr       , 1 , true  , "execve"            } }
+	,	{ SYS_execve            , { entry_execve  <false/*At*/              ,false/*Flags*/> , nullptr       , 1 , true  , "execve"            } }
 	#endif
 	#ifdef SYS_execveat
-	,	{ SYS_execveat          , { entry_execve  <true /*At*/,true /*Flags*/> , nullptr       , 1 , true  , "execveat"          } }
+	,	{ SYS_execveat          , { entry_execve  <true /*At*/              ,true /*Flags*/> , nullptr       , 1 , true  , "execveat"          } }
 	#endif
-	#if defined(SYS_getcwd) && !defined(PTRACE)                                                                                      // tmp mapping is not supported with ptrace
-	,	{ SYS_getcwd            , { entry_getcwd                               , exit_getcwd   , 1 , true                        } }
+	#if defined(SYS_getcwd) && !defined(PTRACE)                                                                                                    // tmp mapping is not supported with ptrace
+	,	{ SYS_getcwd            , { entry_getcwd                                             , exit_getcwd   , 1 , true                        } }
 	#endif
 	#ifdef SYS_link
-	,	{ SYS_link              , { entry_lnk     <false/*At*/,false/*Flags*/> , exit_lnk      , 1 , true  , "link"              } }
+	,	{ SYS_link              , { entry_lnk     <false/*At*/              ,false/*Flags*/> , exit_lnk      , 1 , true  , "link"              } }
 	#endif
 	#ifdef SYS_linkat
-	,	{ SYS_linkat            , { entry_lnk     <true /*At*/,true /*Flags*/> , exit_lnk      , 1 , true  , "linkat"            } }
+	,	{ SYS_linkat            , { entry_lnk     <true /*At*/              ,true /*Flags*/> , exit_lnk      , 1 , true  , "linkat"            } }
 	#endif
 	#ifdef SYS_mkdir
-	,	{ SYS_mkdir             , { entry_solve   <false/*At*/,FlagNever     > , nullptr       , 1 , false , "mkdir"             } }
+	,	{ SYS_mkdir             , { entry_solve   <false/*At*/              ,FlagNever     > , nullptr       , 1 , false , "mkdir"             } }
 	#endif
 	#ifdef SYS_mkdirat
-	,	{ SYS_mkdirat           , { entry_solve   <true /*At*/,FlagNever     > , nullptr       , 1 , false , "mkdirat"           } }
+	,	{ SYS_mkdirat           , { entry_solve   <true /*At*/              ,FlagNever     > , nullptr       , 1 , false , "mkdirat"           } }
 	#endif
 	#ifdef SYS_name_to_handle_at
-	,	{ SYS_name_to_handle_at , { entry_open    <true /*At*/>                , exit_open     , 1 , true  , "name_to_handle_at" } }
+	,	{ SYS_name_to_handle_at , { entry_open    <true /*At*/                             > , exit_open     , 1 , true  , "name_to_handle_at" } }
 	#endif
 	#ifdef SYS_open
-	,	{ SYS_open              , { entry_open    <false/*At*/>                , exit_open     , 2 , true  , "open"              } }
+	,	{ SYS_open              , { entry_open    <false/*At*/                             > , exit_open     , 2 , true  , "open"              } }
 	#endif
 	#ifdef SYS_openat
-	,	{ SYS_openat            , { entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat"            } }
+	,	{ SYS_openat            , { entry_open    <true /*At*/                             > , exit_open     , 2 , true  , "openat"            } }
 	#endif
 	#ifdef SYS_openat2
-	,	{ SYS_openat2           , { entry_open    <true /*At*/>                , exit_open     , 2 , true  , "openat2"           } }
+	,	{ SYS_openat2           , { entry_open    <true /*At*/                             > , exit_open     , 2 , true  , "openat2"           } }
 	#endif
 	#ifdef SYS_open_tree
-	,	{ SYS_open_tree         , { entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "open_tree"         } }
+	,	{ SYS_open_tree         , { entry_stat    <true /*At*/              ,1             > , nullptr       , 1 , false , "open_tree"         } }
 	#endif
 	#ifdef SYS_readlink
-	,	{ SYS_readlink          , { entry_read_lnk<false/*At*/>                , exit_read_lnk , 2 , true  , "readlink"          } }
+	,	{ SYS_readlink          , { entry_read_lnk<false/*At*/                             > , exit_read_lnk , 2 , true  , "readlink"          } }
 	#endif
 	#ifdef SYS_readlinkat
-	,	{ SYS_readlinkat        , { entry_read_lnk<true /*At*/>                , exit_read_lnk , 2 , true  , "readlinkat"        } }
+	,	{ SYS_readlinkat        , { entry_read_lnk<true /*At*/                             > , exit_read_lnk , 2 , true  , "readlinkat"        } }
 	#endif
 	#if SYS_rename
-	,	{ SYS_rename            , { entry_rename  <false/*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "rename"            } }
+	,	{ SYS_rename            , { entry_rename  <false/*At*/              ,false/*Flags*/> , exit_rename   , 1 , true  , "rename"            } }
 	#endif
 	#ifdef SYS_renameat
-	,	{ SYS_renameat          , { entry_rename  <true /*At*/,false/*Flags*/> , exit_rename   , 1 , true  , "renameat"          } }
+	,	{ SYS_renameat          , { entry_rename  <true /*At*/              ,false/*Flags*/> , exit_rename   , 1 , true  , "renameat"          } }
 	#endif
 	#ifdef SYS_renameat2
-	,	{ SYS_renameat2         , { entry_rename  <true /*At*/,true /*Flags*/> , exit_rename   , 1 , true  , "renameat2"         } }
+	,	{ SYS_renameat2         , { entry_rename  <true /*At*/              ,true /*Flags*/> , exit_rename   , 1 , true  , "renameat2"         } }
 	#endif
 	#ifdef SYS_rmdir
-	,	{ SYS_rmdir             , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "rmdir"             } }
+	,	{ SYS_rmdir             , { entry_stat    <false/*At*/              ,FlagAlways    > , nullptr       , 1 , false , "rmdir"             } }
 	#endif
 	#ifdef SYS_stat
-	,	{ SYS_stat              , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 2 , false , "stat"              } }
+	,	{ SYS_stat              , { entry_stat    <false/*At*/              ,FlagNever     > , nullptr       , 2 , false , "stat"              } }
 	#endif
 	#ifdef SYS_stat64
-	,	{ SYS_stat64            , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "stat64"            } }
+	,	{ SYS_stat64            , { entry_stat    <false/*At*/              ,FlagNever     > , nullptr       , 1 , false , "stat64"            } }
 	#endif
 	#ifdef SYS_fstatat64
-	,	{ SYS_fstatat64         , { entry_stat    <true /*At*/,2             > , nullptr       , 1 , false , "fstatat64"         } }
+	,	{ SYS_fstatat64         , { entry_stat    <true /*At*/              ,2             > , nullptr       , 1 , false , "fstatat64"         } }
 	#endif
 	#ifdef SYS_lstat
-	,	{ SYS_lstat             , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 2 , false , "lstat"             } }
+	,	{ SYS_lstat             , { entry_stat    <false/*At*/              ,FlagAlways    > , nullptr       , 2 , false , "lstat"             } }
 	#endif
 	#ifdef SYS_lstat64
-	,	{ SYS_lstat64           , { entry_stat    <false/*At*/,FlagAlways    > , nullptr       , 1 , false , "lstat64"           } }
+	,	{ SYS_lstat64           , { entry_stat    <false/*At*/              ,FlagAlways    > , nullptr       , 1 , false , "lstat64"           } }
 	#endif
 	#ifdef SYS_statx
-	,	{ SYS_statx             , { entry_stat    <true /*At*/,1             > , nullptr       , 1 , false , "statx"             } }
+	,	{ SYS_statx             , { entry_stat    <true /*At*/              ,1             > , nullptr       , 1 , false , "statx"             } }
 	#endif
 	#if SYS_newfstatat
-	,	{ SYS_newfstatat        , { entry_stat    <true /*At*/,2             > , nullptr       , 2 , false , "newfstatat"        } }
+	,	{ SYS_newfstatat        , { entry_stat    <true /*At*/              ,2             > , nullptr       , 2 , false , "newfstatat"        } }
 	#endif
 	#ifdef SYS_oldstat
-	,	{ SYS_oldstat           , { entry_stat    <false/*At*/,FlagNever     > , nullptr       , 1 , false , "oldstat"           } }
+	,	{ SYS_oldstat           , { entry_stat    <false/*At*/              ,FlagNever     > , nullptr       , 1 , false , "oldstat"           } }
 	#endif
 	#ifdef SYS_oldlstat
-	,	{ SYS_oldlstat          , { entry_stat    <false/*At*/,FlagAlways>     , nullptr       , 1 , false , "oldlstat"          } }
+	,	{ SYS_oldlstat          , { entry_stat    <false/*At*/              ,FlagAlways    > , nullptr       , 1 , false , "oldlstat"          } }
 	#endif
 	#ifdef SYS_symlink
-	,	{ SYS_symlink           , { entry_sym_lnk <false/*At*/>                , exit_sym_lnk  , 1 , true  , "symlink"           } }
+	,	{ SYS_symlink           , { entry_sym_lnk <false/*At*/                             > , exit_sym_lnk  , 1 , true  , "symlink"           } }
 	#endif
 	#ifdef SYS_symlinkat
-	,	{ SYS_symlinkat         , { entry_sym_lnk <true /*At*/>                , exit_sym_lnk  , 1 , true  , "symlinkat"         } }
+	,	{ SYS_symlinkat         , { entry_sym_lnk <true /*At*/                             > , exit_sym_lnk  , 1 , true  , "symlinkat"         } }
 	#endif
 	#ifdef SYS_unlink
-	,	{ SYS_unlink            , { entry_unlink  <false/*At*/>                , exit_unlink   , 1 , true  , "unlink"            } }
+	,	{ SYS_unlink            , { entry_unlink  <false/*At*/              ,false/*Flags*/> , exit_unlink   , 1 , true  , "unlink"            } }
 	#endif
 	#ifdef SYS_unlinkat
-	,	{ SYS_unlinkat          , { entry_unlink  <true /*At*/>                , exit_unlink   , 1 , true  , "unlinkat"          } }
+	,	{ SYS_unlinkat          , { entry_unlink  <true /*At*/              ,true /*Flags*/> , exit_unlink   , 1 , true  , "unlinkat"          } }
 	#endif
 	} ;
 	return s_tab ;
