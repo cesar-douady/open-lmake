@@ -104,7 +104,7 @@ public :
 	::function<Tflags     (::string      const&)> tflags_cb    = [](::string      const&)->Tflags { return UnexpectedTflags ; } ; // function to compute tflags from target before modifiers
 	::function<void       (                    )> kill_job_cb  = [](                    )->void   {                           } ; // function to kill job
 	ServerSockFd                                  master_fd    ;
-	in_addr_t                                     addr         = SockFd::LoopBackAddr                                           ; // local addr to which we can be contacted by running job
+	in_addr_t                                     addr         = NoSockAddr                                                     ; // local addr to which we can be contacted by running job
 	bool                                          create_group = false                                                          ; // if true <=> process is launched in its own group
 	AutodepMethod                                 method       = AutodepMethod::Dflt                                            ;
 	AutodepEnv                                    autodep_env  ;

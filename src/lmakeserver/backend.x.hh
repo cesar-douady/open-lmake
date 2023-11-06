@@ -35,10 +35,10 @@ namespace Backends {
 			friend ::ostream& operator<<( ::ostream& , StartEntry const& ) ;
 			struct Conn {
 				friend ::ostream& operator<<( ::ostream& , Conn const& ) ;
-				in_addr_t job_addr = 0 ;
-				in_port_t job_port = 0 ;
-				SeqId     seq_id   = 0 ;
-				SmallId   small_id = 0 ;
+				in_addr_t host     = NoSockAddr ;
+				in_port_t port     = 0          ;
+				SeqId     seq_id   = 0          ;
+				SmallId   small_id = 0          ;
 			} ;
 			// cxtors & casts
 			StartEntry(       ) = default ;

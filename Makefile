@@ -235,7 +235,7 @@ $(LIB)/lmake.py : $(SLIB)/lmake.src.py
 	mkdir -p $(@D)
 	cp $<    $@
 	echo "_git = '$(GIT)'" >>$@
-	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "if _lmake_read_makefiles : Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
+	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
 # for other files, just copy
 $(LIB)/% : $(SLIB)/%
 	mkdir -p $(@D)

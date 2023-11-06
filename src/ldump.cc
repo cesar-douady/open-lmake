@@ -9,7 +9,7 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	::cout << ::setw(13)<<jn <<" : "<< ::setw(8)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
+	::cout << ::setw(13)<<jn <<" : "<< ::setw(20)<<r  <<" : "<< mk_printable(n) <<'\n' ; // suppress useless " around n
 }
 
 int main( int argc , char* /*argv*/[] ) {

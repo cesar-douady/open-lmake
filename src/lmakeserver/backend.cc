@@ -22,7 +22,7 @@ namespace Backends {
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::StartEntry::Conn const& c ) {
-		return os << "Conn(" << hex<<c.job_addr<<dec <<':'<< c.job_port <<','<< c.seq_id <<','<< c.small_id << ')' ;
+		return os << "Conn(" << SockFd::s_addr_str(c.host) <<':'<< c.port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
 
 	::ostream& operator<<( ::ostream& os , Backend::DeferredReportEntry const& dre ) {
@@ -132,14 +132,13 @@ namespace Backends {
 	void Backend::_s_wakeup_remote( Tag tag , JobIdx job , StartEntry::Conn const& conn , JobServerRpcProc proc ) {
 		Trace trace("_s_wakeup_remote",job,conn,proc) ;
 		try {
-			ClientSockFd fd(conn.job_addr,conn.job_port) ;
+			ClientSockFd fd(conn.host,conn.port) ;
 			OMsgBuf().send( fd , JobServerRpcReq(proc,conn.seq_id,job) ) ;     // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died
-			::string  h  = deserialize<JobInfoStart>(IFStream(Job(job)->ancillary_file())).pre_start.host ;
-			JobDigest jd { .status=Status::Lost , .stderr=s_lost_err(tag,job) }                           ;
-			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , h , ::move(jd) ) ) ;
+			JobDigest jd { .status=Status::Lost , .stderr=s_lost_err(tag,job) } ;
+			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , ::move(jd) ) ) ;
 		}
 	}
 
@@ -176,11 +175,11 @@ namespace Backends {
 			case JobProc::LiveOut  :                       break ;             // no reply
 			default : FAIL(jrr.proc) ;
 		}
-		Pdate                       now               = Pdate::s_now()                   ;
-		Job                         job               { jrr.job                        } ;
-		JobExec                     job_exec          { job , ::string(jrr.host) , now } ; // keep jrr intact for recording
-		Rule                        rule              = job->rule                        ;
-		JobRpcReply                 reply             { JobProc::Start                 } ;
+		Pdate                       now               = Pdate::s_now()   ;
+		Job                         job               { jrr.job        } ;
+		JobExec                     job_exec          { job , now      } ;     // keep jrr intact for recording
+		Rule                        rule              = job->rule        ;
+		JobRpcReply                 reply             { JobProc::Start } ;
 		::vector<Node>              report_unlink     ;
 		StartCmdAttrs               start_cmd_attrs   ;
 		::pair_ss/*script,call*/    cmd               ;
@@ -197,14 +196,15 @@ namespace Backends {
 			auto          it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry&   entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
+			job_exec.host = entry.conn.host ;
 			switch (jrr.proc) {
 				case JobProc::Start : {
 					submit_attrs   = entry.submit_attrs ;
 					rsrcs          = entry.rsrcs        ;
 					//                            vvvvvvvvvvvvvvvvvvvvvvv
 					tie(backend_msg,entry.reqs) = s_start(entry.tag,+job) ;
-					entry.start                 = job_exec.start_date     ;
-					//                            ^^^^^^^^^^^^^^^^^^^
+					entry.start                 = now                     ;
+					//                            ^^^
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 					Rule::SimpleMatch match = job->simple_match() ;
 					try {
@@ -234,7 +234,7 @@ namespace Backends {
 						trace("erase_start_tab",job,it->second,STR(cmd_attrs_passed),STR(cmd_passed),e) ;
 						Tag tag = entry.tag ;
 						_s_release_start_entry(it) ;
-						job_exec.host.clear() ;
+						job_exec.host = NoSockAddr ;                           // if job does not start, do not report a host
 						::string err_str = to_string(
 								cmd_passed        ? rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/)
 							:	cmd_attrs_passed  ? rule->cmd              .s_exc_msg(false/*using_static*/)
@@ -247,8 +247,16 @@ namespace Backends {
 						JobDigest digest { .status=Status::Err , .deps=_mk_digest_deps(deps_attrs) , .stderr=::move(err_str) }  ;
 						trace("early_err",digest) ;
 						{	OFStream ofs { dir_guard(job->ancillary_file()) } ;
-							serialize( ofs , JobInfoStart({ .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .pre_start=jrr , .start=reply , .backend_msg=backend_msg }) ) ;
-							serialize( ofs , JobInfoEnd  ( JobRpcReq( JobProc::End , {} , jrr.job , {} , digest )                                                            ) ) ;
+							serialize( ofs , JobInfoStart({
+								.eta          = eta
+							,	.submit_attrs = submit_attrs
+							,	.rsrcs        = rsrcs
+							,	.host         = job_exec.host
+							,	.pre_start    = jrr
+							,	.start        = reply
+							,	.backend_msg  = backend_msg
+							}) ) ;
+							serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,digest) ) ) ;
 						}
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , report_unlink , start_exc_txt ) ;
@@ -258,7 +266,7 @@ namespace Backends {
 					}
 					//
 					::vector_s targets  = match.targets()        ;
-					in_addr_t  job_addr = fd.peer_addr()         ;
+					in_addr_t  host     = fd.peer_addr()         ;
 					SmallId    small_id = _s_small_ids.acquire() ;
 					//
 					::string tmp_dir = keep_tmp ?
@@ -267,7 +275,7 @@ namespace Backends {
 					;
 					//
 					// simple attrs
-					reply.addr                    = job_addr                            ;
+					reply.addr                    = host                                ;
 					reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir          ;
 					reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat         ;
 					reply.autodep_env.lnk_support = g_config.lnk_support                ;
@@ -300,9 +308,9 @@ namespace Backends {
 					//
 					reply.static_deps = _mk_digest_deps(deps_attrs) ;
 					//
-					entry.conn.job_addr = job_addr        ;
-					entry.conn.job_port = jrr.port        ;
-					entry.conn.small_id = small_id        ;
+					entry.conn.host     = host     ;
+					entry.conn.port     = jrr.port ;
+					entry.conn.small_id = small_id ;
 				} break ;
 				case JobProc::End : {
 					rsrcs = ::move(entry.rsrcs) ;
@@ -331,6 +339,7 @@ namespace Backends {
 						.eta          = eta
 					,	.submit_attrs = submit_attrs
 					,	.rsrcs        = ::move(rsrcs)
+					,	.host         = job_exec.host
 					,	.pre_start    = jrr
 					,	.start        = reply
 					,	.backend_msg  = backend_msg
@@ -401,7 +410,7 @@ namespace Backends {
 			}
 			{	JobExec je { job , Pdate::s_now() } ;
 				if (status>Status::Garbage) {
-					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .backend_msg=lost_report.first } ;
+					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .host=conn.host , .backend_msg=lost_report.first } ;
 					serialize( OFStream(dir_guard(je->ancillary_file())) , jis ) ;
 				}
 				// signal jobs that have disappeared so they can be relaunched or reported in error
@@ -457,7 +466,6 @@ namespace Backends {
 		,	_s_job_exec_thread->fd.service(g_config.backends[+tag].addr)
 		,	::to_string(entry.conn.seq_id)
 		,	::to_string(job              )
-		,	s_is_local(tag)?"local":"remote"
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;

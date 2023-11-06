@@ -8,7 +8,7 @@ import sys
 try    : import numba
 except : numba = None
 
-if getattr(sys,'lmake_read_makefiles',False) :
+if __name__!='__main__' :
 
 	import lmake
 

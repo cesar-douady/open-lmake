@@ -40,8 +40,8 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
 		os << "Backend(" ;
 		if (be.configured) {
-			if (be.addr!=ServerSockFd::LoopBackAddr) os << ::hex<<be.addr<<::dec <<',' ;
-			/**/                                     os << be.dct                      ;
+			if (be.addr!=NoSockAddr) os << ::hex<<be.addr<<::dec <<',' ;
+			/**/                     os << be.dct                      ;
 		}
 		return os <<')' ;
 	}
@@ -259,9 +259,9 @@ namespace Engine {
 			size_t w  = 9 ;                                                    // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			if (be.addr!=ServerSockFd::LoopBackAddr) res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			/**/                                     res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
-			for( auto const& [k,v] : be.dct )        res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
+			if (be.addr!=NoSockAddr)          res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			/**/                              res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
 		if (!caches.empty()) {
 			res << "caches :\n" ;
@@ -291,8 +291,8 @@ namespace Engine {
 			if (!Backends::Backend::s_ready[+t]) continue ;                    // backend is not supposed to be used
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (bbe->is_local()                    ) continue ;
-			if (be.addr!=ServerSockFd::LoopBackAddr) continue ;                                              // backend has an address
+			if (bbe->is_local()    ) continue ;
+			if (be.addr!=NoSockAddr) continue ;                                                              // backend has an address
 			::string ifce ; for( auto const& [k,v] : be.dct ) { if (k=="interface") { ifce = v ; break ; } }
 			::string ts   = mk_snake(t) ;
 			if (ifce.empty()) throw to_string("cannot find host address. Consider adding in Lmakefile.py : lmake.config.backends.",ts,".interface = <something that works>") ;

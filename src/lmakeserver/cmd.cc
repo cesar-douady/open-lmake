@@ -277,6 +277,7 @@ namespace Engine {
 		if      ( !start.stdout.empty()            ) append_to_string( script , " > " , mk_shell_str(start.stdout) ) ;
 		if      ( !start.stdin .empty()            ) append_to_string( script , " < " , mk_shell_str(start.stdin ) ) ;
 		else if ( !dbg || !is_python || redirected ) append_to_string( script , " < /dev/null"                     ) ;
+		script += '\n' ;
 		return script ;
 	}
 
@@ -444,9 +445,9 @@ namespace Engine {
 							audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
 						break ;
 						case ReqKey::Info : {
-							::string ids      = to_string( "job=",pre_start.job , " , small=",start.small_id )                                          ;
-							bool     has_host = !pre_start.host.empty()                                                                                 ;
-							if (pre_start.seq_id) append_to_string(ids," , seq=",pre_start.seq_id) ; // there may be no seq_id if job hit the cache
+							::string ids      = to_string( "job=",pre_start.job , " , small=",start.small_id ) ;
+							bool     has_host = report_start.host!=NoSockAddr                                  ;
+							if (pre_start.seq_id) append_to_string(ids," , seq=",pre_start.seq_id) ;             // there may be no seq_id if job hit the cache
 							//
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
@@ -458,7 +459,7 @@ namespace Engine {
 									audit( fd , ro , Color::None , lvl+1 , "reason         : "+reason.first ) ;
 								}
 							}
-							if (has_host) audit( fd , ro , Color::None , lvl+1 , to_string("host           : ",pre_start.host) ) ;
+							if (has_host) audit( fd , ro , Color::None , lvl+1 , to_string("host           : ",SockFd::s_host(report_start.host)) ) ;
 							if (has_start) {
 								static constexpr AutodepMethod AdMD = AutodepMethod::Dflt ;
 								//

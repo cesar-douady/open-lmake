@@ -7,7 +7,7 @@ import sys
 
 n_good = 20
 
-if getattr(sys,'lmake_read_makefiles',False) :
+if __name__!='__main__' :
 
 	import lmake
 

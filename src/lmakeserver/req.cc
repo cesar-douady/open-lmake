@@ -400,10 +400,10 @@ namespace Engine {
 		}
 	}
 
-	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , ::string const& host , Delay exec_time ) const {
+	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
 		::OStringStream msg ;
 		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
-		if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<host                                  <<' ' ;
+		if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<SockFd::s_host(host)                  <<' ' ;
 		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;

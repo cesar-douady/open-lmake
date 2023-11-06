@@ -33,8 +33,6 @@ JobRpcReply  g_start_info  ;
 ::string     g_service     ;
 SeqId        g_seq_id      = 0    /*garbage*/ ;
 JobIdx       g_job         = 0    /*garbage*/ ;
-bool         g_is_remote   = false/*garbage*/ ;
-::string     g_host        ;
 
 void kill_thread_func(::stop_token stop) {
 	Trace::t_key = '~' ;
@@ -57,7 +55,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
 				try {
 					OMsgBuf().send(
 						ClientSockFd( g_service , NConnectionTrials )
-					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , g_host , {.status=Status::Lost} )
+					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::Lost} )
 					) ;
 				} catch (::string const& e) {}                                 // if server is dead, no harm
 		break ;
@@ -74,17 +72,15 @@ int main( int argc , char* argv[] ) {
 	Pdate start_overhead = Pdate::s_now() ;
 	//
 	block_sig(SIGCHLD) ;
-	swear_prod(argc==5,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
+	swear_prod(argc==4,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
 	/**/             g_service   = argv[1]                     ;
 	/**/             g_seq_id    = from_chars<SeqId >(argv[2]) ;
 	/**/             g_job       = from_chars<JobIdx>(argv[3]) ;
-	/**/             g_is_remote = strcmp(argv[4],"remote")==0 ; if (!g_is_remote) SWEAR( strcmp(argv[4],"local")==0 , argv[4] ) ;
-	if (g_is_remote) g_host      = host()                      ;
 	//
 	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;       // threads must only be launched once SIGCHLD is blocked or they may receive said signal
 	//
-	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , g_host , server_thread.fd.port()                        } ;
-	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , g_host , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
+	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                        } ;
+	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
 	try {
 		ClientSockFd fd {g_service,NConnectionTrials} ;
 		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv     // once connection is established, everything should be smooth
@@ -200,13 +196,13 @@ int main( int argc , char* argv[] ) {
 			switch (jerr.proc) {
 				case JobExecRpcProc::ChkDeps :
 					analyze(false/*at_end*/) ;
-					jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , {} , ::move(deps) ) ;
+					jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , ::move(deps) ) ;
 					deps.clear() ;
 				break ;
 				case JobExecRpcProc::DepInfos : {
 					::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
 					for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
-					jrr = JobRpcReq( JobProc::DepInfos , g_seq_id , g_job , {} , ::move(ds) ) ;
+					jrr = JobRpcReq( JobProc::DepInfos , g_seq_id , g_job , ::move(ds) ) ;
 				} break ;
 				default : FAIL(jerr.proc) ;
 			}
@@ -238,9 +234,9 @@ int main( int argc , char* argv[] ) {
 			size_t pos = live_out_buf.rfind('\n') ;
 			if (pos==Npos) return ;
 			pos++ ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send( ClientSockFd(g_service) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , {} , live_out_buf.substr(0,pos) ) ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( ClientSockFd(g_service) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , live_out_buf.substr(0,pos) ) ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			live_out_buf = live_out_buf.substr(pos) ;
 		} ;
 		//

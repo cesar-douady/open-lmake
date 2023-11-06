@@ -5,7 +5,7 @@
 
 import sys
 
-if getattr(sys,'lmake_read_makefiles',False) :
+if __name__!='__main__' :
 
 	from step import step
 

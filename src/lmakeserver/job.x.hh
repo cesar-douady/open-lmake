@@ -99,11 +99,11 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const ) ;
 		// cxtors & casts
-		JobExec(                                               ) = default ;
-		JobExec( Job j , ::string&& h , Pdate sd    , Pdate ed ) : Job{j} , host{::move(h)} , start_date{sd} , end_date{ed} {}
-		JobExec( Job j ,                Pdate sd    , Pdate ed ) : Job{j} ,                   start_date{sd} , end_date{ed} {}
-		JobExec( Job j , ::string&& h , Pdate sd={}            ) : Job{j} , host{::move(h)} , start_date{sd} , end_date{sd} {}
-		JobExec( Job j ,                Pdate sd={}            ) : Job{j} ,                   start_date{sd} , end_date{sd} {}
+		JobExec(                                              ) = default ;
+		JobExec( Job j , in_addr_t h , Pdate sd   , Pdate ed ) : Job{j} , host{h} , start_date{sd} , end_date{ed} {}
+		JobExec( Job j ,               Pdate sd   , Pdate ed ) : Job{j} ,           start_date{sd} , end_date{ed} {}
+		JobExec( Job j , in_addr_t h , Pdate d={}            ) : Job{j} , host{h} , start_date{d } , end_date{d } {}
+		JobExec( Job j ,               Pdate d={}            ) : Job{j} ,           start_date{d } , end_date{d } {}
 		// services
 		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} , ::string const& txt={} ) const ;
 		void             report_start (                                                                            ) const ; // called in engine thread after start if started called with false
@@ -117,9 +117,9 @@ namespace Engine {
 		//
 		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
 		// data
-		::string host       ;
-		Pdate    start_date ;
-		Pdate    end_date   ;
+		in_addr_t host       = NoSockAddr ;
+		Pdate     start_date ;
+		Pdate     end_date   ;
 	} ;
 
 }
@@ -378,7 +378,7 @@ namespace Engine {
 
 	inline void JobData::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
 		Pdate now = Pdate::s_now() ;
-		JobExec(idx(),::string(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
+		JobExec(idx(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
 	}
 
 	inline bool JobData::sure() const {

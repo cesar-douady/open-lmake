@@ -94,19 +94,19 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                                  bool/*updated*/ acquire( bool       & dst , PyObject* py_src ) ;
-		/**/                                  bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) ;
-		template<             bool Env=false> bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class      T               > bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class      T,bool Env=false> bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
-		template<::integral I               > bool/*updated*/ acquire( I          & dst , PyObject* py_src ) ;
-		template<StdEnum    E               > bool/*updated*/ acquire( E          & dst , PyObject* py_src ) ;
+		/**/                                                                        bool/*updated*/ acquire( bool       & dst , PyObject* py_src ) ;
+		/**/                                                                        bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) ;
+		template<             bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
+		template<class      T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
+		template<class      T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
+		template<::integral I               >                                       bool/*updated*/ acquire( I          & dst , PyObject* py_src ) ;
+		template<StdEnum    E               >                                       bool/*updated*/ acquire( E          & dst , PyObject* py_src ) ;
 		//
-		template<class T,bool Env=false> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
+		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
 			try {
-				static_assert( !Env || is_same_v<T,::vmap_ss> ) ;
-				if constexpr (Env) return acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
-				else               return acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ;
+				if      constexpr (IsOneOf<T,::string            >) {                       return acquire<         Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
+				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       return acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
+				else                                                { static_assert(!Env) ; return acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
 			} catch (::string const& e) {
 				throw to_string("while processing ",key," : ",e) ;
 			}
@@ -196,13 +196,13 @@ namespace Engine {
 		BitMap<VarCmd> init  ( bool is_dynamic , PyObject* py_src , ::umap_s<CmdIdx> const&                 ) { update(py_src,!is_dynamic) ; return {} ; }
 		void           update(                   PyObject* py_dct                           , bool chk=true ) {
 			using namespace Attrs ;
-			acquire_from_dct(auto_mkdir ,py_dct,"auto_mkdir"   ) ;
-			acquire_from_dct(chroot     ,py_dct,"chroot"       ) ;
-			acquire_env     (env        ,py_dct,"env"          ) ;
-			acquire_from_dct(ignore_stat,py_dct,"ignore_stat"  ) ;
-			acquire_from_dct(interpreter,py_dct,"interpreter"  ) ;
-			acquire_from_dct(method     ,py_dct,"autodep"      ) ;
-			acquire_from_dct(tmp        ,py_dct,"tmp"          ) ;
+			acquire_from_dct                        (auto_mkdir ,py_dct,"auto_mkdir"   ) ;
+			acquire_from_dct                        (chroot     ,py_dct,"chroot"       ) ;
+			acquire_env                             (env        ,py_dct,"env"          ) ;
+			acquire_from_dct                        (ignore_stat,py_dct,"ignore_stat"  ) ;
+			acquire_from_dct<::vector_s,true/*Env*/>(interpreter,py_dct,"interpreter"  ) ; // interpreter must be robust to move's, like env
+			acquire_from_dct                        (method     ,py_dct,"autodep"      ) ;
+			acquire_from_dct                        (tmp        ,py_dct,"tmp"          ) ;
 			//
 			if (chk) {
 				if (!tmp.empty()) {
@@ -700,7 +700,7 @@ namespace Engine {
 			return true ;
 		}
 
-		template<class T> bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) {
+		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) {
 			if (!py_src        ) {                  return false ;                           }
 			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
 			//
@@ -713,14 +713,18 @@ namespace Engine {
 			for( size_t i=0 ; i<n ; i++ ) {
 				if (i>=dst.size()) { updated = true ; dst.push_back(T()) ; }       // create empty entry
 				if (p[i]==Py_None) continue ;
-				try                       { updated |= acquire(dst.back(),p[i]) ;    }
-				catch (::string const& e) { throw to_string("for item ",i," : ",e) ; }
+				try {
+					if constexpr (Env) updated |= acquire<Env>(dst.back(),p[i]) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               updated |= acquire     (dst.back(),p[i]) ; // ... to make repo robust to moves of lmake or itself
+				} catch (::string const& e) {
+					throw to_string("for item ",i," : ",e) ;
+				}
 			}
 			if (n!=dst.size()) { updated = true ; dst.resize(n) ; }
 			return updated ;
 		}
 
-		template<class T,bool Env> bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
+		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
 			if (!py_src        ) {                  return false ;                           }
 			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
 			//
@@ -745,9 +749,9 @@ namespace Engine {
 					}
 				try {
 					auto [it,inserted] = map.emplace(key,T()) ;
-					/**/               updated |= inserted                        ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
-					if constexpr (Env) updated |= acquire<Env>(it->second,py_val) ; // ... to make repo robust to moves of lmake or itself
-					else               updated |= acquire     (it->second,py_val) ;
+					/**/               updated |= inserted                        ;
+					if constexpr (Env) updated |= acquire<Env>(it->second,py_val) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               updated |= acquire     (it->second,py_val) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw to_string("for item ",key," : ",e) ;
 				}

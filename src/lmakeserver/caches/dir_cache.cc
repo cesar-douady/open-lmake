@@ -40,9 +40,8 @@ namespace Caches {
 		if (dct.contains("dir" )) dir =                dct.at("dir" )  ; else throw "dir not found"s  ;
 		if (dct.contains("size")) sz  = from_chars<Sz>(dct.at("size")) ; else throw "size not found"s ;
 		repo   = ::string(repo_hash.digest()) ;
-		dir_fd = open_read(dir)               ;
+		dir_fd = open_read(dir)               ; dir_fd.no_std() ;                       // avoid poluting standard descriptors
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
-		dir_fd.no_std() ;                                                               // avoid poluting standard descriptors
 	}
 
 	static ::string _unique_name(Job job) {

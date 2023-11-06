@@ -97,7 +97,7 @@ private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,Fd)> func ) {
 		static constexpr uint64_t One = 1 ;
 		Trace::t_key = key ;
-		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ;
+		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
 		::stop_callback    stop_cb {                                           // transform request_stop into an event Epoll can wait for

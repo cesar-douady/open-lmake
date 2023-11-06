@@ -33,7 +33,6 @@ void print_pre_start(JobRpcReq const& jrr) {
 	//
 	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
 	::cout << "job    : " << jrr.job    <<'\n' ;
-	::cout << "host   : " << jrr.host   <<'\n' ;
 }
 
 void print_start(JobRpcReply const& jrr) {
@@ -92,7 +91,8 @@ int main( int argc , char* argv[] ) {
 	IFStream job_stream{argv[1]} ;
 	try {
 		auto report_start = deserialize<JobInfoStart>(job_stream) ;
-		::cout << "eta : "  << report_start.eta <<'\n' ;
+		::cout << "eta  : " << report_start.eta                  <<'\n' ;
+		::cout << "host : " << SockFd::s_host(report_start.host) <<'\n' ;
 		print_submit_attrs(report_start.submit_attrs) ;
 		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;

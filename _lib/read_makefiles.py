@@ -16,7 +16,6 @@ sys.dont_write_bytecode      = True
 save_path                    = list(sys.path)
 sys.path                     = [lmake_dir+'/_lib',lmake_dir+'/lib',*save_path]
 
-sys.lmake_read_makefiles     = True                                            # signal we are reading makefiles to define the proper primitives
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict

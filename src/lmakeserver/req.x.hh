@@ -263,13 +263,13 @@ namespace Engine {
 		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}              , l )   ; }
 		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const { audit_info( c , p , +n?n.name():""s , l )   ; }
 		//
-		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , ::string const& host={} , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , ::string const& step , Job                             , ::string const& host={} , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                            , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , Job                             , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                                        , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,r,jn,h,et) ; }
-		void audit_job( Color c , ::string const& s , Job j                       , ::string const& h={} , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
-		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je    ,et) ; }
+		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,r,jn,h,et) ; }
+		void audit_job( Color c , ::string const& s , Job j                       , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
+		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false                , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je    ,et) ; }
 		//
 		void         audit_status( bool ok                                                                                                ) const ;
 		void         audit_stats (                                                                                                        ) const ;
@@ -321,8 +321,8 @@ namespace Engine {
 	// ReqData
 	//
 
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , ::string const& h , Delay et ) const { audit_job( c , d , s , j->rule , j.name() , h       , et ) ; }
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je         , Delay et ) const { audit_job( c , d , s , je                 , je.host , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule , j.name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                 , je.host , et ) ; }
 
 }
 #endif

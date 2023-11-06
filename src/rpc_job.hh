@@ -355,11 +355,11 @@ struct JobRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j , ::string const& h , in_port_t pt       ) : proc{p} , seq_id{si} , job{j} , host{h} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI si , JI j ,                     Status s           ) : proc{p} , seq_id{si} , job{j} ,           digest{.status=s} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
-	JobRpcReq( P p , SI si , JI j , ::string const& h , JobDigest const& d ) : proc{p} , seq_id{si} , job{j} , host{h} , digest{d        } { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI si , JI j , ::string const& h , ::string&& t       ) : proc{p} , seq_id{si} , job{j} , host{h} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
-	JobRpcReq( P p , SI si , JI j , ::string const& h , MDD const& ds      ) : proc{p} , seq_id{si} , job{j} , host{h} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
+	JobRpcReq( P p , SI si , JI j , in_port_t        pt ) : proc{p} , seq_id{si} , job{j} , port  {pt       } { SWEAR( p==P::Start                     ) ; }
+	JobRpcReq( P p , SI si , JI j , Status           s  ) : proc{p} , seq_id{si} , job{j} , digest{.status=s} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
+	JobRpcReq( P p , SI si , JI j , JobDigest const& d  ) : proc{p} , seq_id{si} , job{j} , digest{d        } { SWEAR( p==P::End                       ) ; }
+	JobRpcReq( P p , SI si , JI j , ::string&&       t  ) : proc{p} , seq_id{si} , job{j} , txt   {t        } { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI si , JI j , MDD const&       ds ) : proc{p} , seq_id{si} , job{j} , digest{.deps=ds } { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
@@ -367,11 +367,11 @@ struct JobRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
-			case P::Start    : ::serdes(s,host) ; ::serdes(s,port)   ; break ;
-			case P::LiveOut  : ::serdes(s,txt) ;                       break ;
+			case P::Start    : ::serdes(s,port  ) ; break ;
+			case P::LiveOut  : ::serdes(s,txt   ) ; break ;
 			case P::ChkDeps  :
 			case P::DepInfos :
-			case P::End      : ::serdes(s,host) ; ::serdes(s,digest) ; break ;
+			case P::End      : ::serdes(s,digest) ; break ;
 			default          : ;
 		}
 	}
@@ -379,7 +379,6 @@ struct JobRpcReq {
 	P         proc   = P::None ;
 	SI        seq_id = 0       ;
 	JI        job    = 0       ;
-	::string  host   ;                 // if proc==Start   ||             End
 	in_port_t port   = 0       ;       // if proc==Start
 	JobDigest digest ;                 // if proc==ChkDeps || DepInfos || End
 	::string  txt    ;                 // if proc==LiveOut
@@ -672,12 +671,13 @@ struct JobServerRpcReq {
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
 	// data
-	Time::Pdate eta          = {} ;
-	SubmitAttrs submit_attrs = {} ;
-	::vmap_ss   rsrcs        = {} ;
-	JobRpcReq   pre_start    = {} ;
-	JobRpcReply start        = {} ;
-	::string    backend_msg  = {} ;    // reason for not starting
+	Time::Pdate eta          = {}         ;
+	SubmitAttrs submit_attrs = {}         ;
+	::vmap_ss   rsrcs        = {}         ;
+	in_addr_t   host         = NoSockAddr ;
+	JobRpcReq   pre_start    = {}         ;
+	JobRpcReply start        = {}         ;
+	::string    backend_msg  = {}         ;    // reason for not starting
 } ;
 
 struct JobInfoEnd {

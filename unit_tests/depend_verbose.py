@@ -15,7 +15,7 @@ if lmake.has_ptrace     : autodeps.append('ptrace'    )
 if lmake.has_ld_audit   : autodeps.append('ld_audit'  )
 if lmake.has_ld_preload : autodeps.append('ld_preload')
 
-if getattr(sys,'lmake_read_makefiles',False) :
+if __name__!='__main__' :
 
 	from lmake import multi_strip
 

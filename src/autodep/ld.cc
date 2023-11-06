@@ -180,11 +180,12 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , args , Record::s_is_simple(path1) && Record::s_is_simple(path2) )
 
 	#define CC   const char
-	#define P(r)                           r.at,r.file
-	#define A(r) (SWEAR(!r.file||!*r.file),r.at       )
-	#define F(r)                                r.file
+	#define P(r)                                  r.at,r.file
+	#define A(r) (SWEAR(!r.file||!*r.file,r.file),r.at       )
+	#define F(r)                                  r.file
 
-	static constexpr int Cwd = Fd::Cwd ;
+	static constexpr int      Cwd         = Fd::Cwd     ;
+	static constexpr Accesses RegAccesses = Access::Reg ;
 
 	// chdir
 	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
@@ -193,11 +194,12 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; ChDir r{Fd(fd)} ; return r(orig(A(r))) ; }
 
 	// chmod
+	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
 
-	//                                                                                                                   update,no_follow
-	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Write r{     pth ,true  ,false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
-	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Write r{Fd(fd)   ,true  ,false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
-	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Write r{{dfd,pth},true  ,ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
+	//                                                                                                                   read       ,no_follow
+	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Write r{     pth ,RegAccesses,false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
+	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Write r{Fd(fd)   ,RegAccesses,false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
+	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Write r{{dfd,pth},RegAccesses,ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
 
 	// close
 	// close cannot be simple as we must call hide, which may make modifications
@@ -349,9 +351,9 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},f ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
 	// symlink
-	//                                                                                                         update,no_follow
-	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Write r{     pth ,false ,true     ,"symlink"  } ; return r(orig(target,F(r))) ; }
-	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Write r{{dfd,pth},false ,true     ,"symlinkat"} ; return r(orig(target,P(r))) ; }
+	//                                                                                                         read          ,no_follow
+	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Write r{     pth ,Accesses::None,true     ,"symlink"  } ; return r(orig(target,F(r))) ; }
+	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Write r{{dfd,pth},Accesses::None,true     ,"symlinkat"} ; return r(orig(target,P(r))) ; }
 
 	// truncate
 	int truncate  (CC* pth,off_t len) NE { HEADER1(truncate  ,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate"  } ; return r(false/*has_fd*/,orig(F(r),len)) ; }

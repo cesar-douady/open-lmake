@@ -24,7 +24,7 @@ lmake.config.caches.dir = {
 ,	'size' : 1_000_000_000
 }
 
-lmake.version = (1,0)
+lmake.version = (0,1)
 
 lmake.config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
 lmake.config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
@@ -299,10 +299,20 @@ class TarLmake(BaseRule) :
 	}
 	cmd = "tar -cz {' '.join(deps.values())}"
 
-class LmakePy(BaseRule) :
-	target = 'lib/lmake.py'
-	dep    = '_lib/lmake.src.py'
+class CpyPy(BaseRule) :
+	target = 'lib/{File}.py'
+	dep    = '_lib/{File}.py'
 	cmd    = 'cat'
+
+class CpyLmakePy(BaseRule) :
+	target          = 'lib/lmake.py'
+	dep             = '_lib/lmake.src.py'
+	ld_library_path = os.environ.get('PYTHON_LD_LIBRARY_PATH')
+	def cmd() :
+		import shutil
+		print(sys.stdin.read())
+		print(f"git = {shutil.which('git')!r}")
+		if ld_library_path : print(f'Rule.environ_cmd.LD_LIBRARY_PATH = {ld_libray_path}')
 
 opt_tab.update({
 	r'.*'                 : ( '-I'         , sysconfig.get_path("include")                                  )

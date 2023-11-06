@@ -7,7 +7,7 @@ import sys
 
 n_jobs = 4
 
-if getattr(sys,'lmake_read_makefiles',False) :
+if __name__!='__main__' :
 
 	import os
 

@@ -155,23 +155,23 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Job const j ) {
-		os << "J(" ;
-		if (+j) os << +j ;
-		return os << ')' ;
+		/**/    os << "J(" ;
+		if (+j) os << +j   ;
+		return  os << ')'  ;
 	}
 	::ostream& operator<<( ::ostream& os , JobTgt const jt ) {
-		if (!jt) return os << "JT()" ;
-		os << "JobTgt(" << Job(jt) ;
-		if (jt.is_sure()) os << ",sure" ;
-		return os << ')' ;
+		if (!jt) return   os << "JT()"         ;
+		/**/              os << "(" << Job(jt) ;
+		if (jt.is_sure()) os << ",sure"        ;
+		return            os << ')'            ;
 	}
 	::ostream& operator<<( ::ostream& os , JobExec const je ) {
-		if (!je                       ) return os << "JT()"                ;
-		/**/                                   os << "JobExec(" << Job(je) ;
-		if (!je.host.empty()          )        os <<','<< je.host          ;
-		/**/                                   os <<','<< je.start_date    ;
-		if (je.end_date!=je.start_date)        os <<','<< je.end_date      ;
-		/**/                            return os <<')'                    ;
+		if (!je                       ) return os << "JE()"                           ;
+		/**/                                   os <<'('<< Job(je)                     ;
+		if (je.host!=NoSockAddr       )        os <<','<< SockFd::s_addr_str(je.host) ;
+		/**/                                   os <<','<< je.start_date               ;
+		if (je.end_date!=je.start_date)        os <<','<< je.end_date                 ;
+		/**/                            return os <<')'                               ;
 	}
 
 	Job::Job( Rule::FullMatch&& match , Req req , DepDepth lvl ) {

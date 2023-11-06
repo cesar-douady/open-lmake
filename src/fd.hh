@@ -103,20 +103,56 @@ struct LockedFd : Fd {
 	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
 } ;
 
+static constexpr in_addr_t NoSockAddr = 0x7f000001 ;
 struct SockFd : AutoCloseFd {
 	friend ::ostream& operator<<( ::ostream& , SockFd const& ) ;
-	static constexpr in_addr_t LoopBackAddr = 0x7f000001 ;
+	static constexpr in_addr_t LoopBackAddr = NoSockAddr ;
 	// statics
-	static in_addr_t           s_addr     (::string const& server ) ;
+	static ::string s_addr_str(in_addr_t addr) {
+		::string res ; res.reserve(15) ;                                       // 3 digits per level + 5 digits for the port
+		/**/         res += to_string((addr>>24)&0xff) ;
+		res += '.' ; res += to_string((addr>>16)&0xff) ;
+		res += '.' ; res += to_string((addr>> 8)&0xff) ;
+		res += '.' ; res += to_string((addr>> 0)&0xff) ;
+		return res ;
+	}
+	static struct sockaddr_in  s_sockaddr( in_addr_t a , in_port_t p ) {
+		struct sockaddr_in res {
+			.sin_family = AF_INET
+		,	.sin_port   = htons(p)
+		,	.sin_addr   = { .s_addr=htonl(a) }
+		,	.sin_zero   = {}
+		} ;
+		return res ;
+	}
+	static ::string const& s_host(in_addr_t a) {                               // implement a cache as getnameinfo implies network access and can be rather long
+		auto it = _s_host_tab.find(a) ;
+		if (it==_s_host_tab.end()) {
+			char               buf[100] ;
+			struct sockaddr_in sa       = s_sockaddr(a,0) ;
+			int rc = getnameinfo( reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
+			if (rc) {
+				it = _s_host_tab.emplace(a,"???").first ;
+			} else {
+				::string host = &buf[0] ;
+				if (host.size()==sizeof(buf)-1) host = host.substr(0,host.size()-3) + "..." ;;
+				it = _s_host_tab.emplace(a,host).first ;
+			}
+		}
+		return it->second ;
+	}
 	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                    ; }
 	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           ::stoul(service.substr(col+1))   ; }
 	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , ::stoul(service.substr(col+1)) } ; }
+	static in_addr_t           s_addr     (::string const& server ) ;
 private :
 	static size_t _s_col(::string const& service) {
 		size_t col = service.rfind(':') ;
 		if (col==Npos) throw "bad service : "+service ;
 		return col ;
 	}
+	// static data
+	static ::umap<in_addr_t,::string> _s_host_tab ;
 	// cxtors & casts
 public :
 	using AutoCloseFd::AutoCloseFd ;
@@ -144,16 +180,6 @@ struct SlaveSockFd : SockFd {
 } ;
 
 struct ServerSockFd : SockFd {
-	// statics
-	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;                                       // 3 digits per level + 5 digits for the port
-		/**/         res += to_string((addr>>24)&0xff) ;
-		res += '.' ; res += to_string((addr>>16)&0xff) ;
-		res += '.' ; res += to_string((addr>> 8)&0xff) ;
-		res += '.' ; res += to_string((addr>> 0)&0xff) ;
-		return res ;
-	}
-
 	// cxtors & casts
 	using SockFd::SockFd ;
 	ServerSockFd( NewType , int backlog=0 ) { listen(backlog) ; }

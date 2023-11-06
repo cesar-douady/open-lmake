@@ -101,9 +101,9 @@ namespace Engine {
 				::serdes(s,configured) ;
 			}
 			// data
-			in_addr_t addr       = ServerSockFd::LoopBackAddr ;
+			in_addr_t addr       = NoSockAddr ;
 			::vmap_ss dct        ;
-			bool      configured = false                      ;
+			bool      configured = false      ;
 		} ;
 
 		struct Cache {
@@ -199,8 +199,8 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureReq const& ) ;
 		// accesses
 		bool as_job() const {
-			if (options.flags[ReqFlag::AsJob]) { SWEAR(files.size()==1,files) ; return true  ; }
-			else                               {                                return false ; }
+			if (options.flags[ReqFlag::Job]) { SWEAR(files.size()==1,files) ; return true  ; }
+			else                             {                                return false ; }
 		}
 		// services
 		::vector<Node> targets(::string const& startup_dir_s={}) const ;       // startup_dir_s for error reporting only

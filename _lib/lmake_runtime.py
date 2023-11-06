@@ -15,13 +15,11 @@ def load_modules() :
 	#
 	# load modules containing serialized functions and substitute corresponding code
 	# if we do not do that, breakpoints may be put at the wrong place
-	sys.lmake_read_makefiles = True                                            # ensure makefiles are read the same way they are read when lmake started
 	for f in lmake_func.func_lst :                                             # this lists all serialized functions
 		m  = importlib.import_module(f.__module__)
 		mf = m                                                                 # find function by doing a lookup with the qualified name, it is done for that
 		for c in f.__qualname__.split('.') : mf = getattr(mf,c)
 		mf.__code__ = f.__code__                                               # substitute code to ensure breakpoints are put at the right place
-	del sys.lmake_read_makefiles
 	#
 	# load all deps that look like imported modules so as to populate module list and ease setting breakpoints ahead of execution
 	# pre-condition path for speed as there may be 1000's of deps

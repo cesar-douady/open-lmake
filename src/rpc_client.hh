@@ -62,7 +62,6 @@ static inline bool is_mark_glb(ReqKey key) {
 
 ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
 ,	Archive                            // if proc==                  Make               , all intermediate files are generated
-,	AsJob                              // if proc==                  Make               , interpret (unique) arg as job name
 ,	Backend                            // if proc==                  Make               , send argument to backends
 ,	Debug                              // if proc==                                Show , generate debug executable script
 ,	Deps                               // if proc==         Forget                      , forget deps
@@ -70,8 +69,9 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	ForgetOldErrors                    // if proc==                  Make               , assume old errors are transcient
 ,	Freeze                             // if proc==                         Mark        , prevent job rebuild
 ,	Graphic                            // if proc== Debug                          Show , use GUI to show debug script
-,	KeepTmp                            // if proc==                  Make               , keep tmp dir after job execution
+,	Job                                // if proc==                  Make               , interpret (unique) arg as job name
 ,	Jobs                               // if proc==                  Make               , max number of jobs
+,	KeepTmp                            // if proc==                  Make               , keep tmp dir after job execution
 ,	LiveOut                            // if proc==                  Make               , generate live output for last job
 ,	Local                              // if proc==                  Make               , lauch all jobs locally
 ,	ManualOk                           // if proc==                  Make | Mark        , allow lmake to overwrite manual files
@@ -88,8 +88,8 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs    ) : ReqSyntax{{},fs} {}
 	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs={} ) : Syntax   {ks,fs} {
 		// add standard options
-		flags[+ReqFlag::AsJob] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
-		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
+		flags[+ReqFlag::Job ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
+		flags[+ReqFlag::Rule] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
 	}
 
 } ;

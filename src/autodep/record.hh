@@ -30,9 +30,8 @@ struct Record {
 	//
 	static Fd s_root_fd() {
 		if (!_s_root_fd) {
-			_s_root_fd = Disk::open_read(s_autodep_env().root_dir) ;
+			_s_root_fd = Disk::open_read(s_autodep_env().root_dir) ; _s_root_fd.no_std() ; // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
-			_s_root_fd.no_std() ;                                              // avoid poluting standard descriptors
 		}
 		return _s_root_fd ;
 	}
@@ -276,12 +275,12 @@ public :
 	struct Write : Solve {
 		// cxtors & casts
 		Write() = default ;
-		Write( Record& , Path&& , bool update , bool no_follow , ::string const& comment="write" ) ;
+		Write( Record& , Path&& , Accesses read , bool no_follow , ::string const& comment="write" ) ;
 		// services
 		int operator()( Record& , int rc , bool no_file=true ) ;
 		// data
-		DD   date   ;                    // if file is updated, its date may have to be captured before the actual syscall
-		bool update = false/*garbage*/ ;
+		DD       date ;                                    // if file is updated, its date may have to be captured before the actual syscall
+		Accesses read = {}/*garbage*/ ;
 	} ;
 	//
 	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }

@@ -466,7 +466,7 @@ The colors bears a semantic :
 @section Global options
 In addition to options described for each user command, the following options are supported by all of them.
 @itemize @bullet
-@item @code{-J}|@code{--as-job} : passed arguments are interpreted as job names rather than as file names.
+@item @code{-J}|@code{--job} : passed arguments are interpreted as job names rather than as file names.
 Job names are the names that appear, for example, on start and done lines when @lmake executes a job.
 @item @code{-R}|@code{--rule} : when the previous option is used, this options allows the specification of a rule, given by its name.
 This is necessary when the job name is ambiguous as several rules may lead to the same job name.
@@ -912,7 +912,6 @@ The @lmake Python module serves 2 purposes :
 @end itemize
 
 While unavoidable for the first purpose (writing @Lmakefile), it is rarely necessary for job execution.
-When imported during job execution, the parts specificly targetted at writing @Lmakefile are not defined.
 These are described in their respective chapters below.
 
 Besides necessary variables, functions and classes to write @Lmakefile, the config, rules and sources parts are described in their respective chapters below,
@@ -1027,12 +1026,6 @@ Raises the @code{ValueError} exception is the passed backend is unknown.
 
 The following constants are defined :
 @table @code
-@item Kilo
-@code{1_000}
-@item Mega
-@code{1_000_000}
-@item Giga
-@code{1_000_000_000}
 @item inf
 @code{float('inf')}
 @item root_dir

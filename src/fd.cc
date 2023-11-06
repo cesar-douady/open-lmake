@@ -10,6 +10,8 @@
 
 using namespace Time ;
 
+::umap<in_addr_t,::string> SockFd::_s_host_tab ;
+
 ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
 }
@@ -71,14 +73,9 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials ) {
 	if (!*this) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;            // else use adequate htons/htonl according to the sizes
-	struct sockaddr_in addr {
-		.sin_family = AF_INET
-	,	.sin_port   = htons(port)
-	,	.sin_addr   = { .s_addr=htonl(server) }
-	,	.sin_zero   = {}
-	} ;
+	struct sockaddr_in sa = s_sockaddr(server,port) ;
 	for( int i=n_trials ;; i-- ) {
-		if (::connect( fd , reinterpret_cast<sockaddr*>(&addr) , sizeof(sockaddr) )==0 ) return ; // success
+		if (::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) return ; // success
 		if (i<=1) {
 			int en = errno ;                                                   // catch errno before any other syscall
 			close() ;
