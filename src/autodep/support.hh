@@ -11,7 +11,6 @@
 
 struct Cmd {
 	bool sync     = false ;
-	bool has_args = false ;
 	bool has_ok   = false ;
 	bool has_crcs = false ;
 } ;

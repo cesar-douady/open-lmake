@@ -232,30 +232,30 @@ namespace Engine {
 		::string      tmp         ;
 	} ;
 
+	struct DbgEntry {
+		friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
+		bool operator +() const { return first_line_no1 ; }
+		bool operator !() const { return !+*this ;        }
+		::string module         ;
+		::string qual_name      ;
+		::string filename       ;
+		size_t   first_line_no1 = 0 ;                  // illegal value as lines start at 1
+	} ;
+
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
-		struct DbgEntry {
-			friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
-			bool operator +() const { return first_line_no1 ; }
-			bool operator !() const { return !+*this ;        }
-			::string module         ;
-			::string qual_name      ;
-			::string filename       ;
-			size_t   first_line_no1 = 0 ;                  // illegal value as lines start at 1
-		} ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& ) ;
 		void           update(                       PyObject* py_dct                    ) {
 			Attrs::acquire_from_dct(cmd,py_dct,"cmd") ;
 		}
 		// data
-		bool               is_python = false/*garbage*/ ;
-		::string           cmd       ;
-		::string           decorator ;
-		::vmap_s<DbgEntry> dbg       ;
+		bool     is_python = false/*garbage*/ ;
+		::string cmd       ;
+		::string decorator ;
 	} ;
 	namespace Attrs {
-		bool/*updated*/ acquire( Cmd::DbgEntry& dst , PyObject* py_src ) ;
+		bool/*updated*/ acquire( DbgEntry& dst , PyObject* py_src ) ;
 	}
 
 	// used at start time, participate in resources
@@ -429,7 +429,7 @@ namespace Engine {
 		// services
 		::pair_ss/*script,call*/ eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
 		::pair_ss/*script,call*/ eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
-			return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; // m cannot be lazy evaluated w/o a job
+			return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                   // m cannot be lazy evaluated w/o a job
 		}
 	} ;
 
@@ -532,6 +532,7 @@ namespace Engine {
 		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no    crc, evaluated before execution
 		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no    crc, evaluated after  execution
+		::vmap_s<DbgEntry>        dbg_info           ;                         // in no    crc, contains info to debug cmd that must not appear in cmd crc
 		bool                      force              = false ;
 		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
 		// derived data
@@ -962,6 +963,7 @@ namespace Engine {
 			::serdes(s,start_none_attrs  ) ;
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
+			::serdes(s,dbg_info          ) ;
 			::serdes(s,force             ) ;
 			::serdes(s,n_tokens          ) ;
 			::serdes(s,cmd_gen           ) ;

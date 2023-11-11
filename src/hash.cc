@@ -8,6 +8,9 @@
 namespace Hash {
 	using namespace Disk ;
 
+	template Crc Md5::c_digest() const ;                                       // explicit instantiation for debug
+	template Crc Xxh::c_digest() const ;                                       // .
+
 	//
 	// Crc
 	//
@@ -28,10 +31,10 @@ namespace Hash {
 				FileMap map{filename} ;
 				if (!map) return ;
 				switch (algo) {
-					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
-					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ctx.digest() ; } break ;
-					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ctx.digest() ; } break ;
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
+					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
 				_val &= ~uint64_t(1) ;
@@ -39,10 +42,10 @@ namespace Hash {
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(filename) ;
 				switch (algo) {
-					//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvv
-					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
-					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ctx.digest() ; } break ; // .
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^
+					//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
+					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // .
+					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
 				_val |= uint64_t(1) ;
@@ -91,7 +94,7 @@ namespace Hash {
 		if (sz) memcpy( _bblk() , pi , sz ) ;
 	}
 
-	Crc _Md5::digest() {
+	Crc _Md5::digest() && {
 		if (!_closed) {                                                        // this way, operator() can be called several times (but then no update possible)
 			if (!_salt.empty()) _update( _salt.c_str() , _salt.size() ) ;
 			uint32_t offset = _cnt & (sizeof(_blk)-1)   ;
@@ -226,7 +229,7 @@ namespace Hash {
 		}
 	}
 
-	void _Xxh::_update( const void* p , size_t sz ) { XXH3_64bits_update( &_state , p , sz ) ;  }
-	Crc  _Xxh::digest (                           ) { return Crc(XXH3_64bits_digest(&_state)) ; }
+	void _Xxh::_update ( const void* p , size_t sz )    { XXH3_64bits_update( &_state , p , sz ) ;  }
+	Crc  _Xxh::digest  (                           ) && { return Crc(XXH3_64bits_digest(&_state)) ; }
 
 }

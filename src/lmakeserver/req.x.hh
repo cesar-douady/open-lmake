@@ -265,7 +265,7 @@ namespace Engine {
 		//
 		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , ::string const& step , Job                             , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                                        , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                              , Delay exec_time={} ) const ;
 		//
 		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,r,jn,h,et) ; }
 		void audit_job( Color c , ::string const& s , Job j                       , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
@@ -287,7 +287,8 @@ namespace Engine {
 		bool                 zombie         = false   ;    // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;              // to report to user
-		OFStream  mutable    log_stream     ;              // saved output
+		OFStream mutable     log_stream     ;              // saved output
+		Job      mutable     last_info      ;              // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Ddate                start          ;
 		Delay                ete            ;              // Estimated Time Enroute

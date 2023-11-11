@@ -188,9 +188,8 @@ namespace Engine {
 		//
 		//
 		bool makable(bool uphill_ok=false) const {
-			if (conform_idx==Node::NoIdx) return multi   ;                     // multi is an error case, but is makable
-			if (uphill_ok               ) return true    ;
-			/**/                          return !uphill ;
+			if (conform_idx==Node::NoIdx) return multi                ;        // multi is an error case, but is makable
+			else                          return !uphill || uphill_ok ;
 		}
 		bool is_src() const {
 			if (job_tgts.empty()) return false                 ;

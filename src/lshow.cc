@@ -24,9 +24,9 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
 	},{
-		{ ReqFlag::Debug   , { .short_name='u' , .has_arg=false , .doc="generate debug executable script"           } }
-	,	{ ReqFlag::Graphic , { .short_name='g' , .has_arg=false , .doc="use GUI"                                    } }
-	,	{ ReqFlag::Verbose , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts" } }
+		{ ReqFlag::Debug   , { .short_name='u' , .has_arg=true  , .doc="generate debug executable script with arg as debug directory" } }
+	,	{ ReqFlag::Graphic , { .short_name='g' , .has_arg=false , .doc="use GUI"                                                      } }
+	,	{ ReqFlag::Verbose , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"                   } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//

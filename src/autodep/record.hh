@@ -192,6 +192,15 @@ public :
 		// services
 		int operator()( Record& , int rc , pid_t pid=0 ) ;
 	} ;
+	struct Chmod : Solve {
+		// cxtors & casts
+		Chmod() = default ;
+		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string const& comment="write" ) ;
+		// services
+		int operator()( Record& , int rc , bool no_file=true ) ;
+		// data
+		DD date ;  // if file is updated, its date may have to be captured before the actual syscall
+	} ;
 	struct Exec : Solve {
 		// cxtors & casts
 		Exec() = default ;
@@ -265,22 +274,20 @@ public :
 			return res ;
 		}
 	} ;
+	struct Symlnk : Solve {
+		// cxtors & casts
+		Symlnk() = default ;
+		Symlnk( Record& r , Path&& p , ::string const& c="write" ) : Solve{r,::move(p),true/*no_follow*/,c} {}
+		// services
+		int operator()( Record& , int rc ) ;
+		// data
+	} ;
 	struct Unlink : Solve {
 		// cxtors & casts
 		Unlink() = default ;
 		Unlink( Record& , Path&& , bool remove_dir=false , ::string const& comment="unlink" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
-	} ;
-	struct Write : Solve {
-		// cxtors & casts
-		Write() = default ;
-		Write( Record& , Path&& , Accesses read , bool no_follow , ::string const& comment="write" ) ;
-		// services
-		int operator()( Record& , int rc , bool no_file=true ) ;
-		// data
-		DD       date ;                                    // if file is updated, its date may have to be captured before the actual syscall
-		Accesses read = {}/*garbage*/ ;
 	} ;
 	//
 	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }

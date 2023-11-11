@@ -565,7 +565,7 @@ Once the build process is complete, a summary is generated with :
 @section @code{lshow}
 
 Usage : @code{lshow [ [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
-[-t|--targets] ] [-v|--verbose] targets...}
+[[-d|--debug] debug_dir] [-t|--targets] [-v|--verbose] targets...}
 
 @code{lshow} provides various information about jobs.
 The jobs are those officially generating the targets (i.e. the jobs that would be selected by @lmake if needing to generate it) if any,
@@ -599,6 +599,8 @@ If a dep does not exist, it is deemed secondary information and is shown in gray
 @item @code{-D}|@code{--inv-deps} : show jobs that depend on targets.
 @item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, execution time, host that executed it, ...
 @item @code{-s}|@code{--script} : show the scripts used to execute the jobs.
+If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
+Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
 @item @code{-S}|@code{--exec-script} : show the scripts used to execute the jobs in a form that can be directly executed by standard @code{sh}.
 @item @code{-E}|@code{--env} : show the environment used to run the script
 @item @code{-e}|@code{--stderr} : show the stderr of the jobs.
@@ -740,7 +742,7 @@ The @code{-r} option is useful in the following scenario :
 
 @section @code{autodep}
 
-Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] executable args...}
+Usage : @code{autodep [[-o|--out] file] [[-m|--autodep-method] method] [[-s|--link-support] level] [[-d|--auto-mkdir]] [[-i|--ignore-stat]] [[-t|--tmp-view] tmp_view_dir] executable args...}
 
 @code{autodep} is a small tool that may be useful when designing a flow.
 It allows to see what information (dependencies and targets) are recorded by code instrumentation @lmake injects in jobs to track activity without actually run a job under its control.
@@ -782,6 +784,8 @@ This may be necessary if your command does an equivalent of @code{cd a ; cat b} 
 In that case, without this option, if directory @file{a} does not exist, the @code{cd} is not done and @lmake generates a dependency to @file{b} instead of @file{a/b}.
 @item @code{-i}|@code{--ignore-stat} : Stat-like accesses (i.e. access that just access the inode) are ignored.
 This may be a performance boost as it is not uncommon that such accesses represent the vast majority of tracked system calls, at the expense of reliability.
+@item @code{-t}|@code{--tmp-view} : map accesses to @file{tmp_view_dir} to directory mentioned in the @code{TMPDIR} environment variable, which is redefined as @file{tmp_view_dir}.
+This mimics the behavior of the @code{tmp} attribute of rules.
 @end itemize
 
 @section @code{xxhsum}
@@ -1314,6 +1318,26 @@ Anti-rules only require the @code{targets} attribute (or those that translate in
 Other ones are useless and ignored.
 
 Inheriting from @code{lmake.SourceRule} may be used to define sources by patterns rather than as a list of files controlled by some sort of source-control (typically @code{git}).
+
+In addition to user rules defined as described hereinafter, there are a certain number of special rules that applies systematically :
+
+@multitable @columnfractions 0.1 0.9
+@item Sources
+@tab Sources are built in a special way : the disk is checked and if the file has been modified, the rule is triggered, which mostly does nothing except noticing the modification,
+which may trigger other jobs.
+This is typically the root reason why @lmake run jobs instead of doing nothing at all.
+@item Uphill
+@tab Any file is deemed as depending on its directory in a special way : if its directory is buildable, then the file is deemed not buildable.
+This is logical : if file @file{foo} is buildable (i.e. produced as a regular file or a symbolic link), there is not way file @file{foo/bar} can be built.
+If @file{foo} is produced as a regular file, this is the end of the story.
+If it is produced as a symbolic link (say with @file{foo_real} as target), the dependent job will be rerun and it will then depend on @file{foo} and @file{foo_real/bar} when it opens @file{foo/bar}.
+Note that if the directory applies as the star-target of a rule, then the corresponding job must be run to determine if said directory is, indeed, produced.
+@item Infinite
+@tab if walking the dependencies leads to infinite recursion, when the depth reaches @code{lmake.config.max_dep_depth}, this special rule is triggered which generates an error.
+Also, if a file whose name is longer that @code{lmake.config.path_max} considered, it is deemed to be generated by this rule and it is in error.
+This happens typically if you have a rule that, for example builds @code{@{File@}} from @code{@{File@}.x}.
+If you try to build @file{foo}, @lmake will try to build @file{foo.x}, which needs @file{foo.x.x}, which needs @file{foo.x.x} etc.
+@end multitable
 
 Rules are described by a series of attribute as follows.
 
@@ -2718,9 +2742,9 @@ An exemple is shown here :
 @example
 @group
 class Mrkr(lmake.Rule) :
-	prio   = -lmake.inf         # in case of clash with another rule the other rule is perfect, as long as mrkr is not a directory
+	prio   = float('inf')      # in case of clash with another rule the other rule is perfect, as long as mrkr is not a directory
 	target = '@{__dir__@}mrkr'
-	cmd    = ''                 # target is open as its stdout, this is enough, we have nothing to put in the target
+	cmd    = ''                # target is open as its stdout, this is enough, we have nothing to put in the target
 class Gcc(lmake.Rule) :
 	targets = @{ 'OBJ' : '@{File:.+@}.o' @}
 	deps    = @{ 'SRC' : '@{File:.+@}.c' @}

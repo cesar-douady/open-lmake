@@ -232,6 +232,7 @@ int main( int argc , char* argv[] ) {
 			// could be slightly optimized, but when generating live output, we have a single job, no need to optimize
 			live_out_buf.append(txt) ;
 			size_t pos = live_out_buf.rfind('\n') ;
+			trace("live_out_cb",live_out_buf.size(),txt.size(),pos+1) ;
 			if (pos==Npos) return ;
 			pos++ ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -303,7 +304,9 @@ int main( int argc , char* argv[] ) {
 		}
 		while (!spurious_unlink_queue.empty())  analysis_err.emplace_back("target was spuriously unlinked :",spurious_unlink_queue.pop()) ;
 		//
-		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp ) unlink_inside(g_start_info.autodep_env.tmp_dir) ;
+		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
+			try                     { unlink_inside(g_start_info.autodep_env.tmp_dir) ; }
+			catch (::string const&) {}                                                    // cleaning is done at job start any way, so no harm
 		//
 		if (!analysis_err.empty()) status |= Status::Err ;
 		trace("status",status) ;

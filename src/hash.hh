@@ -128,14 +128,14 @@ namespace Hash {
 		_Md5(           ) ;
 		_Md5(FileTag tag) { if (tag!=FileTag::Reg) _salt = to_string(tag) ; }
 		// services
-		Crc  digest (                           ) ;
 		void _update( const void* p , size_t sz ) ;
+		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
 	private :
 		void     _update64(const uint32_t _data[BlkSz]) ;
 		void     _update64(                           ) { _update64(_blk) ;                         }
 		uint8_t* _bblk    (                           ) { return reinterpret_cast<uint8_t*>(_blk) ; }
 		// data
-		alignas(uint64_t) uint32_t _hash[HashSz] ;                           // alignment to allow direct appending of _cnt<<3 (message length in bits)
+		alignas(uint64_t) uint32_t _hash[HashSz] ;                             // alignment to allow direct appending of _cnt<<3 (message length in bits)
 		uint32_t                   _blk [BlkSz ] ;
 		uint64_t                   _cnt          ;
 		::string                   _salt         ;
@@ -158,7 +158,7 @@ namespace Hash {
 		_Xxh(FileTag) ;
 		// services
 		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) ;
+		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
 		// data
 	private :
 		XXH3_state_t _state ;
@@ -170,6 +170,8 @@ namespace Hash {
 		_Cooked(FileTag t) : H{t} {}
 		// services
 		using H::digest ;
+		Crc c_digest() const { return _Cooked(*this).digest() ; }
+		//
 		template<class T> requires(::is_trivially_copyable_v<T>) void update( T const* p , size_t sz ) { H::_update( p , sizeof(*p)*sz ) ; }
 		template<class T> requires(::is_trivially_copyable_v<T>) void update( T const& x             ) {
 			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;

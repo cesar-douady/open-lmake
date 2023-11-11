@@ -274,7 +274,7 @@ namespace Engine {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
-		if (!dep->makable()) {
+		if (!dep->makable(true/*uphill_ok*/)) {
 			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep.name() , n_err , lvl ) ;
 			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ;
 		} else if (dep->multi) {
@@ -408,6 +408,7 @@ namespace Engine {
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
 		audit( audit_fd , log_stream , options , c , 0 , msg.str() , job_name ) ;
+		last_info = {} ;
 	}
 
 	void ReqData::audit_status(bool ok) const {
@@ -438,10 +439,10 @@ namespace Engine {
 			,	stats.ended(JobReport::Failed)==0 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
 			,	                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
 			,	g_config.caches.empty()           ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
-			,	                                                    " rerun:"   , stats.ended(JobReport::Rerun )
-			,	                                                    " running:" , stats.cur  (JobLvl::Exec     )
-			,	                                                    " queued:"  , stats.cur  (JobLvl::Queued   )
-			,	                                                    " waiting:" , stats.cur  (JobLvl::Dep      )
+			,	stats.ended(JobReport::Rerun )==0 ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
+			,	                                                    " running:" , stats.cur  (JobLvl   ::Exec  )
+			,	stats.cur  (JobLvl   ::Queued)==0 ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
+			,	stats.cur  (JobLvl   ::Dep   )==0 ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
 			) ) ) ;
 		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 	}

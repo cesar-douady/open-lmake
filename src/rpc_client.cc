@@ -17,9 +17,9 @@
 }
 
 ::ostream& operator<<( ::ostream& os , ReqRpcReq const& rrr ) {
-	/**/                    os << "ReqRpcReq(" << rrr.proc           ;
-	if (has_args(rrr.proc)) os <<','<< rrr.files <<','<< rrr.options ;
-	return                  os <<')'                                 ;
+	/**/                            os << "ReqRpcReq(" << rrr.proc           ;
+	if (rrr.proc>=ReqProc::HasArgs) os <<','<< rrr.files <<','<< rrr.options ;
+	return                          os <<')'                                 ;
 }
 
 ::ostream& operator<<( ::ostream& os , ReqRpcReply const& rrr ) {

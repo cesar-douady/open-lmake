@@ -146,6 +146,23 @@ int Record::ChDir::operator()( Record& r , int rc , pid_t pid ) {
 	return rc ;
 }
 
+Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
+	if (kind<=Kind::Dep) {
+		FileInfoDate fid{s_root_fd(),real} ;
+		if ( +fid && exe!=(fid.tag==FileTag::Exe) ) date = fid.date  ;         //  only consider as a target if exe bit changes, file date is updated, capture date before
+		else                                        kind = Kind::Ext ;         // typically, if file is a directory, we do not actually write to it as directories are ignored
+	}
+}
+int Record::Chmod::operator()( Record& r , int rc , bool no_file ) {
+	if (kind<=Kind::Dep) {
+		bool ok = rc>=0  ;
+		if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , Access::Reg ,               comment  ) ; // file date is updated if created, use original date
+		else if ( ok                     ) r._report_dep   ( ::move(real) , date , Access::Reg ,               comment  ) ; // in src dirs, only the read side is reported
+		else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , Access::Reg , (comment+='!',comment) ) ;
+	}
+	return rc ;
+}
+
 Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
 	SolveReport sr {.real=real,.kind=kind} ;
 	for( auto&& [file,a] : r.real_path.exec(sr) ) r._report_dep( ::move(file) , a , comment ) ;
@@ -332,31 +349,15 @@ int Record::Stat::operator()( Record& r , int rc , bool no_file ) {
 	return rc ;
 }
 
-Record::Unlink::Unlink( Record& r , Path&& path, bool remove_dir , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} {
+int Record::Symlnk::operator()( Record& r , int rc ) {
+	if ( rc>=0 && kind==Kind::Repo ) r._report_target( ::move(real) , comment  ) ;
+	return rc ;
+}
+
+Record::Unlink::Unlink( Record& r , Path&& p , bool remove_dir , ::string const& c ) : Solve{r,::move(p),true/*no_follow*/,c} {
 	if (remove_dir) kind = Kind::Ext ;
 }
 int Record::Unlink::operator()( Record& r , int rc ) {
 	if ( kind==Kind::Repo && rc>=0 ) r._report_unlink( ::move(real) , comment ) ;
-	return rc ;
-}
-
-Record::Write::Write( Record& r , Path&& path , Accesses rd , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} , read{rd} {
-	if ( +read && kind<=Kind::Dep ) {
-		FileInfoDate fid{s_root_fd(),real} ;
-		if (+fid) date = fid.date  ;                                           // file date is updated, capture date before
-		else      kind = Kind::Ext ;                                           // typically, if file is a directory, we do not actually write to it as directories are ignored
-	}
-}
-int Record::Write::operator()( Record& r , int rc , bool no_file ) {
-	if (kind<=Kind::Dep) {
-		bool ok = rc>=0  ;
-		if (+read) {
-			if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , read ,               comment  ) ; // file date is updated if created, use original date
-			else if ( ok                     ) r._report_dep   ( ::move(real) , date , read ,               comment  ) ; // in src dirs, only the read side is reported
-			else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , read , (comment+='!',comment) ) ;
-		} else {
-			if      ( ok && kind==Kind::Repo ) r._report_target( ::move(real) ,                             comment  ) ;
-		}
-	}
 	return rc ;
 }

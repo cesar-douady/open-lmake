@@ -222,8 +222,9 @@ namespace Engine {
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ReqFlags flags ) {
+	static ::string _mk_script( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ReqFlags flags , bool with_cmd ) {
 		JobRpcReply const& start   = report_start.start ;
+		AutodepEnv const&  ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
 		if (!start.cwd_s.empty()) {
 			append_to_string(abs_cwd,'/',start.cwd_s) ;
@@ -245,34 +246,46 @@ namespace Engine {
 			script += ")\n" ;
 		}
 		for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;
-		script += to_string("mkdir -p ${TMPDIR:-",P_tmpdir,"}\n") ;
-		script += "exec env -i \\\n"   ;
-		append_to_string( script , "\tROOT_DIR="          , mk_shell_str(*g_root_dir                  ) , " \\\n" ) ;
-		append_to_string( script , "\tSEQUENCE_ID="       , to_string   (report_start.pre_start.seq_id) , " \\\n" ) ;
-		append_to_string( script , "\tSMALL_ID="          , to_string   (start.small_id               ) , " \\\n" ) ;
-		append_to_string( script , "\tLMAKE_AUTODEP_ENV=" , "\"$LMAKE_AUTODEP_ENV\""                    , " \\\n" ) ;
-		switch (start.method) {
-			case AutodepMethod::LdAudit   : append_to_string( script , "\tLD_AUDIT="   , "\"$LD_AUDIT\""   , " \\\n" ) ; break ;
-			case AutodepMethod::LdPreload : append_to_string( script , "\tLD_PRELOAD=" , "\"$LD_PRELOAD\"" , " \\\n" ) ; break ;
-			default : ;
+		//
+		::string tmp_dir ;
+		if (dbg_dir.empty()) {
+			tmp_dir = mk_abs(ade.tmp_dir,*g_root_dir+'/') ;
+			if (!start.keep_tmp)
+				for( auto&& [k,v] : start.env )
+					if ( k=="TMPDIR" && v!=EnvPassMrkr )
+						tmp_dir = env_decode(::string(v)) ;
+		} else {
+			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
 		}
-		bool seen_tmp_dir = false ;
+		//
+		append_to_string( script , "export     TMPDIR="   , mk_shell_str(tmp_dir)   , '\n'    ) ;
+		append_to_string( script , "rm -rf   \"$TMPDIR\""                           , '\n'    ) ;
+		append_to_string( script , "mkdir -p \"$TMPDIR\""                           , '\n'    ) ;
+		append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
+		append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
+		append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
+		append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
+		append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
 		for( auto&& [k,v] : start.env ) {
-			if (k=="TMPDIR") {
-				if (start.keep_tmp) continue ;
-				seen_tmp_dir = true ;
-			}
+			if (k=="TMPDIR"   ) continue ;
 			if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                             ," \\\n") ;
 			else                append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::string(v)))," \\\n") ;
 		}
-		// if tmp directory is viewed by job under another name, provide it as the script may work only with that name
-		::string const& tmp_dir = start.autodep_env.tmp_view.empty() ? start.autodep_env.tmp_dir : start.autodep_env.tmp_view ;
-		//
-		if ( !seen_tmp_dir                         ) append_to_string( script , "\tTMPDIR=" , mk_shell_str(mk_abs(tmp_dir,*g_root_dir+'/')) , " \\\n"         ) ;
-		for( ::string const& c : start.interpreter ) append_to_string( script , mk_shell_str(c) , ' '                                                         ) ;
-		if ( dbg && !is_python                     ) append_to_string( script , "-x "                                                                         ) ;
-		if (dbg_dir.empty()                        ) append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd( j , flags , start , dbg_dir , redirected )) ) ;
-		else                                         append_to_string( script ,             mk_shell_str(dbg_dir+"/cmd"                                     ) ) ;
+		if ( dbg || ade.auto_mkdir || !ade.tmp_view.empty() ) {                                                        // in addition of dbg, autodep may be needed for functional reasons
+			/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
+			if      ( dbg )                    append_to_string( script , "-s " , mk_snake(ade.lnk_support)  , ' ' ) ;
+			else                               append_to_string( script , "-s " , "none"                     , ' ' ) ; // dont care about deps
+			/**/                               append_to_string( script , "-m " , mk_snake(start.method   )  , ' ' ) ;
+			if      ( !dbg                   ) append_to_string( script , "-o " , "/dev/null"                , ' ' ) ;
+			else if ( !dbg_dir.empty()       ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
+			if      ( ade.auto_mkdir         ) append_to_string( script , "-d"                               , ' ' ) ;
+			if      ( dbg && ade.ignore_stat ) append_to_string( script , "-i"                               , ' ' ) ;
+			if      ( !ade.tmp_view.empty()  ) append_to_string( script , "-t " , mk_shell_str(ade.tmp_view) , ' ' ) ;
+		}
+		for( ::string const& c : start.interpreter ) {                           append_to_string( script , mk_shell_str(c) , ' '                                               ) ; }
+		if ( dbg && !is_python                     ) {                           append_to_string( script , "-x "                                                               ) ; }
+		if ( with_cmd                              ) { SWEAR(!dbg_dir.empty()) ; append_to_string( script , dbg_dir,"/cmd"                                                      ) ; }
+		else                                         {                           append_to_string( script , "-c \\\n" , mk_shell_str(_mk_cmd(j,flags,start,dbg_dir,redirected)) ) ; }
 		//
 		if      ( !start.stdout.empty()            ) append_to_string( script , " > " , mk_shell_str(start.stdout) ) ;
 		if      ( !start.stdin .empty()            ) append_to_string( script , " < " , mk_shell_str(start.stdin ) ) ;
@@ -316,13 +329,13 @@ namespace Engine {
 		try         { ::ifstream job_stream{job->ancillary_file() } ; deserialize(job_stream,report_start) ; }
 		catch (...) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; return false ;               }
 		//
-		JobRpcReply const& start       = report_start.start                                       ;
-		bool               redirected  = !start.stdin.empty() || !start.stdout.empty()            ;
-		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)                   ;
-		::string           script_file = dbg_dir+"/script"                                        ;
-		::string           cmd_file    = dbg_dir+"/cmd"                                           ;
-		::string           script      = _mk_script( job , report_start , dbg_dir , ro.flags )    ;
-		::string           cmd         = _mk_cmd( job , ro.flags , start , dbg_dir , redirected ) ;
+		JobRpcReply const& start       = report_start.start                                                       ;
+		bool               redirected  = !start.stdin.empty() || !start.stdout.empty()                            ;
+		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)                                   ;
+		::string           script_file = dbg_dir+"/script"                                                        ;
+		::string           cmd_file    = dbg_dir+"/cmd"                                                           ;
+		::string           script      = _mk_script( job , report_start , dbg_dir , ro.flags , true/*with_cmd*/ ) ;
+		::string           cmd         = _mk_cmd( job , ro.flags , start , dbg_dir , redirected )                 ;
 		//
 		make_dir(dbg_dir) ;
 		OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ;  // make executable
@@ -422,7 +435,7 @@ namespace Engine {
 						} break ;
 						case ReqKey::ExecScript :
 							if (!has_start) { audit( fd , ro , Color::Err , 0 , "no info available" ) ; break ; }
-							audit( fd , ro , Color::None , lvl , _mk_script(job,report_start,{},ro.flags) ) ;
+							audit( fd , ro , Color::None , lvl , _mk_script(job,report_start,ro.flag_args[+ReqFlag::Debug],ro.flags,false/*with_cmd*/) ) ;
 						break ;
 						case ReqKey::Cmd : {
 							if (!has_start) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }

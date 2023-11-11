@@ -264,7 +264,7 @@ namespace Engine {
 			return true ;
 		}
 
-		bool/*updated*/ acquire( Cmd::DbgEntry& dst , PyObject* py_src ) {
+		bool/*updated*/ acquire( DbgEntry& dst , PyObject* py_src ) {
 			if (!py_src        ) {                          return false ;                           }
 			if (py_src==Py_None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
 			//
@@ -411,7 +411,6 @@ namespace Engine {
 		Attrs::acquire_from_dct(is_python,py_src,"is_python") ;
 		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
 		Attrs::acquire_from_dct(decorator,py_src,"decorator") ;
-		Attrs::acquire_from_dct(dbg      ,py_src,"dbg"      ) ;
 		if (is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
@@ -427,8 +426,10 @@ namespace Engine {
 			OStringStream res ;
 			res<<"from lmake_runtime import lmake_func" ; if (spec.decorator!="lmake_func") res<<" as "<<spec.decorator ; res<<'\n' ;
 			res<<spec.decorator<<".dbg = {\n" ;
-			bool first = true ;
-			for( auto const& [k,v] : spec.dbg ) {
+			bool first = true                          ;
+			Rule r     = +job ? job->rule : match.rule ;                       // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+			SWEAR(+r) ;
+			for( auto const& [k,v] : r->dbg_info ) {
 				if (!first) res<<',' ;
 				first = false ;
 				res<<'\t'<<mk_py_str(k)<<" : ("<<mk_py_str(v.module)<<','<<mk_py_str(v.qual_name)<<','<<mk_py_str(v.filename)<<','<<v.first_line_no1<<")\n" ;
@@ -462,7 +463,7 @@ namespace Engine {
 		}
 	}
 
-	::ostream& operator<<( ::ostream& os , Cmd::DbgEntry const& de ) {
+	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {
 		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.filename<<" , "<<de.first_line_no1<<" )" ;
 		else     return os<<"()"                                                                                     ;
 	}
@@ -782,12 +783,13 @@ namespace Engine {
 			if (is_special()) return ;                                         // if special, we have no dep, no execution, we only need essential info
 			//^^^^^^^^^^^^^^^^^^^^^^^^
 			//
+			// acquire fields linked to job execution
+			//
 			field = "n_tokens" ;
 			if (dct.hasKey(field)) {
 				n_tokens = static_cast<unsigned long>(Py::Long(dct[field])) ;
 				if (n_tokens==0) throw "value must be positive"s ;
 			}
-
 			/**/                                       var_idxs["targets"       ] = {VarCmd::Targets,0} ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {VarCmd::Target ,t} ;
 			if (dct.hasKey("deps_attrs")) deps_attrs = { Py::Object(dct["deps_attrs"]).ptr() , var_idxs , *this } ;
@@ -817,9 +819,9 @@ namespace Engine {
 				max_tflags |= ts.tflags ;
 				min_tflags &= ts.tflags ;
 			}
-
 			//
-			// now process fields linked to execution
+			field = "dbg_info" ;
+			if (dct.hasKey(field)) Attrs::acquire(dbg_info,dct[field].ptr()) ;
 			//
 			field = "ete"   ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
 			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
@@ -1109,9 +1111,9 @@ namespace Engine {
 		if ( sna.keep_tmp         ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
 		if (+sna.start_delay      ) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
 		if (!sna.kill_sigs.empty()) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
-		/**/                          res << _pretty_vmap(i,entries) ;
-		if (!sna.env.empty()        ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env         ) ;
-		if (!rd.cmd.spec.dbg.empty()) res << indent("debug info :\n",i) << _pretty_vmap( i+1 , rd.cmd.spec.dbg ) ;
+		/**/                      res << _pretty_vmap(i,entries) ;
+		if (!sna.env.empty()    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env     ) ;
+		if (!rd.dbg_info.empty()) res << indent("debug info :\n",i) << _pretty_vmap( i+1 , rd.dbg_info ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
@@ -1212,7 +1214,7 @@ namespace Engine {
 			/**/       h.update(targets_  ) ;
 			/**/       h.update(allow_ext ) ;
 			if (!anti) h.update(deps_attrs) ;
-			match_crc = h.digest() ;
+			match_crc = ::move(h).digest() ;
 		}
 		if (anti) return ;                                                     // anti-rules are only capable of matching
 		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
@@ -1224,13 +1226,13 @@ namespace Engine {
 			h.update(start_cmd_attrs) ;
 			h.update(cmd            ) ;
 			h.update(end_cmd_attrs  ) ;
-			cmd_crc = h.digest() ;
+			cmd_crc = ::move(h).digest() ;
 		}
 		{	Hash::Xxh h ;
 			h.update(submit_rsrcs_attrs) ;
 			h.update(start_rsrcs_attrs ) ;
 			h.update(targets           ) ;                                     // all is not necessary, but simpler to code
-			rsrcs_crc = h.digest() ;
+			rsrcs_crc = ::move(h).digest() ;
 		}
 	}
 

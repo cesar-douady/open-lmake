@@ -196,7 +196,6 @@ namespace Backends {
 			auto          it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry&   entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
-			job_exec.host = entry.conn.host ;
 			switch (jrr.proc) {
 				case JobProc::Start : {
 					submit_attrs   = entry.submit_attrs ;
@@ -266,7 +265,6 @@ namespace Backends {
 					}
 					//
 					::vector_s targets  = match.targets()        ;
-					in_addr_t  host     = fd.peer_addr()         ;
 					SmallId    small_id = _s_small_ids.acquire() ;
 					//
 					::string tmp_dir = keep_tmp ?
@@ -274,8 +272,9 @@ namespace Backends {
 					:	to_string(g_config.remote_tmp_dir,"/job_tmp/",small_id)
 					;
 					//
+					job_exec.host = fd.peer_addr() ;
 					// simple attrs
-					reply.addr                    = host                                ;
+					reply.addr                    = job_exec.host                       ;
 					reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir          ;
 					reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat         ;
 					reply.autodep_env.lnk_support = g_config.lnk_support                ;
@@ -290,7 +289,7 @@ namespace Backends {
 					reply.interpreter             = ::move(start_cmd_attrs.interpreter) ;
 					reply.keep_tmp                = keep_tmp                            ;
 					reply.kill_sigs               = ::move(start_none_attrs.kill_sigs)  ;
-					reply.live_out                = entry.submit_attrs.live_out         ;
+					reply.live_out                = submit_attrs.live_out               ;
 					reply.method                  = start_cmd_attrs.method              ;
 					reply.small_id                = small_id                            ;
 					reply.timeout                 = start_rsrcs_attrs.timeout           ;
@@ -308,13 +307,14 @@ namespace Backends {
 					//
 					reply.static_deps = _mk_digest_deps(deps_attrs) ;
 					//
-					entry.conn.host     = host     ;
-					entry.conn.port     = jrr.port ;
-					entry.conn.small_id = small_id ;
+					entry.conn.host     = job_exec.host ;
+					entry.conn.port     = jrr.port      ;
+					entry.conn.small_id = small_id      ;
 				} break ;
 				case JobProc::End : {
 					rsrcs = ::move(entry.rsrcs) ;
-					job_exec.start_date = entry.start ;
+					job_exec.host       = entry.conn.host ;
+					job_exec.start_date = entry.start     ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
 					Tag tag = entry.tag ;
@@ -346,7 +346,12 @@ namespace Backends {
 					})
 				) ;
 				//
-				bool deferred_start_report = Delay(job->exec_time)<start_none_attrs.start_delay && report_unlink.empty() && start_exc_txt.empty() ; // dont defer if we must report info at start time
+				bool deferred_start_report =
+					Delay(job->exec_time)<start_none_attrs.start_delay         // dont defer long jobs
+				&&	report_unlink.empty()                                      // dont defer if we must report info at start time
+				&&	start_exc_txt.empty()                                      // .
+				&&	!submit_attrs.live_out                                     // always show a start line if we must report live output to identify job for which output is shown
+				;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , !deferred_start_report , report_unlink , start_exc_txt ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -394,12 +399,13 @@ namespace Backends {
 				/**/        job   = it->first      ;
 				StartEntry& entry = it->second     ;
 				//
-				if (!entry      ) {                          continue    ; }   // not a real entry ==> no check, no wait
-				if (!entry.old  ) { entry.old = true       ; continue    ; }   // entry is too new ==> no check, no wait
-				if (+entry.start) { conn      = entry.conn ; goto Wakeup ; }
-				tag = entry.tag ;
+				if (!entry    ) {                    continue ; }              // not a real entry                        ==> no check, no wait
+				if (!entry.old) { entry.old = true ; continue ; }              // entry is too new, wait until next round ==> no check, no wait
+				tag  = entry.tag  ;
+				conn = entry.conn ;
+				if (+entry.start             ) goto Wakeup ;
 				lost_report = s_heartbeat(tag,job) ;
-				if (lost_report.second==Yes) goto Next ; // job is still alive
+				if (lost_report.second==Yes  ) goto Next   ;                    // job is still alive
 				if (lost_report.first.empty()) lost_report.first = "vanished" ;
 				//
 				trace("handle_job",job,entry,status) ;

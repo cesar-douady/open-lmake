@@ -33,8 +33,10 @@ int main( int argc , char* argv[] ) {
 
 	char* exec_args[] = { script_file.data() , nullptr } ;
 
+	::cerr << "executing : " << script_file << endl ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	::execv(script_file.c_str(),exec_args) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 	exit(2,"could not run ",script_file) ;
 }

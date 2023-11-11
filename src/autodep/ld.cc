@@ -87,6 +87,7 @@ template<class Action,bool NF=false,bool DP=false> struct AuditAction : Ctx,Acti
 } ;
 //                                          no_file,double_path
 using ChDir   = AuditAction<Record::ChDir                      > ;
+using Chmod   = AuditAction<Record::Chmod  ,true               > ;
 using Exec    = AuditAction<Record::Exec                       > ;
 using Lnk     = AuditAction<Record::Lnk    ,true   ,true       > ;
 using Open    = AuditAction<Record::Open   ,true               > ;
@@ -96,8 +97,8 @@ using Rename  = AuditAction<Record::Rename ,true   ,true       > ;
 using Search  = AuditAction<Record::Search                     > ;
 using Solve   = AuditAction<Record::Solve                      > ;
 using Stat    = AuditAction<Record::Stat   ,true               > ;
+using Symlnk  = AuditAction<Record::Symlnk                     > ;
 using Unlink  = AuditAction<Record::Unlink                     > ;
-using Write   = AuditAction<Record::Write  ,true               > ;
 
 struct Fopen : AuditAction<Record::Open,true/*no_file*/> {
 	using Base = AuditAction<Record::Open,true/*no_file*/> ;
@@ -161,7 +162,8 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 #endif
 {
 	#define NE           noexcept
-	#define ASLNF(flags) bool(flags&AT_SYMLINK_NOFOLLOW)
+	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
+	#define EXE(  mode ) bool((mode )&S_IXUSR            )
 
 	#define ORIG(syscall) static decltype(::syscall)* orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall))
 	// cwd is implicitely accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
@@ -184,8 +186,7 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#define A(r) (SWEAR(!r.file||!*r.file,r.file),r.at       )
 	#define F(r)                                  r.file
 
-	static constexpr int      Cwd         = Fd::Cwd     ;
-	static constexpr Accesses RegAccesses = Access::Reg ;
+	static constexpr int Cwd = Fd::Cwd ;
 
 	// chdir
 	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
@@ -196,10 +197,10 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
 
-	//                                                                                                                   read       ,no_follow
-	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Write r{     pth ,RegAccesses,false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
-	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Write r{Fd(fd)   ,RegAccesses,false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
-	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Write r{{dfd,pth},RegAccesses,ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
+	//                                                                                                                   exe     ,no_follow
+	int chmod   (        CC* pth,mode_t mod          ) NE { HEADER1(chmod   ,pth,(    pth,mod     )) ; Chmod r{     pth ,EXE(mod),false      ,"chmod"   } ; return r(orig(F(r),mod     )) ; }
+	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Chmod r{Fd(fd)   ,EXE(mod),false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
+	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Chmod r{{dfd,pth},EXE(mod),ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
 
 	// close
 	// close cannot be simple as we must call hide, which may make modifications
@@ -351,9 +352,8 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},f ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
 	// symlink
-	//                                                                                                         read          ,no_follow
-	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Write r{     pth ,Accesses::None,true     ,"symlink"  } ; return r(orig(target,F(r))) ; }
-	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Write r{{dfd,pth},Accesses::None,true     ,"symlinkat"} ; return r(orig(target,P(r))) ; }
+	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Symlnk r{     pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
+	int symlinkat(CC* target,int dfd,CC* pth) NE { HEADER1(symlinkat,pth,(target,dfd,pth)) ; Symlnk r{{dfd,pth},"symlinkat"} ; return r(orig(target,P(r))) ; }
 
 	// truncate
 	int truncate  (CC* pth,off_t len) NE { HEADER1(truncate  ,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate"  } ; return r(false/*has_fd*/,orig(F(r),len)) ; }
@@ -456,6 +456,7 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 
 	#undef ORIG
 
+	#undef EXE
 	#undef ASLNF
 	#undef NE
 

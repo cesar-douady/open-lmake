@@ -77,7 +77,7 @@ int64_t/*res*/ exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res , int
 // chmod
 template<bool At,bool Path,bool Flags> bool/*skip_syscall*/ entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Write* cm = new Record::Write( r , _path<At>(pid,args+0) , Access::Reg , Flags&&(args[2+At]&AT_SYMLINK_NOFOLLOW) , comment ) ;
+		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , Flags&&(args[2+At]&AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = cm ;
 		_update<At>(args+0,*cm) ;
 	} catch (int) {}
@@ -85,7 +85,7 @@ template<bool At,bool Path,bool Flags> bool/*skip_syscall*/ entry_chmod( void* &
 }
 int64_t/*res*/ exit_chmod( void* ctx , Record& r , pid_t , int64_t res , int errno_ ) {
 	if (!ctx) return res ;
-	Record::Write* cm = static_cast<Record::Write*>(ctx) ;
+	Record::Chmod* cm = static_cast<Record::Chmod*>(ctx) ;
 	(*cm)(r,res,errno_==ENOENT) ;
 	delete cm ;
 	return res ;
@@ -204,7 +204,7 @@ int64_t/*res*/ exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res 
 // symlink
 template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Write* sl = new Record::Write( r , _path<At>(pid,args+1) , {}/*read*/ , true/*no_follow*/ , comment ) ;
+		Record::Symlnk* sl = new Record::Symlnk( r , _path<At>(pid,args+1) , comment ) ;
 		ctx = sl ;
 		_update<At>(args+1,*sl) ;
 	} catch (int) {}
@@ -212,7 +212,7 @@ template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , 
 }
 int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res , int /*errno_*/ ) {
 	if (!ctx) return res ;
-	Record::Write* sl = static_cast<Record::Write*>(ctx) ;
+	Record::Symlnk* sl = static_cast<Record::Symlnk*>(ctx) ;
 	(*sl)(r,res) ;
 	delete sl ;
 	return res ;

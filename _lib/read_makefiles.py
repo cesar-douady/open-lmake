@@ -251,14 +251,12 @@ def avoid_ctx(name,ctxs) :
 
 class Handle :
 	def __init__(self,rule) :
-		attrs           = handle_inheritance(rule)
-		module_name     = rule.__module__
-		module          = sys.modules[module_name]
-		self.rule       = rule
-		self.attrs      = attrs
-		self.glbs       = (attrs,module.__dict__)
-		self.no_imports = {module_name}
-		self.rule_rep   = pdict( { k:attrs[k] for k in ('name','prio','stems','is_python') } )
+		attrs         = handle_inheritance(rule)
+		module        = sys.modules[rule.__module__]
+		self.rule     = rule
+		self.attrs    = attrs
+		self.glbs     = (attrs,module.__dict__)
+		self.rule_rep = pdict( { k:attrs[k] for k in ('name','prio','stems','is_python') } )
 		try    : self.local_root = lmake.search_sub_root_dir(module.__file__)
 		except : self.local_root = ''                                          # rules defined outside repo (typically standard base rules) are deemed to apply to the whole base
 
@@ -298,7 +296,7 @@ class Handle :
 		else :
 			if SimpleStrRe.match(x)  :
 				return False,static_fstring(x)                                 # v has no variable parts, can be interpreted statically as an f-string
-		return True ,serialize.f_str(x)                                        # x is made an f-string
+		return True,serialize.f_str(x)                                         # x is made an f-string
 
 	def _handle_val(self,key,rep_key=None,for_deps=False) :
 		if not rep_key               : rep_key = key
@@ -328,7 +326,12 @@ class Handle :
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val : return (static_val,)
-		code,ctx,names,dbg = serialize.get_expr( dynamic_val , ctx=(self.per_job,self.aggregate_per_job,*self.glbs) , no_imports=self.no_imports , call_callables=True )
+		code,ctx,names,dbg = serialize.get_expr(
+			dynamic_val
+		,	ctx            = ( self.per_job , self.aggregate_per_job , *self.glbs )
+		,	no_imports     = rule_modules
+		,	call_callables = True
+		)
 		return ( static_val , tuple(names) , ctx , code )
 
 	def _fmt_deps_targets(self,key,entry) :
@@ -487,10 +490,10 @@ class Handle :
 					cmd_lst.append(cc)
 				cmd = cmd_lst
 			decorator = avoid_ctx('lmake_func',serialize_ctx)
-			cmd , cmd_ctx , dbg = serialize.get_src(
+			cmd , cmd_ctx , dbg_info = serialize.get_src(
 				*cmd
 			,	ctx        = serialize_ctx
-			,	no_imports = self.no_imports
+			,	no_imports = rule_modules
 			,	force      = True
 			,	decorator  = decorator
 			,	root_dir   = root_dir
@@ -503,7 +506,8 @@ class Handle :
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
 					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
 					else                                   : cmd += f'\t{       c.__name__}({a})\n'
-			self.rule_rep.cmd = ( {'cmd':cmd,'is_python':True,'decorator':decorator,'dbg':dbg} , tuple(cmd_ctx) )
+			self.rule_rep.cmd      = ( {'cmd':cmd,'is_python':True,'decorator':decorator} , tuple(cmd_ctx) )
+			self.rule_rep.dbg_info = dbg_info
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			self._init()
@@ -560,6 +564,8 @@ def fmt_rule_chk(rule) :
 
 if hasattr(lmake,'sources') : srcs = lmake.sources
 else                        : srcs = lmake.auto_sources()
+
+rule_modules = { r.__module__ for r in lmake.rules }
 
 print(repr({
 	'config' : lmake.config

@@ -235,10 +235,12 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
-					char buf[4096] ;
-					int  cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
-					if (kind==Kind::Stderr) { if (cnt) { stderr.append(buf,cnt) ; } else { trace("close_stderr") ; epoll.close(fd) ; } }
-					else                    { if (cnt) { stdout.append(buf,cnt) ; } else { trace("close_stdout") ; epoll.close(fd) ; } }
+					char          buf[4096] ;
+					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
+					::string_view buf_view  { buf , size_t(cnt) }                                      ;
+					if      (!cnt              ) { trace("close",kind) ; epoll.close(fd) ;           }
+					else if (kind==Kind::Stderr) { stderr.append(buf_view) ;                         }
+					else                         { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
 				} break ;
 				case Kind::ChildEnd : {
 					{ ::unique_lock lock{_pid_mutex} ; pid = -1 ; }            // too late to kill job

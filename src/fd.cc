@@ -10,8 +10,6 @@
 
 using namespace Time ;
 
-::umap<in_addr_t,::string> SockFd::_s_host_tab ;
-
 ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	return os << "Event(" << e.fd() <<','<< e.data() <<')' ;
 }
@@ -67,6 +65,24 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	int rc = ::gethostname(buf,sizeof(buf)) ;
 	swear_prod(rc==0,"cannot get host name") ;
 	return buf ;
+}
+
+::string const& SockFd::s_host(in_addr_t a) {                                  // implement a cache as getnameinfo implies network access and can be rather long
+	static ::umap<in_addr_t,::string> s_tab{{NoSockAddr,""}} ;                 // pre-populate to return empty for local accesses
+	//
+	auto it = s_tab.find(a) ;
+	if (it==s_tab.end()) {
+		char               buf[HOST_NAME_MAX+1] ;
+		struct sockaddr_in sa                   = s_sockaddr(a,0) ;
+		int rc = getnameinfo( reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
+		if (rc) {
+			it = s_tab.emplace(a,"???").first ;
+		} else {
+			::string host = &buf[0] ; host = host.substr(0,host.find('.')) ;
+			it   = s_tab.emplace(a,::move(host)).first   ;
+		}
+	}
+	return it->second ;
 }
 
 void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials ) {

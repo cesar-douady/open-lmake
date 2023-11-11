@@ -10,26 +10,17 @@
 #include "app.hh"
 #include "serialize.hh"
 
-ENUM( ReqProc      // PER_CMD : add a value that represents your command
-,	None           // must stay first
+ENUM_1( ReqProc                        // PER_CMD : add a value that represents your command, above or below HasArgs as necessary
+,	HasArgs = Debug                    // >=HasArgs means command has arguments
+,	None                               // must stay first
 ,	Close
+,	Kill
 ,	Debug
 ,	Forget
-,	Kill
 ,	Make
 ,	Mark
 ,	Show
 )
-static inline bool has_args(ReqProc proc) {
-	switch (proc) {                                                            // PER_CMD : decide whether command has args
-		case ReqProc::Debug  :
-		case ReqProc::Forget :
-		case ReqProc::Make   :
-		case ReqProc::Mark   :
-		case ReqProc::Show   : return true  ;
-		default              : return false ;
-	}
-}
 
 ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None           // must stay first
@@ -138,12 +129,12 @@ struct ReqRpcReq {
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
-	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(!has_args(proc)) ; }
-	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR( has_args(proc)) ; }
+	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs) ; }
+	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,proc) ;
-		if (has_args(proc)) {
+		if (proc>=Proc::HasArgs) {
 			::serdes(s,files  ) ;
 			::serdes(s,options) ;
 		}

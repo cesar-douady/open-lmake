@@ -249,9 +249,9 @@ namespace Engine {
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
 		//
-		EngineClosure(RP p,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(has_args(p))  ; }
-		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill ) ; }
-		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close) ; }
+		EngineClosure(RP p,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p>=RP::HasArgs) ; }
+		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill   ) ; }
+		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close  ) ; }
 		//
 		EngineClosure( JP p , JE&& je , bool r , VN const& ru={} , ::string const& t={} ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=r,.report_unlink=ru,.txt=t} { SWEAR(p==JP::Start) ; }
 		//

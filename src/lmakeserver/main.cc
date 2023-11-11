@@ -161,20 +161,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					catch (...) { rrr.proc = ReqProc::None ;                          }
 					Fd out_fd = kind==EventKind::Std ? Fd::Stdout : fd ;
 					trace("req",fd,rrr) ;
-					if (has_args(rrr.proc)) {
-						if (rrr.proc==ReqProc::Make) {
-							::string reason = Makefiles::s_chk_makefiles() ;
-							if (!reason.empty()) {
-								trace("modified_makefiles") ;
-								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								audit( out_fd , rrr.options , Color::Err , 0 , to_string("cannot make with modified makefiles (",reason,") while other lmake is running\n") ) ;
-								OMsgBuf().send( out_fd , ReqRpcReply(false/*ok*/) ) ;
-								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-								epoll.close (fd) ;
-								in_tab.erase(fd) ;
-								break ;
-							}
-						}
+					if (rrr.proc>=ReqProc::HasArgs) {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( rrr.proc , fd , out_fd , rrr.files , rrr.options ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -258,6 +245,8 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Make : {
 						Req r ;
 						try {
+							::string reason = Makefiles::s_chk_makefiles() ;
+							if (!reason.empty()) throw to_string("cannot make with modified makefiles (",reason,") while other lmake is running\n") ;
 							r = Req(req) ;
 						} catch(::string const& e) {
 							audit( req.out_fd , req.options , Color::Err , 0 , e ) ;

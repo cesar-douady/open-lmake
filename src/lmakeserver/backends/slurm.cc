@@ -56,7 +56,7 @@ namespace std {
 				h.update(v.licence) ;
 				h.update(v.feature) ;
 			}
-			return +(h.digest());
+			return +(::move(h).digest());
 		}
 	} ;
 }
