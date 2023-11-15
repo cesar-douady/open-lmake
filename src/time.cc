@@ -60,13 +60,38 @@ namespace Time {
 		uint32_t      ns  = nsec_in_s() ;
 		OStringStream out ;
 		struct tm     t   ;
-		localtime_r(&s,&t) ;
-		out << put_time( &t , in_day?"%T":"%F %T" ) ;
+		::localtime_r(&s,&t) ;
+		out << ::put_time( &t , in_day?"%T":"%F %T" ) ;
 		if (prec) {
 			for( int i=prec ; i<9 ; i++ ) ns /= 10 ;
 			out <<'.'<< ::setfill('0')<<::setw(prec)<<::right<<ns ;
 		}
 		return out.str() ;
+	}
+
+	Date::Date(::string_view const& s) {
+		{	struct tm   t    = {}                                                                                                      ; // zero out all fields
+			const char* end  = ::strptime(s.data(),"%F %T",&t) ; if (!end            ) throw to_string("cannot read date & time : ",s) ;
+			time_t      secs = ::mktime(&t)                    ; if (secs==time_t(-1)) throw to_string("cannot read date & time : ",s) ;
+			*this = Date(secs) ;
+			if (*end=='.') {
+				end++ ;
+				uint64_t ns = 0 ;
+				for( uint32_t m=1'000'000'000 ; *end>='0'&&*end<='9' ; m/=10,end++ ) ns += (*end-'0')*m ;
+				_val += ns*TicksPerSecond/1'000'000'000 ;
+			}
+			switch (*end) {
+				case '+' :
+				case '-' : {
+					end++ ;
+					const char* col = ::strchr(end,':')                               ;
+					int         h   =       from_chars<int>(end,true/*empty_ok*/)     ;
+					int         m   = col ? from_chars<int>(col,true/*empty_ok*/) : 0 ;
+					if (*end=='+') _val += (h*3600+m*60)*TicksPerSecond ;
+					else           _val -= (h*3600+m*60)*TicksPerSecond ;
+				} break ;
+			}
+		}
 	}
 
 	//

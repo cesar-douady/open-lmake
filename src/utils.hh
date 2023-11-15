@@ -230,6 +230,11 @@ template<class T> VT(T) max          ( T const& x                            ) {
 
 #undef TVT
 
+template<class T> static inline T& grow( ::vector<T>& v , uint32_t i ) {
+	if(i>=v.size()) v.resize(i+1) ;
+	return v[i] ;
+}
+
 //
 // streams
 //
@@ -307,11 +312,15 @@ static inline ::string to_string(                 ) { return {}  ; }           /
 
 using ::std::from_chars ;
 template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
+	static constexpr bool IsBool = is_same_v<I,bool> ;
 	if ( empty_ok && txt.empty() ) return 0 ;
-	I                   res = 0/*garbage*/                                                       ;
-	::from_chars_result rc  = ::from_chars( txt.data() , txt.data()+txt.size() , res,hex?16:10 ) ;
-	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
-	else                 return res ;
+	::conditional_t<IsBool,size_t,I> res = 0/*garbage*/ ;
+	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res , hex?16:10 ) ;
+	//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( IsBool && res>1 ) throw "bool value must be 0 or 1"s       ;
+	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
+	else                   return res ;
 }
 template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 
@@ -369,14 +378,14 @@ static inline bool is_identifier(::string const& s) {
 }
 
 // split into space separated words
-static inline ::vector_s split(::string_view const& path) {
+static inline ::vector_s split(::string_view const& txt) {
 	::vector_s res ;
 	for( size_t pos=0 ;;) {
-		for( ; pos<path.size() && is_space(path[pos]) ; pos++ ) ;
-		if (pos==path.size()) return res ;
+		for( ; pos<txt.size() && is_space(txt[pos]) ; pos++ ) ;
+		if (pos==txt.size()) return res ;
 		size_t start = pos ;
-		for( ; pos<path.size() && !is_space(path[pos]) ; pos++ ) ;
-		res.emplace_back( path.substr(start,pos-start) ) ;
+		for( ; pos<txt.size() && !is_space(txt[pos]) ; pos++ ) ;
+		res.emplace_back( txt.substr(start,pos-start) ) ;
 	}
 	return res ;
 }

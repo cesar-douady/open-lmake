@@ -35,8 +35,8 @@ namespace Backends {
 		::unique_lock lock{Req::s_reqs_mutex} ;                                // ensure Req::s_store is not reallocated while we walk
 		for( ReqIdx r : reqs ) {
 			Req req{r} ;
-			keep_tmp |= req->options.flags[ReqFlag::KeepTmp]              ;
-			eta       = +eta ? ::min(eta,req->stats.eta) : req->stats.eta ;
+			keep_tmp |= req->options.flags[ReqFlag::KeepTmp]  ;
+			eta       = +eta ? ::min(eta,req->eta) : req->eta ;
 		}
 		return {eta,keep_tmp} ;
 	}

@@ -143,17 +143,17 @@ namespace Engine {
 			bool changed = false ;
 			{	::unique_lock lock       { s_reqs_mutex }      ;
 				Idx           idx_by_eta = (*this)->idx_by_eta ;
-				(*this)->stats.eta = now + (*this)->ete ;
+				(*this)->eta = now + (*this)->ete ;
 				if (push_self) _s_reqs_by_eta.push_back(*this) ;
-				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->stats.eta>(*this)->stats.eta ) {           // if eta is decreased
+				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                       // if eta is decreased
 					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
 					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ; // .
 					changed = true ;
 				}
 				if (!changed)
-					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->stats.eta<(*this)->stats.eta ) { // if eta is increased
-						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ;  // swap w/ next entry
-						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ;  // .
+					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {            // if eta is increased
+						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
+						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ; // .
 						changed = true ;
 					}
 			}

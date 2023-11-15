@@ -695,8 +695,8 @@ namespace Engine {
 			bool is_str = PyUnicode_Check(py_src) ;
 			if (!is_str) py_src = PyObject_Str(py_src) ;
 			if (!py_src) throw "cannot convert to str"s ;
-			if (Env) dst = env_encode(PyUnicode_AsUTF8(py_src)) ;                  // for environment, replace occurrences of lmake & root absolute paths par markers ...
-			else     dst =            PyUnicode_AsUTF8(py_src)  ;                  // ... so as to make repo rebust to moves of lmake or itself
+			if (Env) dst = env_encode(PyUnicode_AsUTF8(py_src)) ;              // for environment, replace occurrences of lmake & root absolute paths par markers ...
+			else     dst =            PyUnicode_AsUTF8(py_src)  ;              // ... so as to make repo rebust to moves of lmake or itself
 			if (!is_str) Py_DECREF(py_src) ;
 			return true ;
 		}
@@ -711,17 +711,19 @@ namespace Engine {
 			SWEAR(fast_val) ;
 			size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
 			PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
+			if (n!=dst.size()) {
+				updated = true ;
+				dst.resize(n) ;
+			}
 			for( size_t i=0 ; i<n ; i++ ) {
-				if (i>=dst.size()) { updated = true ; dst.push_back(T()) ; }       // create empty entry
 				if (p[i]==Py_None) continue ;
 				try {
-					if constexpr (Env) updated |= acquire<Env>(dst.back(),p[i]) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
-					else               updated |= acquire     (dst.back(),p[i]) ; // ... to make repo robust to moves of lmake or itself
+					if constexpr (Env) updated |= acquire<Env>(dst[i],p[i]) ;  // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               updated |= acquire     (dst[i],p[i]) ;  // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw to_string("for item ",i," : ",e) ;
 				}
 			}
-			if (n!=dst.size()) { updated = true ; dst.resize(n) ; }
 			return updated ;
 		}
 

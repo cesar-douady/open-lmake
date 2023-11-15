@@ -319,9 +319,9 @@ Record::Search::Search( Record& r , Path const& path , bool exec , const char* p
 	//
 	::string path_val = get_env(path_var) ;
 	if (path_val.empty()) {
-		size_t n = confstr(_CS_PATH,nullptr,0) ;
+		size_t n = ::confstr(_CS_PATH,nullptr,0) ;
 		path_val.resize(n) ;
-		confstr(_CS_PATH,path_val.data(),n) ;
+		::confstr(_CS_PATH,path_val.data(),n) ;
 	}
 	//
 	for( size_t pos=0 ;;) {

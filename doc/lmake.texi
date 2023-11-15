@@ -513,6 +513,9 @@ Options :
 @itemize @bullet
 @item @code{-a}|@code{--archive} : ensure all intermediate files are up to date, in addition to the asked targets.
 This is useful for example if you want to archive a fully built repository.
+@item @code{-b}|@code{--backend} : pass value to backend.
+This is used for example to pass a partition or specificities to the slurm backend for a particular command.
+Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
 @item @code{-e}|@code{--forget-old-errors} : assume encountered errors are transicent.
 Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
 @item @code{-j}|@code{--jobs} max_jobs : When this option is used, @lmake will limit the overall number of simultaneous jobs to max_jobs per backend.
@@ -533,7 +536,7 @@ With this option, the user instructs @lmake that this is allowed.
 @item @code{-t}|@code{--keep-tmp} : normally, @lmake washes the temporary directory allocated to a job at the end of job execution.
 With this option, the user instructs @lmake to keep the temporary directories, as if the @code{keep_tmp} attribute was set for all rules.
 The kept temporary directory can be retreived with @code{lshow -i}.
-@item @code{-v}|@code{--verbose-backend} : enable the generation of some execution information from backend.
+@item @code{-v}|@code{--verbose} : enable the generation of some execution information from backend.
 This is not systematic as this may incur a performance hit.
 Such information is available by using @code{lshow -b}.
 @end itemize
@@ -579,7 +582,7 @@ Each line is composed of 5 fields  separated by spaces :
 @itemize @minus
 @item Flags : each flag is either a letter if set, or a @code{-} if not :
 	@itemize .
-	@item @code{c} : dep is critical (see @pxref{critical-deps}).
+	@item @code{c} : dep is critical (cf @pxref{critical-deps}).
 	@item @code{s} : dep is essential, i.e. dep is show in a future graphical tool.
 	@item @code{e} : ignore errors on dep, i.e. job can be run even if this dep is built in error.
 	@item @code{r} : dep is required, i.e. job is in error if dep is not buildable. For static deps, job is not even tried if dep is not buildable (and another rule is used if possible).
@@ -778,7 +781,7 @@ This also requires @file{libc.so} to be dynamically linked.
 There is no requirement that @file{libc.so} be dynamically linked.
 @end itemize
 Not all methods are supported on all systems.
-@item @code{-s}|@code{--link-support} @code{level} : level of support for symbolic links (@pxref{link-support}).
+@item @code{-s}|@code{--link-support} @code{level} : level of support for symbolic links (cf @pxref{link-support}).
 @item @code{-d}|@code{--auto-mkdir} : Directories are automatically created behind the scene upon calling the @code{chdir} system call.
 This may be necessary if your command does an equivalent of @code{cd a ; cat b} to read @file{a/b} where the existence of @file{a} is not guaranteed by some other means.
 In that case, without this option, if directory @file{a} does not exist, the @code{cd} is not done and @lmake generates a dependency to @file{b} instead of @file{a/b}.
@@ -838,7 +841,7 @@ The following options are supported :
 @itemize @bullet
 @item @code{-v}|@code{--verbose}     : write lines composed of the crc and the name separated by a space for each required dependency.
 @item @code{-P}|@code{--no-follow}   : do not follow the last level symbolic link.
-@item @code{-c}|@code{--critical}    : create critical deps (see @pxref{critical-deps}).
+@item @code{-c}|@code{--critical}    : create critical deps (cf @pxref{critical-deps}).
 @item @code{-e}|@code{--no-error}    : ignore the error status of the passed dependencies.
 @item @code{-r}|@code{--no-required} : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok)
 @item @code{-s}|@code{--esential}    : passed dependencies will not appear in the flow shown with a graphical tool.
@@ -1030,8 +1033,6 @@ Raises the @code{ValueError} exception is the passed backend is unknown.
 
 The following constants are defined :
 @table @code
-@item inf
-@code{float('inf')}
 @item root_dir
 The root directory of the repository as determined when the @lmake command was run.
 
@@ -1043,6 +1044,8 @@ Use the @code{search_root_dir} function if you want to get the nearest hierarchi
 @code{True} if autodep method @code{'ld_preload'} is supported, else @code{False}.
 @item has_ptrace
 @code{True} if autodep method @code{'ld_ptrace'} is supported, else @code{False}.
+@item backends
+The list of implemented backends. @code{local} is always present.
 @item no_crc
 The 64-bit @code{int} checksum when it has not been computed (yet).
 @item crc_no_file
@@ -1116,19 +1119,19 @@ Recognized attributes are :
 @item @code{local_admin_dir}
 @tab @code{LMAKE}
 @tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
-Actually most of the accesses are made in this directory (@pxref{dir-local_admin_dir}).
+Actually most of the accesses are made in this directory (cf @pxref{dir-local_admin_dir}).
 
 @item @code{remote_admin_dir}
 @tab @code{LMAKE}
-@tab This variable contains a directory to be used for remote execution administration (@pxref{dir-remote_admin_dir}).
+@tab This variable contains a directory to be used for remote execution administration (cf @pxref{dir-remote_admin_dir}).
 
 @item @code{remote_tmp_dir}
 @tab @code{LMAKE}
-@tab This variable contains a directory to be used as a temporary storage for remote execution (@pxref{dir-remote_tmp_dir}).
+@tab This variable contains a directory to be used as a temporary storage for remote execution (cf @pxref{dir-remote_tmp_dir}).
 
 @item @code{link_support}
 @tab @code{'Full'}
-@tab @lmake has several levels of symbolic link support (@pxref{link-support}).
+@tab @lmake has several levels of symbolic link support (cf @pxref{link-support}).
 This attribute specifies the used level.
 @item @code{source_dirs}
 
@@ -1142,7 +1145,7 @@ By default, this variable is empty, but gathering sources from @code{git} (as is
 
 @item @code{max_dep_depth}
 @tab @code{1000}
-@tab The rule selection process is a recursive one (@pxref{rule-selection}).
+@tab The rule selection process is a recursive one (cf @pxref{rule-selection}).
 Several means are provided to avoid infinite recursion and this one is the last resort.
 The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
 @item @code{max_error_lines}
@@ -1164,7 +1167,7 @@ The larger the trace, the more probable the root cause of a potential problem is
 This attributes contains the maximum number of lines this trace can hold (@lmake keeps the 5 last traces in case the root cause lie in a previous run).
 @item @code{path_max}
 @tab
-@tab This is one of the infinite recursion protection in the rule selection process (@pxref{rule-selection}).
+@tab This is one of the infinite recursion protection in the rule selection process (cf @pxref{rule-selection}).
 Any file with name longer than the value of this attribute is deemed not buildable.
 @item @code{sub_prio_boost}
 @tab @code{1}
@@ -1184,15 +1187,15 @@ Note that no host is shown for local execution.
 @tab If this attribute is true, execution time is reported each time a job is completed.
 @item @code{colors}
 @tab
-@tab @lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (@pxref{video-mode}).
-This attribute is a @code{pdict} with one entry for each symbolic color (@pxref{video-mode}).
+@tab @lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf @pxref{video-mode}).
+This attribute is a @code{pdict} with one entry for each symbolic color (cf @pxref{video-mode}).
 Each entry is a 2-tuple of 3-tuple's.
 The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
 Each color is a triplet RGB of values between 0 and 255.
 @item @code{backends}
 @tab
 @tab This attribute is a @code{pdict} with one entry for each backend
-(@pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
+(cf @pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
 
 In addition the @code{precisions} can be set to a @code{dict} with one entry for each standard resource (@code{cpu}, @code{mem} and @code{tmp}).
@@ -1200,7 +1203,7 @@ This attribute must be @code{0} or a power of 2 not less than 2.
 
 If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
 Above it, the relative precision is retained, rounding up.
-For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (@pxref{resource-buckets}).
+For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (cf @pxref{resource-buckets}).
 @item @code{caches}
 @tab
 @tab This attribute is a @code{pdict} with one entry for each cache.
@@ -1376,7 +1379,7 @@ Note that regarding resources available in the function environment, the values 
 @tab @code{@{'my_dict_attribute'@}}
 @end multitable
 
-This attribute specify a set of attribute names to be processed with combined inheritance (@pxref{rule-inheritance}).
+This attribute specify a set of attribute names to be processed with combined inheritance (cf @pxref{rule-inheritance}).
 
 Combined attributes may only be @code{dict}, @code{set} and @code{list}.
 @code{dict}'s and @code{set}'s are @code{update}d, @code{list}'s are @code{append}ed.
@@ -1458,7 +1461,7 @@ When this attribute exists and has a @code{True} value, this @code{class} is not
 @end multitable
 
 This attribute is used to order matching priority.
-Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (@pxref{rule-selection}).
+Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf @pxref{rule-selection}).
 
 @section @code{stems}
 
@@ -1515,7 +1518,7 @@ If defined, this attribute must have the same set of static stems (i.e. stems th
 @tab @code{@{ 'OBJ' : '@{File@}.o' @}}
 @end multitable
 
-This attribute is used to define the regular expression which targets must match to select this rule (@pxref{rule-selection}).
+This attribute is used to define the regular expression which targets must match to select this rule (cf @pxref{rule-selection}).
 
 Keys must be Python identifiers.
 Values are @code{list}'s or @code{tuple}'s whose first item defines the target regular expression and following items define flags.
@@ -1563,7 +1566,7 @@ All matching targets must have the same set of static stems (i.e. stems with no 
 Matching is done by first trying to match static targets (i.e. which are not star) then star targets.
 The first match will provide the associated stem definitions and flags.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to suppor hierarchical repository (@pxref{hierarchical-repositories}).
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to suppor hierarchical repository (cf @pxref{hierarchical-repositories}).
 
 
 @section @code{target}
@@ -1644,7 +1647,7 @@ This attribute defines the static dependencies.
 It is a @code{dict} which associates Python identifiers to files computed from the available environment.
 
 They are f-strings, i.e. their value follow the Python f-string syntax and semantic
-but they are interpreted when @lmake tries to match the rule (the rule only matches if static dependencies are buildable, @pxref{rule-selection}).
+but they are interpreted when @lmake tries to match the rule (the rule only matches if static dependencies are buildable, cf @pxref{rule-selection}).
 Hence they lack the initial @code{f} in front of the string.
 
 Accessible variables when evaluating the f-string include the @code{stems}, the @code{targets}, attributes and the module dictionary.
@@ -1656,7 +1659,7 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
-@item Critical           @tab critical        @tab No      @tab This dep is critial (see @pxref{critical-deps}).
+@item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
 @item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
@@ -1664,7 +1667,7 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 
 Flag order and dependency order are not significative.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the dep pattern in order to suppor hierarchical repository (@pxref{hierarchical-repositories}).
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the dep pattern in order to suppor hierarchical repository (cf @pxref{hierarchical-repositories}).
 
 @section @code{dep}
 
@@ -1714,7 +1717,7 @@ The job wrapper itself stays in the original file system in which it is launched
 @end multitable
 
 This attribute defines the name under which the temporary directory allocated for the job is seen by it.
-This means the job runs in a sand box in which the temporary directory is mapped to a directory named after this attribute (see @pxref{tmp} for the usefulness of this feature).
+This means the job runs in a sand box in which the temporary directory is mapped to a directory named after this attribute (cf @pxref{tmp} for the usefulness of this feature).
 
 @section @code{cwd}
 
@@ -1885,9 +1888,9 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 
 Whether @code{cmd} is a @code{str} or a @code{function}, the following environment variable are automatically set, if not explicitly set by the @code{environ} attribute :
 @itemize @minus
-@item @code{LD_AUDIT}          : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_audit'} (@pxref{autodep}).
-@item @code{LD_PRELOAD}        : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_preload'} (@pxref{autodep}).
-@item @code{LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (@pxref{autodep}).
+@item @code{LD_AUDIT}          : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
+@item @code{LD_PRELOAD}        : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_preload'} (cf @pxref{autodep}).
+@item @code{LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
 @item @code{PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
 @item @code{ROOT_DIR}          : The root of the repository.
 @item @code{SEQUENCE_ID}       : A value which is unique for each run.
@@ -1995,7 +1998,7 @@ The cache policy (described in its own section, in the config chapter) tries to 
 @tab Yes. Environment includes stems, targets and deps.
 @end multitable
 
-This attribute specifies the backend to use to launch jobs (@pxref{backends}).
+This attribute specifies the backend to use to launch jobs (cf @pxref{backends}).
 
 @section @code{autodep}
 
@@ -2012,7 +2015,7 @@ This attribute specifies the backend to use to launch jobs (@pxref{backends}).
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
 
-This attribute specifies the method used by autodep (@pxref{autodep}) to discover hidden dependencies.
+This attribute specifies the method used by autodep (cf @pxref{autodep}) to discover hidden dependencies.
 
 @section @code{resources}
 
@@ -2034,7 +2037,7 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 
 The syntax is the same as for @code{deps}, except that in addition to other variables, deps can be referenced.
 
-After interpretation, the @code{dict} is passed to the @code{backend} to be used in its scheduling (@pxref{local-backend} for the local backend).
+After interpretation, the @code{dict} is passed to the @code{backend} to be used in its scheduling (cf @pxref{local-backend} for the local backend).
 
 @section @code{stderr_len}
 
@@ -2179,7 +2182,7 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 This attribute has the same syntax as a resource, except that a @code{float} is accepted.
 If it is a @code{str}, it must be convertible to a float after interpretation.
 
-It is only used to estimate the ETA (@pxref{eta-estimation}).
+It is only used to estimate the ETA (cf @pxref{eta-estimation}).
 
 @section @code{n_tokens}
 
@@ -2198,7 +2201,7 @@ It is only used to estimate the ETA (@pxref{eta-estimation}).
 
 This attribute indicates to @lmake a quantity of abstract resources used to estimate the expected parallelism of jobs within this rule.
 
-It is only used to estimate the ETA (@pxref{eta-estimation}).
+It is only used to estimate the ETA (cf @pxref{eta-estimation}).
 
 @section @code{start_delay}
 
@@ -2240,7 +2243,7 @@ A job is killed when :
 The signals listed in this list are sent in turn, once every second. If the list is exhausted and the job is still alive, @code{KILLSIG}'s are sent, once per second.
 Longer interval can be obtained by inserting @code{0}'s. @code{0} signals are not sent and anyway, these would have no impact if they were.
 
-Note: some backends, such as Slurm when it is available, may have other means to manage timeouts. Both mechanisms will be usable.
+Note: some backends, such as Slurm, may have other means to manage timeouts. Both mechanisms will be usable.
 
 @section @code{n_retries}
 
@@ -2339,7 +2342,7 @@ It is also in charge of :
 
 A backend has to take decisions of 2 kinds :
 @itemize @minus
-@item Is a job eligible for running.
+@item Is a job eligible for running ?
 From a dependency perspective, the @lmake engine guarantees it is so.
 But the job needs some resources to run and these resources may already be busy because of some other jobs already running.
 @item If several jobs are eligible, which one(s) to actually launch.
@@ -2349,7 +2352,7 @@ Each backend is autonomous in its decisions and has its own algorithm to take th
 However, generally speaking, they more or less work by following the following principles :
 @itemize @minus
 @item For the first question, the backend maintain a pool of available resources and a job is eligible if its required resources can fit in the pool.
-When launched, the required resources are subracted from the pool and when terminated, they are returned to it.
+When launched, the required resources are subtracted from the pool and when terminated, they are returned to it.
 @item For the second question, each job has an associated pressure provided by the @lmake engine and the backend actually launches the eligible job with the highest pressure.
 @end itemize
 
@@ -2360,9 +2363,7 @@ To do that, future job ETE have to be estimated.
 For jobs that have already run, last successful execution time is used.
 When this information is not available, i.e. when the job has never run successfully, a moving average of the execution times of the jobs sharing the same rule is used as a best guess.
 
-The @lmake backend also provides the current ETA (@pxref{eta-estimation}) of the final targets to allow the backends from different repository to take the best collective decision.
-
-As of now, the only existing backend is the local backend, but a Slurm backend is scheduled shortly.
+The @lmake backend also provides the current ETA (cf @pxref{eta-estimation}) of the final targets to allow the backends from different repository to take the best collective decision.
 
 In addition to dedicated resources, all backends manage the following 3 resources :
 @itemize @minus
@@ -2401,7 +2402,53 @@ By default, the configuration contains the 2 generic resources : @code{cpu} and 
 @item @code{cpu} : The number of cpu as returned by @code{os.wched_getaffinity(0)}.
 @item @code{mem} : The physical memory size as returned by @code{s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')} in MB.
 @end itemize
-Each rule has a default @code{resources} attribute requiring @code{1} @code{cpu}.
+Each rule has a default @code{resources} attribute requiring one CPU.
+
+@anchor{slurm-backend}
+@section Slurm backend
+
+The slurm backend connects to a slurm daemon to schedule jobs, which allows :
+@itemize @minus
+@item a global schuduling policy (while the local backend only sees jobs in its own repository).
+@item the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
+@end itemize
+
+The configuration is composed of :
+@itemize @bullet
+@item @code{n_max_queue_jobs} : @lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
+This is done to decrease the load of the slurm daemon as @lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+(helped in this by the limited precision on CPU, memory and temporary disk space requirements).
+for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by @lmake so as to limit the number of waiting jobs in slurm queues
+(the number of running job is not limited, though).
+This attribute specifies the number of waiting jobs for each set of resources that @lmake may submit to slurm.
+If too low, the schedule rate may decrease because by the time taken, when a job finishes, for @lmake to submit a new job, slurm might have exhausted its waiting queue.
+If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
+A reasonable value probably lies in the 20-100 range.
+@item @code{use_nice} : @lmake has and advantage over slurm in terms of knowledge : it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time
+taken by each job.
+This allows it to anticipate the needs and know, even globally when numerous @lmake commands run, in the same repository or on several ones, which jobs should be given which priority.
+Note that @lmake cannot leverage the dependency capability of slurm as dependencies are dynamic by nature : new dependencies can appear during job execution, adding newedges to the dependency graph,
+jobs can have to rerun, so a dependent job may not be able to start when its dependency is done, and a job can be steady, so a dependent job may not have to run at all.
+
+The way it works is th following :
+@itemize @minus
+@item First @lmake computes and ETA for each @lmake command (cf @pxref{eta-estimation}. This ETA is a date, it is absolute, and can be compared between commands running in different repositories
+@item Then it computes a pressure for each job. The pressure is the time necessary to reach the asked target of the @lmake command given the run time for all intermediate jobs
+(including the considered job).
+@item The subtraction of the pressure from the ETA gives a reasonable and global estimate of when it is desirable to schedule a job, and hence can be used as a priority.
+@end itemize
+
+The way to communicate this information is to set for each job a nice value that represents this priority.
+Because this may interfere with other jobs submitted by other means, this mechanism is made optional,
+although it is much better than other scheduling policies based on blind guesses of the futur (such as fair-share, qos, etc.).
+
+@end itemize
+
+The @code{resources} rule attributes is composed of :
+@itemize @minus
+@item standard resources @code{cpu}, @code{mem} and @code{tmp}.
+@item @code{excludes} @code{feature}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
+@end itemize
 
 @anchor{autodep}
 @section Autodep

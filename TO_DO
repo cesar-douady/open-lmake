@@ -80,9 +80,6 @@ items :
 * implement noexcept/except everywhere pertinent
 * use the Path struct instead of at/file
 	- everywhere applicable
-* make a class GenericBackend
-	- as a base class for LocalBackend and SlurmBackend
-	- when slurm is installed so tests are possible
 * add a warning when ids reach 15/16 of their limits
 * get rid of double crc (md5+xxh)
 	- keep only xxh

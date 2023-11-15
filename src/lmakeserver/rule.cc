@@ -252,7 +252,7 @@ namespace Engine {
 				long sd = PyLong_AsLong(py_src) ;
 				if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
 				if ( sd<0                       )                   throw "underflow"s ;
-				dst = Time::Delay(double(sd)) ;
+				dst = Delay(sd) ;
 			} else if (PyUnicode_Check(py_src)) {
 				PyObject* f = PyFloat_FromString(py_src) ;
 				if (!f) throw "cannot convert to float"s ;

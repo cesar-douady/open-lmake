@@ -154,13 +154,12 @@ namespace Engine {
 	}
 
 	void EngineStore::_compile_rule_datas() {
-		::vector<Rule> rules   = rule_lst()                                             ;
-		RuleIdx        n_rules = ::max( +::max(rules) , RuleIdx(+Special::Shared) ) + 1 ;
-		rule_datas.clear() ; rule_datas.resize(n_rules) ;                                            // clearing before resize ensure all unused entries are clean
-		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) rule_datas[+s] = RuleData(s) ;
+		::vector<Rule> rules = rule_lst() ;
+		rule_datas.clear() ;                                                                              // clearing before resize ensure all unused entries are clean
+		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) grow(rule_datas,+s) = RuleData(s) ;
 		RuleData::s_name_sz = 0 ;
 		for( Rule r : rules ) {
-			rule_datas[+r] = r.str() ;
+			grow(rule_datas,+r) = r.str() ;
 			RuleData::s_name_sz = ::max( RuleData::s_name_sz , rule_datas[+r].name.size() ) ;
 		}
 	}

@@ -265,8 +265,12 @@ PyMODINIT_FUNC PyInit_clmake() {
 		try                     { _g_autodep_support.root_dir = search_root_dir().first ; }
 		catch (::string const&) { _g_autodep_support.root_dir = cwd()                   ; }
 	}
+	PyObject* backends_py = PyTuple_New(1+HAS_SLURM) ;                             // PER_BACKEND : add an entry here
+	/**/           PyTuple_SET_ITEM(backends_py,0,PyUnicode_FromString("local")) ;
+	if (HAS_SLURM) PyTuple_SET_ITEM(backends_py,1,PyUnicode_FromString("slurm")) ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_support.root_dir.c_str() ) ;
+	PyModule_AddObject        ( mod , "backends"       , backends_py                         ) ;
 	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False   ) ;
 	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True              ) ;
 	PyObject_SetAttrString    ( mod , "has_ptrace"     ,                Py_True              ) ;

@@ -5,43 +5,39 @@
 
 #include <sys/sysinfo.h>
 
-#include "core.hh"
+#include "generic.hh"
 
-// PER_BACKEND : there must be a file describing each backend
-
-// XXX : rework to maintain an ordered list of waiting_queues in ReqEntry to avoid walking through all rsrcs for each launched job
-
-using namespace Engine ;
+// PER_BACKEND : there must be a file describing each backend (providing the sub-backend class, deriving from GenericBackend if possible (simpler), else Backend)
 
 namespace Backends::Local {
 
-	struct LocalBackend ;
+	//
+	// resources
+	//
 
 	using Rsrc = uint32_t ;
-	struct Rsrc2 {
-		friend ::ostream& operator<<( ::ostream& os , Rsrc2 const& r2 ) {
-			return os << r2.min <<'<'<< r2.max ;
-		}
-		bool operator==(Rsrc2 const&) const = default ;
+	struct RsrcAsk {
+		friend ::ostream& operator<<( ::ostream& , RsrcAsk const& ) ;
+		bool operator==(RsrcAsk const&) const = default ;                      // XXX : why is this necessary ?
 		// data
-		Rsrc min ;
-		Rsrc max ;
+		Rsrc min = 0/*garbage*/ ;
+		Rsrc max = 0/*garbage*/ ;
 	} ;
 
 	struct RsrcsData : ::vector<Rsrc> {
 		// cxtors & casts
-		RsrcsData(                                        ) = default ;
-		RsrcsData( LocalBackend const& , ::vmap_ss const& ) ;
-		::vmap_ss mk_vmap(LocalBackend const&) const ;
+		RsrcsData(                                                 ) = default ;
+		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs ) ;
+		::vmap_ss mk_vmap(::vector_s const& keys) const ;
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] += rsrcs[i] ; return *this ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i=0 ; i<size() ; i++ ) (*this)[i] -= rsrcs[i] ; return *this ; }
 	} ;
 
-	struct RsrcsData2 : ::vector<Rsrc2> {
+	struct RsrcsDataAsk : ::vector<RsrcAsk> {
 		// cxtors & casts
-		RsrcsData2(                                        ) = default ;
-		RsrcsData2( LocalBackend const& , ::vmap_ss const& ) ;
+		RsrcsDataAsk(                                             ) = default ;
+		RsrcsDataAsk( ::vmap_ss && , ::umap_s<size_t> const& idxs ) ;
 		// services
 		bool fit_in(RsrcsData const& avail) const {                            // true if all resources fit within avail
 			SWEAR( size()==avail.size() , size() , avail.size() ) ;
@@ -59,137 +55,42 @@ namespace Backends::Local {
 
 namespace std {
 	template<> struct hash<Backends::Local::RsrcsData> {
-		using Rsrc = Backends::Local::Rsrc ;
-		size_t operator()(Backends::Local::RsrcsData const& r) const {         // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
-			size_t res = 0x811c9dc5 ;
-			for( Rsrc x : r ) res = (res^hash<Rsrc>()(x)) * 0x01000193 ;
-			return res ;
+		size_t operator()(Backends::Local::RsrcsData const& rs) const {
+			Hash::Xxh h ;
+			h.update(rs.size()) ;
+			for( auto r : rs ) h.update(r) ;
+			return +::move(h).digest() ;
 		}
 	} ;
-	template<> struct hash<Backends::Local::RsrcsData2> {
-		using Rsrc2 = Backends::Local::Rsrc2 ;
-		using Rsrc  = Backends::Local::Rsrc  ;
-		size_t operator()(Backends::Local::RsrcsData2 const& r2) const {       // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
-			size_t res = 0x811c9dc5 ;
-			for( Rsrc2 x2 : r2 ) {
-				res = (res^hash<Rsrc>()(x2.min)) * 0x01000193 ;
-				res = (res^hash<Rsrc>()(x2.max)) * 0x01000193 ;
+	template<> struct hash<Backends::Local::RsrcsDataAsk> {
+		size_t operator()(Backends::Local::RsrcsDataAsk const& rsa) const {
+			Hash::Xxh h ;
+			h.update(rsa.size()) ;
+			for( auto ra : rsa ) {
+				h.update(ra.min) ;
+				h.update(ra.max) ;
 			}
-			return res ;
+			return +::move(h).digest() ;
 		}
 	} ;
 }
 
-namespace Backends::Local {
-	// share actual resources data as we typically have a lot of jobs with the same resources
-	template< class Data , ::unsigned_integral Cnt > struct Shared {
-		friend ostream& operator<<( ostream& os , Shared const& s ) { return os<<*s ; }
-		// static data
-	private :
-		static ::umap<Data,Cnt> _s_store ;                                     // map rsrcs to count of pointers to it, always >0 (erased when reaching 0)
-		// cxtors & casts
-	public :
-		Shared() = default ;
-		//
-		Shared(Shared const& r) : data{r.data} { if (data) _s_store.at(*data)++ ; }
-		Shared(Shared      & r) : data{r.data} { if (data) _s_store.at(*data)++ ; }
-		Shared(Shared     && r) : data{r.data} { r.data = nullptr               ; }
-		//
-		template<class... A> Shared(A&&... args) {
-			Data d{::forward<A>(args)...} ;
-			auto it = _s_store.find(d) ;
-			if (it==_s_store.end()) it = _s_store.insert({d,1}).first ;
-			else                    it->second++ ;
-			data = &it->first ;
-		}
-		//
-		~Shared() {
-			if (!data) return ;
-			auto it = _s_store.find(*data) ;
-			SWEAR(it!=_s_store.end()) ;
-			if (it->second==1) _s_store.erase(it) ;
-			else               it->second--       ;
-		}
-		//
-		Shared& operator=(Shared const& r) { this->~Shared() ; new(this) Shared(       r ) ; return *this ; }
-		Shared& operator=(Shared     && r) { this->~Shared() ; new(this) Shared(::move(r)) ; return *this ; }
-		//
-		bool operator==(Shared const&) const = default ;
-		// access
-		Data const& operator* () const { return *data   ; }
-		Data const* operator->() const { return &**this ; }
-		// data
-		Data const* data = nullptr ;
-	} ;
-	template< class Data , ::unsigned_integral Cnt > ::umap<Data,Cnt> Shared<Data,Cnt>::_s_store ;
-
-	using Rsrcs  = Shared<RsrcsData ,JobIdx> ;
-	using Rsrcs2 = Shared<RsrcsData2,JobIdx> ;
-
-}
-
-namespace std {
-	template<> struct hash<Backends::Local::Rsrcs > { size_t operator()(Backends::Local::Rsrcs  const& r ) const { return hash<Backends::Local::RsrcsData  const*>()(r .data) ; } } ;
-	template<> struct hash<Backends::Local::Rsrcs2> { size_t operator()(Backends::Local::Rsrcs2 const& r2) const { return hash<Backends::Local::RsrcsData2 const*>()(r2.data) ; } } ;
-}
+//
+// LocalBackend
+//
 
 namespace Backends::Local {
 
 	constexpr Tag MyTag = Tag::Local ;
 
-	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_eta to reorder them upon need
-	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
-	struct LocalBackend : Backend {
+	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
 
-		struct WaitingEntry {
-			WaitingEntry() = default ;
-			WaitingEntry( Rsrcs2 const& rs2 , SubmitAttrs const& sa ) : rsrcs2{rs2} , n_reqs{1} , submit_attrs{sa} {}
-			// data
-			Rsrcs2      rsrcs2       ;
-			ReqIdx      n_reqs       = 0 ;                 // number of reqs waiting for this job
-			SubmitAttrs submit_attrs ;
-		} ;
-
-		struct RunningEntry {
-			Rsrcs  rsrcs   ;
-			pid_t  pid     = -1    ;
-			ReqIdx n_reqs  =  0    ;   // number of reqs waiting for this job to start
-			bool   started = false ;   // if true <=> start() has been called for this job
-		} ;
-
-		struct PressureEntry {
-			// services
-			bool              operator== (PressureEntry const&      ) const = default ;
-			::strong_ordering operator<=>(PressureEntry const& other) const {
-				if (pressure!=other.pressure) return other.pressure<=>pressure  ; // higher pressure first
-				else                          return job           <=>other.job ;
-			}
-			// data
-			CoarseDelay pressure ;
-			JobIdx      job      ;
-		} ;
-
-		struct ReqEntry {
-			ReqEntry(         ) = default ;
-			ReqEntry(JobIdx nj) : n_jobs{nj} {}
-			// service
-			void clear() {
-				waiting_queues.clear() ;
-				waiting_jobs  .clear() ;
-				starting_jobs .clear() ;
-			}
-			// data
-			::umap<Rsrcs2,set<PressureEntry>> waiting_queues ;
-			::umap<JobIdx,CoarseDelay       > waiting_jobs   ;
-			::uset<JobIdx                   > starting_jobs  ;
-			JobIdx                            n_jobs         = 0 ;             // manage -j option (no more than n_jobs can be launched on behalf of this req)
-		} ;
-
-		// init
 		static void _s_wait_thread_func( ::stop_token stop , LocalBackend* self ) {
 			Trace::t_key = 'W' ;
 			self->_wait_jobs(stop) ;
 		}
+
+		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
 			LocalBackend& self = *new LocalBackend ;
@@ -197,22 +98,20 @@ namespace Backends::Local {
 		}
 
 		// services
-		virtual bool is_local() const {
-			return true ;
-		}
+
 		virtual bool config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				rsrc_idxs[k] = rsrc_keys.size() ;
 				rsrc_keys.push_back(k) ;
 			}
-			capacity_ = RsrcsData( *this , config.dct ) ;
-			avail     = capacity_                       ;
+			capacity_ = RsrcsData( config.dct , rsrc_idxs ) ;
+			avail     = capacity_                           ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			Trace("config",MyTag,"capacity",'=',capacity_) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
-			return true;
+			return true ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;
@@ -220,214 +119,38 @@ namespace Backends::Local {
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ ) const {
 			return ::move(rsrcs) ;
 		}
-		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
-			SWEAR(!req_map.contains(req)) ;
-			req_map.insert({req,n_jobs}) ;
+		//
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa          ) const { return rsa. fit_in(capacity_)              ; }
+		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const& rsa          ) const { return rsa->fit_in(avail    )              ; }
+		virtual RsrcsData    adapt         ( RsrcsDataAsk const& rsa          ) const { return rsa. within(avail    )              ; }
+		virtual ::vmap_ss    export_       ( RsrcsData    const& rs           ) const { return rs.mk_vmap(rsrc_keys)               ; }
+		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
+		//
+		virtual ::pair_s<Bool3/*launch*/> start_job( JobIdx , SpawnedEntry const& e ) const {
+			return { to_string("pid:",e.id) , No/*launch*/ } ;
 		}
-		virtual void close_req(ReqIdx req) {
-			SWEAR(req_map.at(req).waiting_jobs .empty()) ;
-			SWEAR(req_map.at(req).starting_jobs.empty()) ;
-			req_map.erase(req) ;
-		}
-	private :
-		// adjust pressure to give a small boost to jobs that require more resources : use a logarithmic approach to ensure impact is limited
-		static CoarseDelay _adjust_pressure( CoarseDelay pressure , Rsrcs2 const& rsrcs2 ) {
-			static constexpr CoarseDelay::Val MaxVal = ::numeric_limits<CoarseDelay::Val>::max() ;
-			CoarseDelay::Val val = +pressure ;
-			for( Rsrc2 r2 : *rsrcs2 ) {
-				for( Rsrc r : {r2.min,r2.max} ) {
-					uint8_t  nb  = n_bits(r) ;                                 // convert r to a floating point format : 4 bits exponents, 4 bits mantissa
-					uint32_t inc = n_bits(r)<<4 ;
-					if (inc<256) inc |= nb>4 ? r>>(nb-4) : r<<(4-nb) ;         // manage overflow : infinity if it does not fit on 16 bits (should not occur in practice)
-					else         inc  = 256                          ;
-					if (val<=MaxVal-inc) val += inc    ;                       // manage overflow (should not occur in practice)
-					else                 val  = MaxVal ;
-				}
-			}
-			return CoarseDelay(val) ;
-		}
-	public :
-		// do not launch immediately to have a better view of which job should be launched first
-		virtual void submit( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
-			Rsrcs2 rs2 { *this , rsrcs } ;                                                                        // compile rsrcs
-			if (!rs2->fit_in(capacity_)) throw to_string("not enough resources to launch job ",Job(job).name()) ;
-			ReqEntry& entry = req_map.at(req) ;
-			SWEAR(!waiting_map       .contains(job)) ;                           // job must be a new one
-			SWEAR(!entry.waiting_jobs.contains(job)) ;                           // in particular for this req
-			CoarseDelay pressure = _adjust_pressure(submit_attrs.pressure,rs2) ;
-			Trace trace("submit","rsrs",rs2,"adjusted_pressure",pressure) ;
-			//
-			entry.waiting_jobs[job] = pressure             ;
-			waiting_map.emplace( job , WaitingEntry(rs2,submit_attrs) ) ;
-			entry.waiting_queues[rs2].insert({pressure,job}) ;
-		}
-		virtual void add_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
-			ReqEntry    & entry = req_map.at(req)       ;
-			auto          it    = waiting_map.find(job) ;
-			if (it==waiting_map.end()) return ;                                // job is not waiting anymore, ignore
-			WaitingEntry& we = it->second ;
-			SWEAR(!entry.waiting_jobs.contains(job)) ;                                 // job must be new for this req
-			CoarseDelay pressure = _adjust_pressure(submit_attrs.pressure,we.rsrcs2) ;
-			Trace trace("add_pressure","adjusted_pressure",pressure) ;
-			//
-			entry.waiting_jobs[job] = pressure ;
-			entry.waiting_queues[we.rsrcs2].insert({pressure,job}) ;           // job must be known
-			we.submit_attrs |= submit_attrs ;
-			we.n_reqs++ ;
-		}
-		virtual void set_pressure( JobIdx job , ReqIdx req , SubmitAttrs const& submit_attrs ) {
-			ReqEntry& entry = req_map.at(req)       ;                                            // req must be known to already know job
-			auto      it    = waiting_map.find(job) ;
-			//
-			if (it==waiting_map.end()) return ;                                                      // job is not waiting anymore, ignore
-			WaitingEntry        & we           = it->second                                        ;
-			CoarseDelay         & old_pressure = entry.waiting_jobs  .at(job      )                ; // job must be known
-			::set<PressureEntry>& q            = entry.waiting_queues.at(we.rsrcs2)                ; // including for this req
-			CoarseDelay           pressure     = _adjust_pressure(submit_attrs.pressure,we.rsrcs2) ;
-			Trace trace("set_pressure","adjusted_pressure",pressure) ;
-			we.submit_attrs |= submit_attrs ;
-			q.erase ({old_pressure,job}) ;
-			q.insert({pressure    ,job}) ;
-			old_pressure = pressure ;
-		}
-	private :
-		void _wait_job(RunningEntry const& re) {
-			avail += *re.rsrcs ;
-			_wait_queue.push(re.pid) ;                                         // defer wait in case job_exec process does some time consuming book-keeping
-		}
-	public :
-		virtual ::pair_s<uset<ReqIdx>> start(JobIdx job) {
-			::uset<ReqIdx> res ;
-			auto           it  = running_map.find(job) ;
-			if (it==running_map.end()) return {} ;                             // job was killed in the mean time
-			RunningEntry&  entry = it->second ;
-			for( auto& [r,re] : req_map ) if (re.starting_jobs.erase(job)) res.insert(r) ;
-			entry.started = true ;
-			entry.n_reqs  = 0    ;
-			return {to_string("pid:",entry.pid),res} ;
-		}
-		virtual ::string/*msg*/ end( JobIdx job , Status ) {
-			auto it = running_map.find(job) ;
-			if (it==running_map.end()) return {} ;                             // job was killed in the mean time
-			//vvvvvvvvvvvvvvvvvvv
-			_wait_job(it->second) ;
-			//^^^^^^^^^^^^^^^^^^^
+		virtual ::pair_s<Bool3/*launch*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
+			avail += *se.rsrcs ;
 			Trace trace("end","avail_rsrcs",'+',avail) ;
-			running_map.erase(it) ;
-			launch() ;
-			return {} ;
+			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},Yes/*launch*/} ;
 		}
-		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx j) {                    // called on jobs that did not start after at least newwork_delay time
-			auto          it    = running_map.find(j) ;
-			RunningEntry& entry = it->second          ;
-			pid_t         pid   = entry.pid           ;
-			SWEAR(!entry.started) ;                                            // we should not be called on started jobs
-			Trace trace("vanished",j,pid) ;
-			kill_process(pid,SIGKILL) ;                                        // job has had time to start and did not, kill job_exec
-			_wait_job(entry) ;
-			running_map.erase(it) ;
-			launch() ;
+		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
+			kill_queued_job(j,se) ;                                                                     // ensure job_exec is dead or will die shortly
 			return {"vanished",Maybe/*ok*/} ;
 		}
-		// kill all if req==0
-		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {
-			::uset<JobIdx> res ;
-			auto           it  = req_map.find(req) ;
-			if ( req && it==req_map.end() ) return {} ;
-			Trace trace("kill_req",MyTag,req) ;
-			if ( !req || req_map.size()==1 ) {                                 // fast path if req_map.size()==1
-				for( auto const& [j,we] : waiting_map ) res.insert(j) ;
-				for( auto const& [j,re] : running_map ) {
-					//                                 vvvvvvvvvvvvvvvvvvvvvvvvv
-					if (!re.started) { res.insert(j) ; kill_group(re.pid,SIGHUP) ; } // if started, not our responsibility to kill it
-					/**/                               _wait_job(re) ;               // but we still must wait for process, defer in case job_exec process does some time consuming book-keeping
-					//                                 ^^^^^^^^^^^^^
-					if (!re.started) trace("killed",re.pid,"avail_rsrcs",'+',avail) ;
-					else             trace(                "avail_rsrcs",'+',avail) ;
-				}
-				for( auto& [r,re] : req_map ) re.clear() ;
-				waiting_map.clear() ;
-				running_map.clear() ;
-			} else {
-				ReqEntry& req_entry = it->second ;
-				for( auto const& [j,je] : req_entry.waiting_jobs ) {
-					WaitingEntry& we = waiting_map.at(j) ;
-					if (we.n_reqs==1) { waiting_map.erase(j) ; res.insert(j) ; }
-					else              { we.n_reqs--          ;                 }
-				}
-				for( JobIdx j : req_entry.starting_jobs ) {
-					RunningEntry& re = running_map.at(j) ;
-					SWEAR(!re.started) ;                                       // when job starts, it is not in starting_jobs any more
-					if (--re.n_reqs) continue ;
-					res.insert(j) ;
-					SWEAR( re.pid>1 , re.pid ) ;                               // values -1, or 1 are unexpected
-					//vvvvvvvvvvvvvvvvvvvvvvv
-					kill_group(re.pid,SIGHUP) ;
-					_wait_job(re) ;
-					//^^^^^^^^^^^^^
-					trace("killed",re.pid,"avail_rsrcs",'+',avail) ;
-					running_map.erase(j) ;
-				}
-				req_entry.clear() ;
-			}
-			return res ;
+		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
+			kill_process(se.id,SIGHUP) ;                                        // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;                                           // defer wait in case job_exec process does some time consuming book-keeping
 		}
-		void launch() {
-			Trace trace("launch",MyTag) ;
-			for( Req req : Req::s_reqs_by_eta() ) {
-				auto req_it = req_map.find(+req) ;
-				if (req_it==req_map.end()) continue ;
-				JobIdx n_jobs = req_it->second.n_jobs ;
-				::umap<Rsrcs2,set<PressureEntry>>& queues = req_it->second.waiting_queues ;
-				for(;;) {
-					if ( n_jobs && running_map.size()>=n_jobs ) break ;        // cannot have more than n_jobs running jobs because of this req
-					auto candidate = queues.end() ;
-					for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {
-						SWEAR(!it->second.empty()) ;
-						if ( candidate!=queues.end() && it->second.begin()->pressure<=candidate->second.begin()->pressure ) continue ;
-						if ( !it->first->fit_in(avail)                                                                    ) continue ;
-						candidate = it ;                                       // found a candidate, continue to see if we can find one with a higher pressure
-					}
-					if (candidate==queues.end()) break ;                       // nothing for this req, process next req
-					//
-					::set<PressureEntry>& pressure_set   = candidate->second     ;
-					auto                  pressure_first = pressure_set.begin()  ;
-					JobIdx                job            = pressure_first->job   ;
-					auto                  wit            = waiting_map.find(job) ;
-					Rsrcs2 const&         rsrcs2         = candidate->first      ;
-					Rsrcs                 rsrcs          = rsrcs2->within(avail) ;
-					//
-					::vector_s cmd_line = acquire_cmd_line( MyTag , job , rsrcs->mk_vmap(*this) , wit->second.submit_attrs ) ;
-					//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					Child child { false/*as_group*/ , cmd_line , Child::None , Child::None } ;
-					//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("child",req,job,pressure_first->pressure,child.pid,cmd_line) ;
-					avail -= *rsrcs ;
-					trace("avail_rsrcs",'-',avail) ;
-					{	auto wit = waiting_map.find(job) ;
-						running_map[job] = { rsrcs , child.pid , wit->second.n_reqs } ;
-						waiting_map.erase(wit) ;
-					}
-					child.mk_daemon() ;                                        // we have recorded the pid to wait and there is no fd to close
-					//
-					for( auto& [r,re] : req_map ) {
-						if (r!=+req) {
-							auto wit1 = re.waiting_jobs.find(job) ;
-							if (wit1==re.waiting_jobs.end()) continue ;        // ignore req if it did not ask for this job
-							auto wit2 = re.waiting_queues.find(rsrcs2) ;
-							::set<PressureEntry>& pes = wit2->second ;
-							PressureEntry         pe  { wit1->second , job } ; // /!\ pressure is job's pressure for r, not for req
-							SWEAR(pes.contains(pe)) ;
-							if (pes.size()==1) re.waiting_queues.erase(wit2) ; // last entry for this rsrcs, erase the entire queue
-							else               pes              .erase(pe  ) ;
-						}
-						re.waiting_jobs .erase (job) ;
-						re.starting_jobs.insert(job) ;
-					}
-					if (pressure_set.size()==1) queues      .erase(candidate     ) ; // last entry for this rsrcs, erase the entire queue
-					else                        pressure_set.erase(pressure_first) ;
-				}
-			}
+		virtual pid_t launch_job( JobIdx , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rsrcs , bool /*verbose*/ ) const {
+			Child child { true/*as_group*/ , cmd_line , Child::None , Child::None } ;
+			pid_t pid = child.pid ;
+			child.mk_daemon() ;                                                // we have recorded the pid to wait and there is no fd to close
+			if (pid<0) throw "cannot spawn process"s ;
+			avail -= *rsrcs ;
+			Trace trace("avail_rsrcs",'-',avail) ;
+			return pid ;
 		}
 
 	private :
@@ -444,57 +167,55 @@ namespace Backends::Local {
 
 		// data
 	public :
-		::umap<ReqIdx,ReqEntry    > req_map         ;
-		::umap<JobIdx,WaitingEntry> waiting_map     ;
-		::umap<JobIdx,RunningEntry> running_map     ;
-		::umap_s<size_t>            rsrc_idxs       ;
-		::vector_s                  rsrc_keys       ;
-		RsrcsData                   capacity_       ;
-		RsrcsData                   avail           ;
-		::vmap_s<size_t>            public_capacity ;
+		::umap_s<size_t>  rsrc_idxs       ;
+		::vector_s        rsrc_keys       ;
+		RsrcsData         capacity_       ;
+		RsrcsData mutable avail           ;
+		::vmap_s<size_t>  public_capacity ;
 	private :
-		ThreadQueue<pid_t> _wait_queue ;
+		ThreadQueue<pid_t> mutable _wait_queue ;
 
 	} ;
 
 	bool _inited = (LocalBackend::s_init(),true) ;
 
-	static inline Rsrc from_string_rsrc( ::string const& k , ::string const& v ) {
-		if ( k=="mem" || k=="tmp" ) return from_string_with_units<'M',Rsrc>(v) ;
-		else                        return from_string_with_units<    Rsrc>(v) ;
+	::ostream& operator<<( ::ostream& os , RsrcAsk const& ra ) {
+		return os << ra.min <<'<'<< ra.max ;
 	}
-	inline RsrcsData::RsrcsData( LocalBackend const& self , ::vmap_ss const& m ) {
-		resize(self.rsrc_keys.size()) ;
+
+	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs ) {
+		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
-			auto it = self.rsrc_idxs.find(k) ;
-			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+			auto it = idxs.find(k) ;
+			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        { (*this)[it->second] = from_string_rsrc(k,v) ;                       }
-			catch(...) { throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()) ; }
+			try        { (*this)[it->second] = from_string_rsrc<Rsrc>(k,v) ;                                     }
+			catch(...) { throw to_string("cannot convert resource ",k," from ",v," to a ",typeid(Rsrc).name()) ; }
 		}
 	}
-	inline RsrcsData2::RsrcsData2( LocalBackend const& self , ::vmap_ss const& m ) {
-		resize(self.rsrc_keys.size()) ;
-		for( auto const& [k,v] : m ) {
-			auto it = self.rsrc_idxs.find(k) ;
-			if (it==self.rsrc_idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+
+	inline RsrcsDataAsk::RsrcsDataAsk( ::vmap_ss && m , ::umap_s<size_t> const& idxs ) {
+		resize(idxs.size()) ;
+		for( auto && [k,v] : ::move(m) ) {
+			auto it = idxs.find(k) ;
+			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			Rsrc2& entry = (*this)[it->second] ;
+			RsrcAsk& entry = (*this)[it->second] ;
 			try {
 				size_t pos = v.find('<') ;
-				if (pos==Npos) { entry.min = from_string_rsrc(k,v              ) ; entry.max = entry.min                           ; }
-				else           { entry.min = from_string_rsrc(k,v.substr(0,pos)) ; entry.max = from_string_rsrc(k,v.substr(pos+1)) ; }
+				if (pos==Npos) { entry.min = from_string_rsrc<Rsrc>(k,::move(v)      ) ; entry.max = entry.min                                 ; }
+				else           { entry.min = from_string_rsrc<Rsrc>(k,v.substr(0,pos)) ; entry.max = from_string_rsrc<Rsrc>(k,v.substr(pos+1)) ; }
 			} catch(...) {
 				throw to_string("cannot convert ",v," to a ",typeid(Rsrc).name()," nor a min/max pair separated by <") ;
 			}
 		}
 	}
 
-	::vmap_ss RsrcsData::mk_vmap(LocalBackend const& self) const {
-		::vmap_ss res ; res.reserve(self.rsrc_keys.size()) ;
-		for( size_t i=0 ; i<self.rsrc_keys.size() ; i++ ) {
+	::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
+		::vmap_ss res ; res.reserve(keys.size()) ;
+		for( size_t i=0 ; i<keys.size() ; i++ ) {
 			if (!(*this)[i]) continue ;
-			::string const& key = self.rsrc_keys[i] ;
+			::string const& key = keys[i] ;
 			if ( key=="mem" || key=="tmp" ) res.emplace_back( key , to_string((*this)[i],'M') ) ;
 			else                            res.emplace_back( key , to_string((*this)[i]    ) ) ;
 		}

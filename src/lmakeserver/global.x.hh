@@ -83,8 +83,6 @@ namespace Engine {
 		size_t minor ;
 	} ;
 
-	extern ::atomic<bool> g_backends_ready[+BackendTag::N] ;
-
 	struct Config {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 

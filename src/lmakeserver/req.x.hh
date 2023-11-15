@@ -119,7 +119,6 @@ namespace Engine {
 		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
 		Time::Pdate start                  ;
-		Time::Pdate eta                    ;
 		Time::Delay jobs_time[2/*useful*/] ;
 	private :
 		JobIdx _cur  [+JobLvl::Done+1-(+JobLvl::None+1)] = {} ;
@@ -292,6 +291,7 @@ namespace Engine {
 		ReqOptions           options        ;
 		Ddate                start          ;
 		Delay                ete            ;              // Estimated Time Enroute
+		Pdate                eta            ;              // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;              // number of jobs participating to stats.ete with exec_time from rule
 		::umap<Job ,JobIdx > frozens        ;              // frozen     jobs  to report in summary             (value is just for summary ordering purpose)
 		::umap<Node,NodeIdx> no_triggers    ;              // no-trigger nodes to report in summary             (value is just for summary ordering purpose)

@@ -16,28 +16,37 @@
 
 namespace Time {
 
-	struct Delay ;
-	struct Date  ;
-	struct Ddate ;
-	struct Pdate ;
+	struct Delay       ;
+	struct CoarseDelay ;
+	struct Date        ;
+	struct Ddate       ;
+	struct Pdate       ;
 	template<class T> requires(IsOneOf<T,int64_t,uint64_t>) struct TimeBase ;
 
 	template<class T> requires(IsOneOf<T,int64_t,uint64_t>) struct TimeBase {
-		static constexpr T    TicksPerSecond = 1'000'000'000l     ;
-		static constexpr bool IsUnsigned     = ::is_unsigned_v<T> ;
+		friend CoarseDelay ;
+		static constexpr T    TicksPerSecond = 1'000'000'000l                 ; // if modified some methods have to be rewritten, as indicated by static asserts
+		static constexpr bool IsUnsigned     = ::is_unsigned_v<T>             ;
+		static constexpr bool IsNs           = TicksPerSecond==1'000'000'000l ;
 		//
 		using Tick     = T                                            ;
 		using T32      = ::conditional_t<IsUnsigned,uint32_t,int32_t> ;
 		using TimeSpec = struct ::timespec                            ;
 		using TimeVal  = struct ::timeval                             ;
 		// cxtors & casts
-		constexpr          TimeBase(                  ) = default ;
-		constexpr explicit TimeBase(T               v ) : _val( v                                          ) {}
-		constexpr explicit TimeBase(double          v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(float           v ) : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(TimeSpec const& ts) : _val( ts.tv_sec*TicksPerSecond + ts.tv_nsec      ) { static_assert(TicksPerSecond==1'000'000'000l) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
-		constexpr explicit TimeBase(TimeVal  const& tv) : _val( tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 ) { static_assert(TicksPerSecond==1'000'000'000l) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
+		constexpr          TimeBase(                  )                      = default ;
+		constexpr explicit TimeBase(int             v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(long            v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(unsigned int    v ) requires(IsUnsigned) : _val( v*TicksPerSecond                           ) {                                     }
+		constexpr explicit TimeBase(unsigned long   v ) requires(IsUnsigned) : _val( v*TicksPerSecond                           ) {                                     }
+		constexpr explicit TimeBase(double          v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(float           v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val( ts.tv_sec*TicksPerSecond + ts.tv_nsec      ) { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
+		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val( tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 ) { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
+	protected :
+		constexpr explicit TimeBase(NewType,T       v ) : _val( v                                          ) {}
 		//
+	public :
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
 		constexpr explicit operator T       () const {                                                       return _val                        ; }
 		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
@@ -46,13 +55,13 @@ namespace Time {
 		constexpr T    operator+() const { return  _val ; }
 		constexpr bool operator!() const { return !_val ; }
 		//
-		constexpr T   sec      () const {                                                 return _val/TicksPerSecond   ; }
-		constexpr T   nsec     () const { static_assert(TicksPerSecond==1'000'000'000l) ; return _val                  ; }
-		constexpr T32 nsec_in_s() const { static_assert(TicksPerSecond==1'000'000'000l) ; return _val%TicksPerSecond   ; }
-		constexpr T   usec     () const {                                                 return nsec     ()/1000      ; }
-		constexpr T32 usec_in_s() const {                                                 return nsec_in_s()/1000      ; }
-		constexpr T   msec     () const {                                                 return nsec     ()/1000'000l ; }
-		constexpr T32 msec_in_s() const {                                                 return nsec_in_s()/1000'000  ; }
+		constexpr T   sec      () const {                       return _val/TicksPerSecond   ; }
+		constexpr T   nsec     () const { static_assert(IsNs) ; return _val                  ; }
+		constexpr T32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond   ; }
+		constexpr T   usec     () const {                       return nsec     ()/1000      ; }
+		constexpr T32 usec_in_s() const {                       return nsec_in_s()/1000      ; }
+		constexpr T   msec     () const {                       return nsec     ()/1000'000l ; }
+		constexpr T32 msec_in_s() const {                       return nsec_in_s()/1000'000  ; }
 		//
 		void clear() { _val = 0 ; }
 		// data
@@ -78,10 +87,10 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Delay  operator+ (Delay other) const {                         return Delay(_val+other._val) ; }
-		constexpr Delay  operator- (Delay other) const {                         return Delay(_val-other._val) ; }
-		constexpr Delay& operator+=(Delay other)       { *this = *this + other ; return *this                  ; }
-		constexpr Delay& operator-=(Delay other)       { *this = *this - other ; return *this                  ; }
+		constexpr Delay  operator+ (Delay other) const {                         return Delay(New,_val+other._val) ; }
+		constexpr Delay  operator- (Delay other) const {                         return Delay(New,_val-other._val) ; }
+		constexpr Delay& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
+		constexpr Delay& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
 		constexpr Date   operator+ (Date       ) const ;
 		//
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay  operator* (T f) const ;
@@ -124,7 +133,7 @@ namespace Time {
 		explicit constexpr CoarseDelay(Val v) : _val(v) {}
 		constexpr operator Delay() const {
 			if (!_val) return Delay() ;
-			else       return Delay(int64_t(::expf(float(_val+Scale)/(1<<Mantissa)))) ;
+			else       return Delay(New,int64_t(::expf(float(_val+Scale)/(1<<Mantissa)))) ;
 		}
 		constexpr explicit operator double() const { return double(Delay(*this)) ; }
 		constexpr explicit operator float () const { return float (Delay(*this)) ; }
@@ -153,12 +162,13 @@ namespace Time {
 		static const Date None ;
 		// cxtors & casts
 		using Base::Base ;
+		Date(::string_view const&) ;                                           // read a reasonable approximation of ISO8601
 		// services
 		using Base::operator+ ;
-		constexpr Date  operator+ (Delay other) const {                         return Date(_val+other._val) ; }
-		constexpr Date  operator- (Delay other) const {                         return Date(_val-other._val) ; }
-		constexpr Date& operator+=(Delay other)       { *this = *this + other ; return *this                 ; }
-		constexpr Date& operator-=(Delay other)       { *this = *this - other ; return *this                 ; }
+		constexpr Date  operator+ (Delay other) const {                         return Date(New,_val+other._val) ; }
+		constexpr Date  operator- (Delay other) const {                         return Date(New,_val-other._val) ; }
+		constexpr Date& operator+=(Delay other)       { *this = *this + other ; return *this                     ; }
+		constexpr Date& operator-=(Delay other)       { *this = *this - other ; return *this                     ; }
 		//
 		::string str( uint8_t prec=0 , bool in_day=false ) const ;
 	} ;
@@ -186,10 +196,10 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Pdate  operator+ (Delay other) const {                         return Pdate(_val+other._val) ; }
-		constexpr Pdate  operator- (Delay other) const {                         return Pdate(_val-other._val) ; }
-		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                  ; }
-		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                  ; }
+		constexpr Pdate  operator+ (Delay other) const {                         return Pdate(New,_val+other._val) ; }
+		constexpr Pdate  operator- (Delay other) const {                         return Pdate(New,_val-other._val) ; }
+		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                       ; }
+		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                       ; }
 		constexpr Delay  operator- (Pdate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
@@ -217,10 +227,10 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Ddate const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Ddate  operator+ (Delay other) const {                         return Ddate(_val+other._val) ; }
-		constexpr Ddate  operator- (Delay other) const {                         return Ddate(_val-other._val) ; }
-		constexpr Ddate& operator+=(Delay other)       { *this = *this + other ; return *this                  ; }
-		constexpr Ddate& operator-=(Delay other)       { *this = *this - other ; return *this                  ; }
+		constexpr Ddate  operator+ (Delay other) const {                         return Ddate(New,_val+other._val) ; }
+		constexpr Ddate  operator- (Delay other) const {                         return Ddate(New,_val-other._val) ; }
+		constexpr Ddate& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
+		constexpr Ddate& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
 		constexpr Delay  operator- (Ddate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
@@ -235,7 +245,7 @@ namespace Time {
 	// Delay
 	//
 	inline constexpr Date Delay::operator+(Date d) const {
-		return Date(_val+d._val) ;
+		return Date(New,_val+d._val) ;
 	}
 	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) {
 		if (sleep<=Delay()) return !tkn.stop_requested() ;
@@ -253,21 +263,21 @@ namespace Time {
 		TimeSpec ts(*this) ;
 		::nanosleep(&ts,nullptr) ;
 	}
-	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator*(T f) const { return Delay(int64_t(_val*                   f )) ; }
-	template<class T> requires(::is_signed_v    <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(int64_t(_val/                   f )) ; }
-	template<class T> requires(::is_unsigned_v  <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(int64_t(_val/::make_signed_t<T>(f))) ; }
+	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
+	template<class T> requires(::is_signed_v    <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/                   f )) ; }
+	template<class T> requires(::is_unsigned_v  <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/::make_signed_t<T>(f))) ; }
 
 	//
 	// Date
 	//
-	constexpr Date Date::None  {uint64_t( 0)} ;
+	constexpr Date Date::None { New , uint64_t(0) } ;
 	inline Pdate Pdate::s_now() {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;
 		return Pdate(now) ;
 	}
-	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(int64_t(_val-other._val)) ; }
-	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(int64_t(_val-other._val)) ; }
+	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,int64_t(_val-other._val)) ; }
+	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,int64_t(_val-other._val)) ; }
 	//
 	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
 	inline void          Pdate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }

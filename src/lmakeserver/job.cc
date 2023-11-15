@@ -1355,6 +1355,7 @@ namespace Engine {
 		size_t   i          ;
 		::string res        ;
 		switch (tag) {
+			case AncillaryTag::Backend : res = AdminDir                 + "/backend"s      ; break ;
 			case AncillaryTag::Data    : res = g_config.local_admin_dir + "/job_data"      ; break ;
 			case AncillaryTag::Dbg     : res = AdminDir                 + "/debug"s        ; break ;
 			case AncillaryTag::KeepTmp : res = AdminDir                 + "/job_keep_tmp"s ; break ;

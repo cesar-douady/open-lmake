@@ -134,7 +134,7 @@ namespace Backends {
 		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // add a new req for an already submitted job
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
-		virtual void                   launch   (             ) {                                 } // called to trigger launch of waiting jobs
+		virtual void                   launch   (             ) = 0 ;                               // called to trigger launch of waiting jobs
 		virtual ::pair_s<uset<ReqIdx>> start    (JobIdx       ) = 0 ;                               // tell sub-backend job started, return an informative message and reqs for which job runs for
 		virtual ::string               end      (JobIdx,Status) { return {}                     ; } // tell sub-backend job ended  , return a message such as the stdout/stderr from slurm
 		virtual ::pair_s<Bool3/*ok*/>  heartbeat(JobIdx       ) { return {{},Yes}               ; } // regularly called between launch and start, Yes => ok, Maybe => job lost, No => job error reported

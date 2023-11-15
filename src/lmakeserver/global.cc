@@ -68,12 +68,12 @@ namespace Engine {
 	}
 
 	Config::Backend::Backend( Py::Mapping const& py_map , bool is_local ) : configured{true} {
-		::string field   ;
+		::string field ;
 		try {
 			bool found_addr = false ;
 			for( auto const& [py_k,py_v] : Py::Mapping(py_map) ) {
 				field = Py::String(py_k) ;
-				::string v = py_v.str() ;
+				::string v = py_v.ptr()==Py_True ? "1"s : py_v.ptr()==Py_False ? "0"s : ::string(py_v.str()) ;
 				if (field=="interface") {
 					if (is_local) throw "interface is not supported for local backends"s ;
 					found_addr = true ;

@@ -136,7 +136,8 @@ PYTHON_LD_LIBRARY_PATH := $(shell awk '$$2=="PYTHON_LD_LIBRARY_PATH" { print sub
 SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lresolv)
 
 # Engine
-ENGINE_LIB := $(SRC)/lmakeserver
+ENGINE_LIB  := $(SRC)/lmakeserver
+BACKEND_LIB := $(ENGINE_LIB)/backends
 
 # LMAKE
 LMAKE_SERVER_FILES = \
@@ -302,16 +303,31 @@ SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash 
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                              )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                 )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x          )
+BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                            )
 
-ALL_TOP_H    := sys_config.h $(SLIB_H) $(AUTODEP_H) $(PYCXX).install.stamp ext/xxhash.patched.h
-ALL_ENGINE_H := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
+ALL_H         := sys_config.h $(PYCXX).install.stamp ext/xxhash.patched.h
+ALL_TOP_H     := $(ALL_H) $(SLIB_H) $(AUTODEP_H)
+ALL_ENGINE_H  := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
+ALL_BACKEND_H := $(ALL_TOP_H) $(ENGINE_H) $(BACKEND_H)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-INCLUDES := -I $(SRC) -I $(ENGINE_LIB) -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) -I. -idirafter /usr/include/linux
-%.san.i : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS) $(SAN_FLAGS)              $(INCLUDES) -o $@ $<
-%.san.o : %.cc $(ALL_ENGINE_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
-%.i     : %.cc $(ALL_ENGINE_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
-%.o     : %.cc $(ALL_ENGINE_H) ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
+INCLUDES := -I ext -I $(PYTHON_INCLUDE_DIR) -I $(PYCXX_INCLUDE_DIR) -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
+
+$(BACKEND_LIB)/%.san.o : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
+$(BACKEND_LIB)/%.i     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
+$(BACKEND_LIB)/%.o     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
+
+$(ENGINE_LIB)/%.san.o  : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
+$(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
+$(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
+
+$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
+$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
+$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
+
+%.san.o                : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
+%.i                    : %.cc                $(ALL_H)         ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
+%.o                    : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
 
 #
 # lmake

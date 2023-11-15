@@ -15,7 +15,14 @@ from subprocess import run,DEVNULL,STDOUT
 gcc = os.environ.get('CC','gcc')
 
 import lmake
-from lmake import AntiRule,Rule,config
+from lmake import AntiRule,Rule,config,pdict
+
+backend = 'slurm' if 'slurm' in lmake.backends else 'local'
+
+
+lmake.config.backends.slurm = {
+	'use_nice' : True
+}
 
 lmake.config.caches.dir = {
 	'tag'  : 'dir'
@@ -52,7 +59,9 @@ class BaseRule(Rule) :
 	,	'Base' : r'[^/]+'
 	,	'Ext'  : r'[^/]+'
 	}
-	resources   = { 'mem' : 100 }      # in MB
+	backend     = backend
+	resources   = { 'mem' : '100M' }
+	n_retries   = 1
 	start_delay = 2
 	n_tokens    = config.backends.local.cpu
 
@@ -226,11 +235,10 @@ for ext,basic_opts in basic_opts_tab.items() :
 			for k,v in os.environ.items() : print(f'{k}={v}')
 			print(' '.join(cmd_line))
 			run( cmd_line , check=True )
-		n_tokens = config.backends.local.cc
-		resources = {
-			'mem' : 500                                                        # in MB
-		,	'cc'  : 1
-		}
+		n_tokens  = config.backends.local.cc
+		resources = pdict()
+		if True             : resources.mem = '500M'
+		if backend=='local' : resources.cc  = 1
 
 class GccRule(Centos7Rule) :
 	combine       = ('pre_opts','rev_post_opts')
