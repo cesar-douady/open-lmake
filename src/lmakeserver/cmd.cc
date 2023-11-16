@@ -342,7 +342,7 @@ namespace Engine {
 		OFStream(cmd_file   ) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ;  // .
 		//
 		::vector<Node>    jts   ;
-		Rule::SimpleMatch match = job->simple_match() ;                               // match holds static target names
+		Rule::SimpleMatch match = job->simple_match() ;                              // match holds static target names
 		for( ::string const& tn : match.static_targets() ) jts.push_back(Node(tn)) ;
 		for( Node t             : job->star_targets      ) jts.push_back(     t  ) ;
 		Node::s_manual_oks(true/*add*/,jts) ;

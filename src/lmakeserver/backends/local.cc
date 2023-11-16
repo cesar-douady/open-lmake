@@ -99,7 +99,7 @@ namespace Backends::Local {
 
 		// services
 
-		virtual bool config(Config::Backend const& config) {
+		virtual bool/*ok*/ config(Config::Backend const& config) {
 			for( auto const& [k,v] : config.dct ) {
 				rsrc_idxs[k] = rsrc_keys.size() ;
 				rsrc_keys.push_back(k) ;
@@ -126,14 +126,14 @@ namespace Backends::Local {
 		virtual ::vmap_ss    export_       ( RsrcsData    const& rs           ) const { return rs.mk_vmap(rsrc_keys)               ; }
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
 		//
-		virtual ::pair_s<Bool3/*launch*/> start_job( JobIdx , SpawnedEntry const& e ) const {
-			return { to_string("pid:",e.id) , No/*launch*/ } ;
+		virtual ::pair_s<Bool3/*call_launch*/> start_job( JobIdx , SpawnedEntry const& e ) const {
+			return { to_string("pid:",e.id) , No/*call_launch*/ } ;
 		}
-		virtual ::pair_s<Bool3/*launch*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
+		virtual ::pair_s<Bool3/*call_launch*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
 			avail += *se.rsrcs ;
 			Trace trace("end","avail_rsrcs",'+',avail) ;
 			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},Yes/*launch*/} ;
+			return {{},Yes/*call_launch*/} ;
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			kill_queued_job(j,se) ;                                                                     // ensure job_exec is dead or will die shortly

@@ -122,8 +122,8 @@ namespace Backends {
 	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool is_local(                      ) const { return true ; }
-		virtual bool config  (Config::Backend const&)       { return true ; }
+		virtual bool       is_local(                      ) const { return true ; }
+		virtual bool/*ok*/ config  (Config::Backend const&)       { return true ; }
 		//
 		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}    // called before any operation on req , n_jobs is the maximum number of jobs that can be launched (lmake -j option)
 		virtual void           new_req_eta( ReqIdx                       ) {}    // inform backend that req has a new eta, which may change job priorities

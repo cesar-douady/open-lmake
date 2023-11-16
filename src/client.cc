@@ -50,7 +50,14 @@ static void connect_to_server(bool refresh) {
 		trace("try_new",i) ;
 		// try to launch a new server
 		// server calls ::setpgid(0,0) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
-		Child server{ false/*as_group*/ , {*g_lmake_dir+"/_bin/lmakeserver","-d"/*no_daemon*/,refresh?"--"/*nop*/:"-r"/*no_refresh*/} , Child::Pipe , Child::Pipe } ;
+		::vector_s cmd_line = {
+			*g_lmake_dir+"/_bin/lmakeserver"
+		,	"-d"/*no_daemon*/
+		,	"-c"+*g_startup_dir_s
+		} ;
+		if (!refresh) cmd_line.push_back("-r"/*no_refresh*/) ;
+		/**/          cmd_line.push_back("--"              ) ;                     // ensure no further option processing in case a file starts with a -
+		Child server{ false/*as_group*/ , cmd_line , Child::Pipe , Child::Pipe } ;
 		//
 		if (server_ok(server.stdout,"new")) {
 			g_server_fds = AutoCloseFdPair{ server.stdout , server.stdin } ;
@@ -137,8 +144,8 @@ Restore :
 Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {
 	Trace trace("out_proc") ;
 	//
-	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can only make a single job"             ) ;
-	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule when making a job") ;
+	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
+	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
 	//
 	ReqRpcReq rrr{ proc , cmd_line.files() , { is_reverse_video(Fd::Stdin,Fd::Stdout) , cmd_line } } ;
 	connect_to_server(refresh) ;

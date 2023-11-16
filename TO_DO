@@ -21,6 +21,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* clean job tmp dir's when server exists
 * support hard links
 	- put exec bit in Ddate
 		- and use mtime instead of ctime

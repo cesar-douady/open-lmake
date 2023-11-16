@@ -11,10 +11,10 @@ namespace Engine {
 
 	struct Makefiles {
 		// statics
-		static void                          s_refresh_makefiles( bool chk, bool refresh ) ;
-		static ::string/*reason to re-read*/ s_chk_makefiles    (                        ) { Time::Ddate _ ; return _s_chk_makefiles(_) ; }
+		static void                          s_refresh_makefiles( bool chk, bool refresh        ) ;
+		static ::string/*reason to re-read*/ s_chk_makefiles    ( ::string const& startup_dir_s ) { Time::Ddate _ ; return _s_chk_makefiles(_,startup_dir_s) ; } // startup dir for diag purpose only
 	private :
-		static ::string/*reason to re-read*/ _s_chk_makefiles(Time::Ddate& latest_makefile/*output*/) ;
+		static ::string/*reason to re-read*/ _s_chk_makefiles( Time::Ddate& latest_makefile/*output*/ , ::string const& startup_dir_s ) ;                        // .
 		// static data
 	public :
 		static ::string s_makefiles    ;                   // file that contains makefiles read while reading Lmakefiles.py

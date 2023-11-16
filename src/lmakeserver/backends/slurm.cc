@@ -12,6 +12,8 @@
 
 #include "generic.hh"
 
+using namespace Disk ;
+
 namespace Backends::Slurm {
 
 	//
@@ -76,15 +78,17 @@ namespace Backends::Slurm {
 
 	using p_cxxopts = ::unique_ptr<cxxopts::Options> ;
 
-	bool/*ok*/           loadSlurmApi     (                        ) ;
-	p_cxxopts            createParser     (                        ) ;
-	RsrcsData            parseSlurmArgs   (::string const& args    ) ;
-	void                 slurm_cancel     (uint32_t        slurm_id) ;
-	::pair_s<job_states> slurm_job_state  (uint32_t        slurm_id) ;
-	::string             readStderrLog    (JobIdx                  ) ;
-	Pdate                slurm_time_origin(                        ) ;
+	namespace SlurmApi {
+		bool/*ok*/ init() ;
+	}
+	p_cxxopts            createParser         (                        ) ;
+	RsrcsData            parseSlurmArgs       (::string const& args    ) ;
+	void                 slurm_cancel         (uint32_t        slurm_id) ;
+	::pair_s<job_states> slurm_job_state      (uint32_t        slurm_id) ;
+	::string             readStderrLog        (JobIdx                  ) ;
+	::string             slurm_priority_params(                        ) ;
 	//
-	uint32_t slurm_spawn_job( JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
+	uint32_t slurm_spawn_job( ::string const& key , JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	p_cxxopts g_optParse = createParser() ;
 
@@ -117,21 +121,39 @@ namespace Backends::Slurm {
 		}
 
 		// services
-		virtual bool config(Config::Backend const& config) {
-			if(!loadSlurmApi()) return false ;
-			::vmap_ss force ;
+		virtual bool/*ok*/ config(Config::Backend const& config) {
+			if(!SlurmApi::init()) return false ;
+			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : config.dct ) {
 				try {
 					switch (k[0]) {
 						case 'n' : if(k=="n_max_queue_jobs") { n_max_queue_jobs = from_chars<uint32_t>(v) ; continue ; } break ;
-						case 's' : if(k=="slurm_args"      ) { config_force     = parseSlurmArgs      (v) ; continue ; } break ;
+						case 'r' : if(k=="repo_key"        ) { repo_key         =                      v  ; continue ; } break ;
 						case 'u' : if(k=="use_nice"        ) { use_nice         = from_chars<bool    >(v) ; continue ; } break ;
 						default : ;
 					}
-				} catch (::string const& e) { throw to_string("wrong value for entry ",k,": ",v) ; }
-				throw "unexpected config entry: "+k ;
+				} catch (::string const& e) { throw to_string("wrong value for entry "   ,k,": ",v) ; }
+				/**/                          throw to_string("unexpected config entry: ",k       ) ;
 			}
-			if (use_nice) time_origin = slurm_time_origin() ;
+			if (use_nice)
+				if ( ::string spp=slurm_priority_params() ; !spp.empty() ) {
+					static ::string const to_mrkr  = "time_origin=" ;
+					static ::string const npd_mrkr = "nice_factor=" ;
+					//
+					size_t pos = spp.find(to_mrkr) ;
+					if (pos!=Npos) {
+						pos += to_mrkr.size() ;
+						size_t end = spp.find(',',pos) ;
+						time_origin = Pdate(spp.substr(pos,end)) ;
+					}
+					//
+					pos = spp.find(npd_mrkr) ;
+					if (pos!=Npos) {
+						pos += npd_mrkr.size() ;
+						size_t end = spp.find(',',pos) ;
+						nice_factor = from_chars<float>(spp.substr(pos,end)) ;
+					}
+				}
 			return true ;
 		}
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
@@ -149,9 +171,7 @@ namespace Backends::Slurm {
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
 			Base::open_req(req,n_jobs) ;
-			//
-			RsrcsData req_force = parseSlurmArgs(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
-			grow(req_forces,req) = blend(RsrcsData(config_force),req_force) ;
+			grow(req_forces,req) = parseSlurmArgs(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
 		}
 		virtual void close_req(ReqIdx req) {
 			Base::close_req(req) ;
@@ -165,20 +185,20 @@ namespace Backends::Slurm {
 		virtual bool/*ok*/ fit_now(RsrcsAsk rsa) const {
 			return spawned_rsrcs.n_spawned(rsa) < n_max_queue_jobs ;
 		}
-		virtual ::pair_s<Bool3/*launch*/> start_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual ::pair_s<Bool3/*call_launch*/> start_job( JobIdx , SpawnedEntry const& se ) const {
 			spawned_rsrcs.dec(se.rsrcs) ;
-			return { to_string("slurm_id:",se.id) , Maybe/*launch*/ } ;        // only launch jobs w/ same resources
+			return { to_string("slurm_id:",se.id) , Maybe/*call_launch*/ } ;        // only launch jobs w/ same resources
 		}
-		virtual ::pair_s<Bool3/*launch*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			if (!( s==Status::Err && se.verbose )) return {{},No/*launch*/} ;
+		virtual ::pair_s<Bool3/*call_launch*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
+			if (!( s==Status::Err && se.verbose )) return {{},No/*call_launch*/} ;
 			//
-			//for( int i=0 ; i<100 ; Delay(0.1).sleep_for(),i++ )                // Ensure slurm is done so that its stderr is available
+			//for( int i=0 ; i<100 ; Delay(0.1).sleep_for(),i++ )              // Ensure slurm is done so that its stderr is available
 			//	if (slurm_job_state(se.id).second>=JOB_COMPLETE)
-			//		return { readStderrLog(j) , false/*launch*/ } ;
-			//return { "cannot get error log" , No/*lauch*/ } ;
+			//		return { readStderrLog(j) , false/*call_launch*/ } ;
+			//return { "cannot get error log" , No/*call_lauch*/ } ;
 			(void)se ;                                                         // XXX : replace by above code when validated
-			Delay(1.).sleep_for() ;                                            // .
-			return { readStderrLog(j) , No/*launch*/ } ;                       // .
+			Delay(1).sleep_for() ;                                             // .
+			return { readStderrLog(j) , No/*call_launch*/ } ;                  // .
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			::pair_s<job_states> info = slurm_job_state(se.id) ;
@@ -194,20 +214,20 @@ namespace Backends::Slurm {
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}
 		virtual uint32_t launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
-			int32_t nice = 0 ;
-			if (use_nice) nice = (prio-time_origin).sec()&0x7fffffff ;                   // slurm will not accept negative values, protect against overflow in 2091...
-			uint32_t slurm_id = slurm_spawn_job( j , nice , cmd_line , *rs , verbose ) ;
+			int32_t nice = use_nice ? int32_t((prio-time_origin).sec()*nice_factor) : 0 ;
+			nice &= 0x7fffffff ;                                                          // slurm will not accept negative values, default values overflow in ... 2091
 			spawned_rsrcs.inc(rs) ;
-			return slurm_id ;
+			return slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
 		}
 
 		// data
 		SpawnedMap mutable  spawned_rsrcs    ;                                 // number of spawned jobs queued in slurm queue
 		::vector<RsrcsData> req_forces       ;                                 // indexed by req, resources forced by req
-		RsrcsData           config_force     ;                                 // resources forced by config
-		uint32_t            n_max_queue_jobs = -1                      ;       // no limit by default
-		bool                use_nice         = false                   ;
-		Pdate               time_origin      { "2023-01-01 00:00:00" } ;       // this leaves room til 2091
+		uint32_t            n_max_queue_jobs = -1                         ;    // no limit by default
+		bool                use_nice         = false                      ;
+		::string            repo_key         ;                                 // a short identifier of the repository
+		Pdate               time_origin      { "2023-01-01 00:00:00" }    ;    // this leaves room til 2091
+		float               nice_factor      { 1                     }    ;    // conversion factor in the form of number of nice points per second
 	} ;
 
 	//
@@ -235,7 +255,7 @@ namespace Backends::Slurm {
 		return                      os <<')'                   ;
 	}
 
-	inline RsrcsData::RsrcsData(::vmap_ss const& m) : Base{1} {                                // force at least one entry
+	inline RsrcsData::RsrcsData(::vmap_ss const& m) : Base{1} {                                // ensure we have at least 1 entry as we sometimes access element 0
 		auto fill = [&]( ::string const& k , const char* field=nullptr ) -> RsrcsDataSingle& {
 			if ( field && k.starts_with(field) ) return grow( *this , from_chars<uint32_t>(&k[strlen(field)],true/*empty_ok*/) ) ;
 			else                                 throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
@@ -289,45 +309,48 @@ namespace Backends::Slurm {
 	// slurm API
 	//
 
-	#define DECL_DYN_SYMBOL(symbol) decltype(::symbol)* DYNAPI_##symbol
-	DECL_DYN_SYMBOL(slurm_free_ctl_conf                    ) ;
-	DECL_DYN_SYMBOL(slurm_free_job_info_msg                ) ;
-	DECL_DYN_SYMBOL(slurm_free_submit_response_response_msg) ;
-	DECL_DYN_SYMBOL(slurm_get_errno                        ) ;
-	DECL_DYN_SYMBOL(slurm_init_job_desc_msg                ) ;
-	DECL_DYN_SYMBOL(slurm_kill_job                         ) ;
-	DECL_DYN_SYMBOL(slurm_load_ctl_conf                    ) ;
-	DECL_DYN_SYMBOL(slurm_list_append                      ) ;
-	DECL_DYN_SYMBOL(slurm_list_create                      ) ;
-	DECL_DYN_SYMBOL(slurm_list_destroy                     ) ;
-	DECL_DYN_SYMBOL(slurm_load_job                         ) ;
-	DECL_DYN_SYMBOL(slurm_strerror                         ) ;
-	DECL_DYN_SYMBOL(slurm_submit_batch_het_job             ) ;
-	DECL_DYN_SYMBOL(slurm_submit_batch_job                 ) ;
-	#undef DECL_DYN_SYMBOL
+	namespace SlurmApi {
 
-	bool/*ok*/ loadSlurmApi() {
-		void* slurmHandler = dlopen("libslurm.so",RTLD_NOW|RTLD_GLOBAL) ;
-		if (!slurmHandler) return false/*ok*/ ;
-		#define SET_SLURM_API(func) \
-			DYNAPI_##func = reinterpret_cast<decltype(::func)*>(::dlsym(slurmHandler,#func)) ; \
-			if(DYNAPI_##func==NULL) return false/*ok*/
-		SET_SLURM_API(slurm_free_ctl_conf                    ) ;
-		SET_SLURM_API(slurm_free_job_info_msg                ) ;
-		SET_SLURM_API(slurm_free_submit_response_response_msg) ;
-		SET_SLURM_API(slurm_get_errno                        ) ;
-		SET_SLURM_API(slurm_init_job_desc_msg                ) ;
-		SET_SLURM_API(slurm_kill_job                         ) ;
-		SET_SLURM_API(slurm_load_ctl_conf                    ) ;
-		SET_SLURM_API(slurm_list_append                      ) ;
-		SET_SLURM_API(slurm_list_create                      ) ;
-		SET_SLURM_API(slurm_list_destroy                     ) ;
-		SET_SLURM_API(slurm_load_job                         ) ;
-		SET_SLURM_API(slurm_strerror                         ) ;
-		SET_SLURM_API(slurm_submit_batch_het_job             ) ;
-		SET_SLURM_API(slurm_submit_batch_job                 ) ;
-		#undef SET_SLURM_API
-		return true /*ok*/ ;
+		decltype(::slurm_free_ctl_conf                    )* free_ctl_conf                     = nullptr/*garbage*/ ;
+		decltype(::slurm_free_job_info_msg                )* free_job_info_msg                 = nullptr/*garbage*/ ;
+		decltype(::slurm_free_submit_response_response_msg)* free_submit_response_response_msg = nullptr/*garbage*/ ;
+		decltype(::slurm_get_errno                        )* get_errno                         = nullptr/*garbage*/ ;
+		decltype(::slurm_init_job_desc_msg                )* init_job_desc_msg                 = nullptr/*garbage*/ ;
+		decltype(::slurm_kill_job                         )* kill_job                          = nullptr/*garbage*/ ;
+		decltype(::slurm_load_ctl_conf                    )* load_ctl_conf                     = nullptr/*garbage*/ ;
+		decltype(::slurm_list_append                      )* list_append                       = nullptr/*garbage*/ ;
+		decltype(::slurm_list_create                      )* list_create                       = nullptr/*garbage*/ ;
+		decltype(::slurm_list_destroy                     )* list_destroy                      = nullptr/*garbage*/ ;
+		decltype(::slurm_load_job                         )* load_job                          = nullptr/*garbage*/ ;
+		decltype(::slurm_strerror                         )* strerror                          = nullptr/*garbage*/ ;
+		decltype(::slurm_submit_batch_het_job             )* submit_batch_het_job              = nullptr/*garbage*/ ;
+		decltype(::slurm_submit_batch_job                 )* submit_batch_job                  = nullptr/*garbage*/ ;
+
+		template<class T> static inline bool/*ok*/ _loadFunc( void* handler , T*& dst , const char* name ) {
+			dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
+			return dst ;
+		}
+		bool/*ok*/ init() {
+			void* handler = ::dlopen("libslurm.so",RTLD_NOW|RTLD_GLOBAL) ;
+			return
+				handler
+			&&	_loadFunc( handler , free_ctl_conf                     , "slurm_free_ctl_conf"                     )
+			&&	_loadFunc( handler , free_job_info_msg                 , "slurm_free_job_info_msg"                 )
+			&&	_loadFunc( handler , free_submit_response_response_msg , "slurm_free_submit_response_response_msg" )
+			&&	_loadFunc( handler , get_errno                         , "slurm_get_errno"                         )
+			&&	_loadFunc( handler , init_job_desc_msg                 , "slurm_init_job_desc_msg"                 )
+			&&	_loadFunc( handler , kill_job                          , "slurm_kill_job"                          )
+			&&	_loadFunc( handler , load_ctl_conf                     , "slurm_load_ctl_conf"                     )
+			&&	_loadFunc( handler , list_append                       , "slurm_list_append"                       )
+			&&	_loadFunc( handler , list_create                       , "slurm_list_create"                       )
+			&&	_loadFunc( handler , list_destroy                      , "slurm_list_destroy"                      )
+			&&	_loadFunc( handler , load_job                          , "slurm_load_job"                          )
+			&&	_loadFunc( handler , strerror                          , "slurm_strerror"                          )
+			&&	_loadFunc( handler , submit_batch_het_job              , "slurm_submit_batch_het_job"              )
+			&&	_loadFunc( handler , submit_batch_job                  , "slurm_submit_batch_job"                  )
+			;
+		}
+
 	}
 
 	p_cxxopts createParser() {
@@ -400,20 +423,20 @@ namespace Backends::Slurm {
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
 		for( int i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
-			int err = DYNAPI_slurm_kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
+			int err = SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
 			if ( err==SLURM_SUCCESS || errno!=ESLURM_TRANSITION_STATE_NO_UPDATE ) {
 				Trace trace("Cancel slurm jodid: ",slurm_id) ;
 				return ;
 			}
 			sleep(5+i) ; // Retry
 		}
-		Trace trace("Error while killing job: ",slurm_id," error: ",DYNAPI_slurm_strerror(errno)) ;
+		Trace trace("Error while killing job: ",slurm_id," error: ",SlurmApi::strerror(errno)) ;
 	}
 
 	::pair_s<job_states> slurm_job_state(uint32_t slurm_id) {
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
-		if ( DYNAPI_slurm_load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS )
-			return { to_string("Error while loading job info (",slurm_id,"): ",DYNAPI_slurm_strerror(errno)) , JOB_BOOT_FAIL } ;
+		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS )
+			return { to_string("Error while loading job info (",slurm_id,"): ",SlurmApi::strerror(errno)) , JOB_BOOT_FAIL } ;
 		//
 		job_states job_state = job_states( resp->job_array[0].job_state & JOB_STATE_BASE ) ;
 		::string   info      ;
@@ -443,7 +466,7 @@ namespace Backends::Slurm {
 				}
 			}
 		}
-		DYNAPI_slurm_free_job_info_msg(resp) ;
+		SlurmApi::free_job_info_msg(resp) ;
 		return {info,job_state} ;
 	}
 
@@ -465,27 +488,26 @@ namespace Backends::Slurm {
 		res += '\n' ;
 		return res ;
 	}
-	// XXX : use prio to compute a nice value
-	uint32_t slurm_spawn_job( JobIdx job , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
+	uint32_t slurm_spawn_job( ::string const& key , JobIdx job , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
 		static char* env[1] = {const_cast<char *>("")} ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
 		//
-		::string                 wd        = *g_root_dir                                         ;
-		auto                     job_name  = *(--::filesystem::path(wd).end()) / Job(job).name() ; // ="repoDir/target" // XXX : add a key in config as this may not be pertinent for all users
-		::string                 script    = cmd_to_string(cmd_line)                             ;
+		::string                 wd        = *g_root_dir             ;
+		auto                     job_name  = key + Job(job).name()   ;
+		::string                 script    = cmd_to_string(cmd_line) ;
 		::string                 s_errPath ;
 		::string                 s_outPath ;
-		::vector<job_desc_msg_t> jDesc     { rsrcs.size() }                                      ;
+		::vector<job_desc_msg_t> jDesc     { rsrcs.size() }          ;
 		if(verbose) {
 			s_errPath = getLogStderrPath(job) ;
 			s_outPath = getLogStdoutPath(job) ;
-			Disk::make_dir(getLogPath(job)) ;
+			make_dir(getLogPath(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &jDesc[i] ;
-			DYNAPI_slurm_init_job_desc_msg(j) ;
+			SlurmApi::init_job_desc_msg(j) ;
 			//
 			j->env_size        = 1                                                           ;
 			j->environment     = env                                                         ;
@@ -512,39 +534,24 @@ namespace Backends::Slurm {
 		int                    ret  = 0      /*garbage*/ ;
 		submit_response_msg_t* jMsg = nullptr/*garbage*/ ;
 		if (jDesc.size()==1) {
-			ret = DYNAPI_slurm_submit_batch_job(&jDesc[0],&jMsg) ;
+			ret = SlurmApi::submit_batch_job(&jDesc[0],&jMsg) ;
 		} else {
-			List jList = DYNAPI_slurm_list_create(nullptr) ;
-			for ( job_desc_msg_t& c : jDesc ) DYNAPI_slurm_list_append(jList,&c) ;
-			ret = DYNAPI_slurm_submit_batch_het_job(jList,&jMsg) ;
-			DYNAPI_slurm_list_destroy(jList) ;
+			List jList = SlurmApi::list_create(nullptr) ;
+			for ( job_desc_msg_t& c : jDesc ) SlurmApi::list_append(jList,&c) ;
+			ret = SlurmApi::submit_batch_het_job(jList,&jMsg) ;
+			SlurmApi::list_destroy(jList) ;
 		}
-		if (ret!=SLURM_SUCCESS) throw "Launch slurm job error: "s + DYNAPI_slurm_strerror(DYNAPI_slurm_get_errno()) ;
-		DYNAPI_slurm_free_submit_response_response_msg(jMsg) ;
+		if (ret!=SLURM_SUCCESS) throw "Launch slurm job error: "s + SlurmApi::strerror(SlurmApi::get_errno()) ;
+		SlurmApi::free_submit_response_response_msg(jMsg) ;
 		return jMsg->job_id ;
 	}
 
-	// XXX : this is not really necessary as default value is ok til 2091, but we keep the code as we will shortly need to gather resources to improve interface
-	Pdate slurm_time_origin() {
-		static ::string const mrkr = "time_origin=" ;
-		//
-		Pdate         res  ;
+	::string slurm_priority_params() {
 		slurm_conf_t* conf = nullptr/*garbage*/ ;
-		DYNAPI_slurm_load_ctl_conf(0/*update_time*/,&conf) ;                   // XXX : remember last conf read so as to pass a real update_time param & optimize call
+		SlurmApi::load_ctl_conf(0/*update_time*/,&conf) ;                      // XXX : remember last conf read so as to pass a real update_time param & optimize call
 		//
-		if ( conf && conf->priority_params ) {
-			::string_view params = conf->priority_params ;
-			size_t        pos    = params.find(mrkr)     ;
-			if (pos!=Npos) {
-				pos += mrkr.size() ;
-				size_t end = params.find(',',pos) ;
-				res = Pdate(params.substr(pos,end)) ;
-			}
-		}
-		//
-		DYNAPI_slurm_free_ctl_conf(conf) ;
-		//
-		return res ;
+		if ( conf && conf->priority_params ) { SlurmApi::free_ctl_conf(conf) ; return conf->priority_params ; }
+		else                                 { SlurmApi::free_ctl_conf(conf) ; return {}                    ; }
 	}
 
 }

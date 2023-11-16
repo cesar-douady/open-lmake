@@ -2424,6 +2424,9 @@ This attribute specifies the number of waiting jobs for each set of resources th
 If too low, the schedule rate may decrease because by the time taken, when a job finishes, for @lmake to submit a new job, slurm might have exhausted its waiting queue.
 If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
 A reasonable value probably lies in the 20-100 range.
+@item @code{repo_key} : This is a string which is add in front of @lmake job names to make slurm job names.
+This key is meant to be a short identifier of the repository.
+By default it is the base name of the repository followed by @code{:}.
 @item @code{use_nice} : @lmake has and advantage over slurm in terms of knowledge : it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time
 taken by each job.
 This allows it to anticipate the needs and know, even globally when numerous @lmake commands run, in the same repository or on several ones, which jobs should be given which priority.
@@ -2444,10 +2447,28 @@ although it is much better than other scheduling policies based on blind guesses
 
 @end itemize
 
+There are 2 additional parameters that you can set in the @code{PriorityParams} entry of the slurm configuration in the form of param=value, separated by @code{,} :
+@itemize @minus
+@item @code{time_origin} : as the communicated priority is a date, we need a reference point.
+This reference point should be in the past, not too far, to be sure that generated nice values are in the range @code{0} - @code{1<<31}.
+@lmake make sometimes generates dates in the past when it wrongly estimates a very short ETA with a high pressure.
+Taking a little bit of margin of a few days is more than necessary in all practical cases.
+Default value is 2023-01-01 00:00:00.
+Date is given in the format YYYY-MM-DD HH:MM optionally followed by +/-HH:MM to adjust for time zone.
+This is mostly ISO8601 except the T between date and time replaced by a space, which is more readable and corresponds to mainstream usage.
+@item @code{nice_factor} : this is the value that the nice value increases each second. It is a floating point value.
+If too high, the the nice value may wrap too often. If too low, job scheduling precision may suffer.
+The default value is @code{1} which seems to be a good compromise.
+@end itemize
+Overall, you can ignore these parameters for @lmake internal needs, the default values work fine.
+They have been implemented to have means to control interactions with jobs submitted to slurm from outside @lmake.
+
 The @code{resources} rule attributes is composed of :
 @itemize @minus
 @item standard resources @code{cpu}, @code{mem} and @code{tmp}.
 @item @code{excludes} @code{feature}, @code{gres}, @code{licence}, @code{nodes}, @code{part}, @code{qos}, @code{reserv} : these are passed as is to the slurm daemon.
+For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example @code{gres0}, @code{gres1}).
+The absence of index is equivalent to index 0.
 @end itemize
 
 @anchor{autodep}

@@ -326,15 +326,17 @@ void GatherDeps::reorder() {
 			return ::pair(a.second.access_date,a.second.parallel_id) < ::pair(b.second.access_date,b.second.parallel_id) ;
 		}
 	) ;
-	// first pass : note stat accesses that are directories of immediately following file accesses as these are ilready mplicit deps (through Uphill rule)
+	// first pass : note stat accesses that are directories of immediately following file accesses as these are already implicit deps (through Uphill rule)
 	::uset<size_t> to_del ;
 	size_t         last   = Npos ;                                             // XXX : replace with a vector to manage parallel deps
 	for( size_t i1=accesses.size() ; i1>0 ; i1-- ) {
 		size_t      i           = i1-1        ;
 		auto const& [file,info] = accesses[i] ;
-		if      ( !info.is_dep()                                                                             ) last = Npos ;
-		else if ( last!=Npos && info.digest.accesses==Access::Stat && accesses[last].first.starts_with(file) ) to_del.insert(i) ;
-		else                                                                                                   last = i ;
+		if      ( !info.is_dep()                                                                      ) last = Npos ;
+		else if ( last==Npos                                                                          ) last = i    ;
+		else if ( info.digest.accesses!=Access::Stat                                                  ) last = i    ;
+		else if (!( accesses[last].first.starts_with(file) && accesses[last].first[file.size()]=='/' )) last = i    ;
+		else                                                                                            to_del.insert(i) ;
 	}
 	// second pass : suppress stat accesses that are directories of seen files as these are already implicit deps (through Uphill rule)
 	::uset_s dirs ;

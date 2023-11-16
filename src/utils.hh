@@ -323,6 +323,17 @@ template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_ch
 	else                   return res ;
 }
 template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
+//
+template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F from_chars( S const& txt , bool empty_ok=false ) {
+	if ( empty_ok && txt.empty() ) return 0 ;
+	F res = 0/*garbage*/ ;
+	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res ) ;
+	//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
+	else                 return res ;
+}
+template<::floating_point F> static inline F from_chars( const char* txt , bool empty_ok=false ) { return from_chars<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
 
 ::string mk_py_str   ( ::string const&) ;
 ::string mk_shell_str( ::string const&) ;

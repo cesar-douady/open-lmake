@@ -229,7 +229,8 @@ bool/*interrupted*/ engine_loop() {
 				}
 			} break ;
 			case EngineClosureKind::Req : {
-				EngineClosureReq& req = closure.req ;
+				EngineClosureReq& req           = closure.req               ;
+				::string const&   startup_dir_s = req.options.startup_dir_s ;
 				switch (req.proc) {
 					case ReqProc::Debug  :                                     // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 					case ReqProc::Forget :
@@ -237,6 +238,7 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Show   : {
 						trace(req) ;
 						bool ok = true/*garbage*/ ;
+						if (!startup_dir_s.empty()) audit( req.out_fd , req.options , Color::Note , 0 , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
 						try                        { ok = g_cmd_tab[+req.proc](req) ;                                                           }
 						catch (::string  const& e) { ok = false ; if (!e.empty()) audit(req.out_fd,req.options,Color::Err,0,e               ) ; }
 						catch (::pair_ss const& e) { ok = false ;                 audit(req.out_fd,req.options,Color::Err,0,e.first,e.second) ; }
@@ -245,8 +247,8 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Make : {
 						Req r ;
 						try {
-							::string reason = Makefiles::s_chk_makefiles() ;
-							if (!reason.empty()) throw to_string("cannot make with modified makefiles (",reason,") while other lmake is running\n") ;
+							::string reason = Makefiles::s_chk_makefiles(startup_dir_s) ;
+							if (!reason.empty()) throw to_string("cannot make with modified makefiles while other lmake is running (",reason,")\n") ;
 							r = Req(req) ;
 						} catch(::string const& e) {
 							audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
@@ -324,14 +326,20 @@ bool/*interrupted*/ engine_loop() {
 int main( int argc , char** argv ) {
 	bool refresh = true ;
 	for( int i=1 ; i<argc ; i++ ) {
-		if ( argv[i][0]!='-' || argv[i][2]!=0 ) exit(2,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-r/*no makefile refresh*/]") ;
+		if (argv[i][0]!='-') goto Bad ;
 		switch (argv[i][1]) {
-			case 'd' : _g_is_daemon = false ; break ;
-			case 'r' : refresh      = false ; break ;
-			case '-' :                        break ;
+			case 'c' : g_startup_dir_s = new ::string(argv[i]+2) ;                               break ;
+			case 'd' : _g_is_daemon    = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
+			case 'r' : refresh         = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
+			case '-' :                                             if (argv[i][2]!=0) goto Bad ; break ;
 			default : exit(2,"unrecognized option : ",argv[i]) ;
 		}
+		continue ;
+	Bad :
+		exit(2,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
+	if (g_startup_dir_s) SWEAR( g_startup_dir_s->empty() || g_startup_dir_s->back()=='/' ) ;
+	else                 g_startup_dir_s = new ::string ;
 	//
 	Fd int_fd = open_sig_fd(SIGINT,true/*block*/) ;                            // must be done before app_init so that all threads block the signal
 	block_sig(SIGCHLD) ;

@@ -62,7 +62,7 @@ namespace Engine {
 		return srcs ;
 	}
 
-	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles(Ddate& latest_makefile) {
+	::string/*reason to re-read*/ Makefiles::_s_chk_makefiles( Ddate& latest_makefile , ::string const& startup_dir_s ) {
 		Ddate      makefiles_date   = file_date(s_makefiles) ;                          // ensure we gather correct date with NFS
 		::ifstream makefiles_stream { s_makefiles }          ;
 		Trace trace("_s_chk_makefiles",makefiles_date) ;
@@ -75,10 +75,10 @@ namespace Engine {
 			FileInfoDate file_info { line+1 } ;
 			latest_makefile = ::max(latest_makefile,file_info.date) ;
 			if (exists) {
-				if ( !file_info                     ) { trace("missing" ,line+1) ; return to_string(line+1," was removed" ) ; }
-				if ( file_info.date>=makefiles_date ) { trace("modified",line+1) ; return to_string(line+1," was modified") ; } // in case of equality, be pessimistic
+				if ( !file_info                     ) { trace("missing" ,line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was removed" ) ; }
+				if ( file_info.date>=makefiles_date ) { trace("modified",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was modified") ; } // in case of equality, be pessimistic
 			} else {
-				if ( +file_info                     ) { trace("appeared",line+1) ; return to_string(line+1," was created" ) ; }
+				if ( +file_info                     ) { trace("appeared",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was created" ) ; }
 			}
 		}
 		trace("ok") ;
@@ -123,7 +123,7 @@ namespace Engine {
 	void Makefiles::s_refresh_makefiles( bool chk , bool refresh ) {
 		Trace trace("s_refresh_makefiles") ;
 		Ddate    latest_makefile ;
-		::string reason          = refresh ? _s_chk_makefiles(latest_makefile) : ""s ;
+		::string reason          = refresh ? _s_chk_makefiles(latest_makefile,*g_startup_dir_s) : ""s ;
 		if (reason.empty()) {
 			SWEAR(g_config.lnk_support!=LnkSupport::Unknown) ;                 // ensure a config has been read
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -708,22 +708,20 @@ namespace Engine {
 					if (is_native_star      ) dflt_flags |= Tflag::Star ;
 					if (!flags[Tflag::Match]) dflt_flags |= Tflag::Dep  ;
 					flags = (dflt_flags&max_flags)|min_flags ;                 // definitive value
+					//
+					if (flags[Tflag::Match]) found_matching = true ;
 					// check
-					if (is_native_star) {
-						if ( !flags[Tflag::Star]     ) throw to_string("flag ",mk_snake(Tflag::Star)," cannot be reset because target contains star stems") ;
-					}
-					if (flags[Tflag::Match]) {
-						if (!is_lcl(target)          ) throw to_string("cannot match non local pattern ",target)                                            ;
-						if (!missing_stems.empty()   ) throw to_string("missing stems ",missing_stems," in target")                                         ;
-						found_matching = true ;
-					} else {
-						if (is_anti()                ) throw           "non-matching targets are meaningless for anti-rules"s                               ;
-					}
-					if (field=="<stdout>") {
-						if (flags[Tflag::Star       ]) throw           "stdout cannot be directed to a star target"s                                        ;
-						if (flags[Tflag::Phony      ]) throw           "stdout cannot be directed to a phony target"s                                       ;
-						if (flags[Tflag::Incremental]) throw           "stdout cannot be directed to a incremental target"s                                 ;
-					}
+					::string slash_target = '/'+target        ;
+					bool     is_stdout    = field=="<stdout>" ;
+					if ( target.starts_with(*g_root_dir) && target[g_root_dir->size()]=='/' ) throw to_string("target must be relative to root dir : ",target)                                     ;
+					if ( !is_lcl(target)                                                    ) throw to_string("target must be local : "               ,target)                                     ;
+					if ( slash_target.find("/./")!=Npos || slash_target.find("/../")!=Npos  ) throw to_string("target must be canonical : "           ,target)                                     ;
+					if ( is_native_star && !flags[Tflag::Star]                              ) throw to_string("flag ",mk_snake(Tflag::Star)," cannot be reset because target contains star stems") ;
+					if ( flags[Tflag::Match] && !missing_stems.empty()                      ) throw to_string("missing stems ",missing_stems," in target : ",target)                               ;
+					if ( !flags[Tflag::Match] && is_anti()                                  ) throw           "non-matching targets are meaningless for anti-rules"s                               ;
+					if ( is_stdout && flags[Tflag::Star       ]                             ) throw           "stdout cannot be directed to a star target"s                                        ;
+					if ( is_stdout && flags[Tflag::Phony      ]                             ) throw           "stdout cannot be directed to a phony target"s                                       ;
+					if ( is_stdout && flags[Tflag::Incremental]                             ) throw           "stdout cannot be directed to an incremental target"s                                ;
 					chk(flags) ;
 					seen_top |= flags[Tflag::Top] ;
 					// record

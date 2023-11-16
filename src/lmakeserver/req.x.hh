@@ -296,6 +296,7 @@ namespace Engine {
 		::umap<Job ,JobIdx > frozens        ;              // frozen     jobs  to report in summary             (value is just for summary ordering purpose)
 		::umap<Node,NodeIdx> no_triggers    ;              // no-trigger nodes to report in summary             (value is just for summary ordering purpose)
 		::umap<Node,NodeIdx> clash_nodes    ;              // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>       up_to_dates    ;              // asked nodes already done when starting
 	} ;
 
 }

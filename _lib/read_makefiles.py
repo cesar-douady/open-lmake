@@ -349,8 +349,8 @@ class Handle :
 		return entry
 
 	def handle_cwd(self) :
-		if 'cwd'   in self.attrs : self.rule_rep.cwd = self.attrs.cwd
-		else                     : self.rule_rep.cwd = self.local_root
+		if 'cwd' in self.attrs : self.rule_rep.cwd = self.attrs.cwd
+		else                   : self.rule_rep.cwd = self.local_root
 
 	def handle_targets(self) :
 		if   'target'      in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')

@@ -96,7 +96,7 @@ namespace Backends {
 
 		struct WaitingEntry {
 			WaitingEntry() = default ;
-			WaitingEntry( RsrcsAsk const& rsa , SubmitAttrs const& sa , bool v=false ) : rsrcs_ask{rsa} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
+			WaitingEntry( RsrcsAsk const& rsa , SubmitAttrs const& sa , bool v ) : rsrcs_ask{rsa} , n_reqs{1} , submit_attrs{sa} , verbose{v} {}
 			// data
 			RsrcsAsk    rsrcs_ask    ;
 			ReqIdx      n_reqs       = 0     ;             // number of reqs waiting for this job
@@ -126,7 +126,7 @@ namespace Backends {
 
 		struct ReqEntry {
 			ReqEntry() = default ;
-			ReqEntry( JobIdx nj , bool v=false ) : n_jobs{nj} , verbose{v} {}
+			ReqEntry( JobIdx nj , bool v ) : n_jobs{nj} , verbose{v} {}
 			// service
 			void clear() {
 				waiting_queues.clear() ;
@@ -345,7 +345,7 @@ namespace Backends {
 						::vector_s cmd_line = acquire_cmd_line( T , j , ::move(rsrcs_map) , wit->second.submit_attrs ) ;
 						SpawnId    id       = launch_job( j , prio , cmd_line , rsrcs , wit->second.verbose )          ;
 						trace("child",req,j,prio,id,cmd_line) ;
-						spawned_jobs[j] = { rsrcs , id , wit->second.n_reqs , wit->second.verbose } ;
+						spawned_jobs[j] = { .rsrcs=rsrcs , .id=id , .n_reqs=wit->second.n_reqs , .verbose=wit->second.verbose } ;
 						waiting_jobs.erase(wit) ;
 					} catch (::string const& e) {
 						err_jobs.push_back({j,{e,rsrcs_map}}) ;

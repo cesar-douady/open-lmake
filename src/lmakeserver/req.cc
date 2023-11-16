@@ -82,6 +82,7 @@ namespace Engine {
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		job->make(jri,RunAction::Status) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		for( Node d : job->deps ) if (d->done(*this)) (*this)->up_to_dates.push_back(d) ;
 		chk_end() ;
 	}
 
@@ -189,9 +190,10 @@ namespace Engine {
 			n_missing++ ;
 		}
 		//
-		if (mrts.empty()   ) (*this)->audit_node(Color::Err ,"no rule match"     ,name,lvl  ) ;
-		else                 (*this)->audit_node(Color::Err ,"no rule for"       ,name,lvl  ) ;
-		if (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add",name,lvl+1) ;
+		if      (+art           ) (*this)->audit_node(Color::Err ,to_string("anti-rule ",art->name," matches"),name,lvl  ) ;
+		else if (mrts.empty()   ) (*this)->audit_node(Color::Err ,"no rule match"                             ,name,lvl  ) ;
+		else                      (*this)->audit_node(Color::Err ,"no rule for"                               ,name,lvl  ) ;
+		if      (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add"                        ,name,lvl+1) ;
 		//
 		for( auto const& [rt,m] : mrts ) {                          // second pass to do report
 			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
@@ -359,7 +361,7 @@ namespace Engine {
 	void ReqData::clear() {
 		SWEAR( !n_running() , n_running() ) ;
 		if (job->rule->special==Special::Req) job.pop();
-		*this = ReqData() ;
+		*this = {} ;
 	}
 
 	void ReqData::audit_summary(bool err) const {
@@ -373,14 +375,24 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )               ) ) ;
-		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)               ) ) ;
-		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )               ) ) ;
-		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )               ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str() ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str() ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
+		::string const& startup_dir_s = options.startup_dir_s ;
+		if (!startup_dir_s.empty()           ) audit_info( Color::Note , to_string( "startup dir  : " , startup_dir_s.substr(0,startup_dir_s.size()-1) ) ) ;
+		if (!up_to_dates.empty()) {
+			bool seen_up_to_dates = false ;
+			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
+			for( Node n : up_to_dates )
+				if      (!n->is_src()    ) audit_node( Color::Note    , "was already up to date :" , n ) ;
+				else if (seen_up_to_dates) audit_node( Color::Warning , "source                 :" , n ) ; // align if necessary
+				else                       audit_node( Color::Warning , "file is a source :"       , n ) ;
+		}
+		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)                 ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )                 ) ) ;
+		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)                 ) ) ;
+		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )                 ) ) ;
+		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )                 ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str()   ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str()   ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str()   ) ) ;
 		{	::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
 			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;

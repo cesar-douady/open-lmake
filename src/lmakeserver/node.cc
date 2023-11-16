@@ -358,7 +358,8 @@ namespace Engine {
 
 	bool/*ok*/ NodeData::forget( bool targets , bool deps ) {
 		Trace trace("Nforget",idx(),STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
-		if (waiting()) return false ;
+		if (is_src() ) throw ::pair("cannot forget source"s,idx().name()) ;
+		if (waiting()) return false                                       ;
 		//
 		bool res = true ;
 		RuleIdx k =0 ;
