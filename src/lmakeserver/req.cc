@@ -35,10 +35,10 @@ namespace Engine {
 		}
 		ReqData& data = **this ;
 		//
-		for( int i=0 ;; i++ ) {                                                            // try increasing resolution in file name until no conflict
-			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)                     ;
-			::string log_file     = to_string(g_config.local_admin_dir,'/',lcl_log_file) ;
-			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                           // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
+		for( int i=0 ;; i++ ) {                                                // try increasing resolution in file name until no conflict
+			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)     ;
+			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
+			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }               // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//

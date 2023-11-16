@@ -142,16 +142,20 @@ namespace Backends {
 		} ;
 
 		// specialization
+		virtual Bool3 call_launch_after_start() const { return No ; }          // if Maybe, only launch jobs w/ same resources
+		virtual Bool3 call_launch_after_end  () const { return No ; }          // .
+		//
 		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const&          ) const { return true ; } // true if job with such resources can be spawned eventually
 		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const&          ) const { return true ; } // true if job with such resources can be spawned now
 		virtual RsrcsData    adapt         ( RsrcsDataAsk const&          ) const = 0 ;             // adapt asked resources to currently available ones
 		virtual ::vmap_ss    export_       ( RsrcsData    const&          ) const = 0 ;             // export resources in   a publicly manageable form
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx ) const = 0 ;             // import resources from a publicly manageable form
 		//
-		virtual ::pair_s<Bool3/*launch*/> start_job           ( JobIdx , SpawnedEntry const&          ) const { return {{},No /*launch*/} ; } // if Maybe, only launch jobs w/ same resources
-		virtual ::pair_s<Bool3/*launch*/> end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},No /*launch*/} ; } // .
-		virtual ::pair_s<Bool3/*ok*/    > heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok    */} ; } // only called for queued jobs (i.e. before start)
-		virtual void                      kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                           // .
+		virtual ::string                start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                       ; }
+		virtual ::string                end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*lost_is_err*/} ; }
+		virtual ::pair_s<Bool3/*ok*/>   heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok*/}            ; }              // only called before start
+		virtual void                    kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                                               // .
+		virtual ::pair_s<bool/*retry*/> lost_info_job       ( JobIdx , SpawnedEntry const&          ) const { return {"vanished after start",true/*retry*/} ; }
 		//
 		virtual SpawnId launch_job( JobIdx , Pdate prio , ::vector_s const& cmd_line   , Rsrcs const& , bool verbose ) const = 0 ;
 
@@ -224,6 +228,12 @@ namespace Backends {
 			old_pressure = pressure ;
 		}
 	protected :
+		virtual ::pair_s<bool/*retry*/> lost_info(JobIdx j) {
+			auto it = spawned_jobs.find(j) ;
+			if (it==spawned_jobs.end()) return {{},true/*ok*/}             ;   // job was killed, ignore
+			else                        return lost_info_job(j,it->second) ;
+		}
+
 		virtual ::pair_s<uset<ReqIdx>> start(JobIdx job) {
 			::uset<ReqIdx> res ;
 			auto           it  = spawned_jobs.find(job) ;
@@ -233,19 +243,19 @@ namespace Backends {
 			se.started = true ;
 			se.n_reqs  = 0    ;
 			for( auto& [r,re] : reqs ) if (re.queued_jobs.erase(job)) res.insert(r) ;
-			::pair_s<Bool3/*launch*/> start_digest = start_job(job,se) ;
-			launch( start_digest.second , se.rsrcs ) ;                         // not compulsery but improves reactivity
-			return { start_digest.first , ::move(res) } ;
+			::string msg = start_job(job,se) ;
+			launch( call_launch_after_start() , se.rsrcs ) ;                   // not compulsery but improves reactivity
+			return { msg , ::move(res) } ;
 		}
-		virtual ::string/*msg*/ end( JobIdx job , Status s ) {
-			auto it = spawned_jobs.find(job) ;
+		virtual ::string end( JobIdx j , Status s ) {
+			auto it = spawned_jobs.find(j) ;
 			if (it==spawned_jobs.end()) return {} ;                            // job was killed in the mean time
-			SpawnedEntry& se = it->second ;
-			::pair_s<Bool3/*lauch*/> end_digest = end_job(job,se,s) ;
-			Rsrcs rsrcs = se.rsrcs ;                                           // copy resources before erasing job from spawned_jobs
+			SpawnedEntry& se      = it->second      ;
+			::string      end_msg = end_job(j,se,s) ;
+			Rsrcs         rsrcs   = se.rsrcs        ;                          // copy resources before erasing job from spawned_jobs
 			spawned_jobs.erase(it) ;                                           // erase before calling launch so job is freed w.r.t. n_jobs
-			launch( end_digest.second , rsrcs ) ;                              // not compulsery but improves reactivity
-			return end_digest.first ;
+			launch( call_launch_after_end() , rsrcs ) ;                        // not compulsery but improves reactivity
+			return end_msg ;
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx j) {                                             // called on jobs that did not start after at least newwork_delay time
 			auto                  it     = spawned_jobs.find(j)       ; SWEAR(it!=spawned_jobs.end()) ;

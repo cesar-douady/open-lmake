@@ -81,12 +81,12 @@ namespace Backends::Slurm {
 	namespace SlurmApi {
 		bool/*ok*/ init() ;
 	}
-	p_cxxopts            createParser         (                        ) ;
-	RsrcsData            parseSlurmArgs       (::string const& args    ) ;
-	void                 slurm_cancel         (uint32_t        slurm_id) ;
-	::pair_s<job_states> slurm_job_state      (uint32_t        slurm_id) ;
-	::string             readStderrLog        (JobIdx                  ) ;
-	::string             slurm_priority_params(                        ) ;
+	p_cxxopts             createParser         (                        ) ;
+	RsrcsData             parseSlurmArgs       (::string const& args    ) ;
+	void                  slurm_cancel         (uint32_t        slurm_id) ;
+	::pair_s<Bool3/*ok*/> slurm_job_state      (uint32_t        slurm_id) ;
+	::string              readStderrLog        (JobIdx                  ) ;
+	::string              slurm_priority_params(                        ) ;
 	//
 	uint32_t slurm_spawn_job( ::string const& key , JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
@@ -119,6 +119,11 @@ namespace Backends::Slurm {
 			SlurmBackend& self = *new SlurmBackend ;
 			s_register(MyTag,self) ;
 		}
+
+		// accesses
+
+		virtual Bool3 call_launch_after_start() const { return Maybe ; }       // if Maybe, only launch jobs w/ same resources
+		virtual Bool3 call_launch_after_end  () const { return No    ; }       // .
 
 		// services
 		virtual bool/*ok*/ config(Config::Backend const& config) {
@@ -182,32 +187,38 @@ namespace Backends::Slurm {
 		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()               ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend(rsa,req_forces[req]) ; }
 		//
+		virtual ::pair_s<bool/*retry*/> lost_info_job( JobIdx , SpawnedEntry const& se ) const {
+			::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
+			return { info.first , info.second!=No } ;
+		}
 		virtual bool/*ok*/ fit_now(RsrcsAsk rsa) const {
 			return spawned_rsrcs.n_spawned(rsa) < n_max_queue_jobs ;
 		}
-		virtual ::pair_s<Bool3/*call_launch*/> start_job( JobIdx , SpawnedEntry const& se ) const {
+		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
 			spawned_rsrcs.dec(se.rsrcs) ;
-			return { to_string("slurm_id:",se.id) , Maybe/*call_launch*/ } ;        // only launch jobs w/ same resources
+			return to_string("slurm_id:",se.id) ;
 		}
-		virtual ::pair_s<Bool3/*call_launch*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			if (!( s==Status::Err && se.verbose )) return {{},No/*call_launch*/} ;
-			//
-			//for( int i=0 ; i<100 ; Delay(0.1).sleep_for(),i++ )              // Ensure slurm is done so that its stderr is available
-			//	if (slurm_job_state(se.id).second>=JOB_COMPLETE)
-			//		return { readStderrLog(j) , false/*call_launch*/ } ;
-			//return { "cannot get error log" , No/*call_lauch*/ } ;
-			(void)se ;                                                         // XXX : replace by above code when validated
-			Delay(1).sleep_for() ;                                             // .
-			return { readStderrLog(j) , No/*call_launch*/ } ;                  // .
+		virtual ::string end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
+			if ( !se.verbose && s==Status::Ok ) return {}                           ;    // common case, must be fast
+			if ( !se.verbose                  ) return slurm_job_state(se.id).first ;    // light report
+			for( int i=0 ; i<100 ; Delay(0.1).sleep_for(),i++ ) {                        // Ensure slurm is done so that its stderr is available
+				::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
+				if (info.second==Maybe) continue ;
+				if (info.first.empty()) return                           readStderrLog(j)  ; // full report
+				else                    return to_string(info.first,'\n',readStderrLog(j)) ; // .
+			}
+			return to_string("cannot get slurm error log (slurm id=",se.id,')') ;
+			//(void)se ;                                                          // XXX : replace above loop if it is a problem
+			//Delay(1).sleep_for() ;                                              // .
+			//return readStderrLog(j) ;                                           // .
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
-			::pair_s<job_states> info = slurm_job_state(se.id) ;
-			if (info.second<JOB_COMPLETE) return {{},Yes/*ok*/} ;
+			::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
+			if (info.second==Maybe) return {{},Yes/*ok*/} ;                    // Yes means job is alive
 			//
-			bool isErr = info.second==JOB_FAILED || info.second==JOB_OOM ;
-			if ( isErr && se.verbose ) append_to_string(info.first,'\n',readStderrLog(j)) ;
+			if ( info.second==No && se.verbose ) append_to_string(info.first,'\n',readStderrLog(j)) ;
 			spawned_rsrcs.dec(se.rsrcs) ;
-			return { info.first , Maybe&!isErr } ;
+			return { info.first , Maybe&info.second } ;                        // Maybe means job may be retried, No means error, dont retry
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			slurm_cancel(se.id) ;
@@ -433,41 +444,39 @@ namespace Backends::Slurm {
 		Trace trace("Error while killing job: ",slurm_id," error: ",SlurmApi::strerror(errno)) ;
 	}
 
-	::pair_s<job_states> slurm_job_state(uint32_t slurm_id) {
+	::pair_s<Bool3/*ok*/> slurm_job_state(uint32_t slurm_id) {
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
-		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS )
-			return { to_string("Error while loading job info (",slurm_id,"): ",SlurmApi::strerror(errno)) , JOB_BOOT_FAIL } ;
 		//
-		job_states job_state = job_states( resp->job_array[0].job_state & JOB_STATE_BASE ) ;
-		::string   info      ;
+		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS )
+			return { to_string("Error while loading job info (",slurm_id,"): ",SlurmApi::strerror(errno)) , No/*ok*/ } ;
 		//
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
-			if( js>JOB_COMPLETE && job_state<=JOB_COMPLETE ) { // first error is reported
-				job_state = js ;
-				switch(js) {
-					// possible job_states values (from slurm.h) :
-					//   JOB_PENDING                                                                                                    queued waiting for initiation
-					//   JOB_RUNNING                                                                                                    allocated resources and executing
-					//   JOB_SUSPENDED                                                                                                  allocated resources, execution suspended
-					//   JOB_COMPLETE                                                                                                   completed execution successfully
-					case JOB_CANCELLED : info =           "Job cancelled by user"s                                         ; break ; // cancelled by user
-					case JOB_FAILED    : info = to_string("Failed (exit code = ",ji.exit_code,") on node(s): "  ,ji.nodes) ; break ; // completed execution unsuccessfully
-					case JOB_TIMEOUT   : info = to_string("Job terminated on reaching time limit on node(s): "  ,ji.nodes) ; break ; // terminated on reaching time limit
-					case JOB_NODE_FAIL : info = to_string("Job terminated on node failure on node(s): "         ,ji.nodes) ; break ; // terminated on node failure
-					case JOB_PREEMPTED : info = to_string("Job terminated due to preemption on node(s): "       ,ji.nodes) ; break ; // terminated due to preemption
-					case JOB_BOOT_FAIL : info = to_string("Job terminated due to node boot failure on node(s): ",ji.nodes) ; break ; // terminated due to node boot failure
-					case JOB_DEADLINE  : info = to_string("Job terminated on deadline on node(s): "             ,ji.nodes) ; break ; // terminated on deadline
-					case JOB_OOM       : info = to_string("Out of memory killed on node(s): "                   ,ji.nodes) ; break ; // experienced out of memory error
-					//   JOB_END                                                                                                        not a real state, last entry in table
-					default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",job_state) ;
-				}
+			if (js<=JOB_COMPLETE) continue ;                                    // we only search errors
+			::pair_s<bool/*ok*/> info ;
+			switch(js) {
+				// possible job_states values (from slurm.h) :
+				//   JOB_PENDING                                                                                                            queued waiting for initiation
+				//   JOB_RUNNING                                                                                                            allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                          allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                           completed execution successfully
+				case JOB_CANCELLED : return {           "Job cancelled by user"s                                         , Yes/*ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { to_string("Failed (exit code=",ji.exit_code,") on node(s): "    ,ji.nodes) , No /*ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("Job terminated on reaching time limit on node(s): "  ,ji.nodes) , No /*ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("Job terminated on node failure on node(s): "         ,ji.nodes) , Yes/*ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("Job terminated due to preemption on node(s): "       ,ji.nodes) , Yes/*ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("Job terminated due to node boot failure on node(s): ",ji.nodes) , Yes/*ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("Job terminated on deadline on node(s): "             ,ji.nodes) , Yes/*ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { to_string("Out of memory killed on node(s): "                   ,ji.nodes) , No /*ok*/ } ; // experienced out of memory error
+				//   JOB_END                                                                                                                not a real state, last entry in table
+				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
+		job_states job_state = job_states( resp->job_array[0].job_state & JOB_STATE_BASE ) ; // in normal cases, first state is reported
 		SlurmApi::free_job_info_msg(resp) ;
-		return {info,job_state} ;
+		return { {} , Maybe|(job_state==JOB_COMPLETE) } ;
 	}
 
 	inline ::string getLogPath      (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
@@ -477,8 +486,13 @@ namespace Backends::Slurm {
 	::string readStderrLog(JobIdx job) {
 		::string   err_file   = getLogStderrPath(job) ;
 		::ifstream err_stream { err_file }            ;
-		if (err_stream) return to_string( "Error from: "           , err_file , '\n' , err_stream.rdbuf() ) ;
-		else            return to_string( "Error file not found: " , err_file , '\n'                      ) ;
+		//
+		if (!err_stream) return to_string("Error file not found : ",err_file,'\n') ;
+		//
+		::string msg  = to_string("Error from : ",err_file,'\n') ;             // XXX : why simply msg = to_string(...,err_file.rdbuf()) crashes ?
+		::string line ;
+		while (::getline(err_stream,line)) append_to_string(msg,line,'\n') ;
+		return msg ;
 	}
 
 	inline ::string cmd_to_string(::vector_s const& cmd_line) {

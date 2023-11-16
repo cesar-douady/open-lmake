@@ -137,7 +137,8 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died
-			JobDigest jd { .status=Status::Lost , .stderr=s_lost_err(tag,job) } ;
+			::pair_s<bool/*retry*/> lost_info = s_lost_info(tag,job)                                                                  ;
+			JobDigest               jd        { .status=lost_info.second?Status::Lost:Status::Err , .stderr=::move(lost_info.first) } ;
 			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , ::move(jd) ) ) ;
 		}
 	}
@@ -242,7 +243,7 @@ namespace Backends {
 						,	'\n'
 						,	e
 						) ;
-						s_end(tag,+job,Status::Lost) ;
+						s_end( tag , +job , Status::Lost ) ;
 						JobDigest digest { .status=Status::Err , .deps=_mk_digest_deps(deps_attrs) , .stderr=::move(err_str) }  ;
 						trace("early_err",digest) ;
 						{	OFStream ofs { dir_guard(job->ancillary_file()) } ;
@@ -317,11 +318,10 @@ namespace Backends {
 					job_exec.start_date = entry.start     ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
-					Tag tag = entry.tag ;
+					//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					backend_msg = s_end( entry.tag , +job,jrr.digest.status ) ;
+					//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					jrr.digest.status = _s_release_start_entry(it,jrr.digest.status) ;
-					//            vvvvvvvvvvvvvvv
-					backend_msg = s_end(tag,+job,jrr.digest.status) ;
-					//            ^^^^^^^^^^^^^^^
 				} break ;
 				default : ;
 			}

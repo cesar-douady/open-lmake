@@ -17,8 +17,8 @@ using namespace Time ;
 
 namespace Engine {
 
-	::string Makefiles::s_makefiles    = AdminDir+"/makefiles"s    ;
-	::string Makefiles::s_no_makefiles = AdminDir+"/no_makefiles"s ;
+	::string Makefiles::s_makefiles    = AdminDir       +"/makefiles"s    ;
+	::string Makefiles::s_no_makefiles = PrivateAdminDir+"/no_makefiles"s ;
 	::string Makefiles::s_config_file  ;
 
 	static ::umap<Crc,RuleData> _gather_rules(Py::Sequence const& py_rules) {
@@ -90,7 +90,7 @@ namespace Engine {
 		Py::Pattern pyc_re1       { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         }   ;
 		Py::Pattern pyc_re2       { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" }   ;
 		GatherDeps  gather_deps   { New }                                                               ;
-		::string    makefile_data = AdminDir + "/makefile_data.py"s                                     ;
+		::string    makefile_data = PrivateAdminDir + "/makefile_data.py"s                              ;
 		::vector_s  cmd_line      = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , makefile_data } ;
 		Trace trace("_read_makefiles",Pdate::s_now()) ;
 		gather_deps.autodep_env.src_dirs_s = {"/"} ;

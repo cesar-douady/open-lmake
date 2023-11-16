@@ -40,8 +40,8 @@ void app_init( bool search_root , bool cd_root ) {
 	}
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
-	if (g_trace_file==nullptr) g_trace_file = new ::string{to_string(AdminDir,"/trace/",base_name(exe))} ;
-	/**/                       g_lmake_dir  = new ::string{dir_name(dir_name(exe))                     } ;
+	if (g_trace_file==nullptr) g_trace_file = new ::string{to_string(PrivateAdminDir,"/trace/",base_name(exe))} ;
+	/**/                       g_lmake_dir  = new ::string{dir_name(dir_name(exe))                            } ;
 	//
 	Trace::s_start() ;
 	Trace trace("app_init",g_startup_dir_s?*g_startup_dir_s:""s) ;

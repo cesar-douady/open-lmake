@@ -306,10 +306,10 @@ namespace Disk {
 			if (!is_abs(real) ) return {} ;                                    // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
 		}
-		_Dvg in_repo ( root_dir                         , real ) ;             // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp  ( tmp_view                         , real ) ;             // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg in_admin( to_string(root_dir,'/',AdminDir) , real ) ;             // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc ( *proc                            , real ) ;             // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_repo ( root_dir   , real ) ;                                   // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
+		_Dvg in_tmp  ( tmp_view   , real ) ;                                   // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_admin( _admin_dir , real ) ;                                   // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
+		_Dvg in_proc ( *proc      , real ) ;                                   // keep track of where we are w.r.t. /proc      , always track symlinks
 
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real

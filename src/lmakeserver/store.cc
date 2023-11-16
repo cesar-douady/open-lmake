@@ -48,8 +48,8 @@ namespace Engine {
 	Config      g_config ;
 
 	void EngineStore::_s_init_config() {
-		try         { g_config = deserialize<Config>(IFStream(AdminDir+"/config_store"s)) ; }
-		catch (...) { return ;                                                              }
+		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
+		catch (...) { return ;                                                                     }
 		if (!( g_config.db_version.major==DbVersion.major && g_config.db_version.minor<=DbVersion.minor ))
 			throw to_string( "data base version mismatch : expected : " , DbVersion.major,'.',DbVersion.minor , " found : " , g_config.db_version.major,'.',g_config.db_version.minor , '\n' ) ;
 	}
@@ -113,12 +113,12 @@ namespace Engine {
 		}
 		g_config            = ::move(new_config) ;
 		g_config.db_version = DbVersion          ;
-		serialize( OFStream(dir_guard(AdminDir+"/config_store"s)) , g_config ) ;
+		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
 		{	OFStream config_stream{AdminDir+"/config"s} ;
 			config_stream << g_config.pretty_str() ;
 		}
-		make_dir( to_string(g_config.local_admin_dir,"/outputs") , true/*unlink_ok*/ ) ;
-		make_dir( AdminDir+"/job_keep_tmp"s                      , true/*unlink_ok*/ ) ;
+		make_dir( AdminDir+"/outputs"s , true/*unlink_ok*/ ) ;
+		make_dir( AdminDir+"/job_tmp"s , true/*unlink_ok*/ ) ;
 	}
 
 	void EngineStore::_s_diff_config(Config const& old_config) {

@@ -7,7 +7,8 @@
 
 #include "utils.hh"
 
-static constexpr char AdminDir[] = "LMAKE" ;
+static constexpr char AdminDir       [] = "LMAKE"       ;
+static constexpr char PrivateAdminDir[] = "LMAKE/lmake" ;
 
 ENUM( LnkSupport
 ,	None
