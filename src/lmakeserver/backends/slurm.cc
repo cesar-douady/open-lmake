@@ -487,12 +487,9 @@ namespace Backends::Slurm {
 		::string   err_file   = getLogStderrPath(job) ;
 		::ifstream err_stream { err_file }            ;
 		//
-		if (!err_stream) return to_string("Error file not found : ",err_file,'\n') ;
-		//
-		::string msg  = to_string("Error from : ",err_file,'\n') ;             // XXX : why simply msg = to_string(...,err_file.rdbuf()) crashes ?
-		::string line ;
-		while (::getline(err_stream,line)) append_to_string(msg,line,'\n') ;
-		return msg ;
+		if (!err_stream                  ) return to_string("stderr not found : " ,err_file                        ) ;
+		if (::istream::sentry(err_stream)) return to_string("stderr from : "      ,err_file,'\n',err_stream.rdbuf()) ; // /!\ rdbuf() fails on an empty file
+		else                               return to_string("empty stderr from : ",err_file                        ) ;
 	}
 
 	inline ::string cmd_to_string(::vector_s const& cmd_line) {

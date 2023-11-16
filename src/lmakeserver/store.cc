@@ -118,7 +118,6 @@ namespace Engine {
 			config_stream << g_config.pretty_str() ;
 		}
 		make_dir( AdminDir+"/outputs"s , true/*unlink_ok*/ ) ;
-		make_dir( AdminDir+"/job_tmp"s , true/*unlink_ok*/ ) ;
 	}
 
 	void EngineStore::_s_diff_config(Config const& old_config) {

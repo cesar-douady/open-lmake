@@ -6,6 +6,7 @@
 #include "core.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 
 namespace Engine {
 
@@ -105,16 +106,16 @@ namespace Engine {
 	Config::Config(Py::Mapping const& py_map) {
 		::string field ;
 		try {
-			field = "hash_algo"        ; if (py_map.hasKey(field)) hash_algo        = mk_enum<Hash::Algo>(Py::String(py_map[field])) ; else throw "not found"s ;
-			field = "local_admin_dir"  ; if (py_map.hasKey(field)) local_admin_dir  =                     Py::String(py_map[field])  ; else local_admin_dir = PrivateAdminDir ;
-			field = "max_dep_depth"    ; if (py_map.hasKey(field)) max_dep_depth    = size_t             (Py::Long  (py_map[field])) ; else throw "not found"s ;
-			field = "max_error_lines"  ; if (py_map.hasKey(field)) max_err_lines    = size_t             (Py::Long  (py_map[field])) ;
-			field = "network_delay"    ; if (py_map.hasKey(field)) network_delay    = Time::Delay        (Py::Float (py_map[field])) ;
-			field = "remote_admin_dir" ; if (py_map.hasKey(field)) remote_admin_dir =                     Py::String(py_map[field])  ; else remote_admin_dir = PrivateAdminDir ;
-			field = "remote_tmp_dir"   ; if (py_map.hasKey(field)) remote_tmp_dir   =                     Py::String(py_map[field])  ; else remote_tmp_dir   = PrivateAdminDir ;
-			field = "trace_size"       ; if (py_map.hasKey(field)) trace_sz         = size_t             (Py::Long  (py_map[field])) ;
-			field = "path_max"         ; if (py_map.hasKey(field)) path_max         = size_t             (Py::Long  (py_map[field])) ;
-			field = "sub_prio_boost"   ; if (py_map.hasKey(field)) sub_prio_boost   = Prio               (Py::Float (py_map[field])) ;
+			field = "hash_algo"        ; if (py_map.hasKey(field)) hash_algo             = mk_enum<Hash::Algo>(Py::String(py_map[field])) ;
+			field = "local_admin_dir"  ; if (py_map.hasKey(field)) user_local_admin_dir  =                     Py::String(py_map[field])  ;
+			field = "max_dep_depth"    ; if (py_map.hasKey(field)) max_dep_depth         = size_t             (Py::Long  (py_map[field])) ; else throw "not found"s ;
+			field = "max_error_lines"  ; if (py_map.hasKey(field)) max_err_lines         = size_t             (Py::Long  (py_map[field])) ;
+			field = "network_delay"    ; if (py_map.hasKey(field)) network_delay         = Time::Delay        (Py::Float (py_map[field])) ;
+			field = "remote_admin_dir" ; if (py_map.hasKey(field)) user_remote_admin_dir =                     Py::String(py_map[field])  ;
+			field = "remote_tmp_dir"   ; if (py_map.hasKey(field)) user_remote_tmp_dir   =                     Py::String(py_map[field])  ;
+			field = "trace_size"       ; if (py_map.hasKey(field)) trace_sz              = size_t             (Py::Long  (py_map[field])) ;
+			field = "path_max"         ; if (py_map.hasKey(field)) path_max              = size_t             (Py::Long  (py_map[field])) ;
+			field = "sub_prio_boost"   ; if (py_map.hasKey(field)) sub_prio_boost        = Prio               (Py::Float (py_map[field])) ;
 			//
 			field = "link_support" ;
 			if (py_map.hasKey(field)) {
@@ -231,14 +232,14 @@ namespace Engine {
 		/**/          res << "db_version       : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
 		/**/          res << "hash_algo        : " << mk_snake(hash_algo    )                 <<'\n' ;
 		/**/          res << "link_support     : " << mk_snake(lnk_support  )                 <<'\n' ;
-		/**/          res << "local_admin_dir  : " <<          local_admin_dir                <<'\n' ;
+		/**/          res << "local_admin_dir  : " <<          user_local_admin_dir           <<'\n' ;
 		/**/          res << "max_dep_depth    : " << size_t  (max_dep_depth)                 <<'\n' ;
 		/**/          res << "max_error_lines  : " <<          max_err_lines                  <<'\n' ;
 		/**/          res << "network_delay    : " <<          network_delay.short_str()      <<'\n' ;
 		if (path_max) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
 		else          res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
-		/**/          res << "remote_admin_dir : " <<          remote_admin_dir               <<'\n' ;
-		/**/          res << "remote_tmp_dir   : " <<          remote_tmp_dir                 <<'\n' ;
+		/**/          res << "remote_admin_dir : " <<          user_remote_admin_dir          <<'\n' ;
+		/**/          res << "remote_tmp_dir   : " <<          user_remote_tmp_dir            <<'\n' ;
 		res << "console :\n" ;
 		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
 		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -283,7 +284,17 @@ namespace Engine {
 		return res.str() ;
 	}
 
-	void Config::open() const {
+	void Config::open() {
+		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
+		// if not set by user, these dirs lies within the repo and are unique by nature
+		Xxh key_hash ;
+		key_hash.update(*g_root_dir) ;
+		::string repo_key = '/' + ::string(::move(key_hash).digest()) ;
+		//
+		if (user_local_admin_dir .empty()) local_admin_dir  = PrivateAdminDir+"/local_admin"s  ; else local_admin_dir  = user_local_admin_dir  + repo_key ;
+		if (user_remote_admin_dir.empty()) remote_admin_dir = PrivateAdminDir+"/remote_admin"s ; else remote_admin_dir = user_remote_admin_dir + repo_key ;
+		if (user_remote_tmp_dir  .empty()) remote_tmp_dir   = PrivateAdminDir+"/remote_tmp"s   ; else remote_tmp_dir   = user_remote_tmp_dir   + repo_key ;
+		//
 		Backends::Backend::s_config(backends) ;
 		Caches  ::Cache  ::s_config(caches  ) ;
 		// check non-local backends have non-local addresses

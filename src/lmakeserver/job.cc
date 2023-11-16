@@ -1359,7 +1359,7 @@ namespace Engine {
 			case AncillaryTag::Backend : res = PrivateAdminDir          + "/backend"s ; break ;
 			case AncillaryTag::Data    : res = g_config.local_admin_dir + "/job_data" ; break ;
 			case AncillaryTag::Dbg     : res = AdminDir                 + "/debug"s   ; break ;
-			case AncillaryTag::KeepTmp : res = AdminDir                 + "/job_tmp"s ; break ;
+			case AncillaryTag::KeepTmp : res = AdminDir                 + "/tmp"s     ; break ;
 			default : FAIL(tag) ;
 		}
 		res.reserve( res.size() + str.size() + str.size()/2 + 1 ) ;                                // 1.5*str.size() as there is a / for 2 digits + final _

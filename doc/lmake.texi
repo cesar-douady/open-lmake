@@ -1084,14 +1084,18 @@ So there a possibility to store administration data that do not mandate sharing 
 
 This variable specifies the directory to use for data that are accessed by the @lmake server only.
 It can be set to a directory mounted on a local disk which may be visible only by the @lmake server (i.e. on the host on which you launch the @lmake command).
-This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
+
+This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
+
+It is of paramount importance to leave this directory intact as this is where @lmake stores most of its bookkeeping data.
 
 @anchor{dir-remote_admin_dir}
 @section @code{lmake.remote_admin_dir}
 
 This variable specifies the directory to use for data that are accessed by the remote executing hosts only (not shared among them).
 It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
-This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
+
+This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
 
 It can be freely modified (or removed) when @lmake is not running.
 
@@ -1100,9 +1104,10 @@ It can be freely modified (or removed) when @lmake is not running.
 
 This variable specifies the path name of the file system available to user jobs for temporary storage for the remote executing hosts only (not shared among them).
 It can be set to a directory mounted on a local disk of each remote hosts, i.e. it must exist on each remote host but does not necessarily designate the same area on all of them.
-This directory must be unique for each repository, i.e. @lmake considers it as a sandbox within which it can freely play.
 
-It can be freely modified (or removed) when @lmake is not running.
+This directory need not be unique for each repository as @lmake will create a unique sub-directory per repository (identified by its absolute path).
+
+The per repository sub-directory is removed when @lmake is not running.
 
 @chapter Config
 

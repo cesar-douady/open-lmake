@@ -12,6 +12,7 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
+
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	Trace trace("main") ;
 

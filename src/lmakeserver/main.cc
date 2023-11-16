@@ -371,6 +371,8 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
+	unlink(g_config.remote_tmp_dir) ;                                          // cleanup
+	//
 	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;
 }

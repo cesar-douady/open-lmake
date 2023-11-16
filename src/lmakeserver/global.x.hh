@@ -125,30 +125,30 @@ namespace Engine {
 		Config(Py::Mapping const& py_map) ;
 		// services
 		template<IsStream T> void serdes(T& s) {
-			::serdes(s,db_version      ) ;                                     // must always stay first field to ensure it is always understood
-			::serdes(s,hash_algo       ) ;
+			::serdes(s,db_version           ) ;                                // must always stay first field to ensure it is always understood
+			::serdes(s,hash_algo            ) ;
 			//
-			::serdes(s,lnk_support     ) ;
+			::serdes(s,lnk_support          ) ;
 			//
-			::serdes(s,caches          ) ;
-			::serdes(s,local_admin_dir ) ;
-			::serdes(s,max_dep_depth   ) ;
-			::serdes(s,path_max        ) ;
-			::serdes(s,src_dirs_s      ) ;
-			::serdes(s,sub_prio_boost  ) ;
-			::serdes(s,trace_sz        ) ;
+			::serdes(s,caches               ) ;
+			::serdes(s,user_local_admin_dir ) ;
+			::serdes(s,max_dep_depth        ) ;
+			::serdes(s,path_max             ) ;
+			::serdes(s,src_dirs_s           ) ;
+			::serdes(s,sub_prio_boost       ) ;
+			::serdes(s,trace_sz             ) ;
 			//
-			::serdes(s,colors          ) ;
-			::serdes(s,max_err_lines   ) ;
-			::serdes(s,network_delay   ) ;
-			::serdes(s,remote_admin_dir) ;
-			::serdes(s,remote_tmp_dir  ) ;
-			::serdes(s,backends        ) ;
-			::serdes(s,rsrc_digits     ) ;
-			::serdes(s,console         ) ;
+			::serdes(s,colors               ) ;
+			::serdes(s,max_err_lines        ) ;
+			::serdes(s,network_delay        ) ;
+			::serdes(s,user_remote_admin_dir) ;
+			::serdes(s,user_remote_tmp_dir  ) ;
+			::serdes(s,backends             ) ;
+			::serdes(s,rsrc_digits          ) ;
+			::serdes(s,console              ) ;
 		}
 		::string pretty_str() const ;
-		void open() const ;
+		void open() ;
 		// data
 		// changing these values require restarting from a clean base
 		Version        db_version                                      = {}               ; // by default, db cannot be understood
@@ -157,7 +157,7 @@ namespace Engine {
 		LnkSupport     lnk_support                                     = LnkSupport::Full ;
 		// changing these can only be done when lmake is not running
 		::map_s<Cache> caches                                          ;
-		::string       local_admin_dir                                 ;
+		::string       user_local_admin_dir                            ;
 		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
 		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
 		::vector_s     src_dirs_s                                      ;
@@ -168,14 +168,18 @@ namespace Engine {
 		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
 		size_t         max_err_lines                                   = 0                ; // unlimited
 		Time::Delay    network_delay                                   ;
-		::string       remote_admin_dir                                ;
-		::string       remote_tmp_dir                                  ;
+		::string       user_remote_admin_dir                           ;
+		::string       user_remote_tmp_dir                             ;
 		uint8_t        rsrc_digits[+StdRsrc::N]                        = {}               ; // precision of standard resources
 		struct {
 			uint8_t date_prec     = -1    ;                // -1 means no date at all in console output
 			uint8_t host_len      = 0     ;                //  0 means no host at all in console output
 			bool    has_exec_time = false ;
 		} console ;
+		// derived info (not saved on disk)
+		::string local_admin_dir  ;
+		::string remote_admin_dir ;
+		::string remote_tmp_dir   ;
 	} ;
 
 	/**/          void audit( Fd out_fd , ::ostream& trace , ReqOptions const&    , Color   , DepDepth     , ::string const& pfx , ::string const& name={} , ::string const& sfx={} ) ;

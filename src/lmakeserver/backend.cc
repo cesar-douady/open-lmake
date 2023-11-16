@@ -270,7 +270,7 @@ namespace Backends {
 					//
 					::string tmp_dir = keep_tmp ?
 						to_string(*g_root_dir,'/',job->ancillary_file(AncillaryTag::KeepTmp))
-					:	to_string(g_config.remote_tmp_dir,"/job_tmp/",small_id)
+					:	to_string(g_config.remote_tmp_dir,'/',small_id)
 					;
 					//
 					job_exec.host = fd.peer_addr() ;
@@ -318,7 +318,10 @@ namespace Backends {
 					job_exec.start_date = entry.start     ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
-					//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					// if we have no fd, job end was invented by heartbeat, no acknowledge
+					// acknowledge job end before telling backend as backend may wait the end of the job
+					//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (+fd) try { OMsgBuf().send(fd,JobRpcReply(JobProc::End)) ; } catch (::string const&) {} // if job is dead, we dont care, we have our digest
 					backend_msg = s_end( entry.tag , +job,jrr.digest.status ) ;
 					//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					jrr.digest.status = _s_release_start_entry(it,jrr.digest.status) ;
@@ -363,11 +366,6 @@ namespace Backends {
 			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.txt)              ) ;                  break ;
 			//                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			case JobProc::End :
-				if (+fd)                                                       // if we have no fd, job end was invented by heartbeat, no acknowledge
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					try { OMsgBuf().send(fd,JobRpcReply(JobProc::End)) ; }     // acknowledge end report as job_exec stays alive till then to answer to heartbeats
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					catch (::string const&) {}                                                                  // if job disappeared, no harm, we are done
 				serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr,::move(backend_msg)) ) ;
 				job->end_exec() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
