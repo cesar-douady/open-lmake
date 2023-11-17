@@ -224,8 +224,9 @@ namespace Engine {
 		::vector<Node> report_unlink = {}            ;     // if proc==Start
 		::string       txt           = {}            ;     // if proc==Start | LiveOut, if Start, report exception while computing start_none_attrs
 		Req            req           = {}            ;     // if proc==Continue
-		::vmap_ss      rsrcs         = {}            ;
+		::vmap_ss      rsrcs         = {}            ;     // if proc==End
 		JobDigest      digest        = {}            ;     // if proc==End
+		::string       backend_msg   = {}            ;     // if proc==End
 		Fd             reply_fd      = {}            ;     // if proc==ChkDeps
 	} ;
 
@@ -257,12 +258,14 @@ namespace Engine {
 		//
 		EngineClosure( JP p , JE&& je , bool r , VN const& ru={} , ::string const& t={} ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=r,.report_unlink=ru,.txt=t} { SWEAR(p==JP::Start) ; }
 		//
-		EngineClosure( JP p , JE&& je , ::string const& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=t             } { SWEAR( p==JP::LiveOut                          ) ; }
-		EngineClosure( JP p , JE&& je , R               r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r             } { SWEAR( p==JP::Continue                         ) ; }
-		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
+		EngineClosure( JP p , JE&& je , ::string const& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=t} { SWEAR( p==JP::LiveOut                          ) ; }
+		EngineClosure( JP p , JE&& je , R               r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r} { SWEAR( p==JP::Continue                         ) ; }
+		EngineClosure( JP p , JE&& je                     ) : kind{K::Job} , job{.proc=p,.exec=::move(je)       } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
 		//
-		EngineClosure( JP p , JE&& je , Status s                ) : kind{K::Job} , job{.proc=p,.exec=::move(je),                 .digest={.status=s} } { SWEAR( p==JP::End && s<=Status::Garbage ) ; }
-		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.rsrcs=::move(r),.digest=::move(jd)  } { SWEAR( p==JP::End                       ) ; }
+		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd , ::string&& bem={}  ) :
+			kind { K::Job                                                                                       }
+		,	job  { .proc=p , .exec=::move(je) , .rsrcs=::move(r) , .digest=::move(jd) ,.backend_msg=::move(bem) }
+		{ SWEAR(p==JP::End) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.deps{::move(dds)}},.reply_fd=rfd} {
 			SWEAR( p==JP::DepInfos || p==JP::ChkDeps ) ;

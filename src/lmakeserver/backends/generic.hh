@@ -152,10 +152,9 @@ namespace Backends {
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx ) const = 0 ;             // import resources from a publicly manageable form
 		//
 		virtual ::string                start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                       ; }
-		virtual ::string                end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*lost_is_err*/} ; }
+		virtual ::pair_s<bool/*retry*/> end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*lost_is_err*/} ; }
 		virtual ::pair_s<Bool3/*ok*/>   heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok*/}            ; }              // only called before start
 		virtual void                    kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                                               // .
-		virtual ::pair_s<bool/*retry*/> lost_info_job       ( JobIdx , SpawnedEntry const&          ) const { return {"vanished after start",true/*retry*/} ; }
 		//
 		virtual SpawnId launch_job( JobIdx , Pdate prio , ::vector_s const& cmd_line   , Rsrcs const& , bool verbose ) const = 0 ;
 
@@ -228,12 +227,6 @@ namespace Backends {
 			old_pressure = pressure ;
 		}
 	protected :
-		virtual ::pair_s<bool/*retry*/> lost_info(JobIdx j) {
-			auto it = spawned_jobs.find(j) ;
-			if (it==spawned_jobs.end()) return {{},true/*ok*/}             ;   // job was killed, ignore
-			else                        return lost_info_job(j,it->second) ;
-		}
-
 		virtual ::pair_s<uset<ReqIdx>> start(JobIdx job) {
 			::uset<ReqIdx> res ;
 			auto           it  = spawned_jobs.find(job) ;
@@ -247,15 +240,15 @@ namespace Backends {
 			launch( call_launch_after_start() , se.rsrcs ) ;                   // not compulsery but improves reactivity
 			return { msg , ::move(res) } ;
 		}
-		virtual ::string end( JobIdx j , Status s ) {
+		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
 			auto it = spawned_jobs.find(j) ;
 			if (it==spawned_jobs.end()) return {} ;                            // job was killed in the mean time
-			SpawnedEntry& se      = it->second      ;
-			::string      end_msg = end_job(j,se,s) ;
-			Rsrcs         rsrcs   = se.rsrcs        ;                          // copy resources before erasing job from spawned_jobs
+			SpawnedEntry&           se     = it->second      ;
+			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
+			Rsrcs                   rsrcs  = se.rsrcs        ;                 // copy resources before erasing job from spawned_jobs
 			spawned_jobs.erase(it) ;                                           // erase before calling launch so job is freed w.r.t. n_jobs
 			launch( call_launch_after_end() , rsrcs ) ;                        // not compulsery but improves reactivity
-			return end_msg ;
+			return digest ;
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx j) {                                             // called on jobs that did not start after at least newwork_delay time
 			auto                  it     = spawned_jobs.find(j)       ; SWEAR(it!=spawned_jobs.end()) ;

@@ -334,8 +334,8 @@ namespace Engine {
 		}
 	}
 
-	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest ) {
-		Status            status           = digest.status                                      ; // status will be modified, need to make a copy
+	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string const& backend_msg ) {
+		Status            status           = digest.status                                      ;                     // status will be modified, need to make a copy
 		bool              err              = status>=Status::Err                                ;
 		bool              killed           = status<=Status::Killed                             ;
 		JobReason         local_reason     = killed ? JobReasonTag::Killed : JobReasonTag::None ;
@@ -530,14 +530,14 @@ namespace Engine {
 			case Status::Timeout :                                                              { analysis_err.emplace_back("timeout"         ,Node()) ;              } break ;
 			default : ;
 		}
-		EndNoneAttrs end_none_attrs   ;
-		::string     attrs_err ;
+		EndNoneAttrs end_none_attrs ;
+		::string     stderr         ;
 		try {
 			end_none_attrs = rule->end_none_attrs.eval(*this,match,rsrcs) ;
 		} catch (::string const& e) {
 			end_none_attrs = rule->end_none_attrs.spec ;
 			analysis_err.emplace_back(rule->end_none_attrs.s_exc_msg(true/*using_static*/),Node()) ;
-			attrs_err = ensure_nl(e) ;
+			stderr = ensure_nl(e) ;
 		}
 		//
 		(*this)->exec_ok(true) ;                                               // effect of old cmd has gone away with job execution
@@ -580,15 +580,11 @@ namespace Engine {
 			}
 			AnalysisErr const& ae = !ae_buf.empty() ? ae_buf : analysis_err ;
 			if (ri.done()) {
-				audit_end(
-					{}
-				,	ri
-				,	reason.err() ? attrs_err : attrs_err.empty() ? digest.stderr : attrs_err+digest.stderr // avoid concatenation unless necessary
-				,	ae
-				,	end_none_attrs.stderr_len
-				,	any_modified
-				,	digest.stats.total                                         // report exec time even if not recording it
-				) ;
+				if      (reason.err()         ) {}                                // dont show meaningless job stderr
+				else if (digest.stderr.empty()) {}                                // avoid concatenation unless necessary
+				else if (stderr       .empty()) stderr  = ::move(digest.stderr) ; // .
+				else                            stderr +=        digest.stderr  ;
+				audit_end( {}/*pfx*/ , ri , backend_msg , ae , stderr , end_none_attrs.stderr_len , any_modified , digest.stats.total) ; // report exec time even if not recording it
 				trace("wakeup_watchers",ri) ;
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
 				if ( has_analysis_err && !analysis_stamped ) {                 // this is code is done in such a way as to be fast in the common case (ae empty)
@@ -615,7 +611,7 @@ namespace Engine {
 				}
 				ri.wakeup_watchers() ;
 			} else {
-				audit_end( +local_reason?"":"may_" , ri , attrs_err , {reason.str()} , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
+				audit_end( +local_reason?"":"may_" , ri , backend_msg , {reason.str()} , stderr , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				req->missing_audits[*this] = { false/*hit*/ , any_modified , ae } ;
 			}
 			trace("req_after",ri) ;
@@ -625,7 +621,16 @@ namespace Engine {
 		return any_modified ;
 	}
 
-	void JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
+	void JobExec::audit_end(
+		::string    const& pfx
+	,	ReqInfo     const& cri
+	,	::string    const& backend_msg
+	,	AnalysisErr const& analysis_err
+	,	::string    const& stderr
+	,	size_t             stderr_len
+	,	bool               modified
+	,	Delay              exec_time
+	) const {
 		Req            req  = cri.req            ;
 		::string       step ;
 		Color          c    = Color::Ok          ;
@@ -655,7 +660,7 @@ namespace Engine {
 		req->audit_job(c,step,*this,true/*at_end*/,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (jr==JobReport::Unknown) return ;
-		req->audit_stderr(analysis_err,stderr,stderr_len,1) ;
+		req->audit_stderr(backend_msg,analysis_err,stderr,stderr_len,1) ;
 	}
 
 	//
@@ -982,8 +987,8 @@ namespace Engine {
 					req->audit_stderr({{rule->end_none_attrs.s_exc_msg(true/*using_static*/),{}}},e,-1,1) ;
 				}
 				analysis_err.push_back(reason.str()) ;
-				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , report_end.end.digest.stderr , analysis_err    , end_none_attrs.stderr_len , ja.modified ) ;
-				else                           audit_end( ja.hit?"hit_":"was_" , ri , report_end.end.digest.stderr , ja.analysis_err , end_none_attrs.stderr_len , ja.modified ) ;
+				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , analysis_err    , report_end.end.digest.stderr , end_none_attrs.stderr_len , ja.modified ) ;
+				else                           audit_end( ja.hit?"hit_":"was_" , ri , ja.analysis_err , report_end.end.digest.stderr , end_none_attrs.stderr_len , ja.modified ) ;
 				req->missing_audits.erase(it) ;
 			}
 			trace("wakeup",ri) ;
@@ -1242,7 +1247,7 @@ namespace Engine {
 						ri.lvl = Lvl::Hit ;
 						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
-						bool modified = je.end({},digest) ;                    // no resources for cached jobs
+						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ; // no resources nor backend for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[idx()] = { true/*hit*/ , modified , {} } ;
 						return true/*maybe_new_deps*/ ;

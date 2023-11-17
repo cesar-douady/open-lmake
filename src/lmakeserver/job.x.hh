@@ -111,12 +111,32 @@ namespace Engine {
 		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
 		void             live_out     ( ::string const&                                                            ) const ;
 		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const&                                  ) ;       // hit indicates that result is from a cache hit
+		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg    ) ;       // hit indicates that result is from a cache hit
 		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job has some other req
 		void             not_started  (                                                                            ) ;       // Req was killed before it started
 		//
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
+		void audit_end(
+			::string    const& pfx
+		,	ReqInfo     const&
+		,	::string    const& backend_msg
+		,	AnalysisErr const&
+		,	::string    const& stderr
+		,	size_t             stderr_len
+		,	bool               modified
+		,	Delay              exec_time    = {}
+		) const ;
+		void audit_end(
+			::string    const& pfx
+		,	ReqInfo     const& cri
+		,	AnalysisErr const& analysis_err
+		,	::string    const& stderr
+		,	size_t             stderr_len
+		,	bool               modified
+		,	Delay              exec_time    = {}
+		) const {
+			audit_end(pfx,cri,{}/*backend_msg*/,analysis_err,stderr,stderr_len,modified,exec_time) ;
+		}
 		// data
 		in_addr_t host       = NoSockAddr ;
 		Pdate     start_date ;
@@ -274,7 +294,7 @@ namespace Engine {
 		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ; // modified=Maybe means file is new
 		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ; // cannot use default Node={} as Node is incomplete
 		//
-		void audit_end( ::string const& pfx , ReqInfo const& , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time={} ) const ;
+		template<class... A> void audit_end(A&&... args) const ;
 	private :
 		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
 		bool                   _targets_ok      ( Req      , Rule::SimpleMatch const&                                                                     ) ;
@@ -377,9 +397,8 @@ namespace Engine {
 		else              return _submit_plain  (ri,reason,pressure) ;
 	}
 
-	inline void JobData::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& stderr , AnalysisErr const& analysis_err , size_t stderr_len , bool modified , Delay exec_time ) const {
-		Pdate now = Pdate::s_now() ;
-		JobExec(idx(),now).audit_end(pfx,cri,stderr,analysis_err,stderr_len,modified,exec_time) ;
+	template<class... A> inline void JobData::audit_end(A&&... args) const {
+		JobExec(idx(),Pdate::s_now()).audit_end(::forward<A>(args)...) ;
 	}
 
 	inline bool JobData::sure() const {

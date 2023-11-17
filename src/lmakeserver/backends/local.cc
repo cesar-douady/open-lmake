@@ -134,15 +134,15 @@ namespace Backends::Local {
 		virtual ::string start_job( JobIdx , SpawnedEntry const& e ) const {
 			return to_string("pid:",e.id) ;
 		}
-		virtual ::string end_job( JobIdx , SpawnedEntry const& se , Status ) const {
+		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
 			avail += *se.rsrcs ;
 			Trace trace("end","avail_rsrcs",'+',avail) ;
 			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
-			return {} ;
+			return {{},true/*retry*/} ;                                        // retry if lost
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			kill_queued_job(j,se) ;                                                                     // ensure job_exec is dead or will die shortly
-			return {"vanished",Maybe/*ok*/} ;
+			return {{}/*msg*/,Maybe/*ok*/} ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			kill_process(se.id,SIGHUP) ;                                        // jobs killed here have not started yet, so we just want to kill job_exec

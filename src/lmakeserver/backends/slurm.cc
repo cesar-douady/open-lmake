@@ -187,10 +187,6 @@ namespace Backends::Slurm {
 		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()               ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend(rsa,req_forces[req]) ; }
 		//
-		virtual ::pair_s<bool/*retry*/> lost_info_job( JobIdx , SpawnedEntry const& se ) const {
-			::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
-			return { info.first , info.second!=No } ;
-		}
 		virtual bool/*ok*/ fit_now(RsrcsAsk rsa) const {
 			return spawned_rsrcs.n_spawned(rsa) < n_max_queue_jobs ;
 		}
@@ -198,25 +194,29 @@ namespace Backends::Slurm {
 			spawned_rsrcs.dec(se.rsrcs) ;
 			return to_string("slurm_id:",se.id) ;
 		}
-		virtual ::string end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			if ( !se.verbose && s==Status::Ok ) return {}                           ;    // common case, must be fast
-			if ( !se.verbose                  ) return slurm_job_state(se.id).first ;    // light report
-			for( int i=0 ; i<100 ; Delay(0.1).sleep_for(),i++ ) {                        // Ensure slurm is done so that its stderr is available
-				::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
-				if (info.second==Maybe) continue ;
-				if (info.first.empty()) return                           readStderrLog(j)  ; // full report
-				else                    return to_string(info.first,'\n',readStderrLog(j)) ; // .
+		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
+			if ( !se.verbose && s>Status::Garbage ) return {{},true/*retry*/} ;                         // common case, must be fast
+			::pair_s<Bool3/*ok*/> info ;
+			for( int c=0 ; c<2 ; c++ ) {
+				for( int i=0 ; i<10 ; Delay(0.1).sleep_for(),i++ ) {           // wait a little while hoping job is dying
+					info = slurm_job_state(se.id) ;
+					if (info.second!=Maybe) goto JobDead ;
+				}
+				if (c==0) slurm_cancel(se.id) ;                                // if still alive after a little while, cancel job and retry
 			}
-			return to_string("cannot get slurm error log (slurm id=",se.id,')') ;
-			//(void)se ;                                                          // XXX : replace above loop if it is a problem
-			//Delay(1).sleep_for() ;                                              // .
-			//return readStderrLog(j) ;                                           // .
+			info.first = "job is stil alive" ;
+		JobDead :
+			if (se.verbose) append_to_string(info.first,'\n',readStderrLog(j)) ; // full report
+			return { info.first , info.second!=No } ;
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{},Yes/*ok*/} ;                    // Yes means job is alive
 			//
-			if ( info.second==No && se.verbose ) append_to_string(info.first,'\n',readStderrLog(j)) ;
+			if ( info.second==No && se.verbose ) {
+				if (info.first.empty()) info.first = readStderrLog(j) ;
+				else                    append_to_string(info.first,'\n',readStderrLog(j)) ;
+			}
 			spawned_rsrcs.dec(se.rsrcs) ;
 			return { info.first , Maybe&info.second } ;                        // Maybe means job may be retried, No means error, dont retry
 		}

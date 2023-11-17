@@ -13,8 +13,7 @@ int main( int argc , char* argv[] ) {
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{
-		{ ReqKey::Backend    , { .short_name='b' , .doc="show messages from backend"                 } }
-	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
+		{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                   } }
 	,	{ ReqKey::Deps       , { .short_name='d' , .doc="show existing deps"                         } }
 	,	{ ReqKey::Env        , { .short_name='E' , .doc="show envionment variables to execute job"   } }
 	,	{ ReqKey::ExecScript , { .short_name='s' , .doc="show a sh-executable script"                } }

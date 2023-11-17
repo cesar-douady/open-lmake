@@ -677,12 +677,12 @@ struct JobInfoStart {
 	in_addr_t   host         = NoSockAddr ;
 	JobRpcReq   pre_start    = {}         ;
 	JobRpcReply start        = {}         ;
-	::string    backend_msg  = {}         ;    // reason for not starting
+	::string    backend_info = {}         ;
 } ;
 
 struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
 	// data
 	JobRpcReq end         = {} ;
-	::string  backend_msg = {} ;       // report from backend remote execution
+	::string  backend_msg = {} ;
 } ;

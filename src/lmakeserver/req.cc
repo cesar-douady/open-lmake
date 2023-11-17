@@ -429,8 +429,9 @@ namespace Engine {
 		log_stream << "status : " << (ok?"ok":"failed") << '\n' ;
 	}
 
-	bool/*seen*/ ReqData::audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
-		for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n , lvl ) ;
+	bool/*seen*/ ReqData::audit_stderr( ::string const& backend_msg , AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
+		if (!backend_msg.empty())                 audit_info( Color::Note , backend_msg , lvl ) ;
+		for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n     , lvl ) ;
 		if (stderr.empty()) return !analysis_err.empty() ;
 		if (max_stderr_lines!=size_t(-1)) {
 			::string_view shorten = first_lines(stderr,max_stderr_lines) ;

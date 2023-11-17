@@ -25,7 +25,6 @@ ENUM_1( ReqProc                        // PER_CMD : add a value that represents 
 ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
 ,	None           // must stay first
 ,	Add            // if proc==Mark
-,	Backend        // if proc==Show
 ,	Clear          // if proc==Mark
 ,	Cmd            // if proc==Show
 ,	Delete         // if proc==Mark

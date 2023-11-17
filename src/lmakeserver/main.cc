@@ -302,7 +302,7 @@ bool/*interrupted*/ engine_loop() {
 					case JobProc::LiveOut     : je.live_out     (job.txt                             ) ; break ;
 					case JobProc::Continue    : je.premature_end(job.req                             ) ; break ;
 					case JobProc::NotStarted  : je.not_started  (                                    ) ; break ;
-					case JobProc::End         : je.end          (job.rsrcs,job.digest                ) ; break ;
+					case JobProc::End         : je.end          (job.rsrcs,job.digest,job.backend_msg) ; break ;
 					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {

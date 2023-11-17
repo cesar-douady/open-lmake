@@ -400,7 +400,6 @@ namespace Engine {
 		try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
 	Go :
 		switch (ro.key) {
-			case ReqKey::Backend    :
 			case ReqKey::Cmd        :
 			case ReqKey::Env        :
 			case ReqKey::ExecScript :
@@ -452,11 +451,6 @@ namespace Engine {
 							for( auto const& [pfx,n] : digest.analysis_err ) audit( fd , ro , Color::Note , lvl+1 , pfx , n       ) ;
 							/**/                                             audit( fd , ro , Color::None , lvl+1 , digest.stderr ) ;
 						break ;
-						case ReqKey::Backend :
-							if (!has_end ) { audit( fd , ro , Color::Err , lvl , "no info available" ) ; break ; }
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							audit    ( fd , ro , Color::None , lvl+1 , report_end.backend_msg ) ;
-						break ;
 						case ReqKey::Info : {
 							::string ids      = to_string( "job=",pre_start.job , " , small=",start.small_id ) ;
 							bool     has_host = report_start.host!=NoSockAddr                                  ;
@@ -476,11 +470,11 @@ namespace Engine {
 							if (has_start) {
 								static constexpr AutodepMethod AdMD = AutodepMethod::Dflt ;
 								//
-								JobInfoStart const& rs     = report_start                                                             ;
-								size_t              cwd_sz = rs.start.cwd_s.size()                                                    ;
-								::string            bem    = rs.backend_msg.empty() ? ::string() : to_string(" (",rs.backend_msg,')') ;
+								JobInfoStart const& rs     = report_start                                                               ;
+								size_t              cwd_sz = rs.start.cwd_s.size()                                                      ;
+								::string            bem    = rs.backend_info.empty() ? ::string() : to_string(" (",rs.backend_info,')') ;
 								//
-								audit( fd , ro , Color::None , lvl+1 , to_string("backend        : ",mk_snake(rs.submit_attrs.tag),bem                      ) ) ;
+								audit( fd , ro , Color::None , lvl+1 , to_string("backend info   : ",mk_snake(rs.submit_attrs.tag),bem                      ) ) ;
 								audit( fd , ro , Color::None , lvl+1 , to_string("id's           : ",ids                                                    ) ) ;
 								audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir        : ",rs.start.autodep_env.tmp_dir                           ) ) ;
 								audit( fd , ro , Color::None , lvl+1 , to_string("scheduling     : ",rs.eta.str()," - ",rs.submit_attrs.pressure.short_str()) ) ;
@@ -520,6 +514,10 @@ namespace Engine {
 								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed in job : "+digest.stats.job  .short_str() ) ;
 								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed total  : "+digest.stats.total.short_str() ) ;
 								audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , "used mem       : "+mem_str                        ) ;
+								if (!report_end.backend_msg.empty()) {
+									audit( fd , ro , Color::None , lvl+1 , "backend message :"    ) ;
+									audit( fd , ro , Color::None , lvl+2 , report_end.backend_msg ) ;
+								}
 							}
 							//
 							bool   has_required  = !required_rsrcs .empty() ;
@@ -601,7 +599,6 @@ namespace Engine {
 			}
 			JobTgt jt = _job_from_target(fd,ro,target) ; if (!jt) { ok = false ; continue ; }
 			switch (ro.key) {
-				case ReqKey::Backend    :
 				case ReqKey::Cmd        :
 				case ReqKey::Env        :
 				case ReqKey::ExecScript :

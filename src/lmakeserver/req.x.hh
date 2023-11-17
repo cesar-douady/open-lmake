@@ -270,9 +270,12 @@ namespace Engine {
 		void audit_job( Color c , ::string const& s , Job j                       , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                  ,s,j   ,h,et) ; }
 		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false                , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je    ,et) ; }
 		//
-		void         audit_status( bool ok                                                                                                ) const ;
-		void         audit_stats (                                                                                                        ) const ;
-		bool/*seen*/ audit_stderr( AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                                                                                              ) const ;
+		void         audit_stats (                                                                                                                                      ) const ;
+		bool/*seen*/ audit_stderr( ::string const& backend_msg , AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
+		bool/*seen*/ audit_stderr(                               AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
+			return audit_stderr({},analysis_err,stderr,max_stderr_lines,lvl) ;
+		}
 	private :
 		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl ) ;
 		// data
