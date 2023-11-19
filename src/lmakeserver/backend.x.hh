@@ -135,7 +135,7 @@ namespace Backends {
 		//
 		virtual void                    launch   (             ) = 0 ;                 // called to trigger launch of waiting jobs
 		virtual ::pair_s<uset<ReqIdx>>  start    (JobIdx       ) = 0 ;                 // tell sub-backend job started, return an informative message and reqs associated with job
-		virtual ::pair_s<bool/*retry*/> end      (JobIdx,Status) { return {}       ; } // tell sub-backend job ended  , return a message and whether to retry lost jobs
+		virtual ::pair_s<bool/*retry*/> end      (JobIdx,Status) { return {}       ; } // tell sub-backend job ended  , return a message and whether to retry jobs with garbage status
 		virtual ::pair_s<Bool3/*ok*/>   heartbeat(JobIdx       ) { return {{},Yes} ; } // regularly called between launch and start, Yes => ok, Maybe => job lost, No => job error
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity

@@ -99,6 +99,10 @@ struct ServerReply {
 	Fd      fd  ;                      // fd to forward reply to
 } ;
 
+static inline void _set_status( Status& status , Status new_status ) {
+	if (status==Status::New) status = new_status ;                     // else there is already another reason
+}
+
 Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd child_stdout , Fd child_stderr ) {
 	using Kind = GatherDepsKind ;
 	using Proc = JobExecRpcProc ;
@@ -114,7 +118,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	{	::unique_lock lock{_pid_mutex} ;
-		if (killed) return Status::Killed ;                                        // dont start if we are already killed before starting
+		if (killed) return Status::Killed ;                                    // dont start if we are already killed before starting
 		if (method==AutodepMethod::Ptrace) {
 			// cannot simultaneously watch for data & child events using ptrace as SIGCHLD is not delivered for sub-processes of tracee
 			// so we split the responsability into 2 processes :
@@ -171,7 +175,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			} catch(::string const& e) {
 				if (child_stderr==Child::Pipe) stderr = e ;
 				else                           child_stderr.write(e) ;
-				return Status::Err ;
+				return Status::EarlyErr ;
 			}
 			trace("pid",child.pid) ;
 		}
@@ -216,7 +220,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		if (+end) {
 			PD now = PD::s_now() ;
 			if (now>=end) {
-				if (status==Status::New) status = Status::Timeout ;            // else there is already another reason for job termination
+				_set_status(status,Status::Timeout) ;
 				kill_job_cb() ;
 			}
 			wait_ns = (end-now).nsec() ;
@@ -248,17 +252,9 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					int                     cnt        = ::read( fd , &child_info , sizeof(child_info) ) ;
 					SWEAR( cnt==sizeof(child_info) , cnt ) ;
 					wstatus = child.wait() ;
-					if (status==Status::New) {
-						if (WIFEXITED(wstatus)) {
-							if (WEXITSTATUS(wstatus)!=0       ) status = Status::Err    ;
-							else                                status = Status::Ok     ;
-						} else if (WIFSIGNALED(wstatus)) {
-							if (is_sig_sync(WTERMSIG(wstatus))) status = Status::Err    ; // synchronous signal : actually an error
-							else                                status = Status::Killed ;
-						} else {
-							fail("unexpected wstatus : ",wstatus) ;
-						}
-					}
+					if      (WIFEXITED  (wstatus)) _set_status( status , WEXITSTATUS(wstatus)!=0       ?Status::Err:Status::Ok       ) ;
+					else if (WIFSIGNALED(wstatus)) _set_status( status , is_sig_sync(WTERMSIG(wstatus))?Status::Err:Status::LateLost ) ; // synchronous signals are actually errors
+					else                           fail("unexpected wstatus : ",wstatus) ;
 					trace("status",status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
 					epoll.cnt-- ;                                              // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
@@ -276,10 +272,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					try         { if (!it->second.buf.receive_step(fd,jrr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
 					trace("server_reply",fd,jrr) ;
-					//                                                                                                         vvvvvvvvvvvvv
-					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) { if(status==Status::New) status=Status::ChkDeps ; kill_job_cb() ;                            }
-					else if ( +it->second.fd                              ) {                                                  sync(it->second.fd,JobExecRpcReply(jrr)) ; }
-					//                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                                                                                              vvvvvvvvvvvvv
+					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) { _set_status(status,Status::ChkDeps) ; kill_job_cb() ;                            }
+					else if ( +it->second.fd                              )                                         sync(it->second.fd,JobExecRpcReply(jrr)) ;
+					//                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					server_replies.erase(it) ;
 					epoll.close(fd) ;
 				} break ;

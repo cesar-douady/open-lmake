@@ -21,13 +21,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* support hard links
-	- put exec bit in Ddate
-		- and use mtime instead of ctime
-	- for incremental targets, uniquify targets
-		- if link count>1, copy it aside and rename it to its original name
-		- ensure mtime is not modified
-		- so that the other names of the file are not modified (i.e. implement copy on write semantic)
 * automatic versioning of internal info
 	- extend serdes to enumerate fields & types
 	- for data base
@@ -213,6 +206,19 @@ items :
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)
+* Improve job_exec overhead
+	- pass JobRpcReply as argument to job_exec when reasonably small
+	- job_exec connect to server in parallel with job execution to get connection info
+	- synchronize in case gather_deps needs to connect to server (ChkDeps &co)
+	- suppress acknowledge at end of job
+	- defer heartbeat when it cannot connect to job
+		- wait 1s+network_delay
+		- to leave time to end report to be processed
+		- process heartbeat generated end of job only when no other connection is pending
+* there can be 1 backend thread per backend
+	- with one master socket
+	- and everything replicated per backend (including mutexes, tables, etc.)
+	- allow several backends of same type to distribute load
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation

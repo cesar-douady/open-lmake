@@ -349,7 +349,7 @@ namespace Engine {
 		//
 		if (is_dynamic) {
 			Py::Gil   gil    ;
-			PyObject* py_dct = _mk_dct(match) ;
+			PyObject* py_dct = _eval_code(match) ;
 			::map_s<VarIdx> dep_idxs ;
 			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
 			PyObject*  py_key = nullptr/*garbage*/ ;
@@ -454,11 +454,11 @@ namespace Engine {
 			return {res.str(),"cmd()\n"} ;
 		} else {
 			if (!is_dynamic) return {parse_fstr(spec.cmd,job,match,rsrcs),{}} ;
-			::string  cmd ;
-			Py::Gil   gil ;
-			PyObject* d   = _mk_dct(job,match,rsrcs) ;
-			Attrs::acquire_from_dct(cmd,d,"cmd") ;
-			Py_DECREF(d)  ;
+			Py::Gil   gil    ;
+			PyObject* cmd_py = _eval_code(job,match,rsrcs) ;
+			::string  cmd    ;
+			Attrs::acquire(cmd,cmd_py) ;
+			Py_DECREF(cmd_py)  ;
 			return {cmd,{}} ;
 		}
 	}
@@ -1057,12 +1057,15 @@ namespace Engine {
 		//
 		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) {
-			res << ::string(i,'\t') << ::setw(wk)<<k ;
-			if (v==EnvPassMrkr) res << " ...\n"                              ;
-			else                res <<" : "<< env_decode(::string(v)) <<'\n' ;
+			res << ::setw(wk)<<k ;
+			if      (v==EnvPassMrkr) res<<"   ..."                       ;
+			else if (v==EnvDynMrkr ) res<<"   <dynamic>"                 ;
+			else if (v.empty()     ) res<<" :"                           ;
+			else                     res<<" : "<<env_decode(::string(v)) ;
+			res << '\n' ;
 		}
 		//
-		return res.str() ;
+		return indent(res.str(),i) ;
 	}
 	static ::string _pretty( size_t i , StartCmdAttrs const& sca ) {
 		size_t        key_sz = 0 ;
@@ -1098,7 +1101,7 @@ namespace Engine {
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
+		if (+sra.timeout    ) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		/**/                  res << _pretty_vmap(i,entries) ;
 		if (!sra.env.empty()) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
 		return res.str() ;
@@ -1126,13 +1129,18 @@ namespace Engine {
 	}
 
 	template<class T,class... A> ::string RuleData::_pretty_str( size_t i , Dynamic<T> const& d , A&&... args ) const {
-		OStringStream res ;
 		::string s = _pretty( i+1 , d.spec , ::forward<A>(args)... ) ;
-		if ( !s.empty() || d.is_dynamic ) res << indent(to_string(T::Msg," :\n"),i) << s ;
-		if (!d.ctx     .empty()) { res << indent("<context> :"          ,i+1) ; for( ::string const& k : _list_ctx(d.ctx) ) res <<' '<< k ; res << '\n' ; }
-		if (!d.glbs_str.empty()) { res << indent("<dynamic globals> :\n",i+1) << ensure_nl(indent(d.glbs_str,i+2)) ;                                      }
-		if (!d.code_str.empty()) { res << indent("<dynamic code> :\n"   ,i+1) << ensure_nl(indent(d.code_str,i+2)) ;                                      }
-		return res.str() ;
+		if ( s.empty() && d.code_str.empty() ) return {} ;
+		//
+		::string res ;
+		/**/                                        append_to_string( res , indent(to_string(T::Msg," :\n"),i  )                                     ) ;
+		if (!d.glbs_str.empty())                    append_to_string( res , indent("<dynamic globals> :\n" ,i+1) , ensure_nl(indent(d.glbs_str,i+2)) ) ;
+		if (!d.ctx     .empty())                    append_to_string( res , indent("<context> :"           ,i+1)                                     ) ;
+		for( ::string const& k : _list_ctx(d.ctx) ) append_to_string( res , ' ',k                                                                    ) ;
+		if (!d.ctx     .empty())                    append_to_string( res , '\n'                                                                     ) ;
+		if (!s         .empty())                    append_to_string( res , s                                                                        ) ;
+		if (!d.code_str.empty())                    append_to_string( res , indent("<dynamic code> :\n",i+1)     , ensure_nl(indent(d.code_str,i+2)) ) ;
+		return res ;
 	}
 
 	::string RuleData::pretty_str() const {

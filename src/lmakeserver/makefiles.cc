@@ -75,10 +75,10 @@ namespace Engine {
 			FileInfoDate file_info { line+1 } ;
 			latest_makefile = ::max(latest_makefile,file_info.date) ;
 			if (exists) {
-				if ( !file_info                     ) { trace("missing" ,line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was removed" ) ; }
-				if ( file_info.date>=makefiles_date ) { trace("modified",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was modified") ; } // in case of equality, be pessimistic
+				if (!file_info                      ) { trace("missing" ,line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was removed" ) ; }
+				if (!(file_info.date<makefiles_date)) { trace("modified",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was modified") ; } // in case of equality, be pessimistic
 			} else {
-				if ( +file_info                     ) { trace("appeared",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was created" ) ; }
+				if (+file_info                      ) { trace("appeared",line+1) ; return to_string(mk_rel(line+1,startup_dir_s)," was created" ) ; }
 			}
 		}
 		trace("ok") ;
@@ -174,7 +174,7 @@ namespace Engine {
 							break ;
 						}
 				}
-			} while (file_date(s_makefiles)<=latest_makefile) ;                // ensure date comparison with < (as opposed to <=) will lead correct result
+			} while (!(file_date(s_makefiles)>latest_makefile)) ;              // ensure date comparison with < (as opposed to <=) will lead correct result
 			// update config
 			::umap<Crc,RuleData> rules ;
 			::vector_s           srcs  ;

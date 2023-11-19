@@ -67,6 +67,12 @@ static inline bool is_sig_sync(int sig) {
 	}
 }
 
+static inline ::string wstatus_str(int wstatus) {
+	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? to_string("exit ",WEXITSTATUS(wstatus))  : "ok"s   ;
+	if (WIFSIGNALED(wstatus)) return to_string("signal ",WTERMSIG(wstatus),'-',::strsignal(WTERMSIG(wstatus))) ;
+	else                      return "??"                                                                      ;
+}
+
 struct Child {
 	static constexpr Fd None{-1} ;
 	static constexpr Fd Pipe{-2} ;

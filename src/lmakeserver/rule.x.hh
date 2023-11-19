@@ -166,7 +166,7 @@ namespace Engine {
 
 	// used at submit time, participate in resources
 	struct SubmitNoneAttrs {
-		static constexpr const char* Msg = "n_retries" ;
+		static constexpr const char* Msg = "submit ancillary attributes" ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
@@ -395,8 +395,10 @@ namespace Engine {
 			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                   // cannot lazy evaluate w/o a job
 		}
 	protected :
-		PyObject* _mk_dct( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
-		PyObject* _mk_dct(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { return _mk_dct( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; } // cannot lazy evaluate w/o a job
+		PyObject* _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
+		PyObject* _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { // cannot lazy evaluate w/o a job
+			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;
+		}
 		// data
 	private :
 		mutable ::mutex _glbs_mutex ;  // ensure glbs is not used for several jobs simultaneously
@@ -689,8 +691,9 @@ namespace Engine {
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
-			if (!py_src        ) {                  return false ;                           }
-			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			if ( !py_src                 ) {                                                    return false ; }
+			if (  Env && py_src==Py_None ) {                                 dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
+			if ( !Env && py_src==Py_None ) { if (dst.empty()) return false ; dst = {}         ; return true  ; }
 			//
 			bool is_str = PyUnicode_Check(py_src) ;
 			if (!is_str) py_src = PyObject_Str(py_src) ;
@@ -740,10 +743,10 @@ namespace Engine {
 			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
 				if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
 				const char* key = PyUnicode_AsUTF8(py_key) ;
-				if (py_val==Py_None) {
-					updated |= map.emplace(key,T()).second ;
-					continue ;
-				}
+//				if (py_val==Py_None) {
+//					updated |= map.emplace(key,T()).second ;
+//					continue ;
+//				}
 				if constexpr (Env)
 					if (py_val==Py::g_ellipsis) {
 						updated  = true        ;
@@ -887,7 +890,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> PyObject* Dynamic<T>::_mk_dct( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> PyObject* Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::vector_s to_del ;
@@ -918,15 +921,14 @@ namespace Engine {
 		for( ::string const& key : to_del ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs
 		//
 		if (!d) throw Py::err_str() ;
-		SWEAR(PyDict_Check(d)) ;
 		return d ;
 	}
 
 	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
-		T         res = spec                           ;
+		T         res = spec                        ;
 		Py::Gil   gil ;
-		PyObject* d   = _mk_dct( job , match , rsrcs ) ;
+		PyObject* d   = _eval_code(job,match,rsrcs) ;
 		res.update(d) ;
 		Py_DECREF(d)  ;
 		return res  ;

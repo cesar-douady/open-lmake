@@ -19,9 +19,9 @@ namespace Time {
 	::ostream& operator<<( ::ostream& os , Delay const d ) {
 		int64_t  s  =       d.sec      ()  ;
 		uint32_t ns = ::abs(d.nsec_in_s()) ;
-		/**/              os << "D:"                                                 ;
-		if ( !s && +d<0 ) os << '-'                                                  ;
-		return            os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
+		/**/                  os << "D:"                                                 ;
+		if ( !s && d._val<0 ) os << '-'                                                  ;
+		return                os << to_string(s,'.',::setfill('0'),::setw(9),::right,ns) ;
 	}
 
 	::string Delay::short_str() const {

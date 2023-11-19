@@ -275,15 +275,21 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
-		if (!dep->makable(true/*uphill_ok*/)) {
-			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep.name() , n_err , lvl ) ;
-			else if (dep.dflags[Dflag::Required]) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ;
-		} else if (dep->multi) {
+		Node::ReqInfo const& cri               = dep->c_req_info(*this) ;
+		bool                 report_if_no_jobs = false                  ;
+		if (dep->multi) {
 			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep.name() , n_err , lvl ) ;
+		} else if (!dep->makable(true/*uphill_ok*/)) {
+			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep.name() , n_err , lvl ) ;
+			else if (dep.dflags[Dflag::Required]) report_if_no_jobs = true ;
 		}
-		for( Job job : dep->conform_job_tgts(cri) )
+		bool reported_jobs = false ;
+		for( Job job : dep->conform_job_tgts(cri) ) {
 			if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+			reported_jobs = true ;
+		}
+		if ( report_if_no_jobs && !reported_jobs ) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ; // if no better explanation found
+		//
 		return false ;
 	}
 
@@ -321,14 +327,14 @@ namespace Engine {
 
 	void Req::chk_end() {
 		if ((*this)->n_running()) return ;
-		Job::ReqInfo const& cri     = (*this)->job->c_req_info(*this) ;
-		Job                 job     = (*this)->job                    ;
-		bool                job_err = job->status!=Status::Ok         ;
+		Job                 job     = (*this)->job            ;
+		Job::ReqInfo const& cri     = job->c_req_info(*this)  ;
+		bool                job_err = job->status!=Status::Ok ;
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
 		(*this)->audit_stats() ;
-		if ((*this)->zombie) goto Done ;
 		(*this)->audit_summary(job_err) ;
-		if (!job_err) goto Done ;
+		if ((*this)->zombie) goto Done ;
+		if (!job_err       ) goto Done ;
 		if (!job->c_req_info(*this).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
@@ -375,39 +381,59 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		::string const& startup_dir_s = options.startup_dir_s ;
-		if (!startup_dir_s.empty()           ) audit_info( Color::Note , to_string( "startup dir  : " , startup_dir_s.substr(0,startup_dir_s.size()-1) ) ) ;
+		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )               ) ) ;
+		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)               ) ) ;
+		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )               ) ) ;
+		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )               ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str() ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str() ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
+		//
+		if (!options.startup_dir_s.empty()) {
+			audit_info( Color::Note , to_string( "startup dir : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1) ) ) ;
+		}
 		if (!up_to_dates.empty()) {
 			bool seen_up_to_dates = false ;
 			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
 			for( Node n : up_to_dates )
 				if      (!n->is_src()    ) audit_node( Color::Note    , "was already up to date :" , n ) ;
-				else if (seen_up_to_dates) audit_node( Color::Warning , "source                 :" , n ) ; // align if necessary
+				else if (seen_up_to_dates) audit_node( Color::Warning , "file is a source       :" , n ) ; // align if necessary
 				else                       audit_node( Color::Warning , "file is a source :"       , n ) ;
 		}
-		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)                 ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )                 ) ) ;
-		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)                 ) ) ;
-		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )                 ) ) ;
-		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )                 ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str()   ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str()   ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str()   ) ) ;
-		{	::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
+		if (!losts.empty()) {
+			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;
+			::sort( losts_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			size_t w = 0 ;
+			for( auto [j,_] : losts_ ) w = ::max( w , j->rule->name.size() ) ;
+			for( auto [j,_] : losts_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j.name() ) ;
+		}
+		if (!manuals.empty()) {
+			::vmap<Node,pair<bool/*ok*/,NodeIdx>> manuals_ = mk_vmap(manuals) ;
+			::sort( manuals_ ,
+				[]( ::pair<Node,pair<bool/*ok*/,NodeIdx>> const& a , ::pair<Node,pair<bool/*ok*/,NodeIdx>> b ) { return a.second.second<b.second.second ; } // sort in discovery order
+			) ;
+			for( auto [n,v] : manuals_ ) audit_node( v.second?Color::Warning:Color::Err , "manual" , n ) ;
+		}
+		if (!frozens.empty()) {
+			::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
 			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozens_ ) audit_job( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j ) ;
+			for( auto [j,_] : frozens_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j.name() ) ;
 		}
-		{	::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
+		if (!no_triggers.empty()) {
+			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
 			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no-trigger" , n ) ;
 		}
 		if (!clash_nodes.empty()) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
 			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover" ) ;
-			audit_info( Color::Warning , "Re-executing all lmake commands that were running in parallel is strongly recommanded"               ) ;
+			audit_info( Color::Warning ,
+				"These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n"
+				"Re-executing all lmake commands that were running in parallel is strongly recommanded\n"
+			) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 		}
 	}

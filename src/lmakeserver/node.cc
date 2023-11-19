@@ -236,7 +236,7 @@ namespace Engine {
 		if (ri.done) {
 			if ( run_action<=RunAction::Status || !unlinked ) goto Wakeup ;
 			if ( !makable()                                 ) goto Wakeup ;    // no hope to regenerate, proceed as a done target
-			ri.done        = false                      ;
+			ri.done        = false             ;
 			regenerate_job = conform_job_tgt() ;                               // we must regenerate target, only run the conform job
 		}
 		//
@@ -292,23 +292,24 @@ namespace Engine {
 			// make eligible jobs
 			{	SaveInc save{ri.n_wait} ;                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
 				for( it.reset(ri.prio_idx) ; it ; it++ ) {
-					JobTgt    jt     = *it             ;
-					RunAction action = RunAction::None ;
+					JobTgt    jt     = *it               ;
+					RunAction action = RunAction::Status ;
+					JobReason reason ;
 					if (+regenerate_job) {
-						if (jt==regenerate_job) action = RunAction::Run ;
+						if (jt==regenerate_job) reason = {JobReasonTag::NoTarget,+idx()} ;
 					} else {
 						switch (ri.action) {
-							case RunAction::Makable : action = jt.is_sure() ? RunAction::Makable : RunAction::Status ; break ; // if star, job must be run to know if we are generated
-							case RunAction::Status  : action =                RunAction::Status                      ; break ;
+							case RunAction::Makable : if (jt.is_sure()) action = RunAction::Makable ; break ; // if star, job must be run to know if we are generated
+							case RunAction::Status  :                                                 break ;
 							case RunAction::Dsk     :
-								if ( jt.is_sure() && !has_actual_job_tgt(jt) ) action = RunAction::Run ; // wash polution
-								else {
+								if ( jt.is_sure() && !has_actual_job_tgt(jt) ) { // wash polution (if we have an actual job) or create target
+									action = RunAction::Run ;
+								} else {
 									if (clean==Maybe) {                                                      // solve lazy evaluation
 										if (jt->rule->is_special()) clean = No | (manual        (   )==No) ; // special rules handle manual targets specially
 										else                        clean = No | (manual_refresh(req)==No) ;
 									}
-									if      ( clean==Yes                                        ) action = RunAction::Status ;
-									else if ( !jt->c_req_info(req).done() || jt.produces(idx()) ) action = RunAction::Run    ; // else job does not produce us, no reason to run it
+									if ( clean==No && jt.produces(idx()) ) reason = {JobReasonTag::NoTarget,+idx()} ;
 								}
 							break ;
 							default : FAIL(ri.action) ;
@@ -316,11 +317,10 @@ namespace Engine {
 					}
 					trace("make_job",ri,clean,action,jt) ;
 					Job::ReqInfo& jri = jt->req_info(req) ;
-					jri.live_out = ri.live_out ;                                                                 // transmit user request to job for last level live output
-					//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if      (action==RunAction::Run ) jt->make( jri , action , {JobReasonTag::NoTarget,+idx()} ) ;
-					else if (action!=RunAction::None) jt->make( jri , action                                   ) ;
-					//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					jri.live_out = ri.live_out ;                               // transmit user request to job for last level live output
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					jt->make( jri , action , reason ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (jri.waiting()      ) { jt->add_watcher(jri,idx(),ri,ri.pressure) ; continue ; }
 					if (!jt.produces(idx())) {                                             continue ; }
 					if (prod_idx==NoIdx    ) { prod_idx = it.idx ;                                    }

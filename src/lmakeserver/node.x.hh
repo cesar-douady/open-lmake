@@ -259,8 +259,8 @@ namespace Engine {
 		void _set_buildable(Bool3=Bool3::Unknown) ;
 		// data
 	public :
-		Ddate    date                    ;                  // ~40<=64 bits,         deemed ctime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
-		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's ctime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		Ddate    date                    ;                  // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 		RuleTgts rule_tgts               ;                  // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		JobTgts  job_tgts                ;                  //      32 bits, owned , ordered by prio, valid if match_ok
 		JobTgt   actual_job_tgt          ;                  //  31<=32 bits, shared, job that generated node
@@ -340,7 +340,7 @@ namespace Engine {
 		Bool3       res     ;
 		if      (crc==Crc::None) { res_str = +fid?"created":"not_exist" ; res = No | +fid ; }
 		else if (!fid          ) { res_str = "disappeared"              ; res = Maybe     ; }
-		else if (fid.date<=date) { res_str = "steady"                   ; res = No        ; }
+		else if (fid.date==date) { res_str = "steady"                   ; res = No        ; }
 		else                     { res_str = "newer"                    ; res = Yes       ; }
 		//
 		if (res!=No) Trace("manual",idx(),fid.tag,fid.date,crc,date,res_str) ;
@@ -447,11 +447,11 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if (!is_date            ) {                  return ; }                // no need
-		if (!date()             ) { crc(Crc::None) ; return ; }                // no date means access did not find a file, crc is None, easy
-		if (date()>(*this)->date) {                  return ; }                // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
-		if (date()<(*this)->date) { crc({}       ) ; return ; }                // too late, file has changed
-		if (!(*this)->crc       ) {                  return ; }                // too early, no crc available yet
+		if (!is_date             ) {                  return ; }               // no need
+		if (!date()              ) { crc(Crc::None) ; return ; }               // no date means access did not find a file, crc is None, easy
+		if (date()> (*this)->date) {                  return ; }               // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
+		if (date()!=(*this)->date) { crc({}       ) ; return ; }               // too late, file has changed
+		if (!(*this)->crc        ) {                  return ; }               // too early, no crc available yet
 		crc((*this)->crc) ;                                                    // got it !
 	}
 

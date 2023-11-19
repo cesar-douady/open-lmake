@@ -362,10 +362,10 @@ template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , s
 static inline ::string ensure_nl(::string     && txt) { if (txt.back()!='\n') txt += '\n' ; return txt ; }
 static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                }
 
-template<class T> static inline void _append_to_string( ::string& dst , T               x ) { dst += to_string(x) ; }
-/**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=           s  ; } // fast path
-/**/              static inline void _append_to_string( ::string& dst , const char*     s ) { dst +=           s  ; } // .
-/**/              static inline void _append_to_string( ::string& dst , char            c ) { dst +=           c  ; } // .
+template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
+/**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
+/**/              static inline void _append_to_string( ::string& dst , const char*     s ) { dst +=                        s   ; } // .
+/**/              static inline void _append_to_string( ::string& dst , char            c ) { dst +=                        c   ; } // .
 template<class... A> void append_to_string( ::string& dst , A const&... args ) {
 	[[maybe_unused]] bool _[] = { false , (_append_to_string(dst,args),false)... } ;
 }

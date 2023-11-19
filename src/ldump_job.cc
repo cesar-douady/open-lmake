@@ -97,7 +97,7 @@ int main( int argc , char* argv[] ) {
 		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;
 		print_start       (report_start.start       ) ;
-		if (!report_start.backend_info.empty()) ::cout << "backend_info :\n" << ensure_nl(::move(report_start.backend_info)) ;
+		if (!report_start.backend_msg.empty()) ::cout << "backend_msg :\n" << ensure_nl(::move(report_start.backend_msg)) ;
 	} catch(...) {}
 	try {
 		auto report_end = deserialize<JobInfoEnd>(job_stream) ;

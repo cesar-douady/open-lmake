@@ -46,5 +46,7 @@ else :
 
 	import ut
 
-	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 )               # python reads Lmakefile.py in case of error to display backtrace
-	ut.lmake( 'res2' ,         done=3 , may_rerun=1            )
+	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 )               # check case where mrkr has been unlinked after having been created
+	ut.lmake( 'res1'                                           )               # ensure up to date
+	ut.lmake( 'res2' ,         done=3 , may_rerun=1            )               # check case where mrkr has been unlinked before having been created
+	ut.lmake( 'res2'                                           )               # ensure up to date

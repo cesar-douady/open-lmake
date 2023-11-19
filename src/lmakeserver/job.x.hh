@@ -34,7 +34,7 @@ namespace Engine {
 	,	None                           //                                         trigger analysis from dependent
 	,	Wakeup                         //                                         a watched dep is available
 	,	End                            // if >=End => job is ended,               job has completed
-	,	PrematureEnd                   //                                         job was killed before starting
+	,	GiveUp                         //                                         job has completed and no further analysis
 	)
 
 	ENUM( SpecialStep                  // ordered by increasing importance
@@ -106,14 +106,16 @@ namespace Engine {
 		JobExec( Job j , in_addr_t h , Pdate d={}            ) : Job{j} , host{h} , start_date{d } , end_date{d } {}
 		JobExec( Job j ,               Pdate d={}            ) : Job{j} ,           start_date{d } , end_date{d } {}
 		// services
-		void             report_start ( ReqInfo& , ::vector<Node> const& report_unlink={} , ::string const& txt={} ) const ;
-		void             report_start (                                                                            ) const ; // called in engine thread after start if started called with false
-		void             started      ( bool report , ::vector<Node> const& report_unlink , ::string const& txt    ) ;       // called in engine thread after start
-		void             live_out     ( ::string const&                                                            ) const ;
-		JobRpcReply      job_info     ( JobProc , ::vector<Node> const& deps                                       ) const ; // answer to requests from job execution
-		bool/*modified*/ end          ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg    ) ;       // hit indicates that result is from a cache hit
-		void             premature_end( Req , bool report=true                                                     ) ;       // Req is killed but job has some other req
-		void             not_started  (                                                                            ) ;       // Req was killed before it started
+		// called in main thread after start
+		void report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void report_start(                                                                                                                                  ) const ; // if started did not report
+		void started     ( bool report , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		//
+		void             live_out   ( ::string const&                                                         ) const ;
+		JobRpcReply      job_info   ( JobProc , ::vector<Node> const& deps                                    ) const ; // answer to requests from job execution
+		bool/*modified*/ end        ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg ) ;       // hit indicates that result is from a cache hit
+		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
+		void             not_started(                                                                         ) ;       // Req was killed before it started
 		//
 		//
 		void audit_end(
@@ -243,10 +245,10 @@ namespace Engine {
 		::vector<Req>  running_reqs (              ) const ;
 		::vector<Req>  old_done_reqs(              ) const ;
 		//
-		bool cmd_ok    (   ) const { return                       exec_gen >= rule->cmd_gen   ; }
-		bool rsrcs_ok  (   ) const { return status<Status::Err || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
-		bool frozen    (   ) const { return idx().frozen()                                    ; }
-		bool is_special(   ) const { return rule->is_special() || frozen()                    ; }
+		bool cmd_ok    (   ) const { return                      exec_gen >= rule->cmd_gen   ; }
+		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
+		bool frozen    (   ) const { return idx().frozen()                                   ; }
+		bool is_special(   ) const { return rule->is_special() || frozen()                   ; }
 		bool has_req   (Req) const ;
 		//
 		void exec_ok(bool ok) { SWEAR(!rule->is_special(),rule->special) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
@@ -260,14 +262,14 @@ namespace Engine {
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
 		bool err() const {
-				if (run_status>=RunStatus::Err     ) return true                ;
-				if (run_status!=RunStatus::Complete) return false               ;
-				else                                 return status>=Status::Err ;
+				if (run_status>=RunStatus::Err     ) return true              ;
+				if (run_status!=RunStatus::Complete) return false             ;
+				else                                 return is_ok(status)==No ;
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		//services
-		::pair<vector_s,vector<Node>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
-		::vector<Node>/*report*/                wash           (Rule::SimpleMatch const&) const ; // thread-safe
+		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
+		::vmap<Node,bool/*uniquify*/>/*report*/                                wash           (Rule::SimpleMatch const&) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -387,7 +389,7 @@ namespace Engine {
 	}
 
 	inline JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
-		if ( ri.done(run_action) && !make_action ) return JobReasonTag::None ; // fast path
+		if ( ri.done(run_action) && !make_action && !reason ) return JobReasonTag::None ; // fast path
 		return _make_raw(ri,run_action,reason,make_action,old_exec_time,wakeup_watchers) ;
 	}
 
@@ -440,7 +442,8 @@ namespace Engine {
 	//
 
 	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , JobData const& job ) {
-		if ( job.status<=Status::Garbage && run_action>=RunAction::Status ) run_action = RunAction::Run ;
+		Bool3 ok = is_ok(job.status) ;
+		if ( ok==Maybe && run_action>=RunAction::Status ) run_action = RunAction::Run ;
 		if (make_action>=MakeAction::Dec) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
@@ -453,17 +456,17 @@ namespace Engine {
 		if (n_wait) {
 			SWEAR( make_action<MakeAction::End , make_action ) ;
 		} else if (
-			req->zombie                                                        // zombie's need not check anything
-		||	make_action==MakeAction::PrematureEnd                              // if not started, no further analysis
+			( req->zombie                              )                       // zombie's need not check anything
+		||	( make_action==MakeAction::GiveUp          )                       // if not started, no further analysis
 		||	( action==RunAction::Makable && job.sure() )                       // no need to check deps, they are guaranteed ok if sure
 		) {
-			lvl   = Lvl::Done      ;
 			done_ = done_ | action ;
 		} else if (make_action==MakeAction::End) {
 			lvl     = lvl & Lvl::Dep ;                                         // we just ran, reset analysis
 			dep_lvl = 0              ;
 			action  = run_action     ;                                         // we just ran, we are allowed to decrease action
 		}
+		if (done_>=action) lvl = Lvl::Done ;
 		SWEAR(lvl!=Lvl::End) ;
 	}
 

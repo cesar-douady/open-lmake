@@ -28,11 +28,12 @@ static constexpr uint8_t TraceNameSz       = JobHistorySz<=10 ? 1 : JobHistorySz
 static_assert(JobHistorySz<=1000) ;                                                             // above, it would be wise to make hierarchical names
 
 ServerSockFd g_server_fd   ;
-GatherDeps   g_gather_deps { New }            ;
+GatherDeps   g_gather_deps { New }        ;
 JobRpcReply  g_start_info  ;
 ::string     g_service     ;
-SeqId        g_seq_id      = 0    /*garbage*/ ;
-JobIdx       g_job         = 0    /*garbage*/ ;
+SeqId        g_seq_id      = 0/*garbage*/ ;
+JobIdx       g_job         = 0/*garbage*/ ;
+bool         g_killed      = false        ;
 
 void kill_thread_func(::stop_token stop) {
 	Trace::t_key = '~' ;
@@ -55,11 +56,12 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
 				try {
 					OMsgBuf().send(
 						ClientSockFd( g_service , NConnectionTrials )
-					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::Lost} )
+					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::LateLost} )
 					) ;
 				} catch (::string const& e) {}                                 // if server is dead, no harm
 		break ;
 		case JobServerRpcProc::Kill :
+			g_killed = true ;
 			if (jsrr.seq_id==g_seq_id) kill_job() ;                            // else server is not sending its request to us
 		break ;
 		default : FAIL(jsrr.proc) ;
@@ -79,8 +81,8 @@ int main( int argc , char* argv[] ) {
 	//
 	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;       // threads must only be launched once SIGCHLD is blocked or they may receive said signal
 	//
-	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                        } ;
-	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::Err,.end_date=start_overhead} } ; // prepare to return an error
+	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                             } ;
+	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error
 	try {
 		ClientSockFd fd {g_service,NConnectionTrials} ;
 		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv     // once connection is established, everything should be smooth
@@ -308,7 +310,8 @@ int main( int argc , char* argv[] ) {
 			try                     { unlink_inside(g_start_info.autodep_env.tmp_dir) ; }
 			catch (::string const&) {}                                                    // cleaning is done at job start any way, so no harm
 		//
-		if (!analysis_err.empty()) status |= Status::Err ;
+		if      (!analysis_err.empty()) status = Status::Err    ;
+		else if (g_killed             ) status = Status::Killed ;
 		trace("status",status) ;
 		end_report.digest = {
 			.status       = status
@@ -320,9 +323,9 @@ int main( int argc , char* argv[] ) {
 		,	.wstatus      = g_gather_deps.wstatus
 		,	.end_date     = end_job
 		,	.stats{
-				.cpu  { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
-			,	.job  { end_job      - start_job                      }
-			,	.mem  = size_t(rsrcs.ru_maxrss<<10)
+				.cpu { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }
+			,	.job { end_job      - start_job                      }
+			,	.mem = size_t(rsrcs.ru_maxrss<<10)
 			}
 		} ;
 	}

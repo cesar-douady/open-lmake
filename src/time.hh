@@ -35,24 +35,24 @@ namespace Time {
 		using TimeVal  = struct ::timeval                             ;
 		// cxtors & casts
 		constexpr          TimeBase(                  )                      = default ;
-		constexpr explicit TimeBase(int             v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(long            v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(unsigned int    v ) requires(IsUnsigned) : _val( v*TicksPerSecond                           ) {                                     }
-		constexpr explicit TimeBase(unsigned long   v ) requires(IsUnsigned) : _val( v*TicksPerSecond                           ) {                                     }
-		constexpr explicit TimeBase(double          v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(float           v )                      : _val( v*TicksPerSecond                           ) { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val( ts.tv_sec*TicksPerSecond + ts.tv_nsec      ) { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
-		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val( tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 ) { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
+		constexpr explicit TimeBase(int             v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(long            v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(unsigned int    v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
+		constexpr explicit TimeBase(unsigned long   v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
+		constexpr explicit TimeBase(double          v )                      : _val{ T(v*TicksPerSecond)                          } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(float           v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
+		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
 	protected :
-		constexpr explicit TimeBase(NewType,T       v ) : _val( v                                          ) {}
+		constexpr explicit TimeBase(NewType,T v) : _val{v} {}
 		//
 	public :
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
-		constexpr explicit operator T       () const {                                                       return _val                        ; }
+//		constexpr explicit operator T       () const {                                                       return sec()                       ; }
 		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
 		constexpr explicit operator float   () const {                                                       return float (_val)/TicksPerSecond ; }
 		// accesses
-		constexpr T    operator+() const { return  _val ; }
+		constexpr bool operator+() const { return  _val ; }
 		constexpr bool operator!() const { return !_val ; }
 		//
 		constexpr T   sec      () const {                       return _val/TicksPerSecond   ; }
@@ -75,6 +75,7 @@ namespace Time {
 		friend Date  ;
 		friend Ddate ;
 		friend Pdate ;
+		friend CoarseDelay ;
 		// statics
 	private :
 		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) ;
@@ -103,6 +104,7 @@ namespace Time {
 		void          sleep_for(            ) const ;
 		//
 		::string short_str() const ;
+		size_t   hash     () const { return _val ; }
 	} ;
 
 	// short float representation of time (positive)
@@ -124,7 +126,7 @@ namespace Time {
 		constexpr CoarseDelay() = default ;
 		constexpr CoarseDelay(Delay d) { *this = d ; }
 		constexpr CoarseDelay& operator=(Delay d) {
-			uint32_t t = ::logf(+d)*(1<<Mantissa)+0.5 ;
+			uint32_t t = ::logf(d._val)*(1<<Mantissa)+0.5 ;
 			if      ( t >= (1<<NBits<Val>)+Scale ) _val = -1      ;
 			else if ( t <                  Scale ) _val =  0      ;
 			else                                   _val = t-Scale ;
@@ -138,8 +140,8 @@ namespace Time {
 		constexpr explicit operator double() const { return double(Delay(*this)) ; }
 		constexpr explicit operator float () const { return float (Delay(*this)) ; }
 		// services
-		constexpr uint16_t          operator+  (                    ) const { return _val ;                      }
-		constexpr bool              operator!  (                    ) const { return !+*this ;                   }
+		constexpr bool              operator+  (                    ) const { return _val ;                      }
+		constexpr bool              operator!  (                    ) const { return !_val ;                     }
 		constexpr CoarseDelay       operator+  (Delay              d) const { return Delay(*this) + d ;          }
 		constexpr CoarseDelay&      operator+= (Delay              d)       { *this = *this + d ; return *this ; }
 		constexpr bool              operator== (CoarseDelay const& d) const { return _val== d._val ;             }
@@ -149,6 +151,7 @@ namespace Time {
 		CoarseDelay scale_down(uint32_t percent) const { return CoarseDelay( _val<=        _Factor(percent) ? Val( 0) : Val(_val-_Factor(percent)) ) ; }
 		//
 		::string short_str() const { return Delay(*this).short_str() ; }
+		size_t   hash     () const { return _val                     ; }
 		// data
 	private :
 		Val _val = 0 ;
@@ -170,7 +173,8 @@ namespace Time {
 		constexpr Date& operator+=(Delay other)       { *this = *this + other ; return *this                     ; }
 		constexpr Date& operator-=(Delay other)       { *this = *this - other ; return *this                     ; }
 		//
-		::string str( uint8_t prec=0 , bool in_day=false ) const ;
+		::string str ( uint8_t prec=0 , bool in_day=false ) const ;
+		size_t   hash(                                    ) const { return _val ; }
 	} ;
 
 	//
@@ -198,14 +202,15 @@ namespace Time {
 		using Base::operator+ ;
 		constexpr Pdate  operator+ (Delay other) const {                         return Pdate(New,_val+other._val) ; }
 		constexpr Pdate  operator- (Delay other) const {                         return Pdate(New,_val-other._val) ; }
-		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                       ; }
-		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                       ; }
+		constexpr Pdate& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
+		constexpr Pdate& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
 		constexpr Delay  operator- (Pdate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
 		void          sleep_until(            ) const ;
 	} ;
 
+	// DDate represents the date of a file, together with its exec bit (as the lsb of _val)
 	struct Ddate : Date {
 		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
 		friend Delay ;
@@ -221,20 +226,25 @@ namespace Time {
 		static thread_local Ddate _t_now ;                                     // per thread lazy evaluated cached value
 		// cxtors & casts
 	public :
-		using Date::Date ;
+		Ddate(                ) = default ;
+		Ddate(struct ::stat st) : Date{st.st_mtim} {_val&=~0x1 ; if (st.st_mode&S_IXUSR) _val |= 0x1 ; }
 		// services
-		constexpr bool              operator== (Ddate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
-		constexpr ::strong_ordering operator<=>(Ddate const& other) const { return _val<=>other._val  ; }
+		constexpr bool operator==(Ddate const& other) const { return _val==other._val ; } // C++ requires a direct compare to support <=>
+		constexpr bool operator< (Ddate const& other) const { return _date()< other._date() ; }
+		constexpr bool operator> (Ddate const& other) const { return _date()> other._date() ; }
 		//
 		using Base::operator+ ;
-		constexpr Ddate  operator+ (Delay other) const {                         return Ddate(New,_val+other._val) ; }
-		constexpr Ddate  operator- (Delay other) const {                         return Ddate(New,_val-other._val) ; }
-		constexpr Ddate& operator+=(Delay other)       { *this = *this + other ; return *this                      ; }
-		constexpr Ddate& operator-=(Delay other)       { *this = *this - other ; return *this                      ; }
+		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~0x1 ; return *this                      ; }
+		constexpr Ddate& operator-=(Delay other)       { _val -= other._val&~0x1 ; return *this                      ; }
+		constexpr Ddate  operator+ (Delay other) const { Ddate res{*this} ; res += other ; return res ;                }
+		constexpr Ddate  operator- (Delay other) const { Ddate res{*this} ; res -= other ; return res ;                }
 		constexpr Delay  operator- (Ddate      ) const ;
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
 		void          sleep_until(            ) const ;
+	private :
+		constexpr Tick _date() const { return _val&~0x1 ; }
+		constexpr bool _exe () const { return _val&~0x1 ; }
 	} ;
 
 	//
@@ -276,8 +286,8 @@ namespace Time {
 		::clock_gettime(CLOCK_REALTIME,&now) ;
 		return Pdate(now) ;
 	}
-	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,int64_t(_val-other._val)) ; }
-	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,int64_t(_val-other._val)) ; }
+	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,int64_t(_val   -other._val   )) ; }
+	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,int64_t(_date()-other._date())) ; }
 	//
 	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
 	inline void          Pdate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }
@@ -286,7 +296,7 @@ namespace Time {
 
 // must be outside Engine namespace as it specializes ::hash
 namespace std {
-	template<> struct hash<Time::Date       > { size_t operator()(Time::Date        d) const { return +d ; } } ;
-	template<> struct hash<Time::Delay      > { size_t operator()(Time::Delay       d) const { return +d ; } } ;
-	template<> struct hash<Time::CoarseDelay> { size_t operator()(Time::CoarseDelay d) const { return +d ; } } ;
+	template<> struct hash<Time::Date       > { size_t operator()(Time::Date        d) const { return d.hash() ; } } ;
+	template<> struct hash<Time::Delay      > { size_t operator()(Time::Delay       d) const { return d.hash() ; } } ;
+	template<> struct hash<Time::CoarseDelay> { size_t operator()(Time::CoarseDelay d) const { return d.hash() ; } } ;
 }

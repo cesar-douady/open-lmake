@@ -139,6 +139,7 @@ unit_tests/dynamic.py
 unit_tests/dynamic_py.py
 unit_tests/force.py
 unit_tests/git.py
+unit_tests/hard_lnks.py
 unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py

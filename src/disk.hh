@@ -40,10 +40,11 @@ namespace Disk {
 	struct FileInfo {
 		friend ::ostream& operator<<( ::ostream& , FileInfo const& ) ;
 		friend FileInfoDate ;
+		using Stat = struct ::stat ;
 	private :
 		// statics
-		static struct ::stat _s_stat( Fd at , const char* name ) {
-			struct ::stat st ;
+		static Stat _s_stat( Fd at , const char* name ) {
+			Stat st ;
 			errno = 0 ;
 			::fstatat( at , name , &st , AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW ) ;
 			return st ;
@@ -51,11 +52,11 @@ namespace Disk {
 		// cxtors & casts
 	public :
 		FileInfo(                              ) = default ;
-		FileInfo( Fd at                        ) : FileInfo(        at     ,{}           ) {}
-		FileInfo(         ::string const& name ) : FileInfo(        Fd::Cwd,name         ) {}
-		FileInfo( Fd at , ::string const& name ) : FileInfo(_s_stat(at     ,name.c_str())) {}
+		FileInfo( Fd at                        ) : FileInfo{        at     ,{}           } {}
+		FileInfo(         ::string const& name ) : FileInfo{        Fd::Cwd,name         } {}
+		FileInfo( Fd at , ::string const& name ) : FileInfo{_s_stat(at     ,name.c_str())} {}
 	private :
-		FileInfo(struct ::stat const&) ;                                       // /!\ errno must be valid and 0 if stat is ok
+		FileInfo(Stat const&) ;                                       // /!\ errno must be valid and 0 if stat is ok
 		// accesses
 	public :
 		bool operator+() const {
@@ -69,8 +70,8 @@ namespace Disk {
 		bool operator!() const { return !+*this                                ; } // i.e. sz & date are not present
 		bool is_reg   () const { return tag==FileTag::Reg || tag==FileTag::Exe ; }
 		// data
-		FileTag tag = FileTag::None ;
 		DiskSz  sz  = 0             ;
+		FileTag tag = FileTag::None ;
 	} ;
 
 	struct FileInfoDate : FileInfo {

@@ -195,10 +195,11 @@ namespace Backends::Slurm {
 			return to_string("slurm_id:",se.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
+			Delay relax_time = g_config.network_delay+Delay(1) ;
 			if ( !se.verbose && s>Status::Garbage ) return {{},true/*retry*/} ;                         // common case, must be fast
 			::pair_s<Bool3/*ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
-				for( int i=0 ; i<10 ; Delay(0.1).sleep_for(),i++ ) {           // wait a little while hoping job is dying
+				for( Delay i{0} ; i<relax_time ; Delay(0.1).sleep_for(),i+=Delay(0.1) ) { // wait a little while hoping job is dying
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
 				}
@@ -455,22 +456,28 @@ namespace Backends::Slurm {
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			if (js<=JOB_COMPLETE) continue ;                                    // we only search errors
-			::pair_s<bool/*ok*/> info ;
+			::pair_s<bool/*ok*/> info      ;
+			const char*          on_nodes  = ::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
+			int                  exit_code = ji.exit_code                                                 ;
+			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
+			// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
+			// signaled wstatus are barely the signal number
+			if ( WIFEXITED(ji.exit_code) && WEXITSTATUS(ji.exit_code)>0x80 ) exit_code = WEXITSTATUS(ji.exit_code)-0x80 ;
 			switch(js) {
 				// possible job_states values (from slurm.h) :
-				//   JOB_PENDING                                                                                                            queued waiting for initiation
-				//   JOB_RUNNING                                                                                                            allocated resources and executing
-				//   JOB_SUSPENDED                                                                                                          allocated resources, execution suspended
-				//   JOB_COMPLETE                                                                                                           completed execution successfully
-				case JOB_CANCELLED : return {           "Job cancelled by user"s                                         , Yes/*ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { to_string("Failed (exit code=",ji.exit_code,") on node(s): "    ,ji.nodes) , No /*ok*/ } ; // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("Job terminated on reaching time limit on node(s): "  ,ji.nodes) , No /*ok*/ } ; // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("Job terminated on node failure on node(s): "         ,ji.nodes) , Yes/*ok*/ } ; // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("Job terminated due to preemption on node(s): "       ,ji.nodes) , Yes/*ok*/ } ; // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("Job terminated due to node boot failure on node(s): ",ji.nodes) , Yes/*ok*/ } ; // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("Job terminated on deadline on node(s): "             ,ji.nodes) , Yes/*ok*/ } ; // terminated on deadline
-				case JOB_OOM       : return { to_string("Out of memory killed on node(s): "                   ,ji.nodes) , No /*ok*/ } ; // experienced out of memory error
-				//   JOB_END                                                                                                                not a real state, last entry in table
+				//   JOB_PENDING                                                                                                        queued waiting for initiation
+				//   JOB_RUNNING                                                                                                        allocated resources and executing
+				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
+				//   JOB_COMPLETE                                                                                                       completed execution successfully
+				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("slurm timeout"                      ,on_nodes,ji.nodes) , No /*ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*ok*/ } ; // experienced out of memory error
+				//   JOB_END                                                                                                            not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}

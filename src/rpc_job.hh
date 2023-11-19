@@ -70,16 +70,49 @@ ENUM( JobProc
 ,	End
 )
 
-ENUM( Status       // result of job execution
-,	New            // job was never run
-,	Lost           // job was lost (it disappeared for an unknown reason)
-,	Killed         // <=Killed means job was killed
-,	ChkDeps        // dep check failed
-,	Garbage        // <=Garbage means job has not run reliably
-,	Ok             // job execution ended successfully
-,	Err            // >=Err means job ended in error
-,	Timeout        // job timed out
+ENUM_1( Status                         // result of job execution
+,	Early = EarlyLostErr               // <=Early means output has not been modified
+,	New                                // job was never run
+,	EarlyErr                           // job was not started because of error
+,	EarlyLost                          // job was lost before starting     , retry
+,	EarlyLostErr                       // job was lost before starting     , do not retry
+,	LateLost                           // job was lost after having started, retry
+,	LateLostErr                        // job was lost after having started, do not retry
+,	Killed                             // job was killed
+,	ChkDeps                            // dep check failed
+,	Garbage                            // <=Garbage means job has not run reliably
+,	Ok                                 // job execution ended successfully
+,	Err                                // job execution ended in error
+,	Timeout                            // job timed out
 )
+static inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
+static inline Bool3 is_ok  (Status s) {
+	switch (s) {
+		case Status::New          : return Maybe ;
+		case Status::EarlyErr     : return No    ;
+		case Status::EarlyLost    : return Maybe ;
+		case Status::EarlyLostErr : return No    ;
+		case Status::LateLost     : return Maybe ;
+		case Status::LateLostErr  : return No    ;
+		case Status::Killed       :
+		case Status::ChkDeps      :
+		case Status::Garbage      : return Maybe ;
+		case Status::Ok           : return Yes   ;
+		case Status::Err          :
+		case Status::Timeout      : return No    ;
+		default : FAIL(s) ;
+	}
+}
+static inline Status mk_err(Status s) {
+	switch (s) {
+		case Status::New          : return Status::EarlyErr     ;
+		case Status::EarlyLost    : return Status::EarlyLostErr ;
+		case Status::LateLost     : return Status::LateLostErr  ;
+		case Status::Ok           : return Status::Err          ;
+		case Status::Err          :
+		default : FAIL(s) ;
+	}
+}
 
 ENUM_4( Tflag                          // flags for targets
 ,	RuleMin    = Incremental           // rules may have flags RuleMin<=flag<RuleMax1
@@ -191,7 +224,8 @@ static constexpr const char* JobReasonTagStrs[] = {
 } ;
 static_assert(::size(JobReasonTagStrs)==+JobReasonTag::N) ;
 
-static const ::string EnvPassMrkr(1,0) ;                                            // special illegal value to ask for value from environment
+static const ::string EnvPassMrkr = {'\0','p'} ;           // special illegal value to ask for value from environment
+static const ::string EnvDynMrkr  = {'\0','d'} ;           // special illegal value to mark dynamically computed env variables
 
 struct JobReason {
 	friend ::ostream& operator<<( ::ostream& , JobReason const& ) ;
@@ -677,7 +711,8 @@ struct JobInfoStart {
 	in_addr_t   host         = NoSockAddr ;
 	JobRpcReq   pre_start    = {}         ;
 	JobRpcReply start        = {}         ;
-	::string    backend_info = {}         ;
+	::string    backend_msg  = {}         ;
+	::string    stderr       = {}         ;
 } ;
 
 struct JobInfoEnd {

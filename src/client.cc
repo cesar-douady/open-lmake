@@ -82,8 +82,8 @@ static void connect_to_server(bool refresh) {
 }
 
 static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
-	struct stat in_stat  ;
-	struct stat out_stat ;
+	struct ::stat in_stat  ;
+	struct ::stat out_stat ;
 	::fstat(in_fd ,&in_stat ) ;
 	::fstat(out_fd,&out_stat) ;
 	// we need to send commands to out_fd and receive replies from in_fd, verify that they are both tty's and refer to the same one

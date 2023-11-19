@@ -151,10 +151,10 @@ namespace Backends {
 		virtual ::vmap_ss    export_       ( RsrcsData    const&          ) const = 0 ;             // export resources in   a publicly manageable form
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && , ReqIdx ) const = 0 ;             // import resources from a publicly manageable form
 		//
-		virtual ::string                start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                       ; }
-		virtual ::pair_s<bool/*retry*/> end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*lost_is_err*/} ; }
-		virtual ::pair_s<Bool3/*ok*/>   heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok*/}            ; }              // only called before start
-		virtual void                    kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                                               // .
+		virtual ::string                start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                 ; }
+		virtual ::pair_s<bool/*retry*/> end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*retry*/} ; }
+		virtual ::pair_s<Bool3/*ok*/>   heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok*/}      ; } // only called before start
+		virtual void                    kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                            // .
 		//
 		virtual SpawnId launch_job( JobIdx , Pdate prio , ::vector_s const& cmd_line   , Rsrcs const& , bool verbose ) const = 0 ;
 

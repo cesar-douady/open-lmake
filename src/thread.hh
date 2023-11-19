@@ -59,7 +59,7 @@ template<class Item> struct QueueThread {
 private :
 	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Item&&)> func ) {
 		Trace::t_key = key ;
-		Trace trace("_s_thread_func") ;
+		Trace trace("_s_thread_func<Queue>") ;
 		for(;;) {
 			auto [popped,info] = self->_queue.pop(stop) ;
 			if ( !popped                       ) break ;
@@ -108,7 +108,7 @@ private :
 			}
 		} ;
 		//
-		Trace trace("_s_thread_func",self->fd.port()) ;
+		Trace trace("_s_thread_func<Fd>",self->fd.port()) ;
 		self->_ready.count_down() ;
 		//
 		epoll.add_read(self->fd,EventKind::Master) ;

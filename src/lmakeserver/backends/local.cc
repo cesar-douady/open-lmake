@@ -138,7 +138,7 @@ namespace Backends::Local {
 			avail += *se.rsrcs ;
 			Trace trace("end","avail_rsrcs",'+',avail) ;
 			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                        // retry if lost
+			return {{},true/*retry*/} ;                                        // retry if garbage
 		}
 		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			kill_queued_job(j,se) ;                                                                     // ensure job_exec is dead or will die shortly

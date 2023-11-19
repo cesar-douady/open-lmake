@@ -26,7 +26,7 @@ namespace Disk {
 		return    os <<')'                           ;
 	}
 
-	FileInfo::FileInfo(struct ::stat const& st) {
+	FileInfo::FileInfo(Stat const& st) {
 		switch (errno) {
 			case 0       :                       break  ;
 			case ENOENT  :
@@ -50,11 +50,11 @@ namespace Disk {
 				at = new_at ;
 			}
 		}
-		struct ::stat st = _s_stat(at,n) ;
+		Stat st = _s_stat(at,n) ;
 		static_cast<FileInfo&>(*this) = FileInfo(st) ;
 		if (+*this) {
-			date = Ddate(st.st_ctim) ;
-			sz   = st.st_size        ;
+			date = Ddate(st)  ;
+			sz   = st.st_size ;
 		}
 	}
 

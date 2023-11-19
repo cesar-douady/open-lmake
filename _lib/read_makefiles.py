@@ -512,6 +512,7 @@ class Handle :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			self._init()
 			self._handle_val('cmd',for_deps=True)
+			if 'cmd' in self.dynamic_val : self.dynamic_val = self.dynamic_val['cmd']
 			self.rule_rep.cmd                 = self._finalize()
 			self.rule_rep.cmd[0]['is_python'] = False
 
@@ -567,13 +568,47 @@ else                        : srcs = lmake.auto_sources()
 
 rule_modules = { r.__module__ for r in lmake.rules }
 
-print(repr({
-	'config' : lmake.config
-,	'srcs'   : srcs
-,	'rules' : [
-		rule_rep
-		for rule in lmake.rules
-		for rule_rep in (fmt_rule_chk(rule),)
-		if rule_rep
-	]
-}),file=open(sys.argv[1],'w'))
+# could be a mere print, but it is easier to debug with a prettier output
+with open(sys.argv[1],'w') as out :
+	print('{',file=out)
+	#
+	print("\t'config' : {",file=out)
+	kl  = max((len(repr(k)) for k in lmake.config.keys()),default=0)
+	sep = ''
+	for k,v in lmake.config.items() :
+		print(f'\t{sep}\t{k!r:{kl}} : {v!r}',file=out)
+		sep = ','
+	print('\t}',file=out)
+	#
+	print(',',file=out)
+	#
+	print("\t'rules' : (",file=out)
+	sep     = ''
+	n_rules = 0
+	for rule in lmake.rules :
+		rule_rep = fmt_rule_chk(rule)
+		if not rule_rep : continue
+		n_rules += 1
+		if sep : print(f'\t{sep}',file=out)
+		sep = ','
+		print('\t\t{',file=out)
+		kl   = max((len(repr(k)) for k in rule_rep.keys()),default=0)
+		sep2 = ''
+		for k,v in rule_rep.items() :
+			print(f'\t\t{sep2}\t{k!r:{kl}} : {v!r}',file=out)
+			sep2 = ','
+		print('\t\t}',file=out)
+	if n_rules==1 : print('\t,)',file=out)                                     # /!\ must add a comma at end of singletons
+	else          : print('\t)' ,file=out)
+	#
+	print(',',file=out)
+	#
+	print("\t'srcs' : (",file=out)
+	sep = ''
+	for src in srcs :
+		print(f'\t{sep}\t{src!r}',file=out)
+		sep = ','
+	if len(srcs)==1 : print(f"\t,)",file=out)                                  # /!\ must add a comma at end of singletons
+	else            : print(f"\t)" ,file=out)
+	#
+	print('}',file=out)
