@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/sysinfo.h>
+#include <sys/resource.h>
 
 #include "generic.hh"
 
@@ -116,6 +117,18 @@ namespace Backends::Local {
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			Trace("config",MyTag,"capacity",'=',capacity_) ;
 			static ::jthread wait_jt{_s_wait_thread_func,this} ;
+			//
+			if (rsrc_idxs.contains("cpu")) {                                   // ensure each job can compute CRC on all cpu's in parallel
+				struct rlimit rl ;
+				::getrlimit(RLIMIT_NPROC,&rl) ;
+				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
+					::rlim_t new_limit = rl.rlim_cur + capacity_[rsrc_idxs["cpu"]]*thread::hardware_concurrency() ;
+					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;            // hard limit overflow
+					rl.rlim_cur = new_limit ;
+					::setrlimit(RLIMIT_NPROC,&rl) ;
+				}
+			}
+			//
 			return true ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {

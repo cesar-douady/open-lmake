@@ -281,7 +281,7 @@ namespace Engine {
 			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep.name() , n_err , lvl ) ;
 		} else if (!dep->makable(true/*uphill_ok*/)) {
 			switch (cri.err) {
-				case NodeErr::None        : report_not_built = true ; break ;
+				case NodeErr::None        : report_not_built = dep.dflags[Dflag::Required] ; break ;
 				case NodeErr::Dangling    : return (*this)->_send_err( false/*intermediate*/ , "dangling"    , dep.name() , n_err , lvl ) ;
 				case NodeErr::Overwritten : return (*this)->_send_err( false/*intermediate*/ , "overwritten" , dep.name() , n_err , lvl ) ;
 				default : FAIL(cri.err) ;
