@@ -79,16 +79,15 @@ _physical_mem = _os.sysconf('SC_PHYS_PAGES') * _os.sysconf('SC_PAGE_SIZE')
 
 config = pdict(
 	hash_algo        = 'Xxh'                           # algorithm to use to compute checksums on files, one of 'Xxh' or 'Md5'
-,	heartbeat        = 60                              # delay between heartbeat checks of running jobs
 ,	link_support     = 'Full'                          # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
-#	,	local_admin_dir  = 'LMAKE'                         # directory in which to store data that are private to the server (not accessed remote executing hosts) (default is to use LMAKE dir)
+#,	local_admin_dir  = 'LMAKE'                         # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
 ,	max_dep_depth    = 1000                            # used to detect infinite recursions and loops
-#	,	max_error_lines  = 30                              # used to limit the number of error lines when not reasonably limited otherwise
+,	max_error_lines  = 100                             # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay    = 1                               # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 ,	trace_size       = 100<<20                         # size of trace
-#	,	path_max         = 400                             # max path length, but a smaller value makes debugging easier (by default, not activated)
-#	,	remote_admin_dir = 'LMAKE'                         # directory in which to store job trace during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
-#	,	remote_tmp_dir   = 'LMAKE'                         # directory in which to store tmp data during remote job execution (not used when keep_tmp is enforced) (default is to use LMAKE dir)
+,	path_max         = 400                             # max path length, but a smaller value makes debugging easier (by default, not activated)
+#,	remote_admin_dir = 'LMAKE'                         # directory in which to store job trace during remote job execution                                      (default is within LMAKE dir)
+#,	remote_tmp_dir   = 'LMAKE'                         # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
 ,	source_dirs      = []                              # files in these directories are deemed to be sources
 ,	sub_prio_boost   = 1                               # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	console = pdict(                                   # tailor output lines
@@ -98,9 +97,9 @@ config = pdict(
 	)
 ,	backends = pdict(                                  # PER_BACKEND : provide a default configuration for each backend
 		precisions = pdict(                            # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
-	#		cpu = 4                                    # 4 means possible values are 1 2, 3, 4, 6, 8, 12, ...
-	#	,	mem = 4                                    # 8 would mean possible values are 1 2, 3, 4, 5, 6, 7, 8, 10, ...
-	#	,	tmp = 4                                    # .
+			cpu = 4                                    # encodes the highest number with full granularity, 4 is a reasonable value
+		,	mem = 4                                    # 4 means possible values are 1 2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40...
+		,	tmp = 4                                    # 8 would mean possible values are 1 2, 3, 4, 5, 6, 7, 8, 10, ...
 		)
 	,	local = pdict(                                 # entries mention the total availability of resources
 	#	,	interface = socket.getfqdn()               # address at which lmake can be contacted from jobs launched by this backend, can be :
@@ -138,6 +137,22 @@ config = pdict(
 # rules
 #
 rules = []                                             # list of rules that must be filled in by user code
+
+# use these flags to completely ignore activity on target(s) they qualify
+# this can also be used as a help to tailor your flags to your own needs
+ignore_flags = (
+	'-crc'         # do not generate a crc (just saves time)
+,	'-dep'         # do not generate a dep if read
+,	'-essential'   # do not show on graphical tool (to come)
+,	'incremental'  # allow target to exist before job is run
+,	'manual_ok'    # allow overwriting manual modifications
+,	'-match'       # dont match (i.e. do no trigge rule on behalf of this target)
+,	'source_ok'    # allow overwriting if target is a source
+,	'star'         # consider target as star, even if no star stems : only actually considered a target if actually generated
+,	'-stat'        # ignore stat-like accesses
+,	'-uniquify'    # dont uniquify if target has several hard links pointing to it
+#,	'write'        # allow writes (by default)
+)
 
 class _RuleBase :
 	def __init_subclass__(cls) :
@@ -210,13 +225,13 @@ class Rule(_RuleBase) :
 	ignore_stat  = False                               # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
 	keep_tmp     = False                               # keep tmp dir after job execution
 	kill_sigs    = (_signal.SIGKILL,)                  # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
-#	n_retries    = 1                                   # number of retries in case of job lost. 1 might be a reasonable value
+	n_retries    = 1                                   # number of retries in case of job lost. 1 is a reasonable value
 	n_tokens     = 1                                   # number of jobs likely to run in parallel for this rule (used for ETA estimation)
 	prio         = 0                                   # in case of ambiguity, rules are selected with highest prio first
 	python       = (_python,)                          # python used for callable cmd
 	shell        = (_get_std('bash'),)                 # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
-#	start_delay  = 1                                   # delay before sending a start message if job is not done by then
-#	stderr_len   = 20                                  # maximum number of stderr lines shown in output (full content is accessible with lshow -e)
+	start_delay  = 3                                   # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
+	stderr_len   = 30                                  # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 30 is a reasonable copmromise
 	timeout      = None                                # timeout allocated to job execution (in s), must be None or an int
 #	tmp          = '/tmp'                              # path under which the temporary directory is seen in the job
 	job_tokens   = 1                                   # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)

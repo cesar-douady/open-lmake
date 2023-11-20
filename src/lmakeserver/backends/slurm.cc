@@ -459,8 +459,8 @@ namespace Backends::Slurm {
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                       // we only search errors
-			const char* on_nodes  = ::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
+			if (js<=JOB_COMPLETE) continue ;                                                                  // we only search errors
+			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
 			int         exit_code = ji.exit_code                                                 ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 			// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping

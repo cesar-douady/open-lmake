@@ -304,7 +304,7 @@ int main( int argc , char* argv[] ) {
 			::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 			for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i) ; // just constructing a destructing the threads will execute & join them, resulting in computed crc's
 		}
-		while (!spurious_unlink_queue.empty())  analysis_err.emplace_back("target was spuriously unlinked :",spurious_unlink_queue.pop()) ;
+		while (!spurious_unlink_queue.empty()) analysis_err.emplace_back("target was spuriously unlinked :",spurious_unlink_queue.pop()) ;
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try                     { unlink_inside(g_start_info.autodep_env.tmp_dir) ; }

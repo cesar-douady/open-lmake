@@ -47,8 +47,8 @@ namespace Engine {
 			::string const& tn = sts[ti] ;
 			Node            t     { tn }                                                        ; if (t->crc==Crc::None) { trace("static_no_file",t) ; continue ; } // nothing to wash
 			Tflags          tf    = rule->tflags(ti)                                            ;
-			bool            inc   = tf[Tflag::Incremental]                                      ;
-			bool            warn  = tf[Tflag::Warning    ]                                      ;
+			bool            inc   = tf[Tflag::Uniquify]                                         ;
+			bool            warn  = tf[Tflag::Warning ]                                         ;
 			bool            weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
 			struct ::stat   st    ; ::lstat(tn.c_str(),&st)                                     ;
 			if ( inc && !(S_ISREG(st.st_mode)&&st.st_nlink>1) ) continue ;                                                      // no need to manage symlinks as they cannot be modified in place
@@ -60,8 +60,8 @@ namespace Engine {
 		for( Target t : star_targets ) {
 			if (t->crc==Crc::None) { trace("star_no_file",t) ; continue ; }    // no interest to wash file if it does not exist
 			::string      tn    ;
-			bool          inc   = t.lazy_tflag(Tflag::Incremental,match,fm,tn)                ; // may solve fm & tn lazy evalution
-			bool          warn  = t.lazy_tflag(Tflag::Warning    ,match,fm,tn)                ; // .
+			bool          inc   = t.lazy_tflag(Tflag::Uniquify,match,fm,tn)                   ; // may solve fm & tn lazy evalution
+			bool          warn  = t.lazy_tflag(Tflag::Warning ,match,fm,tn)                   ; // .
 			bool          weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
 			struct ::stat st    ; ::lstat(tn.c_str(),&st)                                     ;
 			if ( inc && !(S_ISREG(st.st_mode)&&st.st_nlink>1) ) continue ;                                                      // no need to manage symlinks as they cannot be modified in place
