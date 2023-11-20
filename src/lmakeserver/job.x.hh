@@ -262,9 +262,9 @@ namespace Engine {
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
 		bool err() const {
-				if (run_status>=RunStatus::Err     ) return true              ;
-				if (run_status!=RunStatus::Complete) return false             ;
-				else                                 return is_ok(status)==No ;
+				if (run_status>=RunStatus::Err     ) return true               ;
+				if (run_status!=RunStatus::Complete) return false              ;
+				else                                 return is_ok(status)!=Yes ;
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		//services

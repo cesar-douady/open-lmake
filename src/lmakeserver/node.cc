@@ -17,10 +17,13 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) {
-		os << "NRI(" << ri.req <<','<< ri.action <<',' ;
-		if (ri.prio_idx==Node::NoIdx) os<<"None"      ;
-		else                          os<<ri.prio_idx ;
-		return os <<','<< STR(ri.done) <<','<< STR(ri.n_wait) <<','<< STR(ri.err) <<')' ;
+		/**/                          os << "NRI(" << ri.req <<','<< ri.action <<',' ;
+		if (ri.prio_idx==Node::NoIdx) os << "None"                                   ;
+		else                          os << ri.prio_idx                              ;
+		if (ri.done                 ) os << ",done"                                  ;
+		if (ri.n_wait               ) os << ".wait:"<<ri.n_wait                      ;
+		if (ri.err>NodeErr::None    ) os << ',' << ri.err                            ;
+		return                        os << ')'                                      ;
 	}
 
 	//

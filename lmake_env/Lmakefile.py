@@ -19,7 +19,6 @@ from lmake import AntiRule,Rule,config,pdict
 
 backend = 'slurm' if 'slurm' in lmake.backends else 'local'
 
-
 lmake.config.backends.slurm = {
 	'use_nice' : True
 }

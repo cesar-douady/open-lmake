@@ -89,19 +89,19 @@ namespace Backends {
 		// called by job_exec thread
 		static ::pair_s<uset<ReqIdx>>  s_start    ( Tag , JobIdx          ) ;  // called by job_exec  thread, sub-backend lock must have been takend by caller
 		static ::pair_s<bool/*retry*/> s_end      ( Tag , JobIdx , Status ) ;  // .
-		static ::pair_s<Bool3/*ok*/>   s_heartbeat( Tag , JobIdx          ) ;  // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::pair_s<bool/*alive*/> s_heartbeat( Tag , JobIdx          ) ;  // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req              ( ReqIdx=0                                            ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , JobServerRpcProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                        ) ;
-		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                ) ;
-		static void            _s_handle_deferred_report( DeferredReportEntry&&                               ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status         ) ;
+		static void            _s_kill_req              ( ReqIdx=0                                                          ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , Pdate start , JobServerRpcProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                                      ) ;
+		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                              ) ;
+		static void            _s_handle_deferred_report( DeferredReportEntry&&                                             ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                       ) ;
 		//
 		using JobExecThread        = ServerThread<JobRpcReq          > ;
 		using DeferredReportThread = QueueThread <DeferredReportEntry> ;
@@ -133,10 +133,10 @@ namespace Backends {
 		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // add a new req for an already submitted job
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
-		virtual void                    launch   (             ) = 0 ;                 // called to trigger launch of waiting jobs
-		virtual ::pair_s<uset<ReqIdx>>  start    (JobIdx       ) = 0 ;                 // tell sub-backend job started, return an informative message and reqs associated with job
-		virtual ::pair_s<bool/*retry*/> end      (JobIdx,Status) { return {}       ; } // tell sub-backend job ended  , return a message and whether to retry jobs with garbage status
-		virtual ::pair_s<Bool3/*ok*/>   heartbeat(JobIdx       ) { return {{},Yes} ; } // regularly called between launch and start, Yes => ok, Maybe => job lost, No => job error
+		virtual void                    launch   (             ) = 0 ;                           // called to trigger launch of waiting jobs
+		virtual ::pair_s<uset<ReqIdx>>  start    (JobIdx       ) = 0 ;                           // tell sub-backend job started, return an informative message and reqs associated with job
+		virtual ::pair_s<bool/*retry*/> end      (JobIdx,Status) { return {}                 ; } // tell sub-backend job ended  , return a message and whether to retry jobs with garbage status
+		virtual ::pair_s<bool/*alive*/> heartbeat(JobIdx       ) { return {{},true/*alive*/} ; } // regularly called between launch and start
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
 		//
@@ -160,7 +160,7 @@ namespace Backends {
 	//
 	inline ::pair_s<uset<ReqIdx>>  Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
 	inline ::pair_s<bool/*retry*/> Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
-	inline ::pair_s<Bool3/*ok*/>   Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
+	inline ::pair_s<bool/*alive*/> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 }
 

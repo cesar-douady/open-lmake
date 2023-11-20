@@ -140,9 +140,9 @@ namespace Backends::Local {
 			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
 			return {{},true/*retry*/} ;                                        // retry if garbage
 		}
-		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
-			kill_queued_job(j,se) ;                                                                     // ensure job_exec is dead or will die shortly
-			return {{}/*msg*/,Maybe/*ok*/} ;
+		virtual ::pair_s<bool/*alive*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const { // called after job_exec has had time to start
+			kill_queued_job(j,se) ;                                                                       // ensure job_exec is dead or will die shortly
+			return {{}/*msg*/,false/*alive*/} ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			kill_process(se.id,SIGHUP) ;                                        // jobs killed here have not started yet, so we just want to kill job_exec

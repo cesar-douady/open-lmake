@@ -153,7 +153,7 @@ namespace Backends {
 		//
 		virtual ::string                start_job           ( JobIdx , SpawnedEntry const&          ) const { return  {}                 ; }
 		virtual ::pair_s<bool/*retry*/> end_job             ( JobIdx , SpawnedEntry const& , Status ) const { return {{},false/*retry*/} ; }
-		virtual ::pair_s<Bool3/*ok*/>   heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},Yes/*ok*/}      ; } // only called before start
+		virtual ::pair_s<bool/*alive*/> heartbeat_queued_job( JobIdx , SpawnedEntry const&          ) const { return {{},true /*alive*/} ; } // only called before start
 		virtual void                    kill_queued_job     ( JobIdx , SpawnedEntry const&          ) const = 0 ;                            // .
 		//
 		virtual SpawnId launch_job( JobIdx , Pdate prio , ::vector_s const& cmd_line   , Rsrcs const& , bool verbose ) const = 0 ;
@@ -250,12 +250,12 @@ namespace Backends {
 			launch( call_launch_after_end() , rsrcs ) ;                        // not compulsery but improves reactivity
 			return digest ;
 		}
-		virtual ::pair_s<Bool3/*ok*/> heartbeat(JobIdx j) {                                             // called on jobs that did not start after at least newwork_delay time
-			auto                  it     = spawned_jobs.find(j)       ; SWEAR(it!=spawned_jobs.end()) ;
-			SpawnedEntry&         se     = it->second                 ; SWEAR(!se.started           ) ; // we should not be called on started jobs
-			::pair_s<Bool3/*ok*/> digest = heartbeat_queued_job(j,se) ;
+		virtual ::pair_s<bool/*alive*/> heartbeat(JobIdx j) {                                             // called on jobs that did not start after at least newwork_delay time
+			auto                    it     = spawned_jobs.find(j)       ; SWEAR(it!=spawned_jobs.end()) ;
+			SpawnedEntry&           se     = it->second                 ; SWEAR(!se.started           ) ; // we should not be called on started jobs
+			::pair_s<bool/*alive*/> digest = heartbeat_queued_job(j,se) ;
 			//
-			if (digest.second==Yes) return digest ;
+			if (digest.second) return digest ;
 			//
 			Trace trace("heartbeat",j,se.id) ;
 			spawned_jobs.erase(it) ;

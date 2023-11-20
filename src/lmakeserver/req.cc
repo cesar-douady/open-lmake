@@ -275,20 +275,23 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri               = dep->c_req_info(*this) ;
-		bool                 report_if_no_jobs = false                  ;
+		Node::ReqInfo const& cri              = dep->c_req_info(*this) ;
+		bool                 report_not_built = false                  ;
 		if (dep->multi) {
-			/**/                                  return (*this)->_send_err( false/*intermediate*/ , "multi"     , dep.name() , n_err , lvl ) ;
+			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep.name() , n_err , lvl ) ;
 		} else if (!dep->makable(true/*uphill_ok*/)) {
-			if      (dep->err(cri)              ) return (*this)->_send_err( false/*intermediate*/ , "dangling"  , dep.name() , n_err , lvl ) ;
-			else if (dep.dflags[Dflag::Required]) report_if_no_jobs = true ;
+			switch (cri.err) {
+				case NodeErr::None        : report_not_built = true ; break ;
+				case NodeErr::Dangling    : return (*this)->_send_err( false/*intermediate*/ , "dangling"    , dep.name() , n_err , lvl ) ;
+				case NodeErr::Overwritten : return (*this)->_send_err( false/*intermediate*/ , "overwritten" , dep.name() , n_err , lvl ) ;
+				default : FAIL(cri.err) ;
+			}
 		}
-		bool reported_jobs = false ;
 		for( Job job : dep->conform_job_tgts(cri) ) {
 			if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
-			reported_jobs = true ;
+			report_not_built = false ;
 		}
-		if ( report_if_no_jobs && !reported_jobs ) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ; // if no better explanation found
+		if (report_not_built) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ; // if no better explanation found
 		//
 		return false ;
 	}

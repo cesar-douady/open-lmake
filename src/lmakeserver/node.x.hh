@@ -120,6 +120,12 @@ namespace Engine {
 	,	Plain      // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
 	)
 
+	ENUM( NodeErr
+	,	None
+	,	Dangling
+	,	Overwritten
+	)
+
 	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
 		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
 		//
@@ -135,9 +141,9 @@ namespace Engine {
 		void update( RunAction , MakeAction , NodeData const& ) ;
 		// data
 	public :
-		RuleIdx prio_idx = NoIdx ;     //     16 bits
-		bool    done     = false ;     //  1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
-		Bool3   err      = No    ;     //  2<= 8 bit , if Yes  => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
+		RuleIdx prio_idx = NoIdx ;                         //     16 bits
+		bool    done     = false ;                         //  1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
+		NodeErr err      = NodeErr::None ;                 //  2<= 8 bit , if Yes  => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
 	} ;
 	static_assert(sizeof(NodeReqInfo)==40) ;                                   // check expected size
 
@@ -209,7 +215,7 @@ namespace Engine {
 			if (!conform()         ) return true                     ;
 			else                     return conform_job_tgt()->err() ;
 		}
-		bool err       ( ReqInfo const& cri , bool uphill_ok=false ) const { return cri.err!=No || err(uphill_ok)                                 ; }
+		bool err       ( ReqInfo const& cri , bool uphill_ok=false ) const { return cri.err>NodeErr::None || err(uphill_ok)                       ; }
 		bool is_special(                                           ) const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
 		Ddate db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Ddate() ; }

@@ -622,7 +622,7 @@ namespace Engine {
 				else if (digest.stderr.empty()) {}                                // avoid concatenation unless necessary
 				else if (stderr       .empty()) stderr  = ::move(digest.stderr) ; // .
 				else                            stderr +=        digest.stderr  ;
-				audit_end( {}/*pfx*/ , ri , backend_msg , *ae , stderr , end_none_attrs.stderr_len , any_modified , digest.stats.total) ; // report exec time even if not recording it
+				audit_end( {}/*pfx*/ , ri , backend_msg , *ae , stderr , end_none_attrs.stderr_len , any_modified , digest.stats.total ) ; // report exec time even if not recording it
 				trace("wakeup_watchers",ri) ;
 				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
 				if ( has_analysis_err && !analysis_stamped ) {                 // this is code is done in such a way as to be fast in the common case (ae empty)
@@ -669,39 +669,39 @@ namespace Engine {
 	,	bool               modified
 	,	Delay              exec_time
 	) const {
-		Req            req  = cri.req            ;
-		::string       step ;
-		Color          c    = Color::Ok          ;
-		JobReport      jr   = JobReport::Unknown ;
-		JobData const& jd   = **this             ;
+		static const AnalysisErr s_no_ae ;
 		//
-		if (is_lost(jd.status)) req->losts.emplace(*this,req->losts.size()) ;
+		Req                req   = cri.req                       ;
+		JobData const&     jd    = **this                        ;
+		Color              color = Color    ::Unknown/*garbage*/ ;
+		JobReport          jr    = JobReport::Unknown            ;
+		::string           step  ;
+		AnalysisErr const* ae    = &analysis_err                 ;
 		//
-		if (req->zombie) {
-			if (jd.status<=Status::Garbage) { step = mk_snake(jd.status) ; c = Color::Err  ; }
-			else                            { step = "completed"         ; c = Color::Note ; }
-		} else {
-			if (jd.status==Status::Killed) { step = mk_snake(jd.status) ; c = Color::Err  ; }
-			else {
-				if      (!cri.done()                       ) { jr = JobReport::Rerun                           ; step = mk_snake(jr           ) ;                      c = Color::Note    ; }
-				else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed                          ; step = mk_snake(jd.run_status) ;                      c = Color::Err     ; }
-				else if (jd.status    ==Status::Timeout    ) { jr = JobReport::Failed                          ; step = mk_snake(jd.status    ) ;                      c = Color::Err     ; }
-				else if (is_lost(jd.status)                ) { jr = JobReport::Failed                          ; step = "lost"                  ;                      c = Color::Err     ; }
-				else if (jd.err()                          ) { jr = JobReport::Failed                          ; step = mk_snake(jr           ) ;                      c = Color::Err     ; }
-				else                                         { jr = modified?JobReport::Done:JobReport::Steady ; step = mk_snake(jr           ) ; if (!stderr.empty()) c = Color::Warning ; }
-				//
-				if (+exec_time) {                                              // if no exec time, no job was actually run
-					req->stats.ended(jr)++ ;
-					req->stats.jobs_time[cri.done()/*useful*/] += exec_time ;
-				}
+		if      (!cri.done()                       ) { jr = JobReport::Rerun  ;                                  color = Color::Note ; }
+		else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed ; step = mk_snake(jd.run_status) ; color = Color::Err  ; }
+		else if (jd.status==Status::Killed         ) {                          step = mk_snake(jd.status    ) ; color = Color::Err  ; }
+		else if (jd.status==Status::Timeout        ) { jr = JobReport::Failed ; step = mk_snake(jd.status    ) ; color = Color::Err  ; }
+		else if (jd.err()                          ) { jr = JobReport::Failed ;                                  color = Color::Err  ; }
+		else if (modified                          ) { jr = JobReport::Done   ;                                  color = Color::Ok   ; }
+		else                                         { jr = JobReport::Steady ;                                  color = Color::Ok   ; }
+		//
+		if ( color==Color::Ok && !stderr.empty() )   color = Color::Warning ;
+		if ( is_lost(jd.status)                  ) { step  = "lost"         ; ae = &s_no_ae ; req->losts.emplace(*this,req->losts.size()) ; } // req->losts for summary
+		if ( step.empty()                        )   step  = mk_snake(jr)   ;
+		if ( !pfx.empty()                        )   step  = pfx+step       ;
+		//
+		Trace trace("audit_end",color,step,*this,cri,STR(modified)) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		req->audit_job(color,step,*this,true/*at_end*/,exec_time) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (jr!=JobReport::Unknown) {
+			if (+exec_time) {                                                  // if no exec time, no job was actually run
+				req->stats.ended(jr)++ ;
+				req->stats.jobs_time[cri.done()/*useful*/] += exec_time ;
 			}
+			req->audit_stderr(backend_msg,*ae,stderr,stderr_len,1) ;
 		}
-		if (!pfx.empty()) step = pfx+step ;
-		Trace trace("audit_end",c,step,*this,cri,STR(modified)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job(c,step,*this,true/*at_end*/,exec_time) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (jr!=JobReport::Unknown) req->audit_stderr(backend_msg,analysis_err,stderr,stderr_len,1) ;
 	}
 
 	//
@@ -733,7 +733,7 @@ namespace Engine {
 
 	ENUM(State
 	,	Ok
-	,	DanglingModif                  // modified dep has been seen but still processing parallel deps
+	,	ProtoModif                     // modified dep has been seen but still processing parallel deps
 	,	Modif
 	,	Err
 	,	MissingStatic
@@ -789,17 +789,17 @@ namespace Engine {
 					RestartAnalysis :                                          // restart analysis here when it is discovered we need deps to run the job
 						if ( ri.dep_lvl==0 && +ri.force ) {                    // process command like a dep in parallel with static_deps
 							trace("force",ri.force) ;
-							SWEAR( state<=State::DanglingModif , state ) ;     // ensure we dot mask anything important
-							state       = State::DanglingModif ;
-							reason     |= ri.force             ;
-							ri.action   = RunAction::Run       ;
-							dep_action  = RunAction::Dsk       ;
+							SWEAR( state<=State::ProtoModif , state ) ;        // ensure we dot mask anything important
+							state       = State::ProtoModif ;
+							reason     |= ri.force          ;
+							ri.action   = RunAction::Run    ;
+							dep_action  = RunAction::Dsk    ;
 							if (frozen_) break ;                               // no dep analysis for frozen jobs
 						}
 						ri.speculative = false ;                               // initiallly, we are not speculatively waiting
 						bool  critical_modif   = false ;
 						bool  critical_waiting = false ;
-						Bool3 seen_waiting     = No    ;                       // Maybe means that waiting has been seen in the same parallel deps (much like DanglingModif for modifs)
+						Bool3 seen_waiting     = No    ;                       // Maybe means that waiting has been seen in the same parallel deps (much like ProtoModif for modifs)
 						Dep   sentinel         ;
 						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps,i_dep,n_deps),true ; i_dep++ ) {
 							State dep_state   = State::Ok                         ;
@@ -812,9 +812,9 @@ namespace Engine {
 							bool  care        = +dep.accesses                     ; // we care about this dep if we access it somehow
 							//
 							if (!dep.parallel) {
-								if (state       ==State::DanglingModif) state        = State::Modif ; // dangling modifs become modifs when stamped by a sequential dep
-								if (seen_waiting==Maybe               ) seen_waiting = Yes          ; // seen_waiting becomes Yes when stamped by a sequential dep
-								if ( critical_modif && !seen_all ) {
+								if ( state       ==State::ProtoModif ) state        = State::Modif ; // proto-modifs become modifs when stamped by a sequential dep
+								if ( seen_waiting==Maybe             ) seen_waiting = Yes          ; // seen_waiting becomes Yes when stamped by a sequential dep
+								if ( critical_modif && !seen_all     ) {
 									NodeIdx j = i_dep ;
 									for( NodeIdx i=i_dep ; i<n_deps ; i++ )    // suppress deps following modified critical one, except keep static deps as no-access
 										if (deps[i].dflags[Dflag::Static]) {
@@ -871,8 +871,8 @@ namespace Engine {
 									req->no_triggers.emplace(dep,req->no_triggers.size()) ; // record to repeat in summary, value is just to order summary in discovery order
 									is_modif = false ;
 								}
-								if ( is_modif                          ) dep_state = State::DanglingModif ; // if not overridden by an error
-								if ( !is_static && state>=State::Modif ) goto Continue ;                    // if not static, maybe all the following errors will be washed by previous modif
+								if ( is_modif                          ) dep_state = State::ProtoModif ; // if not overridden by an error
+								if ( !is_static && state>=State::Modif ) goto Continue ;                 // if not static, maybe all the following errors will be washed by previous modif
 								//
 								bool makable = dep->makable(is_uphill) ;       // sub-files of makable dir are not buildable, except for Uphill so sub-sub-files are not buildable
 								if (!makable) {
@@ -905,10 +905,10 @@ namespace Engine {
 									}
 								}
 								switch (cdri->err) {
-									case No    :                      break    ;
-									case Maybe : overwritten = true ; goto Err ;                                     // dep is already in error
-									case Yes   :                      if (sense_err) goto Err ; else goto Continue ; // .
-									default: FAIL(cdri->err) ;
+									case NodeErr::None        :                      break                                        ;
+									case NodeErr::Overwritten : overwritten = true ; goto Err                                     ;
+									case NodeErr::Dangling    :                      if (sense_err) goto Err ; else goto Continue ;
+									default : FAIL(cdri->err) ;
 								}
 								if ( sense_err && dep->err(is_uphill) ) {      // dep errors implies it makable, which takes an argument, we must provide it
 									trace("dep_err",dep) ;
@@ -955,8 +955,8 @@ namespace Engine {
 								goto Continue ;
 							}
 						MarkDep :
-							{	Node::ReqInfo& dri = dep->req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
-								dri.err = Maybe | overwritten ;
+							{	Node::ReqInfo& dri = dep->req_info(*cdri) ; cdri = &dri ;          // refresh cdri in case dri allocated a new one
+								dri.err = overwritten ? NodeErr::Overwritten : NodeErr::Dangling ;
 							}
 						Err :
 							dep_state  = State::Err                                                               ;
@@ -965,7 +965,7 @@ namespace Engine {
 							trace("dep",dep,STR(dep->done(*cdri)),STR(dep->err(*cdri)),ri,dep->crc,dep_state,state,STR(critical_modif),STR(critical_waiting),reason) ;
 							//
 							SWEAR(dep_state!=State::Modif) ;                                                            // dep_state only generates dangling modifs
-							if ( is_critical && care && dep_state==State::DanglingModif  ) critical_modif = true      ;
+							if ( is_critical && care && dep_state==State::ProtoModif     ) critical_modif = true      ;
 							if ( dep_state>state && ( is_static || state!=State::Modif ) ) state          = dep_state ; // Modif blocks errors, unless dep is static
 						}
 						if (ri.waiting()) goto Wait ;
@@ -975,7 +975,7 @@ namespace Engine {
 				if (sure) mk_sure() ;                                          // improve sure (sure is pessimistic)
 				switch (state) {
 					case State::Ok            :
-					case State::DanglingModif :                                                // if last dep is parallel, we have not transformed DanglingModif into Modif
+					case State::ProtoModif    :                                                // if last dep is parallel, we have not transformed ProtoModif into Modif
 					case State::Modif         : run_status = RunStatus::Complete ; break     ;
 					case State::Err           : run_status = RunStatus::DepErr   ; goto Done ; // we cant run the job, error is set and we're done
 					case State::MissingStatic : run_status = RunStatus::NoDep    ; goto Done ; // .

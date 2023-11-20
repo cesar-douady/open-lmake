@@ -359,8 +359,8 @@ static inline constexpr bool is_print(char c) {
 template<char Delimiter=0> ::string         mk_printable   ( ::string const&                ) ;
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
-static inline ::string ensure_nl(::string     && txt) { if (txt.back()!='\n') txt += '\n' ; return txt ; }
-static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                }
+static inline ::string ensure_nl(::string     && txt) { if ( !txt.empty() && txt.back()!='\n' ) txt += '\n' ; return txt ; }
+static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                                  }
 
 template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path

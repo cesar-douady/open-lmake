@@ -81,12 +81,12 @@ namespace Backends::Slurm {
 	namespace SlurmApi {
 		bool/*ok*/ init() ;
 	}
-	p_cxxopts             createParser         (                        ) ;
-	RsrcsData             parseSlurmArgs       (::string const& args    ) ;
-	void                  slurm_cancel         (uint32_t        slurm_id) ;
-	::pair_s<Bool3/*ok*/> slurm_job_state      (uint32_t        slurm_id) ;
-	::string              readStderrLog        (JobIdx                  ) ;
-	::string              slurm_priority_params(                        ) ;
+	p_cxxopts                 createParser         (                        ) ;
+	RsrcsData                 parseSlurmArgs       (::string const& args    ) ;
+	void                      slurm_cancel         (uint32_t        slurm_id) ;
+	::pair_s<Bool3/*job_ok*/> slurm_job_state      (uint32_t        slurm_id) ;
+	::string                  readStderrLog        (JobIdx                  ) ;
+	::string                  slurm_priority_params(                        ) ;
 	//
 	uint32_t slurm_spawn_job( ::string const& key , JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
@@ -197,7 +197,7 @@ namespace Backends::Slurm {
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
 			Delay relax_time = g_config.network_delay+Delay(1) ;
 			if ( !se.verbose && s>Status::Garbage ) return {{},true/*retry*/} ;                         // common case, must be fast
-			::pair_s<Bool3/*ok*/> info ;
+			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				for( Delay i{0} ; i<relax_time ; Delay(0.1).sleep_for(),i+=Delay(0.1) ) { // wait a little while hoping job is dying
 					info = slurm_job_state(se.id) ;
@@ -205,21 +205,24 @@ namespace Backends::Slurm {
 				}
 				if (c==0) slurm_cancel(se.id) ;                                // if still alive after a little while, cancel job and retry
 			}
-			info.first = "job is stil alive" ;
+			info.first = "job is still alive" ;
 		JobDead :
-			if (se.verbose) append_to_string(info.first,'\n',readStderrLog(j)) ; // full report
+			if (se.verbose) {
+				::string stderr = readStderrLog(j) ;
+				if (!stderr.empty()) info.first = ensure_nl(::move(info.first))+stderr ; // full report
+			}
 			return { info.first , info.second!=No } ;
 		}
-		virtual ::pair_s<Bool3/*ok*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
-			::pair_s<Bool3/*ok*/> info = slurm_job_state(se.id) ;
-			if (info.second==Maybe) return {{},Yes/*ok*/} ;                    // Yes means job is alive
+		virtual ::pair_s<bool/*alive*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
+			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
+			if (info.second==Maybe) return {{},true/*alive*/} ;
 			//
 			if ( info.second==No && se.verbose ) {
-				if (info.first.empty()) info.first = readStderrLog(j) ;
-				else                    append_to_string(info.first,'\n',readStderrLog(j)) ;
+				::string stderr = readStderrLog(j) ;
+				if (!stderr.empty()) info.first = ensure_nl(::move(info.first))+stderr ;
 			}
 			spawned_rsrcs.dec(se.rsrcs) ;
-			return { info.first , Maybe&info.second } ;                        // Maybe means job may be retried, No means error, dont retry
+			return { info.first , false/*alive*/ } ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			slurm_cancel(se.id) ;
@@ -445,45 +448,45 @@ namespace Backends::Slurm {
 		Trace trace("Error while killing job: ",slurm_id," error: ",SlurmApi::strerror(errno)) ;
 	}
 
-	::pair_s<Bool3/*ok*/> slurm_job_state(uint32_t slurm_id) {
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {             // Maybe means job has not completed
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
-		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS )
-			return { to_string("Error while loading job info (",slurm_id,"): ",SlurmApi::strerror(errno)) , No/*ok*/ } ;
+		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS ) return { "cannot load job info : "s+SlurmApi::strerror(errno) , Yes/*job_ok*/ } ; // no info on job -> retry
 		//
+		bool completed = true ;                                                // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
-			if (js<=JOB_COMPLETE) continue ;                                    // we only search errors
-			::pair_s<bool/*ok*/> info      ;
-			const char*          on_nodes  = ::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
-			int                  exit_code = ji.exit_code                                                 ;
+			completed &= js>=JOB_COMPLETE ;
+			if (js<=JOB_COMPLETE) continue ;                                                       // we only search errors
+			const char* on_nodes  = ::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
+			int         exit_code = ji.exit_code                                                 ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 			// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
 			// signaled wstatus are barely the signal number
 			if ( WIFEXITED(ji.exit_code) && WEXITSTATUS(ji.exit_code)>0x80 ) exit_code = WEXITSTATUS(ji.exit_code)-0x80 ;
 			switch(js) {
+				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully) -> retry
 				// possible job_states values (from slurm.h) :
 				//   JOB_PENDING                                                                                                        queued waiting for initiation
 				//   JOB_RUNNING                                                                                                        allocated resources and executing
 				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
 				//   JOB_COMPLETE                                                                                                       completed execution successfully
-				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*ok*/ } ; // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("slurm timeout"                      ,on_nodes,ji.nodes) , No /*ok*/ } ; // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*ok*/ } ; // terminated on deadline
-				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*ok*/ } ; // experienced out of memory error
+				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
+				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
 				//   JOB_END                                                                                                            not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}
 		}
-		job_states job_state = job_states( resp->job_array[0].job_state & JOB_STATE_BASE ) ; // in normal cases, first state is reported
 		SlurmApi::free_job_info_msg(resp) ;
-		return { {} , Maybe|(job_state==JOB_COMPLETE) } ;
+		return { {} , Maybe|completed } ;
 	}
 
 	inline ::string getLogPath      (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
@@ -494,9 +497,9 @@ namespace Backends::Slurm {
 		::string   err_file   = getLogStderrPath(job) ;
 		::ifstream err_stream { err_file }            ;
 		//
-		if (!err_stream                  ) return to_string("stderr not found : " ,err_file                        ) ;
-		if (::istream::sentry(err_stream)) return to_string("stderr from : "      ,err_file,'\n',err_stream.rdbuf()) ; // /!\ rdbuf() fails on an empty file
-		else                               return to_string("empty stderr from : ",err_file                        ) ;
+		if (!err_stream                  ) return to_string("stderr not found : ",err_file                        ) ;
+		if (::istream::sentry(err_stream)) return to_string("stderr from : "     ,err_file,'\n',err_stream.rdbuf()) ; // /!\ rdbuf() fails on an empty file
+		else                               return {}                                                                ;
 	}
 
 	inline ::string cmd_to_string(::vector_s const& cmd_line) {
