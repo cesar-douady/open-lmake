@@ -169,9 +169,8 @@ namespace Engine {
 		// in case of crash, rescue mode is used and ensures all matches are recomputed
 		_set_buildable(Yes) ;
 		try {
-			if (!external) {
-				Node dir_ = dir() ;
-				if (+dir_) {
+			if (!external)
+				if ( Node dir_ = dir() ; +dir_ ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					dir_->set_buildable(req,lvl+1) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -183,7 +182,6 @@ namespace Engine {
 						else                      goto AllRules ;
 					}
 				}
-			}
 			//                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			auto [buildable,shorten_by] = _gather_prio_job_tgts(rule_tgts_,req,lvl) ;
 			//vvvvvvvvvvvvvvvvvvvvvvv     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -214,11 +212,10 @@ namespace Engine {
 	}
 
 	NodeData::ReqInfo const& NodeData::_make_raw( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
-		bool    multi_         = false   ;
-		RuleIdx prod_idx       = NoIdx   ;
-		Req     req            = cri.req ;
-		Bool3   clean          = Maybe   ;                                     // lazy evaluate manual()==No
-		Job     regenerate_job ;
+		RuleIdx prod_idx   = NoIdx   ;
+		Req     req        = cri.req ;
+		Bool3   clean      = Maybe   ;                                         // lazy evaluate manual()==No
+		bool    regenerate = false   ;
 		Trace trace("Nmake",idx(),cri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
 		//                                vvvvvvvvvvvvvvvvvv
@@ -237,10 +234,10 @@ namespace Engine {
 		ri.update( run_action , make_action , *this ) ;
 		if (ri.waiting()) goto Wait ;
 		if (ri.done) {
-			if ( run_action<=RunAction::Status || !unlinked ) goto Wakeup ;
-			if ( !makable()                                 ) goto Wakeup ;    // no hope to regenerate, proceed as a done target
-			ri.done        = false             ;
-			regenerate_job = conform_job_tgt() ;                               // we must regenerate target, only run the conform job
+			if ( run_action<=RunAction::Status )                                         goto Wakeup ;   // no need for the file on disk
+			if ( !makable() || multi()         )                                         goto Wakeup ;   // no hope to regenerate, proceed as a done target
+			if ( unlinked                      ) { ri.done = false ; regenerate = true ; goto Make   ; } // target has been unlinked since we are done, we must regenerate it, only run the conform job
+			/**/                                                                         goto Wakeup ;   // we are done, after all
 		}
 		//
 		if (ri.prio_idx==NoIdx) {
@@ -254,28 +251,26 @@ namespace Engine {
 				trace("check",jt,jt->c_req_info(req)) ;
 				if (!jt->c_req_info(req).done(run_action)) {                   // if it needed to be regenerated, it may not be done any more although we waited for it
 					prod_idx = NoIdx ;                                         // safer to restart analysis at same level, although this may not be absolutely necessary
-					multi_   = false ;                                         // this situation is exceptional enough not to bother trying to avoid this analysis restart
 					goto Make ;
 				}
 				if (!jt.produces(idx())) continue ;                            // if Maybe, job is in error and is deemed to produce all its potential targets
-				if (prod_idx==NoIdx) prod_idx = it.idx ;
-				else                 multi_   = true   ;
+				prod_idx = prod_idx==NoIdx?it.idx:MultiIdx ;
 			}
 			if (prod_idx!=NoIdx) goto DoWakeup ;                               // we have done job, no need to investigate any further
 			ri.prio_idx = it.idx ;
 		}
 	Make :
-		SWEAR( prod_idx==NoIdx && !multi_ , prod_idx ) ;
+		SWEAR(prod_idx==NoIdx,prod_idx) ;
 		for (;;) {
-			if (ri.prio_idx>=job_tgts.size()) {
+			if (ri.prio_idx>=job_tgts.size()) {                                // gather new job_tgts from rule_tgts
 				if (!rule_tgts) break ;                                        // fast path
 				try {
 					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					RuleIdx shorten_by = _gather_prio_job_tgts(rule_tgts.view(),req).second ;
 					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (shorten_by==NoIdx) { rule_tgts.clear()                ; }
-					else                   { rule_tgts.shorten_by(shorten_by) ; }
-					if (ri.prio_idx>=job_tgts.size()) break ;                     // fast path
+					if (shorten_by==NoIdx           ) rule_tgts.clear()                ;
+					else                              rule_tgts.shorten_by(shorten_by) ;
+					if (ri.prio_idx>=job_tgts.size()) break ;                            // fast path
 				} catch (::vector<Node> const& e) {
 					set_special(Special::Infinite,e,{}/*accesses*/,{}/*dflags*/) ;
 					break ;
@@ -284,50 +279,47 @@ namespace Engine {
 			JobTgtIter it{ *this , ri.prio_idx } ;
 			for(; it ; it++ ) {                                                // check if we obviously have several jobs, in which case make nothing
 				JobTgt jt = *it ;
-				if      (jt.sure()                  ) _set_buildable(Yes) ;    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+				if      ( jt.sure()                 ) _set_buildable(Yes) ;    // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 				else if (!jt->c_req_info(req).done()) continue ;
 				else if (!jt.produces(idx())        ) continue ;
-				if      (prod_idx==NoIdx            ) prod_idx = it.idx ;
-				else                                  multi_   = true   ;
+				prod_idx = prod_idx==NoIdx?it.idx:MultiIdx ;
 			}
-			if (multi_) break ;
+			if (prod_idx==MultiIdx) break ;
 			prod_idx = NoIdx ;
 			// make eligible jobs
-			{	SaveInc save{ri.n_wait} ;                                      // ensure we appear waiting while making jobs so loops will block (caught because we are idle and req is not done)
+			{	SaveInc sav_n_wait{ri.n_wait} ;                                // ensure we appear waiting while making jobs so loops will block (caught in Req::chk_end)
 				for( it.reset(ri.prio_idx) ; it ; it++ ) {
 					JobTgt    jt     = *it               ;
 					RunAction action = RunAction::Status ;
 					JobReason reason ;
-					if (+regenerate_job) {
-						if (jt==regenerate_job) reason = {JobReasonTag::NoTarget,+idx()} ;
-					} else {
-						switch (ri.action) {
-							case RunAction::Makable : if (jt.is_sure()) action = RunAction::Makable ; break ; // if star, job must be run to know if we are generated
-							case RunAction::Status  :                                                 break ;
-							case RunAction::Dsk     :
-								if ( jt.is_sure() && !has_actual_job_tgt(jt) ) { // wash polution (if we have an actual job) or create target
-									action = RunAction::Run ;
-								} else {
-									if (clean==Maybe) {                                                      // solve lazy evaluation
-										if (jt->rule->is_special()) clean = No | (manual        (   )==No) ; // special rules handle manual targets specially
-										else                        clean = No | (manual_refresh(req)==No) ;
-									}
-									if ( clean==No && jt.produces(idx()) ) reason = {JobReasonTag::NoTarget,+idx()} ;
+					switch (ri.action) {
+						case RunAction::Makable : if (jt.is_sure()) action = RunAction::Makable ; break ; // if star, job must be run to know if we are generated
+						case RunAction::Status  :                                                 break ;
+						case RunAction::Dsk     :
+							if (regenerate) {
+								if (jt==conform_job_tgt()) reason = {JobReasonTag::NoTarget,+idx()} ;
+								else                       action = RunAction::None                 ; // not the regenerating job
+							} else if ( jt.is_sure() && !has_actual_job_tgt(jt) ) {                   // wash polution (if we have an actual job) or create target
+								action = RunAction::Run ;
+							} else {
+								if (clean==Maybe) {                                                      // solve lazy evaluation
+									if (jt->rule->is_special()) clean = No | (manual        (   )==No) ; // special rules handle manual targets specially
+									else                        clean = No | (manual_refresh(req)==No) ;
 								}
-							break ;
-							default : FAIL(ri.action) ;
-						}
+								if ( clean==No && jt.produces(idx()) ) reason = {JobReasonTag::NoTarget,+idx()} ;
+							}
+						break ;
+						default : FAIL(ri.action) ;
 					}
-					trace("make_job",ri,clean,action,jt) ;
 					Job::ReqInfo& jri = jt->req_info(req) ;
 					jri.live_out = ri.live_out ;                               // transmit user request to job for last level live output
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					jt->make( jri , action , reason ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (jri.waiting()      ) { jt->add_watcher(jri,idx(),ri,ri.pressure) ; continue ; }
-					if (!jt.produces(idx())) {                                             continue ; }
-					if (prod_idx==NoIdx    ) { prod_idx = it.idx ;                                    }
-					else                     { multi_   = true   ;                                    }
+					//vvvvvvvvvvvvvvvvvvvvvvvvv
+					jt->make(jri,action,reason) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (jri.waiting()      ) { jt->add_watcher(jri,idx(),ri,ri.pressure) ; trace("wait_job"  ,ri,clean,action,jt) ; continue ; }
+					if (!jt.produces(idx())) {                                             trace("missed_job",ri,clean,action,jt) ; continue ; }
+					trace("found_job",ri,clean,action,jt) ;
+					prod_idx = prod_idx==NoIdx?it.idx:MultiIdx ;
 				}
 			}
 			if (ri.waiting()   ) goto Wait ;
@@ -335,10 +327,9 @@ namespace Engine {
 			ri.prio_idx = it.idx ;
 		}
 	DoWakeup :
-		multi       = multi_                                                                   ;
-		conform_idx = multi_ ? NoIdx : prod_idx                                                ;
-		uphill      = conform_idx!=NoIdx && job_tgts[prod_idx]->rule->special==Special::Uphill ;
-		if (multi_) {
+		conform_idx = prod_idx                                                                                    ;
+		uphill      = prod_idx!=NoIdx && prod_idx!=MultiIdx && job_tgts[prod_idx]->rule->special==Special::Uphill ;
+		if (prod_idx==MultiIdx) {
 			::vector<JobTgt> jts ;
 			for( JobTgt jt : conform_job_tgts(ri) ) if (jt.produces(idx())) jts.push_back(jt) ;
 			trace("multi",ri,job_tgts.size(),conform_job_tgts(ri),jts) ;
@@ -350,6 +341,7 @@ namespace Engine {
 		trace("wakeup",ri) ;
 		ri.wakeup_watchers() ;
 	Wait :
+		trace("done",ri) ;
 		return ri ;
 	}
 

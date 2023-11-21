@@ -1,3 +1,5 @@
+# build command : cd docker ; docker build -f centos7.docker -t centos7 .
+
 FROM centos:7
 
 RUN yum install -y centos-release-scl

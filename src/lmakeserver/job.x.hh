@@ -180,13 +180,13 @@ namespace Engine {
 			}
 		}
 		// data
-		NodeIdx      dep_lvl          = 0                      ;                                      // 31<=32 bits
-		RunAction    done_         :3 = RunAction   ::None     ; static_assert(+RunAction   ::N< 8) ; //      3 bits, action for which we are done
-		Lvl          lvl           :3 = Lvl         ::None     ; static_assert(+Lvl         ::N< 8) ; //      3 bits
-		BackendTag   backend       :2 = BackendTag  ::Unknown  ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
-		JobReasonTag force         :5 = JobReasonTag::None     ; static_assert(+JobReasonTag::N<32) ; //      5 bits
-		bool         start_reported:1 = false                  ;                                      //      1 bit , if true <=> start message has been reported to user
-		bool         speculative   :1 = false                  ;                                      //      1 bit , if true <=> job is waiting for speculative deps only
+		NodeIdx      dep_lvl          = 0                     ;                                      // 31<=32 bits
+		RunAction    done_         :3 = RunAction   ::None    ; static_assert(+RunAction   ::N< 8) ; //      3 bits, action for which we are done
+		Lvl          lvl           :3 = Lvl         ::None    ; static_assert(+Lvl         ::N< 8) ; //      3 bits
+		BackendTag   backend       :2 = BackendTag  ::Unknown ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
+		JobReasonTag force         :5 = JobReasonTag::None    ; static_assert(+JobReasonTag::N<32) ; //      5 bits
+		bool         start_reported:1 = false                 ;                                      //      1 bit , if true <=> start message has been reported to user
+		bool         speculative   :1 = false                 ;                                      //      1 bit , if true <=> job is waiting for speculative deps only
 	} ;
 	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
 

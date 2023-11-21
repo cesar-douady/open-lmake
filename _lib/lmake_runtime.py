@@ -123,7 +123,7 @@ def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 		)
 		new_pick_module_code = _replace_consts(old_pick_module_code,new_pick_module_consts)
 		n_diffs = sum( a!=b for a,b in zip(old_pick_module_code.co_consts,new_pick_module_consts) )
-		if n_diffs!=1 : raise RuntimeError(f'cannot hack pudb : found {n_diffs} diffs in pudb.DebuggerUI.__init__.pick_module')
+		if n_diffs!=1 : raise RuntimeError('cannot hack pudb : found '+str(n_diffs)+' diffs in pudb.DebuggerUI.__init__.pick_module')
 		new_init_consts = tuple(
 			c                    if not isinstance(c,Code)   else
 			new_pick_module_code if c.co_name=='pick_module' else
@@ -132,7 +132,7 @@ def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 			for c in ui.__code__.co_consts
 		)
 		n_diffs = sum( a!=b for a,b in zip(ui.__code__.co_consts,new_init_consts) )
-		if n_diffs!=2 : raise RuntimeError(f'cannot hack pudb : found {n_diffs} diffs in pudb.DebuggerUI.__init__')
+		if n_diffs!=2 : raise RuntimeError('cannot hack pudb : found '+str(n_diffs)+' diffs in pudb.DebuggerUI.__init__')
 		#
 		# staple new code
 		#
@@ -140,7 +140,7 @@ def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 		ui.__code__     = new_init_code
 
 	else :
-		raise RuntimeError(f'cannot hack pudb with unknown version {pudb.NUM_VERSION}')
+		raise RuntimeError('cannot hack pudb with unknown version '+str(pudb.NUM_VERSION))
 	try    : pudb.runcall(func,*args,**kwds)
 	except : pass
 
@@ -164,11 +164,13 @@ def _replace_filename_firstlineno(code,filename,firstlineno) :
 		return code.replace( co_filename=filename , co_firstlineno=firstlineno )
 	except :
 		# Python version < 3.10 (fall back to more fragile code if we have no choice)
-		return Code(
+		args = [
 			code.co_argcount
-		,	*( (code.co_posonlyargcount,) if hasattr(Code,'co_posonlyargcount') else () )
-		,	*( (code.co_kwonlyargcount ,) if hasattr(Code,'co_kwonlyargcount' ) else () )
-		,	code.co_nlocals
+		]
+		if hasattr(Code,'co_posonlyargcount') : args.append(code.co_posonlyargcount)
+		if hasattr(Code,'co_kwonlyargcount' ) : args.append(code.co_kwonlyargcount )
+		args += [
+			code.co_nlocals
 		,	code.co_stacksize
 		,	code.co_flags
 		,	code.co_code
@@ -181,7 +183,8 @@ def _replace_filename_firstlineno(code,filename,firstlineno) :
 		,	code.co_lnotab
 		,	code.co_freevars
 		,	code.co_cellvars
-		)
+		]
+		return Code(*args)
 
 def _replace_consts(code,consts) :
 	try :
@@ -189,15 +192,17 @@ def _replace_consts(code,consts) :
 		return code.replace(co_consts=consts)
 	except :
 		# Python version < 3.10 (fall back to more fragile code if we have no choice)
-		return Code(
+		args = [
 			code.co_argcount
-		,	*( (code.co_posonlyargcount,) if hasattr(Code,'co_posonlyargcount') else () )
-		,	*( (code.co_kwonlyargcount ,) if hasattr(Code,'co_kwonlyargcount' ) else () )
-		,	code.co_nlocals
+		]
+		if hasattr(Code,'co_posonlyargcount') : args.append(code.co_posonlyargcount)
+		if hasattr(Code,'co_kwonlyargcount' ) : args.append(code.co_kwonlyargcount )
+		args += [
+			code.co_nlocals
 		,	code.co_stacksize
 		,	code.co_flags
 		,	code.co_code
-		,	consts                     # co_consts
+		,	consts
 		,	code.co_names
 		,	code.co_varnames
 		,	code.co_filename
@@ -206,4 +211,5 @@ def _replace_consts(code,consts) :
 		,	code.co_lnotab
 		,	code.co_freevars
 		,	code.co_cellvars
-		)
+		]
+		return Code(*args)

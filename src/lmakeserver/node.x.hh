@@ -40,7 +40,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Node const ) ;
 		using MakeAction = NodeMakeAction ;
 		using ReqInfo    = NodeReqInfo    ;
-		static constexpr RuleIdx NoIdx = -1 ;
+		//
+		static constexpr RuleIdx NoIdx    = -1 ;
+		static constexpr RuleIdx MultiIdx = -2 ;
 		// cxtors & casts
 	public :
 		using NodeBase::NodeBase ;
@@ -158,8 +160,9 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx = Node::NoIdx ;
-		static constexpr uint8_t NBuildable = +Bool3::N+1 ;                    // Bool3::Unknown (=Bool3::N) is a possible value
+		static constexpr RuleIdx NoIdx      = Node::NoIdx    ;
+		static constexpr RuleIdx MultiIdx   = Node::MultiIdx ;
+		static constexpr uint8_t NBuildable = +Bool3::N+1    ;                 // Bool3::Unknown (=Bool3::N) is a possible value
 		// statics
 		// cxtors & casts
 		~NodeData() {
@@ -192,10 +195,13 @@ namespace Engine {
 		Bool3 manual_refresh( Req            r            )       { return manual_refresh(r,FileInfoDate(name())) ; }
 		Bool3 manual_refresh( JobData const& j            )       { return manual_refresh(j,FileInfoDate(name())) ; }
 		//
-		//
+		bool multi  (                    ) const { return conform_idx==MultiIdx ; }
 		bool makable(bool uphill_ok=false) const {
-			if (conform_idx==Node::NoIdx) return multi                ;        // multi is an error case, but is makable
-			else                          return !uphill || uphill_ok ;
+			switch (conform_idx) {
+				case NoIdx    : return false                ;
+				case MultiIdx : return true                 ;                  // multi is an error case, but is makable
+				default       : return !uphill || uphill_ok ;
+			}
 		}
 		bool is_src() const {
 			if (job_tgts.empty()) return false                 ;
@@ -210,7 +216,7 @@ namespace Engine {
 			return cjt->is_special() || has_actual_job_tgt(cjt) ;
 		}
 		bool err(bool uphill_ok=false) const {
-			if (multi              ) return true                     ;
+			if (multi()            ) return true                     ;
 			if (!makable(uphill_ok)) return false                    ;
 			if (!conform()         ) return true                     ;
 			else                     return conform_job_tgt()->err() ;
@@ -266,7 +272,7 @@ namespace Engine {
 		// data
 	public :
 		Ddate    date                    ;                  // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
-		Crc      crc                     = Crc::None      ; // ~47<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		Crc      crc                     = Crc::None      ; // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 		RuleTgts rule_tgts               ;                  // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		JobTgts  job_tgts                ;                  //      32 bits, owned , ordered by prio, valid if match_ok
 		JobTgt   actual_job_tgt          ;                  //  31<=32 bits, shared, job that generated node
@@ -274,7 +280,6 @@ namespace Engine {
 		MatchGen match_gen:NMatchGenBits = 0              ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		bool     uphill   :1             = false          ; //       1 bit ,         if true <=> node is produced by uphill
 		Bool3    buildable:2             = Bool3::Unknown ; //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
-		bool     multi    :1             = false          ; //       1 bit ,         if true <=> several jobs generate this node
 		bool     unlinked :1             = false          ; //       1 bit ,         if true <=> node as been unlinked by another rule
 		bool     external :1             = false          ; //       1 bit ,         if true <=> node is outside repo
 	} ;

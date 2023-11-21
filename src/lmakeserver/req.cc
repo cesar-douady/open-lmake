@@ -277,7 +277,7 @@ namespace Engine {
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri              = dep->c_req_info(*this) ;
 		bool                 report_not_built = false                  ;
-		if (dep->multi) {
+		if (dep->multi()) {
 			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep.name() , n_err , lvl ) ;
 		} else if (!dep->makable(true/*uphill_ok*/)) {
 			switch (cri.err) {

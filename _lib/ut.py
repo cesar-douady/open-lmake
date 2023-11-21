@@ -6,7 +6,9 @@
 import re
 import subprocess as sp
 
-def lmake(*args,rc=0,summary={},**kwds) :
+def lmake(*args,rc=0,summary=None,**kwds) :
+	if not summary : summary = {}
+	else           : summary = dict(summary)
 
 	kwds.setdefault('start',...)
 
@@ -20,6 +22,7 @@ def lmake(*args,rc=0,summary={},**kwds) :
 		if proc.returncode!=rc : raise RuntimeError(f'bad return code {proc.returncode} != {rc}')
 		sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
 
+		# analysis
 		cnt          = { k:0 for k in kwds    }
 		sum_cnt      = { k:0 for k in summary }
 		seen_summary = False
@@ -27,16 +30,21 @@ def lmake(*args,rc=0,summary={},**kwds) :
 			if l=='| SUMMARY |' : seen_summary = True
 			if seen_summary :
 				for k in summary :
-					m = re.fullmatch(k,l)
-					if m : sum_cnt[k] += 1
+					if not re.fullmatch(k,l) : continue
+					sum_cnt[k] += 1
+					break
 			else :
 				m = re.fullmatch(r'(?P<key>\w+) .*',l)
-				if m :
-					k = m.group('key')
-					if k not in cnt : raise RuntimeError(f'unexpected key {k}')
-					cnt[k] += 1
+				if not m : continue
+				k = m.group('key')
+				if k not in cnt : raise RuntimeError(f'unexpected key {k}')
+				cnt[k] += 1
+
+		# wrap up
+		res = {}
 		for k,v in list(kwds.items()) :
 			if v==... :
+				res[k] = cnt[k]
 				del cnt [k]
 				del kwds[k]
 		if cnt!=kwds :
@@ -45,6 +53,8 @@ def lmake(*args,rc=0,summary={},**kwds) :
 		if sum_cnt!=summary :
 			for k in sum_cnt :
 				if sum_cnt[k]!=summary[k] : raise RuntimeError(f'bad count for summary {k} : {sum_cnt[k]} != {summary[k]}')
+
+		return res
 
 	except RuntimeError as e :
 		print('*** '+e.args[0])

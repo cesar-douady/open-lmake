@@ -1,12 +1,13 @@
+# build command : cd docker ; docker build -f ubuntu22.docker -t ubuntu22 .
+# in case the necesary packages are not found, it may come from a bad /etc/apt//sources.list
+# and this may change from time to time. it has been seen that it was necessary to replace archive.ubuntu.com by fr.archive.ubuntu.com with a line such as :
+#RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
+
 FROM ubuntu:22.04
 
-# the following 2 lines should not be necessary but was necessary today, for me
-RUN cp /etc/apt/sources.list /etc/apt/sources.list-bak
-RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: /etc/apt/sources.list-bak > /etc/apt/sources.list
-
-RUN apt-get update
+RUN apt-get update --fix-missing
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed g++-12 git python3-dev texinfo python3-numba libseccomp-dev
+RUN apt-get install -y ed g++-12 git python2 python3-dev texinfo python3-numba libseccomp-dev
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

@@ -1,8 +1,10 @@
+# build command : cd docker ; docker build -f ubuntu20.docker -t ubuntu20 .
+
 FROM ubuntu:20.04
 
-RUN                                apt-get update
+RUN                                apt-get update --fix-missing
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
-RUN                                apt-get install -y build-essential ed git python3-dev texinfo python3-numba
+RUN                                apt-get install -y build-essential ed git python2 python3-dev texinfo python3-numba
 RUN                                apt-get install -y libseccomp-dev
 
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
