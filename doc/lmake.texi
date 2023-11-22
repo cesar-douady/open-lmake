@@ -473,6 +473,8 @@ In addition to options described for each user command, the following options ar
 Job names are the names that appear, for example, on start and done lines when @lmake executes a job.
 @item @code{-R}|@code{--rule} : when the previous option is used, this options allows the specification of a rule, given by its name.
 This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+@item @code{-q}|@code{--quiet} : Do not generate user oriented messages.Strictly generate what is asked.
+This is practical if output is meant for automatic processing such as executing the output of @code{lshow -s}.
 @end itemize
 
 @section @lmake

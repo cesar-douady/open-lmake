@@ -143,11 +143,11 @@ namespace Engine {
 		void update( RunAction , MakeAction , NodeData const& ) ;
 		// data
 	public :
-		RuleIdx prio_idx = NoIdx ;                         //     16 bits
-		bool    done     = false ;                         //  1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
-		NodeErr err      = NodeErr::None ;                 //  2<= 8 bit , if Yes  => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
+		RuleIdx prio_idx = NoIdx ;                         //    16 bits
+		bool    done     = false ;                         // 1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
+		NodeErr err      = NodeErr::None ;                 // 2<= 8 bit , if Yes  => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
 	} ;
-	static_assert(sizeof(NodeReqInfo)==40) ;                                   // check expected size
+	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
 
 }
 #endif
@@ -174,14 +174,14 @@ namespace Engine {
 		size_t   name_sz() const { return idx().name_sz()    ; }
 		Node     dir    () const { return idx().dir()        ; }
 		//
-		bool           has_req   ( Req                                   ) const ;
-		ReqInfo const& c_req_info( Req                                   ) const ;
-		ReqInfo      & req_info  ( Req                                   ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&                        ) const ; // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs      (                                       ) const ;
-		bool           waiting   (                                       ) const ;
-		bool           done      ( ReqInfo const&                        ) const ;
-		bool           done      ( Req                                   ) const ;
+		bool           has_req   (Req           ) const ;
+		ReqInfo const& c_req_info(Req           ) const ;
+		ReqInfo      & req_info  (Req           ) const ;
+		ReqInfo      & req_info  (ReqInfo const&) const ;                      // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs      (              ) const ;
+		bool           waiting   (              ) const ;
+		bool           done      (ReqInfo const&) const ;
+		bool           done      (Req           ) const ;
 		//
 		bool     match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                   ; }
 		bool     has_actual_job    (         ) const {                          return +actual_job_tgt && !actual_job_tgt->rule.old() ; }
@@ -189,11 +189,11 @@ namespace Engine {
 		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return actual_job_tgt==jt                             ; }
 		//
 		Bool3 manual        (                  FileInfoDate const& ) const ;
-		Bool3 manual_refresh( Req            , FileInfoDate const& ) ;                                                            // refresh date if file was updated but steady
-		Bool3 manual_refresh( JobData const& , FileInfoDate const& ) ;                                                            // .
-		Bool3 manual        (                             ) const { return manual        (  FileInfoDate(name())) ; }
-		Bool3 manual_refresh( Req            r            )       { return manual_refresh(r,FileInfoDate(name())) ; }
-		Bool3 manual_refresh( JobData const& j            )       { return manual_refresh(j,FileInfoDate(name())) ; }
+		Bool3 manual_refresh( Req            , FileInfoDate const& ) ;                                                         // refresh date if file was updated but steady
+		Bool3 manual_refresh( JobData const& , FileInfoDate const& ) ;                                                         // .
+		Bool3 manual        (                                      ) const { return manual        (  FileInfoDate(name())) ; }
+		Bool3 manual_refresh( Req            r                     )       { return manual_refresh(r,FileInfoDate(name())) ; }
+		Bool3 manual_refresh( JobData const& j                     )       { return manual_refresh(j,FileInfoDate(name())) ; }
 		//
 		bool multi  (                    ) const { return conform_idx==MultiIdx ; }
 		bool makable(bool uphill_ok=false) const {
@@ -224,7 +224,7 @@ namespace Engine {
 		bool err       ( ReqInfo const& cri , bool uphill_ok=false ) const { return cri.err>NodeErr::None || err(uphill_ok)                       ; }
 		bool is_special(                                           ) const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
-		Ddate db_date() const { return has_actual_job() ? actual_job_tgt->db_date : Ddate() ; }
+		ReqChrono db_chrono() const { return has_actual_job() ? actual_job_tgt->db_chrono() : 0 ; }
 		//
 		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in a
 			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference

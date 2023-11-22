@@ -164,6 +164,7 @@ namespace Backends {
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
 			SWEAR(!reqs.contains(req)) ;
+			::unique_lock lock{Req::s_reqs_mutex} ;                                     // taking Req::s_reqs_mutex is compulsery to derefence req
 			reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }) ;
 		}
 		virtual void close_req(ReqIdx req) {
@@ -317,7 +318,7 @@ namespace Backends {
 			}
 			//
 			::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>> err_jobs ;
-			for( Req req : Req::s_reqs_by_eta() ) {
+			for( auto [req,eta] : Req::s_etas() ) {                            // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first
 				auto rit = reqs.find(+req) ;
 				if (rit==reqs.end()) continue ;
 				JobIdx                               n_jobs = rit->second.n_jobs         ;
@@ -335,14 +336,14 @@ namespace Backends {
 					}
 					if (candidate==queues.end()) break ;                       // nothing for this req, process next req
 					//
-					::set<PressureEntry>& pressure_set   = candidate->second                 ;
-					auto                  pressure_first = pressure_set.begin()              ; SWEAR(pressure_first!=pressure_set.end(),candidate->first) ; // what is this candiate with no pressure ?
-					Pdate                 prio           = req->eta-pressure_first->pressure ;
-					JobIdx                j              = pressure_first->job               ;
-					auto                  wit            = waiting_jobs.find(j)              ;
-					RsrcsAsk const&       rsrcs_ask      = candidate->first                  ;
-					Rsrcs                 rsrcs          = adapt(*rsrcs_ask)                 ;
-					::vmap_ss             rsrcs_map      = export_(*rsrcs)                   ;
+					::set<PressureEntry>& pressure_set   = candidate->second            ;
+					auto                  pressure_first = pressure_set.begin()         ; SWEAR(pressure_first!=pressure_set.end(),candidate->first) ; // what is this candiate with no pressure ?
+					Pdate                 prio           = eta-pressure_first->pressure ;
+					JobIdx                j              = pressure_first->job          ;
+					auto                  wit            = waiting_jobs.find(j)         ;
+					RsrcsAsk const&       rsrcs_ask      = candidate->first             ;
+					Rsrcs                 rsrcs          = adapt(*rsrcs_ask)            ;
+					::vmap_ss             rsrcs_map      = export_(*rsrcs)              ;
 					//
 					try {
 						::vector_s cmd_line = acquire_cmd_line( T , j , ::move(rsrcs_map) , wit->second.submit_attrs ) ;

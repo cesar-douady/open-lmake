@@ -44,12 +44,46 @@ namespace Engine {
 	,	Err
 	)
 
+	struct ChronoDate {
+		friend ::ostream& operator<<( ::ostream& , ChronoDate const& ) ;
+		// cxtors & casts
+		ChronoDate(           ) = default ;
+		ChronoDate(bool is_end) ;
+		// accesses
+		bool operator==(ChronoDate const&) const = default ;
+		bool operator+ (                 ) const { return chrono  ; }
+		bool operator! (                 ) const { return !+*this ; }
+		// data
+		JobChrono chrono = 0 ;
+		Pdate     date   ;
+	} ;
+
 	struct Job : JobBase {
 		friend ::ostream& operator<<( ::ostream& , Job const ) ;
 		using JobBase::side ;
 		//
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
+		using Chrono     = JobChrono     ;
+		// statics
+		static bool   s_start_before_end( Chrono start , Chrono end ) {
+			static_assert(::is_unsigned_v<Chrono>) ;                           // unsigned arithmetic are guaranteed to work modulo 2^n
+			SWEAR( start && end , start , end ) ;                              // 0 is reserved to mean no info
+			return Chrono(start-s_chrono) < Chrono(end-s_chrono) ;
+		}
+		static Chrono s_now(bool is_end) { s_tick(is_end) ; SWEAR(s_chrono) ; return s_chrono ; } // 0 is reserved to mean no info
+		static Chrono s_now(           ) {                  SWEAR(s_chrono) ; return s_chrono ; } // .
+		static void s_tick(bool is_end) {
+			SWEAR(s_chrono) ;                                                  // 0 is reserved to mean no info
+			if ( !s_chrono_is_end && is_end ) {
+				/**/           s_chrono++ ;                                    // only incremented when seeing an start->end transition to save ticks as much as possible as chrono is only 32 bits
+				if (!s_chrono) s_chrono++ ;                                    // 0 is reserved to mean no info
+			}
+			s_chrono_is_end = is_end ;
+		}
+		// static data
+		static Chrono s_chrono        ;                                        // in case of equality start==end, start is posterior
+		static bool   s_chrono_is_end ;
 		// cxtors & casts
 		using JobBase::JobBase ;
 	private :
@@ -70,7 +104,7 @@ namespace Engine {
 		static_assert(Job::NGuardBits>=1) ;
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::ostream& operator<<( ::ostream& , JobTgt const ) ;
+		friend ::ostream& operator<<( ::ostream& , JobTgt ) ;
 		// cxtors & casts
 		JobTgt(                                                              ) = default ;
 		JobTgt( Job j , bool is=false                                        ) : Job(j ) { is_sure( +j && is )   ; } // if no job, ensure JobTgt appears as false
@@ -92,19 +126,22 @@ namespace Engine {
 	} ;
 
 	struct JobTgts : JobTgtsBase {
-		friend ::ostream& operator<<( ::ostream& , JobTgts const ) ;
+		friend ::ostream& operator<<( ::ostream& , JobTgts ) ;
 		// cxtors & casts
 		using JobTgtsBase::JobTgtsBase ;
 	} ;
 
 	struct JobExec : Job {
-		friend ::ostream& operator<<( ::ostream& , JobExec const ) ;
+		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
 		// cxtors & casts
-		JobExec(                                              ) = default ;
-		JobExec( Job j , in_addr_t h , Pdate sd   , Pdate ed ) : Job{j} , host{h} , start_date{sd} , end_date{ed} {}
-		JobExec( Job j ,               Pdate sd   , Pdate ed ) : Job{j} ,           start_date{sd} , end_date{ed} {}
-		JobExec( Job j , in_addr_t h , Pdate d={}            ) : Job{j} , host{h} , start_date{d } , end_date{d } {}
-		JobExec( Job j ,               Pdate d={}            ) : Job{j} ,           start_date{d } , end_date{d } {}
+		JobExec() = default ;
+		//
+		JobExec( Job j , in_addr_t h , ChronoDate s={} , ChronoDate e={} ) : Job{j} , host{h} , start_{s} , end_{e} {}
+		JobExec( Job j ,               ChronoDate s={} , ChronoDate e={} ) : Job{j} ,           start_{s} , end_{e} {}
+		//
+		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{false/*is_end*/}                        {} // starting job
+		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{false/*is_end*/}                        {} // .
+		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{true /*is_end*/} , end_{true/*is_end*/} {} // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
 		void report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
@@ -126,23 +163,23 @@ namespace Engine {
 		,	::string    const& stderr
 		,	size_t             stderr_len
 		,	bool               modified
-		,	Delay              exec_time    = {}
+		,	Delay              exec_time   = {}
 		) const ;
 		void audit_end(
 			::string    const& pfx
 		,	ReqInfo     const& cri
-		,	AnalysisErr const& analysis_err
+		,	AnalysisErr const& ae
 		,	::string    const& stderr
 		,	size_t             stderr_len
 		,	bool               modified
-		,	Delay              exec_time    = {}
+		,	Delay              exec_time   = {}
 		) const {
-			audit_end(pfx,cri,{}/*backend_msg*/,analysis_err,stderr,stderr_len,modified,exec_time) ;
+			audit_end(pfx,cri,{}/*backend_msg*/,ae,stderr,stderr_len,modified,exec_time) ;
 		}
 		// data
-		in_addr_t host       = NoSockAddr ;
-		Pdate     start_date ;
-		Pdate     end_date   ;
+		in_addr_t  host   = NoSockAddr ;
+		ChronoDate start_ ;
+		ChronoDate end_   ;
 	} ;
 
 }
@@ -180,7 +217,10 @@ namespace Engine {
 			}
 		}
 		// data
+		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
 		NodeIdx      dep_lvl          = 0                     ;                                      // 31<=32 bits
+		JobChrono    end_chrono       = 0                     ;                                      //     32 bits, req independent
+		ReqChrono    db_chrono        = 0                     ;                                      //     16 bits, req independent, oldest Req at which job is coherent (w.r.t. its state)
 		RunAction    done_         :3 = RunAction   ::None    ; static_assert(+RunAction   ::N< 8) ; //      3 bits, action for which we are done
 		Lvl          lvl           :3 = Lvl         ::None    ; static_assert(+Lvl         ::N< 8) ; //      3 bits
 		BackendTag   backend       :2 = BackendTag  ::Unknown ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
@@ -188,7 +228,7 @@ namespace Engine {
 		bool         start_reported:1 = false                 ;                                      //      1 bit , if true <=> start message has been reported to user
 		bool         speculative   :1 = false                 ;                                      //      1 bit , if true <=> job is waiting for speculative deps only
 	} ;
-	static_assert(sizeof(JobReqInfo)==40) ;                                    // check expected size
+	static_assert(sizeof(JobReqInfo)==32) ;                                    // check expected size
 
 }
 #endif
@@ -209,6 +249,7 @@ namespace Engine {
 		using Idx        = JobIdx        ;
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
+		using Chrono     = JobChrono     ;
 		// static data
 	private :
 		static ::shared_mutex    _s_target_dirs_mutex ;
@@ -267,7 +308,12 @@ namespace Engine {
 				else                                 return is_ok(status)!=Yes ;
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
-		//services
+		//
+		ReqChrono db_chrono (           ) const {            for( Req r : reqs() ) if (ReqChrono c=c_req_info(r).db_chrono ) return c ; return 0 ; } // Req independent but is stored in req_info
+		Chrono    end_chrono(           ) const {            for( Req r : reqs() ) if (Chrono    c=c_req_info(r).end_chrono) return c ; return 0 ; } // .
+		void      db_chrono (ReqChrono c)       {            for( Req r : reqs() ) req_info(r).db_chrono  = c ;                                    } // .
+		void      end_chrono(Chrono    c)       { SWEAR(c) ; for( Req r : reqs() ) req_info(r).end_chrono = c ;                                    } // .
+		// services
 		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
 		::vmap<Node,bool/*uniquify*/>/*report*/                                wash           (Rule::SimpleMatch const&) const ; // thread-safe
 		//
@@ -298,15 +344,14 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
-		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                                                                                ) ;
-		bool                   _targets_ok      ( Req      , Rule::SimpleMatch const&                                                                     ) ;
-		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& ,             JobReason ,              CoarseDelay pressure                                    ) ;
-		void                   _set_pressure_raw( ReqInfo& , CoarseDelay                                                                                  ) const ;
-		JobReason              _make_raw        ( ReqInfo& , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
+		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_idx=-1/*star*/                     ) ;
+		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                                                  ) ;
+		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                                                     ) ;
+		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   ,             JobReason ,              CoarseDelay pressure                                    ) ;
+		void                                  _set_pressure_raw( ReqInfo&   , CoarseDelay                                                                                  ) const ;
+		JobReason                             _make_raw        ( ReqInfo&   , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
 		// data
 	public :
-		Ddate            db_date                  ;                                                         //     64 bits,        oldest db_date at which job is coherent (w.r.t. its state)
-		Pdate            end_date                 ;                                                         //     64 bits,
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
 		Deps             deps                     ;                                                         // 31<=32 bits, owned
 		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
@@ -319,7 +364,7 @@ namespace Engine {
 	private :
 		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==32) ;                                       // check expected size
+	static_assert(sizeof(JobData)==16) ;                                       // check expected size
 
 	ENUM( MissingAudit
 	,	No
@@ -331,6 +376,26 @@ namespace Engine {
 #endif
 #ifdef IMPL
 namespace Engine {
+
+	//
+	// ChronoDate
+	//
+
+	inline ChronoDate::ChronoDate(bool is_end) : chrono{Job::s_now(is_end)} , date{Pdate::s_now()} {}
+
+	//
+	// Job
+	//
+
+	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::FullMatch(rt,t ),req,lvl} {}
+	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::FullMatch(r ,jn),req,lvl} {}
+	//
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
+
+	inline ::string Job::name() const { return full_name((*this)->rule->job_sfx_len()) ; }
+
+	inline bool Job::active() const { return +*this && (*this)->active() ; }
 
 	//
 	// JobTgt
@@ -348,20 +413,6 @@ namespace Engine {
 		//
 		return ::binary_search( (*this)->star_targets , t ) ;
 	}
-
-	//
-	// Job
-	//
-
-	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::FullMatch(rt,t ),req,lvl} {}
-	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::FullMatch(r ,jn),req,lvl} {}
-	//
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
-
-	inline ::string Job::name() const { return full_name((*this)->rule->job_sfx_len()) ; }
-
-	inline bool Job::active() const { return +*this && (*this)->active() ; }
 
 	//
 	// JobData
@@ -400,7 +451,7 @@ namespace Engine {
 	}
 
 	template<class... A> inline void JobData::audit_end(A&&... args) const {
-		JobExec(idx(),Pdate::s_now()).audit_end(::forward<A>(args)...) ;
+		JobExec(idx(),New,New).audit_end(::forward<A>(args)...) ;
 	}
 
 	inline bool JobData::sure() const {
@@ -424,8 +475,15 @@ namespace Engine {
 		if (it==req_infos.end()) return Req::s_store[+r].jobs.dflt ;
 		else                     return it->second                 ;
 	}
-	inline JobData::ReqInfo& JobData::req_info(Req r) const {
-		return Req::s_store[+r].jobs.try_emplace(idx(),ReqInfo(r)).first->second ;
+	inline JobData::ReqInfo& JobData::req_info(Req req) const {
+		ReqInfo& ri = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)).first->second ;
+		for( Req r : reqs() ) {
+			if (r==req) continue ;
+			ri.db_chrono  = c_req_info(r).db_chrono  ;                         // copy Req independent fields from any other ReqInfo (they are all identical)
+			ri.end_chrono = c_req_info(r).end_chrono ;                         // .
+			break ;
+		}
+		return ri ;
 	}
 	inline JobData::ReqInfo& JobData::req_info(ReqInfo const& cri) const {
 		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate

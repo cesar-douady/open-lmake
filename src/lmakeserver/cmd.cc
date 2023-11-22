@@ -239,6 +239,8 @@ namespace Engine {
 		bool                                                         redirected      = !start.stdin.empty() || !start.stdout.empty() ;
 		::uset_s                                                     to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t.name()) ;
 		//
+		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
+		//
 		for( auto const& [_,u] : to_wash )
 			if (u) {
 				append_to_string( script , "uniquify() { if [ -f \"$1\" ] ; then mv \"$1\" \"$1.$$\" ; cp -p \"$1.$$\" \"$1\" ; rm -f \"$1.$$\" ; fi ; }" ) ;

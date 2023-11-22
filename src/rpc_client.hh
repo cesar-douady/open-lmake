@@ -59,14 +59,15 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	ForgetOldErrors                    // if proc==                  Make               , assume old errors are transcient
 ,	Freeze                             // if proc==                         Mark        , prevent job rebuild
 ,	Graphic                            // if proc== Debug                          Show , use GUI to show debug script
-,	Job                                // if proc==                  Make               , interpret (unique) arg as job name
+,	Job                                //                                                 interpret (unique) arg as job name
 ,	Jobs                               // if proc==                  Make               , max number of jobs
 ,	KeepTmp                            // if proc==                  Make               , keep tmp dir after job execution
 ,	LiveOut                            // if proc==                  Make               , generate live output for last job
 ,	Local                              // if proc==                  Make               , lauch all jobs locally
 ,	ManualOk                           // if proc==                  Make | Mark        , allow lmake to overwrite manual files
 ,	NoTrigger                          // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
-,	Rule                               // if proc==                  Make               , rule name when interpreting arg as job name
+,	Quiet                              //                                                 do not generate user oriented messages
+,	Rule                               //                                                 rule name when interpreting arg as job name
 ,	SourceOk                           // if proc==                  Make               , allow lmake to overwrite source files
 ,	Targets                            // if proc==         Forget                      , forget targets
 ,	Verbose                            // if proc==                  Make        | Show , generate generous output
@@ -78,8 +79,9 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs    ) : ReqSyntax{{},fs} {}
 	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs={} ) : Syntax   {ks,fs} {
 		// add standard options
-		flags[+ReqFlag::Job ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
-		flags[+ReqFlag::Rule] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
+		flags[+ReqFlag::Quiet] = { .short_name='q' , .has_arg=false , .doc="do not generate user oriented messages"  } ;
+		flags[+ReqFlag::Job  ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
+		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
 	}
 
 } ;

@@ -54,7 +54,7 @@ namespace Backends {
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn           conn         ;
-			Pdate          start        ;
+			ChronoDate     start        ;
 			::uset_s       washed       ;
 			::vmap_ss      rsrcs        ;
 			::uset<ReqIdx> reqs         ;

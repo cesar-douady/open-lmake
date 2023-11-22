@@ -12,6 +12,7 @@ struct Version {
 	uint32_t minor ;
 } ;
 
+// idxs
 using ReqIdx      = uint8_t  ;
 using RuleIdx     = uint16_t ;
 using VarIdx      = uint8_t  ;         // used to index stems, targets, deps & rsrcs within a Rule
@@ -23,6 +24,10 @@ using NodeDataIdx = NodeIdx  ;         // used to index Node data associated wit
 using RuleTgtsIdx = uint32_t ;
 using PsfxIdx     = RuleIdx  ;
 using FileNameIdx = uint16_t ;         // 64k for a file name is already ridiculously long
+
+// chronos
+using ReqChrono = uint16_t ;           // uniquely identify a Req, always increasing
+using JobChrono = uint32_t ;           // uniquely identify a Job, always increasing
 
 // ids
 using SmallId = uint32_t ;             // used to identify running jobs, could be uint16_t if we are sure that there cannot be more than 64k jobs running at once

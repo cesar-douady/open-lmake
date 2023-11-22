@@ -238,7 +238,8 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Show   : {
 						trace(req) ;
 						bool ok = true/*garbage*/ ;
-						if (!startup_dir_s.empty()) audit( req.out_fd , req.options , Color::Note , 0 , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
+						if ( !req.options.flags[ReqFlag::Quiet] && !startup_dir_s.empty() )
+							audit( req.out_fd , req.options , Color::Note , 0 , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
 						try                        { ok = g_cmd_tab[+req.proc](req) ;                                                           }
 						catch (::string  const& e) { ok = false ; if (!e.empty()) audit(req.out_fd,req.options,Color::Err,0,e               ) ; }
 						catch (::pair_ss const& e) { ok = false ;                 audit(req.out_fd,req.options,Color::Err,0,e.first,e.second) ; }

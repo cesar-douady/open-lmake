@@ -16,10 +16,11 @@ namespace Engine {
 	// Req
 	//
 
-	::mutex           Req::s_reqs_mutex    ;
+	ReqChrono         Req::s_chrono        = 1 ;
 	SmallIds<ReqIdx > Req::s_small_ids     ;
-	::vector<ReqData> Req::s_store(1)      ;
 	::vector<Req    > Req::s_reqs_by_start ;
+	::mutex           Req::s_reqs_mutex    ;
+	::vector<ReqData> Req::s_store(1)      ;
 	::vector<Req    > Req::_s_reqs_by_eta  ;
 
 	::ostream& operator<<( ::ostream& os , Req const r ) {
@@ -56,6 +57,7 @@ namespace Engine {
 		data.options      = ecr.options          ;
 		data.audit_fd     = ecr.out_fd           ;
 		data.stats.start  = Pdate::s_now()       ;
+		data.chrono       = s_chrono             ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -69,6 +71,9 @@ namespace Engine {
 			close() ;
 			throw ;
 		}
+		//
+		try                     { s_tick() ;                                                                                 } // only when we are sure req is alive
+		catch (::string const&) { throw "too many requests : wait until oldest command finishes before sending a new one"s ; } // XXX : implement chrono remapping
 		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
 	}
@@ -384,7 +389,7 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Note , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
+		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Err  , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
 		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )               ) ) ;
 		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)               ) ) ;
 		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )               ) ) ;
@@ -400,9 +405,12 @@ namespace Engine {
 			bool seen_up_to_dates = false ;
 			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
 			for( Node n : up_to_dates )
-				if      (!n->is_src()    ) audit_node( Color::Note    , "was already up to date :" , n ) ;
-				else if (seen_up_to_dates) audit_node( Color::Warning , "file is a source       :" , n ) ; // align if necessary
-				else                       audit_node( Color::Warning , "file is a source :"       , n ) ;
+				if (n->is_src()) {
+					if (seen_up_to_dates) audit_node( Color::Warning                  , "file is a source       :" , n ) ; // align if necessary
+					else                  audit_node( Color::Warning                  , "file is a source :"       , n ) ;
+				} else {
+					if (n->makable()    ) audit_node( n->err()?Color::Err:Color::Note , "was already up to date :" , n ) ;
+				}
 		}
 		if (!losts.empty()) {
 			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;
