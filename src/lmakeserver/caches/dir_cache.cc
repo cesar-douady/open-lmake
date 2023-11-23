@@ -46,7 +46,7 @@ namespace Caches {
 
 	static ::string _unique_name(Job job) {
 		Rule     rule      = job->rule                              ;
-		::string full_name = job.full_name()                        ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ; // only name suffix is considered to make Rule
+		::string full_name = job->full_name()                       ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ; // only name suffix is considered to make Rule
 		size_t   user_sz   = full_name.size() - rule->job_sfx_len() ;
 		::string res       = full_name.substr(0,user_sz)            ; res.reserve(res.size()+1+rule->n_static_stems*(2*(3+1))+16) ; // allocate 2x3 digits per stem, this is comfortable
 		//

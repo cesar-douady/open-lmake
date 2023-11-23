@@ -159,7 +159,7 @@ namespace Engine {
 		::map_s<Cache> caches                                          ;
 		::string       user_local_admin_dir                            ;
 		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
-		size_t         path_max                                        = 0                ; // if 0 <=> unlimited
+		size_t         path_max                                        = -1               ; // if -1 <=> unlimited
 		::vector_s     src_dirs_s                                      ;
 		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
 		size_t         trace_sz                                        = 0                ;
@@ -206,7 +206,7 @@ namespace Engine {
 		}
 		// services
 		::vector<Node> targets(::string const& startup_dir_s={}) const ;       // startup_dir_s for error reporting only
-		Job            job    (                                ) const ;
+		Job            job    (::string const& startup_dir_s={}) const ;       // .
 		// data
 		ReqProc    proc    = ReqProc::None ;
 		Req        req     = {}            ;               // if proc==Close

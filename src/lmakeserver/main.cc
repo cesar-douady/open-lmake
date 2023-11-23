@@ -96,7 +96,7 @@ void record_targets(Job job) {
 		while (::getline(targets_stream,target)) known_targets.push_back(target) ;
 	}
 	for( Node t : job->deps ) {
-		::string tn = t.name() ;
+		::string tn = t->name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}

@@ -71,7 +71,7 @@ static constexpr int JobExecBacklog = 1000 ;
 // derived info
 //
 
-using JobNodeIdx = Largest<JobIdx,NodeIdx> ;
+using WatcherIdx = Largest<JobIdx,NodeIdx> ;
 
 static constexpr uint8_t NMatchGenBits = n_bits(NMatchGen+1) ;
 using MatchGen = Uint<NMatchGenBits> ;

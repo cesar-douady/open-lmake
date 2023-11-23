@@ -7,12 +7,14 @@
 
 #include "rpc_client.hh"
 
+#include "idxed.hh"
+
 #ifdef STRUCT_DECL
 namespace Engine {
 
 	struct Req     ;
 	struct ReqData ;
-	template<class W> struct ReqInfo ;
+	struct ReqInfo ;
 
 	ENUM_1( RunAction                // each action is included in the following one
 	,	Run = Dsk                      // for Job  : run job
@@ -98,10 +100,10 @@ namespace Engine {
 		ReqData const* operator->() const { return &**this ; }
 		ReqData      * operator->()       { return &**this ; }
 		// services
-		void make   () ;
-		void kill   () ;
-		void close  () ;
-		void chk_end() ;
+		void make   (                       ) ;
+		void kill   (                       ) ;
+		void close  (bool close_backend=true) ;
+		void chk_end(                       ) ;
 		//
 		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
 		void new_exec_time     ( JobData const& , bool remove_old , bool add_new , Delay old_exec_time       ) ;
@@ -152,15 +154,15 @@ namespace Engine {
 #ifdef INFO_DEF
 namespace Engine {
 
-	template<class W> ::ostream& operator<<( ::ostream& , ReqInfo<W> const& ) ;
-	template<class W> struct ReqInfo {
-		static_assert(IsWatcher<W>) ;
+	using Watcher = Idxed2<Job,Node> ;
+
+	struct ReqInfo {
 		friend Req ;
-		friend ::ostream& operator<< <>( ::ostream& , ReqInfo const& ) ;
+		friend ::ostream& operator<<( ::ostream& , ReqInfo const& ) ;
 		using Idx    = ReqIdx    ;
 		using Chrono = ReqChrono ;
-		static constexpr uint8_t NWatchers  = sizeof(::vector<W>*)/sizeof(W) ;  // size of array that first within the layout of a vector
-		static constexpr uint8_t VectorMrkr = NWatchers+1                    ;  // special value to mean that watchers are in vector
+		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
+		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
 		// cxtors & casts
 		 ReqInfo(Req r={}) : req{r} , _n_watchers{0} , _watchers_a{} {}
 		 ~ReqInfo() {
@@ -175,51 +177,23 @@ namespace Engine {
 			if (_n_watchers==VectorMrkr) delete _watchers_v   ;
 			else                         _watchers_a.~array() ;
 			_n_watchers = ri._n_watchers ;
-			if (_n_watchers==VectorMrkr) _watchers_v = new ::vector<W          >{::move(*ri._watchers_v)} ;
-			else                         new(&_watchers_a) ::array <W,NWatchers>{::move( ri._watchers_a)} ;
+			if (_n_watchers==VectorMrkr) _watchers_v = new ::vector<Watcher          >{::move(*ri._watchers_v)} ;
+			else                         new(&_watchers_a) ::array <Watcher,NWatchers>{::move( ri._watchers_a)} ;
 			return *this ;
 		}
 		// acesses
-		bool waiting     () const { return n_wait      ; }
-		bool has_watchers() const { return _n_watchers ; }
+		bool waiting         () const { return n_wait                                                      ; }
+		bool has_watchers    () const { return _n_watchers                                                 ; }
+		WatcherIdx n_watchers() const { return _n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers ; }
 		// services
 	private :
-		void _add_watcher(W watcher) {
-			//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (_n_watchers==VectorMrkr) { _watchers_v->emplace_back(watcher)   ; return ; } // vector stays vector, simple
-			if (_n_watchers< NWatchers ) { _watchers_a[_n_watchers++] = watcher ; return ; } // array  stays array , simple
-			//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			// array becomes vector, complex
-			::array<W,NWatchers> tmp = _watchers_a ;
-			_watchers_a.~array() ;
-			_watchers_v = new ::vector<W>(NWatchers+1) ;                        // cannot put {} here or it is taken as an initializer list
-			for( uint8_t i=0 ; i<NWatchers ; i++ ) (*_watchers_v)[i] = tmp[i] ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			(*_watchers_v)[NWatchers] = watcher ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			_n_watchers = VectorMrkr ;
-		}
+		void _add_watcher(Watcher watcher) ;
 	public :
-		void add_watcher( W watcher , typename W::ReqInfo& watcher_req_info ) {
+		template<class RI> void add_watcher( Watcher watcher , RI& watcher_req_info ) {
 			_add_watcher(watcher) ;
 			watcher_req_info.n_wait++ ;
 		}
-		void wakeup_watchers() {
-			SWEAR(!waiting()) ;                                                // dont wake up watchers if we are not ready
-			::vector<W> watchers ;                                             //  we need to copy watchers aside before calling them as during a call, we could become not done and be waited for again
-			if (_n_watchers==VectorMrkr) {
-				watchers = ::move(*_watchers_v) ;
-				delete _watchers_v ;                                           // transform vector into array as there is no watchers any more
-				new(&_watchers_a) ::array<W,NWatchers> ;
-			} else {
-				watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
-			}
-			_n_watchers = 0 ;
-			// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
-			for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
-				if (waiting()) _add_watcher(*it) ;                                           // if waiting again, add back watchers we have got and that we no more want to call
-				else           (*it)->make( (*it)->req_info(req) , W::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
-		}
+		void wakeup_watchers() ;
 		//
 		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
 			if (pressure_<=pressure) return false ;
@@ -232,7 +206,7 @@ namespace Engine {
 			return propagate ;
 		}
 		// data
-		W::Idx      n_wait     = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		WatcherIdx  n_wait     = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
 		CoarseDelay pressure   ;                                                      //      16 bits, critical delay from end of job to end of req
 		Req         req        ;                                                      //       8 bits
 		RunAction   action  :3 = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
@@ -240,12 +214,11 @@ namespace Engine {
 	private :
 		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ;              //  2   bits, number of watchers, if NWatcher <=> watchers is a vector
 		union { /* use array as long as possible, and vector when overflow*/   // 64 bits, notify watchers when done
-			::vector<W          >* _watchers_v = nullptr ;
-			::array <W,NWatchers>  _watchers_a ;
+			::vector<Watcher          >* _watchers_v = nullptr ;
+			::array <Watcher,NWatchers>  _watchers_a ;
 		} ;
 	} ;
-	static_assert(sizeof(ReqInfo<Node>)==16) ;                                 // check expected size
-	static_assert(sizeof(ReqInfo<Job >)==16) ;                                 // check expected size
+	static_assert(sizeof(ReqInfo)==16) ;                                       // check expected size
 
 }
 #endif
@@ -271,8 +244,8 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		void audit_info( Color c , ::string const& t , ::string const& lt , DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,t,lt) ; }
-		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}              , l )   ; }
-		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const { audit_info( c , p , +n?n.name():""s , l )   ; }
+		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}               , l )  ; }
+		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const ;
 		//
 		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , ::string const& step , Job                             , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
@@ -345,19 +318,13 @@ namespace Engine {
 	}
 
 	//
-	// ReqInfo
-	//
-
-	template<class W> ::ostream& operator<<( ::ostream& os , ReqInfo<W> const& ri ) {
-		return os<<"ReqInfo("<<ri.req<<','<<ri.action<<','<<ri.n_wait<<')' ;
-	}
-
-	//
 	// ReqData
 	//
 
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule , j.name() , h       , et ) ; }
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                 , je.host , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule , j->name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                  , je.host , et ) ; }
+
+	inline void ReqData::audit_node( Color c , ::string const& p , Node n , DepDepth l ) const { audit_info( c , p , +n?n->name():""s , l )  ; }
 
 }
 #endif

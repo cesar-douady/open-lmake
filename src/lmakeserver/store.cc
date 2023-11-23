@@ -122,10 +122,17 @@ namespace Engine {
 
 	void EngineStore::_s_diff_config(Config const& old_config) {
 		Trace trace("_diff_config",old_config) ;
-		if      ( g_config.lnk_support   >  old_config.lnk_support   ) g_store.invalidate_exec(false/*cmd_ok*/) ; // we could discover new deps            , do as if we have new commands
-		else if ( _has_new_server_addr(old_config,g_config)          ) g_store.invalidate_exec(true /*cmd_ok*/) ; // remote hosts may have been unreachable, do as if we have new resources
-		if      ( g_config.max_dep_depth >  old_config.max_dep_depth ) s_invalidate_match()                     ; // we may discover new buildable nodes
-		else if ( g_config.path_max      >  old_config.path_max      ) s_invalidate_match()                     ; // .
+		if      ( g_config.lnk_support  > old_config.lnk_support ) g_store.invalidate_exec(false/*cmd_ok*/) ; // we could discover new deps            , do as if we have new commands
+		else if ( _has_new_server_addr(old_config,g_config)      ) g_store.invalidate_exec(true /*cmd_ok*/) ; // remote hosts may have been unreachable, do as if we have new resources
+		//
+		if ( g_config.path_max != old_config.path_max ) {
+			s_invalidate_match() ;                                             // we may discover new buildable nodes or vice versa
+			// update long name marker
+			bool new_is_longer = g_config.path_max > old_config.path_max ;
+			for( Node n : g_store.node_lst() ) n->new_path_max(new_is_longer) ;
+		} else if ( g_config.max_dep_depth >  old_config.max_dep_depth ) {
+			s_invalidate_match() ;                                             // we may discover new buildable nodes
+		}
 	}
 
 	void EngineStore::s_keep_config(bool rescue) {
@@ -345,14 +352,14 @@ namespace Engine {
 		for( Node n : Node::s_srcs() ) old_srcs.insert(n) ;
 		for( Node n : src_vec        ) srcs    .insert(n) ;
 		//
-		for( Node n : srcs     ) { for( Node d=n.dir() ; +d ; d = d.dir() ) { if (src_dirs    .contains(d)) break ; src_dirs    .insert(d) ; } }
-		for( Node n : old_srcs ) { for( Node d=n.dir() ; +d ; d = d.dir() ) { if (old_src_dirs.contains(d)) break ; old_src_dirs.insert(d) ; } }
+		for( Node n : srcs     ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (src_dirs    .contains(d)) break ; src_dirs    .insert(d) ; } }
+		for( Node n : old_srcs ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (old_src_dirs.contains(d)) break ; old_src_dirs.insert(d) ; } }
 		// check
 		for( Node d : src_vec ) {
 			if (!src_dirs.contains(d)) continue ;
-			::string dn = d.name()+'/' ;
+			::string dn = d->name()+'/' ;
 			for( Node n : src_vec )
-				if ( n.name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n.name()) ;
+				if ( n->name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n->name()) ;
 			FAIL(dn,"is a source dir of no source") ;
 		}
 		// compute diff
@@ -378,7 +385,7 @@ namespace Engine {
 		}
 		// user report
 		{	OFStream srcs_stream{AdminDir+"/sources"s} ;
-			for( Node n : srcs ) srcs_stream << n.name() <<'\n' ;
+			for( Node n : srcs ) srcs_stream << n->name() <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return old_srcs.size() || new_srcs.size() ;

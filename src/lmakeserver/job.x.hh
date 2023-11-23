@@ -96,8 +96,7 @@ namespace Engine {
 		Job( Special , Node target , Deps deps               ) ;               // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;               // multi
 		// accesses
-		::string name  () const ;
-		bool     active() const ;
+		bool active() const ;
 	} ;
 
 	struct JobTgt : Job {
@@ -187,13 +186,12 @@ namespace Engine {
 #ifdef INFO_DEF
 namespace Engine {
 
-	struct JobReqInfo : ReqInfo<Node> {                                        // watchers of Job's are Node's
-		using Base = ReqInfo<Node> ;
+	struct JobReqInfo : ReqInfo {                                              // watchers of Job's are Node's
 		friend ::ostream& operator<<( ::ostream& , JobReqInfo const& ) ;
 		using Lvl        = JobLvl        ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
-		using Base::Base ;
+		using ReqInfo::ReqInfo ;
 		// accesses
 		bool running() const {
 			switch (lvl) {
@@ -205,7 +203,7 @@ namespace Engine {
 		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
 		// services
 		void update( RunAction , MakeAction , JobData const& ) ;
-		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { Base::add_watcher(watcher,watcher_req_info) ; }
+		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { ReqInfo::add_watcher(watcher,watcher_req_info) ; }
 		void chk() const {
 			SWEAR(done_<=RunAction::Dsk) ;
 			switch (lvl) {
@@ -245,7 +243,7 @@ namespace Engine {
 	,	RsrcsErr                       // job was not run because of resources could not be computed
 	)
 
-	struct JobData {
+	struct JobData : DataBase {
 		using Idx        = JobIdx        ;
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
@@ -273,8 +271,8 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		// accesses
 	public :
-		Job      idx () const { return Job::s_idx(*this) ; }
-		::string name() const { return idx().name()      ; }
+		Job      idx () const { return Job::s_idx(*this)              ; }
+		::string name() const { return full_name(rule->job_sfx_len()) ; }
 		//
 		bool active() const { return !rule.old()                                                                   ; }
 		bool is_src() const { return active() && (rule->special==Special::Src||rule->special==Special::GenericSrc) ; }
@@ -344,12 +342,11 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
-		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_idx=-1/*star*/                     ) ;
-		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                                                  ) ;
-		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                                                     ) ;
-		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   ,             JobReason ,              CoarseDelay pressure                                    ) ;
-		void                                  _set_pressure_raw( ReqInfo&   , CoarseDelay                                                                                  ) const ;
-		JobReason                             _make_raw        ( ReqInfo&   , RunAction , JobReason , MakeAction , CoarseDelay const* old_exec_time , bool wakeup_watchers ) ;
+		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_idx=-1/*star*/ ) ;
+		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                              ) ;
+		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                                 ) ;
+		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   ,             JobReason ,              CoarseDelay pressure                ) ;
+		void                                  _set_pressure_raw( ReqInfo&   , CoarseDelay                                                              ) const ;
 		// data
 	public :
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
@@ -364,7 +361,7 @@ namespace Engine {
 	private :
 		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==16) ;                                       // check expected size
+	static_assert(sizeof(JobData)==20) ;                                       // check expected size
 
 	ENUM( MissingAudit
 	,	No
@@ -390,10 +387,8 @@ namespace Engine {
 	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::FullMatch(rt,t ),req,lvl} {}
 	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::FullMatch(r ,jn),req,lvl} {}
 	//
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                               New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t.name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
-
-	inline ::string Job::name() const { return full_name((*this)->rule->job_sfx_len()) ; }
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                                New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 
 	inline bool Job::active() const { return +*this && (*this)->active() ; }
 
@@ -437,11 +432,6 @@ namespace Engine {
 		if (!ri.set_pressure(pressure)) return ;                                   // if pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
 		_set_pressure_raw(ri,pressure) ;
-	}
-
-	inline JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
-		if ( ri.done(run_action) && !make_action && !reason ) return JobReasonTag::None ; // fast path
-		return _make_raw(ri,run_action,reason,make_action,old_exec_time,wakeup_watchers) ;
 	}
 
 	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
@@ -501,7 +491,7 @@ namespace Engine {
 
 	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , JobData const& job ) {
 		Bool3 ok = is_ok(job.status) ;
-		if ( ok==Maybe && run_action>=RunAction::Status ) run_action = RunAction::Run ;
+		if ( ok==Maybe && action>=RunAction::Status ) run_action = RunAction::Run ;
 		if (make_action>=MakeAction::Dec) {
 			SWEAR(n_wait) ;
 			n_wait-- ;

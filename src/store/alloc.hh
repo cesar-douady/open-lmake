@@ -67,7 +67,7 @@ namespace Store {
 				using pointer            = value_type*          ;
 				using reference          = value_type&          ;
 				// cxtors & casts
-				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _legalize() ; }
+				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _fix_end() ; _legalize() ; }
 				// services
 				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
 				Idx       operator* (                     ) const { return _idx ;                                   }
@@ -77,13 +77,12 @@ namespace Store {
 				void _advance() {
 					SWEAR(+_idx) ;
 					_idx = Idx(+_idx+1) ;
-					if (_idx==_self->size()) _idx = {} ;
+					_fix_end() ;
 				}
-				bool _is_legal() const { return !_self->_frees.contains(+_idx) ; }
-				bool _at_end  () const { return !_idx ; }
-				void _legalize() {
-					for( ; !_at_end() ; _advance() ) if (_is_legal()) return ;
-				}
+                void _fix_end ()       { if (_idx==_self->size()) _idx = {} ;                       }
+				bool _is_legal() const { return !_self->_frees.contains(+_idx) ;                    }
+				bool _at_end  () const { return !_idx                          ;                    }
+				void _legalize()       { for( ; !_at_end() ; _advance() ) if (_is_legal()) return ; }
 				// data
 				Lst const* _self ;
 				Idx        _idx  = {} ;

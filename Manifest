@@ -75,6 +75,7 @@ src/lmakeserver/core.hh
 src/lmakeserver/core.x.hh
 src/lmakeserver/global.cc
 src/lmakeserver/global.x.hh
+src/lmakeserver/idxed.hh
 src/lmakeserver/job.cc
 src/lmakeserver/job.x.hh
 src/lmakeserver/main.cc

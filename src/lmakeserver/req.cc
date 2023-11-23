@@ -62,13 +62,15 @@ namespace Engine {
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
 		//
+		bool close_backend = false ;
 		try {
 			JobIdx n_jobs = from_chars<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
-			if (ecr.as_job()) data.job = ecr.job()                                                                             ;
-			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,StaticDflags,true/*parallel*/) ) ;
+			if (ecr.as_job()) data.job = ecr.job()                                               ;
+			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All) ) ;
 			Backend::s_open_req( +*this , n_jobs ) ;
+			close_backend = true ;
 		} catch (::string const& e) {
-			close() ;
+			close(close_backend) ;
 			throw ;
 		}
 		//
@@ -97,11 +99,11 @@ namespace Engine {
 		Backend::s_kill_req(+*this) ;
 	}
 
-	void Req::close() {
+	void Req::close(bool close_backend) {
 		Trace trace("close",*this) ;
 		SWEAR((*this)->is_open()) ;
 		kill() ;                                                               // in case req is closed before being done
-		Backend::s_close_req(+*this) ;
+		if (close_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
 		for( Idx i=(*this)->idx_by_start ; i<n_reqs-1 ; i++ ) {
@@ -167,13 +169,13 @@ namespace Engine {
 	}
 
 	void Req::_report_no_rule( Node node , DepDepth lvl ) {
-		::string                        name      = node.name()           ;
+		::string                        name      = node->name()          ;
 		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
 		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
 		RuleTgt                         art       ;                            // set if an anti-rule matches
 		RuleIdx                         n_missing = 0                    ;     // number of rules missing deps
 		//
-		Node dir = node ; while (dir->uphill) dir = Node(dir_name(dir.name())) ;
+		Node dir = node ; while (dir->uphill()) dir = Node(dir_name(dir->name())) ;
 		if ( dir!=node && dir->makable() ) {
 			/**/                                            (*this)->audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
 			if (dir->conform_job_tgt().produces(dir,true) ) (*this)->audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
@@ -186,8 +188,8 @@ namespace Engine {
 			if (!match       ) {            continue ; }
 			if (rt->is_anti()) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {                                                                        // do not pass *this as req to avoid generating error message at cxtor time
-				swear_prod(!jt.produces(node),"no rule for ",node.name()," but ",jt->rule->name," may produce it") ;
+			if ( JobTgt jt{rt,name} ; +jt ) {                                                                         // do not pass *this as req to avoid generating error message at cxtor time
+				swear_prod(!jt.produces(node),"no rule for ",node->name()," but ",jt->rule->name," may produce it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
 			try                     { rt->deps_attrs.eval(match) ; }
@@ -220,7 +222,7 @@ namespace Engine {
 					}
 			Found :
 				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
-				FileInfo fi{missing_dep.name()} ;
+				FileInfo fi{missing_dep->name()} ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
@@ -251,9 +253,9 @@ namespace Engine {
 					d = dd ;
 					goto Next ;
 				}
-				fail_prod("not done but all deps are done : ",j.name()) ;
+				fail_prod("not done but all deps are done : ",j->name()) ;
 			}
-			fail_prod("not done but all possible jobs are done : ",d.name()) ;
+			fail_prod("not done but all possible jobs are done : ",d->name()) ;
 		Next :
 			cycle.push_back(d) ;
 		}
@@ -283,12 +285,12 @@ namespace Engine {
 		Node::ReqInfo const& cri              = dep->c_req_info(*this) ;
 		bool                 report_not_built = false                  ;
 		if (dep->multi()) {
-			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep.name() , n_err , lvl ) ;
+			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep->name() , n_err , lvl ) ;
 		} else if (!dep->makable(true/*uphill_ok*/)) {
 			switch (cri.err) {
 				case NodeErr::None        : report_not_built = dep.dflags[Dflag::Required] ; break ;
-				case NodeErr::Dangling    : return (*this)->_send_err( false/*intermediate*/ , "dangling"    , dep.name() , n_err , lvl ) ;
-				case NodeErr::Overwritten : return (*this)->_send_err( false/*intermediate*/ , "overwritten" , dep.name() , n_err , lvl ) ;
+				case NodeErr::Dangling    : return (*this)->_send_err( false/*intermediate*/ , "dangling"    , dep->name() , n_err , lvl ) ;
+				case NodeErr::Overwritten : return (*this)->_send_err( false/*intermediate*/ , "overwritten" , dep->name() , n_err , lvl ) ;
 				default : FAIL(cri.err) ;
 			}
 		}
@@ -296,7 +298,7 @@ namespace Engine {
 			if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
 			report_not_built = false ;
 		}
-		if (report_not_built) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep.name() , n_err , lvl ) ; // if no better explanation found
+		if (report_not_built) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep->name() , n_err , lvl ) ; // if no better explanation found
 		//
 		return false ;
 	}
@@ -309,7 +311,7 @@ namespace Engine {
 		if (!job->err()) return false ;
 		//
 		bool intermediate = job->run_status==RunStatus::DepErr                                                                    ;
-		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target.name():job.name() , n_err , lvl ) ;
+		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ;
 		if (overflow) return true ;
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule->is_special() ) {
@@ -346,7 +348,7 @@ namespace Engine {
 		if (!job->c_req_info(*this).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
-			fail_prod("job not done but all deps are done : ",job.name()) ;
+			fail_prod("job not done but all deps are done : ",job->name()) ;
 		} else {
 			size_t       n_err       = g_config.max_err_lines ? g_config.max_err_lines : size_t(-1) ;
 			bool         seen_stderr = false                                                        ;
@@ -367,6 +369,49 @@ namespace Engine {
 	} ;
 
 	//
+	// ReqInfo
+	//
+
+	::ostream& operator<<( ::ostream& os , ReqInfo const& ri ) {
+		return os<<"ReqInfo("<<ri.req<<','<<ri.action<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
+	}
+
+	void ReqInfo::_add_watcher(Watcher watcher) {
+		//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (_n_watchers==VectorMrkr) { _watchers_v->emplace_back(watcher)   ; return ; } // vector stays vector, simple
+		if (_n_watchers< NWatchers ) { _watchers_a[_n_watchers++] = watcher ; return ; } // array  stays array , simple
+		//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		// array becomes vector, complex
+		::array<Watcher,NWatchers> tmp = _watchers_a ;
+		_watchers_a.~array() ;
+		::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;      // cannot put {} here or it is taken as an initializer list
+		for( uint8_t i=0 ; i<NWatchers ; i++ ) ws[i] = tmp[i] ;
+		//vvvvvvvvvvvvvvvvvvvvv
+		ws[NWatchers] = watcher ;
+		//^^^^^^^^^^^^^^^^^^^^^
+		_watchers_v = &ws        ;
+		_n_watchers = VectorMrkr ;
+	}
+
+	void ReqInfo::wakeup_watchers() {
+		SWEAR(!waiting()) ;                                                // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;                                       // we need to copy watchers aside before calling them as during a call, we could become not done and be waited for again
+		if (_n_watchers==VectorMrkr) {
+			watchers = ::move(*_watchers_v) ;
+			delete _watchers_v ;                                           // transform vector into array as there is no watchers any more
+			new(&_watchers_a) ::array<Watcher,NWatchers> ;
+		} else {
+			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
+		}
+		_n_watchers = 0 ;
+		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
+		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
+			if      (waiting()      ) _add_watcher(*it) ;                                                      // if waiting again, add back watchers we have got and that we no more want to call
+			else if (it->is_a<Job>()) Job (*it)->make( Job (*it)->req_info(req) , Job ::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
+			else                      Node(*it)->make( Node(*it)->req_info(req) , Node::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
+	}
+
+	//
 	// ReqData
 	//
 
@@ -374,7 +419,7 @@ namespace Engine {
 
 	void ReqData::clear() {
 		SWEAR( !n_running() , n_running() ) ;
-		if (job->rule->special==Special::Req) job.pop();
+		if ( +job && job->rule->special==Special::Req ) job.pop();
 		*this = {} ;
 	}
 
@@ -417,7 +462,7 @@ namespace Engine {
 			::sort( losts_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : losts_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : losts_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j.name() ) ;
+			for( auto [j,_] : losts_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (!manuals.empty()) {
 			::vmap<Node,pair<bool/*ok*/,NodeIdx>> manuals_ = mk_vmap(manuals) ;
@@ -431,7 +476,7 @@ namespace Engine {
 			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozens_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j.name() ) ;
+			for( auto [j,_] : frozens_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (!no_triggers.empty()) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;

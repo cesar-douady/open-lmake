@@ -47,7 +47,6 @@ namespace Engine {
 	,	None                           // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
 	,	Src
 	,	Req
-	,	Uphill
 	,	Infinite
 	// ordered by decreasing matching priority within each prio
 	,	GenericSrc
@@ -469,7 +468,7 @@ namespace Engine {
 		::string pretty_str() const ;
 
 		// accesses
-		bool   is_anti     (        ) const { return special==Special::Anti || special==Special::Uphill     ; }
+		bool   is_anti     (        ) const { return special==Special::Anti                                 ; }
 		bool   is_special  (        ) const { return special!=Special::Plain                                ; }
 		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc  ; }
 		bool   is_sure     (        ) const { return special!=Special::GenericSrc                           ; } // GenericSrc targets are only buildable if file actually exists
@@ -506,9 +505,9 @@ namespace Engine {
 			||	end_cmd_attrs     .is_dynamic
 			;
 		}
-		::vector_s  _list_ctx  (::vector<CmdIdx> const& ctx) const ;
-		void        _set_crcs  (                           ) ;
-		Py::Pattern _mk_pattern(::string const&            ) const ;
+		::vector_s  _list_ctx  (::vector<CmdIdx> const& ctx     ) const ;
+		void        _set_crcs  (                                ) ;
+		Py::Pattern _mk_pattern(::string const& , bool for_name ) const ;
 
 		// user data
 	public :
@@ -550,11 +549,11 @@ namespace Engine {
 		mutable Delay  exec_time    = {} ;                                     // average exec_time
 		mutable JobIdx stats_weight = 0  ;                                     // number of jobs used to compute average
 		// not stored on disk
-		::vector<Py::Pattern> target_patterns ;
-		Py::Pattern           name_pattern    ;
-		Crc                   match_crc       = Crc::None ;
-		Crc                   cmd_crc         = Crc::None ;
-		Crc                   rsrcs_crc       = Crc::None ;
+		::vector<Py::Pattern> target_patterns  ;
+		Py::Pattern           job_name_pattern ;
+		Crc                   match_crc        = Crc::None ;
+		Crc                   cmd_crc          = Crc::None ;
+		Crc                   rsrcs_crc        = Crc::None ;
 	} ;
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
@@ -601,7 +600,7 @@ namespace Engine {
 	public :
 		using SimpleMatch::SimpleMatch ;
 		FullMatch( SimpleMatch const& sm                ) : SimpleMatch{sm} {}
-		FullMatch( Rule    r , ::string const& job_name ) : FullMatch{r,r->name_pattern,job_name} {}
+		FullMatch( Rule    r , ::string const& job_name ) : FullMatch{r,r->job_name_pattern,job_name} {}
 		FullMatch( RuleTgt   , ::string const& target   ) ;
 	private :
 		FullMatch( Rule , Py::Pattern const& , ::string const& ) ;

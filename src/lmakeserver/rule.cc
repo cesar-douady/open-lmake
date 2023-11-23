@@ -482,16 +482,15 @@ namespace Engine {
 	}
 
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) {
-		if (s<=Special::Shared) SWEAR( src_dir_s.empty()     , src_dir_s ) ;   // shared rules cannot have parameters as, precisely, they are shared
-		else                    SWEAR( src_dir_s.back()=='/' , src_dir_s ) ;   // ensure source dir ends with a /
+		if (s<=Special::Shared) SWEAR(  src_dir_s.empty()                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
+		else                    SWEAR( !src_dir_s.empty() && src_dir_s.back()=='/' , s , src_dir_s ) ; // ensure source dir ends with a /
 		special = s           ;
 		prio    = Infinity    ;
 		name    = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      : force = true ;     break ;                // Force so that source files are systematically inspected
-			case Special::Req      : force = true ;     break ;
-			case Special::Uphill   :                    break ;
-			case Special::Infinite : prio = -Infinity ; break ;                // -inf : it can appear after other rules
+			case Special::Src      : force = true      ; break ;               // Force so that source files are systematically inspected
+			case Special::Req      : force = true      ; break ;
+			case Special::Infinite : prio  = -Infinity ; break ;               // -inf : it can appear after other rules
 			case Special::GenericSrc :
 				name             = "source dir" ;
 				job_name         = src_dir_s    ; _append_stem(job_name,0) ;
@@ -841,7 +840,7 @@ namespace Engine {
 		catch(Py::Exception & e) { throw to_string("while processing ",name,'.',field," :\n\t",e.errorValue()) ; }
 	}
 
-	Py::Pattern RuleData::_mk_pattern(::string const& target) const {
+	Py::Pattern RuleData::_mk_pattern( ::string const& target , bool for_name ) const {
 		// Generate and compile Python pattern
 		// target has the same syntax as Python f-strings except expressions must be named as found in stems
 		// we transform that into a pattern by :
@@ -861,9 +860,14 @@ namespace Engine {
 		Py::Pattern res = _subst_target(
 			target
 		,	[&](VarIdx s)->::string {
-				if      ( seen.contains(s)                           ) {                  return to_string("(?P=",to_string('_',s),                    ')') ; }
-				else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",to_string('_',s),'>',stems[s].second,')') ; }
-				else                                                   {                  return to_string('('   ,                     stems[s].second,')') ; }
+				if      ( seen.contains(s)                           ) {                  return to_string("(?P=",'_',s,                    ')') ; }
+				else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",'_',s,'>',stems[s].second,')') ; }
+				else if ( !for_name                                  ) {                  return to_string('('   ,          stems[s].second,')') ; }
+				else {
+					::string const& k = stems[s].first ;
+					if ( k.front()=='<' && k.back()=='>' ) return escape(to_string('{',  "*}")) ; // anonymous star-stem, the whole purpose of matching on job name is to match star-stems as is
+					else                                   return escape(to_string('{',k,"*}")) ; // named     star-stem, .
+				}
 			}
 		,	true/*escape*/
 		) ;
@@ -874,8 +878,8 @@ namespace Engine {
 		Py::Gil gil ;
 		try {
 			// job_name & targets
-			/**/                                name_pattern =            _mk_pattern(job_name  )  ;
-			for( auto const& [k,tf] : targets ) target_patterns.push_back(_mk_pattern(tf.pattern)) ;
+			/**/                                job_name_pattern =        _mk_pattern(job_name  ,true /*for_name*/)  ;
+			for( auto const& [k,tf] : targets ) target_patterns.push_back(_mk_pattern(tf.pattern,false/*for_name*/)) ;
 			_set_crcs() ;
 			deps_attrs        .compile() ;
 			create_none_attrs .compile() ;
@@ -1249,7 +1253,7 @@ namespace Engine {
 	//
 
 	Rule::SimpleMatch::SimpleMatch(Job job) : rule{job->rule} {
-		::string name_ = job.full_name() ;
+		::string name_ = job->full_name() ;
 		//
 		SWEAR( Rule(name_)==rule , mk_printable(name_) , rule->name ) ;        // only name suffix is considered to make Rule
 		//

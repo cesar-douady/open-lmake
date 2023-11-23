@@ -302,7 +302,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx rpc_client rpc_job serialize thread time trace utils )
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                              )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                 )
-ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x job.x makefiles node.x req.x rule.x store.x          )
+ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x    )
 BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                            )
 
 ALL_H         := sys_config.h $(PYCXX).install.stamp ext/xxhash.patched.h

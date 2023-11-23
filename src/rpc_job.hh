@@ -192,6 +192,7 @@ ENUM_1( JobReasonTag                   // see explanations in table below
 ,	DepNotReady
 ,	DepOutOfDate
 ,	NoTarget
+,	PolutedTarget
 ,	PrevTarget
 // with error
 ,	DepErr                             // if >=DepErr, job did not complete because of a dep
@@ -216,7 +217,8 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"dep changed"                                          // DepChanged
 ,	"dep not ready"                                        // DepNotReady
 ,	"dep out of date"                                      // DepOutOfDate
-,	"target missing"                                       // NoTarget
+,	"missing target"                                       // NoTarget
+,	"poluted target"                                       // PolutedTarget
 ,	"target previously existed"                            // PrevTarget
 // with error
 ,	"dep in error"                                         // DepErr

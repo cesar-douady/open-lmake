@@ -81,7 +81,7 @@ namespace Engine {
 			}
 			bool weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
 			bool warn  = weird && t.lazy_tflag(Tflag::Warning ,match,fm,tn)          ;      // may solve fm & tn lazy evalution
-			if (tn.empty()) tn = t.name() ;                                                 // solve lazy evaluation if not already done
+			if (tn.empty()) tn = t->name() ;                                                 // solve lazy evaluation if not already done
 			if (warn      ) { trace("star",t,STR(inc)) ; to_report.emplace_back(t ,inc) ; }
 			/**/                                         to_wash  .emplace_back(tn,inc) ;
 		}
@@ -124,7 +124,7 @@ namespace Engine {
 			} else {
 				unlink(t) ;
 			}
-			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , dir_name(t) ) ; // _s_target_dirs must protect all dirs beneath it
+			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , ::dir_name(t) ) ; // _s_target_dirs must protect all dirs beneath it
 		}
 		// create target dirs
 		while (to_mk_dir_set.size()) {
@@ -138,7 +138,7 @@ namespace Engine {
 				else if (Node(*dir)->manual_refresh(*this)==Yes) throw to_string("must unlink but is manual : ",*dir) ;
 				else                                             ::unlink(dir->c_str()) ;                               // exists but is not a dir : unlink file and retry
 			} else {
-				::string parent = dir_name(*dir) ;
+				::string parent = ::dir_name(*dir) ;
 				swear_prod( (errno==ENOENT||errno==ENOTDIR) && !parent.empty() , "cannot create dir ",*dir ) ; // if ENOTDIR, a parent dir is not a dir, it will be fixed up
 				to_mk_dir_set.insert(::move(parent)) ;                                                         // retry after parent is created
 			}
@@ -153,8 +153,8 @@ namespace Engine {
 			//         ^^^^^^^^^^^^^^^^^
 			else if (errno==ENOENT          ) { trace("dir_already_unlinked",dir) ; }
 			else                              { trace("dir_not_empty"       ,dir) ;
-				for( ::string d=dir_name(dir) ; !d.empty() ; d=dir_name(d) ) { // no hope to unlink a dir if a sub-dir still exists
-					if (not_empty_dirs.contains(d)) break ;                    // enclosing dirs are already recorded, no need to proceed
+				for( ::string d=::dir_name(dir) ; !d.empty() ; d=::dir_name(d) ) { // no hope to unlink a dir if a sub-dir still exists
+					if (not_empty_dirs.contains(d)) break ;                        // enclosing dirs are already recorded, no need to proceed
 					not_empty_dirs.insert(d) ;
 				}
 			}
@@ -664,7 +664,7 @@ namespace Engine {
 						auto report_end   = deserialize<JobInfoEnd  >(is) ;
 						//
 						report_end.end.digest.analysis_err.clear() ;
-						for( auto const& [t,n] : ae ) report_end.end.digest.analysis_err.emplace_back(t,+n?n.name():""s) ;
+						for( auto const& [t,n] : ae ) report_end.end.digest.analysis_err.emplace_back(t,+n?n->name():""s) ;
 						//
 						OFStream os{jaf} ;
 						serialize(os,report_start) ;
@@ -781,7 +781,7 @@ namespace Engine {
 		stat += inc ;
 		return jl!=JobLvl::Done ;
 	}
-	JobReason JobData::_make_raw( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
+	JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Lvl = ReqInfo::Lvl ;
 		SWEAR( !reason.err() , reason ) ;
 		Lvl  before_lvl = ri.lvl        ;                                      // capture previous state before any update
@@ -790,10 +790,9 @@ namespace Engine {
 		ri.update( run_action , make_action , *this ) ;
 		if (!ri.waiting()) {                                                   // we may have looped in which case stats update is meaningless and may fail()
 			//
-			Special special      = rule->special                                                    ;
-			bool    is_uphill    = special==Special::Uphill                                         ;
-			bool    dep_live_out = special==Special::Req    && req->options.flags[ReqFlag::LiveOut] ;
-			bool    frozen_      = frozen()                                                         ;
+			Special special      = rule->special                                                 ;
+			bool    dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
+			bool    frozen_      = frozen()                                                      ;
 			//
 			Trace trace("Jmake",idx(),ri,before_lvl,run_action,reason,make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 			if (ri.done(ri.action)) goto Wakeup ;
@@ -804,7 +803,6 @@ namespace Engine {
 				Idx         n_deps       = special==Special::Infinite ? 0 : deps.size() ; // special case : Infinite actually has no dep, just a list of node showing infinity
 				//
 				RunAction dep_action = req->options.flags[ReqFlag::Archive] ? RunAction::Dsk : RunAction::Status ;
-				//
 				//
 				if (make_action==MakeAction::End) { dep_action = RunAction::Dsk ; ri.dep_lvl  = 0 ; } // if analysing end of job, we need to be certain of presence of all deps on disk
 				if (ri.action  ==RunAction::Run ) { dep_action = RunAction::Dsk ;                   } // if we must run the job , .
@@ -872,7 +870,7 @@ namespace Engine {
 							bool                 overwritten       = false                                    ;
 							bool                 maybe_speculative = state==State::Modif || seen_waiting==Yes ; // this dep may disappear
 							//
-							if ( !care && !required ) {                         // dep is useless
+							if ( !care && !sense_err && !required ) {           // dep is useless
 								SWEAR( special==Special::Infinite , special ) ; // this is the only case
 								goto Continue ;
 							}
@@ -886,22 +884,22 @@ namespace Engine {
 								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 								if      (care     ) cdri = &dep->make( *cdri , dep_action         ) ; // refresh cdri if make changed it
 								else if (sense_err) cdri = &dep->make( *cdri , RunAction::Status  ) ; // .
-								else                cdri = &dep->make( *cdri , RunAction::Makable ) ; // .
+								else if (required ) cdri = &dep->make( *cdri , RunAction::Makable ) ; // .
 								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							}
 							if ( is_static && dep->buildable!=Yes ) sure = false ; // buildable is better after make()
 							if (cdri->waiting()) {
-							ri.speculative |= maybe_speculative && !is_static ; // we are speculatively waiting
-								reason |= {JobReasonTag::DepNotReady,+dep} ;
+								ri.speculative |= maybe_speculative && !is_static  ; // we are speculatively waiting
+								reason         |= {JobReasonTag::DepNotReady,+dep} ;
 								Node::ReqInfo& dri = dep->req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 								dep->add_watcher(dri,idx(),ri,dep_pressure) ;
-								critical_waiting |= is_critical ;
-								seen_waiting     |= Maybe       ;              // transformed into Yes upon sequential dep
+								critical_waiting |= care && is_critical ;
+								seen_waiting     |= Maybe               ;      // transformed into Yes upon sequential dep
 								goto Continue ;
 							}
 							{	SWEAR(dep->done(*cdri)) ;                      // after having called make, dep must be either waiting or done
 								dep.acquire_crc() ;                            // 2nd chance : after make is called as if dep is steady (typically a source), crc may have been computed
-								bool is_modif = !dep.up_to_date() ;
+								bool is_modif = care && !dep.up_to_date() ;
 								if ( is_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
 									req->no_triggers.emplace(dep,req->no_triggers.size()) ; // record to repeat in summary, value is just to order summary in discovery order
 									is_modif = false ;
@@ -909,16 +907,15 @@ namespace Engine {
 								if ( is_modif                          ) dep_state = State::ProtoModif ; // if not overridden by an error
 								if ( !is_static && state>=State::Modif ) goto Continue ;                 // if not static, maybe all the following errors will be washed by previous modif
 								//
-								bool makable = dep->makable(is_uphill) ;       // sub-files of makable dir are not buildable, except for Uphill so sub-sub-files are not buildable
-								if (!makable) {
+								if (!dep->makable()) {
 									if (is_static) {
 										dep_state  = State::MissingStatic                  ;
 										reason    |= {JobReasonTag::DepMissingStatic,+dep} ;
 										trace("missing_static",dep) ;
 										goto Continue ;
 									}
-									if ( care && (dep.is_date?+dep.date():!dep.crc().match(Crc::None)) ) { // file has been seen by job as existing
-										if (is_target(dep.name())) {                                       // file still exists, still dangling
+									if ( (care||sense_err) && (dep.is_date?+dep.date():!dep.crc().match(Crc::None)) ) { // file has been seen by job as existing
+										if (is_target(dep->name())) {                                                   // file still exists, still dangling
 											if (!dep->makable(true/*uphill_ok*/)) {
 												req->audit_node(Color::Err ,"dangling"          ,dep  ) ;
 												req->audit_node(Color::Note,"consider : git add",dep,1) ;
@@ -936,42 +933,46 @@ namespace Engine {
 										goto Continue ;
 									}
 								}
-								switch (cdri->err) {
-									case NodeErr::None        :                      break                                        ;
-									case NodeErr::Overwritten : overwritten = true ; goto Err                                     ;
-									case NodeErr::Dangling    :                      if (sense_err) goto Err ; else goto Continue ;
-									default : FAIL(cdri->err) ;
+								if (care) {
+									switch (cdri->err) {
+										case NodeErr::None        :                      break                                        ;
+										case NodeErr::Overwritten : overwritten = true ; goto Err                                     ;
+										case NodeErr::Dangling    :                      if (sense_err) goto Err ; else goto Continue ;
+										default : FAIL(cdri->err) ;
+									}
 								}
-								if ( sense_err && dep->err(is_uphill) ) {      // dep errors implies it makable, which takes an argument, we must provide it
+								if ( sense_err && dep->err() ) {
 									trace("dep_err",dep) ;
 									goto Err ;
 								}
-								if (
-									( dep.is_date                                                              ) // if still waiting for a crc here, it will never come
-								||	( +dep.accesses && dep.known && make_action==MakeAction::End && !dep.crc() ) // when ending a job, known accessed deps should have a crc
-								) {
-									if (is_target(dep.name())) {               // file still exists, still manual
-										if (dep->is_src()) goto Overwriting ;
-										for( Job j : dep->conform_job_tgts(*cdri) )
-											for( Req r : j->running_reqs() )
-												if (j->c_req_info(r).lvl==Lvl::Exec) goto Overwriting ;
-										req->audit_node(Color::Err,"manual",dep) ;                          // well, maybe a job is writing to dep as an unknown target, but we then cant distinguish
-										req->manuals.emplace(dep,::pair(false/*ok*/,req->manuals.size())) ;
-										trace("manual",dep) ;
-										goto MarkDep ;
-									Overwriting :
-										trace("overwriting",dep,STR(dep->is_src())) ;
-										req->audit_node(Color::Err,"overwriting",dep) ;
-										overwritten = true ; goto MarkDep ;
-									} else {
-										dep.crc({}) ;                          // file does not exist any more, no more manual
+								if (care) {
+									if (
+										( dep.is_date                                                              ) // if still waiting for a crc here, it will never come
+									||	( +dep.accesses && dep.known && make_action==MakeAction::End && !dep.crc() ) // when ending a job, known accessed deps should have a crc
+									) {
+										if (is_target(dep->name())) {             // file still exists, still manual
+											if (dep->is_src()) goto Overwriting ;
+											for( Job j : dep->conform_job_tgts(*cdri) )
+												for( Req r : j->running_reqs() )
+													if (j->c_req_info(r).lvl==Lvl::Exec) goto Overwriting ;
+											req->audit_node(Color::Err,"manual",dep) ;                          // maybe a job is writing to dep as an unexpected target, but we then cant distinguish
+											req->manuals.emplace(dep,::pair(false/*ok*/,req->manuals.size())) ;
+											trace("manual",dep) ;
+											goto MarkDep ;
+										Overwriting :
+											trace("overwriting",dep,STR(dep->is_src())) ;
+											req->audit_node(Color::Err,"overwriting",dep) ;
+											overwritten = true ; goto MarkDep ;
+										} else {
+											dep.crc({}) ;                      // file does not exist any more, no more manual
+										}
 									}
-								}
-								ReqChrono ddbc = dep->db_chrono() ;
-								if ( +ddbc && Req::s_before(req->chrono,ddbc) ) {
-									req->audit_node(Color::Err,"overwritten",dep) ;
-									trace("overwritten",dep,ddbc,req->start) ;
-									overwritten = true ; goto MarkDep ;
+									ReqChrono ddbc = dep->db_chrono() ;
+									if ( +ddbc && Req::s_before(req->chrono,ddbc) ) {
+										req->audit_node(Color::Err,"overwritten",dep) ;
+										trace("overwritten",dep,ddbc,req->start) ;
+										overwritten = true ; goto MarkDep ;
+									}
 								}
 								if (state>=State::Modif) goto Continue ;           // in case dep is static, it has not been caught earlier
 								if (is_modif) {                                    // this modif is not preceded by an error, we will really run the job
@@ -997,7 +998,7 @@ namespace Engine {
 						Continue :
 							trace("dep",dep,STR(dep->done(*cdri)),STR(dep->err(*cdri)),ri,dep->crc,dep_state,state,STR(critical_modif),STR(critical_waiting),reason) ;
 							//
-							SWEAR(dep_state!=State::Modif) ;                                                            // dep_state only generates dangling modifs
+							SWEAR(dep_state!=State::Modif) ;                                                            // dep_state only generates proto-modifs
 							if ( is_critical && care && dep_state==State::ProtoModif     ) critical_modif = true      ;
 							if ( dep_state>state && ( is_static || state!=State::Modif ) ) state          = dep_state ; // Modif blocks errors, unless dep is static
 						}
@@ -1008,7 +1009,7 @@ namespace Engine {
 				if (sure) mk_sure() ;                                          // improve sure (sure is pessimistic)
 				switch (state) {
 					case State::Ok            :
-					case State::ProtoModif    :                                                // if last dep is parallel, we have not transformed ProtoModif into Modif
+					case State::ProtoModif    :                                                // in case last analyzed dep is parallel
 					case State::Modif         : run_status = RunStatus::Complete ; break     ;
 					case State::Err           : run_status = RunStatus::DepErr   ; goto Done ; // we cant run the job, error is set and we're done
 					case State::MissingStatic : run_status = RunStatus::NoDep    ; goto Done ; // .
@@ -1085,15 +1086,15 @@ namespace Engine {
 		switch (rule->special) {
 			case Special::Plain :
 				SWEAR(frozen()) ;
-				if (+node) return to_string("frozen file does not exist while not phony : ",node.name(),'\n') ;
-				else       return           "frozen file does not exist while not phony\n"                    ;
+				if (+node) return to_string("frozen file does not exist while not phony : ",node->name(),'\n') ;
+				else       return           "frozen file does not exist while not phony\n"                     ;
 			case Special::Infinite : {
 				size_t   n_deps      = deps.size()                                             ;
 				bool     truncate    = g_config.max_err_lines && n_deps>g_config.max_err_lines ;
 				size_t   n_show_deps = truncate ? g_config.max_err_lines-1 : n_deps            ; // limit output length, including last line (...)
 				::string res         ;
-				for( size_t i=1 ; i<=n_show_deps ; i++ ) { res+=deps[n_deps-i].name() ; res+='\n' ; }
-				if (truncate)                            { res+="...\n"               ;             }
+				for( size_t i=1 ; i<=n_show_deps ; i++ ) { res+=deps[n_deps-i]->name() ; res+='\n' ; }
+				if (truncate)                            { res+="...\n"                ;             }
 				return res ;
 			}
 			case Special::Src :
@@ -1153,7 +1154,7 @@ namespace Engine {
 					modified |= m ;
 				}
 				for( Node t : star_targets ) {
-					auto [ss,m] = _update_target(t,t.name()) ;
+					auto [ss,m] = _update_target(t,t->name()) ;
 					if (ss==SpecialStep::NoFile) ss = SpecialStep::Err ;
 					if (ss>special_step        ) { special_step = ss ; worst_target = t ; }
 					modified |= m ;
@@ -1179,17 +1180,6 @@ namespace Engine {
 			case Special::Infinite :
 				status = Status::Err ;
 				audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ;
-			break ;
-			case Special::Uphill :
-				for( Dep const& d : deps ) {
-					// if we see a link uphill, then our crc is unknown to trigger rebuild of dependents
-					// there is no such stable situation as link will be resolved when dep is acquired, only when link appeared, until next rebuild
-					Node t{name()} ;
-					t->actual_job_tgt = {idx(),true/*is_sure*/} ;
-					if ( d->crc.is_lnk() || !d->crc ) t->refresh( {}        , {}             ) ;
-					else                              t->refresh( Crc::None , Ddate::s_now() ) ;
-				}
-				status = Status::Ok ;
 			break ;
 			default : fail() ;
 		}
@@ -1232,7 +1222,7 @@ namespace Engine {
 		}
 		Rule::FullMatch fm ;                                                   // lazy evaluated
 		for( Target t : star_targets ) {
-			::string tn = t.name() ;
+			::string tn = t->name() ;
 			if (t->manual_refresh(req,FileInfoDate(tn))==Yes)
 				manual_targets.emplace_back( t , t.lazy_tflag(Tflag::ManualOk,match,fm,tn)||t.manual_ok() ) ; // may solve fm lazy evaluation, tn is already ok
 		}
@@ -1241,7 +1231,7 @@ namespace Engine {
 		for( auto const& [t,ok] : manual_targets ) {
 			trace("manual",t,STR(ok)) ;
 			bool target_ok = ok || req->options.flags[ReqFlag::ManualOk] ;
-			req->audit_job( target_ok?Color::Note:Color::Err , "manual" , rule , t.name() ) ;
+			req->audit_job( target_ok?Color::Note:Color::Err , "manual" , rule , t->name() ) ;
 			job_ok &= target_ok ;
 			req->manuals.emplace(t,::pair(target_ok,req->manuals.size())) ;
 		}
@@ -1253,7 +1243,7 @@ namespace Engine {
 	Advised :
 		for( auto const& [t,ok] : manual_targets ) {
 			if (ok) continue ;
-			Ddate   td    = file_date(t.name())            ;
+			Ddate   td    = file_date(t->name())           ;
 			uint8_t n_dec = (td-t->date)>Delay(2.) ? 0 : 3 ;                   // if dates are far apart, probably a human action and short date is more comfortable, else be precise
 			req->audit_node(
 				Color::Note

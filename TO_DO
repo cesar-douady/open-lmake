@@ -198,14 +198,15 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*3 process specifically uphill
-	- directly depend node->node
-	- avoid creating an intermediate job
-	- there are a lot of them an bring no value
 *4 record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
 	- this way we can severely reduce the Deps size (4x if we can manage accesses)
+* handle dir hierarchy in store
+	- provide a primitive to insert all dirs of a node at once
+	- much more efficient
+	- not difficult to code
+	- return a vector of idxs
 * Improve job_exec overhead
 	- pass JobRpcReply as argument to job_exec when reasonably small
 	- job_exec connect to server in parallel with job execution to get connection info

@@ -187,8 +187,8 @@ namespace Hash {
 	// implementation
 	//
 
-	constexpr Crc Crc::Unknown{+CrcSpecial::Unknown_} ;                        // crc has not been computed
-	constexpr Crc Crc::None   {+CrcSpecial::None    } ;                        // file does not exist
+	constexpr Crc Crc::Unknown{+CrcSpecial::Unknown_<<1} ; static_assert(!Crc::Unknown.is_lnk()) ; // crc has not been computed
+	constexpr Crc Crc::None   {+CrcSpecial::None    <<1} ; static_assert(!Crc::None   .is_lnk()) ; // file does not exist
 
 }
 // must be outside Engine namespace as it specializes std::hash

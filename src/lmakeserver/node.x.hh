@@ -41,12 +41,11 @@ namespace Engine {
 		using MakeAction = NodeMakeAction ;
 		using ReqInfo    = NodeReqInfo    ;
 		//
-		static constexpr RuleIdx NoIdx    = -1 ;
-		static constexpr RuleIdx MultiIdx = -2 ;
-		// cxtors & casts
-	public :
+		static constexpr RuleIdx NoIdx     = -1 ;
+		static constexpr RuleIdx MultiIdx  = -2 ;
+		static constexpr RuleIdx UphillIdx = -3 ;
+		//
 		using NodeBase::NodeBase ;
-		Node(::string const& n) ;
 	} ;
 
 	//
@@ -86,9 +85,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,AccDflags> const& ,                           bool parallel=false ) ;
-		Deps( ::vmap  <Node,Dflags   > const& , Accesses={} ,             bool parallel=false ) ;
-		Deps( ::vector<Node          > const& , Accesses={} , Dflags={} , bool parallel=false ) ;
+		Deps( ::vmap  <Node,AccDflags> const& ,                                  bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,                       bool parallel=true ) ;
+		Deps( ::vector<Node          > const& , Accesses , Dflags=StaticDflags , bool parallel=true ) ;
 	} ;
 
 	//
@@ -128,23 +127,22 @@ namespace Engine {
 	,	Overwritten
 	)
 
-	struct NodeReqInfo : ReqInfo<Job> {                                         // watchers of Node's are Job's
+	struct NodeReqInfo : ReqInfo {                                              // watchers of Node's are Job's
 		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
 		//
-		using Base       = ReqInfo<Job>   ;
 		using Lvl        = NodeLvl        ;
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
 		static const     ReqInfo Src   ;
 		// cxtors & casts
-		using Base::Base ;
+		using ReqInfo::ReqInfo ;
 		// services
 		void update( RunAction , MakeAction , NodeData const& ) ;
 		// data
 	public :
-		RuleIdx prio_idx = NoIdx ;                         //    16 bits
-		bool    done     = false ;                         // 1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
+		RuleIdx prio_idx = NoIdx         ;                 //    16 bits
+		bool    done     = false         ;                 // 1<= 8 bit , if true => analysis is over (non-buildable Node's are automatically done)
 		NodeErr err      = NodeErr::None ;                 // 2<= 8 bit , if Yes  => node is in error (typically dangling), if Maybe => node is inadequate (typically overwritten)
 	} ;
 	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
@@ -154,25 +152,28 @@ namespace Engine {
 #ifdef DATA_DEF
 namespace Engine {
 
-	struct NodeData {
+	struct NodeData : DataBase {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
 		using LvlIdx     = RuleIdx        ;                                    // lvl may indicate the number of rules tried
 		//
-		static constexpr RuleIdx NoIdx      = Node::NoIdx    ;
-		static constexpr RuleIdx MultiIdx   = Node::MultiIdx ;
-		static constexpr uint8_t NBuildable = +Bool3::N+1    ;                 // Bool3::Unknown (=Bool3::N) is a possible value
-		// statics
+		static constexpr RuleIdx NoIdx     = Node::NoIdx     ;
+		static constexpr RuleIdx MultiIdx  = Node::MultiIdx  ;
+		static constexpr RuleIdx UphillIdx = Node::UphillIdx ;
 		// cxtors & casts
+		NodeData() = default ;
+		NodeData( Name n , size_t sz , bool external ) : DataBase{n} , long_name{sz>g_config.path_max} {
+			if ( long_name || external ) return ;                                                        // no need for a dir as we will not try to build node
+			dir = dir_name() ;                                                                           // if !long_name, dir is safe as it is shorter
+		}
 		~NodeData() {
 			job_tgts.pop() ;
 		}
 		// accesses
 		Node     idx    () const { return Node::s_idx(*this) ; }
-		::string name   () const { return idx().name()       ; }
-		size_t   name_sz() const { return idx().name_sz()    ; }
-		Node     dir    () const { return idx().dir()        ; }
+		::string name   () const { return full_name()        ; }
+		size_t   name_sz() const { return full_name_sz()     ; }
 		//
 		bool           has_req   (Req           ) const ;
 		ReqInfo const& c_req_info(Req           ) const ;
@@ -195,25 +196,30 @@ namespace Engine {
 		Bool3 manual_refresh( Req            r                     )       { return manual_refresh(r,FileInfoDate(name())) ; }
 		Bool3 manual_refresh( JobData const& j                     )       { return manual_refresh(j,FileInfoDate(name())) ; }
 		//
-		bool multi  (                    ) const { return conform_idx==MultiIdx ; }
+		bool multi  (                    ) const { return conform_idx==MultiIdx  ; }
+		bool uphill (                    ) const { return conform_idx==UphillIdx ; }
 		bool makable(bool uphill_ok=false) const {
 			switch (conform_idx) {
-				case NoIdx    : return false                ;
-				case MultiIdx : return true                 ;                  // multi is an error case, but is makable
-				default       : return !uphill || uphill_ok ;
+				case NoIdx     : return false     ;
+				case MultiIdx  : return true      ;                            // multi is an error case, but is makable
+				case UphillIdx : return uphill_ok ;
+				default        : return true      ;
 			}
 		}
 		bool is_src() const {
-			if (job_tgts.empty()) return false                 ;
-			else                  return job_tgts[0]->is_src() ;
+			return !job_tgts.empty() && job_tgts[0]->is_src() ;
 		}
 		JobTgt conform_job_tgt() const {
-			SWEAR(makable(true/*uphill_ok*/)) ;                                // we are not going to pass an argument just for a SWEAR, uphill_ok is conservative
-			return job_tgts[conform_idx] ;
+			switch (conform_idx) {
+				case NoIdx     :
+				case MultiIdx  : return {}                    ;
+				case UphillIdx : return {}                    ;
+				default        : return job_tgts[conform_idx] ;
+			}
 		}
 		bool conform() const {
 			JobTgt cjt = conform_job_tgt() ;
-			return cjt->is_special() || has_actual_job_tgt(cjt) ;
+			return +cjt && ( cjt->is_special() || has_actual_job_tgt(cjt) ) ;
 		}
 		bool err(bool uphill_ok=false) const {
 			if (multi()            ) return true                     ;
@@ -225,6 +231,14 @@ namespace Engine {
 		bool is_special(                                           ) const { return makable(true/*uphill_ok*/) && conform_job_tgt()->is_special() ; }
 		// services
 		ReqChrono db_chrono() const { return has_actual_job() ? actual_job_tgt->db_chrono() : 0 ; }
+		void new_path_max(bool new_is_longer) {
+			/**/                                         if (long_name!=new_is_longer) return ;
+			bool is_long = name_sz()>g_config.path_max ; if (long_name==is_long      ) return ;
+			//
+			long_name = is_long ;
+			if      (is_long             ) dir.clear() ;
+			else if (Disk::is_lcl(name())) dir = dir_name() ;
+		}
 		//
 		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in a
 			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference
@@ -241,23 +255,24 @@ namespace Engine {
 		void              mk_src       () ;
 		void              mk_no_src    () ;
 		//
-		::vector_view_c<JobTgt> prio_job_tgts   ( RuleIdx prio_idx ) const ;
-		::vector_view_c<JobTgt> conform_job_tgts( ReqInfo const&   ) const ;
-		::vector_view_c<JobTgt> conform_job_tgts(                  ) const ;
+		::vector_view_c<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
+		::vector_view_c<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
+		::vector_view_c<JobTgt> conform_job_tgts(                ) const ;
 		//
 		void set_buildable( Req , DepDepth lvl=0               ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& ri , CoarseDelay pressure ) const ;
 		//
-		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , Dflags=StaticDflags , bool parallel=false ) ;
+		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , Dflags=StaticDflags , bool parallel=true ) ;
 		//
-		ReqInfo const& make( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
-		ReqInfo const& make( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
+		ReqInfo const& make       ( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
+		ReqInfo const& make       ( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
+		Bool3/*found*/ make_uphill( ReqInfo      & ri                                                                 ) ;
 		//
 		void audit_multi( Req , ::vector<JobTgt> const& ) ;
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
-		void add_watcher( ReqInfo& ri , Job watcher , Job::ReqInfo& wri , CoarseDelay pressure ) ;
+		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
 		bool/*modified*/ refresh( Crc , Ddate ) ;
 		void             refresh(             ) ;
@@ -268,9 +283,11 @@ namespace Engine {
 		//
 		::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req , DepDepth lvl=0 ) ;
 		//
-		void _set_buildable(Bool3=Bool3::Unknown) ;
+		void _set_match_gen(bool ok) ;
+		void _set_buildable(Bool3  ) ;
 		// data
 	public :
+		Node     dir                     ;                  //      31 bits, shared
 		Ddate    date                    ;                  // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 		Crc      crc                     = Crc::None      ; // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 		RuleTgts rule_tgts               ;                  // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
@@ -278,25 +295,16 @@ namespace Engine {
 		JobTgt   actual_job_tgt          ;                  //  31<=32 bits, shared, job that generated node
 		RuleIdx  conform_idx             = Node::NoIdx    ; //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		MatchGen match_gen:NMatchGenBits = 0              ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		bool     uphill   :1             = false          ; //       1 bit ,         if true <=> node is produced by uphill
 		Bool3    buildable:2             = Bool3::Unknown ; //       2 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
 		bool     unlinked :1             = false          ; //       1 bit ,         if true <=> node as been unlinked by another rule
-		bool     external :1             = false          ; //       1 bit ,         if true <=> node is outside repo
+		bool     long_name:1             = false          ; //       1 bit ,         name length is larger than allowed by config
 	} ;
-	static_assert(sizeof(NodeData)==32) ;                                      // check expected size
+	static_assert(sizeof(NodeData)==40) ;                                      // check expected size
 
 }
 #endif
 #ifdef IMPL
 namespace Engine {
-
-	//
-	// Node
-	//
-
-	inline Node::Node(::string const& n) : NodeBase{n} {
-		if (!Disk::is_lcl(n)) (*this)->external = true ;
-	}
 
 	//
 	// NodeReqInfo
@@ -359,12 +367,17 @@ namespace Engine {
 	}
 
 	inline ::vector_view_c<JobTgt> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
-	inline ::vector_view_c<JobTgt> NodeData::conform_job_tgts() const {
+	inline ::vector_view_c<JobTgt> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		RuleIdx prio_idx = conform_idx ;
-		if (prio_idx!=NoIdx)
-			while ( prio_idx && job_tgts[prio_idx-1]->rule->prio==job_tgts[prio_idx]->rule->prio )
-				prio_idx-- ;                                                                       // rewind to first job within prio level
+		switch (prio_idx) {
+			case NoIdx     :
+			case MultiIdx  :
+			case UphillIdx : break ;
+			default :
+				Prio prio = job_tgts[prio_idx]->rule->prio ;
+				while ( prio_idx && job_tgts[prio_idx-1]->rule->prio==prio ) prio_idx-- ; // rewind to first job within prio level
+		}
 		return prio_job_tgts(prio_idx) ;
 	}
 
@@ -377,15 +390,20 @@ namespace Engine {
 		return res ;
 	}
 
-	inline void NodeData::add_watcher( ReqInfo& ri , Job watcher , Job::ReqInfo& wri , CoarseDelay pressure ) {
+	template<class RI> inline void NodeData::add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) {
 		ri.add_watcher(watcher,wri) ;
 		set_pressure(ri,pressure) ;
 	}
 
+	inline void NodeData::_set_match_gen(bool ok) {
+		if      (!ok                        ) { match_gen = 0                 ; buildable = Bool3::Unknown ; }
+		else if (match_gen<Rule::s_match_gen)   match_gen = Rule::s_match_gen ;
+	}
+
 	inline void NodeData::_set_buildable(Bool3 b) {
-		MatchGen match_gen_ = b==Bool3::Unknown ? 0 : ::max(match_gen,Rule::s_match_gen) ;
-		match_gen = match_gen_ ;
-		buildable = b          ;
+		SWEAR(match_gen>=Rule::s_match_gen,match_gen,Rule::s_match_gen) ;
+		SWEAR(b!=Bool3::Unknown                                       ) ;
+		buildable = b ;
 	}
 
 	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {            // req is for error reporting only
@@ -422,8 +440,8 @@ namespace Engine {
 	inline bool Target::lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) { // fm & tn are lazy evaluated
 		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
 		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
-		if (!fm       ) fm = sm     ;                                          // solve lazy evaluation
-		if (tn.empty()) tn = name() ;                                          // .
+		if (!fm       ) fm = sm              ;                                 // solve lazy evaluation
+		if (tn.empty()) tn = (*this)->name() ;                                 // .
 		/**/            return sm.rule->tflags(fm.idx(tn))[tf] ;
 	}
 

@@ -516,7 +516,7 @@ namespace Backends::Slurm {
 		SWEAR(nice        >=0) ;
 		//
 		::string                 wd        = *g_root_dir             ;
-		auto                     job_name  = key + Job(job).name()   ;
+		auto                     job_name  = key + Job(job)->name()  ;
 		::string                 script    = cmd_to_string(cmd_line) ;
 		::string                 s_errPath ;
 		::string                 s_outPath ;

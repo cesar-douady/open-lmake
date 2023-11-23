@@ -28,11 +28,11 @@ namespace Engine {
 			size_t        w       = 0                ; for( Job j : markeds ) w = ::max(w,j->rule->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
 				for( Job j : markeds )
-					if (j->rule->is_src()) Node(j.name())->mk_no_src() ;
+					if (j->rule->is_src()) Node(j->name())->mk_no_src() ;
 					else                   j->status = Status::Garbage ;
 				Job::s_clear_frozens() ;
 			}
-			for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j.name() ) ;
+			for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j->name() ) ;
 			return true ;
 		} else {
 			bool           add      = ro.key==ReqKey::Add ;
@@ -45,15 +45,15 @@ namespace Engine {
 			//
 			auto handle_job = [&](Job j)->bool/*ok*/ {
 				if (add) {
-					if (!j.active() ) throw ::pair("job not found"s   ,j.name()) ;
-					if ( j->frozen()) throw ::pair("already frozen"s  ,j.name()) ;
-					if ( j->is_src()) throw ::pair("file is a source"s,j.name()) ;
+					if (!j.active() ) throw ::pair("job not found"s   ,j->name()) ;
+					if ( j->frozen()) throw ::pair("already frozen"s  ,j->name()) ;
+					if ( j->is_src()) throw ::pair("file is a source"s,j->name()) ;
 				} else {
-					if (!j.active() ) throw ::pair("not frozen"s,j.name()) ;
-					if (!j->frozen()) throw ::pair("not frozen"s,j.name()) ;
-					if ( j->is_src()) old_srcs.push_back(j.name()) ;
+					if (!j.active() ) throw ::pair("not frozen"s,j->name()) ;
+					if (!j->frozen()) throw ::pair("not frozen"s,j->name()) ;
+					if ( j->is_src()) old_srcs.push_back(j->name()) ;
 				}
-				if ( !j->running_reqs().empty() ) throw ::pair("job is running"s,j.name()) ;
+				if ( !j->running_reqs().empty() ) throw ::pair("job is running"s,j->name()) ;
 				//
 				w = ::max( w , j->rule->name.size() ) ;
 				to_do.push_back(j) ;
@@ -68,7 +68,7 @@ namespace Engine {
 					Job j = t->actual_job_tgt ;
 					if      ( !j.active() && add                      ) new_srcs.push_back(t) ;
 					else if ( t->is_src()                             ) handle_job(j) ;
-					else if ( !force && !(t->makable()&&t->conform()) ) throw ::pair("target was not produced by its offical job"s,t.name()) ;
+					else if ( !force && !(t->makable()&&t->conform()) ) throw ::pair("target was not produced by its offical job"s,t->name()) ;
 					else                                                handle_job(j) ;
 				}
 			}
@@ -80,7 +80,7 @@ namespace Engine {
 				Job::s_frozens(add,to_do) ;
 				for( Job j : to_do ) {
 					if (!add) j->status = Status::Garbage ;
-					audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j.name() ) ;
+					audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j->name() ) ;
 				}
 			}
 			for( Node t : old_srcs ) t->mk_no_src() ;
@@ -97,7 +97,7 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Node> markeds = Node::s_manual_oks() ;
 			if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
-			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n.name() ) ;
+			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n->name() ) ;
 		} else {
 			bool           add     = ro.key==ReqKey::Add ;
 			::vector<Node> targets ;
@@ -106,12 +106,12 @@ namespace Engine {
 			//check
 			for( Node t : targets )
 				if (t.manual_ok()==add) {
-					audit( fd , ro , Color::Err , 0 , to_string("file is ",add?"already":"not"," manual-ok :") , t.name() ) ;
+					audit( fd , ro , Color::Err , 0 , to_string("file is ",add?"already":"not"," manual-ok :") , t->name() ) ;
 					return false ;
 				}
 			// do what is asked
 			Node::s_manual_oks(add,targets) ;
-			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t.name() ) ;
+			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t->name() ) ;
 		}
 		return true ;
 	}
@@ -124,7 +124,7 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Node> markeds = Node::s_no_triggers() ;
 			if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
-			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n.name() ) ;
+			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , {} , n->name() ) ;
 		} else {
 			bool           add     = ro.key==ReqKey::Add ;
 			::vector<Node> targets ;
@@ -133,23 +133,23 @@ namespace Engine {
 			//check
 			for( Node t : targets )
 				if (t.no_trigger()==add) {
-					audit( fd , ro , Color::Err , 0 , to_string("file is ",add?"already":"not"," manual-ok :") , t.name() ) ;
+					audit( fd , ro , Color::Err , 0 , to_string("file is ",add?"already":"not"," manual-ok :") , t->name() ) ;
 					return false ;
 				}
 			// do what is asked
 			Node::s_no_triggers(add,targets) ;
-			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t.name() ) ;
+			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , {} , t->name() ) ;
 		}
 		return true ;
 	}
 
 	static void _send_node( Fd fd , ReqOptions const& ro , bool always , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      ( hide==Yes                                         ) color =                         Color::HiddenNote ;
-		else if ( !node->has_actual_job() && !FileInfo(node.name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
-		else if ( node->err()                                       ) color =            Color::Err                     ;
+		if      ( hide==Yes                                          ) color =                         Color::HiddenNote ;
+		else if ( !node->has_actual_job() && !FileInfo(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
+		else if ( node->err()                                        ) color =            Color::Err                     ;
 		//
-		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , lvl , pfx , node.name() ) ;
+		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , lvl , pfx , node->name() ) ;
 	}
 
 	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
@@ -159,7 +159,7 @@ namespace Engine {
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job->frozen()          ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		audit( fd , ro , color , lvl , rule->name , job.name() ) ;
+		audit( fd , ro , color , lvl , rule->name , job->name() ) ;
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;
@@ -171,7 +171,7 @@ namespace Engine {
 			Dep const& dep     = job->deps[d]                                                                           ;
 			bool       cdp     = d  >0                && dep           .parallel                                        ;
 			bool       ndp     = d+1<job->deps.size() && job->deps[d+1].parallel                                        ;
-			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep.name()) : ""s                               ;
+			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s                              ;
 			::string   pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ' ' , ::setw(w) , dep_key ,' ') ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
 			else if ( !cdp &&  ndp ) pfx.push_back('/' ) ;
@@ -211,7 +211,7 @@ namespace Engine {
 				if (d->crc==Crc::None) continue ;                              // we are only interested in existing deps as other ones are of marginal interest
 				if (first) first  = false ;
 				else       res   += ','   ;
-				res += to_string('\t',mk_py_str(d.name()),'\n') ;
+				res += to_string('\t',mk_py_str(d->name()),'\n') ;
 			}
 			res += ")\n" ;
 			//
@@ -237,7 +237,7 @@ namespace Engine {
 		bool                                                         is_python       = j->rule->cmd.spec.is_python                   ;
 		bool                                                         dbg             = flags[ReqFlag::Debug]                         ;
 		bool                                                         redirected      = !start.stdin.empty() || !start.stdout.empty() ;
-		::uset_s                                                     to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t.name()) ;
+		::uset_s                                                     to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t->name()) ;
 		//
 		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
 		//
@@ -311,8 +311,8 @@ namespace Engine {
 		Trace("target",target,jt) ;
 		return jt ;
 	NoJob :
-		audit( fd , ro , Color::Err  , 0 , "target not built"                ) ;
-		audit( fd , ro , Color::Note , 1 , "consider : lmake", target.name() ) ;
+		audit( fd , ro , Color::Err  , 0 , "target not built"                 ) ;
+		audit( fd , ro , Color::Note , 1 , "consider : lmake", target->name() ) ;
 		return {} ;
 	}
 
@@ -469,7 +469,7 @@ namespace Engine {
 								::pair_s<NodeIdx> reason = report_start.submit_attrs.reason.str() ;
 								if (+reason.second) {
 									bool err = report_start.submit_attrs.reason.err() ;
-									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason                : ",reason.first," :") , Node(reason.second).name() , lvl+1 ) ;
+									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason                : ",reason.first," :") , Node(reason.second)->name() , lvl+1 ) ;
 								} else {
 									audit( fd , ro , Color::None , lvl+1 , "reason                : "+reason.first ) ;
 								}
@@ -617,7 +617,7 @@ namespace Engine {
 				break ;
 				case ReqKey::Deps    : {
 					bool     always      = ro.flags[ReqFlag::Verbose] ;
-					::string uphill_name = dir_name(target.name())    ;
+					::string uphill_name = dir_name(target->name())   ;
 					double   prio        = -Infinity                  ;
 					if (!uphill_name.empty()) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts ) {

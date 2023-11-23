@@ -58,13 +58,13 @@ namespace Engine {
 			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
-		if (sc.max_dep_depth      ) os <<",MD" << sc.max_dep_depth          ;
-		if (sc.max_err_lines      ) os <<",EL" << sc.max_err_lines          ;
-		if (sc.path_max           ) os <<",PM" << sc.path_max               ;
-		if (sc.sub_prio_boost     ) os <<",SPB"<< sc.sub_prio_boost         ;
-		if (!sc.caches.empty()    ) os <<','   << sc.caches                 ;
-		for( Tag t : Tag::N       ) os <<','   << t <<':'<< sc.backends[+t] ;
-		if (!sc.src_dirs_s.empty()) os <<','   << sc.src_dirs_s             ;
+		if (sc.max_dep_depth       ) os <<",MD" << sc.max_dep_depth          ;
+		if (sc.max_err_lines       ) os <<",EL" << sc.max_err_lines          ;
+		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
+		if (sc.sub_prio_boost      ) os <<",SPB"<< sc.sub_prio_boost         ;
+		if (!sc.caches.empty()     ) os <<','   << sc.caches                 ;
+		for( Tag t : Tag::N        ) os <<','   << t <<':'<< sc.backends[+t] ;
+		if (!sc.src_dirs_s.empty() ) os <<','   << sc.src_dirs_s             ;
 		return os<<')' ;
 	}
 
@@ -229,17 +229,17 @@ namespace Engine {
 
 	::string Config::pretty_str() const {
 		OStringStream res ;
-		/**/          res << "db_version       : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		/**/          res << "hash_algo        : " << mk_snake(hash_algo    )                 <<'\n' ;
-		/**/          res << "link_support     : " << mk_snake(lnk_support  )                 <<'\n' ;
-		/**/          res << "local_admin_dir  : " <<          user_local_admin_dir           <<'\n' ;
-		/**/          res << "max_dep_depth    : " << size_t  (max_dep_depth)                 <<'\n' ;
-		/**/          res << "max_error_lines  : " <<          max_err_lines                  <<'\n' ;
-		/**/          res << "network_delay    : " <<          network_delay.short_str()      <<'\n' ;
-		if (path_max) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
-		else          res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
-		/**/          res << "remote_admin_dir : " <<          user_remote_admin_dir          <<'\n' ;
-		/**/          res << "remote_tmp_dir   : " <<          user_remote_tmp_dir            <<'\n' ;
+		/**/                      res << "db_version       : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
+		/**/                      res << "hash_algo        : " << mk_snake(hash_algo    )                 <<'\n' ;
+		/**/                      res << "link_support     : " << mk_snake(lnk_support  )                 <<'\n' ;
+		/**/                      res << "local_admin_dir  : " <<          user_local_admin_dir           <<'\n' ;
+		/**/                      res << "max_dep_depth    : " << size_t  (max_dep_depth)                 <<'\n' ;
+		/**/                      res << "max_error_lines  : " <<          max_err_lines                  <<'\n' ;
+		/**/                      res << "network_delay    : " <<          network_delay.short_str()      <<'\n' ;
+		if (path_max!=size_t(-1)) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
+		else                      res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
+		/**/                      res << "remote_admin_dir : " <<          user_remote_admin_dir          <<'\n' ;
+		/**/                      res << "remote_tmp_dir   : " <<          user_remote_tmp_dir            <<'\n' ;
 		res << "console :\n" ;
 		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
 		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -371,21 +371,26 @@ namespace Engine {
 		else                 throw  to_string("files are outside repo :\n",err_str) ;
 	}
 
-	Job EngineClosureReq::job() const {
+	Job EngineClosureReq::job(::string const& startup_dir_s) const {
 		SWEAR(as_job()) ;
 		Rule r ;
 		if (options.flags[ReqFlag::Rule]) {
-			auto it = Rule::s_by_name.find(options.flag_args[+ReqFlag::Rule]) ;
+			::string const& rule_name = options.flag_args[+ReqFlag::Rule] ;
+			auto it = Rule::s_by_name.find(rule_name) ;
 			if (it!=Rule::s_by_name.end()) r = it->second ;
+			else                           throw to_string("cannot find rule ",rule_name) ;
+			Job j{r,files[0]} ;
+			if (!j) throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)," using rule ",rule_name) ;
+			return j ;
 		}
-		if (+r) return Job(r,files[0]) ;
 		::vector<Job> candidates ;
 		for( Rule r : Rule::s_lst() ) {
 			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
 		}
-		if (candidates.empty()  ) return {}            ;
 		if (candidates.size()==1) return candidates[0] ;
 		//
+		if (candidates.empty())
+			throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)) ;
 		::string err_str = "several rules match, consider :\n" ;
 		for( Job j : candidates ) {
 			err_str += _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) ;

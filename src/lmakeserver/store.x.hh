@@ -12,8 +12,10 @@
 #include "store/prefix.hh"
 #include "store/side_car.hh"
 
+#include "idxed.hh"
+
 //
-// There are 10 files :
+// There are 9 files :
 // - 1 name file associates a name with either a node or a job :
 //   - This is a prefix-tree to share as much prefixes as possible since names tend to share a lot of prefixes
 //   - For jobs, a suffix containing the rule and the positions of the stems is added.
@@ -33,7 +35,7 @@
 //   - A rule index file containing indexes in the rule string file.
 //     The reason for this indirection is to have a short (16 bits) index for rules while the index in the rule string file is 32 bits.
 //   - A rule-targets file containing vectors of rule-target's. A rule-target is a rule index and a target index within the rule.
-//   - This file is for use by nodes to represent candidates to generate them.
+//     This file is for use by nodes to represent candidates to generate them.
 //     During the analysis process, rule-targets are transformed into job-target when possible (else they are dropped), so that the yet to analyse part which
 //     the node keeps is a suffix of the original list.
 //     For this reason, the file is stored as a suffix-tree (like a prefix-tree, but reversed).
@@ -46,118 +48,6 @@ namespace Engine {
 #endif
 
 #ifdef STRUCT_DEF
-namespace Engine {
-
-	//
-	// Idxed
-	//
-
-	template<class T> static constexpr uint8_t NGuardBits_ = Store::NGuardBits<T> ;
-	template<class T> static constexpr uint8_t NValBits_   = Store::NValBits  <T> ;
-	//
-	template<class I,uint8_t NGuardBits_=0> struct Idxed {
-		static constexpr bool IsIdxed = true ;
-		using Idx = I ;
-		static constexpr uint8_t NGuardBits = NGuardBits_             ;
-		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		// statics
-	private :
-		static constexpr void _s_chk(Idx idx) { swear_prod( !(idx&~lsb_msk(NValBits)) , "index overflow" ) ; }
-		// cxtors & casts
-	public :
-		constexpr Idxed(       ) = default ;
-		constexpr Idxed(Idx idx) : _idx(idx ) { _s_chk(idx) ; }                // ensure no index overflow
-		//
-		constexpr Idx  operator+() const { return  _idx&lsb_msk(NValBits) ; }
-		constexpr bool operator!() const { return !+*this                 ; }
-		//
-		void clear() { *this = Idxed{} ; }
-		// accesses
-		constexpr bool              operator== (Idxed other) const { return +*this== +other ; }
-		constexpr ::strong_ordering operator<=>(Idxed other) const { return +*this<=>+other ; }
-		//
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const { return bits(_idx,W,NValBits+LSB)     ; }
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       { _idx = bits(_idx,W,NValBits+LSB,val) ; }
-		// data
-	private :
-		Idx _idx = 0 ;
-	} ;
-	template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
-	template<Engine::IsIdxed I> ::ostream& operator<<( ::ostream& os , I const i ) { return os<<+i ; }
-
-}
-
-namespace std {
-	template<Engine::IsIdxed I> struct hash<I> { size_t operator()(I i) const { return +i ; } } ;
-}
-
-namespace Engine {
-
-	//
-	// TaggedUnion
-	//
-
-	template<IsIdxed A,IsIdxed B> requires(!::is_same_v<A,B>) struct TaggedUnion {
-		static constexpr bool IsTaggedUnion = true ;
-
-		using Idx  = Largest< typename A::Idx , typename B::Idx > ;
-		using SIdx = ::make_signed_t<Idx> ;
-		static constexpr uint8_t NValBits   = ::max(NValBits_<A>,NValBits_<B>)+1 ;
-		static constexpr uint8_t NGuardBits = NValBits_<Idx>-NValBits            ;
-		static_assert( NValBits_<Idx> >= NValBits ) ;
-
-		template<class T> static constexpr bool IsA    = ::is_base_of_v<A,T> && ( ::is_base_of_v<B,A> || !::is_base_of_v<B,T> ) ; // ensure T does not derive independently from both A & B
-		template<class T> static constexpr bool IsB    = ::is_base_of_v<B,T> && ( ::is_base_of_v<A,B> || !::is_base_of_v<A,T> ) ; // .
-		template<class T> static constexpr bool IsAOrB = IsA<T> || IsB<T> ;
-
-		// cxtors & casts
-		constexpr TaggedUnion(   ) = default ;
-		constexpr TaggedUnion(A a) : _val{SIdx( +a)} {}
-		constexpr TaggedUnion(B b) : _val{SIdx(-+b)} {}
-		//
-		template<class T> requires(IsAOrB<T>) operator T() const {
-			SWEAR(is_a<T>()) ;
-			if (IsA<T>) return T(  _val  & lsb_msk(NValBits)) ;
-			else        return T((-_val) & lsb_msk(NValBits)) ;
-		}
-		template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return reinterpret_cast<T const&>(*this) ; }
-		template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return reinterpret_cast<T      &>(*this) ; }
-		//
-		void clear() { *this = TaggedUnion() ; }
-		// accesses
-		template<class T> requires(IsAOrB<T>) bool is_a() const {
-			if (IsA<T>) return !bit( _val,NValBits-1) ;
-			else        return !bit(-_val,NValBits-1) ;
-		}
-		//
-		SIdx     operator+    () const { return _val<<NGuardBits>>NGuardBits ; }
-		explicit operator bool() const { return _val<<NGuardBits != 0        ; }
-		bool     operator!    () const { return !bool(*this)                 ; }
-		//
-		bool              operator== (TaggedUnion other) const { return +*this== +other ; }
-		::strong_ordering operator<=>(TaggedUnion other) const { return +*this<=>+other ; }
-		//
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const { return bits(_val,W,NValBits+LSB)     ; }
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       { _val = bits(_val,W,NValBits+LSB,val) ; }
-	private :
-		// data
-		SIdx _val = 0 ;
-	} ;
-	template<class T> concept IsTaggedUnion = T::IsTaggedUnion && sizeof(T)==sizeof(typename T::Idx) ;
-	template<class A,class B> ::ostream& operator<<( ::ostream& os , TaggedUnion<A,B> const tu ) {
-		if      (!tu                  ) os << '0'   ;
-		else if (tu.template is_a<A>()) os << A(tu) ;
-		else                            os << B(tu) ;
-		return os ;
-	}
-
-}
-
-// must be outside Engine namespace as it specializes std::hash
-namespace std {
-	template<Engine::IsTaggedUnion TU> struct hash<TU> { size_t operator()(TU tu) const { return +tu ; } } ;
-}
-
 namespace Engine {
 
 	//
@@ -194,12 +84,12 @@ namespace Engine {
 	// CrunchVector's are like SimpleVector's except that a vector of 0 element is simply 0 and a vector of 1 element is stored in place
 	// This is particular efficient for situations where the vector size is 1 most of the time
 	template<class Idx_,class Item_,uint8_t NGuardBits=1> struct CrunchVectorBase
-	:	               TaggedUnion< Item_ , Idxed<Idx_,NGuardBits> >
-	{	using Base   = TaggedUnion< Item_ , Idxed<Idx_,NGuardBits> > ;
-		using Vector =                      Idxed<Idx_,NGuardBits>   ;
-		using Idx    =                            Idx_               ;
-		using Item   =              Item_                            ;
-		using Sz = Idx   ;
+	:	               Idxed2< Item_ , Idxed<Idx_,NGuardBits> >
+	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
+		using Vector =                 Idxed<Idx_,NGuardBits>   ;
+		using Idx    =                       Idx_               ;
+		using Item   =         Item_                            ;
+		using Sz     =                       Idx                ;
 		static_assert(sizeof(Item_)>=sizeof(Idx_)) ;                           // else it is difficult to implement the items() method with a cast in case of single element
 		// cxtors & casts
 		using Base::Base ;
@@ -318,11 +208,28 @@ namespace Engine {
 		// accesses
 		::string str   (size_t sfx_sz=0) const ;
 		size_t   str_sz(size_t sfx_sz=0) const ;
+		// services
+		Name dir() const ;
 	} ;
 
 	using DepsBase = SimpleVector<NodeIdx,Dep> ;
 
 	using TargetsBase = SimpleVector<NodeIdx,Target> ;
+
+	struct DataBase {
+		friend struct JobBase  ;
+		friend struct NodeBase ;
+		// cxtors & casts
+		DataBase(      ) = default ;
+		DataBase(Name n) : _full_name{n} {} ;
+		// accesses
+		Name     dir_name    (                    ) const { return _full_name.dir   (      ) ; }
+		::string full_name   (FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
+		size_t   full_name_sz(FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
+		// data
+	private :
+		Name _full_name ;
+	} ;
 
 	struct JobBase
 	:	             Idxed<JobIdx,JobNGuardBits>
@@ -349,14 +256,8 @@ namespace Engine {
 		JobData const* operator->() const { return &**this ; }
 		JobData      * operator->()       { return &**this ; }
 		//
-		RuleIdx  rule_idx (                    ) const ;
-		bool     has_name (                    ) const ;
-		::string full_name(FileNameIdx sfx_sz=0) const ;
-		bool     frozen   (                    ) const ;
-		//
-	private :
-		Name const& _name() const ;
-		Name      & _name()       ;
+		RuleIdx rule_idx() const ;
+		bool    frozen  () const ;
 	} ;
 
 	using JobTgtsBase = CrunchVector<JobIdx,JobTgt> ;
@@ -382,25 +283,16 @@ namespace Engine {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		NodeBase(::string const& name) ;
-	private :
-		NodeBase(Name) ;                                                       // no lock as it is managed in public cxtor & dir method
+		NodeBase( ::string const& name                     ) ;
+		NodeBase( Name , size_t sz=0 , bool external=false ) ;                 // no lock as it is managed in public cxtor & dir method
 		// accesses
 	public :
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
 		NodeData const* operator->() const { return &**this ; }
 		NodeData      * operator->()       { return &**this ; }
-		::string        name      () const ;
-		size_t          name_sz   () const ;
 		bool            manual_ok () const ;
 		bool            no_trigger() const ;
-	private :
-		Name const& _name() const ;
-		Name      & _name() ;
-		// services
-	public :
-		Node dir() const ;
 	} ;
 
 	using RuleStr = SimpleVector<RuleStrIdx,char> ;
@@ -440,8 +332,8 @@ namespace Engine {
 	} ;
 
 	struct JobNode
-	:	             Idxed<JobNodeIdx>                                         // can index Node or Job (no need to distinguish as Job names are suffixed with rule)
-	{	using Base = Idxed<JobNodeIdx> ;
+	:	             Idxed<WatcherIdx>                                         // can index Node or Job (no need to distinguish as Job names are suffixed with rule)
+	{	using Base = Idxed<WatcherIdx> ;
 		// cxtors & casts
 		using Base::Base ;
 		JobNode(JobBase ) ;
@@ -476,11 +368,11 @@ namespace Engine {
 
 	//                                            autolock header     index             key       data       misc
 	// jobs
-	using JobFile      = Store::SideCarFile     < false ,  JobHdr   , Job             ,           JobData  , Name             > ;
+	using JobFile      = Store::AllocFile       < false ,  JobHdr   , Job             ,           JobData                     > ;
 	using DepsFile     = Store::VectorFile      < false ,  void     , Deps            ,           Dep      , NodeIdx , 4      > ;
 	using TargetsFile  = Store::VectorFile      < false ,  void     , Targets         ,           Target                      > ;
 	// nodes
-	using NodeFile     = Store::SideCarFile     < false ,  NodeHdr  , Node            ,           NodeData , Name             > ;
+	using NodeFile     = Store::AllocFile       < false ,  NodeHdr  , Node            ,           NodeData                    > ;
 	using JobTgtsFile  = Store::VectorFile      < false ,  void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
 	// rules
 	using RuleStrFile  = Store::VectorFile      < false ,  void     , RuleStr         ,           char     , uint32_t         > ;
@@ -602,6 +494,8 @@ namespace Engine {
 	// accesses
 	inline ::string Name::str   (size_t sfx_sz) const { return g_store.name_file.str_key(+*this,sfx_sz) ; }
 	inline size_t   Name::str_sz(size_t sfx_sz) const { return g_store.name_file.key_sz (+*this,sfx_sz) ; }
+	// services
+	inline Name     Name::dir   (             ) const { return g_store.name_file.insert_dir(*this,'/')  ; }
 
 	//
 	// SimpleVectorBase
@@ -746,29 +640,26 @@ namespace Engine {
 		Name name_ = g_store.name_file.insert(name_sfx.first,name_sfx.second) ;
 		*this      = g_store.name_file.c_at(+name_).job() ;
 		if (+*this) {
-			SWEAR( name_==_name() , name_ , _name() ) ;
-			if (new_) **this = JobData(::forward<A>(args)...) ;
+			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
+			if (!new_) return ;
+			**this = JobData(::forward<A>(args)...) ;
 		} else {
 			*this = g_store.job_file.emplace(::forward<A>(args)...) ;
 			g_store.name_file.at(+name_) = *this ;
-			_name() = name_ ;
 		}
+		(*this)->_full_name = name_ ;
 	}
 	inline void JobBase::pop() {
 		if (!*this) return ;
-		if (+_name()) _name().pop() ;
+		if (+(*this)->_full_name) (*this)->_full_name.pop() ;
 		g_store.job_file.pop(+*this) ;
 		clear() ;
 	}
 	// accesses
-	inline bool     JobBase::has_name (                  ) const { return +_name()                              ; }
-	inline ::string JobBase::full_name(FileNameIdx sfx_sz) const { return  _name().str(sfx_sz)                  ; }
-	inline bool     JobBase::frozen   (                  ) const { return g_store.frozens.contains(Job(+*this)) ; }
+	inline bool JobBase::frozen() const { return g_store.frozens.contains(Job(+*this)) ; }
 	//
 	inline JobData const& JobBase::operator*() const { return g_store.job_file.c_at      (+*this) ; }
 	inline JobData      & JobBase::operator*()       { return g_store.job_file.at        (+*this) ; }
-	inline Name    const& JobBase::_name    () const { return g_store.job_file.c_side_car(+*this) ; }
-	inline Name         & JobBase::_name    ()       { return g_store.job_file.side_car  (+*this) ; }
 	//
 
 	//
@@ -802,35 +693,26 @@ namespace Engine {
 
 	}
 	// cxtors & casts
-	inline NodeBase::NodeBase(Name name_) {
+	inline NodeBase::NodeBase( Name name_ , size_t sz , bool external ) {
+		if (!name_) return ;
 		*this = g_store.name_file.c_at(name_).node() ;
 		if (+*this) {
-			SWEAR( name_==_name() , name_ , _name() ) ;
+			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
 		} else {
-			*this = g_store.node_file.emplace() ;
+			*this = g_store.node_file.emplace(name_,sz,external) ;
 			g_store.name_file.at(name_) = *this ;
-			_name() = name_ ;
+			(*this)->_full_name = name_ ;
 		}
 	}
 	inline NodeBase::NodeBase(::string const& n) {
-		*this = Node(g_store.name_file.insert(n)) ;
+		*this = Node( g_store.name_file.insert(n) , n.size() , !Disk::is_lcl(n) ) ;
 	}
 	// accesses
-	inline ::string NodeBase::name      () const { return _name().str   ()                           ; }
-	inline size_t   NodeBase::name_sz   () const { return _name().str_sz()                           ; }
-	inline bool     NodeBase::manual_ok () const { return g_store.manual_oks .contains(Node(+*this)) ; }
-	inline bool     NodeBase::no_trigger() const { return g_store.no_triggers.contains(Node(+*this)) ; }
+	inline bool NodeBase::manual_ok () const { return g_store.manual_oks .contains(Node(+*this)) ; }
+	inline bool NodeBase::no_trigger() const { return g_store.no_triggers.contains(Node(+*this)) ; }
 	//
 	inline NodeData const& NodeBase::operator*() const { return g_store.node_file.c_at      (+*this) ; }
 	inline NodeData      & NodeBase::operator*()       { return g_store.node_file.at        (+*this) ; }
-	inline Name     const& NodeBase::_name    () const { return g_store.node_file.c_side_car(+*this) ; }
-	inline Name          & NodeBase::_name    ()       { return g_store.node_file.side_car  (+*this) ; }
-	// services
-	inline Node NodeBase::dir() const {
-		Name name_ = g_store.name_file.insert_dir(_name(),'/') ;
-		if (+name_) return Node(name_) ;
-		else        return Node(     ) ;
-	}
 
 	//
 	// RuleBase
