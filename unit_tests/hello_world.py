@@ -3,19 +3,18 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule,PyRule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	,	'world'
 	)
 
-	class Cat(lmake.Rule) :
+	class Cat(Rule) :
 		stems = {
 			'File1' : r'.*'
 		,	'File2' : r'.*'
@@ -29,7 +28,7 @@ if __name__!='__main__' :
 		target = '{File1}+{File2}_sh'
 		cmd    = 'cat {FIRST} {SECOND}'
 
-	class CatPy(Cat,lmake.PyRule) :
+	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
 		def cmd() :
 			print(open(FIRST ).read(),end='')

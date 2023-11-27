@@ -31,28 +31,28 @@ struct Pipe {
 	Fd write ;     // write side of the pipe
 } ;
 
-static inline bool/*was_blocked*/ set_sig( int sig , Bool3 block ) {
-	sigset_t mask ;
-	sigemptyset(&mask    ) ;
-	sigaddset  (&mask,sig) ;
+static inline bool/*was_blocked*/ set_sig( int sig , bool block ) {
+	sigset_t new_mask ;
+	sigset_t old_mask ;
+	sigemptyset(&new_mask    ) ;
+	sigaddset  (&new_mask,sig) ;
 	//
-	SWEAR(pthread_sigmask( block==Yes?SIG_BLOCK:SIG_UNBLOCK , block==Maybe?nullptr:&mask , &mask )==0) ;
+	swear( ::pthread_sigmask( block?SIG_BLOCK:SIG_UNBLOCK , &new_mask , &old_mask )==0 , "cannot ",block?"block":"unblock"," sig ",sig ) ;
 	//
-	return sigismember(&mask,sig)!=(block==Yes) ;
+	return sigismember(&old_mask,sig)!=block ;
 }
-static inline bool/*did_block  */ block_sig  (int sig) { return set_sig(sig,Yes  ) ; }
-static inline bool/*did_unblock*/ unblock_sig(int sig) { return set_sig(sig,No   ) ; }
-static inline bool/*is_blocked */ probe_sig  (int sig) { return set_sig(sig,Maybe) ; }
-
-static inline Fd open_sig_fd( int sig , bool block=false ) {
-	if (block) swear_prod(block_sig(sig),"signal ",::strsignal(sig)," is already blocked") ;
-	else       swear_prod(probe_sig(sig),"signal ",::strsignal(sig)," is not blocked"    ) ;
+static inline Fd open_sig_fd(int sig) {
+	swear_prod(set_sig(sig,true/*block*/),"signal ",::strsignal(sig)," is already blocked") ;
 	//
 	sigset_t mask ;
 	sigemptyset(&mask    ) ;
 	sigaddset  (&mask,sig) ;
 	//
 	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
+}
+static inline void close_sig_fd( Fd fd , int sig ) {
+	fd.close() ;
+	set_sig(sig,false/*block*/) ;
 }
 
 static inline bool is_sig_sync(int sig) {
@@ -115,7 +115,7 @@ struct Child {
 	int/*wstatus*/ wait() {
 		SWEAR(pid!=-1) ;
 		int wstatus ;
-		int rc = waitpid(pid,&wstatus,0) ;
+		int rc = ::waitpid(pid,&wstatus,0) ;
 		swear_prod(rc==pid,"cannot wait for pid ",pid) ;
 		waited() ;
 		return wstatus ;

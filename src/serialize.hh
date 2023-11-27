@@ -49,30 +49,32 @@ namespace std {
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
 	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
 	static void s_serdes( ::ostream& os , T const& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto const& [a,b,c,d,e,f,g,h,i,j] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto const& [a,b,c,d,e,f,g,h,i  ] = x ; serdes(os,a,b,c,d,e,f,g,h,i  ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto const& [a,b,c,d,e,f,g,h    ] = x ; serdes(os,a,b,c,d,e,f,g,h    ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                };}) { auto const& [a,b,c,d,e,f,g      ] = x ; serdes(os,a,b,c,d,e,f,g      ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                    };}) { auto const& [a,b,c,d,e,f        ] = x ; serdes(os,a,b,c,d,e,f        ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U()                        };}) { auto const& [a,b,c,d,e          ] = x ; serdes(os,a,b,c,d,e          ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U()                            };}) { auto const& [a,b,c,d            ] = x ; serdes(os,a,b,c,d            ) ; }
-		else if constexpr (requires{T{U(),U(),U()                                };}) { auto const& [a,b,c              ] = x ; serdes(os,a,b,c              ) ; }
-		else if constexpr (requires{T{U(),U()                                    };}) { auto const& [a,b                ] = x ; serdes(os,a,b                ) ; }
-		else if constexpr (requires{T{U()                                        };}) { auto const& [a                  ] = x ; serdes(os,a                  ) ; }
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto const& [a,b,c,d,e,f,g,h,i,j,k] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j,k) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto const& [a,b,c,d,e,f,g,h,i,j  ] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto const& [a,b,c,d,e,f,g,h,i    ] = x ; serdes(os,a,b,c,d,e,f,g,h,i    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()                };}) { auto const& [a,b,c,d,e,f,g,h      ] = x ; serdes(os,a,b,c,d,e,f,g,h      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                    };}) { auto const& [a,b,c,d,e,f,g        ] = x ; serdes(os,a,b,c,d,e,f,g        ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                        };}) { auto const& [a,b,c,d,e,f          ] = x ; serdes(os,a,b,c,d,e,f          ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U()                            };}) { auto const& [a,b,c,d,e            ] = x ; serdes(os,a,b,c,d,e            ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U()                                };}) { auto const& [a,b,c,d              ] = x ; serdes(os,a,b,c,d              ) ; }
+		else if constexpr (requires{T{U(),U(),U()                                    };}) { auto const& [a,b,c                ] = x ; serdes(os,a,b,c                ) ; }
+		else if constexpr (requires{T{U(),U()                                        };}) { auto const& [a,b                  ] = x ; serdes(os,a,b                  ) ; }
+		else if constexpr (requires{T{U()                                            };}) { auto const& [a                    ] = x ; serdes(os,a                    ) ; }
 	}
 	static void s_serdes( ::istream& is , T& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i  ] = x ; serdes(is,a,b,c,d,e,f,g,h,i  ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h    ] = x ; serdes(is,a,b,c,d,e,f,g,h    ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g      ] = x ; serdes(is,a,b,c,d,e,f,g      ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f        ] = x ; serdes(is,a,b,c,d,e,f        ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e          ] = x ; serdes(is,a,b,c,d,e          ) ; }
-		else if constexpr (requires{T{U(),U(),U(),U()                            };}) { auto& [a,b,c,d            ] = x ; serdes(is,a,b,c,d            ) ; }
-		else if constexpr (requires{T{U(),U(),U()                                };}) { auto& [a,b,c              ] = x ; serdes(is,a,b,c              ) ; }
-		else if constexpr (requires{T{U(),U()                                    };}) { auto& [a,b                ] = x ; serdes(is,a,b                ) ; }
-		else if constexpr (requires{T{U()                                        };}) { auto& [a                  ] = x ; serdes(is,a                  ) ; }
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j,k) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i,j  ] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j  ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h,i    ] = x ; serdes(is,a,b,c,d,e,f,g,h,i    ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U()                };}) { auto& [a,b,c,d,e,f,g,h      ] = x ; serdes(is,a,b,c,d,e,f,g,h      ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U()                    };}) { auto& [a,b,c,d,e,f,g        ] = x ; serdes(is,a,b,c,d,e,f,g        ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U(),U()                        };}) { auto& [a,b,c,d,e,f          ] = x ; serdes(is,a,b,c,d,e,f          ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U(),U()                            };}) { auto& [a,b,c,d,e            ] = x ; serdes(is,a,b,c,d,e            ) ; }
+		else if constexpr (requires{T{U(),U(),U(),U()                                };}) { auto& [a,b,c,d              ] = x ; serdes(is,a,b,c,d              ) ; }
+		else if constexpr (requires{T{U(),U(),U()                                    };}) { auto& [a,b,c                ] = x ; serdes(is,a,b,c                ) ; }
+		else if constexpr (requires{T{U(),U()                                        };}) { auto& [a,b                  ] = x ; serdes(is,a,b                  ) ; }
+		else if constexpr (requires{T{U()                                            };}) { auto& [a                    ] = x ; serdes(is,a                    ) ; }
 	}
 } ;
 
@@ -153,11 +155,6 @@ struct MsgBuf {
 		return len ;
 	}
 protected :
-	void _clear() {                                                            // functionally equivalent to : *this = InEntry() ;
-		_buf.resize(sizeof(Len)) ;                                             // keep buf allocation
-		_len       = 0     ;
-		_data_pass = false ;
-	}
 	// data
 	Len      _len       = 0     ;      // data sent/received so far, reading : may also apply to len accumulated in buf
 	::string _buf       ;              // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
@@ -188,7 +185,7 @@ struct IMsgBuf : MsgBuf {
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res = deserialize<T>(IStringStream(::move(_buf))) ;
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			_clear() ;
+			*this = {} ;
 			return true/*complete*/ ;
 		} else {
 			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
@@ -205,8 +202,8 @@ struct IMsgBuf : MsgBuf {
 struct OMsgBuf : MsgBuf {
 	// statics
 	template<class T> static ::string s_send(T const& x) {
-		::string res = serialize(::pair<decltype(_len),T>(0,x)) ;              // directly serialize in res to avoid copy : serialize a pair with length+data
-		Len      len = res.size()-sizeof(Len) ;
+		::string res = serialize(::pair<Len,T>(0,x)) ; SWEAR(res.size()>=sizeof(Len)) ; // directly serialize in res to avoid copy : serialize a pair with length+data
+		Len      len = res.size()-sizeof(Len)        ;
 		::memcpy( res.data() , &len , sizeof(Len) ) ;                          // overwrite len
 		return res ;
 	}
@@ -226,7 +223,7 @@ struct OMsgBuf : MsgBuf {
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) throw to_string("cannot send over ",fd) ;
 		_len += cnt ;
-		if (_len<_buf.size()) {            return false/*complete*/ ; }        // _buf is still partial
-		else                  { _clear() ; return true /*complete*/ ; }
+		if (_len<_buf.size()) {              return false/*complete*/ ; }      // _buf is still partial
+		else                  { *this = {} ; return true /*complete*/ ; }
 	}
 } ;

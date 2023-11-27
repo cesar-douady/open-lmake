@@ -3,32 +3,32 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 n_good = 2
 
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
+
 	from step import step
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	,	'src1'
 	,	'src2'
 	)
 
-	class Good(lmake.Rule) :
+	class Good(Rule) :
 		target = 'good{Digit:\d+}'
 		def cmd() :
 			if int(Digit)==0 : print(step)
 
-	class Bad(lmake.Rule) :
+	class Bad(Rule) :
 		target = 'bad{:\d+}'
 		cmd = 'exit {step}'
 
-	class Critical(lmake.Rule) :
+	class Critical(Rule) :
 		target = 'tgt'
 		def cmd() :
 			lmake.depend('src1','src2',critical=True)

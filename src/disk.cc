@@ -123,14 +123,10 @@ namespace Disk {
 	}
 
 	::string read_content(::string const& file) {
-		::ifstream file_stream{file} ;
-		if (!file_stream) return {} ;
-		//
-		::string res       ;
-		char     buf[4096] ;
-		while (file_stream.read(buf,sizeof(buf))) res.append(buf,sizeof(buf)) ;
-		res.append(buf,file_stream.gcount()) ;
-		return res ;
+		IFStream is{file} ;
+		if (!is                  ) throw to_string("file not found : ",file) ;
+		if (::istream::sentry(is)) return to_string(is.rdbuf())              ; // /!\ rdbuf() fails on an empty file
+		else                       return {}                                 ;
 	}
 
 	void write_lines( ::string const& file , ::vector_s const& lines ) {

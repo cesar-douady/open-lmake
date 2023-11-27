@@ -3,20 +3,19 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import PyRule
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
-	class GenFile(lmake.PyRule) :
+	class GenFile(PyRule) :
 		target = 'file_{:\d+}'
 		def cmd() :
 			for x in range(1000) : print(x)
 
-	class Trig(lmake.PyRule) :
+	class Trig(PyRule) :
 		target = 'out_{N:\d+}'
 		def cmd() :
 			lmake.depend([f'file_{x}' for x in range(int(N))])

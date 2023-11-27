@@ -3,21 +3,20 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
 	from step import n_srcs
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	,	*(f'src/{i}' for i in range(n_srcs))
 	)
 
-	class Base(lmake.Rule) :
+	class Base(Rule) :
 		start_delay = 1
 	class NoDep(Base) :
 		target = r'no_dep/{:\d+}'

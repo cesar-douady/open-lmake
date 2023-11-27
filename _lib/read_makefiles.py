@@ -3,27 +3,33 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
-import os.path as osp
 import sys
+
+from importlib import import_module
+from os        import getcwd
+from os.path   import abspath,dirname,relpath
 import re
 
-lmake_dir = osp.dirname(osp.dirname(__file__))
-root_dir  = os.getcwd()
+lmake_dir = dirname(dirname(__file__))
+root_dir  = getcwd()
 
-sys.implementation.cache_tag = None
-sys.dont_write_bytecode      = True
-save_path                    = list(sys.path)
-sys.path                     = [lmake_dir+'/_lib',lmake_dir+'/lib',*save_path]
+sys.implementation.cache_tag = None                                               # dont read pyc files as our rudimentary dependency mechanism will not handle them properly
+sys.dont_write_bytecode      = True                                               # and dont generate them
+sys.path                     = [lmake_dir+'/lib',lmake_dir+'/_lib','.',*sys.path] # ensure we have safe entries in front so as to be immune to uncontrolled user settings
 
 import lmake                                                                   # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict
 
-sys.path = [lmake_dir+'/lib','.',*save_path]
-import Lmakefile
+sys.path = [sys.path[0],*sys.path[2:]]                                         # suppress access to _lib
 
-sys.path = save_path                                                           # restore sys.path in case user played with it
+if len(sys.argv)!=4 :
+	print('usage : python read_makefiles.py <out_file> [ config | rules | srcs ] <module>',file=sys.stderr)
+	sys.exit(1)
+
+out_file =               sys.argv[1]
+action   =               sys.argv[2]
+module   = import_module(sys.argv[3])
 
 # helper constants
 # AntiRule's only need a subset of plain rule attributes as there is no execution
@@ -45,7 +51,6 @@ StdExecAttrs = {
 ,	'chroot'            : ( str   , True    )
 ,	'cache'             : ( str   , True    )
 ,	'cmd'               : ( str   , True    )              # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'cwd'               : ( str   , False   )
 ,	'deps'              : ( dict  , True    )
 ,	'environ_cmd'       : ( dict  , True    )
 ,	'environ_resources' : ( dict  , True    )
@@ -62,7 +67,7 @@ StdExecAttrs = {
 ,	'resources'         : ( dict  , True    )
 ,	'shell'             : ( tuple , False   )
 ,	'start_delay'       : ( float , True    )
-,	'stderr_len'        : ( int   , True    )
+,	'max_stderr_len'    : ( int   , True    )
 ,	'timeout'           : ( float , True    )
 ,	'tmp'               : ( str   , True    )
 }
@@ -73,14 +78,15 @@ SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      #
 SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
 SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                           # this means string has no variable parts
 
-def update_dct(acc,new,path_dct=None,prefix=None) :
+def update_dct(acc,new,paths=None,prefix=None) :
 	for k,v in new.items() :
 		old_v = acc.pop(k,None)                                                # ensure entry is put at the end of dict order
 		if v is None : continue                                                # None is used to suppress entries
-		if path_dct :
+		if paths :
 			pk = prefix+'.'+k
-			if pk in path_dct and old_v is not None :
-				acc[k] = old_v+path_dct[pk]+v
+			if pk in paths and old_v is not None :
+				sep    = paths[pk]
+				acc[k] = re.sub(fr'(?<={sep})\.\.\.(?={sep})',old_v,sep+v+sep)[len(sep):-len(sep)] # add seps before and after, then remove them because look-behind must be of fixed length
 				continue
 		acc[k] = v
 def update_set(acc,new) :
@@ -91,12 +97,12 @@ def update_set(acc,new) :
 def update_lst(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
 	acc += new
-def update(acc,new,path_dct=None,prefix=None) :
+def update(acc,new,paths=None,prefix=None) :
 	if   callable  (acc     ) : acc = top(new)
 	elif callable  (new     ) : acc = top(new)
-	elif isinstance(acc,dict) : update_dct(acc,new,path_dct,prefix)
-	elif isinstance(acc,set ) : update_set(acc,new                )
-	elif isinstance(acc,list) : update_lst(acc,new                )
+	elif isinstance(acc,dict) : update_dct(acc,new,paths,prefix)
+	elif isinstance(acc,set ) : update_set(acc,new             )
+	elif isinstance(acc,list) : update_lst(acc,new             )
 	else                      : raise TypeError(f'cannot combine {acc.__class__.__name__} and {new.__class__.__name__}')
 	return acc
 def top(new) :
@@ -137,7 +143,7 @@ def qualify(attrs) :
 def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
 	combine = set()
-	path    = {}
+	paths   = {}
 	dct     = pdict(cmd=[])                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
@@ -149,7 +155,7 @@ def handle_inheritance(rule) :
 				for k in d['combine'] :
 					if k in dct and k not in combine : dct[k] = top(dct[k])    # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
 				combine = update(combine,d['combine'])                         # process combine first so we use the freshest value
-			if 'path' in d : path = update(path,d['path'])
+			if 'paths' in d : paths = update(paths,d['paths'])
 			for k,v in d.items() :
 				if k.startswith('__') and k.endswith('__') : continue          # do not process standard python attributes
 				if k=='combine'                            : continue
@@ -161,8 +167,8 @@ def handle_inheritance(rule) :
 						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.__name__}')
 					dct[k].append(v)
 				elif k in combine :
-					if k in dct : dct[k] = update(dct[k],v,path,k)
-					else        : dct[k] = top   (       v       )             # make a fresh copy as it may be modified by further combine's
+					if k in dct : dct[k] = update(dct[k],v,paths,k)
+					else        : dct[k] = top   (       v        )            # make a fresh copy as it may be modified by further combine's
 				else :
 					dct[k] = v
 	except Exception as e :
@@ -257,8 +263,6 @@ class Handle :
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
 		self.rule_rep = pdict( { k:attrs[k] for k in ('name','prio','stems','is_python') } )
-		try    : self.local_root = lmake.search_sub_root_dir(module.__file__)
-		except : self.local_root = ''                                          # rules defined outside repo (typically standard base rules) are deemed to apply to the whole base
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -348,10 +352,6 @@ class Handle :
 			if len(entry)!=2 or not isinstance(entry[1],(tuple,list)) : entry = (entry[0],entry[1:])
 		return entry
 
-	def handle_cwd(self) :
-		if 'cwd' in self.attrs : self.rule_rep.cwd = self.attrs.cwd
-		else                   : self.rule_rep.cwd = self.local_root
-
 	def handle_targets(self) :
 		if   'target'      in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
 		if   'target'      in self.attrs                                 : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
@@ -387,8 +387,8 @@ class Handle :
 		}
 		#
 		self.attrs.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
-		ai = osp.abspath(self.attrs.interpreter[0])
-		ri = osp.relpath(ai)
+		ai = abspath(self.attrs.interpreter[0])
+		ri = relpath(ai)
 		if not ri.startswith('../')                                                        : self.attrs.deps['<interpreter>'] = ri # interpreter is in repo
 		elif any( ai.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]=='/' ) : self.attrs.deps['<interpreter>'] = ai # interpreter is in abs source dirs
 		elif any( ri.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]!='/' ) : self.attrs.deps['<interpreter>'] = ri # interpreter is in rel source dirs
@@ -468,7 +468,7 @@ class Handle :
 
 	def handle_end_none(self) :
 		self._init()
-		self._handle_val('stderr_len')
+		self._handle_val('max_stderr_len')
 		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
@@ -521,7 +521,6 @@ def fmt_rule(rule) :
 	#
 	h = Handle(rule)
 	#
-	h.handle_cwd    ()
 	h.handle_targets()
 	if all(no_match(t) for t in h.rule_rep.targets.values()) :                                                       # if there is no way to match this rule, must be a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no matching target while virtual forced False')
@@ -563,52 +562,64 @@ def fmt_rule_chk(rule) :
 		print(f'\t{e.__class__.__name__} : {e}',file=sys.stderr)
 		sys.exit(2)
 
-if hasattr(lmake,'sources') : srcs = lmake.sources
-else                        : srcs = lmake.auto_sources()
+rule_modules = { r.__module__    for r in lmake._rules      }
+rules        = [ fmt_rule_chk(r) for r in lmake._rules      ]
+rules        = [              r  for r in rules        if r ]
 
-rule_modules = { r.__module__ for r in lmake.rules }
-
+# generate output
 # could be a mere print, but it is easier to debug with a prettier output
+# XXX : write a true pretty printer
+
+def error(txt='') :
+	print(txt,file=sys.stderr)
+	exit(2)
+
+if not lmake.manifest and 'sources_module' not in lmake.config : lmake.config.sources_module = 'lmake.auto_sources'
+
+gen_config = action=='config'
+gen_rules  = action=='rules'
+gen_srcs   = action=='srcs'
+if gen_config :
+	if   not lmake.config.get('rules_module')   : gen_rules = True
+	elif rules                                  : error('cannot set lmake.config.rules_module and define rules'   )
+	if   not lmake.config.get('sources_module') : gen_srcs  = True
+	elif lmake.manifest                         : error('cannot set lmake.config.sources_module and lmake.sources')
+
+lvl_stack = []
+def sep(l) :
+	assert l<=len(lvl_stack)
+	indent = l==len(lvl_stack)
+	if indent : lvl_stack.append(0)
+	lvl_stack[l+1:]  = []
+	lvl_stack[l]    += 1
+	return '\t'*l + (',','')[indent] + '\t'
+def tuple_end(l) :                                                             # /!\ must add a comma at end of singletons
+	return '\t'*l + ('',',')[ len(lvl_stack)>l and lvl_stack[l]==1 ]
+
 with open(sys.argv[1],'w') as out :
 	print('{',file=out)
 	#
-	print("\t'config' : {",file=out)
-	kl  = max((len(repr(k)) for k in lmake.config.keys()),default=0)
-	sep = ''
-	for k,v in lmake.config.items() :
-		print(f'\t{sep}\t{k!r:{kl}} : {v!r}',file=out)
-		sep = ','
-	print('\t}',file=out)
+	if gen_config :
+		print(f"{sep(0)}'config' : {{",file=out) ;
+		kl  = max((len(repr(k)) for k in lmake.config.keys()),default=0)
+		for k,v in lmake.config.items() :
+			print(f'{sep(1)}{k!r:{kl}} : {v!r}',file=out)
+		print('\t}',file=out)
 	#
-	print(',',file=out)
+	if gen_rules :
+		print(f"{sep(0)}'rules' : (",file=out)
+		for rule in rules :
+			print(f'{sep(1)}{{',file=out)
+			kl   = max((len(repr(k)) for k in rule.keys()),default=0)
+			for k,v in rule.items() :
+				print(f'{sep(2)}{k!r:{kl}} : {v!r}',file=out)
+			print('\t\t}',file=out)
+		print(f'{tuple_end(1)})',file=out)
 	#
-	print("\t'rules' : (",file=out)
-	sep     = ''
-	n_rules = 0
-	for rule in lmake.rules :
-		rule_rep = fmt_rule_chk(rule)
-		if not rule_rep : continue
-		n_rules += 1
-		if sep : print(f'\t{sep}',file=out)
-		sep = ','
-		print('\t\t{',file=out)
-		kl   = max((len(repr(k)) for k in rule_rep.keys()),default=0)
-		sep2 = ''
-		for k,v in rule_rep.items() :
-			print(f'\t\t{sep2}\t{k!r:{kl}} : {v!r}',file=out)
-			sep2 = ','
-		print('\t\t}',file=out)
-	if n_rules==1 : print('\t,)',file=out)                                     # /!\ must add a comma at end of singletons
-	else          : print('\t)' ,file=out)
-	#
-	print(',',file=out)
-	#
-	print("\t'srcs' : (",file=out)
-	sep = ''
-	for src in srcs :
-		print(f'\t{sep}\t{src!r}',file=out)
-		sep = ','
-	if len(srcs)==1 : print(f"\t,)",file=out)                                  # /!\ must add a comma at end of singletons
-	else            : print(f"\t)" ,file=out)
+	if gen_srcs :
+		print(f"{sep(0)}'manifest' : (",file=out)
+		for src in lmake.manifest :
+			print(f'{sep(1)}{src!r}',file=out)
+		print(f'{tuple_end(1)})',file=out)
 	#
 	print('}',file=out)

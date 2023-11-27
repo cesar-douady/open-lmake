@@ -100,7 +100,13 @@ struct ServerReply {
 } ;
 
 static inline void _set_status( Status& status , Status new_status ) {
-	if (status==Status::New) status = new_status ;                     // else there is already another reason
+	if (status==Status::New) status = new_status ;                             // else there is already another reason
+}
+
+void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
+	static constexpr uint64_t One = 1 ;
+	do { ::waitpid(pid,wstatus,0) ; } while (WIFSTOPPED(*wstatus)) ;
+	swear_prod(::write(fd,&One,8)==8,"cannot report child wstatus",wstatus) ;
 }
 
 Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd child_stdout , Fd child_stderr ) {
@@ -120,8 +126,8 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 	{	::unique_lock lock{_pid_mutex} ;
 		if (killed) return Status::Killed ;                                    // dont start if we are already killed before starting
 		if (method==AutodepMethod::Ptrace) {
-			// cannot simultaneously watch for data & child events using ptrace as SIGCHLD is not delivered for sub-processes of tracee
-			// so we split the responsability into 2 processes :
+			// XXX : splitting responsibility is no more necessary. Can directly report child termination from within autodep_ptrace.process using same ifce as _child_wait_thread_func
+			// we split the responsability into 2 processes :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
 			bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
@@ -182,9 +188,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		pid = child.pid ;
 	}
 	//
-	Fd                                child_fd           = open_sig_fd(SIGCHLD) ;
-	Epoll                             epoll              { New }                ;
-	Status                            status             = Status::New          ;
+	Fd                                child_fd           = ::eventfd(0,EFD_CLOEXEC)                                    ;
+	::jthread                         wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ; // thread dedicated to wating child
+	Epoll                             epoll              { New }                                                       ;
+	Status                            status             = Status::New                                                 ;
 	PD                                end                ;
 	::umap<Fd         ,IMsgBuf      > slaves             ;
 	::umap<Fd/*reply*/,ServerReply  > server_replies     ;
@@ -247,11 +254,11 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					else                         { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
 				} break ;
 				case Kind::ChildEnd : {
-					{ ::unique_lock lock{_pid_mutex} ; pid = -1 ; }            // too late to kill job
-					struct signalfd_siginfo child_info ;
-					int                     cnt        = ::read( fd , &child_info , sizeof(child_info) ) ;
-					SWEAR( cnt==sizeof(child_info) , cnt ) ;
-					wstatus = child.wait() ;
+					uint64_t one = 0/*garbage*/            ;
+					int      cnt = ::read( fd , &one , 8 ) ; SWEAR( cnt==8 && one==1 , cnt , one ) ;
+					{	::unique_lock lock{_pid_mutex} ;
+						child.pid = -1 ;                                       // too late to kill job
+					}
 					if      (WIFEXITED  (wstatus)) _set_status( status , WEXITSTATUS(wstatus)!=0       ?Status::Err:Status::Ok       ) ;
 					else if (WIFSIGNALED(wstatus)) _set_status( status , is_sig_sync(WTERMSIG(wstatus))?Status::Err:Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
@@ -260,7 +267,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					epoll.cnt-- ;                                              // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
 				} break ;
 				case Kind::Master : {
-					Fd slave{master_fd.accept()} ;
+					Fd slave{master_fd.accept()} ;                             // sync to tell child we have seen the connection
 					epoll.add_read(slave,Kind::Slave) ;
 					slaves[slave] ;                                            // allocate entry
 					trace("master",slave) ;

@@ -73,13 +73,12 @@ int main( int argc , char* argv[] ) {
 	//
 	Pdate start_overhead = Pdate::s_now() ;
 	//
-	block_sig(SIGCHLD) ;
 	swear_prod(argc==4,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
 	/**/             g_service   = argv[1]                     ;
 	/**/             g_seq_id    = from_chars<SeqId >(argv[2]) ;
 	/**/             g_job       = from_chars<JobIdx>(argv[3]) ;
 	//
-	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;       // threads must only be launched once SIGCHLD is blocked or they may receive said signal
+	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;
 	//
 	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                             } ;
 	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error

@@ -3,18 +3,17 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 try    : import numba
 except : numba = None
 
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import PyRule
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
-	class TestNumba(lmake.PyRule) :
+	class TestNumba(PyRule) :
 		targets = { 'TGT' : 'test.so'}
 		def cmd() :
 			from numba.pycc import CC

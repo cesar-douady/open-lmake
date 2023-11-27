@@ -601,10 +601,6 @@ namespace Engine {
 					if (cwd_s.starts_with(*g_root_dir+'/')) cwd_s.erase(0,g_root_dir->size()+1) ;
 					else                                    throw "cwd must be relative to root dir"s ;
 				}
-				size_t n = ::count(cwd_s.begin(),cwd_s.end(),'/') ;
-				Prio   b = g_config.sub_prio_boost                ;
-				if ( prio+b*(n-1) == prio+b*(n-1) ) throw to_string("prio ",prio," is too high for prio boost (per directory sub-level) ",b) ;
-				prio += b * n ;
 			}
 			//
 			Trace trace("_acquire_py",name,prio) ;
@@ -1130,7 +1126,7 @@ namespace Engine {
 	}
 	static ::string _pretty( size_t i , EndNoneAttrs const& ena ) {
 		::vmap_ss entries ;
-		if  (ena.stderr_len!=size_t(-1)) entries.emplace_back( "stderr_len" , to_string(ena.stderr_len) ) ;
+		if  (ena.max_stderr_len!=size_t(-1)) entries.emplace_back( "max_stderr_len" , to_string(ena.max_stderr_len) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 

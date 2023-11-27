@@ -79,12 +79,61 @@ namespace Engine {
 namespace Engine {
 
 	struct Version {
-		size_t major ;
-		size_t minor ;
+		static const Version Db ;
+		bool operator==(Version const&) const = default ;
+		size_t major = 0 ;
+		size_t minor = 0 ;
+	} ;
+	constexpr Version Version::Db = {1,0} ;
+
+	// changing these values require restarting from a clean base
+	struct ConfigClean {
+		// services
+		bool operator==(ConfigClean const&) const = default ;
+		// data
+		Version    db_version           ;                                      // must always stay first so it is always understood, by default, db version does not match
+		Hash::Algo hash_algo            = Hash::Algo::Xxh  ;
+		LnkSupport lnk_support          = LnkSupport::Full ;
+		::string   user_local_admin_dir ;
 	} ;
 
-	struct Config {
-		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
+	// changing these can only be done when lmake is not running
+	struct ConfigStatic {
+
+		struct Cache {
+			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
+			using Tag = CacheTag ;
+			// cxtors & casts
+			Cache() = default ;
+			Cache( Py::Mapping const& py_map ) ;
+			// services
+			bool operator==(Cache const&) const = default ;
+			template<IsStream T> void serdes(T& s) {
+				::serdes(s,tag) ;
+				::serdes(s,dct) ;
+			}
+			// data
+			Caches::Tag tag ;
+			::vmap_ss   dct ;
+		} ;
+
+		// services
+		bool operator==(ConfigStatic const&) const = default ;
+		// data
+		Time::Delay    heartbeat      ;
+		Time::Delay    heartbeat_tick ;
+		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
+		Time::Delay    network_delay  ;
+		size_t         path_max       = -1   ;             // if -1 <=> unlimited
+		::string       rules_module   ;
+		::vector_s     src_dirs_s     ;
+		::string       srcs_module    ;
+		size_t         trace_sz       = 0    ;
+		::map_s<Cache> caches         ;
+	} ;
+
+	// changing these can be made dynamically (i.e. while lmake is running)
+	struct ConfigDynamic {
 
 		struct Backend {
 			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
@@ -93,6 +142,7 @@ namespace Engine {
 			Backend() = default ;
 			Backend( Py::Mapping const& py_map , bool is_local ) ;
 			// services
+			bool operator==(Backend const&) const = default ;
 			template<IsStream T> void serdes(T& s) {
 				::serdes(s,addr      ) ;
 				::serdes(s,dct       ) ;
@@ -104,79 +154,54 @@ namespace Engine {
 			bool      configured = false      ;
 		} ;
 
-		struct Cache {
-			friend ::ostream& operator<<( ::ostream& , Backend const& ) ;
-			using Tag = CacheTag ;
-			// cxtors & casts
-			Cache() = default ;
-			Cache( Py::Mapping const& py_map ) ;
-			// services
-			template<IsStream T> void serdes(T& s) {
-				::serdes(s,tag) ;
-				::serdes(s,dct) ;
-			}
-			// data
-			Caches::Tag tag ;
-			::vmap_ss   dct ;
+		struct Console {
+			bool operator==(Console const&) const = default ;
+			uint8_t date_prec     = -1    ;                   // -1 means no date at all in console output
+			uint8_t host_len      = 0     ;                   //  0 means no host at all in console output
+			bool    has_exec_time = false ;
 		} ;
 
+		// services
+		bool operator==(ConfigDynamic const&) const = default ;
+		// data
+		size_t                                                                   max_err_lines         = 0  ;     // unlimited
+		::string                                                                 user_remote_admin_dir ;
+		::string                                                                 user_remote_tmp_dir   ;
+		Console                                                                  console               ;
+		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {} ;     // precision of standard resources
+		::array<Backend,+BackendTag::N>                                          backends              ;          // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {} ;
+	} ;
+
+	ENUM( ConfigDiff
+	,	None                           // configs are identical
+	,	Dynamic                        // config can be updated while engine runs
+	,	Static                         // config can be updated when engine is steady
+	,	Clean                          // config cannot be updated (requires clean repo)
+	)
+
+	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
+		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 		// cxtors & casts
-		Config() = default ;
+		Config(                         ) : booted{false} {}                   // if config comes from nowhere, it is not booted
 		Config(Py::Mapping const& py_map) ;
 		// services
-		template<IsStream T> void serdes(T& s) {
-			::serdes(s,db_version           ) ;                                // must always stay first field to ensure it is always understood
-			::serdes(s,hash_algo            ) ;
-			//
-			::serdes(s,lnk_support          ) ;
-			//
-			::serdes(s,caches               ) ;
-			::serdes(s,user_local_admin_dir ) ;
-			::serdes(s,max_dep_depth        ) ;
-			::serdes(s,path_max             ) ;
-			::serdes(s,src_dirs_s           ) ;
-			::serdes(s,sub_prio_boost       ) ;
-			::serdes(s,trace_sz             ) ;
-			//
-			::serdes(s,colors               ) ;
-			::serdes(s,max_err_lines        ) ;
-			::serdes(s,network_delay        ) ;
-			::serdes(s,user_remote_admin_dir) ;
-			::serdes(s,user_remote_tmp_dir  ) ;
-			::serdes(s,backends             ) ;
-			::serdes(s,rsrc_digits          ) ;
-			::serdes(s,console              ) ;
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,static_cast<ConfigClean  &>(*this)) ;                   // must always stay first field to ensure db_version is always understood
+			::serdes(s,static_cast<ConfigStatic &>(*this)) ;
+			::serdes(s,static_cast<ConfigDynamic&>(*this)) ;
+			if (::is_base_of_v<::istream,S>) booted = true ;                   // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
-		void open() ;
-		// data
-		// changing these values require restarting from a clean base
-		Version        db_version                                      = {}               ; // by default, db cannot be understood
-		Hash::Algo     hash_algo                                       = Hash::Algo::Xxh  ;
-		// changing these invalidate all jobs
-		LnkSupport     lnk_support                                     = LnkSupport::Full ;
-		// changing these can only be done when lmake is not running
-		::map_s<Cache> caches                                          ;
-		::string       user_local_admin_dir                            ;
-		DepDepth       max_dep_depth                                   = 0                ; // uninitialized
-		size_t         path_max                                        = -1               ; // if -1 <=> unlimited
-		::vector_s     src_dirs_s                                      ;
-		Prio           sub_prio_boost                                  = 0                ; // increment to add to prio when defined in a sub repository to boost local rules
-		size_t         trace_sz                                        = 0                ;
-		// changing these can be made dynamically (i.e. while lmake is running)
-		Backend        backends[+BackendTag::N]                        ;                    // backend may refuse dynamic modification
-		uint8_t        colors[+Color::N][2/*reverse_video*/][3/*RGB*/] = {}               ;
-		size_t         max_err_lines                                   = 0                ; // unlimited
-		Time::Delay    network_delay                                   ;
-		::string       user_remote_admin_dir                           ;
-		::string       user_remote_tmp_dir                             ;
-		uint8_t        rsrc_digits[+StdRsrc::N]                        = {}               ; // precision of standard resources
-		struct {
-			uint8_t date_prec     = -1    ;                // -1 means no date at all in console output
-			uint8_t host_len      = 0     ;                //  0 means no host at all in console output
-			bool    has_exec_time = false ;
-		} console ;
-		// derived info (not saved on disk)
+		void open(bool dynamic) ;
+		ConfigDiff diff(Config const& other) {
+			if (!(ConfigClean  ::operator==(other))) return ConfigDiff::Clean   ;
+			if (!(ConfigStatic ::operator==(other))) return ConfigDiff::Static  ;
+			if (!(ConfigDynamic::operator==(other))) return ConfigDiff::Dynamic ;
+			else                                     return ConfigDiff::None    ;
+		}
+		// data (derived info not saved on disk)
+		bool     booted           = false ;                // a marker to distinguish clean repository
 		::string local_admin_dir  ;
 		::string remote_admin_dir ;
 		::string remote_tmp_dir   ;
@@ -316,7 +341,7 @@ namespace Engine {
 	static inline ::string color_pfx( ReqOptions const& ro , Color color ) {
 		Bool3 rv = ro.reverse_video ;
 		if ( color==Color::None || rv==Maybe ) return {} ;
-		uint8_t const* colors = g_config.colors[+color][rv==Yes] ;
+		::array<uint8_t,3/*RGB*/> const& colors = g_config.colors[+color][rv==Yes] ;
 		return to_string( "\x1b[38;2;" , int(colors[0]) ,';', int(colors[1]) ,';', int(colors[2]) , 'm' ) ;
 	}
 

@@ -11,8 +11,6 @@ using namespace Disk ;
 
 namespace Engine {
 
-	Version DbVersion = {1,0} ;
-
 	// str has target syntax
 	// return suffix after last stem (StartMrkr+str if no stem)
 	static ::string parse_suffix(::string const& str) {
@@ -50,8 +48,6 @@ namespace Engine {
 	void EngineStore::_s_init_config() {
 		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
 		catch (...) { return ;                                                                     }
-		if (!( g_config.db_version.major==DbVersion.major && g_config.db_version.minor<=DbVersion.minor ))
-			throw to_string( "data base version mismatch : expected : " , DbVersion.major,'.',DbVersion.minor , " found : " , g_config.db_version.major,'.',g_config.db_version.minor , '\n' ) ;
 	}
 
 	void EngineStore::_s_init_srcs_rules(bool rescue) {
@@ -106,57 +102,49 @@ namespace Engine {
 		/**/                                                                                                return false ;
 	}
 	void EngineStore::_s_set_config(Config&& new_config) {
-		if ( !g_config.local_admin_dir.empty() && new_config.local_admin_dir!=g_config.local_admin_dir ) {
-			if ( ::rename( g_config.local_admin_dir.c_str() , new_config.local_admin_dir.c_str() ) != 0 )
-				// XXX : implement physical move of local admin dir
-				throw to_string("physically moving local admin dir from ",g_config.local_admin_dir," to ",new_config.local_admin_dir," not yet implemented, please clean repository") ;
-		}
-		g_config            = ::move(new_config) ;
-		g_config.db_version = DbVersion          ;
+		g_config = ::move(new_config) ;
 		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
 		{	OFStream config_stream{AdminDir+"/config"s} ;
 			config_stream << g_config.pretty_str() ;
 		}
-		make_dir( AdminDir+"/outputs"s , true/*unlink_ok*/ ) ;
 	}
 
-	void EngineStore::_s_diff_config(Config const& old_config) {
+	void EngineStore::_s_diff_config( Config const& old_config , bool dynamic ) {
 		Trace trace("_diff_config",old_config) ;
-		if      ( g_config.lnk_support  > old_config.lnk_support ) g_store.invalidate_exec(false/*cmd_ok*/) ; // we could discover new deps            , do as if we have new commands
-		else if ( _has_new_server_addr(old_config,g_config)      ) g_store.invalidate_exec(true /*cmd_ok*/) ; // remote hosts may have been unreachable, do as if we have new resources
+		if (_has_new_server_addr(old_config,g_config)) {
+			if (dynamic) throw "cannot change server address while running"s ;
+			g_store.invalidate_exec(true /*cmd_ok*/) ;                         // remote hosts may have been unreachable, do as if we have new resources
+		}
 		//
 		if ( g_config.path_max != old_config.path_max ) {
 			s_invalidate_match() ;                                             // we may discover new buildable nodes or vice versa
 			// update long name marker
 			bool new_is_longer = g_config.path_max > old_config.path_max ;
 			for( Node n : g_store.node_lst() ) n->new_path_max(new_is_longer) ;
-		} else if ( g_config.max_dep_depth >  old_config.max_dep_depth ) {
-			s_invalidate_match() ;                                             // we may discover new buildable nodes
 		}
 	}
 
-	void EngineStore::s_keep_config(bool rescue) {
-		_s_init_config    (      ) ;
-		g_config.open     (      ) ;
-		_s_init_srcs_rules(rescue) ;
-	}
-
-	void EngineStore::s_new_config( Config&& config , bool rescue ) {
-		Trace trace("s_new_config",Pdate::s_now(),STR(rescue)) ;
-		_s_init_config() ;
-		Config old_config = g_config ;
-		_s_set_config(::move(config)) ;
-		g_config.open() ;
-		_s_init_srcs_rules(rescue) ;
-		_s_diff_config(old_config) ;
+	void EngineStore::s_new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
+		Trace trace("s_new_config",Pdate::s_now(),STR(dynamic),STR(rescue)) ;
+		if ( !dynamic                                              ) make_dir( AdminDir+"/outputs"s , true/*unlink_ok*/ ) ;
+		if ( !dynamic                                              ) _s_init_config() ;
+		if (  dynamic                                              ) SWEAR(g_config.booted,g_config) ; // we must update something
+		//
+		diff(g_config,config) ;
+		//
+		/**/                                                         ConfigDiff d = config.booted ? g_config.diff(config) : ConfigDiff::None ;
+		if (              d>ConfigDiff::Static  && g_config.booted ) throw "repo must be clean"s  ;
+		if (  dynamic &&  d>ConfigDiff::Dynamic                    ) throw "repo must be steady"s ;
+		//
+		if (  dynamic && !d                                        ) return ;  // fast path, nothing to update
+		//
+		/**/                                                         Config old_config = g_config ;
+		if (             +d                                        ) _s_set_config(::move(config))      ;
+		/**/                                                         g_config.open(dynamic)             ;
+		if ( !dynamic                                              ) _s_init_srcs_rules(rescue)         ;
+		if (             +d                                        ) _s_diff_config(old_config,dynamic) ;
 		trace("done",Pdate::s_now()) ;
-	}
-
-	void EngineStore::s_new_makefiles( ::umap<Crc,RuleData>&& rules , ::vector_s&& srcs ) {
-		Trace trace("s_new_makefiles",Pdate::s_now()) ;
-		bool invalidate_src = _s_new_srcs ( mk_vector<Node>(srcs)           ) ;
-		/**/                  _s_new_rules( ::move(rules ) , invalidate_src ) ;
-		trace("done",Pdate::s_now()) ;
+		SWEAR(g_config.booted,g_config) ;                                      // we'd better have a config at the end
 	}
 
 	void EngineStore::_compile_rule_datas() {
@@ -245,8 +233,7 @@ namespace Engine {
 
 	void EngineStore::invalidate_exec(bool cmd_ok) {
 		Trace trace("invalidate_exec",STR(cmd_ok)) ;
-		::vector<pair<bool,ExecGen>> keep_cmd_gens ;
-		keep_cmd_gens.resize(rule_datas.size()) ;
+		::vector<pair<bool,ExecGen>> keep_cmd_gens{rule_datas.size()} ; // indexed by Rule, if entry.first => entry.second is 0 (always reset exec_gen) or exec_gen w/ cmd_ok but !rsrcs_ok
 		for( Rule r : rule_lst() ) {
 			_s_set_exec_gen( rule_datas[+r] , keep_cmd_gens[+r] , cmd_ok , false/*rsrcs_ok*/ ) ;
 			trace(r,r->cmd_gen,r->rsrcs_gen) ;
@@ -259,21 +246,25 @@ namespace Engine {
 	// NewRulesSrcs
 	//
 
-	void EngineStore::_s_new_rules( ::umap<Crc,RuleData>&& new_rules , bool force_invalidate ) {
+	bool/*invalidate*/ EngineStore::s_new_rules( ::umap<Crc,RuleData>&& new_rules ) {
 		Trace trace("_new_rules",new_rules.size()) ;
 		//
-		::umap <Crc,Rule> old_rules ; for( Rule r : g_store.rule_lst() ) old_rules[r->match_crc] = r ;
+		Rule              max_old_rule = 0 ;
+		::umap <Crc,Rule> old_rules    ;
+		for( Rule r : g_store.rule_lst() ) {
+			if (r>max_old_rule) max_old_rule = r ;
+			old_rules[r->match_crc] = r ;
+		}
 		//
 		RuleIdx n_new_rules      = 0 ; for( auto& [match_crc,new_rd] : new_rules ) n_new_rules += !old_rules.contains(match_crc) ;
 		RuleIdx n_modified_cmd   = 0 ;
 		RuleIdx n_modified_rsrcs = 0 ;
 		RuleIdx n_modified_prio  = 0 ;
-		// make old rules obsolete but do not pop to prevent idx reuse as long as old rules are not collected
-		for( auto const& [crc,r] : old_rules ) if (!new_rules.contains(crc)) g_store.rule_file.clear(r) ;
-		// in case of size overflow, physically collect obsolete rules as we cannot fit old & new rules
-		if ( old_rules.size()+n_new_rules >= RuleIdx(-1) ) _s_collect_old_rules() ;
-		// indexed by Rule, if entry.first => entry.second is 0 (always reset exec_gen) or exec_gen w/ cmd_ok but !rsrcs_ok
-		::vector<pair<bool,ExecGen>> keep_cmd_gens{RuleIdx( +::max(mk_val_vector(old_rules)) + 1 )} ;
+		for( auto const& [crc,r] : old_rules )                                 // make old rules obsolete but do not pop to prevent idx reuse as long as old rules are not collected
+			if (!new_rules.contains(crc)) g_store.rule_file.clear(r) ;
+		if ( old_rules.size()+n_new_rules >= RuleIdx(-1) )                     // in case of size overflow, physically collect obsolete rules as we cannot fit old & new rules
+			_s_collect_old_rules() ;
+		::vector<pair<bool,ExecGen>> keep_cmd_gens{+max_old_rule+1u} ;         // indexed by Rule, if entry.first => entry.second is 0 (always reset exec_gen) or exec_gen w/ cmd_ok but !rsrcs_ok
 		//
 		g_store.rule_str_file.clear() ;                                        // erase old rules before recording new ones
 		for( auto& [match_crc,new_rd] : new_rules ) {
@@ -303,11 +294,9 @@ namespace Engine {
 			else        g_store.rule_file.emplace(rs) ;
 		}
 		trace("rules",'-',old_rules.size(),'+',n_new_rules,"=cmd",n_modified_cmd,"=rsrcs",n_modified_rsrcs,"=prio",n_modified_prio) ;
-		bool invalidate = n_modified_prio || n_new_rules || old_rules.size() || force_invalidate ;
 		//
 		g_store._compile_rules() ;                                             // recompute derived info
-		if (invalidate) s_invalidate_match(             ) ;
-		/**/            _s_invalidate_exec(keep_cmd_gens) ;
+		_s_invalidate_exec(keep_cmd_gens) ;
 		// trace
 		Trace trace2 ;
 		for( PsfxIdx sfx_idx : g_store.sfxs.lst() ) {
@@ -338,9 +327,10 @@ namespace Engine {
 				rules_stream<<rule->pretty_str() ;
 			}
 		}
+		return n_modified_prio || n_new_rules || old_rules.size() ;
 	}
 
-	bool/*invalidate*/ EngineStore::_s_new_srcs( ::vector<Node>&& src_vec ) {
+	bool/*invalidate*/ EngineStore::s_new_srcs( ::vector_s&& src_names ) {
 		::set<Node> srcs         ;                                             // use ordered set/map to ensure stable execution (as we walk through them) (and we do not care about mem/perf)
 		::set<Node> src_dirs     ;                                             // .
 		::set<Node> old_src_dirs ;                                             // .
@@ -349,17 +339,17 @@ namespace Engine {
 		::set<Node> new_srcs     ;                                             // .
 		Trace trace("_s_new_srcs") ;
 		// format inputs
-		for( Node n : Node::s_srcs() ) old_srcs.insert(n) ;
-		for( Node n : src_vec        ) srcs    .insert(n) ;
+		for( Node            s  : Node::s_srcs() ) old_srcs.insert(s ) ;
+		for( ::string const& sn : src_names      ) srcs    .insert(sn) ;
 		//
 		for( Node n : srcs     ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (src_dirs    .contains(d)) break ; src_dirs    .insert(d) ; } }
 		for( Node n : old_srcs ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (old_src_dirs.contains(d)) break ; old_src_dirs.insert(d) ; } }
 		// check
-		for( Node d : src_vec ) {
+		for( Node d : srcs ) {
 			if (!src_dirs.contains(d)) continue ;
 			::string dn = d->name()+'/' ;
-			for( Node n : src_vec )
-				if ( n->name().starts_with(dn) ) throw to_string("source ",dn," is a dir of ",n->name()) ;
+			for( ::string const& sn : src_names )
+				if ( sn.starts_with(dn) ) throw to_string("source ",dn," is a dir of ",sn) ;
 			FAIL(dn,"is a source dir of no source") ;
 		}
 		// compute diff
@@ -384,11 +374,11 @@ namespace Engine {
 			for( Node d : new_src_dirs ) { d->mk_anti_src() ;                 }
 		}
 		// user report
-		{	OFStream srcs_stream{AdminDir+"/sources"s} ;
+		{	OFStream srcs_stream{AdminDir+"/manifest"s} ;
 			for( Node n : srcs ) srcs_stream << n->name() <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
-		return old_srcs.size() || new_srcs.size() ;
+		return !old_srcs.empty() || !new_srcs.empty() ;
 	}
 
 	void EngineStore::_s_set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) {
@@ -410,10 +400,12 @@ namespace Engine {
 	void EngineStore::_s_collect_old_rules() {                                 // may be long, avoid as long as possible
 		MatchGen& match_gen = g_store.rule_file.hdr() ;
 		Trace("_s_collect_old_rules","reset",1) ;
-		for( Node     n   : g_store.node_lst          () ) n  ->mk_old()         ; // handle nodes first as jobs are necessary at this step
-		for( Job      j   : g_store.job_lst           () ) j  ->invalidate_old() ;
-		for( RuleTgts rts : g_store.rule_tgts_file.lst() ) rts. invalidate_old() ;
-		for( Rule     r   : g_store.rule_lst          () ) r  . invalidate_old() ; // now that old rules are not referenced any more, they can be suppressed
+		::cerr << "collecting" ;
+		::cerr << " nodes ..." ; for( Node     n   : g_store.node_lst          () ) n  ->mk_old()         ; // handle nodes first as jobs are necessary at this step
+		::cerr << " jobs ..."  ; for( Job      j   : g_store.job_lst           () ) j  ->invalidate_old() ;
+		::cerr << " rules ..." ; for( RuleTgts rts : g_store.rule_tgts_file.lst() ) rts. invalidate_old() ;
+		/**/                     for( Rule     r   : g_store.rule_lst          () ) r  . invalidate_old() ; // now that old rules are not referenced any more, they can be suppressed and reused
+		::cerr << endl ;
 		Rule::s_match_gen = match_gen = 1 ;
 	}
 	void EngineStore::s_invalidate_match() {
@@ -434,6 +426,7 @@ namespace Engine {
 	FullPass :
 		Trace trace("s_invalidate_exec") ;
 		Trace trace2 ;
+		::cerr << "collecting job cmds ..." ;
 		for( Job j : g_store.job_lst() ) {
 			if (j->rule.is_shared()) continue ;
 			auto [yes,cmd_gen] = keep_cmd_gens[+j->rule] ;
@@ -442,6 +435,7 @@ namespace Engine {
 			j->exec_gen = cmd_gen && j->exec_gen >= cmd_gen ;                  // set to 0 if bad cmd, to 1 if cmd ok but bad rsrcs
 			trace2(j,j->rule,old_exec_gen,"->",j->exec_gen) ;
 		}
+		::cerr << endl ;
 	}
 
 }

@@ -85,23 +85,25 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	return it->second ;
 }
 
+SlaveSockFd ServerSockFd::accept() {
+	SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
+	swear_prod(+slave_fd,"cannot accept from ",*this) ;
+	return slave_fd ;
+}
+
 void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials ) {
 	if (!*this) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
 	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;            // else use adequate htons/htonl according to the sizes
 	struct sockaddr_in sa = s_sockaddr(server,port) ;
-	for( int i=n_trials ;; i-- ) {
-		if (::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) return ; // success
-		if (i<=1) {
-			int en = errno ;                                                   // catch errno before any other syscall
-			close() ;
-			if (n_trials>1) throw to_string(strerror(en)," after ",n_trials," trials") ;
-			else            throw to_string(strerror(en)                             ) ;
-		} else {
-			Delay(0.001).sleep_for() ;                                         // wait a little bit before retrying if not last trial
-		}
+	for( int i=n_trials ; i>0 ; i-- ) {
+		if ( ::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) return ;                   // success
+		if ( i>1                                                                      ) Delay(0.001).sleep_for() ; // wait a little bit before retrying if not last trial
 	}
-	FAIL() ;
+	int en = errno ;                                                           // catch errno before any other syscall
+	close() ;
+	if (n_trials>1) throw to_string(strerror(en)," after ",n_trials," trials") ;
+	else            throw to_string(strerror(en)                             ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {

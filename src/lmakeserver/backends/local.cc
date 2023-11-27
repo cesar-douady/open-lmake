@@ -28,6 +28,7 @@ namespace Backends::Local {
 	struct RsrcsData : ::vector<Rsrc> {
 		// cxtors & casts
 		RsrcsData(                                                 ) = default ;
+		RsrcsData( size_t sz                                       ) : ::vector<Rsrc>(sz) {}
 		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs ) ;
 		::vmap_ss mk_vmap(::vector_s const& keys) const ;
 		// services
@@ -40,14 +41,20 @@ namespace Backends::Local {
 		RsrcsDataAsk(                                             ) = default ;
 		RsrcsDataAsk( ::vmap_ss && , ::umap_s<size_t> const& idxs ) ;
 		// services
-		bool fit_in(RsrcsData const& avail) const {                            // true if all resources fit within avail
-			SWEAR( size()==avail.size() , size() , avail.size() ) ;
-			for( size_t i=0 ; i<size() ; i++ ) if ((*this)[i].min>avail[i]) return false ;
+		bool fit_in( RsrcsData const& occupied , RsrcsData const& capacity ) const {                          // true if all resources fit within capacity on top of occupied
+			for( size_t i=0 ; i<size() ; i++ ) if ( occupied[i]+(*this)[i].min > capacity[i] ) return false ;
 			return true ;
 		}
-		RsrcsData within(RsrcsData const& avail) const {                       // what fits within avail
+		bool fit_in(RsrcsData const& capacity) const {                                            // true if all resources fit within capacity
+			for( size_t i=0 ; i<size() ; i++ ) if ( (*this)[i].min > capacity[i] ) return false ;
+			return true ;
+		}
+		RsrcsData within( RsrcsData const& occupied , RsrcsData const& capacity ) const { // what fits within capacity on top of occupied
 			RsrcsData res ; res.reserve(size()) ;
-			for( size_t i=0 ; i<size() ; i++ ) res.push_back(::min( (*this)[i].max , avail[i] ) ) ;
+			for( size_t i=0 ; i<size() ; i++ ) {
+				SWEAR( occupied[i]+(*this)[i].min <= capacity[i] , *this , occupied , capacity ) ;
+				res.push_back(::min( (*this)[i].max , capacity[i]-occupied[i] )) ;
+			}
 			return res ;
 		}
 	} ;
@@ -86,7 +93,7 @@ namespace Backends::Local {
 
 	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
 
-		static void _s_wait_thread_func( ::stop_token stop , LocalBackend* self ) {
+		static void _wait_thread_func( ::stop_token stop , LocalBackend* self ) {
 			Trace::t_key = 'W' ;
 			self->_wait_jobs(stop) ;
 		}
@@ -105,20 +112,25 @@ namespace Backends::Local {
 
 		// services
 
-		virtual bool/*ok*/ config(Config::Backend const& config) {
-			for( auto const& [k,v] : config.dct ) {
-				rsrc_idxs[k] = rsrc_keys.size() ;
-				rsrc_keys.push_back(k) ;
+		virtual bool/*ok*/ config( Config::Backend const& config , bool dynamic ) {
+			if (dynamic) {
+				/**/                                         if (rsrc_keys.size()!=config.dct.size()) throw "cannot change resource names while lmake is running"s ;
+				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=config.dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
+			} else {
+				for( auto const& [k,v] : config.dct ) {
+					rsrc_idxs[k] = rsrc_keys.size() ;
+					rsrc_keys.push_back(k) ;
+				}
 			}
 			capacity_ = RsrcsData( config.dct , rsrc_idxs ) ;
-			avail     = capacity_                           ;
+			occupied  = RsrcsData(rsrc_keys.size()        ) ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			Trace("config",MyTag,"capacity",'=',capacity_) ;
-			static ::jthread wait_jt{_s_wait_thread_func,this} ;
+			static ::jthread wait_jt{_wait_thread_func,this} ;
 			//
-			if (rsrc_idxs.contains("cpu")) {                                   // ensure each job can compute CRC on all cpu's in parallel
+			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                     // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
@@ -138,9 +150,9 @@ namespace Backends::Local {
 			return ::move(rsrcs) ;
 		}
 		//
-		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa          ) const { return rsa. fit_in(capacity_)              ; }
-		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const& rsa          ) const { return rsa->fit_in(avail    )              ; }
-		virtual RsrcsData    adapt         ( RsrcsDataAsk const& rsa          ) const { return rsa. within(avail    )              ; }
+		virtual bool/*ok*/   fit_eventually( RsrcsDataAsk const& rsa          ) const { return rsa. fit_in(         capacity_)     ; }
+		virtual bool/*ok*/   fit_now       ( RsrcsAsk     const& rsa          ) const { return rsa->fit_in(occupied,capacity_)     ; }
+		virtual RsrcsData    adapt         ( RsrcsDataAsk const& rsa          ) const { return rsa. within(occupied,capacity_)     ; }
 		virtual ::vmap_ss    export_       ( RsrcsData    const& rs           ) const { return rs.mk_vmap(rsrc_keys)               ; }
 		virtual RsrcsDataAsk import_       ( ::vmap_ss        && rsa , ReqIdx ) const { return RsrcsDataAsk(::move(rsa),rsrc_idxs) ; }
 		//
@@ -148,14 +160,14 @@ namespace Backends::Local {
 			return to_string("pid:",e.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx , SpawnedEntry const& se , Status ) const {
-			avail += *se.rsrcs ;
-			Trace trace("end","avail_rsrcs",'+',avail) ;
+			occupied -= *se.rsrcs ;
+			Trace trace("end","occupied_rsrcs",'-',occupied) ;
 			_wait_queue.push(se.id) ;                                          // defer wait in case job_exec process does some time consuming book-keeping
 			return {{},true/*retry*/} ;                                        // retry if garbage
 		}
-		virtual ::pair_s<bool/*alive*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const { // called after job_exec has had time to start
-			kill_queued_job(j,se) ;                                                                       // ensure job_exec is dead or will die shortly
-			return {{}/*msg*/,false/*alive*/} ;
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const { // called after job_exec has had time to start
+			kill_queued_job(j,se) ;                                                                        // ensure job_exec is dead or will die shortly
+			return {{}/*msg*/,HeartbeatState::Lost} ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			kill_process(se.id,SIGHUP) ;                                        // jobs killed here have not started yet, so we just want to kill job_exec
@@ -166,8 +178,8 @@ namespace Backends::Local {
 			pid_t pid = child.pid ;
 			child.mk_daemon() ;                                                // we have recorded the pid to wait and there is no fd to close
 			if (pid<0) throw "cannot spawn process"s ;
-			avail -= *rsrcs ;
-			Trace trace("avail_rsrcs",'-',avail) ;
+			occupied += *rsrcs ;
+			Trace trace("occupied_rsrcs",'+',occupied) ;
 			return pid ;
 		}
 
@@ -188,7 +200,7 @@ namespace Backends::Local {
 		::umap_s<size_t>  rsrc_idxs       ;
 		::vector_s        rsrc_keys       ;
 		RsrcsData         capacity_       ;
-		RsrcsData mutable avail           ;
+		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
 	private :
 		ThreadQueue<pid_t> mutable _wait_queue ;

@@ -7,19 +7,7 @@
 
 #pragma once
 
-namespace Engine {
-
-	struct Makefiles {
-		// statics
-		static void                          s_refresh_makefiles( bool chk, bool refresh        ) ;
-		static ::string/*reason to re-read*/ s_chk_makefiles    ( ::string const& startup_dir_s ) { Time::Ddate _ ; return _s_chk_makefiles(_,startup_dir_s) ; } // startup dir for diag purpose only
-	private :
-		static ::string/*reason to re-read*/ _s_chk_makefiles( Time::Ddate& latest_makefile/*output*/ , ::string const& startup_dir_s ) ;                        // .
-		// static data
-	public :
-		static ::string s_makefiles    ;                   // file that contains makefiles read while reading Lmakefiles.py
-		static ::string s_no_makefiles ;                   // marker that says that previous file is invalid (so that it can be written early to improve date compararisons)
-		static ::string s_config_file  ;
-	} ;
-
+namespace Engine::Makefiles {
+	::string/*msg*/ refresh        ( bool chk, bool refresh        ) ;
+	::string/*msg*/ dynamic_refresh( ::string const& startup_dir_s ) ; // startup dir for diag purpose only
 }

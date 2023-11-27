@@ -42,16 +42,17 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 
 int main( int argc , char* argv[] ) {
 	struct Exit {
+		Exit() : int_fd{open_sig_fd(SIGINT)} {}
 		~Exit() {                                                              // this must be executed after _int_thread_func has completed
 			if (!g_seen_int) return ;
-			unblock_sig(SIGINT) ;
+			close_sig_fd(int_fd,SIGINT) ;
 			kill_self  (SIGINT) ;                                              // appear as being interrupted : important for shell scripts to actually stop
 			kill_self  (SIGHUP) ;                                              // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
 			fail_prod("lmake does not want to die") ;
 		}
+		Fd int_fd ;
 	} ;
-	static Exit        exit   ;
-	static AutoCloseFd int_fd = open_sig_fd(SIGINT,true/*block*/) ;            // must be closed after _int_thread_func has completed and before ~Exit code
+	static Exit exit ;
 	Trace::s_backup_trace = true ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	//
@@ -72,8 +73,8 @@ int main( int argc , char* argv[] ) {
 	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , Fd(int_fd) } ; } ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , exit.int_fd } ; } ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

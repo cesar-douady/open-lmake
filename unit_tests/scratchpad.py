@@ -3,8 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 import lmake
 
 autodeps = []
@@ -14,15 +12,16 @@ if lmake.has_ld_preload : autodeps.append('ld_preload')
 
 if __name__!='__main__' :
 
-	from lmake import multi_strip
+	from lmake       import multi_strip
+	from lmake.rules import Rule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	)
 
 	for ad in autodeps :
-		class Cat(lmake.Rule) :
+		class Cat(Rule) :
 			name    = f'cat {ad}'
 			target  = f'{{File:.*}}.{ad}'
 			dep     = '{File}'

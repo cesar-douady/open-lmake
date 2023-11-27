@@ -159,13 +159,15 @@ namespace Engine {
 				}
 			}
 		}
-		for( ::string const& dir : to_mk_dirs ) { trace("create_dir",dir) ; _s_target_dirs[dir]++ ; } // update _target_dirs once we are sure job will start
+		for( ::string const& dir : to_mk_dirs ) { trace("protect_dir",dir) ; _s_target_dirs[dir]++ ; } // update _target_dirs once we are sure job will start
 		return to_report ;
 	}
 
 	void JobData::end_exec() const {
+		Trace trace("end_exec",idx()) ;
 		::unique_lock lock(_s_target_dirs_mutex) ;
 		for( ::string const& d : simple_match().target_dirs() ) {
+			trace("unprotect_dir",d) ;
 			auto it = _s_target_dirs.find(d) ;
 			SWEAR(it!=_s_target_dirs.end()) ;
 			if (it->second==1) _s_target_dirs.erase(it) ;
@@ -675,7 +677,7 @@ namespace Engine {
 				}
 				// report exec time even if not recording it
 				// report user stderr if make analysis does not make these errors meaningless
-				audit_end( {}/*pfx*/ , ri , backend_msg , ae , reason.err()?""s:stderr , end_none_attrs.stderr_len , any_modified , digest.stats.total ) ;
+				audit_end( {}/*pfx*/ , ri , backend_msg , ae , reason.err()?""s:stderr , end_none_attrs.max_stderr_len , any_modified , digest.stats.total ) ;
 				trace("wakeup_watchers",ri) ;
 				// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
 				if ( !cached && !cache_none_attrs.key.empty() && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) {           // cache only successful results
@@ -684,7 +686,7 @@ namespace Engine {
 				}
 				ri.wakeup_watchers() ;
 			} else {
-				audit_end( +local_reason?"":"may_" , ri , backend_msg , ae , {} , -1/*stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
+				audit_end( +local_reason?"":"may_" , ri , backend_msg , ae , {} , -1/*max_stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				req->missing_audits[*this] = { false/*hit*/ , any_modified , ae } ;
 			}
 			trace("req_after",ri) ;
@@ -700,7 +702,7 @@ namespace Engine {
 	,	::string    const& backend_msg
 	,	AnalysisErr const& analysis_err
 	,	::string    const& stderr
-	,	size_t             stderr_len
+	,	size_t             max_stderr_len
 	,	bool               modified
 	,	Delay              exec_time
 	) const {
@@ -735,7 +737,7 @@ namespace Engine {
 				req->stats.ended(jr)++ ;
 				req->stats.jobs_time[cri.done()/*useful*/] += exec_time ;
 			}
-			req->audit_stderr(backend_msg,*ae,stderr,stderr_len,1) ;
+			req->audit_stderr(backend_msg,*ae,stderr,max_stderr_len,1) ;
 		}
 	}
 
@@ -1063,8 +1065,8 @@ namespace Engine {
 					req->audit_stderr( {{rule->end_none_attrs.s_exc_msg(true/*using_static*/),{}}} , e , -1 , 1 ) ;
 				}
 				analysis_err.push_back(reason.str()) ;
-				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , analysis_err    , report_end.end.digest.stderr , end_none_attrs.stderr_len , ja.modified ) ;
-				else                           audit_end( ja.hit?"hit_":"was_" , ri , ja.analysis_err , report_end.end.digest.stderr , end_none_attrs.stderr_len , ja.modified ) ;
+				if ( reason.err() || no_info ) audit_end( ja.hit?"hit_":"was_" , ri , analysis_err    , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , ja.modified ) ;
+				else                           audit_end( ja.hit?"hit_":"was_" , ri , ja.analysis_err , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , ja.modified ) ;
 				req->missing_audits.erase(it) ;
 			}
 			trace("wakeup",ri) ;
@@ -1248,8 +1250,8 @@ namespace Engine {
 			req->audit_node(
 				Color::Note
 			,	t->crc==Crc::None ?
-					to_string( ": touched " , td.str(0    ) , " not generated"                   , " ; rm" )
-				:	to_string( ": touched " , td.str(n_dec) , " generated " , t->date.str(n_dec) , " ; rm" )
+					to_string( ": touched " , td.str(0    ) , " not generated"                 , " ; rm" )
+				:	to_string( ": touched " , td.str(n_dec) , " generated ",t->date.str(n_dec) , " ; rm" )
 			,	t
 			,	2
 			) ;

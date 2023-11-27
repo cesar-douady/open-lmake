@@ -3,8 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 n_jobs = 4
 
 if __name__!='__main__' :
@@ -12,8 +10,9 @@ if __name__!='__main__' :
 	import os
 
 	import lmake
+	from lmake.rules import PyRule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'trig'
 	)
@@ -21,7 +20,7 @@ if __name__!='__main__' :
 	lmake.config.backends.local.cpu = n_jobs*2
 	lmake.config.backends.local.mem = n_jobs*2
 
-	class GenFile(lmake.PyRule) :
+	class GenFile(PyRule) :
 		target    = 'file_{:\d+}'
 		deps      = {'TRIG':'trig'}
 		resources = {'mem':1}
@@ -29,7 +28,7 @@ if __name__!='__main__' :
 			lmake.depend(TRIG)
 			assert int(os.environ['SMALL_ID'])<=n_jobs , f"small id is {os.environ['SMALL_ID']} > {n_jobs}"
 
-	class Trig(lmake.PyRule) :
+	class Trig(PyRule) :
 		target    = 'out_{N:\d+}'
 		resources = {'mem':1}
 		def cmd() :

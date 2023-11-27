@@ -18,7 +18,7 @@ int main( int argc , char* /*argv*/[] ) {
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	Py::init() ;
 	//
-	EngineStore::s_keep_config(false/*rescue*/) ;
+	EngineStore::s_new_config({}/*config*/,false/*dynamic*/) ;
 	//
 	for( const Rule r : g_store.rule_lst() ) _out( {}           , to_string(r                ) , r->name   ) ;
 	for( const Job  j : g_store.job_lst () ) _out( to_string(j) , to_string(j->rule          ) , j->name() ) ;

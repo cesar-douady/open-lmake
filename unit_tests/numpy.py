@@ -3,8 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
@@ -12,7 +10,7 @@ if __name__!='__main__' :
 	try                        : import numpy                                  # check we can import numpy
 	except ModuleNotFoundError : numpy = None                                  # but ignore test if module does not exist
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 else :
 
 	import ut

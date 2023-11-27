@@ -175,11 +175,7 @@ struct ServerSockFd : SockFd {
 	}
 	::string service(in_addr_t addr) const { return to_string(s_addr_str(addr),':',port()) ; }
 	::string service(              ) const { return to_string(host()          ,':',port()) ; }
-	SlaveSockFd accept() {
-		SlaveSockFd slave_fd = ::accept( fd , nullptr , nullptr ) ;
-		swear_prod(+slave_fd,"cannot accept from ",*this) ;
-		return slave_fd ;
-	}
+	SlaveSockFd accept() ;
 } ;
 
 struct ClientSockFd : SockFd {
@@ -188,7 +184,9 @@ struct ClientSockFd : SockFd {
 	template<class... A> ClientSockFd(A&&... args) { connect(::forward<A>(args)...) ; }
 	// services
 	void connect( in_addr_t       server , in_port_t port , int n_trials=1 ) ;
-	void connect( ::string const& server , in_port_t port , int n_trials=1 ) { connect( s_addr(server) , port , n_trials ) ; }
+	void connect( ::string const& server , in_port_t port , int n_trials=1 ) {
+		connect( s_addr(server) , port , n_trials ) ;
+	}
 	void connect( ::string const& service , int n_trials=1 ) {
 		::pair_s<in_port_t> host_port = s_host_port(service) ;
 		connect( host_port.first , host_port.second , n_trials ) ;
@@ -224,7 +222,7 @@ struct Epoll {
 	Epoll (NewType) { init () ; }
 	~Epoll(       ) { close() ; }
 	// services
-	void init() { fd = ::epoll_create1(EPOLL_CLOEXEC) ; }
+	void init() { fd = ::epoll_create1(EPOLL_CLOEXEC) ; fd.no_std() ; }
 	template<class T> void add( bool write , Fd fd_ , T data ) {
 		static_assert(sizeof(T)<=4) ;
 		epoll_event event { .events=write?EPOLLOUT:EPOLLIN , .data={.u64=(uint64_t(uint32_t(data))<<32)|uint32_t(fd_) } } ;

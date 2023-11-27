@@ -3,19 +3,18 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 n_good = 20
 
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
 	lmake.config.backends.local.gnat = 4
 
-	class Test(lmake.Rule) :
+	class Test(Rule) :
 		cmd = 'echo {gnat}'
 	class Test1(Test) :
 		target    = r'test1.{Tokens:\d}'
@@ -31,7 +30,7 @@ if __name__!='__main__' :
 		target    = r'test3.{Tokens:\d}'
 		resources = { 'gnat': compute_gnat }
 
-	class Test4(lmake.Rule) :
+	class Test4(Rule) :
 		target = r'test4.{Tokens:\d}'
 		def resources() : return { 'gnat' : f'1<{Tokens}' }
 		def cmd      () : print(resources['gnat'])

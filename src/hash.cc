@@ -64,6 +64,7 @@ namespace Hash {
 	_Md5::_Md5() : _hash{0x67452301,0xefcdab89,0x98badcfe,0x10325476} , _cnt{0} {}
 
 	void _Md5::_update( const void* p , size_t sz ) {
+		FAIL() ;                                                               // XXX : suppress md5 code altogether
 		const uint8_t* pi = static_cast<const uint8_t*>(p) ;
 		SWEAR(!_closed) ;
 		if (!sz) return ;                                                      // memcpy is declared with non-null pointers and p may be nullptr if sz==0, otherwise fast path
@@ -95,6 +96,7 @@ namespace Hash {
 	}
 
 	Crc _Md5::digest() && {
+		FAIL() ;                                                               // XXX : suppress md5 code altogether
 		if (!_closed) {                                                        // this way, operator() can be called several times (but then no update possible)
 			if (!_salt.empty()) _update( _salt.c_str() , _salt.size() ) ;
 			uint32_t offset = _cnt & (sizeof(_blk)-1)   ;

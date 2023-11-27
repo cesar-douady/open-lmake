@@ -160,7 +160,7 @@ namespace Engine {
 		,	::string    const& backend_msg
 		,	AnalysisErr const&
 		,	::string    const& stderr
-		,	size_t             stderr_len
+		,	size_t             max_stderr_len
 		,	bool               modified
 		,	Delay              exec_time   = {}
 		) const ;
@@ -169,11 +169,11 @@ namespace Engine {
 		,	ReqInfo     const& cri
 		,	AnalysisErr const& ae
 		,	::string    const& stderr
-		,	size_t             stderr_len
+		,	size_t             max_stderr_len
 		,	bool               modified
 		,	Delay              exec_time   = {}
 		) const {
-			audit_end(pfx,cri,{}/*backend_msg*/,ae,stderr,stderr_len,modified,exec_time) ;
+			audit_end(pfx,cri,{}/*backend_msg*/,ae,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// data
 		in_addr_t  host   = NoSockAddr ;

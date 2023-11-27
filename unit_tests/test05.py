@@ -6,13 +6,12 @@
 ref = 'src1+{auto1.hide}.ref'
 dut = 'src1+{auto1.hide}.ok'
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'src1'
 	,	ref
@@ -22,7 +21,7 @@ if __name__!='__main__' :
 		if not n : return '[^{}]*'
 		p = balanced(n-1)
 		return f'{p}({{{p}}}{p})*'
-	class BaseRule(lmake.Rule) :
+	class BaseRule(Rule) :
 		stems = {
 			'File'    : r'.*'
 		,	'SubExpr' : balanced(0)
@@ -31,7 +30,7 @@ if __name__!='__main__' :
 		}
 		stems['Expr1'] = stems['Expr']
 		stems['Expr2'] = stems['Expr']
-		shell = lmake.Rule.shell + ('-e',)
+		shell = Rule.shell + ('-e',)
 
 	class Auto(BaseRule) :
 		target = 'auto{Digit}'

@@ -6,20 +6,24 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,ignore_flags
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'hello'
+	)
 
-	class A(Rule):
-		targets = { 'A' : 'a/{*:.*}' }
-		cmd = 'exit 1'
-
-	class D(Rule):
-		target = 'res'
-		cmd    = 'cat a/b/c/d'
+	class Cat(Rule) :
+		targets = {
+			'DST' : 'hello.cpy'
+		,	'SCRATCH' : ('hello',ignore_flags,'-write')
+		}
+		cmd = 'cat hello > {DST}'
 
 else :
 
 	import ut
 
-	ut.lmake( 'res' , may_rerun=1 , failed=1 , was_failed=1 , rc=1 )           # check no loop
+	print('hello',file=open('hello','w'))
+
+	ut.lmake( 'hello.cpy' , done=1 )                                           # check no dependency on hello

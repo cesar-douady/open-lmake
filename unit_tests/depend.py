@@ -3,10 +3,6 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
-import sys
-import time
-
 import lmake
 
 autodeps = []
@@ -16,16 +12,20 @@ if lmake.has_ld_preload : autodeps.append('ld_preload')
 
 if __name__!='__main__' :
 
+	import sys
+
+	from lmake.rules import Rule
+
 	import step
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	)
 
 	lmake.config.link_support = step.link_support
 
-	class Base(lmake.Rule) :
+	class Base(Rule) :
 		stems = { 'File' : r'.*' }
 
 	class Delay(Base) :
@@ -64,20 +64,28 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+	import shutil
+
 	import ut
 
 	n_ads = len(autodeps)
 
-	print(f"p=0\nlink_support='none'",file=open('step.py','w'))
-	ut.lmake( 'Lmakefile.py' , new=1 )                                         # prevent new Lmakefile.py in case of error as python reads it to display backtrace
 	#
 	for ls in ('none','file','full') :
+		try                      : shutil.rmtree('LMAKE')
+		except FileNotFoundError : pass
+		for f in ('dly','hello') :
+			try                      : os.unlink(f)
+			except FileNotFoundError : pass
+		print(f'p=0\nlink_support={ls!r}',file=open('step.py','w'))
+		ut.lmake( 'Lmakefile.py' , new=1 )                                         # prevent new Lmakefile.py in case of error as python reads it to display backtrace
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
 			# rerun versus may_rerun is timing dependent, but the sum is predictible
 			cnt = ut.lmake(
 				*( f'hello.{interp}.{cmd}.{ad}.{ls}.cpy' for interp in ('sh','py') for cmd in ('acc','dep') for ad in autodeps )
-			,	may_rerun=... , rerun=... , done=(p==0 and ls=='none')+(p!=1)+(p!=1)*2*n_ads , steady=(p==0 and ls!='none')+(p!=1)*2*n_ads
+			,	may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads , steady=(p!=1)*2*n_ads
 			)
 			expected = (p==0)*4*n_ads
 			actual   = cnt['may_rerun']+cnt['rerun']

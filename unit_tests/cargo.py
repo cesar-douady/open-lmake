@@ -3,15 +3,14 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule,HomelessRule,RustRule
 
 	from step import step
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	,	'hello/Cargo.toml'
@@ -20,7 +19,7 @@ if __name__!='__main__' :
 	,	'hello.ref'
 	)
 
-	class CompileRust(lmake.HomelessRule,lmake.RustRule) :
+	class CompileRust(HomelessRule,RustRule) :
 		targets = {
 			'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'
 		,	'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , '-Dep','Incremental','-Match' )
@@ -32,12 +31,12 @@ if __name__!='__main__' :
 		if step==2 : autodep = 'ptrace'
 		cmd     = 'cd  {Dir}{Module} ; cargo build 2>&1'
 
-	class RunRust(lmake.RustRule) :
+	class RunRust(RustRule) :
 		targets = { 'OUT' : '{Dir:.+/|}{Module:[^/]+}.out' }
 		deps    = { 'EXE' : '{Dir}{Module}/target/debug/{Module}' }
 		cmd     = './{EXE}'
 
-	class Cmp(lmake.Rule) :
+	class Cmp(Rule) :
 		target = '{File:.*}.ok'
 		deps   = {
 			'OUT' : '{File}.out'

@@ -168,73 +168,6 @@ namespace Engine {
 			if (changed) Backend::s_new_req_eta(+*this) ;                      // tell backends that req priority order has changed
 	}
 
-	void Req::_report_no_rule( Node node , DepDepth lvl ) {
-		::string                        name      = node->name()          ;
-		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
-		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
-		RuleTgt                         art       ;                            // set if an anti-rule matches
-		RuleIdx                         n_missing = 0                    ;     // number of rules missing deps
-		//
-		Node dir = node ; while (dir->uphill()) dir = Node(dir_name(dir->name())) ;
-		if ( dir!=node && dir->makable() ) {
-			/**/                                            (*this)->audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
-			if (dir->conform_job_tgt().produces(dir,true) ) (*this)->audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
-			else                                            (*this)->audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
-			return ;
-		}
-		//
-		for( RuleTgt rt : rrts ) {                                             // first pass to gather info : matching rules in mrts and number of them missing deps in n_missing
-			Rule::FullMatch match{rt,name} ;
-			if (!match       ) {            continue ; }
-			if (rt->is_anti()) { art = rt ; break    ; }
-			mrts.emplace_back(rt,match) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {                                                                         // do not pass *this as req to avoid generating error message at cxtor time
-				swear_prod(!jt.produces(node),"no rule for ",node->name()," but ",jt->rule->name," may produce it") ;
-				if (jt->run_status!=RunStatus::NoDep) continue ;
-			}
-			try                     { rt->deps_attrs.eval(match) ; }
-			catch (::string const&) { continue ;                   }           // do not consider rule if deps cannot be computed
-			n_missing++ ;
-		}
-		//
-		if      (+art           ) (*this)->audit_node(Color::Err ,to_string("anti-rule ",art->name," matches"),name,lvl  ) ;
-		else if (mrts.empty()   ) (*this)->audit_node(Color::Err ,"no rule match"                             ,name,lvl  ) ;
-		else                      (*this)->audit_node(Color::Err ,"no rule for"                               ,name,lvl  ) ;
-		if      (is_target(name)) (*this)->audit_node(Color::Note,"consider : git add"                        ,name,lvl+1) ;
-		//
-		for( auto const& [rt,m] : mrts ) {                          // second pass to do report
-			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
-			::string                    reason      ;
-			Node                        missing_dep ;
-			::vmap_s<pair_s<AccDflags>> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
-			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
-			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
-			{	::string missing_key ;
-				// first search a non-buildable, if not found, deps have been made and we search for non makable
-				for( bool search_non_buildable : {true,false} )
-					for( auto const& [k,daf] : static_deps ) {
-						Node d{daf.first} ;
-						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
-						missing_key = k ;
-						missing_dep = d ;
-						goto Found ;
-					}
-			Found :
-				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
-				FileInfo fi{missing_dep->name()} ;
-				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
-			}
-		Report :
-			if (!missing_dep) (*this)->audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
-			else              (*this)->audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
-			//
-			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
-		}
-		//
-		if (+art) (*this)->audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;
-	}
-
 	void Req::_report_cycle(Node node) {
 		::uset  <Node> seen      ;
 		::vector<Node> cycle     ;
@@ -274,8 +207,9 @@ namespace Engine {
 		}
 		if (!to_forget.empty() || !to_raise.empty() ) {
 			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d ",n                            , 1 ) ;
-			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 1 ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d "           , n , 1 ) ;
+			if (!to_raise.empty())    (*this)->audit_info( Color::Note , "add to Lmakefile.py :" ,     1 ) ;
+			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 2 ) ;
 		}
 	}
 
@@ -324,7 +258,7 @@ namespace Engine {
 				EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
 				AnalysisErr       ae             ;
 				for( auto const& [t,n] : report_end.end.digest.analysis_err ) ae.emplace_back(t,Node(n)) ;
-				seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.stderr_len , lvl+1 ) ;
+				seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 			} catch(...) {
 				(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 			}
@@ -355,10 +289,10 @@ namespace Engine {
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
 			if (job->rule->special==Special::Req) {
-				for( Dep const& d : job->deps ) if ( d->makable()) _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
-				for( Dep const& d : job->deps ) if (!d->makable()) _report_no_rule(d                                            ) ;
+				for( Dep const& d : job->deps ) if ( d->makable()) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				for( Dep const& d : job->deps ) if (!d->makable()) (*this)->_report_no_rule(d                                            ) ;
 			} else {
-				/**/                                               _report_err    (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				/**/                                               _report_err             (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
 		}
 	Done :
@@ -469,7 +403,7 @@ namespace Engine {
 			::sort( manuals_ ,
 				[]( ::pair<Node,pair<bool/*ok*/,NodeIdx>> const& a , ::pair<Node,pair<bool/*ok*/,NodeIdx>> b ) { return a.second.second<b.second.second ; } // sort in discovery order
 			) ;
-			for( auto [n,v] : manuals_ ) audit_node( v.second?Color::Warning:Color::Err , "manual" , n ) ;
+			for( auto [n,v] : manuals_ ) audit_node( v.first?Color::Warning:Color::Err , "manual" , n ) ;
 		}
 		if (!frozens.empty()) {
 			::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
@@ -497,7 +431,7 @@ namespace Engine {
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
 		::OStringStream msg ;
 		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
-		if (g_config.console.host_len !=uint8_t(-1)) msg <<      ::setw(g_config.console.host_len)<<SockFd::s_host(host)                  <<' ' ;
+		if (g_config.console.host_len              ) msg <<      ::setw(g_config.console.host_len)<<SockFd::s_host(host)                  <<' ' ;
 		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
@@ -548,6 +482,84 @@ namespace Engine {
 		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , to_string(::setw(::max(size_t(8)/*dangling*/,RuleData::s_name_sz)),pfx) , target , lvl ) ;
 		else       audit_info( Color::Warning                            , "..."                                                                                  ) ;
 		return !n_err/*overflow*/ ;
+	}
+
+	void ReqData::_report_no_rule( Node node , DepDepth lvl ) {
+		::string                        name      = node->name()          ;
+		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
+		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
+		RuleTgt                         art       ;                            // set if an anti-rule matches
+		RuleIdx                         n_missing = 0                     ;    // number of rules missing deps
+		//
+		if (node->long_name) {
+			swear_prod( name.size()>g_config.path_max , "name is marked too long but size is ",name.size()," and limit is ",g_config.path_max," for ",name ) ;
+			audit_node( Color::Err  , to_string("name is too long (",name.size(),'>',g_config.path_max,") for"          ) , name     , lvl   ) ;
+			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",name.size()) ,            lvl+1 ) ;
+			return ;
+		}
+		//
+		if (node->uphill()) {
+			Node dir ; for( dir=node->dir ; +dir && dir->uphill() ; dir=dir->dir ) ;
+			swear_prod(+dir          ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
+			swear_prod(dir->makable(),"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
+			/**/                                            audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
+			if (dir->conform_job_tgt().produces(dir,true) ) audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
+			else                                            audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
+			return ;
+		}
+		//
+		for( RuleTgt rt : rrts ) {                                             // first pass to gather info : matching rules in mrts and number of them missing deps in n_missing
+			Rule::FullMatch match{rt,name} ;
+			if (!match       ) {            continue ; }
+			if (rt->is_anti()) { art = rt ; break    ; }
+			mrts.emplace_back(rt,match) ;
+			if ( JobTgt jt{rt,name} ; +jt ) {                                                                      // do not pass *this as req to avoid generating error message at cxtor time
+				swear_prod(!jt.produces(node),"no rule for ",node->name()," but ",jt->rule->name," produces it") ;
+				if (jt->run_status!=RunStatus::NoDep) continue ;
+			}
+			try                     { rt->deps_attrs.eval(match) ; }
+			catch (::string const&) { continue ;                   }           // do not consider rule if deps cannot be computed
+			n_missing++ ;
+		}
+		//
+		if ( !art && mrts.empty()    ) audit_node( Color::Err  , "no rule match"      , name , lvl   ) ;
+		else                           audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
+		if ( !art && is_target(name) ) audit_node( Color::Note , "consider : git add" , name , lvl+1 ) ;
+		//
+		for( auto const& [rt,m] : mrts ) {                          // second pass to do report
+			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
+			::string                    reason      ;
+			Node                        missing_dep ;
+			bool                        dep_exists  = false       ;
+			::vmap_s<pair_s<AccDflags>> static_deps ;
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
+			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
+			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
+			{	::string missing_key ;
+				// first search a non-buildable, if not found, deps have been made and we search for non makable
+				for( bool search_non_buildable : {true,false} )
+					for( auto const& [k,daf] : static_deps ) {
+						Node d{daf.first} ;
+						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
+						missing_key = k ;
+						missing_dep = d ;
+						goto Found ;
+					}
+			Found :
+				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
+				FileInfo fi{missing_dep->name()} ;
+				dep_exists = +fi                                                                                                   ;
+				reason     = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
+			}
+		Report :
+			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
+			if (dep_exists  ) audit_node( Color::Note , "consider : git add"                        , missing_dep , lvl+2 ) ;
+			//
+			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
+		}
+		//
+		if (+art) audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;
 	}
 
 	//

@@ -3,13 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'src1'
 	,	'src2'
@@ -20,7 +19,7 @@ if __name__!='__main__' :
 		if not n : return '[^{}]*'
 		p = balanced(n-1)
 		return f'{p}({{{p}}}{p})*'
-	class BaseRule(lmake.Rule) :
+	class BaseRule(Rule) :
 		stems = {
 			'File'    : r'.*'
 		,	'SubExpr' : balanced(0)
@@ -29,7 +28,7 @@ if __name__!='__main__' :
 		}
 		stems['Expr1'] = stems['Expr']
 		stems['Expr2'] = stems['Expr']
-		shell = lmake.Rule.shell + ('-e',)
+		shell = Rule.shell + ('-e',)
 
 	class Cat(BaseRule) :
 		target = '{Expr1}+{Expr2}'

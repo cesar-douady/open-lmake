@@ -9,11 +9,11 @@
 
 MAKEFLAGS := -j$(shell nproc||echo 1) -k
 
-PYTHON := $(shell bash -c 'type -p python3')
-
-CC := $(shell bash -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc || type -p clang')
-
-GIT := $(shell bash -c 'type -p git')
+BASH     := $(shell        bash    -c 'type -p bash'   )
+PYTHON   := $(shell        $(BASH) -c 'type -p python3')
+GIT      := $(shell        $(BASH) -c 'type -p git'    )
+STD_PATH := $(shell env -i $(BASH) -c 'echo $$PATH'    )
+CC       := $(shell        $(BASH) -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc || type -p clang')
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
@@ -141,19 +141,24 @@ BACKEND_LIB := $(ENGINE_LIB)/backends
 
 # LMAKE
 LMAKE_SERVER_FILES = \
-	$(SLIB)/read_makefiles.py \
-	$(SLIB)/serialize.py      \
-	$(SBIN)/lmakeserver       \
-	$(SBIN)/ldump             \
-	$(SBIN)/ldump_job         \
-	$(LIB)/lmake.py           \
-	$(LIB)/lmake_runtime.py   \
-	$(BIN)/autodep            \
-	$(BIN)/ldebug             \
-	$(BIN)/lforget            \
-	$(BIN)/lmake              \
-	$(BIN)/lmark              \
-	$(BIN)/lshow              \
+	$(SLIB)/read_makefiles.py        \
+	$(SLIB)/serialize.py             \
+	$(SBIN)/lmakeserver              \
+	$(SBIN)/ldump                    \
+	$(SBIN)/ldump_job                \
+	$(LIB)/lmake/__init__.py         \
+	$(LIB)/lmake/auto_sources.py     \
+	$(LIB)/lmake/import_machinery.py \
+	$(LIB)/lmake/rules.py            \
+	$(LIB)/lmake/sources.py          \
+	$(LIB)/lmake/utils.py            \
+	$(LIB)/lmake_runtime.py          \
+	$(BIN)/autodep                   \
+	$(BIN)/ldebug                    \
+	$(BIN)/lforget                   \
+	$(BIN)/lmake                     \
+	$(BIN)/lmark                     \
+	$(BIN)/lshow                     \
 	$(BIN)/xxhsum
 
 
@@ -232,11 +237,14 @@ ext/%.patched.h : ext/%.h ext/%.patch_script
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
-$(LIB)/lmake.py : $(SLIB)/lmake.src.py
+$(LIB)/%.py : $(SLIB)/%.src.py
 	mkdir -p $(@D)
-	cp $<    $@
-	echo "_git = '$(GIT)'" >>$@
-	[ '$(PYTHON_LD_LIBRARY_PATH)' = '' ] || echo "Rule.environ_cmd.LD_LIBRARY_PATH = '$(PYTHON_LD_LIBRARY_PATH)'" >>$@
+	sed \
+		-e 's!\$$BASH!$(BASH)!'                              \
+		-e 's!\$$GIT!$(GIT)!'                                \
+		-e 's!\$$LD_LIBRARY_PATH!$(PYTHON_LD_LIBRARY_PATH)!' \
+		-e 's!\$$STD_PATH!$(STD_PATH)!'                      \
+		$< >$@
 # for other files, just copy
 $(LIB)/% : $(SLIB)/%
 	mkdir -p $(@D)

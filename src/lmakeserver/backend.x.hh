@@ -26,6 +26,12 @@ namespace Backends {
 	,	Lost
 	)
 
+	ENUM(HeartbeatState
+	,	Alive
+	,	Lost
+	,	Err
+	)
+
 	struct Backend {
 		using SmallId     = uint32_t          ;
 		using CoarseDelay = Time::CoarseDelay ;
@@ -71,8 +77,8 @@ namespace Backends {
 		} ;
 
 		// statics
-		static bool s_is_local(Tag                                  ) ;
-		static void s_config  (Config::Backend const config[+Tag::N]) ;
+		static bool s_is_local( Tag                                                           ) ;
+		static void s_config  ( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -87,9 +93,9 @@ namespace Backends {
 		static void s_new_req_eta(ReqIdx    ) ;
 		static void s_launch     (          ) ;
 		// called by job_exec thread
-		static ::pair_s<uset<ReqIdx>>  s_start    ( Tag , JobIdx          ) ;  // called by job_exec  thread, sub-backend lock must have been takend by caller
-		static ::pair_s<bool/*retry*/> s_end      ( Tag , JobIdx , Status ) ;  // .
-		static ::pair_s<bool/*alive*/> s_heartbeat( Tag , JobIdx          ) ;  // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::pair_s<uset<ReqIdx>>   s_start    ( Tag , JobIdx          ) ;  // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::pair_s<bool/*retry*/>  s_end      ( Tag , JobIdx , Status ) ;  // .
+		static ::pair_s<HeartbeatState> s_heartbeat( Tag , JobIdx          ) ;  // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
@@ -121,8 +127,8 @@ namespace Backends {
 	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool       is_local(                      ) const { return true ; }
-		virtual bool/*ok*/ config  (Config::Backend const&)       { return true ; }
+		virtual bool       is_local(                                           ) const { return true ; }
+		virtual bool/*ok*/ config  ( Config::Backend const& , bool /*dynamic*/ )       { return true ; }
 		//
 		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}    // called before any operation on req , n_jobs is the maximum number of jobs that can be launched (lmake -j option)
 		virtual void           new_req_eta( ReqIdx                       ) {}    // inform backend that req has a new eta, which may change job priorities
@@ -133,10 +139,10 @@ namespace Backends {
 		virtual void add_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // add a new req for an already submitted job
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
-		virtual void                    launch   (             ) = 0 ;                           // called to trigger launch of waiting jobs
-		virtual ::pair_s<uset<ReqIdx>>  start    (JobIdx       ) = 0 ;                           // tell sub-backend job started, return an informative message and reqs associated with job
-		virtual ::pair_s<bool/*retry*/> end      (JobIdx,Status) { return {}                 ; } // tell sub-backend job ended  , return a message and whether to retry jobs with garbage status
-		virtual ::pair_s<bool/*alive*/> heartbeat(JobIdx       ) { return {{},true/*alive*/} ; } // regularly called between launch and start
+		virtual void                     launch   (             ) = 0 ;                                   // called to trigger launch of waiting jobs
+		virtual ::pair_s<uset<ReqIdx>>   start    (JobIdx       ) = 0 ;                                   // tell sub-backend job started, return an informative message and reqs associated with job
+		virtual ::pair_s<bool/*retry*/>  end      (JobIdx,Status) { return {}                         ; } // tell sub-backend job ended, return a message and whether to retry jobs with garbage status
+		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx       ) { return {{},HeartbeatState::Alive} ; } // regularly called between launch and start, initially with enough delay for job to connect
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ ) const { return {} ; } // map resources for this backend to local resources knowing local capacity
 		//
@@ -158,9 +164,9 @@ namespace Backends {
 	inline void Backend::s_close_req  (ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
 	//
-	inline ::pair_s<uset<ReqIdx>>  Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
-	inline ::pair_s<bool/*retry*/> Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
-	inline ::pair_s<bool/*alive*/> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
+	inline ::pair_s<uset<ReqIdx>>   Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
+	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
+	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 }
 

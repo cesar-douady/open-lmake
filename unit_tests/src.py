@@ -3,26 +3,25 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'world'
 	,	'world.ref'
 	)
 
-	class HelloWorld(lmake.Rule) :
+	class HelloWorld(Rule) :
 		targets = {
 			'HELLO' :   'hello'
 		,	'WORLD' : ( 'world' , 'SourceOk' )
 		}
 		cmd = 'echo hello >{HELLO} ; echo world > {WORLD}'
 
-	class Cmp(lmake.Rule) :
+	class Cmp(Rule) :
 		target = '{File:.*}.ok'
 		deps   = {
 			'ACTUAL' : '{File}'

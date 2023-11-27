@@ -49,6 +49,7 @@ struct GatherDeps {
 		Tflags       tflags           ;                    // resulting flags after appliation of info flags modifiers
 	} ;
 	// cxtors & casts
+public :
 	GatherDeps(       ) = default ;
 	GatherDeps(NewType) { init() ; }
 	void init() {
@@ -64,7 +65,7 @@ private :
 		for( auto const& [f,dd] : jerr.files ) _new_access( jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
 	}
 public :
-	void new_target( PD pd , ::string const& t         , Tflags n , Tflags p     , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
+	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
 	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.accesses=a,.dflags=dfs                },0/*parallel_id*/,c) ; }
 	//
 	void static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& c="static_deps" ) {
@@ -119,7 +120,7 @@ public :
 	umap_s<NodeIdx   >                            access_map   ;
 	NodeIdx                                       parallel_id  = 0                                                              ; // id to identify parallel deps
 	bool                                          seen_tmp     = false                                                          ;
-	int                                           wstatus      = 0                                                              ;
+	int                                           wstatus      = 0/*garbage*/                                                   ;
 	::string                                      stdout       ;                                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr       ;                                                                  // contains child stderr if child_stderr==Pipe
 private :

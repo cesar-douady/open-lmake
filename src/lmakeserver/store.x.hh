@@ -390,21 +390,21 @@ namespace Engine {
 
 		// statics
 	public :
-		static void s_new_config   ( Config&& , bool rescue=false               ) ;
-		static void s_new_makefiles( ::umap<Crc,RuleData>&& , ::vector_s&& srcs ) ;
+		static void s_new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 		//
-		static void s_keep_config     (bool rescue=false) ;
+		static bool/*invalidate*/ s_new_srcs     (::vector_s          &&) ;
+		static bool/*invalidate*/ s_new_rules    (::umap<Crc,RuleData>&&) ;
+		//
 		static void s_invalidate_match(                 ) ;
+		//
 	private :
 		static void               _s_init_config      (                                                                              ) ;
 		static void               _s_set_config       ( Config     && new_config                                                     ) ;
-		static void               _s_diff_config      ( Config const& old_config                                                     ) ;
+		static void               _s_diff_config      ( Config const& old_config , bool dynamic                                      ) ;
 		static void               _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
 		static void               _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
 		static void               _s_collect_old_rules(                                                                              ) ;
 		static void               _s_invalidate_exec  ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
-		static bool/*invalidate*/ _s_new_srcs         ( ::vector<Node>&& srcs                                                        ) ;
-		static void               _s_new_rules        ( ::umap<Crc,RuleData>&& , bool force_invalidate                               ) ;
 		// cxtors
 	public :
 		EngineStore(bool w) : writable{w} {}

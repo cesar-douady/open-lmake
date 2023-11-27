@@ -47,7 +47,7 @@ namespace Engine {
 		return os <<')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Config::Cache const& c ) {
+	::ostream& operator<<( ::ostream& os , ConfigStatic::Cache const& c ) {
 		return os << "Cache(" << c.tag <<','<< c.dct << ')' ;
 	}
 
@@ -61,14 +61,24 @@ namespace Engine {
 		if (sc.max_dep_depth       ) os <<",MD" << sc.max_dep_depth          ;
 		if (sc.max_err_lines       ) os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
-		if (sc.sub_prio_boost      ) os <<",SPB"<< sc.sub_prio_boost         ;
 		if (!sc.caches.empty()     ) os <<','   << sc.caches                 ;
 		for( Tag t : Tag::N        ) os <<','   << t <<':'<< sc.backends[+t] ;
 		if (!sc.src_dirs_s.empty() ) os <<','   << sc.src_dirs_s             ;
 		return os<<')' ;
 	}
 
-	Config::Backend::Backend( Py::Mapping const& py_map , bool is_local ) : configured{true} {
+	ConfigStatic::Cache::Cache(Py::Mapping const& py_map) {
+		::string field     ;
+		bool     found_tag = false ;
+		for( auto const& [k,v] : Py::Mapping(py_map) ) {
+			field = Py::String(k) ;
+			if (field=="tag") { tag = mk_enum<Tag>(Py::String(v)) ; found_tag = true ; }
+			else              { dct.emplace_back(field,v.str())   ;                    }
+		}
+		if (!found_tag) throw "tag not found"s ;
+	}
+
+	ConfigDynamic::Backend::Backend( Py::Mapping const& py_map , bool is_local ) : configured{true} {
 		::string field ;
 		try {
 			bool found_addr = false ;
@@ -92,35 +102,29 @@ namespace Engine {
 		}
 	}
 
-	Config::Cache::Cache(Py::Mapping const& py_map) {
-		::string field     ;
-		bool     found_tag = false ;
-		for( auto const& [k,v] : Py::Mapping(py_map) ) {
-			field = Py::String(k) ;
-			if (field=="tag") { tag = mk_enum<Tag>(Py::String(v)) ; found_tag = true ; }
-			else              { dct.emplace_back(field,v.str())   ;                    }
-		}
-		if (!found_tag) throw "tag not found"s ;
-	}
-
-	Config::Config(Py::Mapping const& py_map) {
+	Config::Config(Py::Mapping const& py_map) : booted{true} {                 // if config is read from makefiles, it is booted
+		db_version = Version::Db ;                                             // record current version
 		::string field ;
 		try {
-			field = "hash_algo"        ; if (py_map.hasKey(field)) hash_algo             = mk_enum<Hash::Algo>(Py::String(py_map[field])) ;
-			field = "local_admin_dir"  ; if (py_map.hasKey(field)) user_local_admin_dir  =                     Py::String(py_map[field])  ;
-			field = "max_dep_depth"    ; if (py_map.hasKey(field)) max_dep_depth         = size_t             (Py::Long  (py_map[field])) ; else throw "not found"s ;
-			field = "max_error_lines"  ; if (py_map.hasKey(field)) max_err_lines         = size_t             (Py::Long  (py_map[field])) ;
-			field = "network_delay"    ; if (py_map.hasKey(field)) network_delay         = Time::Delay        (Py::Float (py_map[field])) ;
-			field = "remote_admin_dir" ; if (py_map.hasKey(field)) user_remote_admin_dir =                     Py::String(py_map[field])  ;
-			field = "remote_tmp_dir"   ; if (py_map.hasKey(field)) user_remote_tmp_dir   =                     Py::String(py_map[field])  ;
-			field = "trace_size"       ; if (py_map.hasKey(field)) trace_sz              = size_t             (Py::Long  (py_map[field])) ;
-			field = "path_max"         ; if (py_map.hasKey(field)) path_max              = size_t             (Py::Long  (py_map[field])) ;
-			field = "sub_prio_boost"   ; if (py_map.hasKey(field)) sub_prio_boost        = Prio               (Py::Float (py_map[field])) ;
+			Py::Object v ;
+			field = "hash_algo"        ; v = py_map[field] ; if (py_map.hasKey(field)) hash_algo             = mk_enum<Hash::Algo>   (Py::String(v))               ;
+			field = "local_admin_dir"  ; v = py_map[field] ; if (py_map.hasKey(field)) user_local_admin_dir  =                        Py::String(v)                ;
+			field = "heartbeat"        ; v = py_map[field] ; if (py_map.hasKey(field)) heartbeat             = v.isTrue()?Time::Delay(Py::Float (v)):Time::Delay() ;
+			field = "heartbeat_tick"   ; v = py_map[field] ; if (py_map.hasKey(field)) heartbeat_tick        = v.isTrue()?Time::Delay(Py::Float (v)):Time::Delay() ;
+			field = "max_dep_depth"    ; v = py_map[field] ; if (py_map.hasKey(field)) max_dep_depth         = size_t                (Py::Long  (v))               ;
+			field = "network_delay"    ; v = py_map[field] ; if (py_map.hasKey(field)) network_delay         = Time::Delay           (Py::Float (v))               ;
+			field = "path_max"         ; v = py_map[field] ; if (py_map.hasKey(field)) path_max              = size_t                (Py::Long  (v))               ;
+			field = "rules_module"     ; v = py_map[field] ; if (py_map.hasKey(field)) rules_module          =                        Py::String(v)                ;
+			field = "sources_module"   ; v = py_map[field] ; if (py_map.hasKey(field)) srcs_module           =                        Py::String(v)                ;
+			field = "trace_size"       ; v = py_map[field] ; if (py_map.hasKey(field)) trace_sz              = size_t                (Py::Long  (v))               ;
+			field = "max_error_lines"  ; v = py_map[field] ; if (py_map.hasKey(field)) max_err_lines         = size_t                (Py::Long  (v))               ;
+			field = "remote_admin_dir" ; v = py_map[field] ; if (py_map.hasKey(field)) user_remote_admin_dir =                        Py::String(v)                ;
+			field = "remote_tmp_dir"   ; v = py_map[field] ; if (py_map.hasKey(field)) user_remote_tmp_dir   =                        Py::String(v)                ;
 			//
 			field = "link_support" ;
 			if (py_map.hasKey(field)) {
 				Py::Object py_lnk_support = py_map[field] ;
-				if      (py_lnk_support==Py::None()) lnk_support = LnkSupport::None                                          ;
+				if      (!py_lnk_support.isTrue()  ) lnk_support = LnkSupport::None                                          ;
 				else if (py_lnk_support==Py::True()) lnk_support = LnkSupport::Full                                          ;
 				else                                 lnk_support = mk_enum<LnkSupport>(::string(Py::String(py_lnk_support))) ;
 			}
@@ -136,9 +140,8 @@ namespace Engine {
 			}
 			field = "console.host_length" ;
 			if (py_console.hasKey("host_length")) {
-				Py::Object py_host_len  = py_console["host_length"] ;
-				if (py_host_len==Py::None()) console.host_len = uint8_t(-1)                                       ;
-				else                         console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
+				Py::Object py_host_len = py_console["host_length"] ;
+				if (py_host_len.isTrue()) console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
 			}
 			field = "console.has_exec_time" ;
 			if (py_console.hasKey("has_exec_time")) console.has_exec_time = Py::Object(py_console["has_exec_time"]).as_bool() ;
@@ -229,29 +232,53 @@ namespace Engine {
 
 	::string Config::pretty_str() const {
 		OStringStream res ;
-		/**/                      res << "db_version       : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		/**/                      res << "hash_algo        : " << mk_snake(hash_algo    )                 <<'\n' ;
-		/**/                      res << "link_support     : " << mk_snake(lnk_support  )                 <<'\n' ;
-		/**/                      res << "local_admin_dir  : " <<          user_local_admin_dir           <<'\n' ;
-		/**/                      res << "max_dep_depth    : " << size_t  (max_dep_depth)                 <<'\n' ;
-		/**/                      res << "max_error_lines  : " <<          max_err_lines                  <<'\n' ;
-		/**/                      res << "network_delay    : " <<          network_delay.short_str()      <<'\n' ;
-		if (path_max!=size_t(-1)) res << "path_max         : " << size_t  (path_max     )                 <<'\n' ;
-		else                      res << "path_max         : " <<          "<unlimited>"                  <<'\n' ;
-		/**/                      res << "remote_admin_dir : " <<          user_remote_admin_dir          <<'\n' ;
-		/**/                      res << "remote_tmp_dir   : " <<          user_remote_tmp_dir            <<'\n' ;
-		res << "console :\n" ;
-		if (console.date_prec==uint8_t(-1)) res << "\tdate_precision : <no date>\n"                      ;
-		else                                res << "\tdate_precision : " << console.date_prec     <<'\n' ;
-		if (console.host_len ==         0 ) res << "\thost_length    : <no host>\n"                      ;
-		else                                res << "\thost_length    : " << console.host_len      <<'\n' ;
-		/**/                                res << "\thas_exec_time  : " << console.has_exec_time <<'\n' ;
-		res << "backends :\n" ;
+		//
+		res << "clean :\n" ;
+		/**/                                res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
+		if (hash_algo!=Algo::Xxh          ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
+		/**/                                res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
+		if (!user_local_admin_dir .empty()) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
+		//
+		res << "static :\n" ;
+		if (heartbeat     >Delay()     ) res << "\theartbeat      : " << heartbeat     .short_str() <<'\n' ;
+		if (heartbeat_tick>Delay()     ) res << "\theartbeat_tick : " << heartbeat_tick.short_str() <<'\n' ;
+		if (max_dep_depth!=DepDepth(-1)) res << "\tmax_dep_depth  : " << size_t(max_dep_depth)      <<'\n' ;
+		/**/                             res << "\tnetwork_delay  : " << network_delay .short_str() <<'\n' ;
+		if (path_max!=size_t(-1)       ) res << "\tpath_max       : " << size_t(path_max     )      <<'\n' ;
+		else                             res << "\tpath_max       : " <<        "<unlimited>"       <<'\n' ;
+		if (!rules_module.empty()      ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
+		if (!srcs_module .empty()      ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
+		if (!src_dirs_s.empty()) {
+			res << "\tsource_dirs :\n" ;
+			for( ::string const& sd_s : src_dirs_s ) {
+				SWEAR(!sd_s.empty()) ;
+				res <<"\t\t"<< ::string_view(sd_s).substr(0,sd_s.size()-1) <<'\n' ;
+			}
+		}
+		if (!caches.empty()) {
+			res << "\tcaches :\n" ;
+			for( auto const& [key,cache] : caches ) {
+				size_t w = 3 ;                                                 // room for tag
+				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
+				res <<"\t\t"<< key <<" :\n" ;
+				/**/                                 res <<"\t\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
+				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
+			}
+		}
+		res << "dynamic :\n" ;
+		/**/                                res << "\tmax_error_lines  : " << max_err_lines             <<'\n' ;
+		if (!user_remote_admin_dir.empty()) res << "\tremote_admin_dir : " << user_remote_admin_dir     <<'\n' ;
+		if (!user_remote_tmp_dir  .empty()) res << "\tremote_tmp_dir   : " << user_remote_tmp_dir       <<'\n' ;
+		res << "\tconsole :\n" ;
+		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
+		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		bool has_digits = false ; for( StdRsrc r : StdRsrc::N ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
-			res << "\tprecisions :\n" ;
+			res << "\tresource precisions :\n" ;
 			for( StdRsrc r : StdRsrc::N ) if (rsrc_digits[+r]) res << to_string("\t\t",mk_snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
 		}
+		res << "\tbackends :\n" ;
 		for( BackendTag t : BackendTag::N ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
@@ -259,44 +286,33 @@ namespace Engine {
 			if (!be.configured) continue ;                                     // not configured
 			size_t w  = 9 ;                                                    // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
-			res <<'\t'<< mk_snake(t) <<" :\n" ;
-			if (be.addr!=NoSockAddr)          res <<"\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			/**/                              res <<"\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
-		}
-		if (!caches.empty()) {
-			res << "caches :\n" ;
-			for( auto const& [key,cache] : caches ) {
-				size_t w = 3 ;                                                 // room for tag
-				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
-				res <<'\t'<< key <<" :\n" ;
-				/**/                                 res <<"\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
-				for( auto const& [k,v] : cache.dct ) res <<"\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
-			}
-		}
-		if (!src_dirs_s.empty()) {
-			res << "source_dirs :\n" ;
-			for( ::string const& sd_s : src_dirs_s ) {
-				SWEAR(!sd_s.empty()) ;
-				res <<'\t'<< ::string_view(sd_s).substr(0,sd_s.size()-1) <<'\n' ;
-			}
+			res <<"\t\t"<< mk_snake(t) <<" :\n" ;
+			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
+			/**/                              res <<"\t\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
 		return res.str() ;
 	}
 
-	void Config::open() {
+	void Config::open(bool dynamic) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
-		Xxh key_hash ;
-		key_hash.update(*g_root_dir) ;
-		::string repo_key = '/' + ::string(::move(key_hash).digest()) ;
+		static ::string repo_key ;
+		if (repo_key.empty()) {
+			Hash::Xxh key_hash ;
+			key_hash.update(*g_root_dir) ;
+			repo_key = '/' + ::string(::move(key_hash).digest()) ;
+		}
 		//
-		if (user_local_admin_dir .empty()) local_admin_dir  = PrivateAdminDir+"/local_admin"s  ; else local_admin_dir  = user_local_admin_dir  + repo_key ;
-		if (user_remote_admin_dir.empty()) remote_admin_dir = PrivateAdminDir+"/remote_admin"s ; else remote_admin_dir = user_remote_admin_dir + repo_key ;
-		if (user_remote_tmp_dir  .empty()) remote_tmp_dir   = PrivateAdminDir+"/remote_tmp"s   ; else remote_tmp_dir   = user_remote_tmp_dir   + repo_key ;
+		if ( user_local_admin_dir .empty() ) local_admin_dir  = PrivateAdminDir+"/local_admin"s  ; else local_admin_dir  = user_local_admin_dir  + repo_key ;
+		if ( user_remote_admin_dir.empty() ) remote_admin_dir = PrivateAdminDir+"/remote_admin"s ; else remote_admin_dir = user_remote_admin_dir + repo_key ;
+		if ( user_remote_tmp_dir  .empty() ) remote_tmp_dir   = PrivateAdminDir+"/remote_tmp"s   ; else remote_tmp_dir   = user_remote_tmp_dir   + repo_key ;
 		//
-		Backends::Backend::s_config(backends) ;
-		Caches  ::Cache  ::s_config(caches  ) ;
+		Backends::Backend::s_config(backends,dynamic) ;
+		//
+		if (dynamic) return ;
+		//
+		Caches::Cache::s_config(caches) ;
 		// check non-local backends have non-local addresses
 		for( BackendTag t : BackendTag::N ) {
 			if (!Backends::Backend::s_ready[+t]) continue ;                    // backend is not supposed to be used

@@ -8,6 +8,8 @@
 @macro XXX{txt}
 @end macro
 
+@XXX{document which config fields are clean/static/dynamic}
+
 @macro lmake
 @code{lmake}
 @end macro
@@ -213,11 +215,11 @@ The goal of @Lmakefile is to describe 3 aspects of your workflow :
 @item the derivation rules
 @end itemize
 
-This is done by importing the @lmake module and defining the 3 variables @code{lmake.config}, @code{lmake.sources} and @code{lmake.rules}.
-When reading @Lmakefile, @lmake simply imports this module by issuing @code{import Lmakefile} in a Python 3.6+ interpreter and looks at these 3 variables.
+This is done by importing the @lmake module and defining the 2 variables @code{lmake.config}, @code{lmake.manifest} and by defining rules inheriting from the base classes in @code{lmake.rules}.
+When reading @Lmakefile, @lmake simply imports this module by issuing @code{import Lmakefile} in a Python 3.6+ interpreter and looks at these variables and sub-classes.
 @lmake provides some help for these 3 goals, though.
 
-Once @Lmakefile has been read, @lmake writes in the @file{LMAKE} directory a digest of these 3 variables in the files @file{LMAKE/config}, @file{LMAKE/sources} and @file{LMAKE/rules}.
+Once @Lmakefile has been read, @lmake writes in the @file{LMAKE} directory a digest of these definitions in the files @file{LMAKE/config}, @file{LMAKE/sources} and @file{LMAKE/rules}.
 These may be consulted in case of doubt about what @lmake has understood of your @Lmakefile file.
 
 @section Configuration
@@ -236,32 +238,29 @@ must be able to do a pull and build the same target to get the same result.
 If a file exists in your original repository, but is not tracked by @code{git} and is used to build your target, your colleague will not be able to reproduce the same target with the same content.
 In such a situation, @lmake will consider your file as @dfn{dangling} and accessing it will be an error.
 
-Source files are listed in @code{lmake.sources} as a @code{list} or a @code{tuple}.
-By default, if @code{lmake.sources} is not set, @lmake will look for a file named @file{Manifest} and use it as a list of files, one per line.
+Source files are listed in @code{lmake.manifest} as a @code{list} or a @code{tuple}.
+By default, if @code{lmake.manifest} is not set, @lmake will look for a file named @file{Manifest} and use it as a list of files, one per line.
 If no @file{Manifest} file is present, it will then issue a @code{git ls-files --recurse-submodules} command to gather the list of sources.
+Note that the @code{git} repository can be anywhere on the directory path to the @lmake repository.
 
 @section Rules
 
-Rules are classes that listed in the @code{lmake.rules} variables.
-Rather than manually adding them to this variables, rules can simply be defined as classes inheriting from the class @code{lmake.Rule}.
-In addition to listing derived classes in the @code{lmake.rules} variables, the  @code{lmake.Rule} base class provide defaults for various attributes that are of
-secondary importance for simple rules.
+Rules are classes that derive from one of the base classes defined in @code{lmake.rules} (Rule, AntiRule, PyRule, ...).
 
-To be recognized as a usable rule, rules must have the following attributes :
+To be recognized as a usable rule, rules must define the following attributes (possibly by inheriting them) :
 @itemize @bullet
 @item @code{targets}
 @item @code{cmd}
 @end itemize
 
-Generally, it will also have these attributes :
-@itemize @bullet
-@item @code{stems}
-@item @code{deps}
-@end itemize
+If any is not defined, such a @code{class} may still be pertinent to serv as base class for usable rules.
+
+Generally, it will also have the @code{deps} attribute defined and possibly the @code{stems} (unless stems are directly defined in targets or deps) :
 
 @example
 @group
-class Compile(lmake.Rule) :
+from lmake.rules import Rule
+class Compile(Rule) :
 	stems   = @{ 'File' : r'.*'         @}
 	targets = @{ 'OBJ'  : '@{File@}.o'  @}
 	deps    = @{ 'SRC'  : '@{File@}.cc' @}
@@ -341,7 +340,8 @@ It can also be a function and our example rule could have been written as :
 @example
 @group
 import subprocess as sp
-class Compile(lmake.Rule) :
+from lmake.rules import Rule
+class Compile(Rule) :
 	stems   = @{ 'File' : r'.*'       @}
 	targets = @{ 'OBJ'  : '@{File@}.o'  @}
 	deps    = @{ 'SRC'  : '@{File@}.cc' @}
@@ -362,12 +362,13 @@ Here is a simple @Lmakefile that sustains our hello_world example :
 @example
 @group
 import lmake
+from lmake.rules import Rule
 
 # use default config
 
 # automatic sources
 
-class Base(lmake.Rule) :
+class Base(Rule) :
 	stems = @{ 'File' : r'.*' @}
 
 class Compile(Base) :
@@ -375,7 +376,7 @@ class Compile(Base) :
 	deps    = @{ 'SRC' : '@{File@}.cc' @}
 	cmd     = 'gcc -c -o $OBJ $SRC'
 
-class LinkHelloWorld(lmake.Rule) :
+class LinkHelloWorld(Rule) :
 	targets = @{ 'EXE' : 'hello_world' @}
 	deps    = @{
 		'HELLO_WORLD' : 'hello_world.o'
@@ -918,17 +919,11 @@ The following options are supported :
 
 @chapter The Python @lmake module
 
-The @lmake Python module serves 2 purposes :
-@itemize @bullet
-@item provide base classes and helpers to write @Lmakefile
-@item provide some support during job execution
-@end itemize
+The @lmake module provides support to write @code{cmd} functions executed during job execution.
 
-While unavoidable for the first purpose (writing @Lmakefile), it is rarely necessary for job execution.
-These are described in their respective chapters below.
+The @code{lmake.rules} module provides support to write rules themselves.
 
-Besides necessary variables, functions and classes to write @Lmakefile, the config, rules and sources parts are described in their respective chapters below,
-the @lmake module defines a few constants that are of general use.
+The @code{lmake.auto_sources} module can be used to help define sources if the default behavior is not satisfactory.
 
 Some variables of this module can be defined in @Lmakefile for some specific purposees.
 
@@ -948,7 +943,8 @@ For example, in this code :
 
 @example
 @group
-class X(lmake.Rule) :
+from lmake.rules import Rule
+class X(Rule) :
 	cmd = multi_strip('''
 		line1
 			indented line2
@@ -975,7 +971,58 @@ Hence, the check is that major versions must match equal and the actual minor ve
 This function must be called right after having imported the @lmake module as it may adapt itself to the required version when this function is called.
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.
 
-@section Helpers for @Lmakefile
+@subsection @code{def search_root_dir(cwd=os.getcwd())}
+Return the root dir as seen from passed @code{cwd} argument.
+
+Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
+
+@subsection @code{def has_backend(backend)}
+Return @code{True} if the passed backend is implemented, else return @code{False}.
+
+Raises the @code{ValueError} exception is the passed backend is unknown.
+
+@section constants
+
+The following constants are defined :
+@table @code
+@item root_dir
+The root directory of the repository as determined when the @lmake command was run.
+
+Recursive sub-repositories are ignored.
+Use the @code{search_root_dir} function if you want to get the nearest hierarchical root dir.
+@item has_ld_audit
+@code{True} if autodep method @code{'ld_audit'} is supported, else @code{False}.
+@item has_ld_preload
+@code{True} if autodep method @code{'ld_preload'} is supported, else @code{False}.
+@item has_ptrace
+@code{True} if autodep method @code{'ld_ptrace'} is supported, else @code{False}.
+@item backends
+The list of implemented backends. @code{local} is always present.
+@item no_crc
+The 64-bit @code{int} checksum when it has not been computed (yet).
+@item crc_no_file
+The 64-bit @code{int} checksum produced when computed on a non-existent file.
+@end table
+
+@section Job execution support
+
+The Python @lmake module also provides a Python API to the job supporting command described above.
+The correspondance is :
+@table @asis
+@item @code{def check_deps()}
+@code{lcheck_deps}
+@item @code{def depend(*files,follow_symlinks=True,error=True,required=True,essential=True,verbose=False)}
+@code{ldepend}
+@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
+@item @code{def target(*files,unlink=False,follow_symlinks=True,crc,dep,essential,phony,source_ok,stat,write)}
+@code{ltarget}.
+When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
+@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
+For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
+@end table
+
+@section The @code{lmake.rules} module
 
 @subsection @code{class Rule}
 This @code{class} is used as a base @code{class} for rules.
@@ -1025,61 +1072,27 @@ This @code{class} may be used to ignore all writes that are not an official targ
 By itself, it is a dangerous @code{class} and must be used with care.
 It is meant to be a practical way to do trials without having to work out all the details, but in a finalized workflow, it is better to avoid the usage of this class.
 
-@subsection @code{def search_root_dir(cwd=os.getcwd())}
-Return the root dir as seen from passed @code{cwd} argument.
-
-Note that his may be different from the @code{root_dir} variable in case there is a @Lmakefile file in a subdir.
-
-@subsection @code{def has_backend(backend)}
-Return @code{True} if the passed backend is implemented, else return @code{False}.
-
-Raises the @code{ValueError} exception is the passed backend is unknown.
 @subsection @code{ignore_flags}
 Return a tuple of target flags that forces @lmake to ignore accesses to this (possibly star) target.
 Essentially, this value is the opposite of the default flags (except that writes are allowed).
 It must noticed that a lot of flags provide security to the user and applying this value desactivates all of them.
 This value, defined in @file{lmake.py}, is well commented and may also be used as a starting point to tailor the flags to the user's need.
 
-@section constants
+@section The @code{lmake.sources} module
+This module provide support functions to define sources.
 
-The following constants are defined :
-@table @code
-@item root_dir
-The root directory of the repository as determined when the @lmake command was run.
+@subsection @code{def manifest_sources(manifest='Manifest')}
+This function returns the list of sources found in the @code{manifest} file, one per line.
+Comments are supported as everything following a @code{#} itself at start of line or preceded by a space.
+Leading and trailing white spaces are stripped after comment removal.
 
-Recursive sub-repositories are ignored.
-Use the @code{search_root_dir} function if you want to get the nearest hierarchical root dir.
-@item has_ld_audit
-@code{True} if autodep method @code{'ld_audit'} is supported, else @code{False}.
-@item has_ld_preload
-@code{True} if autodep method @code{'ld_preload'} is supported, else @code{False}.
-@item has_ptrace
-@code{True} if autodep method @code{'ld_ptrace'} is supported, else @code{False}.
-@item backends
-The list of implemented backends. @code{local} is always present.
-@item no_crc
-The 64-bit @code{int} checksum when it has not been computed (yet).
-@item crc_no_file
-The 64-bit @code{int} checksum produced when computed on a non-existent file.
-@end table
+@subsection @code{def git_sources( recurse=True , ignore_missing_submodules=False )}
+This function lists files under @code{git} control, recursing to sub-modules if @code{recurse} is true and ignore missing such sub-modules if @code{ignore_missing_submodules} is true.
+The @code{git} repository it self can be an enclosing directory of the @lmake repository.
+In that case, @code{lmake.config.source_dirs} is adequately updated to track @code{git} updates.
 
-@section Job execution support
-
-The Python @lmake module also provides a Python API to the job supporting command described above.
-The correspondance is :
-@table @asis
-@item @code{def check_deps()}
-@code{lcheck_deps}
-@item @code{def depend(*files,follow_symlinks=True,error=True,required=True,essential=True,verbose=False)}
-@code{ldepend}
-@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
-For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
-@item @code{def target(*files,unlink=False,follow_symlinks=True,crc,dep,essential,phony,source_ok,stat,write)}
-@code{ltarget}.
-When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
-@code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
-For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
-@end table
+@subsection @code{def auto_sources(**kwds)}
+This function tries to find sources by calling @code{manifest_sources} and @code{git_sources} in turn, untill one succeeds. Arguments are passed as pertinent.
 
 @chapter Directories
 
@@ -1128,30 +1141,62 @@ Configuration is done by setting attributes (or items) of the @code{pdict} @code
 
 After @lmake has been run (at least once), the configuration, as understood by @lmake can be retrieved in the file @adminfile{config}.
 
+The configuration is reloaded (if necessary) each time a @lmake command is run, which may occur while another one is also running.
+However, fields may have restrictions :
+@itemize @minus
+@item Clean   : This field can only set initially when the repository is clean (for example after a @code{git clean -ffdx} command).
+@item Static  : This field can only be modified when no other @lmake command is running.
+@item Dynamic : This field can freely be modified.
+@end itemize
+
 Recognized attributes are :
-@multitable @columnfractions 0.1 0.07 0.83
-@headitem Attribute @tab Default @tab Description
+@multitable @columnfractions 0.1 0.07 0.05 0.78
+@headitem Attribute @tab Default @tab Update @tab Description
+
+@item @code{heartbeat}
+@tab @code{10}
+@tab Static
+@tab @lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
+If such an event occurs, the job will be restarted automatically.
+This attribute specifies the time between 2 successive checks for a given job (subject to the restrictions of @code{heartbeat_tick} below).
+If @code{None}, the heartbeat mechanism is disabled.
+The default value should suit the needs of most users.
+
+@item @code{heartbeat_tick}
+@tab @code{0.1}
+@tab Static
+@tab @lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
+If such an event occurs, the job will be restarted automatically.
+This attribute specifies the time between 2 successive checks globally for all jobs (subject to the restrictions of @code{heartbeat} above).
+If @code{None}, no restriction apply.
+The default value should suit the needs of most users.
 
 @item @code{local_admin_dir}
 @tab @code{LMAKE}
+@tab Clean
 @tab This variable contains a directory to be used for @lmake administration in addition to the @code{LMAKE} directory.
 Actually most of the accesses are made in this directory (cf @pxref{dir-local_admin_dir}).
 
 @item @code{remote_admin_dir}
 @tab @code{LMAKE}
+@tab Dynamic
 @tab This variable contains a directory to be used for remote execution administration (cf @pxref{dir-remote_admin_dir}).
 
 @item @code{remote_tmp_dir}
 @tab @code{LMAKE}
+@tab Dynamic
 @tab This variable contains a directory to be used as a temporary storage for remote execution (cf @pxref{dir-remote_tmp_dir}).
 
 @item @code{link_support}
 @tab @code{'Full'}
+@tab Clean
 @tab @lmake has several levels of symbolic link support (cf @pxref{link-support}).
 This attribute specifies the used level.
-@item @code{source_dirs}
 
-This variable contains a @code{list} of directories that contain source files.
+@item @code{source_dirs}
+@tab Empty
+@tab Static
+@tab This variable contains a @code{list} of directories that contain source files.
 
 Such source directories can be provided absolute or relative.
 This has no impact as long the repository is not moved.
@@ -1161,55 +1206,90 @@ By default, this variable is empty, but gathering sources from @code{git} (as is
 
 @item @code{max_dep_depth}
 @tab @code{1000}
+@tab Static
 @tab The rule selection process is a recursive one (cf @pxref{rule-selection}).
 Several means are provided to avoid infinite recursion and this one is the last resort.
 The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called @code{'infinite'}.
 @item @code{max_error_lines}
-@tab unlimited
-@tab a lot of error lines are generated by @lmake, only the first @code{max_error_lines} ones are actually output, followed by a line containing @code{...}.
+@tab @code{100}
+@tab When a lot of error lines are generated by @lmake, other than copying the @code{stderr} of a job, only the first @code{max_error_lines} ones are actually output,
+followed by a line containing @code{...}.
 The purpose is to ease reading.
+
 @item @code{network_delay}
-@tab @code{3}
+@tab @code{1}
+@tab Static
 @tab When a job completes, it signals it to @lmake.
 But while this informations is travelling, the job is nowhere : it is no more running and @lmake is not aware of it being completed.
 If during that time, the heartbeat fires checking for job liveness or a ^C is hit asking for jobs to die, @lmake may think this job is lost.
 To prevent that, @lmake waits for some time before declaring such a job as actually lost.
 This attribute provides this delay in seconds.
+
 @item @code{trace_size}
 @tab @code{100_000_000}
+@tab Static
 @tab While @lmake runs, it generates an execution trace recording a lot of internal events meant for debugging purpose.
 Such traces are stored in the directory @adminfile{trace}.
 The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.
 This attributes contains the maximum number of lines this trace can hold (@lmake keeps the 5 last traces in case the root cause lie in a previous run).
+
 @item @code{path_max}
-@tab
+@tab unlimited
+@tab Static
 @tab This is one of the infinite recursion protection in the rule selection process (cf @pxref{rule-selection}).
 Any file with name longer than the value of this attribute is deemed not buildable.
-@item @code{sub_prio_boost}
-@tab @code{1}
-@tab Increment to add to rules defined in sub-repository to boost local rules.
-It is multiplied by the directory depth of the sub-repository.
+
+@item @code{rules_module}
+@tab empty
+@tab Static
+@tab Specify a module that is used in place of @code{Lmakefile} to define rules, i.e. this module must define rules the same way as described in this document.
+If this entry is set, @code{Lmakefile} must have no rules defined.
+
+The primary goal is to decouple loading configuration and loadng rules as @lmake tracks dependencies for each of them separately.
+This is both more performant (when there are a lot of rules) and allows dynamic modification of the configuration (for fields that support dynamic updates).
+
+@item @code{sources_module}
+@tab @code{lmake.auto_sources} if @code{lmake.manifest} is empty, else empty
+@tab Static
+@tab Specify a module that is used in place of @code{Lmakefile} to define rules, i.e. this module must define sources by setting the @code{lmake.manifest} variable as described in this document.
+If this entry is set, @code{Lmakefile} must have no sources defined in @code{lmake.manifest}.
+
+The default value (@code{lmake.auto_sources}) merely call @code{lmake.sources.auto_sources()} to define @code{lmake.manifest}.
+Most of the time, this is suitable so the user rarely has to bother with sources.
+
+The primary goal is to decouple loading configuration and load sources as @lmake tracks dependencies for each of them separately.
+This is both more performant (when there are a lot of sources) and allows dynamic modification of the configuration (for fields that support dynamic updates).
+
 @item @code{console.date_precision}
 @tab @code{None}
+@tab Dynamic
 @tab This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If @code{None}, no timestamp is generated.
+
 @item @code{console.host_length}
 @tab @code{None}
+@tab Dynamic
 @tab This attribute specifies the width of the field showing the host that executed or is about to execute the job.
 If @code{None}, the host is not shown.
 Note that no host is shown for local execution.
+
 @item @code{console.has_exec_time}
 @tab @code{True}
+@tab Dynamic
 @tab If this attribute is true, execution time is reported each time a job is completed.
+
 @item @code{colors}
-@tab
+@tab raisonably readable
+@tab Dynamic
 @tab @lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf @pxref{video-mode}).
 This attribute is a @code{pdict} with one entry for each symbolic color (cf @pxref{video-mode}).
 Each entry is a 2-tuple of 3-tuple's.
 The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
 Each color is a triplet RGB of values between 0 and 255.
+
 @item @code{backends}
 @tab
+@tab Dynamic (with possible restrictions from backend)
 @tab This attribute is a @code{pdict} with one entry for each backend
 (cf @pxref{backends} for an explanation of what is the purpose of backends, and see the backends section for a description of the attributes).
 Each entry is a pdict providing resources. Such resources are backend specific.
@@ -1220,8 +1300,10 @@ This attribute must be @code{0} or a power of 2 not less than 2.
 If set to a positive value, it represent a number under which full precision is retained when specified in a rule.
 Above it, the relative precision is retained, rounding up.
 For example, if set to 4, values 1, 2, 3, 4 are retained, but 5 is rounded to 6, 7 to 8, 9 to 12 etc (cf @pxref{resource-buckets}).
+
 @item @code{caches}
 @tab
+@tab Static
 @tab This attribute is a @code{pdict} with one entry for each cache.
 Caches are named with an arbitrary @code{str} and are referenced in rules using this name.
 The attributes are described in the caches section below.
@@ -1294,14 +1376,14 @@ Also, if a file cannot be derived and is not a source, it is deemed unbuildable,
 In this later case, it will be considered dangling and this is an error condition.
 The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.
 
-The list of sources is provided to @lmake by setting the lmake.sources variable.
+The list of sources is provided to @lmake by setting the @code{lmake.manifest} variable as the list of sources to use or the @code{lmake.config.sources_module} variable as a module to load.
 
 The following helper functions can be used to provide sources.
 If nothing is mentioned in @Lmakefile, @code{auto_sources()} is called.
 
 @section @code{manifest_sources(manifest='Manifest',**kwds)} :
 
-This function sets @code{lmake.sources} from the content of the file provided in @code{manifest}.
+This function sets @code{lmake.manifest} from the content of the file provided in @code{manifest}.
 
 @code{kwds} is ignored.
 
@@ -1309,7 +1391,7 @@ It raises a @code{FileNotFoundError} exception if @code{manifest} cannot be foun
 
 @section @code{git_sources(recurse=True,ignore_missing_submodules=False,**kwds)} :
 
-This function sets @code{lmake.sources} by listing files managed by @code{git}.
+This function sets @code{lmake.manifest} by listing files managed by @code{git}.
 
 If @code{recurse}, sub-modules are searched as well.
 
@@ -1403,7 +1485,7 @@ Combined attributes may only be @code{dict}, @code{set} and @code{list}.
 
 Note that this attribute is itself combined, and thus can easily be extended.
 
-@section @code{path}
+@section @code{paths}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1419,6 +1501,13 @@ Note that this attribute is itself combined, and thus can easily be extended.
 @end multitable
 
 This attribute specify a set of entries in @code{dict} combined attributes (i.e. listed in the @code{combine} attribute) that must be handled by joining values with a separator.
+When such an entry appear in a rule, its value is searched for occurrences of the special marker @code{...} surrounded by separators (the start and end of the strings are deemed to be separators)
+And each such occurrence is replaced by the inherited value.
+
+This makes it particularly useful to manage paths as it allows any intermediate base @code{class} to add its own entries, before or after the original ones.
+
+For example, to add the directory @file{/mypath} after the inherited path, one would define the attribute @code{environ_md} as @code{@{'PATH':'...:/mypath'@}}.
+To add it before, one would use @code{@{'PATH':'/mypath:...'@}}.
 
 It is a @code{dict} whose keys are of the form <attribute>.<key> and values are the separator to use.
 
@@ -1585,7 +1674,7 @@ All matching targets must have the same set of static stems (i.e. stems with no 
 Matching is done by first trying to match static targets (i.e. which are not star) then star targets.
 The first match will provide the associated stem definitions and flags.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to suppor hierarchical repository (cf @pxref{hierarchical-repositories}).
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the target pattern in order to support hierarchical repository (cf @pxref{hierarchical-repositories}).
 
 
 @section @code{target}
@@ -1686,7 +1775,7 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 
 Flag order and dependency order are not significative.
 
-Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the dep pattern in order to suppor hierarchical repository (cf @pxref{hierarchical-repositories}).
+Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the dep pattern in order to support hierarchical repository (cf @pxref{hierarchical-repositories}).
 
 @section @code{dep}
 
@@ -1746,14 +1835,15 @@ This means the job runs in a sand box in which the temporary directory is mapped
 @item Type
 @tab @code{str}
 @item Default
-@tab The nearest root dir as seen from the module defining the rule.
+@tab @code{''}
 @item Dynamic
 @tab No.
 @end multitable
 
 This attribute defines a directory in which jobs will @code{chdir} into before execution begins.
+It must be empty to specify the repository root.
 
-This attribute is also prepended to targets and deps unless they start with a @code{/}.
+This attribute is also prepended to targets and deps unless they have the @code{top} flag.
 
 @section @code{environ_cmd}
 
@@ -2058,7 +2148,7 @@ The syntax is the same as for @code{deps}, except that in addition to other vari
 
 After interpretation, the @code{dict} is passed to the @code{backend} to be used in its scheduling (cf @pxref{local-backend} for the local backend).
 
-@section @code{stderr_len}
+@section @code{max_stderr_len}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -2066,7 +2156,7 @@ After interpretation, the @code{dict} is passed to the @code{backend} to be used
 @item Type
 @tab @code{int}
 @item Default
-@tab -
+@tab @code{100}
 @item Dynamic
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
@@ -2284,9 +2374,9 @@ In that case, the job is retried, but a maximum number of retry attemps are allo
 
 @chapter The @file{LMAKE} directory
 
-This directory contains numerous information that may be useful to the user.
+This directory contains numerous information that may be handy for the user.
 
-There are other files than those described here which are for @lmake own management.
+It also contains a @file{lmake} directory containing data for @lmake's own private usage.
 
 @section @file{LMAKE/config}
 
@@ -2296,13 +2386,24 @@ This file contains a description of the @code{lmake.config} @code{dict} as it ha
 
 This file contains a description of the rules as it has been understood by @lmake after having processed @Lmakefile.
 
-@section @file{LMAKE/sources}
+@section @file{LMAKE/manifest}
 
 This file contains a description of the sources as it has been understood by @lmake after having processed @Lmakefile.
 
-@section @file{LMAKE/makefiles}
+@section @file{LMAKE/config_deps}
 
 This file contains a list of files that @lmake has read to process @Lmakefile.
+Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
+
+@section @file{LMAKE/rules_deps}
+
+If @code{lmake.rules_module} has been set, this file contains a list of files that @lmake has read to process it.
+Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
+
+@section @file{LMAKE/sources_deps}
+
+If @code{lmake.sources_module} has been set or if using the default behavior to list sources, this file contains a list of files that @lmake has read to process it.
+Each line contains a file, preceded by a @code{+} if file exists or a @code{!} if it does not.
 
 @section @file{LMAKE/outputs/<date>}
 
@@ -2688,6 +2789,10 @@ And the succession of job would be :
 @anchor{hierarchical-repositories}
 @section Hierarchical repositories
 
+Hierarchical repositories are currently broken and will be fixed shortly.
+
+@XXX{fix hierarchical repositories
+
 Hierarchical repositories are repositories that contain repositories, i.e. some @Lmakefile are present in sub-directories.
 
 In that situation, it is reasonable to assume that the @Lmakefile are made to handle building files underneath it.
@@ -2699,6 +2804,7 @@ To support this situation, @lmake allow you to simply import these @Lmakefile an
 @item @code{cmd} is run from this sub-repository, i.e. its cwd is set accordingly.
 @item The priority of the rule is boosted by adding to it the directory depth of the sub-repository times @code{lmake.config.sub_prio_boost}.
 @end itemize
+}
 
 @anchor{eta-estimation}
 @section ETA estimation
@@ -2771,7 +2877,7 @@ Imagine, for example you have 2 closely related tools :
 @itemize
 @item Let's call these 2 tools phase1 and phase2.
 @item phase1 is used to prepare a directory, for example it generates some source files and put the result in the directory.
-@item phase2 operates on this directory, for example it compiles the sources files prepared by phase1 and puts the compiled files next to the sources, in the same directory.
+@item phase2 operates on this directory, for example it compiles the source files prepared by phase1 and puts the compiled files next to the sources, in the same directory.
 @item Suppose, in addition, that phase2 takes and argument, for example it may have several optimization levels for the compilation process.
 @end itemize
 

@@ -319,10 +319,10 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(stderr_len,py_dct,"stderr_len") ;
+			Attrs::acquire_from_dct(max_stderr_len,py_dct,"max_stderr_len") ;
 		}
 		// data
-		size_t stderr_len = -1 ;       // max lines when displaying stderr (full content is shown with lshow -e)
+		size_t max_stderr_len = -1 ;   // max lines when displaying stderr (full content is shown with lshow -e)
 	} ;
 
 	// the part of the Dynamic struct which is stored on disk

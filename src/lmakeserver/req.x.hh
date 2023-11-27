@@ -117,7 +117,6 @@ namespace Engine {
 		bool/*overflow*/ _report_err    ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
 		bool/*overflow*/ _report_err    ( Job , Node , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
 		void             _report_cycle  ( Node                                                                                                                ) ;
-		void             _report_no_rule( Node                                                                                               , DepDepth lvl=0 ) ;
 	} ;
 
 	struct ReqStats {
@@ -262,7 +261,8 @@ namespace Engine {
 			return audit_stderr( {}/*backend_msg*/ , analysis_err , stderr , max_stderr_lines , lvl ) ;
 		}
 	private :
-		bool/*overflow*/ _send_err( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl ) ;
+		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
+		void             _report_no_rule( Node                                                                           , DepDepth lvl=0 ) ;
 		// data
 	public :
 

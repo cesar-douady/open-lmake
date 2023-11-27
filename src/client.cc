@@ -82,6 +82,7 @@ static void connect_to_server(bool refresh) {
 }
 
 static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
+	Trace trace("is_reverse_video",in_fd,out_fd) ;
 	struct ::stat in_stat  ;
 	struct ::stat out_stat ;
 	::fstat(in_fd ,&in_stat ) ;
@@ -92,6 +93,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	if (          in_stat.st_ino   !=          out_stat.st_ino   ) return Maybe ; // .
 	if (          in_stat.st_rdev  !=          out_stat.st_rdev  ) return Maybe ; // .
 	//
+	Bool3          res       = Maybe ;
 	struct termios old_attrs ;
 	struct termios new_attrs ;
 	//
@@ -115,6 +117,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		::string reply ;
 		for( const char c : reqs[fg] )
 			if (::write(out_fd,&c,1)!=1) goto Restore ;
+		trace("sent",STR(fg),mk_printable(reqs[fg])) ;
 		for(;;) {
 			char c ;
 			::vector<Epoll::Event> events = epoll.wait(100'000'000) ;          // 100ms
@@ -124,8 +127,9 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 			if (::read(in_fd,&c,1)!=1) goto Restore ;                          // eof or err ? awkward, but give up in that case
 			if (c=='\a') break ;
 			reply.push_back(c) ;
-			if (reply.size()>40) goto Restore ;                                // this is not an ansi terminal, whose answer is around 22 bytes
+			if (reply.size()>30) goto Restore ;                                // this is not an ansi terminal, whose answer is around 24 bytes
 		}
+		trace("got",STR(fg),mk_printable(reply)) ;
 		size_t pos = reply.find(';') ;
 		if (reply.substr(0    ,pos+1)!=reqs[fg].substr(0,pos+1)) goto Restore ; // reply has same format with ? substituted by actual values
 		if (reply.substr(pos+1,4)!="rgb:"                      ) goto Restore ; // then rgb:
@@ -134,11 +138,12 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		if (t.size()!=3) goto Restore ;
 		for( size_t i=0 ; i<3 ; i++ ) lum[fg] += from_chars<uint32_t>(t[i],false/*empty_ok*/,16) ; // add all 3 components as a rough approximation of the luminance
 	}
-	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
-	return lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
+	res = lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
+	trace("found",lum,res) ;
 Restore :
+	trace("restore") ;
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
-	return Maybe ;
+	return res ;
 }
 
 Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , ::function<void()> const& started_cb ) {

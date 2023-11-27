@@ -387,14 +387,14 @@ namespace Backends {
 		Pdate  last_wrap_around = Pdate::s_now() ;
 		//
 		for( JobIdx job=0 ;; job++ ) {
-			StartEntry::Conn        conn         ;
-			::pair_s<bool/*alive*/> lost_report  = {{},true/*garbage*/} ;
-			Status                  status       = Status::Unknown      ;
-			Pdate                   eta          ;
-			::vmap_ss               rsrcs        ;
-			SubmitAttrs             submit_attrs ;
-			Tag                     tag          = Tag::Unknown         ;
-			Pdate                   start        ;
+			StartEntry::Conn         conn         ;
+			::pair_s<HeartbeatState> lost_report  = {{},HeartbeatState::Unknown} ;
+			Status                   status       = Status::Unknown              ;
+			Pdate                    eta          ;
+			::vmap_ss                rsrcs        ;
+			SubmitAttrs              submit_attrs ;
+			Tag                      tag          = Tag::Unknown                 ;
+			Pdate                    start        ;
 			{	::unique_lock lock { _s_mutex }                    ;           // lock _s_start_tab for minimal time
 				auto          it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
@@ -409,14 +409,16 @@ namespace Backends {
 				start = entry.start.date ;
 				if (+entry.start) goto Wakeup ;
 				lost_report = s_heartbeat(tag,job) ;
-				if (lost_report.second       ) goto Next ;                                   // job is still alive
-				if (lost_report.first.empty()) lost_report.first = "vanished before start" ;
+				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                   // job is still alive
+				if (lost_report.first.empty()                ) lost_report.first = "vanished before start" ;
 				//
+				Status hbs = lost_report.second==HeartbeatState::Err ? Status::EarlyLostErr : Status::LateLost ;
+				//
+				rsrcs        = ::move(entry.rsrcs       )     ;
+				submit_attrs = ::move(entry.submit_attrs)     ;
+				eta          = entry.req_info().first         ;
+				status       = _s_release_start_entry(it,hbs) ;
 				trace("handle_job",job,entry,status) ;
-				rsrcs        = ::move(entry.rsrcs       )                   ;
-				submit_attrs = ::move(entry.submit_attrs)                   ;
-				eta          = entry.req_info().first                       ;
-				status       = _s_release_start_entry(it,Status::EarlyLost) ;
 			}
 			{	JobExec je { job , New , New } ;                               // job starts and ends, no host
 				if (status==Status::EarlyLostErr) {                                                               // if we do not retry, record run info
@@ -435,27 +437,27 @@ namespace Backends {
 		Wakeup :
 			_s_wakeup_remote(job,conn,start,JobServerRpcProc::Heartbeat) ;
 		Next :
-			if (!Delay(0.1).sleep_for(stop)) break ;                           // limit job checks to 10/s overall
+			if (!g_config.heartbeat_tick.sleep_for(stop)) break ;                           // limit job checks
 			continue ;
 		WrapAround :
 			job = 0 ;
-			Delay d = Delay(10.) + g_config.network_delay ;                                                // ensure jobs have had a minimal time to start and signal it
-			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate::s_now() ; continue ; } // limit job checks 1/10s per job
+			Delay d = g_config.heartbeat + g_config.network_delay ;                                        // ensure jobs have had a minimal time to start and signal it
+			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate::s_now() ; continue ; } // limit job checks
 			else                                        {                                     break    ; }
 		}
 		trace("done") ;
 	}
 
-	void Backend::s_config(Config::Backend const config[]) {
-		s_executable = *g_lmake_dir+"/_bin/job_exec" ;
+	void Backend::s_config( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) {
 		static ::jthread            heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
 		static JobExecThread        job_exec_thread       {'J',_s_handle_job_req        ,1000/*backlog*/} ; _s_job_exec_thread        = &job_exec_thread        ;
 		static DeferredReportThread deferred_report_thread{'S',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
+		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
 		::unique_lock lock{_s_mutex} ;
 		for( Tag t : Tag::N )
 			if ( s_tab[+t] && config[+t].configured )                          // if implemented and configured
-				s_ready[+t] = s_tab[+t]->config(config[+t]) ;
+				s_ready[+t] = s_tab[+t]->config(config[+t],dynamic) ;
 		job_exec_thread.wait_started() ;
 	}
 

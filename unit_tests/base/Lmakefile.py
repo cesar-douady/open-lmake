@@ -8,9 +8,8 @@ import sys
 import re
 import time
 
-import lmake
-
-from lmake import multi_strip
+from lmake       import multi_strip
+from lmake.rules import Rule,PyRule,DynamicPyRule
 
 version = 1
 
@@ -18,7 +17,7 @@ def balanced(n) :
 	if not n : return '[^{}]*'
 	p = balanced(n-1)
 	return f'{p}({{{p}}}{p})*'
-class BaseRule(lmake.Rule) :
+class BaseRule(Rule) :
 	stems = {
 		'File'    : r'.*'
 	,	'SubExpr' : balanced(0)
@@ -27,9 +26,7 @@ class BaseRule(lmake.Rule) :
 	}
 	stems['Expr1'] = stems['Expr']
 	stems['Expr2'] = stems['Expr']
-	shell = lmake.Rule.shell + ('-e',)
-
-class PyRule(BaseRule,lmake.PyRule) : pass
+	shell = Rule.shell + ('-e',)
 
 class Auto(BaseRule) :
 	target = 'auto{Digit}'
@@ -136,24 +133,23 @@ class CircularHiddenDeps(BaseRule) :
 	def cmd() :
 		print( open(f'{File}.hcirc.cpy').read() , 'hcirc' )
 
-class Force(lmake.Rule) :
+class Force(Rule) :
 	target = 'force'
 	force  = True
 	def cmd() :
 		print('force')
 
-class Import(PyRule) :
+class Import(BaseRule,PyRule) :
 	target = '{File}.import'
 	dep    = '{File}'
 	def cmd() :
 		import hello
 		print(hello.hello(sys.stdin.read()))
 
-class DynImport(PyRule) :
+class DynImport(BaseRule,DynamicPyRule) :
 	target = '{File}.dyn_import'
 	dep    = '{File}'
 	def cmd() :
-		lmake.fix_imports()
 		import auto1_hello
 		print(auto1_hello.hello(sys.sdin.read()))
 

@@ -3,22 +3,21 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
 	from step import force
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	,	'hello'
 	,	'world'
 	)
 
-	class Cat(lmake.Rule) :
+	class Cat(Rule) :
 		stems = {
 			'File1' : r'.*'
 		,	'File2' : r'.*?'

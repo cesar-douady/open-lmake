@@ -3,21 +3,20 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
-import sys
-import time
-
 if __name__!='__main__' :
 
-	import lmake
+	import time
 
-	lmake.sources = (
+	import lmake
+	from lmake.rules import PyRule
+
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello.py'
 	,	'world.py'
 	)
 
-	class Import(lmake.PyRule) :
+	class Import(PyRule) :
 		target = r'import.{Wait:\d+}'
 		def cmd() :
 			import hello

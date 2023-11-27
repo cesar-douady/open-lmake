@@ -108,7 +108,7 @@ private :
 			}
 		} ;
 		//
-		Trace trace("_s_thread_func<Fd>",self->fd.port()) ;
+		Trace trace("_s_thread_func<Fd>",self->fd,self->fd.port()) ;
 		self->_ready.count_down() ;
 		//
 		epoll.add_read(self->fd,EventKind::Master) ;

@@ -3,18 +3,19 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
-	import lmake
+	import sys
 
-	lmake.sources = (
+	import lmake
+	from lmake.rules import Rule
+
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	)
 
-	class Star(lmake.Rule) :
+	class Star(Rule) :
 		targets = { 'DST' : ('{File:.*}.star{D*:\\d+}',) }
 		dep     = '{File}'
 		def cmd() :
@@ -22,7 +23,7 @@ if __name__!='__main__' :
 			open(f'{File}.star1','w').write(text)
 			open(f'{File}.star2','w').write(text)
 
-	class Cpy(lmake.Rule) :
+	class Cpy(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = '{File}'
 		cmd    = 'cat'

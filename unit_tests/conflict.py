@@ -3,17 +3,16 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule,PyRule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,)
 
-	class Star(lmake.PyRule):
+	class Star(PyRule):
 		targets = { 'DST' : r'out{Wait:\d}/{__file__*}' }
 		def cmd():
 			import time
@@ -26,17 +25,17 @@ if __name__!='__main__' :
 			except FileNotFoundError : pass
 			open(f'{dir}/a_file','w').write('hello')
 
-	class Mrkr(lmake.Rule):
+	class Mrkr(Rule):
 		targets = { 'MRKR' : r'{__dir__}mrkr{Wait:\d}' }                       # cannot use target as we want to wait before creating MRKR
 		cmd     = 'sleep {Wait} ; echo > {MRKR}'                               # just create output
 
-	class Res1(lmake.PyRule):
+	class Res1(PyRule):
 		target = 'res1'
 		def cmd():
 			lmake.depend('out1/mrkr0')
 			print(open('out1/a_file').read())
 
-	class Res2(lmake.PyRule):
+	class Res2(PyRule):
 		target = 'res2'
 		def cmd():
 			lmake.depend('out0/mrkr1')

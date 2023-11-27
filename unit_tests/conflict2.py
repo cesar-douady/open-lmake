@@ -3,21 +3,18 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
-	import os
-
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
-	class A(lmake.Rule):
+	class A(Rule):
 		target = 'a'
 		def cmd(): pass
 
-	class B(lmake.Rule):
+	class B(Rule):
 		targets = {
 			'B' : 'b'
 		,	'A' : ('a{*:.*}', '-Dep','Incremental','-Match','-Write','-Stat')

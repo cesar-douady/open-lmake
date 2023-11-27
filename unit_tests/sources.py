@@ -3,37 +3,36 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import os.path as osp
 
 	import lmake
+	from lmake.rules import Rule,SourceRule
 
 	lmake.config.source_dirs = ( '../srcs_rel' , osp.abspath('../srcs_abs') )
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
-	class Src(lmake.SourceRule) :
+	class Src(SourceRule) :
 		target = '{File:.*}.src'
 
-	class CpyLocal(lmake.Rule) :
+	class CpyLocal(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = '{File}.src'
 		cmd    = 'cat - {File}2.src'
 
-	class CpyExtRel(lmake.Rule) :
+	class CpyExtRel(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = '../srcs_rel/{File}.src'
 		cmd    = 'cat - ../srcs_rel/{File}2.src'
 
-	class CpyExtAbs(lmake.Rule) :
+	class CpyExtAbs(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = f"{osp.abspath('../srcs_abs')}/{{File}}.src"
 		cmd    = f"cat - {osp.abspath('../srcs_abs')}/{{File}}2.src"
 
-	class Dflt(lmake.Rule) :
+	class Dflt(Rule) :
 		prio   = -1
 		target = '{File:.*}.cpy'
 		cmd    = 'echo dflt'

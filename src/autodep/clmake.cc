@@ -170,7 +170,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	::string const& view = views[0] ;
 	if (view.empty()) return PyUnicode_FromString("") ;
 	//
-	RealPath::SolveReport solve_report = RealPath({.lnk_support=_g_autodep_support.lnk_support}).solve(view,no_follow) ;
+	RealPath::SolveReport solve_report = RealPath(_g_autodep_support).solve(view,no_follow) ;
 	//
 	switch (solve_report.kind) {
 		case Kind::Root :

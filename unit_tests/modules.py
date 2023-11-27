@@ -3,19 +3,21 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import lmake
+if __name__=='sources' :
 
-if __name__!='__main__' :
-
-	from lmake.rules import Rule,PyRule
+	import lmake
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'rules.py'
+	,	'sources.py'
 	,	'hello'
 	,	'world'
 	)
 
-	lmake.config.backends.slurm = {}
+elif __name__=='rules' :
+
+	from lmake.rules import Rule,PyRule
 
 	class Cat(Rule) :
 		stems = {
@@ -26,7 +28,6 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		backend = 'slurm'
 
 	class CatSh(Cat) :
 		target = '{File1}+{File2}_sh'
@@ -38,9 +39,20 @@ if __name__!='__main__' :
 			print(open(FIRST ).read(),end='')
 			print(open(SECOND).read(),end='')
 
-elif 'slurm' in lmake.backends :
+elif __name__!='__main__' :
+
+	from lmake import config
+
+	config.rules_module   = 'rules'
+	config.sources_module = 'sources'
+
+else :
 
 	import ut
+
+	txt = open('Lmakefile.py').read()
+	open('rules.py'  ,'w').write(txt)
+	open('sources.py','w').write(txt)
 
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))

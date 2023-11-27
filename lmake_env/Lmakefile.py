@@ -15,15 +15,16 @@ from subprocess import run,DEVNULL,STDOUT
 gcc = os.environ.get('CC','gcc')
 
 import lmake
-from lmake import AntiRule,Rule,config,pdict
+from lmake       import config,pdict
+from lmake.rules import Rule,AntiRule
 
 backend = 'slurm' if 'slurm' in lmake.backends else 'local'
 
-lmake.config.backends.slurm = {
+config.backends.slurm = {
 	'use_nice' : True
 }
 
-lmake.config.caches.dir = {
+config.caches.dir = {
 	'tag'  : 'dir'
 ,	'repo' : lmake.root_dir
 ,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
@@ -32,8 +33,8 @@ lmake.config.caches.dir = {
 
 lmake.version = (0,1)
 
-lmake.config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
-lmake.config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
+config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
+config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
 
 config.link_support = 'full'
 
@@ -65,7 +66,7 @@ class BaseRule(Rule) :
 	n_tokens    = config.backends.local.cpu
 
 class Centos7Rule(BaseRule) :
-	environ_cmd = { 'PATH' : '/opt/rh/devtoolset-11/root/usr/bin:'+BaseRule.environ_cmd.PATH }
+	environ_cmd = { 'PATH' : '...:/opt/rh/devtoolset-11/root/usr/bin' }
 	cache       = 'dir'
 
 class Html(BaseRule) :
@@ -291,7 +292,13 @@ class TarLmake(BaseRule) :
 	,	'LDUMP'              : '_bin/ldump'
 	,	'LDUMP_JOB'          : '_bin/ldump_job'
 	,	'LMAKESERVER'        : '_bin/lmakeserver'
-	,	'LMAKE_PY'           : 'lib/lmake.py'
+	,	'LIB1'               : 'lib/lmake/__init__.py'
+	,	'LIB2'               : 'lib/lmake/auto_sources.py'
+	,	'LIB3'               : 'lib/lmake/import_machinery.py'
+	,	'LIB4'               : 'lib/lmake/rules.py'
+	,	'LIB5'               : 'lib/lmake/sources.py'
+	,	'LIB6'               : 'lib/lmake/utils.py'
+	,	'LIB7'               : 'lib/lmake_runtime.py'
 	,	'CLMAKE'             : 'lib/clmake.so'
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
 	,	'LDEPEND'            : 'bin/ldepend'
@@ -312,14 +319,16 @@ class CpyPy(BaseRule) :
 	cmd    = 'cat'
 
 class CpyLmakePy(BaseRule) :
-	target          = 'lib/lmake.py'
-	dep             = '_lib/lmake.src.py'
-	ld_library_path = os.environ.get('PYTHON_LD_LIBRARY_PATH')
+	target          = 'lib/{File}.py'
+	dep             = '_lib/{File}.src.py'
 	def cmd() :
 		import shutil
-		print(sys.stdin.read())
-		print(f"git = {shutil.which('git')!r}")
-		if ld_library_path : print(f'Rule.environ_cmd.LD_LIBRARY_PATH = {ld_libray_path}')
+		txt = sys.stdin.read()
+		txt = txt.replace('$BASH'           ,Rule.shell[0]                             )
+		txt = txt.replace('$GIT'            ,shutil.which('git' )                      )
+		txt = txt.replace('$LD_LIBRARY_PATH',Rule.environ_cmd.get('LD_LIBRARY_PATH',''))
+		txt = txt.replace('$STD_PATH'       ,Rule.environ_cmd.PATH                     )
+		sys.stdout.write(txt)
 
 opt_tab.update({
 	r'.*'                 : ( '-I'         , sysconfig.get_path("include")                                  )

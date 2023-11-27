@@ -3,18 +3,17 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
 	lmake.config.local_admin_dir  = 'LMAKE_LOCAL'
 	lmake.config.remote_admin_dir = 'LMAKE_REMOTE'
 
-	class Test(lmake.Rule) :
+	class Test(Rule) :
 		target = 'test'
 		cmd    = ''
 

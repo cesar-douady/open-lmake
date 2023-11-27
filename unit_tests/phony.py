@@ -3,25 +3,24 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	)
 
 	from step import step
 
-	class Test1(lmake.Rule):
+	class Test1(Rule):
 		targets = { 'GOOD' : ('good','Phony') }
 		def cmd():
 			if step==1 : lmake.depend('bad')
 
-	class Test2(lmake.Rule):
+	class Test2(Rule):
 		target = 'tgt'
 		def cmd():
 			lmake.depend('good')

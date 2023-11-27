@@ -3,28 +3,27 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule,PyRule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'src'
 	)
 
-	class Cpy(lmake.Rule) :
+	class Cpy(Rule) :
 		target = 'cpy'
 		dep    = 'src'
 		cmd    = 'cat'
 
-	class Lnk(lmake.Rule) :
+	class Lnk(Rule) :
 		targets = { 'DST':'lnk' }
 		deps    = { 'SRC':'cpy' }
 		cmd     = 'ln {SRC} {DST}'
 
-	class Chk(lmake.PyRule) :
+	class Chk(PyRule) :
 		target = 'chk'
 		deps   = {
 			'DUT' : 'lnk'

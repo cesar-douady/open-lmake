@@ -248,8 +248,8 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Make : {
 						Req r ;
 						try {
-							::string reason = Makefiles::s_chk_makefiles(startup_dir_s) ;
-							if (!reason.empty()) throw to_string("cannot make with modified makefiles while other lmake is running (",reason,")\n") ;
+							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+							if (!msg.empty()) audit( req.out_fd , req.options , Color::Note , 0 , msg ) ;
 							r = Req(req) ;
 						} catch(::string const& e) {
 							audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
@@ -325,13 +325,13 @@ bool/*interrupted*/ engine_loop() {
 }
 
 int main( int argc , char** argv ) {
-	bool refresh = true ;
+	bool refresh_ = true ;
 	for( int i=1 ; i<argc ; i++ ) {
 		if (argv[i][0]!='-') goto Bad ;
 		switch (argv[i][1]) {
 			case 'c' : g_startup_dir_s = new ::string(argv[i]+2) ;                               break ;
 			case 'd' : _g_is_daemon    = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case 'r' : refresh         = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
+			case 'r' : refresh_        = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
 			case '-' :                                             if (argv[i][2]!=0) goto Bad ; break ;
 			default : exit(2,"unrecognized option : ",argv[i]) ;
 		}
@@ -342,8 +342,7 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( g_startup_dir_s->empty() || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	Fd int_fd = open_sig_fd(SIGINT,true/*block*/) ;                            // must be done before app_init so that all threads block the signal
-	block_sig(SIGCHLD) ;
+	Fd int_fd = open_sig_fd(SIGINT) ;                                          // must be done before app_init so that all threads block the signal
 	//vvvvvvvvvvvvvvvvvvvvv
 	g_store.writable = true ;
 	//^^^^^^^^^^^^^^^^^^^^^
@@ -358,11 +357,13 @@ int main( int argc , char** argv ) {
 	//             ^^^^^^^^^^^^^^
 	if (!_g_is_daemon     ) report_server(Fd::Stdout,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
-	//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try { Makefiles::s_refresh_makefiles(crashed,refresh) ; }
-	//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	::string msg ;
+	//                     vvvvvvvvvvvvvvvvvvvvvvvvv
+	try { msg = Makefiles::refresh(crashed,refresh_) ; }
+	//                     ^^^^^^^^^^^^^^^^^^^^^^^^^
 	catch (::string const& e) { exit(2,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                        // once we have reported we have started, lmake will send us a message to kill us
+	if (!msg.empty() ) ::cerr << ensure_nl(msg) ;
+	if (!_g_is_daemon) ::setpgid(0,0)        ;                                 // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_sz = g_config.trace_sz ;
 	Trace::s_new_trace_file(to_string( g_config.local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;

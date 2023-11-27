@@ -3,19 +3,16 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake       import multi_strip
+	from lmake.rules import Rule
 
-	from lmake import multi_strip
-
-	lmake.sources = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py',)
 
 	file = 'a/b/c'
-	class Tar(lmake.Rule) :
+	class Tar(Rule) :
 		targets = { 'TAR' : r'hello.tar{*:.*}' }
 		cmd = multi_strip('''
 			cd $TMPDIR
@@ -23,12 +20,12 @@ if __name__!='__main__' :
 			echo yes >{file}
 			tar cf $ROOT_DIR/hello.tar {file}
 		''')
-	class Untar(lmake.Rule) :
+	class Untar(Rule) :
 		targets = { 'TARGET' : '{File:.*}.tardir/{*:.*}' }
 		deps    = { 'TAR'    : '{File}.tar'              }
 		cmd     = 'tar mxaf {TAR} -C {File}.tardir'
 
-	class Cpy(lmake.Rule) :
+	class Cpy(Rule) :
 		target = 'cpy'
 		dep    = f'hello.tardir/{file}'
 		cmd    = 'cat'

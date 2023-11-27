@@ -126,8 +126,8 @@ namespace Backends::Slurm {
 		virtual Bool3 call_launch_after_end  () const { return No    ; }       // .
 
 		// services
-		virtual bool/*ok*/ config(Config::Backend const& config) {
-			if(!SlurmApi::init()) return false ;
+		virtual bool/*ok*/ config( Config::Backend const& config , bool dynamic ) {
+			if( !dynamic && !SlurmApi::init() ) return false ;
 			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : config.dct ) {
 				try {
@@ -213,16 +213,17 @@ namespace Backends::Slurm {
 			}
 			return { info.first , info.second!=No } ;
 		}
-		virtual ::pair_s<bool/*alive*/> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( JobIdx j , SpawnedEntry const& se ) const {
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
-			if (info.second==Maybe) return {{},true/*alive*/} ;
+			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
-			if ( info.second==No && se.verbose ) {
+			if (se.verbose) {
 				::string stderr = readStderrLog(j) ;
 				if (!stderr.empty()) info.first = ensure_nl(::move(info.first))+stderr ;
 			}
 			spawned_rsrcs.dec(se.rsrcs) ;
-			return { info.first , false/*alive*/ } ;
+			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
+			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
 			slurm_cancel(se.id) ;
@@ -440,7 +441,7 @@ namespace Backends::Slurm {
 		for( int i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
 			int err = SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
 			if ( err==SLURM_SUCCESS || errno!=ESLURM_TRANSITION_STATE_NO_UPDATE ) {
-				Trace trace("Cancel slurm jodid: ",slurm_id) ;
+				Trace trace("Cancel slurm jobid: ",slurm_id) ;
 				return ;
 			}
 			sleep(5+i) ; // Retry
@@ -474,7 +475,7 @@ namespace Backends::Slurm {
 				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
 				//   JOB_COMPLETE                                                                                                       completed execution successfully
 				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // completed execution unsuccessfully
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
 				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
 				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
 				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
@@ -494,12 +495,14 @@ namespace Backends::Slurm {
 	inline ::string getLogStdoutPath(JobIdx job) { return getLogPath(job) + "/stdout"s                    ; }
 
 	::string readStderrLog(JobIdx job) {
-		::string   err_file   = getLogStderrPath(job) ;
-		::ifstream err_stream { err_file }            ;
-		//
-		if (!err_stream                  ) return to_string("stderr not found : ",err_file                        ) ;
-		if (::istream::sentry(err_stream)) return to_string("stderr from : "     ,err_file,'\n',err_stream.rdbuf()) ; // /!\ rdbuf() fails on an empty file
-		else                               return {}                                                                ;
+		::string err_file = getLogStderrPath(job) ;
+		try {
+			::string res = read_content(err_file) ;
+			if (res.empty()) return {} ;
+			else             return to_string("stderr from : ",err_file,'\n',res) ;
+		} catch (::string const&) {
+			return to_string("stderr not found : ",err_file) ;
+		}
 	}
 
 	inline ::string cmd_to_string(::vector_s const& cmd_line) {

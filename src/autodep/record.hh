@@ -39,9 +39,9 @@ struct Record {
 		if (!_s_report_fd) {
 			// establish connection with server
 			::string const& service = s_autodep_env().service ;
-			if (service.back()==':') _s_report_fd = Disk::open_write(service,true/*append*/) ;
-			else                     _s_report_fd = ClientSockFd    (service               ) ;
-			_s_report_fd.no_std() ;                                                            // avoid poluting standard descriptors
+			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
+			else                     _s_report_fd = ClientSockFd(service) ;
+			_s_report_fd.no_std() ;                                                   // avoid poluting standard descriptors
 			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _s_report_fd ;

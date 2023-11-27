@@ -3,22 +3,21 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
-import sys
-import time
-
-import lmake
-
 if __name__!='__main__' :
 
-	lmake.sources = (
+	import sys
+
+	import lmake
+	from lmake.rules import Rule
+
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello'
 	,	'side.py'
 	,	'side.sh'
 	)
 
-	class Base(lmake.Rule) :
+	class Base(Rule) :
 		stems = {
 			'File'  : r'.*'
 		,	'YesNo' : r'[yn]'

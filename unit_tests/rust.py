@@ -3,33 +3,32 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import sys
-
 if __name__!='__main__' :
 
 	import lmake
+	from lmake.rules import Rule,AntiRule,RustRule
 
-	lmake.sources = (
+	lmake.manifest = (
 		'Lmakefile.py'
 	,	'hello.rs'
 	,	'hello.in'
 	,	'hello.ref'
 	)
 
-	class CompileRust(lmake.RustRule) :
+	class CompileRust(RustRule) :
 		targets = { 'EXE' : '{File:.*}' }
 		deps    = { 'SRC' : '{File}.rs' }
 		cmd     = 'rustc -g -o {EXE} {SRC}'
 
-	class AntiRustRust(lmake.AntiRule) :
+	class AntiRustRust(AntiRule) :
 		target = '{:.*}.rs.rs'
 
-	class RunRust(lmake.RustRule) :
+	class RunRust(RustRule) :
 		targets = { 'OUT' : '{File:.*}.out' }
 		deps    = { 'EXE' : '{File}'        }
 		cmd     = './{EXE} {File}.in {OUT}'
 
-	class Cmp(lmake.Rule) :
+	class Cmp(Rule) :
 		target = '{File:.*}.ok'
 		deps   = {
 			'OUT' : '{File}.out'
