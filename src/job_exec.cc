@@ -335,10 +335,10 @@ End :
 	try {
 		// although there is no info in the acknowledge, we need it to be sure that we stay alive to answer to heartbeat requests until the report is seen by the server
 		ClientSockFd fd {g_service,NConnectionTrials} ;
-		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		try { OMsgBuf().send                ( fd , end_report ) ; } catch(::string const& e) { exit(2,"cannot send end report to server : "          ,e) ; }
-		try { IMsgBuf().receive<JobRpcReply>( fd              ) ; } catch(::string const& e) { exit(2,"cannot receive end acknowledge from server : ",e) ; }
-		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		try { OMsgBuf().send( fd , end_report ) ; }
+		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		catch(::string const& e) { exit(2,"cannot send end report to server : ",e) ; }
 	} catch (::string const& e) { exit(2,"after job execution : ",e) ; }
 	//
 	trace("done") ;

@@ -25,8 +25,8 @@ namespace Backends {
 		return os << "Conn(" << SockFd::s_addr_str(c.host) <<':'<< c.port <<','<< c.seq_id <<','<< c.small_id << ')' ;
 	}
 
-	::ostream& operator<<( ::ostream& os , Backend::DeferredReportEntry const& dre ) {
-		return os << "DeferredReportEntry(" << dre.seq_id <<','<< dre.job_exec << ')' ;
+	::ostream& operator<<( ::ostream& os , Backend::DeferredEntry const& de ) {
+		return os << "DeferredEntry(" << de.seq_id <<','<< de.job_exec << ')' ;
 	}
 
 	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartEntry::req_info() const {
@@ -53,8 +53,9 @@ namespace Backends {
 	::mutex                           Backend::_s_mutex                  ;
 	::map<JobIdx,Backend::StartEntry> Backend::_s_start_tab              ;
 	SmallIds<SmallId>                 Backend::_s_small_ids              ;
-	Backend::JobExecThread       *    Backend::_s_job_exec_thread        = nullptr ;
-	Backend::DeferredReportThread*    Backend::_s_deferred_report_thread = nullptr ;
+	Backend::JobExecThread *          Backend::_s_job_exec_thread        = nullptr ;
+	Backend::DeferredThread*          Backend::_s_deferred_report_thread = nullptr ;
+	Backend::DeferredThread*          Backend::_s_deferred_wakeup_thread = nullptr ;
 
 	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<pair_s<AccDflags>> const& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
@@ -131,21 +132,29 @@ namespace Backends {
 		}
 	}
 
-	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , Pdate start , JobServerRpcProc proc ) {
+	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
+		::unique_lock lock { _s_mutex }                       ;                // lock _s_start_tab for minimal time to avoid dead-locks
+		auto          it   = _s_start_tab.find(+de.job_exec) ;
+		if (it==_s_start_tab.end()           ) return ;                                         // too late, job has ended
+		if (it->second.conn.seq_id!=de.seq_id) return ;                                         // too late, job has ended and restarted
+		JobDigest jd { .status=Status::LateLost } ;                                             // job is still present, must be really lost
+		if (+de.job_exec.start_.date) jd.stats.total = Pdate::s_now()-de.job_exec.start_.date ;
+		_s_handle_job_req( JobRpcReq( JobProc::End , de.seq_id , +de.job_exec , ::move(jd) ) ) ;
+	}
+
+	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , ChronoDate const& start , JobServerRpcProc proc ) {
 		Trace trace("_s_wakeup_remote",job,conn,proc) ;
 		try {
 			ClientSockFd fd(conn.host,conn.port) ;
 			OMsgBuf().send( fd , JobServerRpcReq(proc,conn.seq_id,job) ) ;     // XXX : straighten out Fd : Fd must not detach on mv and Epoll must take an AutoCloseFd as arg to take close resp.
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
-			// if job cannot be connected to, assume it is dead and pretend it died
-			JobDigest jd { .status=Status::LateLost } ;
-			if (+start) jd.stats.total = Pdate::s_now()-start ;
-			_s_handle_job_req( JobRpcReq( JobProc::End , conn.seq_id , job , ::move(jd) ) ) ;
+			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
+			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry(conn.seq_id,JobExec(Job(job),conn.host,start,ChronoDate(true/*is_end*/))) ) ;
 		}
 	}
 
-	void Backend::_s_handle_deferred_report(DeferredReportEntry&& dre) {
+	void Backend::_s_handle_deferred_report(DeferredEntry&& dre) {
 		::unique_lock lock { _s_mutex }                       ;                // lock _s_start_tab for minimal time to avoid dead-locks
 		auto          it   = _s_start_tab.find(+dre.job_exec) ;
 		if (it==_s_start_tab.end()            ) return ;
@@ -195,10 +204,13 @@ namespace Backends {
 		::vmap_ss                     rsrcs             ;
 		::string                      end_backend_msg   ;
 		Trace trace("_s_handle_job_req",jrr,job_exec) ;
-		{	::unique_lock lock  { _s_mutex } ;                                 // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			auto          it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
-			StartEntry&   entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
+		{	::unique_lock lock { _s_mutex } ;                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+			//
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
+			job_exec.host   = entry.conn.host ;                                // overridden if proc==Start
+			job_exec.start_ = entry.start     ;                                // .
 			switch (jrr.proc) {
 				case JobProc::Start : {
 					submit_attrs   = entry.submit_attrs ;
@@ -319,16 +331,13 @@ namespace Backends {
 				} break ;
 				case JobProc::End : {
 					rsrcs = ::move(entry.rsrcs) ;
-					job_exec.host   = entry.conn.host            ;
-					job_exec.start_ = entry.start                ;
-					job_exec.end_   = Job::s_now(true/*is_end*/) ;
+					job_exec.end_ = Job::s_now(true/*is_end*/) ;
 					_s_small_ids.release(entry.conn.small_id) ;
 					trace("erase_start_tab",job,it->second) ;
 					// if we have no fd, job end was invented by heartbeat, no acknowledge
 					// acknowledge job end before telling backend as backend may wait the end of the job
 					bool backend_ok = true/*garbage*/ ;
-					//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (+fd) try { OMsgBuf().send(fd,JobRpcReply(JobProc::End)) ; } catch (::string const&) {} // if job is dead, we dont care, we have our digest
+					//                                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					::tie(end_backend_msg,backend_ok) = s_end( entry.tag , +job , jrr.digest.status ) ;
 					//                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if ( jrr.digest.status==Status::LateLost && end_backend_msg.empty() ) end_backend_msg   = "vanished after start"                       ;
@@ -381,6 +390,40 @@ namespace Backends {
 		return keep_fd ;
 	}
 
+	// kill all if req==0
+	void Backend::_s_kill_req(ReqIdx req) {
+		Trace trace("s_kill_req",req) ;
+		::vmap<JobIdx,pair<StartEntry::Conn,ChronoDate>> to_kill ;
+		{	::unique_lock lock { _s_mutex } ;                                  // lock for minimal time
+			for( Tag t : Tag::N ) {
+				if (!s_ready[+t]) continue ;
+				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					_s_start_tab.erase(j) ;
+				}
+			}
+			for( auto& [j,e] : _s_start_tab ) {
+				if (req) {
+					auto it = e.reqs.find(req) ;
+					if (it==e.reqs.end()) continue ;
+					if (e.reqs.size()>1) {
+						e.reqs.erase(it) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::Continue , JobExec(j,New,New) , Req(req) ) ; // job is necessarly for some other req
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						continue ;
+					}
+				}
+				to_kill.emplace_back(j,::pair(e.conn,e.start)) ;
+			}
+		}
+		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( auto const& [j,c] : to_kill ) _s_wakeup_remote(j,c.first,c.second,JobServerRpcProc::Kill) ;
+		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	}
+
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {
 		Trace::t_key = 'H' ;
 		Trace trace("_heartbeat_thread_func") ;
@@ -394,7 +437,7 @@ namespace Backends {
 			::vmap_ss                rsrcs        ;
 			SubmitAttrs              submit_attrs ;
 			Tag                      tag          = Tag::Unknown                 ;
-			Pdate                    start        ;
+			ChronoDate               start        ;
 			{	::unique_lock lock { _s_mutex }                    ;           // lock _s_start_tab for minimal time
 				auto          it   = _s_start_tab.lower_bound(job) ;
 				if (it==_s_start_tab.end()) goto WrapAround ;
@@ -402,11 +445,11 @@ namespace Backends {
 				/**/        job   = it->first  ;
 				StartEntry& entry = it->second ;
 				//
-				if (!entry    ) {                    continue ; }              // not a real entry                        ==> no check, no wait
+				if (!entry    )                      continue ;                // not a real entry                        ==> no check, no wait
 				if (!entry.old) { entry.old = true ; continue ; }              // entry is too new, wait until next round ==> no check, no wait
-				tag   = entry.tag        ;
-				conn  = entry.conn       ;
-				start = entry.start.date ;
+				tag   = entry.tag   ;
+				conn  = entry.conn  ;
+				start = entry.start ;
 				if (+entry.start) goto Wakeup ;
 				lost_report = s_heartbeat(tag,job) ;
 				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                   // job is still alive
@@ -449,9 +492,10 @@ namespace Backends {
 	}
 
 	void Backend::s_config( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) {
-		static ::jthread            heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
-		static JobExecThread        job_exec_thread       {'J',_s_handle_job_req        ,1000/*backlog*/} ; _s_job_exec_thread        = &job_exec_thread        ;
-		static DeferredReportThread deferred_report_thread{'S',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
+		static ::jthread      heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
+		static JobExecThread  job_exec_thread       {'J',_s_handle_job_req        ,1000/*backlog*/} ; _s_job_exec_thread        = &job_exec_thread        ;
+		static DeferredThread deferred_report_thread{'S',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
+		static DeferredThread deferred_wakeup_thread{'D',_s_handle_deferred_wakeup                } ; _s_deferred_wakeup_thread = &deferred_wakeup_thread ;
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
 		::unique_lock lock{_s_mutex} ;
@@ -483,40 +527,6 @@ namespace Backends {
 		} ;
 		trace("cmd_line",cmd_line) ;
 		return cmd_line ;
-	}
-
-	// kill all if req==0
-	void Backend::_s_kill_req(ReqIdx req) {
-		Trace trace("s_kill_req",req) ;
-		::vmap<JobIdx,pair<StartEntry::Conn,Pdate>> to_kill ;
-		{	::unique_lock lock { _s_mutex } ;                                  // lock for minimal time
-			for( Tag t : Tag::N ) {
-				if (!s_ready[+t]) continue ;
-				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					_s_start_tab.erase(j) ;
-				}
-			}
-			for( auto& [j,e] : _s_start_tab ) {
-				if (req) {
-					auto it = e.reqs.find(req) ;
-					if (it==e.reqs.end()) continue ;
-					if (e.reqs.size()>1) {
-						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Continue , JobExec(j,New,New) , Req(req) ) ; // job is necessarly for some other req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						continue ;
-					}
-				}
-				to_kill.emplace_back(j,pair(e.conn,e.start.date)) ;
-			}
-		}
-		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		for( auto const& [j,c] : to_kill ) _s_wakeup_remote(j,c.first,c.second,JobServerRpcProc::Kill) ;
-		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 }

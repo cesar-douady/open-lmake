@@ -509,14 +509,14 @@ namespace Engine {
 							} catch(::string const&) {}
 							//
 							if (has_end) {
-								bool     overflow = !allocated_rsrcs.contains("mem") || digest.stats.mem>from_string_with_units<size_t>(allocated_rsrcs.at("mem")) ;
-								int      ws       = digest.wstatus                                                                                                 ;
-								bool     ok       = WIFEXITED(ws) && WEXITSTATUS(ws)==0                                                                            ;
-								::string mem_str  = to_string_with_units<'M'>(digest.stats.mem>>20)+'B' ;
-								if ( overflow && allocated_rsrcs.contains("mem") ) mem_str += " > "+allocated_rsrcs.at("mem")+'B' ;
+								::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs .contains("mem") ? required_rsrcs .at("mem") : 0 ;
+								size_t          mem_rsrc     = from_string_with_units<size_t>(mem_rsrc_str)                ;
+								bool            overflow     = digest.stats.mem > mem_rsrc                                 ;
+								::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'         ; if (overflow) mem_str += " > "+mem_rsrc_str+'B' ;
+								bool            ok           = WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0 ;
 								//
 								audit( fd , ro ,                         Color::None , lvl+1 , "end date       : "+digest.end_date.str()          ) ;
-								audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , "rc             : "+wstatus_str(ws)                ) ;
+								audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , "rc             : "+wstatus_str(digest.wstatus)    ) ;
 								audit( fd , ro ,                         Color::None , lvl+1 , "cpu time       : "+digest.stats.cpu  .short_str() ) ;
 								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed in job : "+digest.stats.job  .short_str() ) ;
 								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed total  : "+digest.stats.total.short_str() ) ;

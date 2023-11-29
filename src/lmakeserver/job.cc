@@ -335,24 +335,25 @@ namespace Engine {
 		}
 	}
 
-	void JobExec::live_out(::string const& txt) const {
-		for( Req r : (*this)->running_reqs() ) {
-			ReqInfo& ri = (*this)->req_info(r) ;
-			if (!ri.live_out) continue ;
-			SWEAR(ri.start_reported) ;                                                  // if live_out, start message should not have been deferred
-			if (r->last_info!=*this) r->audit_job(Color::HiddenNote,"continue",*this) ; // identify job for which we generate output message
-			r->last_info = *this ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			r->audit_info(Color::None,txt,0) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		}
+	void JobExec::live_out( ReqInfo& ri , ::string const& txt ) const {
+		if (txt.empty() ) return ;
+		if (!ri.live_out) return ;
+		Req r = ri.req ;
+		// identify job (with a continue message if no start message), dated as now and with current exec time
+		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,New),false/*at_end*/,Pdate::s_now()-start_.date) ;
+		r->last_info = *this ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		r->audit_info(Color::None,txt,0) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
-	void JobExec::report_start( ReqInfo& ri , ::vmap<Node,bool/*uniquify*/> const& report_unlink , ::string const& stderr , ::string const& backend_msg ) const {
-		if ( ri.start_reported ) {
-			SWEAR( report_unlink.empty() , report_unlink ) ;
-			return ;
-		}
+	void JobExec::live_out(::string const& txt) const {
+		Trace trace("report_start",*this) ;
+		for( Req req : (*this)->running_reqs() ) live_out((*this)->req_info(req),txt) ;
+	}
+
+	bool/*reported*/ JobExec::report_start( ReqInfo& ri , ::vmap<Node,bool/*uniquify*/> const& report_unlink , ::string const& stderr , ::string const& backend_msg ) const {
+		if ( ri.start_reported ) return false ;
 		ri.req->audit_job( stderr.empty()?Color::HiddenNote:Color::Warning , "start" , *this ) ;
 		ri.req->last_info = *this ;
 		size_t      w   = 0  ;
@@ -366,6 +367,7 @@ namespace Engine {
 		for( auto const& [pfx,t] : report_lst ) ri.req->audit_node( Color::Warning , to_string(::setw(w),pfx) , t , 1 ) ;
 		if (!stderr.empty()) ri.req->audit_stderr( backend_msg , {} , stderr , -1 , 1 ) ;
 		ri.start_reported = true ;
+		return true ;
 	}
 	void JobExec::report_start() const {
 		Trace trace("report_start",*this) ;
@@ -1320,8 +1322,9 @@ namespace Engine {
 						JobExec                       je            { idx() , New , New }                   ; // job starts and ends, no host
 						::vmap<Node,bool/*uniquify*/> report_unlink = wash(match)                           ;
 						JobDigest                     digest        = cache->download(idx(),cache_match.id) ;
+						if (!report_unlink.empty()) je.report_start(ri,report_unlink) ;
+						if (ri.live_out           ) je.live_out    (ri,digest.stdout) ;
 						ri.lvl = Lvl::Hit ;
-						je.report_start(ri,report_unlink) ;
 						trace("hit_result") ;
 						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ; // no resources nor backend for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;

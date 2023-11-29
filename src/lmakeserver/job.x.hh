@@ -143,11 +143,13 @@ namespace Engine {
 		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{true /*is_end*/} , end_{true/*is_end*/} {} // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
-		void report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void report_start(                                                                                                                                  ) const ; // if started did not report
-		void started     ( bool report , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void             report_start(                                                                                                                                  ) const ;
+		void             started     ( bool report , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
-		void             live_out   ( ::string const&                                                         ) const ;
+		void live_out( ReqInfo& , ::string const& ) const ;
+		void live_out(            ::string const& ) const ;
+		//
 		JobRpcReply      job_info   ( JobProc , ::vector<Node> const& deps                                    ) const ; // answer to requests from job execution
 		bool/*modified*/ end        ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg ) ;       // hit indicates that result is from a cache hit
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req

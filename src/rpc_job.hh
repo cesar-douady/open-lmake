@@ -70,8 +70,9 @@ ENUM( JobProc
 ,	End
 )
 
-ENUM_1( Status                         // result of job execution
+ENUM_2( Status                         // result of job execution
 ,	Early = EarlyLostErr               // <=Early means output has not been modified
+,	Async = Killed                     // <=Async means job was interrupted asynchronously
 ,	New                                // job was never run
 ,	EarlyErr                           // job was not started because of error
 ,	EarlyLost                          // job was lost before starting     , retry

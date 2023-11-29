@@ -69,8 +69,8 @@ namespace Backends {
             Tag            tag          = Tag::Unknown ;
 		} ;
 
-		struct DeferredReportEntry {
-			friend ::ostream& operator<<( ::ostream& , DeferredReportEntry const& ) ;
+		struct DeferredEntry {
+			friend ::ostream& operator<<( ::ostream& , DeferredEntry const& ) ;
 			// data
 			SeqId   seq_id   = 0 ;
 			JobExec job_exec ;
@@ -102,15 +102,16 @@ namespace Backends {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req              ( ReqIdx=0                                                          ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , Pdate start , JobServerRpcProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                                      ) ;
-		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                              ) ;
-		static void            _s_handle_deferred_report( DeferredReportEntry&&                                             ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                       ) ;
+		static void            _s_kill_req              ( ReqIdx=0                                                                      ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , ChronoDate const& start , JobServerRpcProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                                                  ) ;
+		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                                          ) ;
+		static void            _s_handle_deferred_report( DeferredEntry&&                                                               ) ;
+		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                               ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                                   ) ;
 		//
-		using JobExecThread        = ServerThread<JobRpcReq          > ;
-		using DeferredReportThread = QueueThread <DeferredReportEntry> ;
+		using JobExecThread  = ServerThread<JobRpcReq    > ;
+		using DeferredThread = QueueThread <DeferredEntry> ;
 		// static data
 	public :
 		static ::string       s_executable     ;
@@ -118,8 +119,9 @@ namespace Backends {
 		static ::atomic<bool> s_ready[+Tag::N] ;
 
 	private :
-		static JobExecThread       *    _s_job_exec_thread        ;
-		static DeferredReportThread*    _s_deferred_report_thread ;
+		static JobExecThread *          _s_job_exec_thread        ;
+		static DeferredThread*          _s_deferred_report_thread ;
+		static DeferredThread*          _s_deferred_wakeup_thread ;
 		static ::mutex                  _s_mutex                  ;
 		static ::map<JobIdx,StartEntry> _s_start_tab              ;            // use map instead of umap because heartbeat iterates over while tab is moving
 		static SmallIds<SmallId>        _s_small_ids              ;

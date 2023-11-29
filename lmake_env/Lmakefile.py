@@ -33,6 +33,8 @@ config.caches.dir = {
 
 lmake.version = (0,1)
 
+config.console.date_precision = 2
+
 config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
 config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
 
@@ -233,7 +235,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 			,	'-o',OBJ , SRC
 			)
 			for k,v in os.environ.items() : print(f'{k}={v}')
-			print(' '.join(cmd_line))
+			print(' '.join(cmd_line),flush=True)                               # in case of live out, we want to have the info early
 			run( cmd_line , check=True )
 		n_tokens  = config.backends.local.cc
 		resources = pdict()

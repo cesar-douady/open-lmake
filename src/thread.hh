@@ -55,6 +55,7 @@ private :
 template<class Item> struct QueueThread {
 	using Ddate = Time::Ddate                     ;
 	using Pdate = Time::Pdate                     ;
+	using Delay = Time::Delay                     ;
 	using Queue = ThreadQueue<::pair<Pdate,Item>> ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Item&&)> func ) {
@@ -71,13 +72,15 @@ private :
 	}
 	// cxtors & casts
 public :
-	QueueThread(        ) = default ;
+	QueueThread() = default ;
 	QueueThread( char key , ::function<void(Item&&)> func ) : _thread{_s_thread_func,key,this,func} {}
 	// services
-	/**/                 void push      (           Item const& x ) { _queue.push({Pdate(),x})                         ; }
-	/**/                 void push_at   ( Pdate d , Item const& x ) { _queue.push({d      ,x})                         ; }
-	template<class... A> void emplace   (           A&&...      a ) { _queue.emplace(Pdate(),Item(::forward<A>(a)...)) ; }
-	template<class... A> void emplace_at( Pdate d , A&&...      a ) { _queue.emplace(d      ,Item(::forward<A>(a)...)) ; }
+	/**/                 void push         (           Item const& x ) { _queue.push   ({Pdate()         ,x                       }) ; }
+	/**/                 void push_at      ( Pdate d , Item const& x ) { _queue.push   ({d               ,x                       }) ; }
+	/**/                 void push_after   ( Delay d , Item const& x ) { _queue.push   ({Pdate::s_now()+d,x                       }) ; }
+	template<class... A> void emplace      (           A&&...      a ) { _queue.emplace( Pdate()         ,Item(::forward<A>(a)...) ) ; }
+	template<class... A> void emplace_at   ( Pdate d , A&&...      a ) { _queue.emplace( d               ,Item(::forward<A>(a)...) ) ; }
+	template<class... A> void emplace_after( Delay d , A&&...      a ) { _queue.emplace( Pdate::s_now()+d,Item(::forward<A>(a)...) ) ; }
 	// data
 private :
 	Queue     _queue  ;

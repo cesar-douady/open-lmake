@@ -120,6 +120,9 @@ namespace Backends::Slurm {
 			s_register(MyTag,self) ;
 		}
 
+		// static data
+		static QueueThread<uint32_t>* _s_slurm_cancel_thread ;                 // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+
 		// accesses
 
 		virtual Bool3 call_launch_after_start() const { return Maybe ; }       // if Maybe, only launch jobs w/ same resources
@@ -128,6 +131,8 @@ namespace Backends::Slurm {
 		// services
 		virtual bool/*ok*/ config( Config::Backend const& config , bool dynamic ) {
 			if( !dynamic && !SlurmApi::init() ) return false ;
+			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
+			//
 			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : config.dct ) {
 				try {
@@ -195,15 +200,19 @@ namespace Backends::Slurm {
 			return to_string("slurm_id:",se.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			Delay relax_time = g_config.network_delay+Delay(1) ;
-			if ( !se.verbose && s>Status::Garbage ) return {{},true/*retry*/} ;                         // common case, must be fast
+			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;  // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
-				for( Delay i{0} ; i<relax_time ; Delay(0.1).sleep_for(),i+=Delay(0.1) ) { // wait a little while hoping job is dying
+				Delay d { 0.01 }                                                  ;
+				Pdate e = Pdate::s_now() + ::max(g_config.network_delay,Delay(1)) ; // ensure a reasonable minimum
+				for( Pdate c = Pdate::s_now() ;; c+=d ) {
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
+					if (c>=e              ) break        ;
+					d.sleep_for() ;                                            // wait, hoping job is dying, double delay every loop until hearbeat tick
+					d = ::min( d+d , g_config.heartbeat_tick ) ;
 				}
-				if (c==0) slurm_cancel(se.id) ;                                // if still alive after a little while, cancel job and retry
+				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
 			}
 			info.first = "job is still alive" ;
 		JobDead :
@@ -226,7 +235,7 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
-			slurm_cancel(se.id) ;
+			_s_slurm_cancel_thread->push(se.id) ;                               // asynchronous (as faster and no return value) cancel
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}
 		virtual uint32_t launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
@@ -245,6 +254,8 @@ namespace Backends::Slurm {
 		Pdate               time_origin      { "2023-01-01 00:00:00" }    ;    // this leaves room til 2091
 		float               nice_factor      { 1                     }    ;    // conversion factor in the form of number of nice points per second
 	} ;
+
+	QueueThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
 
 	//
 	// init
