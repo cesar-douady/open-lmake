@@ -26,6 +26,54 @@ namespace Disk {
 		return    os <<')'                           ;
 	}
 
+	ENUM( CanonState
+	,	First
+	,	Empty
+	,	Dot
+	,	DotDot
+	,	Plain
+	)
+	bool is_canon(::string const& name) {
+		bool       accept_dot_dot = true              ;
+		CanonState state          = CanonState::First ;
+		for( char c : name ) {
+			switch (c) {
+				case '/' :
+					switch (state) {
+						case CanonState::Empty  :                                               return false ;
+						case CanonState::Dot    :                                               return false ;
+						case CanonState::DotDot :                          if (!accept_dot_dot) return false ; break ;
+						case CanonState::First  :                                                                      // seen from /, First is like Plain
+						case CanonState::Plain  : accept_dot_dot = false ;                                     break ; // .. is only accepted as relative prefix
+						default : FAIL(state) ;
+					}
+					state = CanonState::Empty ;
+				break ;
+				case '.' :
+					switch (state) {
+						case CanonState::First  :                                      // seen from ., First is like Empty
+						case CanonState::Empty  : state = CanonState::Dot    ; break ;
+						case CanonState::Dot    : state = CanonState::DotDot ; break ;
+						case CanonState::DotDot : state = CanonState::Plain  ; break ;
+						case CanonState::Plain  :                              break ;
+						default : FAIL(state) ;
+					}
+				break ;
+				default :
+					state = CanonState::Plain ;
+			}
+		}
+		switch (state) {
+			case CanonState::First  :                                          // an empty name
+			case CanonState::Empty  : return true  ;                           // a directory ending with /
+			case CanonState::Dot    : return false ;
+			case CanonState::DotDot : return false ;
+			case CanonState::Plain  : return true  ;
+			default : FAIL(state) ;
+		}
+		return true ;
+	}
+
 	FileInfo::FileInfo(Stat const& st) {
 		switch (errno) {
 			case 0       :                       break  ;

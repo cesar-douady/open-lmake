@@ -39,16 +39,16 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	#
 	# compute directories
 	#
-	git_base = root_dir
-	git_dir  = '.git'
+	git_base  = root_dir
+	git_dir_s = '.git/'
 	while git_base!='/' and not _osp.isdir(_osp.join(git_base,'.git')) :
-		git_base = _osp.dirname(git_base)
-		git_dir  = '../'+git_dir
+		git_base   = _osp.dirname(git_base)
+		git_dir_s = '../' + git_dir_s
 	if git_base =='/' : raise NotImplementedError('not in a git repository')
-	git_dir_s  = _osp.join(git_base ,'')
+	git_base_s = _osp.join(git_base ,'')
 	root_dir_s = _osp.join(root_dir ,'')
-	assert root_dir_s.startswith(git_dir_s),f'found git dir {git_base} is not a prefix of root dir {root_dir}'
-	repo_dir_s = root_dir_s[len(git_dir_s):]
+	assert root_dir_s.startswith(git_base_s),f'found git dir {git_base} is not a prefix of root dir {root_dir}'
+	repo_dir_s = root_dir_s[len(git_base_s):]
 	#
 	# compute file lists
 	#
@@ -82,11 +82,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	#
 	#  update source_dirs
 	#
-	from lmake import config
-	if   isinstance(config.source_dirs,list ) : config.source_dirs.append(git_dir)
-	elif isinstance(config.source_dirs,tuple) : config.source_dirs = [*config.source_dirs,git_dir]
-	elif not config.source_dirs               : config.source_dirs = [git_dir]
-	else                                      : raise TypeError(f'cannot understand config.source_dirs {config.source_dirs}')
+	srcs.append(git_dir_s)
 	return srcs
 
 def auto_sources(**kwds) :

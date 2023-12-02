@@ -63,7 +63,6 @@ namespace Engine {
 		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
 		if (!sc.caches.empty()     ) os <<','   << sc.caches                 ;
 		for( Tag t : Tag::N        ) os <<','   << t <<':'<< sc.backends[+t] ;
-		if (!sc.src_dirs_s.empty() ) os <<','   << sc.src_dirs_s             ;
 		return os<<')' ;
 	}
 
@@ -202,26 +201,6 @@ namespace Engine {
 					}
 				}
 			}
-			field = "source_dirs" ;
-			if (py_map.hasKey(field)) {
-				::string root_dir_s = *g_root_dir+'/'                                                                  ;
-				RealPath rp         { { .lnk_support=LnkSupport::Full , .root_dir=*g_root_dir , .src_dirs_s{{"/"}} } } ;
-				for( auto const& py_sd : Py::Sequence(py_map[field]) ) {
-					::string sd = Py::String(py_sd) ;
-					if (sd.empty()    ) throw "empty source dir"s ;
-					if (sd.back()=='/') sd.pop_back() ;
-					RealPath::SolveReport sr = rp.solve(sd) ;
-					switch (sr.kind) {
-						case Kind::Tmp   : throw to_string("source dir ",sd," cannot be in temporary dir") ;
-						case Kind::Proc  : throw to_string("source dir ",sd," cannot be in /proc"        ) ;
-						case Kind::Admin : throw to_string("source dir ",sd," cannot be in ",AdminDir    ) ;
-						default : ;
-					}
-					sr.real += '/' ;
-					if ( sr.kind!=Kind::Repo && !is_abs(sd) ) src_dirs_s.push_back(mk_rel(sr.real,root_dir_s)) ; // keep source dir relative if asked so
-					else                                      src_dirs_s.push_back(::move(sr.real           )) ;
-				}
-			}
 		} catch(::string& e) {
 			e = to_string("while processing config.",field," :\n",indent(e)) ;
 			throw ;
@@ -248,13 +227,6 @@ namespace Engine {
 		else                             res << "\tpath_max       : " <<        "<unlimited>"       <<'\n' ;
 		if (!rules_module.empty()      ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
 		if (!srcs_module .empty()      ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
-		if (!src_dirs_s.empty()) {
-			res << "\tsource_dirs :\n" ;
-			for( ::string const& sd_s : src_dirs_s ) {
-				SWEAR(!sd_s.empty()) ;
-				res <<"\t\t"<< ::string_view(sd_s).substr(0,sd_s.size()-1) <<'\n' ;
-			}
-		}
 		if (!caches.empty()) {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,cache] : caches ) {

@@ -105,7 +105,9 @@ namespace Backends {
 		static void            _s_kill_req              ( ReqIdx=0                                                                      ) ; // kill all if req==0
 		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , ChronoDate const& start , JobServerRpcProc ) ;
 		static void            _s_heartbeat_thread_func ( ::stop_token                                                                  ) ;
-		static bool/*keep_fd*/ _s_handle_job_req        ( JobRpcReq && , Fd={}                                                          ) ;
+		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq && , Fd={}                                                          ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobRpcReq && , Fd={}                                                          ) ;
+		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq && , Fd={}                                                          ) ;
 		static void            _s_handle_deferred_report( DeferredEntry&&                                                               ) ;
 		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                               ) ;
 		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                                   ) ;
@@ -119,7 +121,9 @@ namespace Backends {
 		static ::atomic<bool> s_ready[+Tag::N] ;
 
 	private :
-		static JobExecThread *          _s_job_exec_thread        ;
+		static JobExecThread *          _s_job_start_thread       ;
+		static JobExecThread *          _s_job_mngt_thread        ;
+		static JobExecThread *          _s_job_end_thread         ;
 		static DeferredThread*          _s_deferred_report_thread ;
 		static DeferredThread*          _s_deferred_wakeup_thread ;
 		static ::mutex                  _s_mutex                  ;

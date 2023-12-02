@@ -386,13 +386,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
 		}
 		#
-		self.attrs.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
-		ai = abspath(self.attrs.interpreter[0])
-		ri = relpath(ai)
-		if not ri.startswith('../')                                                        : self.attrs.deps['<interpreter>'] = ri # interpreter is in repo
-		elif any( ai.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]=='/' ) : self.attrs.deps['<interpreter>'] = ai # interpreter is in abs source dirs
-		elif any( ri.startswith(sd+'/') for sd in lmake.config.source_dirs if sd[0]!='/' ) : self.attrs.deps['<interpreter>'] = ri # interpreter is in rel source dirs
-		#
+		self.rule_rep.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
 		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
 		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
 
@@ -506,15 +500,14 @@ class Handle :
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
 					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
 					else                                   : cmd += f'\t{       c.__name__}({a})\n'
-			self.rule_rep.cmd      = ( {'cmd':cmd,'is_python':True,'decorator':decorator} , tuple(cmd_ctx) )
+			self.rule_rep.cmd      = ( {'cmd':cmd,'decorator':decorator} , tuple(cmd_ctx) )
 			self.rule_rep.dbg_info = dbg_info
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			self._init()
 			self._handle_val('cmd',for_deps=True)
 			if 'cmd' in self.dynamic_val : self.dynamic_val = self.dynamic_val['cmd']
-			self.rule_rep.cmd                 = self._finalize()
-			self.rule_rep.cmd[0]['is_python'] = False
+			self.rule_rep.cmd = self._finalize()
 
 def fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class

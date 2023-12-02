@@ -33,7 +33,6 @@ namespace Store {
 		//
 		using Base::HasDataSz ;
 		using Base::size      ;
-		using Base::clear     ;
 		using Base::_mutex    ;
 		// cxtors
 		/**/                 SideCarFile(                                                        ) = default ;

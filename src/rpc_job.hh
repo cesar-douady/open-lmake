@@ -285,6 +285,7 @@ struct SubmitAttrs {
 	uint8_t           n_retries = 0                   ;
 	Time::CoarseDelay pressure  = {}                  ;
 	JobReason         reason    = {}                  ;
+	JobIdx            asking    = 0                   ;
 } ;
 
 struct JobStats {

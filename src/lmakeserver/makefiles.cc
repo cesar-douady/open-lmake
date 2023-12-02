@@ -17,17 +17,37 @@ using namespace Time ;
 
 namespace Engine::Makefiles {
 
-	struct SrcDirsS {
-		::vmap_s<bool/*is_abs*/> glb ; // source dirs outside repo in an absolute form
-		::vector_s               lcl ; // source dirs inside  repo
-	} ;
-
-	static inline SrcDirsS _split_src_dirs_s(::vector_s const& src_dirs_s) {
-		SrcDirsS res ;
-		for( ::string const& sd_s : src_dirs_s )
-			if (is_lcl_s(sd_s)) res.lcl.push_back   (       sd_s                            ) ;
-			else                res.glb.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
-		return res ;
+	static ::pair<vector_s/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Py::Sequence const& py_srcs , LnkSupport lnk_support ) {
+		RealPath   real_path {{ .lnk_support=lnk_support , .root_dir=*g_root_dir }} ;
+		::vector_s srcs       ;
+		::vector_s src_dirs_s ;
+		for( Py::Object py_obj : py_srcs ) {
+			::string src     ;
+			try                       { src = Py::String(py_obj) ; }
+			catch(::Py::Exception& e) { throw e.errorValue() ;     }
+			if (src.empty()    )   throw "found an empty source"s ;
+			//
+			bool is_dir_ = src.back()=='/' ;
+			if (is_dir_) src.pop_back() ;
+			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
+			//
+			::string reason ;
+			if (!sr.lnks.empty()) {
+				/**/                                                         reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
+			} else if (is_dir_) {
+				if      ( !is_canon(src)                                   ) reason = " is not canonical"                                        ;
+				else if ( !is_dir  (src)                                   ) reason = " is not a directory"                                      ;
+			} else {
+				if      ( sr.kind!=Kind::Repo                              ) reason = " is not in repository"                                    ;
+				else if ( sr.real!=src                                     ) reason = to_string(" canonical form is ",sr.real)                   ;
+				else if ( lnk_support==LnkSupport::None && !is_reg   (src) ) reason = " is not a regular file"                                   ;
+				else if ( lnk_support!=LnkSupport::None && !is_target(src) ) reason = " is not a regular file nor a symbolic link"               ;
+			}
+			if (!reason.empty()) throw to_string( is_dir_?"source dir ":"source " , src , reason ) ;
+			if (is_dir_        ) src_dirs_s.push_back(src+'/') ;
+			else                 srcs      .push_back(src    ) ;
+		}
+		return {srcs ,src_dirs_s} ;
 	}
 
 	static ::umap<Crc,RuleData> _gather_rules(Py::Sequence const& py_rules) {
@@ -44,39 +64,11 @@ namespace Engine::Makefiles {
 			names.insert(rd.name) ;
 			rules[crc] = ::move(rd) ;
 		}
-		for (::string const& sd_s : g_config.src_dirs_s ) {
+		for ( ::string const& sd_s : g_src_dirs_s ) {
 			RuleData rd { Special::GenericSrc , sd_s } ;
 			rules[rd.match_crc] = ::move(rd) ;
 		}
 		return rules ;
-	}
-
-	static ::vector_s _gather_srcs(Py::Sequence const& py_srcs) {
-		RealPath   real_path      {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
-		::vector_s srcs           ;
-		::vector_s lcl_src_dirs_s = _split_src_dirs_s(g_config.src_dirs_s).lcl                    ;
-		for( Py::Object py_obj : py_srcs ) {
-			::string src ;
-			try                       { src = Py::String(py_obj) ; }
-			catch(::Py::Exception& e) { throw e.errorValue() ;     }
-			if (src.empty()) throw "found an empty source"s ;
-			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
-			//
-			if (!sr.lnks.empty()   ) throw to_string("source ",src," : found a link in its path : ",sr.lnks[0]) ;
-			if (sr.kind!=Kind::Repo) throw to_string("source ",src," : not in repository"                     ) ;
-			if (sr.real!=src       ) throw to_string("source ",src," : canonical form is "         ,sr.real   ) ;
-			if (g_config.lnk_support==LnkSupport::None) { if (!is_reg   (src)) throw to_string("source ",src," is not a regular file"           ) ; }
-			else                                        { if (!is_target(src)) throw to_string("source ",src," is not a regular file nor a link") ; }
-			::string src_s = src+'/' ;
-			for ( ::string const& sd_s : lcl_src_dirs_s ) {
-				if (!src_s.starts_with(sd_s) ) continue ;
-				if (src_s.size()==sd_s.size()) throw to_string(src," is both a source and a source dir"                           ) ;
-				else                           throw to_string("source ",src," is within source dir ",sd_s.substr(0,sd_s.size()-1)) ;
-			}
-			srcs.emplace_back(src) ;
-		}
-		return srcs ;
-
 	}
 
 	// dep file line format :
@@ -115,12 +107,11 @@ namespace Engine::Makefiles {
 		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::uset_s srcs , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::string   deps_file   = _deps_file(action,new_) ;
 		::ifstream deps_stream { deps_file }             ;
-		::vector_s lcl_src_dirs_s = _split_src_dirs_s(g_config.src_dirs_s).lcl ;
 		for( ::string line ; ::getline(deps_stream,line) ;) {
 			switch (line[0]) {
 				case '+' : break ;
@@ -128,36 +119,39 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;
-			if (srcs.empty())                             { if (Node(d)->is_src()  ) goto NotDangling ; } // if srcs is empty, we hve not read sources and store is up to date for sources
-			else                                          { if (srcs.contains(d)   ) goto NotDangling ; }
-			for ( ::string const& sd_s : lcl_src_dirs_s )   if (d.starts_with(sd_s)) goto NotDangling ;
+			/**/                                       if (is_abs(d)          ) continue         ; // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			/**/                                       if (Node(d)->is_src()  ) goto NotDangling ;
+			for( ::string const& sd_s : g_src_dirs_s ) if (d.starts_with(sd_s)) goto NotDangling ; // absolute src dirs wont match, but does not hurt
 			throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		NotDangling : ;
 		}
 		trace("ok") ;
 	}
 
-	static void _gen_deps( ::string const& action , ::vector_s const& deps , ::uset_s srcs , ::string const& startup_dir_s ) {
-		::string root_dir_s    = *g_root_dir+'/'                        ;
-		::string deps_file     = _deps_file(action,false/*new*/)        ;
-		::string new_deps_file = _deps_file(action,true /*new*/)        ;
-		SrcDirsS sds_s         = _split_src_dirs_s(g_config.src_dirs_s) ;
-		OFStream os            { ::dir_guard(new_deps_file) }           ;
+	static void _gen_deps( ::string const& action , ::vector_s const& deps , ::string const& startup_dir_s ) {
+		::string              root_dir_s    = *g_root_dir+'/'                 ;
+		::string              deps_file     = _deps_file(action,false/*new*/) ;
+		::string              new_deps_file = _deps_file(action,true /*new*/) ;
+		::vmap_s<bool/*abs*/> glb_sds_s     ;
+		OFStream              os            { ::dir_guard(new_deps_file) }    ;
+		//
+		for( ::string const& sd_s : g_src_dirs_s )
+			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
+		//
 		{	for( ::string d : deps ) {
 				SWEAR(!d.empty()) ;
 				FileInfo fi{d} ;
 				if (is_abs(d)) {
-					for( auto const& [sd_s,ia] : sds_s.glb ) {
+					for( auto const& [sd_s,a] : glb_sds_s ) {
 						if (!(d+'/').starts_with(sd_s)) continue ;
-						if (!ia                       ) d = mk_rel(d,root_dir_s) ;
+						if (!a                        ) d = mk_rel(d,root_dir_s) ;
 						break ;
 					}
 				}
 				os << (+fi?'+':'!') << d <<'\n' ;
 			}
 		}
-		_chk_dangling(action,true/*new*/,srcs,startup_dir_s) ;                 // ensure deps have been pushed to disk (stream closed or flushed)
+		_chk_dangling(action,true/*new*/,startup_dir_s) ;                      // ensure deps have been pushed to disk (stream closed or flushed)
 	}
 
 	static void _stamp_deps(::string const& action) {
@@ -220,20 +214,57 @@ namespace Engine::Makefiles {
 		return { "read config because "+reason , true/*done*/ } ;
 	}
 
+	ENUM( Reason   // reason to re-read makefiles
+	,	None       // must be first to be false
+	,	SrcDirs
+	,	Set
+	,	Cleared
+	,	Modified
+	)
+
 	// /!\ the 2 following functions are mostly identical, one for rules, the other for sources, but are difficult to share, modifications must be done in both simultaneously
 
-	static ::pair_s<bool/*done*/> _refresh_rules( ::umap<Crc,RuleData>& rules , ::vector_s& deps , const char* new_rules_module , bool dynamic , PyObject* py_info , ::string const& startup_dir_s ) {
+	static ::pair_s<bool/*done*/> _refresh_srcs( ::vector_s& srcs , ::vector_s& src_dirs_s , ::vector_s& deps , Reason new_ , bool dynamic , PyObject* py_info , ::string const& startup_dir_s ) {
+		Trace trace("_refresh_srcs") ;
+		::string reason ;
+		if (g_config.srcs_module.empty()) {
+			if (!py_info) return {{},false/*done*/}                              ; // config has not been read
+			if (dynamic ) throw "cannot dynamically read sources within config"s ;
+			else          goto Load                                              ;
+		}
+		switch (new_) {
+			case Reason::None    : reason = _chk_deps( "sources" , startup_dir_s )        ; break ;
+			case Reason::SrcDirs : FAIL() ;
+			default              : reason = to_string("config.sources_module was "s,new_) ; break ;
+		}
+		if (reason.empty()) return {{},false/*done*/}                                               ;
+		if (dynamic       ) throw to_string("cannot dynamically read sources (because ",reason,')') ;
+		reason = "read sources because " + reason ;
+		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		tie(py_info,deps) = _read_makefiles( "srcs" , g_config.srcs_module ) ;
+		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Load :
+		try                      { tie(srcs,src_dirs_s) = _gather_srcs( Py::Sequence(Py::Dict(py_info)["manifest"]) , g_config.lnk_support ) ; }
+		catch(::string const& e) { throw to_string("while processing sources :\n",indent(e)) ;                                                 }
+		return {reason,true/*done*/} ;
+	}
+
+	static ::pair_s<bool/*done*/> _refresh_rules( ::umap<Crc,RuleData>& rules , ::vector_s& deps , Reason new_ , bool dynamic , PyObject* py_info , ::string const& startup_dir_s ) {
 		Trace trace("_refresh_rules") ;
 		::string reason ;
+		// rules depend on source dirs as deps are adapted if they lie outside repo + GenericSrcRule's are synthesized
 		if (g_config.rules_module.empty()) {
-			if (!py_info) return {{},false/*done*/}              ;             // config has not been read
-			if (dynamic ) throw "cannot dynamically read rules"s ;
-			else          goto Load                              ;
+			if ( !py_info && !new_ ) return {{},false/*done*/}                            ; // config has not been read
+			if ( dynamic           ) throw "cannot dynamically read rules within config"s ;
+			else                     goto Load                                            ;
 		}
-		if (new_rules_module) reason = "config.rules_module was "s+new_rules_module ;
-		else                  reason = _chk_deps( "rules" , startup_dir_s )     ;
-		if (reason.empty()           ) return {{},false/*done*/}                                             ;
-		if (dynamic                  ) throw to_string("cannot dynamically read rules (because ",reason,')') ;
+		switch (new_) {
+			case Reason::None    : reason = _chk_deps( "rules" , startup_dir_s )        ; break ;
+			case Reason::SrcDirs : reason = "sources dirs changed"                      ; break ;
+			default              : reason = to_string("config.rules_module was "s,new_) ; break ;
+		}
+		if (reason.empty()) return {{},false/*done*/}                                             ;
+		if (dynamic       ) throw to_string("cannot dynamically read rules (because ",reason,')') ;
 		reason = "read rules because " + reason ;
 		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		tie(py_info,deps) = _read_makefiles( "rules" , g_config.rules_module ) ;
@@ -241,28 +272,6 @@ namespace Engine::Makefiles {
 	Load :
 		try                      { rules = _gather_rules(Py::Sequence(Py::Dict(py_info)["rules"])) ; }
 		catch(::string const& e) { throw to_string("while processing rules :\n",indent(e)) ;         }
-		return {reason,true/*done*/} ;
-	}
-	static ::pair_s<bool/*done*/> _refresh_srcs( ::vector_s& srcs , ::vector_s& deps , const char* new_srcs_module , bool dynamic , PyObject* py_info , ::string const& startup_dir_s ) {
-		Trace trace("_refresh_srcs") ;
-		::string reason ;
-		if (g_config.srcs_module.empty()) {
-			if (!py_info) return {{},false/*done*/}                ;           // config has not been read
-			if (dynamic ) throw "cannot dynamically read sources"s ;
-			else          goto Load                                ;
-		}
-		if (new_srcs_module) reason = "config.sources_module was "s+new_srcs_module ;
-		else                 reason = _chk_deps( "sources" , startup_dir_s )    ;
-		if (reason.empty()          ) return {{},false/*done*/}                                               ;
-		if (dynamic                 ) throw to_string("cannot dynamically read sources (because ",reason,')') ;
-		reason = "read sources because " + reason ;
-		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		tie(py_info,deps) = _read_makefiles( "srcs" , g_config.srcs_module ) ;
-		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	Load :
-		try                      { srcs = _gather_srcs(Py::Sequence(Py::Dict(py_info)["manifest"])) ; }
-		catch(::string const& e) { throw to_string("while processing sources :\n",indent(e)) ;        }
-		if (srcs.empty())          throw "no sources found"                                  ;
 		return {reason,true/*done*/} ;
 	}
 
@@ -281,41 +290,51 @@ namespace Engine::Makefiles {
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s ) ;
 		//
 		try {
-			const char* new_rules_module = nullptr ;
-			const char* new_srcs_module  = nullptr ;
+			Reason new_srcs  = Reason::None ;
+			Reason new_rules = Reason::None ;
 			auto diff_config      = [&]( Config const& old , Config const& new_ )->void {
-				if ( !old.booted || !new_.booted         ) return ;                                                                                                   // only record diffs
-				if ( old.rules_module!=new_.rules_module ) new_rules_module = old.rules_module.empty() ? "set" : new_.rules_module.empty() ? "cleared" : "modified" ;
-				if ( old.srcs_module !=new_.srcs_module  ) new_srcs_module  = old.srcs_module .empty() ? "set" : new_.srcs_module .empty() ? "cleared" : "modified" ;
+				if ( !old.booted || !new_.booted         ) return ;                       // only record diffs, i.e. when both exist
+				if ( old.rules_module!=new_.rules_module ) new_rules = old.rules_module.empty() ? Reason::Set : new_.rules_module.empty() ? Reason::Cleared : Reason::Modified ;
+				if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = old.srcs_module .empty() ? Reason::Set : new_.srcs_module .empty() ? Reason::Cleared : Reason::Modified ;
 			} ;
 			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			EngineStore::s_new_config( ::move(config) , dynamic , chk , diff_config ) ;
 			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			//
-			::umap<Crc,RuleData> rules ; ::pair_s<bool/*done*/> rules_digest = _refresh_rules( rules , rules_deps , new_rules_module , dynamic , py_info , startup_dir_s ) ;
-			::vector_s           srcs  ; ::pair_s<bool/*done*/> srcs_digest  = _refresh_srcs ( srcs  , srcs_deps  , new_srcs_module  , dynamic , py_info , startup_dir_s ) ;
+			// /!\ sources must be processed first as source dirs influence rules
 			//
-			::uset_s src_set = mk_uset(srcs) ;
-			if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , src_set , startup_dir_s ) ;
-			else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , src_set , startup_dir_s ) ; // if sources have changed, some deps may have becom dangling
-			if      (rules_digest .second) _gen_deps    ( "rules"   , rules_deps   , src_set , startup_dir_s ) ;
-			else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , src_set , startup_dir_s ) ; // .
-			if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , src_set , startup_dir_s ) ;
+			::vector_s             srcs        ;
+			::vector_s             src_dirs_s  ;
+			::pair_s<bool/*done*/> srcs_digest = _refresh_srcs( srcs , src_dirs_s , srcs_deps  , new_srcs  , dynamic , py_info , startup_dir_s ) ;
 			//
-			::string msg ;
-			if (!config_digest.first.empty()) append_to_string(msg,config_digest.first,'\n') ;
-			if (!rules_digest .first.empty()) append_to_string(msg,rules_digest .first,'\n') ;
-			if (!srcs_digest  .first.empty()) append_to_string(msg,srcs_digest  .first,'\n') ;
+			if ( srcs_digest.second && src_dirs_s!=g_src_dirs_s ) new_rules |= Reason::SrcDirs ;
+			//                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			bool invalidate_src = srcs_digest.second && EngineStore::s_new_srcs( ::move(srcs) , ::move(src_dirs_s) ) ;
+			//                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			//
+			::umap<Crc,RuleData> rules ;
+			::pair_s<bool/*done*/> rules_digest = _refresh_rules( rules , rules_deps , new_rules , dynamic , py_info , startup_dir_s ) ;
 			//                                                         vvvvvvvvvvvvvvvvvvvvvvvvvv
 			bool invalidate_rule = rules_digest.second && EngineStore::s_new_rules(::move(rules)) ;
-			bool invalidate_src  = srcs_digest .second && EngineStore::s_new_srcs (::move(srcs) ) ;
 			//                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( invalidate_src || invalidate_rule ) EngineStore::s_invalidate_match() ;
 			//
+			//
+			::uset_s src_set = mk_uset(srcs) ;
+			if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
+			else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have becom dangling
+			if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
+			if      (rules_digest .second) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
+			else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
+			//
+			::string msg ;
+			if (!config_digest.first.empty()) append_to_string(msg,config_digest.first,'\n') ;
+			if (!srcs_digest  .first.empty()) append_to_string(msg,srcs_digest  .first,'\n') ;
+			if (!rules_digest .first.empty()) append_to_string(msg,rules_digest .first,'\n') ;
+			//
 			if (config_digest.second) _stamp_deps("config" ) ;                 // stamp deps once all error cases have been cleared
-			if (rules_digest .second) _stamp_deps("rules"  ) ;                 // .
 			if (srcs_digest  .second) _stamp_deps("sources") ;                 // .
+			if (rules_digest .second) _stamp_deps("rules"  ) ;                 // .
 			//
 			Py_DecRef(py_info) ;
 			return msg ;

@@ -193,6 +193,7 @@ namespace Engine {
 			watcher_req_info.n_wait++ ;
 		}
 		void wakeup_watchers() ;
+		Job  asking         () const ;
 		//
 		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
 			if (pressure_<=pressure) return false ;

@@ -10,9 +10,11 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,SourceRule
 
-	lmake.config.source_dirs = ( '../srcs_rel' , osp.abspath('../srcs_abs') )
-
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'../srcs_rel/'
+	,	osp.abspath('../srcs_abs')+'/'
+	)
 
 	class Src(SourceRule) :
 		target = '{File:.*}.src'

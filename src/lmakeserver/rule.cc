@@ -242,7 +242,7 @@ namespace Engine {
 			return true ;
 		}
 
-		bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) {
+		bool/*updated*/ acquire( Delay& dst , PyObject* py_src , Delay min , Delay max ) {
 			if (!py_src        ) {           return false ;                           }
 			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
@@ -251,8 +251,9 @@ namespace Engine {
 			} else if (PyLong_Check(py_src)) {
 				long sd = PyLong_AsLong(py_src) ;
 				if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
-				if ( sd<0                       )                   throw "underflow"s ;
 				dst = Delay(sd) ;
+				if ( dst<min                    )                   throw "underflow"s ;
+				if ( dst>max                    )                   throw "overflow"s  ;
 			} else if (PyUnicode_Check(py_src)) {
 				PyObject* f = PyFloat_FromString(py_src) ;
 				if (!f) throw "cannot convert to float"s ;
@@ -272,10 +273,10 @@ namespace Engine {
 			PyObject* fast_val = PySequence_Fast(py_src,"")                 ; SWEAR(fast_val  ) ;
 			size_t     n       = size_t(PySequence_Fast_GET_SIZE(fast_val)) ; SWEAR(n==4    ,n) ;
 			PyObject** p       =        PySequence_Fast_ITEMS   (fast_val)  ;
-			acquire(dst.module        ,p[0]) ;
-			acquire(dst.qual_name     ,p[1]) ;
-			acquire(dst.filename      ,p[2]) ;
-			acquire(dst.first_line_no1,p[3]) ; SWEAR(+dst.first_line_no1) ;
+			acquire(dst.module        ,p[0]                 ) ;
+			acquire(dst.qual_name     ,p[1]                 ) ;
+			acquire(dst.filename      ,p[2]                 ) ;
+			acquire(dst.first_line_no1,p[3],size_t(1)/*min*/) ;
 			return true ;
 		}
 
@@ -309,6 +310,39 @@ namespace Engine {
 	// DepsAttrs
 	//
 
+	ENUM( DepKind
+	,	Dep
+	,	Python
+	,	Shell
+	)
+
+	static bool/*keep*/ _qualify_dep( ::string const& key , ::string const& dep , DepKind kind=DepKind::Unknown , ::string const& dep_for_msg={} ) {
+		::string dir_s          = dep.substr(0,dep.find(Rule::StemMrkr))          ;
+		size_t   dir_pos        = dir_s.rfind('/')                                ;
+		/**/     dir_s          = dir_pos==Npos ? ""s : dir_s.substr(0,dir_pos+1) ;
+		//
+		auto bad = [&] [[noreturn]] (::string const& msg) {
+			::string const& d = dep_for_msg.empty() ? dep : dep_for_msg ;
+			if (kind==DepKind::Dep) throw to_string("dep ",key    ," (",d,") ",msg) ;
+			else                    throw to_string(mk_snake(kind)," (",d,") ",msg) ;
+		} ;
+		auto bad_canon = [&] [[noreturn]] (::string const& dir_s) {
+			bad("must be canonical : "+dir_s+dep.substr(dir_pos+1)) ;
+		} ;
+		//
+		if (is_lcl(dep)) return true/*keep*/ ;
+		// dep is non-local, substitute relative/absolute if it lies within a source dirs
+		::string rel_dir_s = mk_rel(dir_s,*g_root_dir+'/') ; if (is_lcl_s(rel_dir_s)) bad_canon(rel_dir_s) ;
+		::string abs_dir_s = mk_abs(dir_s,*g_root_dir+'/') ;
+		//
+		for( ::string const& sd_s : g_src_dirs_s ) {
+			if (is_lcl_s(sd_s)) continue ;                                                                          // nothing to recognize inside repo
+			if (abs_dir_s.starts_with(sd_s)) { if (abs_dir_s==dir_s) return true/*keep*/ ; bad_canon(abs_dir_s) ; }
+			if (rel_dir_s.starts_with(sd_s)) { if (rel_dir_s==dir_s) return true/*keep*/ ; bad_canon(rel_dir_s) ; }
+		}
+		if (kind!=DepKind::Dep) return false/*keep*/ ;                         // normal case : interpreter is outside repo typically system python or bash
+		bad("outside repository and all source dirs must be suppressed") ;
+	}
 	BitMap<VarCmd> DepsAttrs::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		full_dynamic = py_src==Py_None ;
 		if (full_dynamic) return {} ;
@@ -329,14 +363,18 @@ namespace Engine {
 			Dflags   df         = StaticDflags                                   ;
 			::string dep        = _split_flags(df,"dep "+key,py_val)             ;
 			::string parsed_dep = Attrs::subst_fstr(dep,var_idxs,n_unnamed,need) ;
+			//
+			rd.add_cwd( parsed_dep , df[Dflag::Top] ) ;
+			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
+			//
 			if (n_unnamed) {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
-				if (n_unnamed) throw to_string("dep ",key," contains some but not all unnamed static stems") ;
+				if (n_unnamed) throw to_string("dep ",key," (",dep,") ","contains some but not all unnamed static stems") ;
 			}
-			rd.add_cwd( parsed_dep , df[Dflag::Top] ) ;
 			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , df ) ) ;
 		}
-		if (deps.size()>Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
+		if (_qualify_dep( {} , rd.interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell )) deps.emplace_back( "<interpreter>" , DepSpec(::string(rd.interpreter[0]),StaticDflags) ) ;
+		if (deps.size()>=Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 		return need ;
 	}
 
@@ -366,9 +404,10 @@ namespace Engine {
 					throw to_string("a dep has a non str key : ",key_str) ;
 				}
 				::string key = PyUnicode_AsUTF8(py_key)           ;
-				Dflags   df  = StaticDflags                       ;        // initial value
-				::string dep = _split_flags(df,"dep "+key,py_val) ;        // updates df
+				Dflags   df  = StaticDflags                       ;            // initial value
+				::string dep = _split_flags(df,"dep "+key,py_val) ;            // updates df
 				match.rule->add_cwd( dep , df[Dflag::Top] ) ;
+				_qualify_dep( key , dep , DepKind::Dep ) ;
 				::pair_s<AccDflags> e { dep , {a,df} } ;
 				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
 				else                   {                                      res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
@@ -405,13 +444,12 @@ namespace Engine {
 	// Cmd
 	//
 
-	BitMap<VarCmd> Cmd::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs ) {
+	BitMap<VarCmd> Cmd::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		BitMap<VarCmd> need    ;
 		::string       raw_cmd ;
-		Attrs::acquire_from_dct(is_python,py_src,"is_python") ;
-		Attrs::acquire_from_dct(raw_cmd  ,py_src,"cmd"      ) ;
-		Attrs::acquire_from_dct(decorator,py_src,"decorator") ;
-		if (is_python) {
+		Attrs::acquire_from_dct( raw_cmd   , py_src , "cmd"       ) ;
+		Attrs::acquire_from_dct( decorator , py_src , "decorator" ) ;
+		if (rd.is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
 			VarIdx n_unnamed = 0 ;
@@ -422,12 +460,12 @@ namespace Engine {
 	}
 
 	::pair_ss/*script,call*/ DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
-		if (spec.is_python) {
+		Rule r = +job ? job->rule : match.rule ;                                                                     // if we have no job, we must have a match as job ...
+		if (r->is_python) {                                                                                          // ... is there to lazy evaluate match if necessary
 			OStringStream res ;
 			res<<"from lmake_runtime import lmake_func" ; if (spec.decorator!="lmake_func") res<<" as "<<spec.decorator ; res<<'\n' ;
 			res<<spec.decorator<<".dbg = {\n" ;
 			bool first = true                          ;
-			Rule r     = +job ? job->rule : match.rule ;                       // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 			SWEAR(+r) ;
 			for( auto const& [k,v] : r->dbg_info ) {
 				if (!first) res<<',' ;
@@ -578,17 +616,13 @@ namespace Engine {
 		::string field ;
 		try {
 			//
-			// acquire essential (necessary for Anti)
+			// acquire essential (necessary for Anti & GenericSrc)
 			//
 			//
 			field = "__special__" ;
 			if (dct.hasKey(field)) {
 				special = mk_enum<Special>(Py::String(dct[field])) ;
-				switch (special) {
-					case Special::Anti       :
-					case Special::GenericSrc : break                                                                    ;
-					default                  : throw to_string("unexpected value for __special__ attribute : ",special) ;
-				}
+				if (special<=Special::Shared) throw to_string("unexpected value for __special__ attribute : ",special) ;
 			} else {
 				special = Special::Plain ;
 			}
@@ -707,15 +741,14 @@ namespace Engine {
 					//
 					if (flags[Tflag::Match]) found_matching = true ;
 					// check
-					::string slash_target = '/'+target        ;
-					bool     is_stdout    = field=="<stdout>" ;
+					bool is_stdout = field=="<stdout>" ;
 					if ( target.starts_with(*g_root_dir) && target[g_root_dir->size()]=='/' ) throw to_string("target must be relative to root dir : "                         ,target) ;
 					if ( !is_lcl(target)                                                    ) throw to_string("target must be local : "                                        ,target) ;
-					if ( slash_target.find("/./")!=Npos || slash_target.find("/../")!=Npos  ) throw to_string("target must be canonical : "                                    ,target) ;
+					if ( !is_canon(target)                                                  ) throw to_string("target must be canonical : "                                    ,target) ;
 					if ( !flags[Tflag::Star       ] && is_native_star                       ) throw to_string("flag star cannot be reset because target contains star stems : ",target) ;
 					if (  flags[Tflag::Match      ] && !missing_stems.empty()               ) throw to_string("missing stems ",missing_stems," in target : "                   ,target) ;
 					if (  flags[Tflag::Uniquify   ] && !flags[Tflag::Incremental]           ) throw           "flag uniquify is meaningless for non-incremental targets"s               ;
-					if ( !flags[Tflag::Match      ] && is_anti()                            ) throw           "non-matching targets are meaningless for anti-rules"s                    ;
+					if ( !flags[Tflag::Match      ] && is_special()                         ) throw           "non-matching targets are meaningless for source and anti-rules"s         ;
 					if (  flags[Tflag::Star       ] && is_stdout                            ) throw           "stdout cannot be directed to a star target"s                             ;
 					if (  flags[Tflag::Phony      ] && is_stdout                            ) throw           "stdout cannot be directed to a phony target"s                            ;
 					if (  flags[Tflag::Incremental] && is_stdout                            ) throw           "stdout cannot be directed to an incremental target"s                     ;
@@ -728,7 +761,7 @@ namespace Engine {
 				}
 				if (job_name_key.empty()) add_cwd( job_name , seen_top ) ;
 				n_static_targets = targets.size() ;
-				if (!is_anti()) for( auto& ts : star_targets ) targets.push_back(::move(ts)) ; // star-targets are meaningless for an anti-rule
+				if (!is_special()) for( auto& ts : star_targets ) targets.push_back(::move(ts)) ; // star-targets are meaningless for an source & anti-rule
 			}
 			SWEAR(found_matching) ;                                            // we should not have come until here without a clean target
 			field = "" ;
@@ -780,13 +813,14 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "n_tokens" ;
-			if (dct.hasKey(field)) {
-				n_tokens = static_cast<unsigned long>(Py::Long(dct[field])) ;
-				if (n_tokens==0) throw "value must be positive"s ;
-			}
+			field = "interpreter" ; if (dct.hasKey(field)) Attrs::acquire( interpreter , dct[field].ptr()                    ) ; if (interpreter.empty()) throw "no interpreter found"s ;
+			field = "is_python"   ; if (dct.hasKey(field)) Attrs::acquire( is_python   , dct[field].ptr()                    ) ; else                     throw "not found"s            ;
+			field = "n_tokens"    ; if (dct.hasKey(field)) Attrs::acquire( n_tokens    , dct[field].ptr() , size_t(1)/*min*/ ) ;
+			//
 			/**/                                       var_idxs["targets"       ] = {VarCmd::Targets,0} ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {VarCmd::Target ,t} ;
+			//
+			field = "deps" ;
 			if (dct.hasKey("deps_attrs")) deps_attrs = { Py::Object(dct["deps_attrs"]).ptr() , var_idxs , *this } ;
 			//
 			/**/                                                    var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
@@ -800,12 +834,12 @@ namespace Engine {
 			/**/                                                             var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
-			field = "start_cmd_attrs"   ; if (dct.hasKey(field)) start_cmd_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "cmd"               ; if (dct.hasKey(field)) cmd               = { Py::Object(dct[field]).ptr() , var_idxs } ; else throw "not found"s ;
-			field = "start_rsrcs_attrs" ; if (dct.hasKey(field)) start_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "start_none_attrs"  ; if (dct.hasKey(field)) start_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "end_cmd_attrs"     ; if (dct.hasKey(field)) end_cmd_attrs     = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "start_cmd_attrs"   ; if (dct.hasKey(field)) start_cmd_attrs   = { Py::Object(dct[field]).ptr() , var_idxs         } ;
+			field = "cmd"               ; if (dct.hasKey(field)) cmd               = { Py::Object(dct[field]).ptr() , var_idxs , *this } ; else throw "not found"s ;
+			field = "start_rsrcs_attrs" ; if (dct.hasKey(field)) start_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs         } ;
+			field = "start_none_attrs"  ; if (dct.hasKey(field)) start_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs         } ;
+			field = "end_cmd_attrs"     ; if (dct.hasKey(field)) end_cmd_attrs     = { Py::Object(dct[field]).ptr() , var_idxs         } ;
+			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs         } ;
 			//
 			cmd_needs_deps = _get_cmd_needs_deps() ;
 			max_tflags     = Tflags::None          ;
@@ -816,7 +850,7 @@ namespace Engine {
 			}
 			//
 			field = "dbg_info" ;
-			if (dct.hasKey(field)) Attrs::acquire(dbg_info,dct[field].ptr()) ;
+			if (dct.hasKey(field)) Attrs::acquire( dbg_info , dct[field].ptr() ) ;
 			//
 			field = "ete"   ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
 			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
@@ -1034,9 +1068,8 @@ namespace Engine {
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
-		::vmap_ss entries ;
-		if  (sna.tokens1!=0) entries.emplace_back( "job_tokens" , to_string(sna.tokens1+1) ) ;
-		return _pretty_vmap(i,entries) ;
+		if (sna.tokens1) return to_string( ::string(i,'\t') , "job_tokens : " , sna.tokens1+1 ) ;
+		else             return {}                                                              ;
 	}
 	static ::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
 		if (!cna.key.empty()) return to_string(::string(i,'\t'),"key : ",cna.key,'\n') ;
@@ -1079,16 +1112,11 @@ namespace Engine {
 			else         res << indent( to_string(::setw(key_sz),key," : ",val,'\n') , i ) ;
 		} ;
 		for( pass=1 ; pass<=2 ; pass++ ) {                                                         // on 1st pass we compute key size, on 2nd pass we do the job
-			if ( sca.auto_mkdir         ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
-			if ( sca.ignore_stat        ) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
-			/**/                          do_field( "autodep"     , mk_snake (sca.method     ) ) ;
-			if (!sca.chroot     .empty()) do_field( "chroot"      ,           sca.chroot       ) ;
-			if (!sca.tmp        .empty()) do_field( "tmp"         ,           sca.tmp          ) ;
-			if (!sca.interpreter.empty()) {
-				OStringStream i ;
-				for( ::string const& c : sca.interpreter ) i <<' '<<c ;
-				do_field( "interpreter" , i.str().substr(1) ) ;
-			}
+			if ( sca.auto_mkdir    ) do_field( "auto_mkdir"  , to_string(sca.auto_mkdir ) ) ;
+			if ( sca.ignore_stat   ) do_field( "ignore_stat" , to_string(sca.ignore_stat) ) ;
+			/**/                     do_field( "autodep"     , mk_snake (sca.method     ) ) ;
+			if (!sca.chroot.empty()) do_field( "chroot"      ,           sca.chroot       ) ;
+			if (!sca.tmp   .empty()) do_field( "tmp"         ,           sca.tmp          ) ;
 		}
 		if (!sca.env.empty()) {
 			res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;
@@ -1097,7 +1125,7 @@ namespace Engine {
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
 		if (c.cmd.empty()) return {}                                          ;
-		if (c.is_python  ) return indent(ensure_nl(             c.cmd    ),i) ;
+		if (rd.is_python ) return indent(ensure_nl(             c.cmd    ),i) ;
 		else               return indent(ensure_nl(_pretty_fstr(c.cmd,rd)),i) ;
 	}
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
@@ -1160,8 +1188,11 @@ namespace Engine {
 		/**/                entries.emplace_back( "job_name" , _pretty_job_name(*this)        ) ;
 		if (!cwd_s.empty()) entries.emplace_back( "cwd"      , cwd_s.substr(0,cwd_s.size()-1) ) ;
 		if (!is_special()) {
-			if (force) entries.emplace_back( "force"    , to_string(force   ) ) ;
-			/**/       entries.emplace_back( "n_tokens" , to_string(n_tokens) ) ;
+			::string i ; for( ::string const& c : interpreter ) append_to_string( i , i.empty()?"":" " , c ) ;
+			//
+			if (force) entries.emplace_back( "force"       , to_string(force   ) ) ;
+			/**/       entries.emplace_back( "n_tokens"    , to_string(n_tokens) ) ;
+			/**/       entries.emplace_back( "interpreter" , i                   ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;
@@ -1205,7 +1236,7 @@ namespace Engine {
 	// although awkward & useless (as both rules could be merged), this can be meaningful
 	// if the need arises, we will add an "id" artificial field entering in match_crc to distinguish them
 	void RuleData::_set_crcs() {
-		bool anti = is_anti() ;
+		bool special = is_special() ;
 		{	::vector<TargetSpec> targets_ ;
 			static constexpr Tflags MatchFlags{ Tflag::Star , Tflag::Match , Tflag::Dep } ;
 			for( auto const& [k,t] : targets ) {
@@ -1215,21 +1246,26 @@ namespace Engine {
 				targets_.push_back(t_) ;                                       // keys have no influence on matching, only on execution
 			}
 			Hash::Xxh h ;
-			/**/       h.update(special   ) ;
-			/**/       h.update(stems     ) ;
-			/**/       h.update(cwd_s     ) ;
-			if (!anti) h.update(job_name  ) ;                                  // job_name has no effect for anti as it is only used to store jobs and there is no anti-jobs
-			/**/       h.update(targets_  ) ;
-			/**/       h.update(allow_ext ) ;
-			if (!anti) h.update(deps_attrs) ;
+			/**/          h.update(special   ) ;
+			/**/          h.update(stems     ) ;
+			/**/          h.update(cwd_s     ) ;
+			if (!special) h.update(job_name  ) ;                               // job_name has no effect for source & anti as it is only used to store jobs and there are none
+			/**/          h.update(targets_  ) ;
+			/**/          h.update(allow_ext ) ;
+			if (!special) h.update(deps_attrs) ;                               // no deps for source & anti
+			//
+			if ( !special && _qualify_dep({},interpreter[0]) ) h.update(interpreter[0]) ; // no interpreter for source & anti
+			//
 			match_crc = ::move(h).digest() ;
 		}
-		if (anti) return ;                                                     // anti-rules are only capable of matching
+		if (special) return ;                                                  // source & anti are only capable of matching
 		{	Hash::Xxh h ;                                                      // cmd_crc is stand-alone : it guarantee rule uniqueness (i.e. contains match_crc)
 			h.update(stems          ) ;
 			h.update(job_name       ) ;
 			h.update(targets        ) ;
 			h.update(force          ) ;
+			h.update(is_python      ) ;
+			h.update(interpreter    ) ;
 			h.update(deps_attrs     ) ;
 			h.update(start_cmd_attrs) ;
 			h.update(cmd            ) ;

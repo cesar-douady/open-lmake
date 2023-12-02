@@ -217,33 +217,37 @@ namespace Engine {
 		return ;
 	}
 
-	Bool3/*found*/ NodeData::make_uphill(ReqInfo& ri) {
+	RuleIdx/*prod_idx*/ NodeData::make_uphill( ReqInfo& ri , Job asking ) {
 		Trace trace("Nmake_uphill",idx(),ri) ;
 		//
+		if (!dir) return NoIdx ;                                               // not solved
 		Node::ReqInfo const* cdri = &dir->c_req_info(ri.req) ;                 // avoid allocating req_info as long as not necessary
 		if (!dir->done(*cdri)) {                                               // fast path : no need to call make if dir is done
 			if (!cdri->waiting()) {
-				SaveInc save_wait{ri.n_wait} ;                                 // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				cdri = &dir->make( *cdri , RunAction::Status ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				SaveInc save_wait{ri.n_wait} ;                                             // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				cdri = &dir->make( *cdri , RunAction::Status , asking , MakeAction::None ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			trace("dir",dir,STR(dir->done(*cdri)),ri) ;
 			//
-			if (cdri->waiting()) return Maybe ;
+			if (cdri->waiting()) {
+				dir->add_watcher(dir->req_info(*cdri),idx(),ri,ri.pressure) ;
+				return NoIdx/*garbage*/ ;                                      // return value is meaningless when waiting
+			}
 			SWEAR(dir->done(*cdri)) ;                                          // after having called make, dep must be either waiting or done
 		}
 		if (dir->buildable==Yes               ) _set_buildable(Yes) ;
-		if (!dir->makable(true/*uphill_ok*/)  ) return No ;
+		if (!dir->makable(true/*uphill_ok*/)  ) return NoIdx ;                 // not solved
 		if (!dir->err(*cdri,true/*uphill_ok*/)) {
 			actual_job_tgt.clear() ;
 			if ( dir->crc.is_lnk() || !dir->crc ) refresh( {}        , {}             ) ; // dir is a link, force rebuild of dependent job as it will certainly depend on the target
 			else                                  refresh( Crc::None , Ddate::s_now() ) ;
 		}
-		return Yes ;
+		return UphillIdx ;                                                     // solved
 	}
 
-	NodeData::ReqInfo const& NodeData::_make_raw( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
+	NodeData::ReqInfo const& NodeData::_make_raw( ReqInfo const& cri , RunAction run_action , Job asking , MakeAction make_action ) {
 		RuleIdx prod_idx   = NoIdx   ;
 		Req     req        = cri.req ;
 		Bool3   clean      = Maybe   ;                                         // lazy evaluate manual()==No
@@ -276,9 +280,9 @@ namespace Engine {
 		}
 		// first check jobs we were waiting for
 		switch (ri.prio_idx) {
-			case NoIdx     : if (+dir) goto DoMakeUphill ; else goto DoMakePlain ;
-			case MultiIdx  : FAIL() ;                                              // MultiIdx is just a marker, there is no associated execution
-			case UphillIdx :           goto MakeUphill ;                           // must update once dir is done, so must call make_uphill again
+			case NoIdx     : break ;
+			case MultiIdx  : FAIL() ;                                          // MultiIdx is just a marker, there is no associated execution
+			case UphillIdx : goto MakeUphill ;                                 // must update once dir is done, so must call make_uphill again
 			break ;
 			default : {
 				JobTgtIter it{*this,ri.prio_idx} ;
@@ -293,22 +297,14 @@ namespace Engine {
 				else                                          goto DoWakeup  ;   // we have a done job, no need to investigate any further
 			}
 		}
-	DoMakeUphill :
 		ri.prio_idx = UphillIdx ;
 	MakeUphill :
-		{	SWEAR(prod_idx==NoIdx,prod_idx) ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Bool3 dir_found = make_uphill(ri) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("uphill",ri,dir_found) ;
-			switch (dir_found) {
-				case No    :                                                             break         ;
-				case Maybe : dir->add_watcher(dir->req_info(req),idx(),ri,ri.pressure) ; goto Wait     ;
-				case Yes   : prod_idx = UphillIdx ;                                      goto DoWakeup ;
-				default : FAIL(dir_found) ;
-			}
-		}
-	DoMakePlain :
+		SWEAR(prod_idx==NoIdx,prod_idx) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		prod_idx = make_uphill(ri,asking) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (ri.waiting()   ) goto Wait     ;
+		if (prod_idx!=NoIdx) goto DoWakeup ;
 		ri.prio_idx = 0 ;
 	MakePlain :
 		for (;;) {
@@ -365,9 +361,9 @@ namespace Engine {
 					}
 					Job::ReqInfo& jri = jt->req_info(req) ;
 					if (ri.live_out) jri.live_out = ri.live_out ;              // transmit user request to job for last level live output
-					//vvvvvvvvvvvvvvvvvvvvvvvvv
-					jt->make(jri,action,reason) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					jt->make(jri,action,reason,asking) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 					else if (jt.produces(idx())) prod_idx = prod_idx==NoIdx?it.idx:MultiIdx ;
 					trace("job",ri,clean,action,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;

@@ -41,9 +41,10 @@ namespace Engine {
 	// Store
 	//
 
-	SeqId     * g_seq_id = nullptr            ;
-	EngineStore g_store  { true/*writable*/ } ;
-	Config      g_config ;
+	SeqId     * g_seq_id     = nullptr            ;
+	EngineStore g_store      { true/*writable*/ } ;
+	Config      g_config     ;
+	::vector_s  g_src_dirs_s ;
 
 	void EngineStore::_s_init_config() {
 		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
@@ -80,6 +81,7 @@ namespace Engine {
 		g_store.pfxs.init(New) ;
 		if (g_store.rule_file.empty()) for( [[maybe_unused]] Special s : Special::N ) g_store.rule_file.emplace() ;
 		RuleBase::s_match_gen = g_store.rule_file.c_hdr() ;
+		g_store._compile_srcs () ;
 		g_store._compile_rules() ;
 		// jobs
 		for( Job  j : g_store.job_file .c_hdr().frozens     ) g_store.frozens    .insert(j) ;
@@ -219,6 +221,15 @@ namespace Engine {
 			}
 		}
 	}
+
+	void EngineStore::_compile_srcs() {
+		g_src_dirs_s.clear() ;
+		for( Node n : Node::s_srcs(true/*dirs*/) ) {
+			::string nn_s = n->name() ; nn_s += '/' ;
+			g_src_dirs_s.push_back(nn_s) ;
+		}
+	}
+
 	void EngineStore::_compile_rules() {
 		_compile_rule_datas() ;
 		_compile_psfxs     () ;
@@ -330,52 +341,60 @@ namespace Engine {
 		return n_modified_prio || n_new_rules || old_rules.size() ;
 	}
 
-	bool/*invalidate*/ EngineStore::s_new_srcs( ::vector_s&& src_names ) {
-		::set<Node> srcs         ;                                             // use ordered set/map to ensure stable execution (as we walk through them) (and we do not care about mem/perf)
-		::set<Node> src_dirs     ;                                             // .
-		::set<Node> old_src_dirs ;                                             // .
-		::set<Node> new_src_dirs ;                                             // .
-		::set<Node> old_srcs     ;                                             // .
-		::set<Node> new_srcs     ;                                             // .
+	bool/*invalidate*/ EngineStore::s_new_srcs( ::vector_s&& src_names , ::vector_s&& src_dir_names_s ) {
+		::map<Node,bool/*dir*/> srcs         ;                                                            // use ordered map/set to ensure stable execution
+		::map<Node,bool/*dir*/> old_srcs     ;                                                            // .
+		::map<Node,bool/*dir*/> new_srcs     ;                                                            // .
+		::set<Node            > src_dirs     ;                                                            // .
+		::set<Node            > old_src_dirs ;                                                            // .
+		::set<Node            > new_src_dirs ;                                                            // .
 		Trace trace("_s_new_srcs") ;
 		// format inputs
-		for( Node            s  : Node::s_srcs() ) old_srcs.insert(s ) ;
-		for( ::string const& sn : src_names      ) srcs    .insert(sn) ;
+		for( bool dirs : {false,true} ) for( Node            s  : Node::s_srcs(dirs) )                   old_srcs.emplace(s ,dirs        ) ;
+		/**/                            for( ::string const& sn : src_names          )                   srcs    .emplace(sn,false/*dir*/) ;
+		/**/                            for( ::string      & sn : src_dir_names_s    ) { sn.pop_back() ; srcs    .emplace(sn,true /*dir*/) ; }
 		//
-		for( Node n : srcs     ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (src_dirs    .contains(d)) break ; src_dirs    .insert(d) ; } }
-		for( Node n : old_srcs ) { for( Node d=n->dir ; +d ; d = d->dir ) { if (old_src_dirs.contains(d)) break ; old_src_dirs.insert(d) ; } }
+		for( auto [n,d] : srcs     ) for( Node d=n->dir ; +d ; d = d->dir ) if (!src_dirs    .insert(d).second) break ; // non-local nodes have no dir
+		for( auto [n,d] : old_srcs ) for( Node d=n->dir ; +d ; d = d->dir ) if (!old_src_dirs.insert(d).second) break ; // .
 		// check
-		for( Node d : srcs ) {
-			if (!src_dirs.contains(d)) continue ;
-			::string dn = d->name()+'/' ;
+		for( auto [n,d] : srcs ) {
+			if (!src_dirs.contains(n)) continue ;
+			::string nn_s = n->name()+'/' ;
 			for( ::string const& sn : src_names )
-				if ( sn.starts_with(dn) ) throw to_string("source ",dn," is a dir of ",sn) ;
-			FAIL(dn,"is a source dir of no source") ;
+				if ( sn.starts_with(nn_s) ) throw to_string("source ",(d?"dir ":""),n->name()," is a dir of ",sn) ;
+			FAIL(n->name(),"is a source dir of no source") ;
 		}
 		// compute diff
-		for( Node n : srcs ) {
-			auto it = old_srcs.find(n) ;
-			if (it==old_srcs.end()) new_srcs.insert(n) ;
-			else                    old_srcs.erase(it) ;
+		for( auto nd : srcs ) {
+			auto it = old_srcs.find(nd.first) ;
+			if (it==old_srcs.end()) new_srcs.insert(nd) ;
+			else                    old_srcs.erase (it) ;
 		}
 		//
 		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }
 		//
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs.size()) ;
 		// commit
-		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Node::s_srcs(false/*add*/,mk_vector(old_srcs)) ;
-		Node::s_srcs(true /*add*/,mk_vector(new_srcs)) ;
-		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		{	Trace trace2 ;
-			for( Node n : old_srcs     ) { n->mk_no_src  () ; trace2('-',n) ; }
-			for( Node d : old_src_dirs ) { d->mk_no_src  () ;                 }
-			for( Node n : new_srcs     ) { n->mk_src     () ; trace2('+',n) ; }
-			for( Node d : new_src_dirs ) { d->mk_anti_src() ;                 }
+		for( bool add : {false,true} ) {
+			::map<Node,bool/*dir*/> const& srcs = add ? new_srcs : old_srcs ;
+			::vector<Node>                 ss   ; ss.reserve(srcs.size()) ;           // typically, there are very few src dirs
+			::vector<Node>                 sds  ;                                     // .
+			for( auto [n,d] : srcs ) if (d) sds.push_back(n) ; else ss.push_back(n) ;
+			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Node::s_srcs(false/*dirs*/,add,ss ) ;
+			Node::s_srcs(true /*dirs*/,add,sds) ;
+			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
+		{	Trace trace2 ;
+			for( auto [n,d] : old_srcs     ) {        Node(n)->mk_no_src  () ;                          trace2('-',d?"dir":"",n) ; }
+			for( Node  d    : old_src_dirs )               d ->mk_no_src  () ;
+			for( auto [n,d] : new_srcs     ) { if (d) Node(n)->mk_anti_src() ; else Node(n)->mk_src() ; trace2('+',d?"dir":"",n) ; }
+			for( Node  d    : new_src_dirs )               d ->mk_anti_src() ;
+		}
+		g_store._compile_srcs() ;
 		// user report
 		{	OFStream srcs_stream{AdminDir+"/manifest"s} ;
-			for( Node n : srcs ) srcs_stream << n->name() <<'\n' ;
+			for( auto [n,d] : srcs ) srcs_stream << n->name() << (d?"/":"") <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return !old_srcs.empty() || !new_srcs.empty() ;

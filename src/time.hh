@@ -76,6 +76,8 @@ namespace Time {
 		friend Ddate ;
 		friend Pdate ;
 		friend CoarseDelay ;
+		static const Delay Lowest  ;
+		static const Delay Highest ;
 		// statics
 	private :
 		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until ) ;
@@ -106,6 +108,8 @@ namespace Time {
 		::string short_str() const ;
 		size_t   hash     () const { return _val ; }
 	} ;
+	constexpr Delay Delay::Lowest  { New , ::numeric_limits<Tick>::min() } ;
+	constexpr Delay Delay::Highest { New , ::numeric_limits<Tick>::max() } ;
 
 	// short float representation of time (positive)
 	// when exp<=0, representation is linear after TicksPerSecond
@@ -117,11 +121,13 @@ namespace Time {
 		static constexpr uint8_t  Mantissa       = 11                   ;      // .
 		static constexpr uint32_t Scale          = 28294                ;      // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
 		//
-		static const CoarseDelay MinPositive ;
+		static const CoarseDelay Lowest  ;
+		static const CoarseDelay Highest ;
 		// statics
 	private :
 		static constexpr Val _Factor(uint32_t percent) { return (1<<Mantissa)*percent/100 ; }
 		// cxtors & casts
+		explicit constexpr CoarseDelay( NewType , Val v ) : _val{v} {}
 	public :
 		constexpr CoarseDelay() = default ;
 		constexpr CoarseDelay(Delay d) { *this = d ; }
@@ -132,7 +138,6 @@ namespace Time {
 			else                                   _val = t-Scale ;
 			return *this ;
 		}
-		explicit constexpr CoarseDelay(Val v) : _val(v) {}
 		constexpr operator Delay() const {
 			if (!_val) return Delay() ;
 			else       return Delay(New,int64_t(::expf(float(_val+Scale)/(1<<Mantissa)))) ;
@@ -147,8 +152,8 @@ namespace Time {
 		constexpr bool              operator== (CoarseDelay const& d) const { return _val== d._val ;             }
 		constexpr ::strong_ordering operator<=>(CoarseDelay const& d) const { return _val<=>d._val ;             }
 		//
-		CoarseDelay scale_up  (uint32_t percent) const { return CoarseDelay( _val>=Val(-1)-_Factor(percent) ? Val(-1) : Val(_val+_Factor(percent)) ) ; }
-		CoarseDelay scale_down(uint32_t percent) const { return CoarseDelay( _val<=        _Factor(percent) ? Val( 0) : Val(_val-_Factor(percent)) ) ; }
+		CoarseDelay scale_up  (uint32_t percent) const { return CoarseDelay( New , _val>=Val(-1)-_Factor(percent) ? Val(-1) : Val(_val+_Factor(percent)) ) ; }
+		CoarseDelay scale_down(uint32_t percent) const { return CoarseDelay( New , _val<=        _Factor(percent) ? Val( 0) : Val(_val-_Factor(percent)) ) ; }
 		//
 		::string short_str() const { return Delay(*this).short_str() ; }
 		size_t   hash     () const { return _val                     ; }
@@ -156,7 +161,8 @@ namespace Time {
 	private :
 		Val _val = 0 ;
 	} ;
-	constexpr CoarseDelay CoarseDelay::MinPositive = CoarseDelay(CoarseDelay::Val(1)) ;
+	constexpr CoarseDelay CoarseDelay::Lowest  { New , Val(1)                       } ;
+	constexpr CoarseDelay CoarseDelay::Highest { New , ::numeric_limits<Val>::max() } ;
 
 	struct Date : TimeBase<uint64_t> {
 		using Base = TimeBase<uint64_t> ;

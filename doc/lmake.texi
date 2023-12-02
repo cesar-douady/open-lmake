@@ -544,7 +544,7 @@ With this option, the user instructs @lmake to keep the temporary directories, a
 The kept temporary directory can be retreived with @code{lshow -i}.
 @item @code{-v}|@code{--verbose} : enable the generation of some execution information from backend.
 This is not systematic as this may incur a performance hit.
-Such information is available by using @code{lshow -b}.
+These information is available by using @code{lshow -i}.
 @end itemize
 
 @subsection output
@@ -606,7 +606,7 @@ Each line is composed of 5 fields  separated by spaces :
 @end itemize
 If a dep does not exist, it is deemed secondary information and is shown in gray.
 @item @code{-D}|@code{--inv-deps} : show jobs that depend on targets.
-@item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, execution time, host that executed it, ...
+@item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
 @item @code{-s}|@code{--script} : show the scripts used to execute the jobs.
 If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
 Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
@@ -1088,8 +1088,8 @@ Leading and trailing white spaces are stripped after comment removal.
 
 @subsection @code{def git_sources( recurse=True , ignore_missing_submodules=False )}
 This function lists files under @code{git} control, recursing to sub-modules if @code{recurse} is true and ignore missing such sub-modules if @code{ignore_missing_submodules} is true.
-The @code{git} repository it self can be an enclosing directory of the @lmake repository.
-In that case, @code{lmake.config.source_dirs} is adequately updated to track @code{git} updates.
+The @code{git} repository itself can be an enclosing directory of the @lmake repository.
+In that case, sources are adequately set to track @code{git} updates.
 
 @subsection @code{def auto_sources(**kwds)}
 This function tries to find sources by calling @code{manifest_sources} and @code{git_sources} in turn, untill one succeeds. Arguments are passed as pertinent.
@@ -1192,17 +1192,6 @@ Actually most of the accesses are made in this directory (cf @pxref{dir-local_ad
 @tab Clean
 @tab @lmake has several levels of symbolic link support (cf @pxref{link-support}).
 This attribute specifies the used level.
-
-@item @code{source_dirs}
-@tab Empty
-@tab Static
-@tab This variable contains a @code{list} of directories that contain source files.
-
-Such source directories can be provided absolute or relative.
-This has no impact as long the repository is not moved.
-But in case it is, relative source directories must be moved accordingly or these dependencies will be lost (as if they had been deleted).
-
-By default, this variable is empty, but gathering sources from @code{git} (as is done by default in absence of file @file{Manifest}) will add the @code{git} root directory to it.
 
 @item @code{max_dep_depth}
 @tab @code{1000}
@@ -1377,6 +1366,18 @@ In this later case, it will be considered dangling and this is an error conditio
 The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.
 
 The list of sources is provided to @lmake by setting the @code{lmake.manifest} variable as the list of sources to use or the @code{lmake.config.sources_module} variable as a module to load.
+
+The manifest can contain :
+@itemize
+@item Files located in the repository.
+@item Directories.
+In that case, the whole subtree underneath the directory are considered sources.
+Directories may be in the repository or outside, but cannot contain or lie within system directories such as @file{/usr}, @file{/proc}, @file{/etc}, etc.
+If outside, they can be relative or absolute.
+If the repository is moved, the relative/absolute semantic is enforced.
+This is true for cache related aspects as well where comparison between job data located in different repositories must be performed.
+@end itemize
+In both cases, names must be canonical, i.e. contain no empty component nor @file{.}, nor @file{..} except initially for relative names.
 
 The following helper functions can be used to provide sources.
 If nothing is mentioned in @Lmakefile, @code{auto_sources()} is called.
@@ -1956,7 +1957,7 @@ This is typically used to access some environment variables set by @code{slurm}.
 @item Default
 @tab system Python
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab False
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{function}.
@@ -1972,7 +1973,7 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 @item Default
 @tab @code{/bin/bash}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab False
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{str}.

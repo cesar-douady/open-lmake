@@ -126,7 +126,6 @@ namespace Engine {
 		Time::Delay    network_delay  ;
 		size_t         path_max       = -1   ;             // if -1 <=> unlimited
 		::string       rules_module   ;
-		::vector_s     src_dirs_s     ;
 		::string       srcs_module    ;
 		size_t         trace_sz       = 0    ;
 		::map_s<Cache> caches         ;

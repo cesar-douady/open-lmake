@@ -94,7 +94,7 @@ namespace Backends::Local {
 	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
 
 		static void _wait_thread_func( ::stop_token stop , LocalBackend* self ) {
-			Trace::t_key = 'W' ;
+			Trace::t_key = 'L' ;
 			self->_wait_jobs(stop) ;
 		}
 

@@ -345,6 +345,17 @@ namespace Engine {
 			else                      Node(*it)->make( Node(*it)->req_info(req) , Node::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
 	}
 
+	Job ReqInfo::asking() const {
+		::vector_view_c<Watcher> watchers{
+			_n_watchers==VectorMrkr ? _watchers_v->data() : _watchers_a.data()
+		,	_n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers
+		} ;
+		for( Watcher w : watchers )
+			if (w.is_a<Job>()) { Job j =      w                            ; if (!j->is_special()) return j ; }
+			else               { Job j = Node(w)->c_req_info(req).asking() ; if (+j              ) return j ; }
+		return {} ;
+	}
+
 	//
 	// ReqData
 	//

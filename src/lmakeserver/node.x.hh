@@ -15,9 +15,11 @@ namespace Engine {
 	struct NodeReqInfo ;
 
 	struct Target  ;
+	using Targets = TargetsBase ;
 
-	struct Deps ;
+
 	struct Dep  ;
+	struct Deps ;
 
 	static constexpr uint8_t NodeNGuardBits = 1 ;                              // to be able to make Target
 
@@ -75,21 +77,6 @@ namespace Engine {
 		bool lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) ; // fm & tn are lazy evaluated
 	} ;
 
-	using Targets = TargetsBase ;
-
-	//
-	// Deps
-	//
-
-	struct Deps : DepsBase {
-		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
-		// cxtors & casts
-		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,AccDflags> const& ,                                  bool parallel=true ) ;
-		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,                       bool parallel=true ) ;
-		Deps( ::vector<Node          > const& , Accesses , Dflags=StaticDflags , bool parallel=true ) ;
-	} ;
-
 	//
 	// Dep
 	//
@@ -107,6 +94,19 @@ namespace Engine {
 		void acquire_crc() ;
 	} ;
 	static_assert(sizeof(Dep)==16) ;
+
+	//
+	// Deps
+	//
+
+	struct Deps : DepsBase {
+		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
+		// cxtors & casts
+		using DepsBase::DepsBase ;
+		Deps( ::vmap  <Node,AccDflags> const& ,                                  bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,                       bool parallel=true ) ;
+		Deps( ::vector<Node          > const& , Accesses , Dflags=StaticDflags , bool parallel=true ) ;
+	} ;
 
 }
 #endif
@@ -264,9 +264,10 @@ namespace Engine {
 		//
 		void set_special( Special , ::vector<Node> const& deps={} , Accesses={} , Dflags=StaticDflags , bool parallel=true ) ;
 		//
-		ReqInfo const& make       ( ReqInfo const&     , RunAction=RunAction::Status , MakeAction   =MakeAction::None ) ;
-		ReqInfo const& make       ( ReqInfo const& cri ,                               MakeAction ma                  ) { return make( cri , RunAction::Status , ma ) ; }
-		Bool3/*found*/ make_uphill( ReqInfo      & ri                                                                 ) ;
+		ReqInfo const&      make       ( ReqInfo const&     , RunAction=RunAction::Status , Job asking={} , MakeAction=MakeAction::None ) ;
+		RuleIdx/*prod_idx*/ make_uphill( ReqInfo      & ri  ,                               Job asking={}                               ) ;
+		//
+		ReqInfo const& make( ReqInfo const& cri , MakeAction ma ) { return make(cri,RunAction::Status,{}/*asking*/,ma) ; } // for wakeup
 		//
 		void audit_multi( Req , ::vector<JobTgt> const& ) ;
 		//
@@ -277,9 +278,9 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , Ddate ) ;
 		void             refresh(             ) ;
 	private :
-		void           _set_buildable_raw( Req , DepDepth                          ) ; // req is for error reporting only
-		ReqInfo const& _make_raw         ( ReqInfo const& , RunAction , MakeAction ) ;
-		void           _set_pressure_raw ( ReqInfo&                                ) const ;
+		void           _set_buildable_raw( Req            , DepDepth                                                ) ; // req is for error reporting only
+		ReqInfo const& _make_raw         ( ReqInfo const& , RunAction , Job asking={} , MakeAction=MakeAction::None ) ;
+		void           _set_pressure_raw ( ReqInfo      &                                                           ) const ;
 		//
 		::pair<Bool3/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req , DepDepth lvl=0 ) ;
 		//
@@ -417,10 +418,10 @@ namespace Engine {
 		_set_pressure_raw(ri) ;
 	}
 
-	inline NodeData::ReqInfo const& NodeData::make( ReqInfo const& cri , RunAction run_action , MakeAction make_action ) {
+	inline NodeData::ReqInfo const& NodeData::make( ReqInfo const& cri , RunAction run_action , Job asking , MakeAction make_action ) {
 		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
 		if ( cri.done && ( run_action<=RunAction::Status || !unlinked ) ) return cri ;
-		return _make_raw(cri,run_action,make_action) ;
+		return _make_raw(cri,run_action,asking,make_action) ;
 	}
 
 	inline void NodeData::refresh() {

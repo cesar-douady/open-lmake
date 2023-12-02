@@ -44,6 +44,19 @@
 #ifdef STRUCT_DECL
 namespace Engine {
 	extern SeqId* g_seq_id ;           // used to identify launched jobs. Persistent so that we keep as many old traces as possible
+
+	template<class V> struct GenericVector ;
+
+	template<class Idx_,class Item_,uint8_t NGuardBits=0> struct SimpleVectorBase ;
+	template<class Idx_,class Item_,uint8_t NGuardBits=1> struct CrunchVectorBase ;
+	template<class Idx_,class Item_                     > using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_>> ;
+	template<class Idx_,class Item_                     > using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_>> ;
+
+	struct Dep    ;
+	struct Target ;
+	using DepsBase    = SimpleVector<NodeIdx,Dep   > ;
+	using TargetsBase = SimpleVector<NodeIdx,Target> ;
+
 }
 #endif
 
@@ -54,7 +67,7 @@ namespace Engine {
 	// Vector's
 	//
 
-	template<class Idx_,class Item_,uint8_t NGuardBits=0> struct SimpleVectorBase
+	template<class Idx_,class Item_,uint8_t NGuardBits> struct SimpleVectorBase
 	:	             Idxed<Idx_,NGuardBits>
 	{	using Base = Idxed<Idx_,NGuardBits> ;
 		using Idx  = Idx_  ;
@@ -83,7 +96,7 @@ namespace Engine {
 
 	// CrunchVector's are like SimpleVector's except that a vector of 0 element is simply 0 and a vector of 1 element is stored in place
 	// This is particular efficient for situations where the vector size is 1 most of the time
-	template<class Idx_,class Item_,uint8_t NGuardBits=1> struct CrunchVectorBase
+	template<class Idx_,class Item_,uint8_t NGuardBits> struct CrunchVectorBase
 	:	               Idxed2< Item_ , Idxed<Idx_,NGuardBits> >
 	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
 		using Vector =                 Idxed<Idx_,NGuardBits>   ;
@@ -116,7 +129,6 @@ namespace Engine {
 		template<IsA<Item> I> void append(::vector_view<I> const&) ;
 	} ;
 
-	template<class V> struct GenericVector ;
 	template<class V> ::ostream& operator<<( ::ostream& , GenericVector<V> const& ) ;
 	template<class V> struct GenericVector : V {
 		friend ::ostream& operator<< <>( ::ostream& , GenericVector const& ) ;
@@ -181,9 +193,6 @@ namespace Engine {
 		return                                                                os <<']' ;
 	}
 
-	template<class Idx_,class Item_> using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_>> ;
-	template<class Idx_,class Item_> using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_>> ;
-
 	struct RuleTgts
 	:	             Idxed<RuleTgtsIdx>
 	{	using Base = Idxed<RuleTgtsIdx> ;
@@ -211,10 +220,6 @@ namespace Engine {
 		// services
 		Name dir() const ;
 	} ;
-
-	using DepsBase = SimpleVector<NodeIdx,Dep> ;
-
-	using TargetsBase = SimpleVector<NodeIdx,Target> ;
 
 	struct DataBase {
 		friend struct JobBase  ;
@@ -272,13 +277,14 @@ namespace Engine {
 		static bool           s_has_srcs         (                                  ) ;
 		static ::vector<Node> s_manual_oks       (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
-		static ::vector<Node> s_srcs             (                                  ) ;
 		static void           s_manual_oks       ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
 		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ; // .
-		static void           s_srcs             ( bool add , ::vector<Node> const& ) ; // .
 		static void           s_clear_manual_oks (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
+		//
+		static Targets s_srcs( bool dirs                                    ) ;
+		static void    s_srcs( bool dirs , bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
@@ -348,7 +354,8 @@ namespace Engine {
 #ifdef INFO_DEF
 namespace Engine {
 
-	extern Config g_config ;
+	extern Config     g_config     ;
+	extern ::vector_s g_src_dirs_s ;
 
 }
 #endif
@@ -362,6 +369,7 @@ namespace Engine {
 
 	struct NodeHdr {
 		Targets srcs        ;
+		Targets src_dirs    ;
 		Targets manual_oks  ;          // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
 		Targets no_triggers ;          // these nodes do not trigger rebuild
 	} ;
@@ -392,10 +400,9 @@ namespace Engine {
 	public :
 		static void s_new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 		//
-		static bool/*invalidate*/ s_new_srcs     (::vector_s          &&) ;
-		static bool/*invalidate*/ s_new_rules    (::umap<Crc,RuleData>&&) ;
-		//
-		static void s_invalidate_match(                 ) ;
+		static bool/*invalidate*/ s_new_srcs        ( ::vector_s          && srcs , ::vector_s&& src_dirs_s ) ;
+		static bool/*invalidate*/ s_new_rules       ( ::umap<Crc,RuleData>&&                                ) ;
+		static void               s_invalidate_match(                                                       ) ;
 		//
 	private :
 		static void               _s_init_config      (                                                                              ) ;
@@ -422,6 +429,7 @@ namespace Engine {
 		void _save_rules        (        ) ;
 		void _compile_rule_datas(        ) ;
 		void _compile_psfxs     (        ) ;
+		void _compile_srcs      (        ) ;
 		void _compile_rules     (        ) ;
 		//
 		//
@@ -673,13 +681,14 @@ namespace Engine {
 	inline bool           NodeBase::s_has_srcs         (                                        ) { return                !g_store.node_file.c_hdr().srcs       .empty() ;         }
 	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks )        ;         }
 	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers)        ;         }
-	inline ::vector<Node> NodeBase::s_srcs             (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().srcs       )        ;         }
 	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().manual_oks ,g_store.manual_oks ,add,items) ; }
 	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().no_triggers,g_store.no_triggers,add,items) ; }
-	inline void           NodeBase::s_srcs             ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().srcs       ,                    add,items) ; }
 	inline void           NodeBase::s_clear_manual_oks (                                        ) { g_store.node_file.hdr().manual_oks .clear() ; g_store.manual_oks .clear() ;    }
 	inline void           NodeBase::s_clear_no_triggers(                                        ) { g_store.node_file.hdr().no_triggers.clear() ; g_store.no_triggers.clear() ;    }
 	inline void           NodeBase::s_clear_srcs       (                                        ) { g_store.node_file.hdr().srcs       .clear() ;                             ;    }
+	//
+	inline Targets NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = g_store.node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;              }
+	inline void    NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = g_store.node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ;   }
 
 	inline RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
 		// first match on suffix

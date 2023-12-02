@@ -36,6 +36,8 @@ namespace Disk {
 	,	Err
 	)
 
+	bool is_canon(::string const& name) ;
+
 	struct FileInfoDate ;
 	struct FileInfo {
 		friend ::ostream& operator<<( ::ostream& , FileInfo const& ) ;

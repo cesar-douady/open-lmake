@@ -49,7 +49,6 @@ config = pdict(
 #,	remote_admin_dir = 'LMAKE'         # directory in which to store job trace during remote job execution                                      (default is within LMAKE dir)
 #,	remote_tmp_dir   = 'LMAKE'         # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
 #,	rules_module     = 'rules'         # module to import to define rules. By default, rules are directly defined in Lmakefile.py
-,	source_dirs      = []              # files in these directories are deemed to be sources
 #,	sources_module   = 'sources'       # module to import to define sources. By default, list files in Manifest or by searching git (including sub-modules)
 ,	sub_prio_boost   = 1               # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	trace_size       = 100<<20         # size of trace

@@ -13,7 +13,7 @@ namespace Store {
 
 		// MinSz is indicative : allocation granularity is based on this size and no hole smaller than this will be generated
 		template<class Idx,class Item,class Sz=Idx,size_t MinSz=1> struct ChunkBase {
-			using ItemMem = char[sizeof(Item)] ; // define memory for item so that cxtor & dxtor is managed by hand
+			using ItemMem = char[sizeof(Item)] ;                                      // define memory for item so that cxtor & dxtor is managed by hand
 			// cxtors & casts
 			ChunkBase(Sz sz_) : sz{sz_} {}
 			// accesses
@@ -45,16 +45,16 @@ namespace Store {
 			} // compute size before we have an object
 			// cxtors & casts
 			using Base::Base ;
-			template<::convertible_to<Item> I> Chunk(::vector_view<I> const& v) : Base(  v.size()) {
+			template<::convertible_to<Item> I> Chunk(::vector_view<I> const& v) : Base{Sz(v.size())} {
 				for( Sz i=0 ; i<sz ; i++ ) new(items()+i) Item{v[i]} ;
 			}
-			template<::convertible_to<Item> I0,::convertible_to<Item> I> Chunk( I0 const& x0 , ::vector_view<I> const& v ) : Base(1+v.size()) {
+			template<::convertible_to<Item> I0,::convertible_to<Item> I> Chunk( I0 const& x0 , ::vector_view<I> const& v ) : Base{Sz(1+v.size())} {
 				new(items()) Item{x0} ;
 				for( Sz i=1 ; i<sz ; i++ ) new(items()+i) Item{v[i-1]} ;
 			}
 			//
-			Chunk (                  VecView const& v ) requires(IsTrivial) : Base(  v.size()) {                   memcpy( items()   , v.cbegin() , v.size()*sizeof(Item) ) ; }
-			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base(1+v.size()) { items()[0] = x0 ; memcpy( items()+1 , v.cbegin() , v.size()*sizeof(Item) ) ; }
+			Chunk (                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   memcpy( items()   , v.cbegin() , v.size()*sizeof(Item) ) ; }
+			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; memcpy( items()+1 , v.cbegin() , v.size()*sizeof(Item) ) ; }
 			//
 			~Chunk() requires(!IsTrivial) { for( Sz i=0 ; i<sz ; i++ ) items()[i].~Item() ; }
 			~Chunk() requires( IsTrivial) {                                                 }

@@ -93,13 +93,14 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                                                                        bool/*updated*/ acquire( bool       & dst , PyObject* py_src ) ;
-		/**/                                                                        bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src ) ;
-		template<             bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class      T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class      T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
-		template<::integral I               >                                       bool/*updated*/ acquire( I          & dst , PyObject* py_src ) ;
-		template<StdEnum    E               >                                       bool/*updated*/ acquire( E          & dst , PyObject* py_src ) ;
+		/**/                   bool/*updated*/ acquire( bool       & dst , PyObject* py_src                                                                                           ) ;
+		/**/                   bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src , Time::Delay min=Time::Delay::Lowest        , Time::Delay max=Time::Delay::Highest       ) ;
+		template<::integral I> bool/*updated*/ acquire( I          & dst , PyObject* py_src , I           min=::numeric_limits<I>::min() , I           max=::numeric_limits<I>::max() ) ;
+		template<StdEnum    E> bool/*updated*/ acquire( E          & dst , PyObject* py_src                                                                                           ) ;
+		//
+		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
 		//
 		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
 			try {
@@ -109,6 +110,12 @@ namespace Engine {
 			} catch (::string const& e) {
 				throw to_string("while processing ",key," : ",e) ;
 			}
+		}
+		template<class T> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key , T min ) {
+				return acquire( dst , PyDict_GetItemString(py_dct,key.c_str()) , min ) ;
+		}
+		template<class T> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key , T min , T max ) {
+				return acquire( dst , PyDict_GetItemString(py_dct,key.c_str()) , min , max ) ;
 		}
 		static inline void acquire_env( ::vmap_ss& dst , PyObject* py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
 		//
@@ -132,10 +139,11 @@ namespace Engine {
 	// used at match time, but participate in nothing
 	struct CreateNoneAttrs {
 		static constexpr const char* Msg = "tokens" ;
+		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
 			size_t tokens ;
-			Attrs::acquire_from_dct(tokens,py_dct,"job_tokens") ;
+			Attrs::acquire_from_dct( tokens , py_dct , "job_tokens" ) ;
 			if (tokens==0)                                    tokens1 = 0                                ;
 			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
 			else                                              tokens1 = tokens-1                         ;
@@ -151,8 +159,8 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(backend,py_dct,"backend") ;
-			if ( Attrs::acquire_from_dct(rsrcs  ,py_dct,"rsrcs"  ) ) {
+			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
+			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
 				::sort(rsrcs) ;                                                // stabilize rsrcs crc
 				canon() ;
 			}
@@ -169,7 +177,7 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(n_retries,py_dct,"n_retries") ;
+			Attrs::acquire_from_dct( n_retries , py_dct , "n_retries" ) ;
 		}
 		// data
 		uint8_t n_retries = 0 ;
@@ -181,7 +189,7 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(key,py_dct,"key") ;
+			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
 			if ( !key.empty() && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
 		// data
@@ -195,13 +203,12 @@ namespace Engine {
 		BitMap<VarCmd> init  ( bool is_dynamic , PyObject* py_src , ::umap_s<CmdIdx> const&                 ) { update(py_src,!is_dynamic) ; return {} ; }
 		void           update(                   PyObject* py_dct                           , bool chk=true ) {
 			using namespace Attrs ;
-			acquire_from_dct                        (auto_mkdir ,py_dct,"auto_mkdir"   ) ;
-			acquire_from_dct                        (chroot     ,py_dct,"chroot"       ) ;
-			acquire_env                             (env        ,py_dct,"env"          ) ;
-			acquire_from_dct                        (ignore_stat,py_dct,"ignore_stat"  ) ;
-			acquire_from_dct<::vector_s,true/*Env*/>(interpreter,py_dct,"interpreter"  ) ; // interpreter must be robust to move's, like env
-			acquire_from_dct                        (method     ,py_dct,"autodep"      ) ;
-			acquire_from_dct                        (tmp        ,py_dct,"tmp"          ) ;
+			acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
+			acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
+			acquire_env     ( env         , py_dct , "env"         ) ;
+			acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
+			acquire_from_dct( method      , py_dct , "autodep"     ) ;
+			acquire_from_dct( tmp         , py_dct , "tmp"         ) ;
 			//
 			if (chk) {
 				if (!tmp.empty()) {
@@ -226,7 +233,6 @@ namespace Engine {
 		bool          ignore_stat = false               ;
 		::string      chroot      ;
 		::vmap_ss     env         ;
-		::vector_s    interpreter ;
 		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      tmp         ;
 	} ;
@@ -244,12 +250,11 @@ namespace Engine {
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
 		// services
-		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& ) ;
-		void           update(                       PyObject* py_dct                    ) {
-			Attrs::acquire_from_dct(cmd,py_dct,"cmd") ;
+		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void           update(                       PyObject* py_dct                                      ) {
+			Attrs::acquire_from_dct( cmd , py_dct , "cmd" ) ;
 		}
 		// data
-		bool     is_python = false/*garbage*/ ;
 		::string cmd       ;
 		::string decorator ;
 	} ;
@@ -262,8 +267,8 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(timeout,py_dct,"timeout") ;
-			Attrs::acquire_env     (env    ,py_dct,"env"    ) ;
+			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_env     ( env     , py_dct , "env"                ) ;
 			if (timeout<Delay()) throw "timeout must be positive or null (no timeout if null)"s ;
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
@@ -286,12 +291,12 @@ namespace Engine {
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
 			using namespace Attrs ;
-			acquire_from_dct(keep_tmp   ,py_dct,"keep_tmp"   ) ;
-			acquire_from_dct(start_delay,py_dct,"start_delay") ;
-			acquire_from_dct(kill_sigs  ,py_dct,"kill_sigs"  ) ;
-			acquire_from_dct(n_retries  ,py_dct,"n_retries"  ) ;
-			acquire_env     (env        ,py_dct,"env"        ) ;
-			::sort(env) ;                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+			acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
+			acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
+			acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
+			acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
+			acquire_env     ( env         , py_dct , "env"                                ) ;
+			::sort(env) ;                                                                      // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
 		bool              keep_tmp    = false ;
@@ -307,7 +312,7 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(allow_stderr,py_dct,"allow_stderr") ;
+			Attrs::acquire_from_dct( allow_stderr , py_dct , "allow_stderr" ) ;
 		}
 		// data
 		bool allow_stderr = false ;    // if true <=> non empty stderr does not imply job error
@@ -319,7 +324,7 @@ namespace Engine {
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			Attrs::acquire_from_dct(max_stderr_len,py_dct,"max_stderr_len") ;
+			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len" , size_t(1) ) ;
 		}
 		// data
 		size_t max_stderr_len = -1 ;   // max lines when displaying stderr (full content is shown with lshow -e)
@@ -505,9 +510,9 @@ namespace Engine {
 			||	end_cmd_attrs     .is_dynamic
 			;
 		}
-		::vector_s  _list_ctx  (::vector<CmdIdx> const& ctx     ) const ;
-		void        _set_crcs  (                                ) ;
-		Py::Pattern _mk_pattern(::string const& , bool for_name ) const ;
+		::vector_s  _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
+		void        _set_crcs  (                                 ) ;
+		Py::Pattern _mk_pattern( ::string const& , bool for_name ) const ;
 
 		// user data
 	public :
@@ -520,22 +525,24 @@ namespace Engine {
 		::vmap_s<TargetSpec> targets    ;                                      // keep user order, except static targets before star targets
 		VarIdx               stdout_idx = NoVar         ;                      // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar         ;                      // index of dep used as stdin
-		bool                 allow_ext   = false        ;                      // if true <=> rule may match outside repo
+		bool                 allow_ext  = false         ;                      // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicDepsAttrs          deps_attrs         ;                         // in match crc, evaluated at job creation time
-		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs crc, evaluated at submit time
-		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                         // in no    crc, evaluated at submit time
-		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd   crc, evaluated before execution
-		DynamicCmd                cmd                ;
-		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no    crc, evaluated before execution
-		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no    crc, evaluated after  execution
-		::vmap_s<DbgEntry>        dbg_info           ;                         // in no    crc, contains info to debug cmd that must not appear in cmd crc
-		bool                      force              = false ;
+		DynamicDepsAttrs          deps_attrs         ;                         // in match         crc, evaluated at job creation time
+		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no            crc, evaluated at job creation time
+		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no            crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs         crc, evaluated at submit time
+		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                         // in no            crc, evaluated at submit time
+		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd           crc, evaluated before execution
+		DynamicCmd                cmd                ;                         // in cmd           crc, evaluated before execution
+		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs         crc, evaluated before execution
+		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no            crc, evaluated before execution
+		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd           crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no            crc, evaluated after  execution
+		::vmap_s<DbgEntry>        dbg_info           ;                         // in no            crc, contains info to debug cmd that must not appear in cmd crc
 		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
+		::vector_s                interpreter        ;
+		bool                      is_python          = false ;
+		bool                      force              = false ;
 		// derived data
 		bool   cmd_needs_deps   = false        ;
 		Tflags max_tflags       = Tflags::All  ;
@@ -664,7 +671,7 @@ namespace Engine {
 
 	namespace Attrs {
 
-		template<::integral I> bool/*updated*/ acquire( I& dst , PyObject* py_src ) {
+		template<::integral I> bool/*updated*/ acquire( I& dst , PyObject* py_src , I min , I max ) {
 			if (!py_src        ) {           return false ; }
 			if (py_src==Py_None) { dst = 0 ; return true  ; }
 			//
@@ -673,9 +680,9 @@ namespace Engine {
 			int  ovrflw = 0                                             ;
 			long v      = PyLong_AsLongAndOverflow(py_src_long,&ovrflw) ;
 			Py_DECREF(py_src_long) ;
-			if (ovrflw                                     ) throw "overflow when converting to an int"s ;
-			if (::cmp_less   (v,::numeric_limits<I>::min())) throw "underflow"s                          ;
-			if (::cmp_greater(v,::numeric_limits<I>::max())) throw "overflow"s                           ;
+			if (ovrflw              ) throw "overflow when converting to an int"s ;
+			if (::cmp_less   (v,min)) throw "underflow"s                          ;
+			if (::cmp_greater(v,max)) throw "overflow"s                           ;
 			dst = I(v) ;
 			return true ;
 		}
@@ -967,8 +974,10 @@ namespace Engine {
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,dbg_info          ) ;
-			::serdes(s,force             ) ;
 			::serdes(s,n_tokens          ) ;
+			::serdes(s,interpreter       ) ;
+			::serdes(s,is_python         ) ;
+			::serdes(s,force             ) ;
 			::serdes(s,cmd_gen           ) ;
 			::serdes(s,rsrcs_gen         ) ;
 			::serdes(s,exec_time         ) ;

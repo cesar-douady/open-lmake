@@ -27,13 +27,15 @@ static constexpr int     NConnectionTrials = 3                                  
 static constexpr uint8_t TraceNameSz       = JobHistorySz<=10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
 static_assert(JobHistorySz<=1000) ;                                                             // above, it would be wise to make hierarchical names
 
-ServerSockFd g_server_fd   ;
-GatherDeps   g_gather_deps { New }        ;
-JobRpcReply  g_start_info  ;
-::string     g_service     ;
-SeqId        g_seq_id      = 0/*garbage*/ ;
-JobIdx       g_job         = 0/*garbage*/ ;
-bool         g_killed      = false        ;
+ServerSockFd g_server_fd     ;
+GatherDeps   g_gather_deps   { New }        ;
+JobRpcReply  g_start_info    ;
+::string     g_service_start ;
+::string     g_service_mngt  ;
+::string     g_service_end   ;
+SeqId        g_seq_id        = 0/*garbage*/ ;
+JobIdx       g_job           = 0/*garbage*/ ;
+bool         g_killed        = false        ;
 
 void kill_thread_func(::stop_token stop) {
 	Trace::t_key = '~' ;
@@ -55,7 +57,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
 			if (jsrr.seq_id!=g_seq_id)                                         // report that the job the server tries to connect to no longer exists
 				try {
 					OMsgBuf().send(
-						ClientSockFd( g_service , NConnectionTrials )
+						ClientSockFd( g_service_end , NConnectionTrials )
 					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::LateLost} )
 					) ;
 				} catch (::string const& e) {}                                 // if server is dead, no harm
@@ -73,17 +75,19 @@ int main( int argc , char* argv[] ) {
 	//
 	Pdate start_overhead = Pdate::s_now() ;
 	//
-	swear_prod(argc==4,argc) ;                                                 // syntax is : job_exec server:port seq_id job_idx is_remote
-	/**/             g_service   = argv[1]                     ;
-	/**/             g_seq_id    = from_chars<SeqId >(argv[2]) ;
-	/**/             g_job       = from_chars<JobIdx>(argv[3]) ;
+	swear_prod(argc==6,argc) ;                                                 // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx is_remote
+	g_service_start =                    argv[1]  ;
+	g_service_mngt  =                    argv[2]  ;
+	g_service_end   =                    argv[3]  ;
+	g_seq_id        = from_chars<SeqId >(argv[4]) ;
+	g_job           = from_chars<JobIdx>(argv[5]) ;
 	//
 	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;
 	//
 	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                             } ;
 	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error
 	try {
-		ClientSockFd fd {g_service,NConnectionTrials} ;
+		ClientSockFd fd {g_service_start,NConnectionTrials} ;
 		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv     // once connection is established, everything should be smooth
 		try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { exit(3) ; } // maybe normal in case ^C was hit
 		try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { exit(4) ; } // .
@@ -127,7 +131,7 @@ int main( int argc , char* argv[] ) {
 		g_start_info.autodep_env.tmp_dir = cmd_env["TMPDIR"] ;
 		if (!g_start_info.autodep_env.tmp_view.empty()) cmd_env["TMPDIR"] = g_start_info.autodep_env.tmp_view ; // job must use the job view
 		//
-		Trace trace("main",g_service,g_seq_id,g_job) ;
+		Trace trace("main",g_service_start,g_service_mngt,g_service_end,g_seq_id,g_job) ;
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
 		trace("cmd_env"       ,cmd_env       ) ;
@@ -208,7 +212,7 @@ int main( int argc , char* argv[] ) {
 				default : FAIL(jerr.proc) ;
 			}
 			trace("server_cb",jerr.proc,jrr.digest.deps.size()) ;
-			ClientSockFd fd{g_service} ;
+			ClientSockFd fd{g_service_mngt} ;
 			//    vvvvvvvvvvvvvvvvvvvvvv
 			try { OMsgBuf().send(fd,jrr) ; }
 			//    ^^^^^^^^^^^^^^^^^^^^^^
@@ -236,9 +240,9 @@ int main( int argc , char* argv[] ) {
 			trace("live_out_cb",live_out_buf.size(),txt.size(),pos+1) ;
 			if (pos==Npos) return ;
 			pos++ ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send( ClientSockFd(g_service) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , live_out_buf.substr(0,pos) ) ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send( ClientSockFd(g_service_mngt) , JobRpcReq( JobProc::LiveOut , g_seq_id , g_job , live_out_buf.substr(0,pos) ) ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			live_out_buf = live_out_buf.substr(pos) ;
 		} ;
 		//
@@ -333,8 +337,7 @@ End :
 	Trace trace("end",end_overhead) ;
 	end_report.digest.stats.total = end_overhead - start_overhead ;            // measure overhead as late as possible
 	try {
-		// although there is no info in the acknowledge, we need it to be sure that we stay alive to answer to heartbeat requests until the report is seen by the server
-		ClientSockFd fd {g_service,NConnectionTrials} ;
+		ClientSockFd fd {g_service_end,NConnectionTrials} ;
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try { OMsgBuf().send( fd , end_report ) ; }
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

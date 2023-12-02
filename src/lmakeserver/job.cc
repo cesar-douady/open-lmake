@@ -281,7 +281,7 @@ namespace Engine {
 	void JobExec::continue_( Req req , bool report ) {
 		Trace trace("continue_",*this,req,STR(report)) ;
 		ReqInfo& ri = (*this)->req_info(req) ;
-		(*this)->make( ri , RunAction::None , {}/*reason*/ , MakeAction::GiveUp ) ;
+		(*this)->make( ri , RunAction::None , {}/*reason*/ , {}/*asking*/ , MakeAction::GiveUp ) ;
 		if (report) req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;
 		req.chk_end() ;
 	}
@@ -645,9 +645,9 @@ namespace Engine {
 			trace("req_before",local_reason,status,ri) ;
 			req->missing_audits.erase(*this) ;                                 // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
-			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason ,  {}/*asking*/ , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
+			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			AnalysisErr ae ;
 			//
 			if (reason.err()) {
@@ -785,12 +785,13 @@ namespace Engine {
 		stat += inc ;
 		return jl!=JobLvl::Done ;
 	}
-	JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
+	JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , Job asking , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Lvl = ReqInfo::Lvl ;
 		SWEAR( !reason.err() , reason ) ;
-		Lvl  before_lvl = ri.lvl        ;                                      // capture previous state before any update
-		Req  req        = ri.req        ;
+		Lvl before_lvl = ri.lvl ;                                              // capture previous state before any update
+		Req req        = ri.req ;
 		if (+reason) run_action = RunAction::Run ;                             // we already have a reason to run
+		reason = JobReason(ri.force) | reason ;                                // ri.force was anterior to incoming reason
 		ri.update( run_action , make_action , *this ) ;
 		if (!ri.waiting()) {                                                   // we may have looped in which case stats update is meaningless and may fail()
 			//
@@ -813,12 +814,14 @@ namespace Engine {
 				//
 				switch (ri.lvl) {
 					case Lvl::None :
-						if (ri.action>=RunAction::Status) {                                                                     // only once, not in case of analysis restart
-							if      ( !cmd_ok  ()                                           ) ri.force = JobReasonTag::Cmd    ;
-							else if ( !rsrcs_ok()                                           ) ri.force = JobReasonTag::Rsrcs  ;
-							else if ( frozen_                                               ) ri.force = JobReasonTag::Force  ; // ensure crc are updated, akin sources
-							else if ( rule->force                                           ) ri.force = JobReasonTag::Force  ;
-							else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) ri.force = JobReasonTag::OldErr ;
+						if ( ri.action>=RunAction::Status && !ri.force ) {                                                       // only once, not in case of analysis restart
+							if      ( rule->force                                           ) ri.force = JobReasonTag::Force   ;
+							else if ( frozen_                                               ) ri.force = JobReasonTag::Force   ; // ensure crc are updated, akin sources
+							else if ( status==Status::New                                   ) ri.force = JobReasonTag::New     ;
+							else if ( status<=Status::Garbage                               ) ri.force = JobReasonTag::Garbage ;
+							else if ( !cmd_ok  ()                                           ) ri.force = JobReasonTag::Cmd     ;
+							else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) ri.force = JobReasonTag::OldErr  ;
+							else if ( !rsrcs_ok()                                           ) ri.force = JobReasonTag::Rsrcs   ;
 						}
 						ri.lvl = Lvl::Dep ;
 					[[fallthrough]] ;
@@ -885,11 +888,11 @@ namespace Engine {
 									Node::ReqInfo& dri = dep->req_info(*cdri) ; cdri = &dri ; // refresh cdri in case dri allocated a new one
 									dri.live_out = true ;
 								}
-								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								if      (care     ) cdri = &dep->make( *cdri , dep_action         ) ; // refresh cdri if make changed it
-								else if (sense_err) cdri = &dep->make( *cdri , RunAction::Status  ) ; // .
-								else if (required ) cdri = &dep->make( *cdri , RunAction::Makable ) ; // .
-								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								if      (care     ) cdri = &dep->make( *cdri , dep_action         , idx() ) ; // refresh cdri if make changed it
+								else if (sense_err) cdri = &dep->make( *cdri , RunAction::Status  , idx() ) ; // .
+								else if (required ) cdri = &dep->make( *cdri , RunAction::Makable , idx() ) ; // .
+								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							}
 							if ( is_static && dep->buildable!=Yes ) sure = false ; // buildable is better after make()
 							if (cdri->waiting()) {
@@ -1020,10 +1023,11 @@ namespace Engine {
 					default : fail(state) ;
 				}
 				trace("run",ri,run_status,state) ;
-				if (ri.action!=RunAction::Run) goto Done ;                     // we are done with the analysis and we do not need to run : we're done
-				//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				bool maybe_new_deps = submit(ri,reason,dep_pressure) ;
-				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (ri.action!=RunAction::Run) goto Done ;                      // we are done with the analysis and we do not need to run : we're done
+				if (!asking) asking = ri.asking() ;
+				//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				bool maybe_new_deps = submit(ri,reason,asking,dep_pressure) ;
+				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (ri.waiting()   ) goto Wait ;
 				if (!maybe_new_deps) goto Done ;                                          // if no new deps, we are done
 				make_action = MakeAction::End                                           ; // restart analysis as if called by end() (after ri.update()) as if flash execution, submit has called end()
@@ -1263,7 +1267,7 @@ namespace Engine {
 		return false ;
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
+	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , JobReason reason , Job asking , CoarseDelay pressure ) {
 		using Lvl = ReqInfo::Lvl ;
 		Req               req                = ri.req  ;
 		SubmitRsrcsAttrs  submit_rsrcs_attrs ;
@@ -1352,6 +1356,7 @@ namespace Engine {
 			,	.n_retries = submit_none_attrs.n_retries
 			,	.pressure  = pressure
 			,	.reason    = reason
+			,	.asking    = +asking
 			} ;
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;

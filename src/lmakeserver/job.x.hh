@@ -135,8 +135,9 @@ namespace Engine {
 		// cxtors & casts
 		JobExec() = default ;
 		//
-		JobExec( Job j , in_addr_t h , ChronoDate s={} , ChronoDate e={} ) : Job{j} , host{h} , start_{s} , end_{e} {}
-		JobExec( Job j ,               ChronoDate s={} , ChronoDate e={} ) : Job{j} ,           start_{s} , end_{e} {}
+		JobExec( Job j ,               ChronoDate s={}                   ) : Job{j} ,           start_{s}                        {} // not executing or started job
+		JobExec( Job j , in_addr_t h , ChronoDate s={} , ChronoDate e={} ) : Job{j} , host{h} , start_{s} , end_{e             } {}
+		JobExec( Job j , in_addr_t h , ChronoDate s    , NewType         ) : Job{j} , host{h} , start_{s} , end_{true/*is_end*/} {}
 		//
 		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{false/*is_end*/}                        {} // starting job
 		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{false/*is_end*/}                        {} // .
@@ -329,11 +330,11 @@ namespace Engine {
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
-		JobReason make( ReqInfo& , RunAction , JobReason={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		JobReason make( ReqInfo& , RunAction , JobReason={} , Job asking={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
-		JobReason make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::None,{},ma) ; } // need same signature as for Node::make to use in templated watcher wake up
+		JobReason make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,ma) ; } // for wakeup
 		//
-		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
+		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , Job asking , CoarseDelay pressure ) ;
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -347,8 +348,8 @@ namespace Engine {
 		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_idx=-1/*star*/ ) ;
 		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                              ) ;
 		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                                 ) ;
-		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   ,             JobReason ,              CoarseDelay pressure                ) ;
-		void                                  _set_pressure_raw( ReqInfo&   , CoarseDelay                                                              ) const ;
+		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   , JobReason , Job asking , CoarseDelay pressure                            ) ;
+		void                                  _set_pressure_raw( ReqInfo&   ,                          CoarseDelay                                     ) const ;
 		// data
 	public :
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
@@ -436,10 +437,10 @@ namespace Engine {
 		_set_pressure_raw(ri,pressure) ;
 	}
 
-	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		ri.force = JobReasonTag::None ;                                                                      // job is submitted, that was the goal, now void looping
-		if (is_special()) return _submit_special(ri                ) ;
-		else              return _submit_plain  (ri,reason,pressure) ;
+	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , Job asking , CoarseDelay pressure ) {
+		ri.force = JobReasonTag::None ;                                                                                   // job is submitted, that was the goal, now void looping
+		if (is_special()) return _submit_special(ri                       ) ;
+		else              return _submit_plain  (ri,reason,asking,pressure) ;
 	}
 
 	template<class... A> inline void JobData::audit_end(A&&... args) const {

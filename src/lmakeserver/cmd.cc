@@ -197,7 +197,7 @@ namespace Engine {
 		//
 		res += start.cmd.first ;
 		//
-		if ( flags[ReqFlag::Debug] && j->rule->cmd.spec.is_python ) {
+		if ( flags[ReqFlag::Debug] && j->rule->is_python ) {
 			::string pdb       = flags[ReqFlag::Graphic]?"pudb":"pdb"   ;
 			::string r         = redirected             ?"True":"False" ;
 			size_t   open_pos  = start.cmd.second.find ('(')            ;
@@ -234,7 +234,7 @@ namespace Engine {
 		::string                                                     script          = "#!/bin/bash\n"                               ;
 		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>> targets_to_wash = j->targets_to_wash(match)                     ;
 		::vmap_s<bool/*uniquify*/> const&                            to_wash         = targets_to_wash.first                         ;
-		bool                                                         is_python       = j->rule->cmd.spec.is_python                   ;
+		bool                                                         is_python       = j->rule->is_python                            ;
 		bool                                                         dbg             = flags[ReqFlag::Debug]                         ;
 		bool                                                         redirected      = !start.stdin.empty() || !start.stdout.empty() ;
 		::uset_s                                                     to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t->name()) ;
@@ -460,26 +460,24 @@ namespace Engine {
 							/**/                                             audit( fd , ro , Color::None , lvl+1 , digest.stderr ) ;
 						break ;
 						case ReqKey::Info : {
-							::string ids      = to_string( "job=",pre_start.job , " , small=",start.small_id ) ;
-							bool     has_host = report_start.host!=NoSockAddr                                  ;
+							::string ids = to_string( "job=",pre_start.job , " , small=",start.small_id ) ;
 							if (pre_start.seq_id) append_to_string(ids," , seq=",pre_start.seq_id) ;             // there may be no seq_id if job hit the cache
 							//
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							if (has_start) {
-								::pair_s<NodeIdx> reason = report_start.submit_attrs.reason.str() ;
-								if (+reason.second) {
-									bool err = report_start.submit_attrs.reason.err() ;
-									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason                : ",reason.first," :") , Node(reason.second)->name() , lvl+1 ) ;
-								} else {
-									audit( fd , ro , Color::None , lvl+1 , "reason                : "+reason.first ) ;
-								}
-							}
-							if (has_host) audit( fd , ro , Color::None , lvl+1 , to_string("host                  : ",SockFd::s_host(report_start.host)) ) ;
 							if (has_start) {
 								JobInfoStart const& rs       = report_start                         ;
 								size_t              cwd_sz   = rs.start.cwd_s.size()                ;
 								::string            tmp_dir  = rs.start.autodep_env.tmp_dir         ;
 								::string            pressure = rs.submit_attrs.pressure.short_str() ;
+								::pair_s<NodeIdx>   reason   = rs.submit_attrs.reason.str()         ;
+								if (+reason.second) {
+									bool err = rs.submit_attrs.reason.err() ;
+									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason                : ",reason.first," :") , Node(reason.second)->name() , lvl+1 ) ;
+								} else {
+									audit( fd , ro , Color::None , lvl+1 , "reason                : "+reason.first ) ;
+								}
+								if (rs.submit_attrs.asking) audit( fd , ro , Color::None , lvl+1 , to_string("required by           : ",Job(rs.submit_attrs.asking)->name()) ) ;
+								if (rs.host!=NoSockAddr   ) audit( fd , ro , Color::None , lvl+1 , to_string("host                  : ",SockFd::s_host(rs.host)            ) ) ;
 								//
 								for( auto const& [k,v] : rs.start.env ) if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
@@ -509,11 +507,11 @@ namespace Engine {
 							} catch(::string const&) {}
 							//
 							if (has_end) {
-								::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs .contains("mem") ? required_rsrcs .at("mem") : 0 ;
-								size_t          mem_rsrc     = from_string_with_units<size_t>(mem_rsrc_str)                ;
-								bool            overflow     = digest.stats.mem > mem_rsrc                                 ;
-								::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'         ; if (overflow) mem_str += " > "+mem_rsrc_str+'B' ;
-								bool            ok           = WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0 ;
+								::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : "" ;
+								size_t          mem_rsrc     = mem_rsrc_str.empty()?0:from_string_with_units<size_t>(mem_rsrc_str) ;
+								bool            overflow     = digest.stats.mem > mem_rsrc                                         ;
+								::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                 ; if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
+								bool            ok           = WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0         ;
 								//
 								audit( fd , ro ,                         Color::None , lvl+1 , "end date       : "+digest.end_date.str()          ) ;
 								audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , "rc             : "+wstatus_str(digest.wstatus)    ) ;

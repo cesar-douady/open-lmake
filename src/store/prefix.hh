@@ -1399,6 +1399,7 @@ namespace Store {
 		using Base::HasData ;
 		using Base::IsStr   ;
 		using Base::empty   ;
+		using Base::clear   ;
 		static constexpr bool HasHdr = !is_void_v<Hdr> ;
 		static constexpr Idx  Root   {1}               ;
 		Idx emplace_root() = delete ;
