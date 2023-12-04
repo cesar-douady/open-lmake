@@ -49,8 +49,8 @@ namespace Store {
 		using Base::writable ;
 		// statics
 	private :
-		static constexpr size_t _offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                   // unsigned types handle negative values modulo 2^n, which is ok
-		static size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _offset0 + sizeof(DataNv)*idx ; }
+		static constexpr size_t _offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                             // unsigned types handle negative values modulo 2^n, which is ok
+		static constexpr size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _offset0 + sizeof(DataNv)*idx ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
 			Base::expand(_offset(1)) ;                                            // 1 is the first used idx
@@ -66,7 +66,7 @@ namespace Store {
 		template<class... A> void init( NewType                                      , A&&... hdr_args ) requires( HasFile) { init( "" , true , ::forward<A>(hdr_args)... ) ; }
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
-			Base::init( name , HasHdr*sizeof(HdrNv) + HasData*sizeof(DataNv)*(size_t(1)<<NBits<Idx>) , writable ) ;
+			Base::init( name , _offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
 			if (!Base::empty()) return ;
 			SWEAR(writable) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
@@ -95,13 +95,16 @@ namespace Store {
 		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { return _emplace_back(1 ,::forward<A>(args)...) ; }
 		void clear() {
 			ULock lock{_mutex} ;
-			Base::clear(sizeof(StructHdr)) ;
-			_size() = 1 ;
+			_clear() ;
 		}
 		void chk() const requires(HasFile) {
-			SLock lock{_mutex} ;
 			Base::chk() ;
 			if (size()) SWEAR( _offset(size())<=Base::size , size() , Base::size ) ;
+		}
+	protected :
+		void _clear() {
+			Base::_clear(sizeof(StructHdr)) ;
+			_size() = 1 ;
 		}
 	private :
 		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }
@@ -112,11 +115,11 @@ namespace Store {
 			{	ULock lock{_mutex} ;
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
+				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ; // ensure no arithmetic overflow before checking capacity
 				Base::expand(_offset(new_sz)) ;
-				fence() ;                               // update state when it is legal to do so
-				_size() = new_sz ;                      // once allocation is done, no reason to maintain lock
+				fence() ;                                                      // update state when it is legal to do so
+				_size() = new_sz ;                                             // once allocation is done, no reason to maintain lock
 			}
-			swear(old_sz+1>old_sz,"index overflow on ",name) ;
 			Idx res{old_sz} ;
 			new(&at(res)) Data(::forward<A>(args)...) ;
 			_chk_sz(res,sz) ;

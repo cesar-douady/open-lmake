@@ -922,13 +922,12 @@ private :
 } ;
 template<class T> using FenceSave = Save<T,true> ;
 
-template<class T,bool Fence=false> struct SaveInc {
-	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<::numeric_limits<T>::max()) ; _ref++ ; if (Fence) fence() ;          } // increment, ensure sequentiality if asked to do so
-	~SaveInc(      )             { SWEAR(_ref>::numeric_limits<T>::min()) ;          if (Fence) fence() ; _ref-- ; } // restore  , ensure sequentiality if asked to do so
+template<class T> struct SaveInc {
+	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<::numeric_limits<T>::max()) ; _ref++ ; } // increment
+	~SaveInc(      )             { SWEAR(_ref>::numeric_limits<T>::min()) ; _ref-- ; } // restore
 private :
 	T& _ref ;
 } ;
-template<class T> using FenceSaveInc = SaveInc<T,true> ;
 
 //
 // Implementation

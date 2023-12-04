@@ -167,6 +167,7 @@ unit_tests/py_rule.py
 unit_tests/python2.py
 unit_tests/rename.py
 unit_tests/resources.py
+unit_tests/rules.py
 unit_tests/rust.py
 unit_tests/scratchpad.py
 unit_tests/slurm.py

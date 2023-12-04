@@ -615,13 +615,13 @@ namespace Store {
 
 		// accesses
 	public :
-		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                   }
-		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr    ;                   }
-		HdrNv  const& c_hdr(       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                   }
-		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                   }
-		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data() ;                   }
-		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                   }
-		void          clear(Idx idx)       requires(HasData) { ULock{_mutex} ; Base::at (idx).data() = Data() ; }
+		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
+		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
+		HdrNv  const& c_hdr(       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
+		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                  }
+		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data() ;                  }
+		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                  }
+		void          clear(Idx idx)       requires(HasData) { ULock{_mutex} ; Base::at(idx).data() = Data() ; }
 	private :
 		Item const& _at(Idx idx) const { return Base::at(idx) ; }
 		Item      & _at(Idx idx)       { return Base::at(idx) ; }
@@ -650,7 +650,6 @@ namespace Store {
 			return Lst(*this,root) ;
 		}
 		void chk(Idx root) const {
-			SLock lock{_mutex} ;
 			Base::chk() ;
 			if (+root) _chk(root,false/*recurse_backward*/,true/*recurse_forward*/) ;
 		}
@@ -1320,16 +1319,16 @@ namespace Store {
 			Item const& item = _at(idx)  ;
 			IdxSz       res  = item.used ;
 			// root may not be minimized as it must stay prepared to hold its info w/o moving
-			if (+item.prev) swear(item.sz()==item.min_sz()  ,"item has size ",item.sz()," not minimum (",item.min_sz()  ,')') ;
-			else            swear(item.sz()==Item::MinUsedSz,"root has size ",item.sz()," != "          ,Item::MinUsedSz    ) ;
-			if (!item.prev) swear(!item.chunk_sz            ,"root must not have an empty chunk"                            ) ;
+			if (+item.prev) swear(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
+			else            swear(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
+			if (!item.prev) swear(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
 			for( bool is_eq : Nxt(item.kind()) ) {
 				Idx         nxt      = item.nxt_if(is_eq) ;
 				Item const& nxt_item = _at(nxt) ;
-				swear(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                           ) ;
-				swear(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'      ) ;
-				swear(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "      ,nxt_item.prev      ) ;
-				swear(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is ",nxt_item.prev_is_eq) ;
+				swear(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                          ) ;
+				swear(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'     ) ;
+				swear(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev      ) ;
+				swear(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq) ;
 				if (item.kind()==Kind::Split) {
 					CharUint nxt_first ;
 					if ( nxt_item.kind()==Kind::Split && !nxt_item.chunk_sz ) {
@@ -1395,11 +1394,13 @@ namespace Store {
 		using DataNv  = typename Base::DataNv  ;
 		using VecView = typename Base::VecView ;
 		using StrView = typename Base::StrView ;
+		using ULock   = typename Base::ULock   ;
 		using HdrNv   = NoVoid<Hdr>            ;
 		using Base::HasData ;
 		using Base::IsStr   ;
 		using Base::empty   ;
 		using Base::clear   ;
+		using Base::_mutex  ;
 		static constexpr bool HasHdr = !is_void_v<Hdr> ;
 		static constexpr Idx  Root   {1}               ;
 		Idx emplace_root() = delete ;
@@ -1423,23 +1424,26 @@ namespace Store {
 		// services
 	public :
 		//
-		void                      clear    (                                           )                                    {        Base::clear    (                 ) ; _boot() ; }
-		typename Base::Lst        lst      (                                           ) const                              { return Base::lst      ( Root            ) ;           }
-		void                      chk      (                                           ) const                              {        Base::chk      ( Root            ) ;           }
-		Idx                       search   ( VecView const& n , VecView const& psfx={} ) const                              { return Base::search   ( Root , n , psfx ) ;           }
-		DataNv      *             search_at( VecView const& n , VecView const& psfx={} )       requires( HasData          ) { return Base::search_at( Root , n , psfx ) ;           }
-		DataNv const*             search_at( VecView const& n , VecView const& psfx={} ) const requires( HasData          ) { return Base::search_at( Root , n , psfx ) ;           }
-		Idx                       insert   ( VecView const& n , VecView const& psfx={} )                                    { return Base::insert   ( Root , n , psfx ) ;           }
-		DataNv      &             insert_at( VecView const& n , VecView const& psfx={} )                                    { return Base::insert_at( Root , n , psfx ) ;           }
-		Idx                       erase    ( VecView const& n , VecView const& psfx={} )                                    { return Base::erase    ( Root , n , psfx ) ;           }
-		Idx                       search   ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::search   ( Root , n , psfx ) ;           }
-		DataNv      *             search_at( StrView const& n , StrView const& psfx={} )       requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ;           }
-		DataNv const*             search_at( StrView const& n , StrView const& psfx={} ) const requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ;           }
-		Idx                       insert   ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert   ( Root , n , psfx ) ;           }
-		DataNv      &             insert_at( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert_at( Root , n , psfx ) ;           }
-		Idx                       erase    ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::erase    ( Root , n , psfx ) ;           }
-		::pair<Idx,size_t/*pos*/> longest  ( VecView const& n , VecView const& psfx={} ) const                              { return Base::longest  ( Root , n , psfx ) ;           }
-		::pair<Idx,size_t/*pos*/> longest  ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::longest  ( Root , n , psfx ) ;           }
+		void               clear()       { ULock lock{_mutex} ; _clear() ; }
+		typename Base::Lst lst  () const { return Base::lst(Root) ;        }
+		void               chk  () const {        Base::chk(Root) ;        }
+		//
+		Idx                       search   ( VecView const& n , VecView const& psfx={} ) const                              { return Base::search   ( Root , n , psfx ) ; }
+		DataNv      *             search_at( VecView const& n , VecView const& psfx={} )       requires( HasData          ) { return Base::search_at( Root , n , psfx ) ; }
+		DataNv const*             search_at( VecView const& n , VecView const& psfx={} ) const requires( HasData          ) { return Base::search_at( Root , n , psfx ) ; }
+		Idx                       insert   ( VecView const& n , VecView const& psfx={} )                                    { return Base::insert   ( Root , n , psfx ) ; }
+		DataNv      &             insert_at( VecView const& n , VecView const& psfx={} )                                    { return Base::insert_at( Root , n , psfx ) ; }
+		Idx                       erase    ( VecView const& n , VecView const& psfx={} )                                    { return Base::erase    ( Root , n , psfx ) ; }
+		Idx                       search   ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::search   ( Root , n , psfx ) ; }
+		DataNv      *             search_at( StrView const& n , StrView const& psfx={} )       requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ; }
+		DataNv const*             search_at( StrView const& n , StrView const& psfx={} ) const requires( HasData && IsStr ) { return Base::search_at( Root , n , psfx ) ; }
+		Idx                       insert   ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert   ( Root , n , psfx ) ; }
+		DataNv      &             insert_at( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::insert_at( Root , n , psfx ) ; }
+		Idx                       erase    ( StrView const& n , StrView const& psfx={} )       requires(            IsStr ) { return Base::erase    ( Root , n , psfx ) ; }
+		::pair<Idx,size_t/*pos*/> longest  ( VecView const& n , VecView const& psfx={} ) const                              { return Base::longest  ( Root , n , psfx ) ; }
+		::pair<Idx,size_t/*pos*/> longest  ( StrView const& n , StrView const& psfx={} ) const requires(            IsStr ) { return Base::longest  ( Root , n , psfx ) ; }
+	protected :
+		void _clear() { Base::_clear() ; _boot() ; }
 	} ;
 
 }

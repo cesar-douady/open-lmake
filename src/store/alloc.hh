@@ -145,13 +145,15 @@ namespace Store {
 		void pop    ( Idx idx , Sz sz                 ) requires(  Multi &&  HasDataSz ) { _chk_sz(idx,sz    ) ; _pop    ( idx , sz                            ) ; }
 		void pop    ( Idx idx                         ) requires(  Multi &&  HasDataSz ) {                       _pop    ( idx , _n_items(idx)                 ) ; }
 		void pop    ( Idx idx                         ) requires( !Multi &&  HasData   ) {                       _pop    ( idx , 1                             ) ; }
-		void clear() {
-			ULock lock{_mutex} ;
-			Base::clear() ;
+		//
+		void clear()                                  { ULock lock{_mutex} ; _clear() ; }
+		void chk  () const requires(!HasData        ) {                                 }
+		void chk  () const requires(!is_void_v<Data>) ;                                   // XXX : why cant we use HasData here with clang ?!?
+	protected :
+		void _clear() {
+			Base::_clear() ;
 			for( Idx& f : Base::hdr().free ) f = 0 ;
 		}
-		void chk() const requires(!HasData        ) {}
-		void chk() const requires(!is_void_v<Data>) ;                          // XXX : why cant we use HasData here with clang ?!?
 	private :
 		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
 		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
@@ -226,7 +228,6 @@ namespace Store {
 		}
 	} ;
 	template<bool AutoLock,class Hdr,class Idx,class Data,size_t LinearSz> void AllocFile<AutoLock,Hdr,Idx,Data,LinearSz>::chk() const requires(!is_void_v<Data>) {
-		SLock lock{_mutex} ;
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;

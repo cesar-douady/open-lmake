@@ -25,7 +25,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*4 reimplement hierarchical repositories
+*3 reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
 	- ensure total prio of sub-rules
@@ -116,7 +116,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*3 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*2 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * result cache v2 (copy & link) :
@@ -185,11 +185,12 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*2 handle sources at node level, much like uphill, rather than as jobs
+*1 handle sources at node level, much like uphill, rather than as jobs
 	- so no need to generate a job for each source
 	- so number of jobs becomes proportional to actual work
 	- should be straightforward on the model of uphill
-*5 handle dir hierarchy in store
+* keep compiled rule targets rather than recreating them at each run
+*4 handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
 	- not difficult to code

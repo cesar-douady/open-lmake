@@ -67,7 +67,7 @@ namespace Store {
 			}
 			_resize_file(size) ;
 			_alloc() ;
-			_map() ;
+			_map(0) ;
 		}
 		void close() {
 			ULock lock{_mutex} ;
@@ -87,18 +87,23 @@ namespace Store {
 			if (sz<=size) return ;                                             // fast path
 			ULock lock{_mutex} ;
 			if ( AutoLock && sz<=size ) return ;                               // redo size check, now that we have the lock
+			size_t old_size = size ;
 			_resize_file(::max( sz , size + (size>>2) )) ;                     // ensure remaps are in log(n)
-			_map() ;
+			_map(old_size) ;
 		}
 		void clear(size_t sz=0) {
 			ULock lock{_mutex} ;
-			_dealloc() ;
-			_resize_file(sz) ;
-			_alloc() ;
-			_map() ;
+			_clear(sz) ;
 		}
 		void chk() const {
 			if (+_fd) SWEAR(base) ;
+		}
+	protected :
+		void _clear(size_t sz=0) {
+			_dealloc() ;
+			_resize_file(sz) ;
+			_alloc() ;
+			_map(0) ;
 		}
 	private :
 		void _dealloc() {
@@ -112,21 +117,22 @@ namespace Store {
 			base = static_cast<char*>( ::mmap( nullptr , capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1  , 0 ) ) ;
 			if (base==MAP_FAILED) FAIL_PROD(strerror(errno)) ;
 		}
-		void _map() {
-			if (!size) return ;
+		void _map(size_t old_size) {
+			SWEAR(size>=old_size) ;
+			if (size==old_size) return ;
 			//
 			int map_prot  = PROT_READ ;
 			int map_flags = 0         ;
-			if (writable    ) map_prot  |= PROT_WRITE ;
+			if (writable    ) map_prot  |= PROT_WRITE                  ;
 			if (name.empty()) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
-			else              map_flags |= MAP_SHARED ;
+			else              map_flags |= MAP_SHARED                  ;
 			//
-			void* actual = ::mmap( base , size , map_prot , MAP_FIXED|map_flags , _fd , 0 ) ;
-			if (base!=actual) FAIL_PROD(hex,size_t(base),size_t(actual),dec,size,strerror(errno)) ;
+			void* actual = ::mmap( base+old_size , size-old_size , map_prot , MAP_FIXED|map_flags , _fd , old_size ) ;
+			if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,strerror(errno)) ;
 		}
 		void _resize_file(size_t sz) {
-			swear_prod( writable , name , " is read-only" ) ;
-			SWEAR     ( sz<=capacity , sz , capacity      ) ;
+			swear_prod( writable , name , "is read-only" ) ;
+			SWEAR     ( sz<=capacity , sz , capacity     ) ;
 			sz = round_up(sz,g_page) ;
 			if (+_fd) {
 				//         vvvvvvvvvvvvvvvvvvvvv
