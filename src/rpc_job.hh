@@ -510,7 +510,7 @@ struct JobRpcReply {
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
-	AutodepMethod             method           = AutodepMethod::None ;         // proc == Start
+	AutodepMethod             method           = AutodepMethod::Dflt ;         // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
 	::vmap_s<DepDigest>       static_deps      ;                               // proc == Start   , deps that may clash with targets

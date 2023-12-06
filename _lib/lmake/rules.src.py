@@ -149,25 +149,29 @@ class HomelessRule(Rule) :
 	def cmd() :
 		import os
 		os.environ['HOME'] = os.environ['TMPDIR']
-	cmd.shell = 'export HOME=$TMPDIR'                                      # defining a function with a shell attribute is the way to have both python & shell pre-commands
+	cmd.shell = 'export HOME=$TMPDIR'                                          # defining a function with a shell attribute is the way to have both python & shell pre-commands
 
 class DirtyRule(Rule) :
 	post_targets = { '__NO_MATCH__' : ('{*:.*}','-crc','-essential','incremental','-match','-warning') }
 
-class PyRule(Rule) :
+class _PyRuleBase(Rule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	def __init_subclass__(cls) :
 		super().__init_subclass__()
 		if cls.ignore_stat and '-B' not in cls.python[1:] :
 			raise AttributeError('if the ignore_stat attribute is set on one rule, python must run with the -B flag set on all rules')
-	# ignore pyc files, Python takes care of them
-	post_targets = { '__PYC__' : ( r'{__dir__*}__pycache__/{__base__*}.{__cache_tag__*:\w+-\d+}.pyc' , '-Dep','Incremental','ManualOk','-Match','-Crc' ) }
+class Py2Rule(_PyRuleBase) : post_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc'                         , '-Dep','Incremental','ManualOk','-Match','-Crc' ) } # for Python2
+class Py3Rule(_PyRuleBase) : post_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , '-Dep','Incremental','ManualOk','-Match','-Crc' ) } # for Python3
 
-class DynamicPyRule(PyRule) :                                              # base rule that handle import of generated modules in Python
-	virtual = True
-	def cmd() :                                                            # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+class _DynamicPyRuleBase(Rule) :                                               # base rule that handle import of generated modules in Python
+	def cmd() :                                                                # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 		from lmake.import_machinery import fix_imports
 		fix_imports()
+class DynamicPy2Rule(Py2Rule,_DynamicPyRuleBase) : virtual = True              # this class has targets and cmd, it looks like a concrete rule
+class DynamicPy3Rule(Py3Rule,_DynamicPyRuleBase) : virtual = True              # .
+
+PyRule        = Py3Rule
+DynamicPyRule = DynamicPy3Rule
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'

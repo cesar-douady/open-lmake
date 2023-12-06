@@ -774,7 +774,7 @@ namespace Engine {
 	,	Ok
 	,	ProtoModif                     // modified dep has been seen but still processing parallel deps
 	,	Modif
-	,	Err
+	,	Err                            // >=Err means error
 	,	MissingStatic
 	)
 
@@ -1023,7 +1023,7 @@ namespace Engine {
 					default : fail(state) ;
 				}
 				trace("run",ri,run_status,state) ;
-				if (ri.action!=RunAction::Run) goto Done ;                      // we are done with the analysis and we do not need to run : we're done
+				if (ri.action!=RunAction::Run) goto Done ;                     // we are done with the analysis and we do not need to run : we're done
 				if (!asking) asking = ri.asking() ;
 				//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				bool maybe_new_deps = submit(ri,reason,asking,dep_pressure) ;
@@ -1034,7 +1034,7 @@ namespace Engine {
 				ri.lvl      = Lvl       ::Dep                                           ; // .
 				ri.action   = is_ok(status)==Maybe ? RunAction::Run : RunAction::Status ; // .
 				trace("restart_analysis",ri) ;
-			}
+			/*never exit*/ }
 		Done :
 			ri.lvl   = Lvl::Done            ;
 			ri.done_ = ri.done_ | ri.action ;
@@ -1042,9 +1042,9 @@ namespace Engine {
 			if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req->zombie ) {
 				JobAudit const& ja = it->second ;
 				trace("report_missing",ja) ;
-				IFStream job_stream   { ancillary_file() }                    ;
-				/**/                    deserialize<JobInfoStart>(job_stream) ;
-				auto     report_end   = deserialize<JobInfoEnd  >(job_stream) ;
+				IFStream job_stream { ancillary_file() }                    ;
+				/**/                  deserialize<JobInfoStart>(job_stream) ;
+				auto     report_end = deserialize<JobInfoEnd  >(job_stream) ;
 				//
 				if (!ja.hit) {
 					SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
@@ -1081,6 +1081,19 @@ namespace Engine {
 			//                                           ^^^^^^^^^^^^^^^^^^^^
 		}
 	Wait :
+		if ( status==Status::New && +asking )                                      // XXX : temporary code
+			if ( ::string af=ancillary_file() ; !is_reg(af) ) {                    // if no info is available, record what is known so lshow -i is more instructive if job can never be run
+				JobRpcReq jrr ; jrr.job = +idx() ;
+				JobInfoStart jis {
+					.submit_attrs = {
+						.live_out = ri.live_out
+					,	.reason   = reason
+					,	.asking   = +asking
+					}
+				,	.pre_start = jrr
+				} ;
+				serialize( OFStream(dir_guard(af)) , jis ) ;
+			}
 		if ( !rule->is_special() && ri.lvl!=before_lvl ) {
 			bool remove_old = _inc_cur(req,before_lvl,-1) ;
 			bool add_new    = _inc_cur(req,ri.lvl    ,+1) ;

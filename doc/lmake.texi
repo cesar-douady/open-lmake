@@ -1039,21 +1039,29 @@ This @code{class} is used as a base @code{class} for sources defined by a patter
 Source-rules specify that if a matching target exists, it is considered a source.
 They have no dependencies nor execution.
 
-@subsection @code{class PyRule}
+@subsection @code{class Py[23]Rule}
 
-This @code{class} may be used as a base @code{class} for Python code doing imports.
+These classes may be used as base @code{class} for Python code doing imports.
 
 It manages @code{.pyc} files so that user is not annoyed by Python generating @code{.pyc} files at esoteric places.
 
 It relies on @code{stat} access made by Python to access the original @code{.py} to check @code{.pyc} validity.
-As a consequence, if you want to set the @code{ignore_stat} attribute on a @code{PyRule}, you must run python with the @code{-B} option set.
+As a consequence, if you want to set the @code{ignore_stat} attribute on a @code{PyRule}, you must run python with the @code{-B} option set for all rules.
 Otherwise, dependencies to the original @code{.py} will be lost when the @code{.pyc} is available an up-to-date.
 
-@subsection @code{class DynamicPyRule}
-This @code{class} may be used as a base @code{class} for Python code doing imports that are generated dynamically.
+@code{Py2Rule} manages Python2.
+@code{Py3Rule} manages Python3.
+@code{PyRule} is an alias for @code{Py3Rule}.
 
-In addition to @code{PyRule} features, it patches Python import machinery to prevent optimizations that suppress accesses to inexisting modules.
-Accessing inexisting modules is the way to inform Python that this module is needed and must be generated.
+@subsection @code{class DynamicPy[23]Rule}
+These classes may be used as base @code{class} for Python code doing imports that are dynamically generated.
+
+In addition to @code{Py[23]Rule} features, they patch Python import machinery to prevent optimizations that suppress accesses to inexisting modules.
+Accessing inexisting modules is the way to inform @lmake that these are needed and must be generated.
+
+@code{DynamicPy2Rule} manages Python2.
+@code{DynamicPy3Rule} manages Python3.
+@code{DynamicPyRule} is an alias for @code{DynamicPy3Rule}.
 
 @subsection @code{class RustRule}
 This @code{class} may be used as a base @code{class} to execute executable written in rust.

@@ -167,11 +167,14 @@ namespace Engine {
 		job_tgts .clear() ;
 		conform_idx = NoIdx ;
 		_set_match_gen(true/*ok*/) ;
-		//               vvvvvvvvvvvvvvvvvv
-		if (long_name) { _set_buildable(No) ; goto Return ; }                  // path is ridiculously long, make it unbuildable
-		//               ^^^^^^^^^^^^^^^^^^
-		_set_buildable(Yes) ; // during analysis, temporarily set buildable to break loops that will be caught at exec time ...
-		/**/                  // ... in case of crash, rescue mode is used and ensures all matches are recomputed
+		if (long_name) {
+			//vvvvvvvvvvvvvvvv
+			_set_buildable(No) ;
+			//^^^^^^^^^^^^^^^^
+			goto Return ;
+		}                                                                      // path is ridiculously long, make it unbuildable
+		_set_buildable(Yes) ;                                                  // during analysis, temporarily set buildable to break loops that will be caught at exec time ...
+		/**/                                                                   // ... in case of crash, rescue mode is used and ensures all matches are recomputed
 		try {
 			if (+dir) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -262,8 +265,15 @@ namespace Engine {
 			SWEAR( make_action<MakeAction::Dec , make_action ) ;
 			SWEAR( !cri.has_watchers()                       ) ;
 			trace("not_buildable",cri) ;
-			// if file has been removed, everything is ok again : file is not buildable and does not exist
-			if ( crc!=Crc::None && manual()==Maybe ) refresh( Crc::None , Ddate::s_now() ) ;
+			if (long_name) {
+				::string n  = name()   ;
+				size_t   sz = n.size() ;
+				swear_prod( sz>g_config.path_max , "name is marked too long but size is ",sz," and limit is ",g_config.path_max," for ",n ) ;
+				req->path_max = ::max(req->path_max,sz) ;
+				req->audit_node( Color::Err , to_string("name is too long (",sz,'>',g_config.path_max,") for") , idx() ) ;
+			} else if ( crc!=Crc::None && manual()==Maybe ) {
+				refresh( Crc::None , Ddate::s_now() ) ;                        // if file has been removed, everything is ok again : file is not buildable and does not exist
+			}
 			return cri ;
 		}
 		ReqInfo& ri = req_info(cri) ;                                          // past this point, cri must not be used as it may be obsolete, use ri instead

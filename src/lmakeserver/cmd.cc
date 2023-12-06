@@ -203,19 +203,21 @@ namespace Engine {
 			size_t   open_pos  = start.cmd.second.find ('(')            ;
 			size_t   close_pos = start.cmd.second.rfind(')')            ;
 			::string run_call  = start.cmd.second.substr(0,open_pos)    ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
-			res += "import lmake_runtime\n" ;
 			//
-			res += "lmake_runtime.deps = (\n" ;                                // generate deps that debugger can use to pre-populate browser
+			append_to_string( res , "lmake_runtime = {}\n"                                                                       ) ;
+			append_to_string( res , "exec(open(" , mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py") , ").read(),lmake_runtime)\n" ) ;
+			//
+			res += "lmake_runtime['deps'] = (\n" ;                             // generate deps that debugger can use to pre-populate browser
 			bool first = true ;
 			for( Dep const& d : j->deps ) {
 				if (d->crc==Crc::None) continue ;                              // we are only interested in existing deps as other ones are of marginal interest
 				if (first) first  = false ;
 				else       res   += ','   ;
-				res += to_string('\t',mk_py_str(d->name()),'\n') ;
+				append_to_string( res , '\t',mk_py_str(d->name()),'\n')  ;
 			}
 			res += ")\n" ;
 			//
-			res += to_string("lmake_runtime.run_",pdb,'(',mk_py_str(dbg_dir),',',r,',',run_call,")\n") ;
+			append_to_string( res , "lmake_runtime[",mk_py_str("run_"+pdb),"](",mk_py_str(dbg_dir),',',r,',',run_call,")\n" ) ;
 		} else {
 			res += start.cmd.second ;
 		}
@@ -398,7 +400,7 @@ namespace Engine {
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule               ;
-		::ifstream       job_stream   { job->ancillary_file() } ;
+		IFStream         job_stream   { job->ancillary_file() } ;
 		JobInfoStart     report_start ;
 		JobInfoEnd       report_end   ;
 		bool             has_start    = false                   ;
@@ -460,8 +462,11 @@ namespace Engine {
 							/**/                                             audit( fd , ro , Color::None , lvl+1 , digest.stderr ) ;
 						break ;
 						case ReqKey::Info : {
-							::string ids = to_string( "job=",pre_start.job , " , small=",start.small_id ) ;
-							if (pre_start.seq_id) append_to_string(ids," , seq=",pre_start.seq_id) ;             // there may be no seq_id if job hit the cache
+							::string ids ;
+							const char* sep = "" ;
+							if (pre_start.job     ) { append_to_string(ids,sep,"job=",pre_start.job     ) ; sep = " , " ; }
+							if (start    .small_id) { append_to_string(ids,sep,"seq=",start    .small_id) ; sep = " , " ; }
+							if (pre_start.seq_id  ) { append_to_string(ids,sep,"seq=",pre_start.seq_id  ) ; sep = " , " ; }
 							//
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
@@ -481,19 +486,19 @@ namespace Engine {
 								//
 								for( auto const& [k,v] : rs.start.env ) if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
-								/**/                                       audit( fd , ro , Color::None , lvl+1 , to_string("id's                  : ",ids                              ) ) ;
-								/**/                                       audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir               : ",tmp_dir                          ) ) ;
-								/**/                                       audit( fd , ro , Color::None , lvl+1 , to_string("scheduling            : ",rs.eta.str()," - ",pressure      ) ) ;
-								if ( rs.submit_attrs.live_out            ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out              : true"                              ) ) ;
-								if (!rs.start.chroot.empty()             ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot                : ",rs.start.chroot                  ) ) ;
-								if (!rs.start.cwd_s .empty()             ) audit( fd , ro , Color::None , lvl+1 , to_string("cwd                   : ",rs.start.cwd_s.substr(0,cwd_sz-1)) ) ;
-								if ( rs.start.autodep_env.auto_mkdir     ) audit( fd , ro , Color::None , lvl+1 , to_string("auto_mkdir            : true"                              ) ) ;
-								if ( rs.start.autodep_env.ignore_stat    ) audit( fd , ro , Color::None , lvl+1 , to_string("ignore_stat           : true"                              ) ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt) audit( fd , ro , Color::None , lvl+1 , to_string("autodep               : ",mk_snake(rs.start.method)        ) ) ;
-								if (+rs.start.timeout                    ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout               : ",rs.start.timeout.short_str()     ) ) ;
-								/**/                                       audit( fd , ro , Color::None , lvl+1 , to_string("backend               : ",mk_snake(rs.submit_attrs.tag)    ) ) ;
-								if (!rs.backend_msg.empty()              ) audit( fd , ro , Color::None , lvl+1 , to_string("start backend message : ",rs.backend_msg                   ) ) ;
-								if (!rs.stderr.empty()         ) {
+								if (!ids.empty()                            ) audit( fd , ro , Color::None , lvl+1 , to_string("id's                  : ",ids                              ) ) ;
+								if (!tmp_dir.empty()                        ) audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir               : ",tmp_dir                          ) ) ;
+								if (+rs.eta                                 ) audit( fd , ro , Color::None , lvl+1 , to_string("scheduling            : ",rs.eta.str()," - ",pressure      ) ) ;
+								if ( rs.submit_attrs.live_out               ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out              : true"                              ) ) ;
+								if (!rs.start.chroot.empty()                ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot                : ",rs.start.chroot                  ) ) ;
+								if (!rs.start.cwd_s .empty()                ) audit( fd , ro , Color::None , lvl+1 , to_string("cwd                   : ",rs.start.cwd_s.substr(0,cwd_sz-1)) ) ;
+								if ( rs.start.autodep_env.auto_mkdir        ) audit( fd , ro , Color::None , lvl+1 , to_string("auto_mkdir            : true"                              ) ) ;
+								if ( rs.start.autodep_env.ignore_stat       ) audit( fd , ro , Color::None , lvl+1 , to_string("ignore_stat           : true"                              ) ) ;
+								if ( rs.start.method!=AutodepMethod::Dflt   ) audit( fd , ro , Color::None , lvl+1 , to_string("autodep               : ",mk_snake(rs.start.method)        ) ) ;
+								if (+rs.start.timeout                       ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout               : ",rs.start.timeout.short_str()     ) ) ;
+								if (rs.submit_attrs.tag!=BackendTag::Unknown) audit( fd , ro , Color::None , lvl+1 , to_string("backend               : ",mk_snake(rs.submit_attrs.tag)    ) ) ;
+								if (!rs.backend_msg.empty()                 ) audit( fd , ro , Color::None , lvl+1 , to_string("start backend message : ",rs.backend_msg                   ) ) ;
+								if (!rs.stderr.empty()) {
 									audit( fd , ro , Color::Warning , lvl+1 , to_string("start stderr :") ) ;
 									audit( fd , ro , Color::Warning , lvl+2 , rs.stderr                   ) ;
 								}
@@ -581,7 +586,8 @@ namespace Engine {
 					_send_node( fd , ro , ro.flags[ReqFlag::Verbose] , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
 				}
 			} break ;
-			default : FAIL(ro.key) ;
+			default :
+				throw to_string("cannot show ",mk_snake(ro.key)," for job ",job->name()) ;
 		}
 	}
 
@@ -602,7 +608,16 @@ namespace Engine {
 				_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target ) ;
 				lvl++ ;
 			}
-			JobTgt jt = _job_from_target(fd,ro,target) ; if (!jt) { ok = false ; continue ; }
+			bool for_job = false/*garbage*/ ;
+			switch (ro.key) {
+				case ReqKey::InvDeps : for_job = false ; break ;
+				default              : for_job = true  ;
+			}
+			JobTgt jt ;
+			if (for_job) {
+				jt = _job_from_target(fd,ro,target) ;
+				if (!jt) { ok = false ; continue ; }
+			}
 			switch (ro.key) {
 				case ReqKey::Cmd        :
 				case ReqKey::Env        :
@@ -619,8 +634,8 @@ namespace Engine {
 					double   prio        = -Infinity                  ;
 					if (!uphill_name.empty()) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts ) {
-						if (job_tgt->rule->prio<prio) break ;
-						if (job_tgt==jt ) { prio = job_tgt->rule->prio ; continue ; }   // actual job is output last as this is what user views first
+						if (job_tgt->rule->prio<prio)                                break    ;
+						if (job_tgt==jt             ) { prio = job_tgt->rule->prio ; continue ; }   // actual job is output last as this is what user views first
 						bool hide = !job_tgt.produces(target) ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;

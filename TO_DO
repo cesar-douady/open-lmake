@@ -17,9 +17,6 @@ items :
 		- implies a crash because of s_target_dirs decremented in end_exec while not incremented in wash
 	- waiting for reproduction
 	- was in an unstable version though, maybe it does not exist anymore
-? sometimes losing terminal colors
-	- probably solved
-	- hard to reproduce
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)

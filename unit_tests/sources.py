@@ -27,12 +27,12 @@ if __name__!='__main__' :
 	class CpyExtRel(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = '../srcs_rel/{File}.src'
-		cmd    = 'cat - ../srcs_rel/{File}2.src'
+		cmd    = 'cat ../srcs_rel/../not_a_src - ../srcs_rel/{File}2.src'
 
 	class CpyExtAbs(Rule) :
 		target = '{File:.*}.cpy'
 		dep    = f"{osp.abspath('../srcs_abs')}/{{File}}.src"
-		cmd    = f"cat - {osp.abspath('../srcs_abs')}/{{File}}2.src"
+		cmd    = f"cat {osp.abspath('../srcs_abs')}/../not_a_src - {osp.abspath('../srcs_abs')}/{{File}}2.src"
 
 	class Dflt(Rule) :
 		prio   = -1
@@ -50,6 +50,7 @@ else :
 	os.makedirs('srcs_abs' ,exist_ok=True)
 	print(open('Lmakefile.py').read(),file=open('sub/Lmakefile.py','w'))
 
+	print(file=open('not_a_src','w'))
 	for s in ('','2') :
 		print(f'local{s}'  ,file=open(f'sub/local{s}.src'       ,'w'))
 		print(f'ext_rel{s}',file=open(f'srcs_rel/ext_rel{s}.src','w'))

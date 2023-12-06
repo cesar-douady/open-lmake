@@ -388,9 +388,9 @@ namespace Engine {
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str() ) ) ;
 		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
 		//
-		if (!options.startup_dir_s.empty()) {
-			audit_info( Color::Note , to_string( "startup dir : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1) ) ) ;
-		}
+		if (!options.startup_dir_s.empty()) audit_info( Color::Note , to_string("startup dir : ",options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		if (path_max>g_config.path_max    ) audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",path_max          ) ) ;
+		//
 		if (!up_to_dates.empty()) {
 			bool seen_up_to_dates = false ;
 			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
@@ -503,9 +503,7 @@ namespace Engine {
 		RuleIdx                         n_missing = 0                     ;    // number of rules missing deps
 		//
 		if (node->long_name) {
-			swear_prod( name.size()>g_config.path_max , "name is marked too long but size is ",name.size()," and limit is ",g_config.path_max," for ",name ) ;
-			audit_node( Color::Err  , to_string("name is too long (",name.size(),'>',g_config.path_max,") for"          ) , name     , lvl   ) ;
-			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",name.size()) ,            lvl+1 ) ;
+			audit_node( Color::Err , "name is too long :" , node  , lvl ) ;
 			return ;
 		}
 		//

@@ -46,8 +46,8 @@ int main( int argc , char* argv[] ) {
 		~Exit() {                                                              // this must be executed after _int_thread_func has completed
 			if (!g_seen_int) return ;
 			close_sig_fd(int_fd,SIGINT) ;
-			kill_self  (SIGINT) ;                                              // appear as being interrupted : important for shell scripts to actually stop
-			kill_self  (SIGHUP) ;                                              // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
+			kill_self(SIGINT) ;                                                // appear as being interrupted : important for shell scripts to actually stop
+			kill_self(SIGHUP) ;                                                // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
 			fail_prod("lmake does not want to die") ;
 		}
 		Fd int_fd ;
@@ -68,8 +68,8 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
 	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                   } }
 	}} ;
-	ReqCmdLine cmd_line{syntax,argc,argv} ;
-	::string const& n_jobs = cmd_line.flag_args[+ReqFlag::Jobs] ;
+	ReqCmdLine      cmd_line { syntax , argc , argv }             ;
+	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs] ;
 	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started

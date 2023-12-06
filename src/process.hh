@@ -31,7 +31,7 @@ struct Pipe {
 	Fd write ;     // write side of the pipe
 } ;
 
-static inline bool/*was_blocked*/ set_sig( int sig , bool block ) {
+static inline bool/*done*/ set_sig( int sig , bool block ) {
 	sigset_t new_mask ;
 	sigset_t old_mask ;
 	sigemptyset(&new_mask    ) ;

@@ -463,9 +463,11 @@ namespace Engine {
 		Rule r = +job ? job->rule : match.rule ;                                                                     // if we have no job, we must have a match as job ...
 		if (r->is_python) {                                                                                          // ... is there to lazy evaluate match if necessary
 			OStringStream res ;
-			res<<"from lmake_runtime import lmake_func" ; if (spec.decorator!="lmake_func") res<<" as "<<spec.decorator ; res<<'\n' ;
-			res<<spec.decorator<<".dbg = {\n" ;
-			bool first = true                          ;
+			res << "lmake_runtime = {}\n"                                                                     ;
+			res << "exec(open("<<mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py")<<").read(),lmake_runtime)\n" ;
+			res << spec.decorator<<" = lmake_runtime['lmake_func']\n"                                         ;
+			res << spec.decorator<<".dbg = {\n"                                                               ;
+			bool first = true ;
 			SWEAR(+r) ;
 			for( auto const& [k,v] : r->dbg_info ) {
 				if (!first) res<<',' ;

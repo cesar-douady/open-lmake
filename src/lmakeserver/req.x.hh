@@ -267,30 +267,31 @@ namespace Engine {
 		// data
 	public :
 
-		Chrono                                chrono         = 0/*garbage*/ ;
-		Idx                                   idx_by_start   = Idx(-1)      ;
-		Idx                                   idx_by_eta     = Idx(-1)      ;
-		Job                                   job            ;                 // owned if job->rule->special==Special::Req
-		InfoMap<Job >                         jobs           ;
-		InfoMap<Node>                         nodes          ;
-		::umap<Job,JobAudit>                  missing_audits ;
-		bool                                  zombie         = false        ;  // req has been killed, waiting to be closed when all jobs are actually killed
-		ReqStats                              stats          ;
-		Fd                                    audit_fd       ;                 // to report to user
-		OFStream mutable                      log_stream     ;                 // saved output
-		Job      mutable                      last_info      ;                 // used to identify last message to generate an info line in case of ambiguity
-		ReqOptions                            options        ;
-		Ddate                                 start          ;
-		Delay                                 ete            ;                 // Estimated Time Enroute
-		Pdate                                 eta            ;                 // Estimated Time of Arrival
-		::umap<Rule,JobIdx >                  ete_n_rules    ;                 // number of jobs participating to stats.ete with exec_time from rule
+		Chrono               chrono         = 0/*garbage*/ ;
+		Idx                  idx_by_start   = Idx(-1)      ;
+		Idx                  idx_by_eta     = Idx(-1)      ;
+		Job                  job            ;                                  // owned if job->rule->special==Special::Req
+		InfoMap<Job >        jobs           ;
+		InfoMap<Node>        nodes          ;
+		::umap<Job,JobAudit> missing_audits ;
+		bool                 zombie         = false        ;                   // req has been killed, waiting to be closed when all jobs are actually killed
+		ReqStats             stats          ;
+		Fd                   audit_fd       ;                                  // to report to user
+		OFStream mutable     log_stream     ;                                  // saved output
+		Job      mutable     last_info      ;                                  // used to identify last message to generate an info line in case of ambiguity
+		ReqOptions           options        ;
+		Ddate                start          ;
+		Delay                ete            ;                                  // Estimated Time Enroute
+		Pdate                eta            ;                                  // Estimated Time of Arrival
+		::umap<Rule,JobIdx > ete_n_rules    ;                                  // number of jobs participating to stats.ete with exec_time from rule
 		// summary
-		::vector<Node>                        up_to_dates    ;                 // asked nodes already done when starting
-		::umap<Job ,                JobIdx  > losts          ;                 // lost       jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,pair<bool/*ok*/,NodeIdx>> manuals        ;                 // manual files encountered                          (value.second is just for summary ordering purpose)
-		::umap<Job ,                JobIdx  > frozens        ;                 // frozen     jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > no_triggers    ;                 // no-trigger nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > clash_nodes    ;                 // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
+		size_t                                path_max    = 0 ;
+		::vector<Node>                        up_to_dates ;                    // asked nodes already done when starting
+		::umap<Job ,                JobIdx  > losts       ;                    // lost       jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,pair<bool/*ok*/,NodeIdx>> manuals     ;                    // manual files encountered                          (value.second is just for summary ordering purpose)
+		::umap<Job ,                JobIdx  > frozens     ;                    // frozen     jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > no_triggers ;                    // no-trigger nodes                                  (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > clash_nodes ;                    // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
 	} ;
 
 }

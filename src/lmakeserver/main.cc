@@ -46,8 +46,9 @@ void server_cleanup() {
 }
 
 void report_server( Fd fd , bool running ) {
+	Trace trace("report_server",STR(running)) ;
 	int cnt = ::write( fd , &running , sizeof(bool) ) ;
-	if (cnt!=sizeof(bool)) fail_prod("cannot report server ",STR(running)) ;
+	if (cnt!=sizeof(bool)) trace("no_report") ;                                // client is dead
 }
 
 bool/*crashed*/ start_server() {
