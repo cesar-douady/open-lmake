@@ -151,9 +151,9 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					struct signalfd_siginfo _ ;
 					ssize_t cnt = ::read(int_fd,&_,sizeof(_)) ;
 					SWEAR( cnt==sizeof(_) , cnt ) ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace(GlobalProc::Int) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace_urgent(GlobalProc::Int) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} break ;
 				case EventKind::Slave :
 				case EventKind::Std   : {
@@ -168,10 +168,10 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					} else {
 						trace("close",fd) ;
-						epoll.del(fd) ;                                        // must precede close(fd)
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( ReqProc::Kill , fd , out_fd ) ; // this will close out_fd when done writing to it
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						epoll.del(fd) ;                                              // must precede close(fd)
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , out_fd ) ; // this will close out_fd when done writing to it
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						in_tab.erase(fd) ;
 					}
 				} break ;

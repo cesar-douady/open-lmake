@@ -145,6 +145,7 @@ unit_tests/dup.py
 unit_tests/dynamic.py
 unit_tests/dynamic_py.py
 unit_tests/force.py
+unit_tests/generic_sources.py
 unit_tests/git.py
 unit_tests/hard_lnks.py
 unit_tests/hello_world.py

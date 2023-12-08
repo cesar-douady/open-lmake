@@ -159,12 +159,12 @@ namespace Engine::Makefiles {
 	}
 
 	static ::pair<PyObject*,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
-		static Py::Pattern pyc_re1 { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         } ;
-		static Py::Pattern pyc_re2 { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" } ;
+		/**/             static Py::Pattern pyc_re1 { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         } ;
+		/**/             static Py::Pattern pyc_re2 { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" } ;
 		[[maybe_unused]] static bool        boosted = (Py::boost(pyc_re1),Py::boost(pyc_re2),true)                      ; // avoid deallocation problems at exit
 		//
 		GatherDeps  gather_deps { New }                                                                        ; gather_deps.autodep_env.src_dirs_s = {"/"} ;
-		::string    data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ;
+		::string    data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
 		::vector_s  cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
 		Trace trace("_read_makefiles",action,module,Pdate::s_now()) ;
 		//

@@ -23,8 +23,10 @@ public :
 	}
 	bool operator!() const { return !+*this ; }
 	// services
-	/**/                 void push   (T const& x) { ::unique_lock lock{_mutex} ; Base::push_back   (x                 ) ; _cond.notify_one() ; }
-	template<class... A> void emplace(A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
+	/**/                 void push          (T const& x) { ::unique_lock lock{_mutex} ; Base::push_back    (x                 ) ; _cond.notify_one() ; }
+	/**/                 void push_urgent   (T const& x) { ::unique_lock lock{_mutex} ; Base::push_front   (x                 ) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&...   a) { ::unique_lock lock{_mutex} ; Base::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
 	T pop() {
 		::unique_lock lock{_mutex} ;
 		_cond.wait( lock , [&](){ return !Base::empty() ; } ) ;
