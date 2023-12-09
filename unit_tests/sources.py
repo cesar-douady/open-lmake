@@ -14,15 +14,13 @@ if __name__!='__main__' :
 		'Lmakefile.py'
 	,	'../srcs_rel/'
 	,	osp.abspath('../srcs_abs')+'/'
+	,	'local/'
 	)
-
-	class Src(SourceRule) :
-		target = '{File:.*}.src'
 
 	class CpyLocal(Rule) :
 		target = '{File:.*}.cpy'
-		dep    = '{File}.src'
-		cmd    = 'cat - {File}2.src'
+		dep    = 'local/{File}.src'
+		cmd    = 'cat - local/{File}2.src'
 
 	class CpyExtRel(Rule) :
 		target = '{File:.*}.cpy'
@@ -48,22 +46,23 @@ else :
 	os.makedirs('sub/LMAKE',exist_ok=True)
 	os.makedirs('srcs_rel' ,exist_ok=True)
 	os.makedirs('srcs_abs' ,exist_ok=True)
+	os.makedirs('sub/local',exist_ok=True)
 	print(open('Lmakefile.py').read(),file=open('sub/Lmakefile.py','w'))
 
 	print(file=open('not_a_src','w'))
 	for s in ('','2') :
-		print(f'local{s}'  ,file=open(f'sub/local{s}.src'       ,'w'))
+		print(f'local{s}'  ,file=open(f'sub/local/local{s}.src' ,'w'))
 		print(f'ext_rel{s}',file=open(f'srcs_rel/ext_rel{s}.src','w'))
 		print(f'ext_abs{s}',file=open(f'srcs_abs/ext_abs{s}.src','w'))
 
 	os.chdir('sub')
 
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' , new=6 , no_file=0 , done=3          )
-	os.unlink('local2.src'              )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' , new=6 , done  =3        )
+	os.unlink('local/local2.src'        )
 	os.unlink('../srcs_rel/ext_rel2.src')
 	os.unlink('../srcs_abs/ext_abs2.src')
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=3 , failed=3 , rc=1 )
-	os.unlink('local.src'              )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         failed=3 , rc=1 )
+	os.unlink('local/local.src'        )
 	os.unlink('../srcs_rel/ext_rel.src')
 	os.unlink('../srcs_abs/ext_abs.src')
-	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         no_file=3 , done=3          )
+	ut.lmake( 'local.cpy' , 'ext_rel.cpy' , 'ext_abs.cpy' ,         done  =3        )

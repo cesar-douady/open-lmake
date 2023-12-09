@@ -112,18 +112,18 @@ namespace Backends::Local {
 
 		// services
 
-		virtual bool/*ok*/ config( Config::Backend const& config , bool dynamic ) {
+		virtual bool/*ok*/ config( ::vmap_ss const& dct , bool dynamic ) {
 			if (dynamic) {
-				/**/                                         if (rsrc_keys.size()!=config.dct.size()) throw "cannot change resource names while lmake is running"s ;
-				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=config.dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
+				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
+				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
 			} else {
-				for( auto const& [k,v] : config.dct ) {
+				for( auto const& [k,v] : dct ) {
 					rsrc_idxs[k] = rsrc_keys.size() ;
 					rsrc_keys.push_back(k) ;
 				}
 			}
-			capacity_ = RsrcsData( config.dct , rsrc_idxs ) ;
-			occupied  = RsrcsData(rsrc_keys.size()        ) ;
+			capacity_ = RsrcsData( dct , rsrc_idxs ) ;
+			occupied  = RsrcsData(rsrc_keys.size() ) ;
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;

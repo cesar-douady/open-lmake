@@ -35,13 +35,14 @@ namespace Engine::Makefiles {
 			if (!sr.lnks.empty()) {
 				/**/                                                         reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
 			} else if (is_dir_) {
-				if      ( !is_canon(src)                                   ) reason = " is not canonical"                                        ;
-				else if ( !is_dir  (src)                                   ) reason = " is not a directory"                                      ;
+				if      ( !is_canon(src)                                   ) reason =           " is not canonical"                              ;
+				else if ( src==".." || src.ends_with("/..")                ) reason =           " is a directory of the repo"                    ;
+				else if ( !is_dir  (src)                                   ) reason =           " is not a directory"                            ;
 			} else {
-				if      ( sr.kind!=Kind::Repo                              ) reason = " is not in repository"                                    ;
+				if      ( sr.kind!=Kind::Repo                              ) reason =           " is not in repository"                          ;
 				else if ( sr.real!=src                                     ) reason = to_string(" canonical form is ",sr.real)                   ;
-				else if ( lnk_support==LnkSupport::None && !is_reg   (src) ) reason = " is not a regular file"                                   ;
-				else if ( lnk_support!=LnkSupport::None && !is_target(src) ) reason = " is not a regular file nor a symbolic link"               ;
+				else if ( lnk_support==LnkSupport::None && !is_reg   (src) ) reason =           " is not a regular file"                         ;
+				else if ( lnk_support!=LnkSupport::None && !is_target(src) ) reason =           " is not a regular file nor a symbolic link"     ;
 			}
 			if (!reason.empty()) throw to_string( is_dir_?"source dir ":"source " , src , reason ) ;
 			if (is_dir_        ) src_dirs_s.push_back(src+'/') ;
@@ -63,10 +64,6 @@ namespace Engine::Makefiles {
 			if (rules.contains(crc)) throw to_string( "rule " , rd.name , " and rule " , rules.at(crc).name , " match identically and are redundant" ) ;
 			names.insert(rd.name) ;
 			rules[crc] = ::move(rd) ;
-		}
-		for ( ::string const& sd_s : g_src_dirs_s ) {
-			RuleData rd { Special::GenericSrc , sd_s } ;
-			rules[rd.match_crc] = ::move(rd) ;
 		}
 		return rules ;
 	}
@@ -252,7 +249,7 @@ namespace Engine::Makefiles {
 	static ::pair_s<bool/*done*/> _refresh_rules( ::umap<Crc,RuleData>& rules , ::vector_s& deps , Reason new_ , bool dynamic , PyObject* py_info , ::string const& startup_dir_s ) {
 		Trace trace("_refresh_rules") ;
 		::string reason ;
-		// rules depend on source dirs as deps are adapted if they lie outside repo + GenericSrcRule's are synthesized
+		// rules depend on source dirs as deps are adapted if they lie outside repo
 		if (g_config.rules_module.empty()) {
 			if ( !py_info && !new_ ) return {{},false/*done*/}                            ; // config has not been read
 			if ( dynamic           ) throw "cannot dynamically read rules within config"s ;

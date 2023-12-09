@@ -44,7 +44,7 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 	if (
 		( +ad.accesses || !ad.idle() )
 	&&	(	order==AccessOrder::Before                                         // date becomes earlier
-		||	( !digest.accesses && order<AccessOrder::Write )                   // date becomes later
+		||	( !digest.accesses && (digest.idle()||order<AccessOrder::Write) )  // date becomes later
 		)
 	) {
 		if (+ad.accesses ) file_date   = dd           ;
@@ -89,8 +89,25 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , Acce
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	info->update(pd,dd,ad,parallel_id_) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (*info!=old_info) Trace("_new_access", is_new?"new   ":"update" , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
+	if (*info!=old_info) Trace("_new_access", STR(is_new) , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
 	return is_new ;
+}
+
+void GatherDeps::static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin ) {
+	SWEAR( accesses.empty() , accesses ) ;                                                             // ensure we do not insert static deps after hidden ones
+	parallel_id++ ;
+	for( auto const& [f,d] : static_deps )
+		if (f==stdin) _new_access( pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , parallel_id , "stdin"       ) ;
+		else          _new_access( pd , f , +d.accesses?d.date():DD() , {d.accesses            ,d.dflags} , parallel_id , "static_deps" ) ;
+}
+
+void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
+	Disk::RealPath              rp { autodep_env }                    ;
+	Disk::RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
+	for( auto&& [f,a] : rp.exec(sr) ) {
+		DD       dd = file_date(f) ;
+		new_dep( pd , ::move(f) , dd , a , {} , c ) ;
+	}
 }
 
 ENUM( GatherDepsKind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )

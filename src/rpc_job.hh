@@ -173,8 +173,9 @@ static inline void chk(Tflags tf) {
 	}
 }
 
-ENUM_1( JobReasonTag                   // see explanations in table below
+ENUM_2( JobReasonTag                   // see explanations in table below
 ,	HasNode = ClashTarget              // if >=HasNode, a node is associated
+,	Err     = DepErr                   // if >=Err, job did not complete because of a dep
 //
 ,	None
 // with reason
@@ -190,13 +191,14 @@ ENUM_1( JobReasonTag                   // see explanations in table below
 // with node
 ,	ClashTarget
 ,	DepChanged
+,	DepUnstable
 ,	DepNotReady
 ,	DepOutOfDate
 ,	NoTarget
 ,	PolutedTarget
 ,	PrevTarget
 // with error
-,	DepErr                             // if >=DepErr, job did not complete because of a dep
+,	DepErr
 ,	DepMissingStatic
 ,	DepMissingRequired
 ,	DepOverwritten
@@ -216,6 +218,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 // with node
 ,	"multiple simultaneous writes"                         // ClashTarget
 ,	"dep changed"                                          // DepChanged
+,	"dep unstable"                                         // DepUnstable
 ,	"dep not ready"                                        // DepNotReady
 ,	"dep out of date"                                      // DepOutOfDate
 ,	"missing target"                                       // NoTarget
@@ -240,15 +243,16 @@ struct JobReason {
 	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
-	bool operator+() const { return +tag              ; }
-	bool operator!() const { return !tag              ; }
-	bool err      () const { return tag>=Tag::DepErr  ; }
+	bool operator+() const { return +tag ; }
+	bool operator!() const { return !tag ; }
 	// services
 	JobReason operator|(JobReason jr) const {
-		if (   err()) return *this ;
-		if (jr.err()) return jr    ;
-		if (+*this  ) return *this ;
-		/**/          return jr    ;
+		if (   tag>=Tag::Err    ) return *this ;
+		if (jr.tag>=Tag::Err    ) return jr    ;
+		if (   tag>=Tag::HasNode) return *this ;
+		if (jr.tag>=Tag::HasNode) return jr    ;
+		if (+*this              ) return *this ;
+		/**/                      return jr    ;
 	}
 	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
 	::pair_s<NodeIdx> str() const {
@@ -285,7 +289,6 @@ struct SubmitAttrs {
 	uint8_t           n_retries = 0                   ;
 	Time::CoarseDelay pressure  = {}                  ;
 	JobReason         reason    = {}                  ;
-	JobIdx            asking    = 0                   ;
 } ;
 
 struct JobStats {

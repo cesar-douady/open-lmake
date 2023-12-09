@@ -162,6 +162,8 @@ namespace Engine {
 
 		// services
 		bool operator==(ConfigDynamic const&) const = default ;
+		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
+		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		size_t                                                                   max_err_lines         = 0  ;     // unlimited
 		::string                                                                 user_remote_admin_dir ;

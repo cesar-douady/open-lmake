@@ -19,7 +19,7 @@ if __name__!='__main__' :
 
 	class Test(Rule) :
 		target = 'test'
-		cmd = 'cat b/src'
+		cmd    = 'cat b/src'
 
 else :
 

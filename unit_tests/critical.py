@@ -26,7 +26,7 @@ if __name__!='__main__' :
 
 	class Bad(Rule) :
 		target = 'bad{:\d+}'
-		cmd = 'exit {step}'
+		cmd    = 'exit {step}'
 
 	class Critical(Rule) :
 		target = 'tgt'

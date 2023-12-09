@@ -188,7 +188,7 @@ namespace Engine {
 				}
 				fail_prod("not done but all deps are done : ",j->name()) ;
 			}
-			fail_prod("not done but all possible jobs are done : ",d->name()) ;
+			fail_prod("not done but all pertinent jobs are done : ",d->name()) ;
 		Next :
 			cycle.push_back(d) ;
 		}
@@ -216,25 +216,35 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri              = dep->c_req_info(*this) ;
-		bool                 report_not_built = false                  ;
-		if (dep->multi()) {
-			return (*this)->_send_err( false/*intermediate*/ , "multi" , dep->name() , n_err , lvl ) ;
-		} else if (!dep->makable(true/*uphill_ok*/)) {
-			switch (cri.err) {
-				case NodeErr::None        : report_not_built = dep.dflags[Dflag::Required] ; break ;
-				case NodeErr::Dangling    : return (*this)->_send_err( false/*intermediate*/ , "dangling"    , dep->name() , n_err , lvl ) ;
-				case NodeErr::Overwritten : return (*this)->_send_err( false/*intermediate*/ , "overwritten" , dep->name() , n_err , lvl ) ;
-				default : FAIL(cri.err) ;
+		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
+		Bool3                ok  = dep->ok(cri)           ;
+		const char*          err = nullptr                ;
+		if (ok!=Yes) {
+			switch (dep->status()) {
+				case NodeStatus::Multi      : err = "multi"                                            ; break ;
+				case NodeStatus::Transcient : err = "transcient sub-file"                              ; break ;
+				case NodeStatus::Uphill     : err = "sub-file"                                         ; break ;
+				case NodeStatus::Src        : err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
+				case NodeStatus::SrcDir     :
+					if (dep.dflags[Dflag::Required]) err = "missing" ;
+				break ;
+				case NodeStatus::None :
+					if      (dep->manual()==Yes         ) err = "dangling" ;
+					else if (dep.dflags[Dflag::Required]) err = "missing"  ;
+				break ;
+				case NodeStatus::Plain :
+					if      (cri.overwritten                   ) err = "overwritten" ;
+					else if (dep->manual()==Yes                ) err = "manual"      ;
+					else if (dep->conform_job_tgts(cri).empty()) err = "not built"   ; // if no better explanation found
+					else
+						for( Job job : dep->conform_job_tgts(cri) )
+							if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+				break ;
+				default : FAIL(dep->status()) ;
 			}
 		}
-		for( Job job : dep->conform_job_tgts(cri) ) {
-			if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
-			report_not_built = false ;
-		}
-		if (report_not_built) return (*this)->_send_err( false/*intermediate*/ , "not built" , dep->name() , n_err , lvl ) ; // if no better explanation found
-		//
-		return false ;
+		if (err) return (*this)->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
+		else     return false                                                                         ;
 	}
 
 	bool/*overflow*/ Req::_report_err( Job job , Node target , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
@@ -289,10 +299,10 @@ namespace Engine {
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
 			if (job->rule->special==Special::Req) {
-				for( Dep const& d : job->deps ) if ( d->makable()) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
-				for( Dep const& d : job->deps ) if (!d->makable()) (*this)->_report_no_rule(d                                            ) ;
+				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) (*this)->_report_no_rule(d                                            ) ;
 			} else {
-				/**/                                               _report_err             (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
+				/**/                                                                  _report_err             (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
 		}
 	Done :
@@ -311,33 +321,37 @@ namespace Engine {
 	}
 
 	void ReqInfo::_add_watcher(Watcher watcher) {
-		//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (_n_watchers==VectorMrkr) { _watchers_v->emplace_back(watcher)   ; return ; } // vector stays vector, simple
-		if (_n_watchers< NWatchers ) { _watchers_a[_n_watchers++] = watcher ; return ; } // array  stays array , simple
-		//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		// array becomes vector, complex
-		::array<Watcher,NWatchers> tmp = _watchers_a ;
-		_watchers_a.~array() ;
-		::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;      // cannot put {} here or it is taken as an initializer list
-		for( uint8_t i=0 ; i<NWatchers ; i++ ) ws[i] = tmp[i] ;
-		//vvvvvvvvvvvvvvvvvvvvv
-		ws[NWatchers] = watcher ;
-		//^^^^^^^^^^^^^^^^^^^^^
-		_watchers_v = &ws        ;
-		_n_watchers = VectorMrkr ;
+		switch (_n_watchers) {
+			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case VectorMrkr : _watchers_v->emplace_back(                    watcher)  ;                 break ; // vector stays vector , simple
+			case 0          : new(&_watchers_a) ::array<Watcher,NWatchers>{{watcher}} ; _n_watchers++ ; break ; // create array        , simple
+			default         : _watchers_a[_n_watchers] =                    watcher   ; _n_watchers++ ; break ; // array stays array   , simple
+			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case NWatchers :                                                                                    // array becomes vector, complex
+				::array<Watcher,NWatchers> tmp = _watchers_a ;
+				_watchers_a.~array() ;
+				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;  // cannot put {} here or it is taken as an initializer list
+				for( uint8_t i=0 ; i<NWatchers ; i++ ) ws[i] = tmp[i] ;
+				//vvvvvvvvvvvvvvvvvvvvv
+				ws[NWatchers] = watcher ;
+				//^^^^^^^^^^^^^^^^^^^^^
+				_watchers_v = &ws        ;
+				_n_watchers = VectorMrkr ;
+		}
 	}
 
-	void ReqInfo::wakeup_watchers() {
-		SWEAR(!waiting()) ;                                                // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;                                       // we need to copy watchers aside before calling them as during a call, we could become not done and be waited for again
+	void ReqInfo::wakeup_watchers(JobChrono end_chrono_) {
+		SWEAR(!waiting()) ;                                                       // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;                                              // copy watchers aside before calling them as during a call, we could become not done and be waited for again
 		if (_n_watchers==VectorMrkr) {
 			watchers = ::move(*_watchers_v) ;
-			delete _watchers_v ;                                           // transform vector into array as there is no watchers any more
-			new(&_watchers_a) ::array<Watcher,NWatchers> ;
+			delete _watchers_v ;                                               // transform vector into array as there is no watchers any more
 		} else {
 			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
+			_watchers_a.~array() ;
 		}
 		_n_watchers = 0 ;
+		end_chrono(end_chrono_) ;
 		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
 		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
 			if      (waiting()      ) _add_watcher(*it) ;                                                      // if waiting again, add back watchers we have got and that we no more want to call
@@ -370,7 +384,7 @@ namespace Engine {
 
 	void ReqData::audit_summary(bool err) const {
 		bool warning =
-			!frozens    .empty()
+			!frozen_jobs.empty()
 		||	!no_triggers.empty()
 		||	!clash_nodes.empty()
 		;
@@ -389,44 +403,46 @@ namespace Engine {
 		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
 		//
 		if (!options.startup_dir_s.empty()) audit_info( Color::Note , to_string("startup dir : ",options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
-		if (path_max>g_config.path_max    ) audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",path_max          ) ) ;
 		//
 		if (!up_to_dates.empty()) {
 			bool seen_up_to_dates = false ;
 			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
 			for( Node n : up_to_dates )
 				if (n->is_src()) {
-					if (seen_up_to_dates) audit_node( Color::Warning                  , "file is a source       :" , n ) ; // align if necessary
-					else                  audit_node( Color::Warning                  , "file is a source :"       , n ) ;
+					if (seen_up_to_dates                ) audit_node( Color::Warning                     , "file is a source       :" , n ) ; // align if necessary
+					else                                  audit_node( Color::Warning                     , "file is a source :"       , n ) ;
 				} else {
-					if (n->makable()    ) audit_node( n->err()?Color::Err:Color::Note , "was already up to date :" , n ) ;
+					if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , "was already up to date :" , n ) ;
 				}
 		}
 		if (!losts.empty()) {
 			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;
 			::sort( losts_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			size_t w = 0 ;
-			for( auto [j,_] : losts_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : losts_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
+			size_t w = 0     ;
+			bool   e = false ;
+			for( auto [j,_] :                 losts_                                   ) { w = ::max( w , j->rule->name.size() ) ; e |= j->err() ; }
+			for( auto [j,_] : ::vector_view_c(losts_,0,g_config.n_errs(losts_.size())) ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
+			if ( g_config.errs_overflow(losts_.size()) )                                 audit_info( e       ?Color::Err:Color::Warning , "..."                                                  ) ;
 		}
-		if (!manuals.empty()) {
-			::vmap<Node,pair<bool/*ok*/,NodeIdx>> manuals_ = mk_vmap(manuals) ;
-			::sort( manuals_ ,
-				[]( ::pair<Node,pair<bool/*ok*/,NodeIdx>> const& a , ::pair<Node,pair<bool/*ok*/,NodeIdx>> b ) { return a.second.second<b.second.second ; } // sort in discovery order
-			) ;
-			for( auto [n,v] : manuals_ ) audit_node( v.first?Color::Warning:Color::Err , "manual" , n ) ;
+		if (!long_names.empty()) {
+			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
+			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			for( auto [n,_] : ::vector_view_c(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Err , "name too long" , n ) ;
+			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Err , "..."               ) ;
+			size_t pm = 0 ; for( auto [n,_] : long_names_ ) pm = ::max( pm , n->name().size() ) ;
+			SWEAR(pm>g_config.path_max) ;
+			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;
 		}
-		if (!frozens.empty()) {
-			::vmap<Job,JobIdx> frozens_ = mk_vmap(frozens) ;
-			::sort( frozens_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			size_t w = 0 ;
-			for( auto [j,_] : frozens_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozens_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
+		if (!frozen_jobs.empty()) {
+			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
+			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			size_t w = 0 ; for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
+			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (!no_triggers.empty()) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
 			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no-trigger" , n ) ;
+			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (!clash_nodes.empty()) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
@@ -439,12 +455,12 @@ namespace Engine {
 		}
 	}
 
-	void ReqData::audit_job( Color c , Pdate date , ::string const& step , Rule rule , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
+	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
 		::OStringStream msg ;
 		if (g_config.console.date_prec!=uint8_t(-1)) msg <<      date.str(g_config.console.date_prec,true/*in_day*/)                      <<' ' ;
 		if (g_config.console.host_len              ) msg <<      ::setw(g_config.console.host_len)<<SockFd::s_host(host)                  <<' ' ;
 		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
-		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule->name                                  ;
+		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                                   ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
 		audit( audit_fd , log_stream , options , c , 0 , msg.str() , job_name ) ;
 		last_info = {} ;
@@ -502,15 +518,15 @@ namespace Engine {
 		RuleTgt                         art       ;                            // set if an anti-rule matches
 		RuleIdx                         n_missing = 0                     ;    // number of rules missing deps
 		//
-		if (node->long_name) {
+		if (name.size()>g_config.path_max) {
 			audit_node( Color::Err , "name is too long :" , node  , lvl ) ;
 			return ;
 		}
 		//
-		if (node->uphill()) {
-			Node dir ; for( dir=node->dir ; +dir && dir->uphill() ; dir=dir->dir ) ;
-			swear_prod(+dir          ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
-			swear_prod(dir->makable(),"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
+		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transcient ) {
+			Node dir ; for( dir=node->dir ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir ) ;
+			swear_prod(+dir                              ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
+			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
 			/**/                                            audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
 			if (dir->conform_job_tgt().produces(dir,true) ) audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
 			else                                            audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
@@ -539,7 +555,6 @@ namespace Engine {
 			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
 			::string                    reason      ;
 			Node                        missing_dep ;
-			bool                        dep_exists  = false       ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
 			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
@@ -549,7 +564,7 @@ namespace Engine {
 				for( bool search_non_buildable : {true,false} )
 					for( auto const& [k,daf] : static_deps ) {
 						Node d{daf.first} ;
-						if ( search_non_buildable ? d->buildable!=No : d->makable() ) continue ;
+						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 						missing_key = k ;
 						missing_dep = d ;
 						goto Found ;
@@ -557,13 +572,11 @@ namespace Engine {
 			Found :
 				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
 				FileInfo fi{missing_dep->name()} ;
-				dep_exists = +fi                                                                                                   ;
-				reason     = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
+				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
-			if (dep_exists  ) audit_node( Color::Note , "consider : git add"                        , missing_dep , lvl+2 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
 		}

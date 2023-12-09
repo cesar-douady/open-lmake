@@ -41,17 +41,17 @@ namespace Engine {
 	,	Cmd                            // consider variable as a cmd      : upon modification, rebuild job
 	)
 
-	ENUM_1( Special
-	,	Shared = Infinite              // <=Shared means there is a single such rule
+	ENUM_2( Special
+	,	Shared  = Infinite             // <=Shared means there is a single such rule
+	,	HasJobs = Plain                // <=HasJobs means jobs can refer to this rule
 	//
 	,	None                           // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
-	,	Src
 	,	Req
 	,	Infinite
-	// ordered by decreasing matching priority within each prio
-	,	GenericSrc
-	,	Anti
 	,	Plain
+	// ordered by decreasing matching priority within each prio
+	,	Anti
+	,	GenericSrc
 	)
 
 }
@@ -475,8 +475,6 @@ namespace Engine {
 		// accesses
 		bool   is_anti     (        ) const { return special==Special::Anti                                 ; }
 		bool   is_special  (        ) const { return special!=Special::Plain                                ; }
-		bool   is_src      (        ) const { return special==Special::Src || special==Special::GenericSrc  ; }
-		bool   is_sure     (        ) const { return special!=Special::GenericSrc                           ; } // GenericSrc targets are only buildable if file actually exists
 		bool   user_defined(        ) const { return !allow_ext                                             ; } // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx t) const { return t==NoVar ? UnexpectedTflags : targets[t].second.tflags ; }
 		bool   sure        (VarIdx t) const { return s_sure(tflags(t))                                      ; }

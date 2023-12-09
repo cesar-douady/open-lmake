@@ -12,7 +12,7 @@ if __name__!='__main__' :
 
 	class A(Rule):
 		targets = { 'A' : 'a/{*:.*}' }
-		cmd = 'exit 1'
+		cmd     = 'exit 1'
 
 	class D(Rule):
 		target = 'res'

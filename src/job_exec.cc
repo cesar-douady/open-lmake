@@ -260,13 +260,9 @@ int main( int argc , char* argv[] ) {
 		/**/                       g_gather_deps.timeout      = g_start_info.timeout     ;
 		/**/                       g_gather_deps.kill_job_cb  = kill_job                 ;
 		//
-		g_gather_deps.static_deps( start_overhead , g_start_info.static_deps , "static_dep" ) ; // ensure static deps are generated first
-		if (g_start_info.stdin.empty()) {
-			child_stdin = open_read("/dev/null") ;
-		} else {
-			child_stdin = open_read(g_start_info.stdin) ;
-			g_gather_deps.new_dep( start_overhead , g_start_info.stdin , file_date(g_start_info.stdin) , Access::Reg , {}/*dflags*/ , "<stdin>" ) ;
-		}
+		g_gather_deps.static_deps( start_overhead , g_start_info.static_deps , g_start_info.stdin ) ; // ensure static deps are generated first
+		if (g_start_info.stdin.empty()) child_stdin = open_read("/dev/null"       ) ;
+		else                            child_stdin = open_read(g_start_info.stdin) ;
 		child_stdin.no_std() ;
 		if (!g_start_info.stdout.empty()) {
 			child_stdout = open_write(g_start_info.stdout) ;

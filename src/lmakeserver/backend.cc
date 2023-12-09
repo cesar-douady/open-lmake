@@ -528,7 +528,7 @@ namespace Backends {
 		::unique_lock lock{_s_mutex} ;
 		for( Tag t : Tag::N )
 			if ( s_tab[+t] && config[+t].configured )                          // if implemented and configured
-				s_ready[+t] = s_tab[+t]->config(config[+t],dynamic) ;
+				s_ready[+t] = s_tab[+t]->config(config[+t].dct,dynamic) ;
 		job_start_thread.wait_started() ;
 		job_mngt_thread .wait_started() ;
 		job_end_thread  .wait_started() ;

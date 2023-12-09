@@ -12,6 +12,7 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* target not remade when too long and config.path_max is later increased
 ? crash has been seen upon ^C
 	- a job is ended while not started
 		- implies a crash because of s_target_dirs decremented in end_exec while not incremented in wash
@@ -58,6 +59,11 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* implement lshow -i for nodes
+* asking is reported when job is submitted
+	- but we want to know who is asking jobs that cannot be submitted
+	- we must note the info when make is called, not submit
+* report dangling files in summary
 * generate performance metrics
 	- useful/useless created jobs
 	- number of non buildable nodes
@@ -116,6 +122,7 @@ items :
 *2 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
+* add post_cmd as there is post_targets
 * result cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
@@ -182,11 +189,6 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*1 handle sources at node level, much like uphill, rather than as jobs
-	- so no need to generate a job for each source
-	- so number of jobs becomes proportional to actual work
-	- should be straightforward on the model of uphill
-* keep compiled rule targets rather than recreating them at each run
 *4 handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient

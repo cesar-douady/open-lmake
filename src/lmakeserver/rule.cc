@@ -525,10 +525,8 @@ namespace Engine {
 		if (s<=Special::Shared) SWEAR(  src_dir_s.empty()                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( !src_dir_s.empty() && src_dir_s.back()=='/' , s , src_dir_s ) ; // ensure source dir ends with a /
 		special = s           ;
-		prio    = Infinity    ;
 		name    = mk_snake(s) ;
 		switch (s) {
-			case Special::Src      : force = true      ; break ;               // Force so that source files are systematically inspected
 			case Special::Req      : force = true      ; break ;
 			case Special::Infinite : prio  = -Infinity ; break ;               // -inf : it can appear after other rules
 			case Special::GenericSrc :

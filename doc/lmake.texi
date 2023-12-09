@@ -1036,7 +1036,8 @@ They have no dependencies nor execution.
 @subsection @code{class SourceRule}
 This @code{class} is used as a base @code{class} for sources defined by a pattern.
 
-Source-rules specify that if a matching target exists, it is considered a source.
+Source-rules specify that a matching target is considered a source.
+If such a file is required and does not exist, it is an error condition.
 They have no dependencies nor execution.
 
 @subsection @code{class Py[23]Rule}
@@ -1576,6 +1577,7 @@ When this attribute exists and has a @code{True} value, this @code{class} is not
 
 This attribute is used to order matching priority.
 Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf @pxref{rule-selection}).
+However, @code{AntiRule}'s and @code{SourceRule}'s are always tried before plain rules.
 
 @section @code{stems}
 
@@ -2680,24 +2682,48 @@ This rule selection process works in several steps described below.
 
 A file is deemed buildable if the rule selection process leads to a job that generates the file.
 
+@subsection Name length
+First, the length of the target name is checked agains @code{lmake.config.path_max}.
+If the target name is longer, then the process stops here and the file is not buildable.
+
+@subsection Sources
+The second step is to check target agains sources and source directories.
+
+If the target is listed as a source it is deemed buildable.
+No execution is associated, though, the file modifications made by the user are tracked instead.
+
+If the target is within a directory listed as a source directory (i.e. appears ending with a @code{/} in the manifest), it is deemed buildable if it exists.
+If it does not exist, it is not buildable.
+In both cases, the process stops here.
+
 @subsection Up-hill directory
-The first step is to see if a up-hill directory (i.e. one of the dirtory along the directory path leading to the file) is (recursively) buildable.
+The third step is to see if a up-hill directory (i.e. one of the directory along the directory path leading to the file) is (recursively) buildable.
 
-If it is the case, the rule selection process stops here and the file is not buildable. Else the process continue.
+If it is the case, the rule selection process stops here and the file is not buildable.
 
-The rules are split into groups. Each group has either @code{Rule}'s, @code{AntiRule}'s  or @code{SourceRule}'s and contain all of them which share a given @code{prio}.
-Groups are ordered with higher @code{prio} first and within each @code{prio}, @code{SourceRule}'s come first, then @code{AntiRule}'s then @code{Rule}'s.
+@subsection @code{AntiRule} and @code{SourceRule}
+The following step is to match the target against @code{AntiRule}'s and @code{SourceRule}'s (ordered by their @code{prio} attribute, high values are considered first).
+If one is found, the target is buildable if it matches a @code{SourceRule} and is not if it matches an @code{AntiRule}.
 
-The following steps is executed for each group in order, until a rule is found or the file declared not buildable.
+If it matches a @code{SourceRule} and it does not exist, it is still buildable, but has an error condition.
+
+In all cases, as soon as such a match is found, the process stops here.
+
+@subsection Plain rules
+
+The rules are split into groups. Each group contains all of the rules that share a given @code{prio}.
+Groups are ordered with higher @code{prio} first.
+
+The following steps is executed for each group in order, until a rule is found. If none is found, the file declared not buildable.
 
 @subsection Match a target
 For a given rule, the file is matched against each target in turn.
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
+Target order is made of @code{targets} and @code{target} entries in reversed MRO order (i.e. higher classes in the Python class hierarchy are considered first),
+then @code{post_targets} and @code{post_target} entries in MRO order (i.e. lower classes in the Python class hierarchy are considered first.
 
 If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a @code{*}).
 Else, the rule does not apply.
-
-If the rule is an @code{AntiRule}, the rule selection process stops and the file is not buildable.
 
 @subsection Check static dependencies
 
@@ -2713,9 +2739,9 @@ Static dependencies are then analyzed to see if the are (recursively) buildable,
 After these 2 previous steps have been done for the rules of a group, the applicable rules are analyzed the following way :
 @itemize
 @item If no rule apply, next group is analyzed.
-@item If the file matches several rules as a sure target (i.e. a static target or a star target with the @code{phony} flag),
+@item If the file matches several rules as a sure target (i.e. a static target and all static deps are sure),
 the file is deemed buildable, but if required to run, no job will be executed and the file will be in error.
-@item If the file matches some rules as a non-sure target (i.e. a star target without the @code{phony} flag), the corresponding jobs are run.
+@item If the file matches some rules as a non-sure target (i.e. a star target or a dep is not sure), the corresponding jobs are run.
 If no such jobs generate the file, next group is analyzed.
 If several of them generate the file, the file is buildable and in error.
 @end itemize

@@ -24,40 +24,44 @@ namespace Engine {
 		ReqOptions const& ro = ecr.options ;
 		Trace trace("freeze",ecr) ;
 		if (_is_mark_glb(ro.key)) {
-			::vector<Job> markeds = Job::s_frozens() ;
-			size_t        w       = 0                ; for( Job j : markeds ) w = ::max(w,j->rule->name.size()) ;
+			::vector<Job > jobs  = Job ::s_frozens() ;
+			::vector<Node> nodes = Node::s_frozens() ;
+			size_t         w            = 3/*src*/          ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
-				for( Job j : markeds )
-					if (j->rule->is_src()) Node(j->name())->mk_no_src() ;
-					else                   j->status = Status::Garbage ;
-				Job::s_clear_frozens() ;
+				for( Job  j : jobs  ) j->status = Status::Garbage ;
+				for( Node n : nodes ) n->mk_no_src() ;
+				Job ::s_clear_frozens() ;
+				Node::s_clear_frozens() ;
 			}
-			for( Job j : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j->name() ) ;
+			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j->name() ) ;
+			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),"src"        ) , n->name() ) ;
 			return true ;
 		} else {
-			bool           add      = ro.key==ReqKey::Add ;
-			size_t         w        = 0                   ;
-			::vector<Node> new_srcs ;
-			::vector<Node> old_srcs ;
-			::string       name     ;
-			::string       err      ;
-			::vector<Job > to_do    ;
+			bool           add   = ro.key==ReqKey::Add ;
+			size_t         w     = 3/*src*/            ;
+			::string       name  ;
+			::string       err   ;
+			::vector<Job > jobs  ;
+			::vector<Node> nodes ;
 			//
-			auto handle_job = [&](Job j)->bool/*ok*/ {
+			auto handle_job = [&](Job j)->void {
 				if (add) {
-					if (!j.active() ) throw ::pair("job not found"s   ,j->name()) ;
-					if ( j->frozen()) throw ::pair("already frozen"s  ,j->name()) ;
-					if ( j->is_src()) throw ::pair("file is a source"s,j->name()) ;
+					if (!j.active()) throw ::pair("job not found"s   ,j->name()) ;
+					if ( j.frozen()) throw ::pair("already frozen"s  ,j->name()) ;
 				} else {
-					if (!j.active() ) throw ::pair("not frozen"s,j->name()) ;
-					if (!j->frozen()) throw ::pair("not frozen"s,j->name()) ;
-					if ( j->is_src()) old_srcs.push_back(j->name()) ;
+					if (!j.active()) throw ::pair("not frozen"s,j->name()) ;
+					if (!j.frozen()) throw ::pair("not frozen"s,j->name()) ;
 				}
-				if ( !j->running_reqs().empty() ) throw ::pair("job is running"s,j->name()) ;
+				if (!j->running_reqs().empty()) throw ::pair("job is running"s,j->name()) ;
 				//
 				w = ::max( w , j->rule->name.size() ) ;
-				to_do.push_back(j) ;
-				return true/*ok*/ ;
+				jobs.push_back(j) ;
+			} ;
+			auto handle_node = [&](Node n)->void {
+				if (add) { if ( n.frozen()) throw ::pair("already frozen"s,n->name()) ; }
+				else     { if (!n.frozen()) throw ::pair("not frozen"s    ,n->name()) ; }
+				//
+				nodes.push_back(n) ;
 			} ;
 			//check
 			if (ecr.as_job()) {
@@ -66,25 +70,27 @@ namespace Engine {
 				bool force = ro.flags[ReqFlag::Force] ;
 				for( Node t : ecr.targets() ) {
 					Job j = t->actual_job_tgt ;
-					if      ( !j.active() && add                      ) new_srcs.push_back(t) ;
-					else if ( t->is_src()                             ) handle_job(j) ;
-					else if ( !force && !(t->makable()&&t->conform()) ) throw ::pair("target was not produced by its offical job"s,t->name()) ;
-					else                                                handle_job(j) ;
+					if      ( !j.active() && add                                        ) handle_node(t) ;
+					else if ( t->is_src()                                               ) handle_node(t) ;
+					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
+					else                                                                  throw ::pair("target was not produced by its offical job"s,t->name()) ;
 				}
 			}
-			bool mod_srcs = !new_srcs.empty() || !old_srcs.empty() ;
-			if ( mod_srcs && Req::s_n_reqs() ) throw to_string("cannot ",add?"add":"remove"," frozen source files while running") ;
+			bool mod_nodes = !nodes.empty() ;
+			if ( mod_nodes && Req::s_n_reqs() ) throw to_string("cannot ",add?"add":"remove"," frozen files while running") ;
 			// do what is asked
-			for( Node t : new_srcs ) { t->mk_src() ; to_do.push_back(t->actual_job_tgt) ; }
-			if (!to_do.empty()) {
-				Job::s_frozens(add,to_do) ;
-				for( Job j : to_do ) {
+			if (!jobs.empty()) {
+				Job::s_frozens(add,jobs) ;
+				for( Job j : jobs ) {
 					if (!add) j->status = Status::Garbage ;
 					audit( fd , ro , add?Color::Warning:Color::Note , 0/*lvl*/ , to_string(::setw(w),j->rule->name) , j->name() ) ;
 				}
 			}
-			for( Node t : old_srcs ) t->mk_no_src() ;
-			if (mod_srcs) EngineStore::s_invalidate_match() ; // seen from the engine, we have modified sources, we must rematch everything
+			if (!nodes.empty()) {
+				Node::s_frozens(add,nodes) ;
+				for( Node n : nodes ) if (add) n->mk_src(Buildable::Src) ; else n->mk_no_src() ;
+				EngineStore::s_invalidate_match() ; // seen from the engine, we have modified sources, we must rematch everything
+			}
 			return true ;
 		}
 	}
@@ -147,7 +153,7 @@ namespace Engine {
 		Color color = Color::None ;
 		if      ( hide==Yes                                          ) color =                         Color::HiddenNote ;
 		else if ( !node->has_actual_job() && !FileInfo(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
-		else if ( node->err()                                        ) color =            Color::Err                     ;
+		else if ( node->ok()==No                                     ) color =            Color::Err                     ;
 		//
 		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , lvl , pfx , node->name() ) ;
 	}
@@ -157,7 +163,7 @@ namespace Engine {
 		Rule  rule  = job->rule   ;
 		if      (hide                   ) color = Color::HiddenNote ;
 		else if (job->status==Status::Ok) color = Color::Ok         ;
-		else if (job->frozen()          ) color = Color::Warning    ;
+		else if (job.frozen()           ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
 		audit( fd , ro , color , lvl , rule->name , job->name() ) ;
 		if (show_deps==No) return ;
@@ -307,8 +313,8 @@ namespace Engine {
 	static JobTgt _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
 		JobTgt jt = target->actual_job_tgt ;
 		if (!jt.active()) {
-			/**/                             if (!target->makable()) goto NoJob ;
-			jt = target->conform_job_tgt() ; if (!jt.active()      ) goto NoJob ;
+			/**/                             if (target->status()>NodeStatus::Makable) goto NoJob ;
+			jt = target->conform_job_tgt() ; if (!jt.active()                        ) goto NoJob ;
 		}
 		Trace("target",target,jt) ;
 		return jt ;
@@ -435,6 +441,9 @@ namespace Engine {
 					JobRpcReq   const& pre_start  = report_start.pre_start                          ;
 					JobRpcReply const& start      = report_start.start                              ;
 					bool               redirected = !start.stdin.empty() || !start.stdout.empty()   ;
+					//
+					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
+					//
 					switch (ro.key) {
 						case ReqKey::Env : {
 							size_t w = 0 ;
@@ -462,42 +471,51 @@ namespace Engine {
 							/**/                                             audit( fd , ro , Color::None , lvl+1 , digest.stderr ) ;
 						break ;
 						case ReqKey::Info : {
-							::string ids ;
-							const char* sep = "" ;
-							if (pre_start.job     ) { append_to_string(ids,sep,"job=",pre_start.job     ) ; sep = " , " ; }
-							if (start    .small_id) { append_to_string(ids,sep,"seq=",start    .small_id) ; sep = " , " ; }
-							if (pre_start.seq_id  ) { append_to_string(ids,sep,"seq=",pre_start.seq_id  ) ; sep = " , " ; }
+							size_t   w   = "required by"s.size() ;
+							::string ids = to_string("job=",+job) ;
+							if (has_start) {
+								w = ::max( w , "start backend message"s.size() ) ;
+								if (start    .small_id) append_to_string(ids," , small=",start    .small_id) ;
+								if (pre_start.seq_id  ) append_to_string(ids," , seq="  ,pre_start.seq_id  ) ;
+							}
+							if (has_end) {
+								w = ::max( w , "elapsed in job"s.size() ) ;
+							}
 							//
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+							//
+							audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"id's"," : ",ids) ) ;
+							if ( Node n=job->asking ; +n ) {
+								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
+								if (+n->asking) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"required by"," : ",Job(n->asking)->name()) ) ;
+								else            audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"required by"," : ",    n         ->name()) ) ;
+							}
 							if (has_start) {
-								JobInfoStart const& rs       = report_start                         ;
-								size_t              cwd_sz   = rs.start.cwd_s.size()                ;
-								::string            tmp_dir  = rs.start.autodep_env.tmp_dir         ;
-								::string            pressure = rs.submit_attrs.pressure.short_str() ;
-								::pair_s<NodeIdx>   reason   = rs.submit_attrs.reason.str()         ;
-								if (+reason.second) {
-									bool err = rs.submit_attrs.reason.err() ;
-									_send_node( fd , ro , true/*always*/ , Maybe&!err/*hide*/ , to_string("reason                : ",reason.first," :") , Node(reason.second)->name() , lvl+1 ) ;
-								} else {
-									audit( fd , ro , Color::None , lvl+1 , "reason                : "+reason.first ) ;
-								}
-								if (rs.submit_attrs.asking) audit( fd , ro , Color::None , lvl+1 , to_string("required by           : ",Job(rs.submit_attrs.asking)->name()) ) ;
-								if (rs.host!=NoSockAddr   ) audit( fd , ro , Color::None , lvl+1 , to_string("host                  : ",SockFd::s_host(rs.host)            ) ) ;
+								JobInfoStart const& rs       = report_start                                     ;
+								SubmitAttrs  const& sa       = rs.submit_attrs                                  ;
+								::string            cwd      = rs.start.cwd_s.substr(0,rs.start.cwd_s.size()-1) ;
+								::string            tmp_dir  = rs.start.autodep_env.tmp_dir                     ;
+								::string            pressure = sa.pressure.short_str()                          ;
+								::pair_s<NodeIdx>   reason   = sa.reason.str()                                  ;
+								//
+								if (+reason.second) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"reason"," : ",reason.first," :") , Node(reason.second)->name() ) ;
+								else                audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"reason"," : ",reason.first     )                               ) ;
+								//
+								if (rs.host!=NoSockAddr) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"host"," : ",SockFd::s_host(rs.host)) ) ;
 								//
 								for( auto const& [k,v] : rs.start.env ) if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
-								if (!ids.empty()                            ) audit( fd , ro , Color::None , lvl+1 , to_string("id's                  : ",ids                              ) ) ;
-								if (!tmp_dir.empty()                        ) audit( fd , ro , Color::None , lvl+1 , to_string("tmp dir               : ",tmp_dir                          ) ) ;
-								if (+rs.eta                                 ) audit( fd , ro , Color::None , lvl+1 , to_string("scheduling            : ",rs.eta.str()," - ",pressure      ) ) ;
-								if ( rs.submit_attrs.live_out               ) audit( fd , ro , Color::None , lvl+1 , to_string("live_out              : true"                              ) ) ;
-								if (!rs.start.chroot.empty()                ) audit( fd , ro , Color::None , lvl+1 , to_string("chroot                : ",rs.start.chroot                  ) ) ;
-								if (!rs.start.cwd_s .empty()                ) audit( fd , ro , Color::None , lvl+1 , to_string("cwd                   : ",rs.start.cwd_s.substr(0,cwd_sz-1)) ) ;
-								if ( rs.start.autodep_env.auto_mkdir        ) audit( fd , ro , Color::None , lvl+1 , to_string("auto_mkdir            : true"                              ) ) ;
-								if ( rs.start.autodep_env.ignore_stat       ) audit( fd , ro , Color::None , lvl+1 , to_string("ignore_stat           : true"                              ) ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt   ) audit( fd , ro , Color::None , lvl+1 , to_string("autodep               : ",mk_snake(rs.start.method)        ) ) ;
-								if (+rs.start.timeout                       ) audit( fd , ro , Color::None , lvl+1 , to_string("timeout               : ",rs.start.timeout.short_str()     ) ) ;
-								if (rs.submit_attrs.tag!=BackendTag::Unknown) audit( fd , ro , Color::None , lvl+1 , to_string("backend               : ",mk_snake(rs.submit_attrs.tag)    ) ) ;
-								if (!rs.backend_msg.empty()                 ) audit( fd , ro , Color::None , lvl+1 , to_string("start backend message : ",rs.backend_msg                   ) ) ;
+								if (!tmp_dir.empty()                     ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"tmp dir              "," : ",tmp_dir                     ) ) ;
+								if (+rs.eta                              ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"scheduling           "," : ",rs.eta.str()," - ",pressure ) ) ;
+								if ( sa.live_out                         ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"live_out             "," : ","true"                      ) ) ;
+								if (!rs.start.chroot.empty()             ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"chroot               "," : ",rs.start.chroot             ) ) ;
+								if (!rs.start.cwd_s .empty()             ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"cwd                  "," : ",cwd                         ) ) ;
+								if ( rs.start.autodep_env.auto_mkdir     ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"auto_mkdir           "," : ","true"                      ) ) ;
+								if ( rs.start.autodep_env.ignore_stat    ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"ignore_stat          "," : ","true"                      ) ) ;
+								if ( rs.start.method!=AutodepMethod::Dflt) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"autodep              "," : ",mk_snake(rs.start.method)   ) ) ;
+								if (+rs.start.timeout                    ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"timeout              "," : ",rs.start.timeout.short_str()) ) ;
+								if (sa.tag!=BackendTag::Unknown          ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"backend              "," : ",mk_snake(sa.tag)            ) ) ;
+								if (!rs.backend_msg.empty()              ) audit( fd , ro , Color::None , lvl+1 , to_string(::setw(w),"start backend message"," : ",rs.backend_msg              ) ) ;
 								if (!rs.stderr.empty()) {
 									audit( fd , ro , Color::Warning , lvl+1 , to_string("start stderr :") ) ;
 									audit( fd , ro , Color::Warning , lvl+2 , rs.stderr                   ) ;
@@ -518,12 +536,12 @@ namespace Engine {
 								::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                 ; if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
 								bool            ok           = WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0         ;
 								//
-								audit( fd , ro ,                         Color::None , lvl+1 , "end date       : "+digest.end_date.str()          ) ;
-								audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , "rc             : "+wstatus_str(digest.wstatus)    ) ;
-								audit( fd , ro ,                         Color::None , lvl+1 , "cpu time       : "+digest.stats.cpu  .short_str() ) ;
-								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed in job : "+digest.stats.job  .short_str() ) ;
-								audit( fd , ro ,                         Color::None , lvl+1 , "elapsed total  : "+digest.stats.total.short_str() ) ;
-								audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , "used mem       : "+mem_str                        ) ;
+								audit( fd , ro ,                         Color::None , lvl+1 , to_string(::setw(w),"end date      "," : ",digest.end_date.str()         ) ) ;
+								audit( fd , ro , !ok     ?Color::Err    :Color::None , lvl+1 , to_string(::setw(w),"rc            "," : ",wstatus_str(digest.wstatus)   ) ) ;
+								audit( fd , ro ,                         Color::None , lvl+1 , to_string(::setw(w),"cpu time      "," : ",digest.stats.cpu  .short_str()) ) ;
+								audit( fd , ro ,                         Color::None , lvl+1 , to_string(::setw(w),"elapsed in job"," : ",digest.stats.job  .short_str()) ) ;
+								audit( fd , ro ,                         Color::None , lvl+1 , to_string(::setw(w),"elapsed total "," : ",digest.stats.total.short_str()) ) ;
+								audit( fd , ro , overflow?Color::Warning:Color::None , lvl+1 , to_string(::setw(w),"used mem      "," : ",mem_str                       ) ) ;
 								if (!report_end.backend_msg.empty()) {
 									audit( fd , ro , Color::None , lvl+1 , "backend message :"    ) ;
 									audit( fd , ro , Color::None , lvl+2 , report_end.backend_msg ) ;

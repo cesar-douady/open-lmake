@@ -700,7 +700,7 @@ namespace std {
 	} \
 	[[maybe_unused]] static inline ::ostream&      operator<<( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os ; } \
 	\
-	[[maybe_unused]] static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }                                                                     \
+	[[maybe_unused]] static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; } \
 	[[maybe_unused]] static inline EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
 
 template<class E> concept StdEnum  = ::is_enum_v<E> && ::is_unsigned_v<underlying_type_t<E>> && requires() { E::N ; } ;

@@ -203,12 +203,10 @@ namespace Engine {
 				default          : return false ;
 			}
 		}
-		bool done(RunAction ra=RunAction::Status) const { return done_>=ra ; }
 		// services
 		void update( RunAction , MakeAction , JobData const& ) ;
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { ReqInfo::add_watcher(watcher,watcher_req_info) ; }
 		void chk() const {
-			SWEAR(done_<=RunAction::Dsk) ;
 			switch (lvl) {
 				case Lvl::None   : SWEAR(n_wait==0) ; break ;                  // not started yet, cannot wait anything
 				case Lvl::Done   : SWEAR(n_wait==0) ; break ;                  // done, cannot wait anything anymore
@@ -219,17 +217,14 @@ namespace Engine {
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		NodeIdx      dep_lvl          = 0                     ;                                      // 31<=32 bits
-		JobChrono    end_chrono       = 0                     ;                                      //     32 bits, req independent
-		ReqChrono    db_chrono        = 0                     ;                                      //     16 bits, req independent, oldest Req at which job is coherent (w.r.t. its state)
-		RunAction    done_         :3 = RunAction   ::None    ; static_assert(+RunAction   ::N< 8) ; //      3 bits, action for which we are done
-		Lvl          lvl           :3 = Lvl         ::None    ; static_assert(+Lvl         ::N< 8) ; //      3 bits
-		BackendTag   backend       :2 = BackendTag  ::Unknown ; static_assert(+BackendTag  ::N< 4) ; //      2 bits
-		JobReasonTag force         :5 = JobReasonTag::None    ; static_assert(+JobReasonTag::N<32) ; //      5 bits
-		bool         start_reported:1 = false                 ;                                      //      1 bit , if true <=> start message has been reported to user
-		bool         speculative   :1 = false                 ;                                      //      1 bit , if true <=> job is waiting for speculative deps only
+		NodeIdx      dep_lvl          = 0                     ; // 31<=32 bits
+		Lvl          lvl           :3 = Lvl         ::None    ; //      3 bits
+		JobReasonTag force         :5 = JobReasonTag::None    ; //      5 bits
+		BackendTag   backend       :2 = BackendTag  ::Unknown ; //      2 bits
+		bool         start_reported:1 = false                 ; //      1 bit , if true <=> start message has been reported to user
+		bool         speculative   :1 = false                 ; //      1 bit , if true <=> job is waiting for speculative deps only
 	} ;
-	static_assert(sizeof(JobReqInfo)==32) ;                                    // check expected size
+	static_assert(sizeof(JobReqInfo)==24) ;                                    // check expected size
 
 }
 #endif
@@ -277,8 +272,7 @@ namespace Engine {
 		Job      idx () const { return Job::s_idx(*this)              ; }
 		::string name() const { return full_name(rule->job_sfx_len()) ; }
 		//
-		bool active() const { return !rule.old()                                                                   ; }
-		bool is_src() const { return active() && (rule->special==Special::Src||rule->special==Special::GenericSrc) ; }
+		bool active() const { return !rule.old() ; }
 		//
 		ReqInfo const& c_req_info   (Req           ) const ;
 		ReqInfo      & req_info     (Req           ) const ;
@@ -289,8 +283,7 @@ namespace Engine {
 		//
 		bool cmd_ok    (   ) const { return                      exec_gen >= rule->cmd_gen   ; }
 		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok
-		bool frozen    (   ) const { return idx().frozen()                                   ; }
-		bool is_special(   ) const { return rule->is_special() || frozen()                   ; }
+		bool is_special(   ) const { return rule->is_special() || idx().frozen()             ; }
 		bool has_req   (Req) const ;
 		//
 		void exec_ok(bool ok) { SWEAR(!rule->is_special(),rule->special) ; exec_gen = ok ? rule->rsrcs_gen : 0 ; }
@@ -310,10 +303,18 @@ namespace Engine {
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		//
-		ReqChrono db_chrono (           ) const {            for( Req r : reqs() ) if (ReqChrono c=c_req_info(r).db_chrono ) return c ; return 0 ; } // Req independent but is stored in req_info
-		Chrono    end_chrono(           ) const {            for( Req r : reqs() ) if (Chrono    c=c_req_info(r).end_chrono) return c ; return 0 ; } // .
-		void      db_chrono (ReqChrono c)       {            for( Req r : reqs() ) req_info(r).db_chrono  = c ;                                    } // .
-		void      end_chrono(Chrono    c)       { SWEAR(c) ; for( Req r : reqs() ) req_info(r).end_chrono = c ;                                    } // .
+		Chrono       end_chrono(        ) const {            for( Req r : reqs() ) if (Chrono c=c_req_info(r).end_chrono()) return c ; return 0 ; } // Req independent but stored in req_info
+		bool/*done*/ end_chrono(Chrono c)       {                                                                                                   // .
+			SWEAR(c) ;
+			bool done = false ;
+			for( Req r : reqs() ) {
+				ReqInfo& ri = req_info(r) ;
+				if (ri.has_watchers()) continue ;
+				ri.end_chrono(c) ;
+				done = true ;
+			}
+			return done ;
+		}
 		// services
 		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
 		::vmap<Node,bool/*uniquify*/>/*report*/                                wash           (Rule::SimpleMatch const&) const ; // thread-safe
@@ -330,11 +331,11 @@ namespace Engine {
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
-		JobReason make( ReqInfo& , RunAction , JobReason={} , Job asking={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		JobReason make( ReqInfo& , RunAction , JobReason={} , Node asking_={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
-		JobReason make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,ma) ; } // for wakeup
+		void      make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,ma) ; } // for wakeup
 		//
-		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , Job asking , CoarseDelay pressure ) ;
+		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -345,13 +346,14 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
-		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_idx=-1/*star*/ ) ;
-		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                              ) ;
-		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                                 ) ;
-		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   , JobReason , Job asking , CoarseDelay pressure                            ) ;
-		void                                  _set_pressure_raw( ReqInfo&   ,                          CoarseDelay                                     ) const ;
+		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_id ) ;
+		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                  ) ;
+		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                     ) ;
+		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   , JobReason , CoarseDelay pressure                             ) ;
+		void                                  _set_pressure_raw( ReqInfo&   ,             CoarseDelay                                      ) const ;
 		// data
 	public :
+		Node             asking                   ;                                                         //     32 bits,        last target needing this job
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
 		Deps             deps                     ;                                                         // 31<=32 bits, owned
 		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
@@ -364,7 +366,7 @@ namespace Engine {
 	private :
 		mutable bool     _sure     :1             = false               ;                                   //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==20) ;                                       // check expected size
+	static_assert(sizeof(JobData)==24) ;                                       // check expected size
 
 	ENUM( MissingAudit
 	,	No
@@ -437,10 +439,10 @@ namespace Engine {
 		_set_pressure_raw(ri,pressure) ;
 	}
 
-	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , Job asking , CoarseDelay pressure ) {
-		ri.force = JobReasonTag::None ;                                                                                   // job is submitted, that was the goal, now void looping
-		if (is_special()) return _submit_special(ri                       ) ;
-		else              return _submit_plain  (ri,reason,asking,pressure) ;
+	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
+		ri.force = JobReasonTag::None ;                                                                      // job is submitted, that was the goal, now void looping
+		if (is_special()) return _submit_special(ri                ) ;
+		else              return _submit_plain  (ri,reason,pressure) ;
 	}
 
 	template<class... A> inline void JobData::audit_end(A&&... args) const {
@@ -451,10 +453,9 @@ namespace Engine {
 		if (match_gen<Rule::s_match_gen) {
 			_sure     = false             ;
 			match_gen = Rule::s_match_gen ;
-			if (!rule->is_sure()) goto Return ;
 			for( Dep const& d : deps ) {
-				if (!d.dflags[Dflag::Static]) continue    ;                    // we are only interested in static targets, other ones may not exist and do not prevent job from being built
-				if (d->buildable!=Yes       ) goto Return ;
+				if (!d.dflags[Dflag::Static]   ) continue    ;                 // we are only interested in static targets, other ones may not exist and do not prevent job from being built
+				if (d->buildable<Buildable::Yes) goto Return ;
 			}
 			_sure = true ;
 		}
@@ -469,13 +470,16 @@ namespace Engine {
 		else                     return it->second                 ;
 	}
 	inline JobData::ReqInfo& JobData::req_info(Req req) const {
-		ReqInfo& ri = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)).first->second ;
-		for( Req r : reqs() ) {
-			if (r==req) continue ;
-			ri.db_chrono  = c_req_info(r).db_chrono  ;                         // copy Req independent fields from any other ReqInfo (they are all identical)
-			ri.end_chrono = c_req_info(r).end_chrono ;                         // .
-			break ;
-		}
+		auto     te = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)) ;
+		ReqInfo& ri = te.first->second                                        ;
+		if (te.second)                                                          // if inserted
+			for( Req r : reqs() ) {
+				if (r==req            ) continue ;
+				ReqInfo const& cri = c_req_info(r) ;
+				if (cri.has_watchers()) continue ;
+				ri.end_chrono(cri.end_chrono()) ;                              // copy Req independent fields from any other ReqInfo (they are all identical)
+				break ;
+			}
 		return ri ;
 	}
 	inline JobData::ReqInfo& JobData::req_info(ReqInfo const& cri) const {
@@ -499,6 +503,7 @@ namespace Engine {
 			SWEAR(n_wait) ;
 			n_wait-- ;
 		}
+		if (run_action==RunAction::Dsk) run_action = RunAction::Status ;       // seen from here, Dsk is same as Status (only difference is that asking must be checked, not a state for us)
 		if (run_action>action) {                                               // increasing action requires to reset checks
 			lvl     = lvl & Lvl::Dep ;
 			dep_lvl = 0              ;
@@ -517,7 +522,7 @@ namespace Engine {
 			dep_lvl = 0              ;
 			action  = run_action     ;                                         // we just ran, we are allowed to decrease action
 		}
-		if (done_>=action) lvl = Lvl::Done ;
+		if (done(action)) lvl = Lvl::Done ;
 		SWEAR(lvl!=Lvl::End) ;
 	}
 

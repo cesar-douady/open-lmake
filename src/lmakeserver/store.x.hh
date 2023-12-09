@@ -272,13 +272,17 @@ namespace Engine {
 	{	using Base = Idxed<NodeIdx,NodeNGuardBits> ;
 		// statics
 		static Node           s_idx              ( NodeData const&                  ) ;
+		static bool           s_has_frozens      (                                  ) ;
 		static bool           s_has_manual_oks   (                                  ) ;
 		static bool           s_has_no_triggers  (                                  ) ;
 		static bool           s_has_srcs         (                                  ) ;
+		static ::vector<Node> s_frozens          (                                  ) ;
 		static ::vector<Node> s_manual_oks       (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
+		static void           s_frozens          ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
 		static void           s_manual_oks       ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
 		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ; // .
+		static void           s_clear_frozens    (                                  ) ;
 		static void           s_clear_manual_oks (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
@@ -289,14 +293,15 @@ namespace Engine {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		NodeBase( ::string const& name                     ) ;
-		NodeBase( Name , size_t sz=0 , bool external=false ) ;                 // no lock as it is managed in public cxtor & dir method
+		NodeBase( ::string const& name , bool no_dir=false ) ;
+		NodeBase( Name                 , bool no_dir=false ) ;                 // no lock as it is managed in public cxtor & dir method
 		// accesses
 	public :
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
 		NodeData const* operator->() const { return &**this ; }
 		NodeData      * operator->()       { return &**this ; }
+		bool            frozen    () const ;
 		bool            manual_ok () const ;
 		bool            no_trigger() const ;
 	} ;
@@ -363,33 +368,34 @@ namespace Engine {
 namespace Engine {
 
 	struct JobHdr {
-		SeqId   seq_id  ;
-		JobTgts frozens ;              // these jobs are not rebuilt
+		SeqId   seq_id      ;
+		JobTgts frozen_jobs ;          // these jobs are not rebuilt
 	} ;
 
 	struct NodeHdr {
-		Targets srcs        ;
-		Targets src_dirs    ;
-		Targets manual_oks  ;          // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
-		Targets no_triggers ;          // these nodes do not trigger rebuild
+		Targets srcs         ;
+		Targets src_dirs     ;
+		Targets frozen_nodes ;         // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
+		Targets manual_oks   ;         // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
+		Targets no_triggers  ;         // these nodes do not trigger rebuild
 	} ;
 
-	//                                            autolock header     index             key       data       misc
+	//                                           autolock header     index             key       data       misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false ,  JobHdr   , Job             ,           JobData                     > ;
-	using DepsFile     = Store::VectorFile      < false ,  void     , Deps            ,           Dep      , NodeIdx , 4      > ;
-	using TargetsFile  = Store::VectorFile      < false ,  void     , Targets         ,           Target                      > ;
+	using JobFile      = Store::AllocFile       < false  , JobHdr   , Job             ,           JobData                     > ;
+	using DepsFile     = Store::VectorFile      < false  , void     , Deps            ,           Dep      , NodeIdx , 4      > ;
+	using TargetsFile  = Store::VectorFile      < false  , void     , Targets         ,           Target                      > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false ,  NodeHdr  , Node            ,           NodeData                    > ;
-	using JobTgtsFile  = Store::VectorFile      < false ,  void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
+	using NodeFile     = Store::AllocFile       < false  , NodeHdr  , Node            ,           NodeData                    > ;
+	using JobTgtsFile  = Store::VectorFile      < false  , void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
 	// rules
-	using RuleStrFile  = Store::VectorFile      < false ,  void     , RuleStr         ,           char     , uint32_t         > ;
-	using RuleFile     = Store::AllocFile       < false ,  MatchGen , Rule            ,           RuleStr                     > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false ,  void     , RuleTgts        , RuleTgt , void     , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false ,  void     , PsfxIdx         , char    , PsfxIdx  , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
-	using PfxFile      = Store::MultiPrefixFile < false ,  void     , PsfxIdx         , char    , RuleTgts , false/*Reverse*/ > ;
+	using RuleStrFile  = Store::VectorFile      < false  , void     , RuleStr         ,           char     , uint32_t         > ;
+	using RuleFile     = Store::AllocFile       < false  , MatchGen , Rule            ,           RuleStr                     > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< false  , void     , RuleTgts        , RuleTgt , void     , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< false  , void     , PsfxIdx         , char    , PsfxIdx  , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
+	using PfxFile      = Store::MultiPrefixFile < false  , void     , PsfxIdx         , char    , RuleTgts , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true  ,  void     , Name            , char    , JobNode                     > ; // for Job's & Node's
+	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
 	struct EngineStore {
 		static constexpr char StartMrkr = 0x0 ;                                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
@@ -437,18 +443,17 @@ namespace Engine {
 		void invalidate_exec(bool cmd_ok) ;
 		void chk() const {
 			// files
-			job_file         .chk() ;  // jobs
-			deps_file        .chk() ;  // .
-			star_targets_file.chk() ;  // .
-			node_file        .chk() ;  // nodes
-			job_tgts_file    .chk() ;  // .
-			rule_str_file    .chk() ;  // rules
-			rule_file        .chk() ;  // .
-			rule_tgts_file   .chk() ;  // .
-			name_file        .chk() ;  // commons
-			// memory
-			sfxs.chk() ;
-			for( PsfxIdx idx : sfxs.lst() ) pfxs.chk(sfxs.c_at(idx)) ;
+			/**/                                 job_file         .chk(                   ) ; // jobs
+			/**/                                 deps_file        .chk(                   ) ; // .
+			/**/                                 star_targets_file.chk(                   ) ; // .
+			/**/                                 node_file        .chk(                   ) ; // nodes
+			/**/                                 job_tgts_file    .chk(                   ) ; // .
+			/**/                                 rule_str_file    .chk(                   ) ; // rules
+			/**/                                 rule_file        .chk(                   ) ; // .
+			/**/                                 rule_tgts_file   .chk(                   ) ; // .
+			/**/                                 sfxs_file        .chk(                   ) ; // .
+			for( PsfxIdx idx : sfxs_file.lst() ) pfxs_file        .chk(sfxs_file.c_at(idx)) ; // .
+			/**/                                 name_file        .chk(                   ) ; // commons
 		}
 		// data
 		bool writable = false ;
@@ -461,14 +466,15 @@ namespace Engine {
 		RuleStrFile  rule_str_file     ;                   // rules
 		RuleFile     rule_file         ;                   // .
 		RuleTgtsFile rule_tgts_file    ;                   // .
+		SfxFile      sfxs_file         ;                   // .
+		PfxFile      pfxs_file         ;                   // .
 		NameFile     name_file         ;                   // commons
 		// in memory
-		::uset<Job >       frozens     ;
-		::uset<Node>       manual_oks  ;
-		::uset<Node>       no_triggers ;
-		::vector<RuleData> rule_datas  ;
-		SfxFile            sfxs        ;
-		PfxFile            pfxs        ;
+		::uset<Job >       frozen_jobs  ;
+		::uset<Node>       frozen_nodes ;
+		::uset<Node>       manual_oks   ;
+		::uset<Node>       no_triggers  ;
+		::vector<RuleData> rule_datas   ;
 	} ;
 
 	extern EngineStore g_store  ;
@@ -634,10 +640,10 @@ namespace Engine {
 	// JobBase
 	//
 	// statics
-	inline bool          JobBase::s_has_frozens  (                                       ) { return               !g_store.job_file.c_hdr().frozens.empty() ;      }
-	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(g_store.job_file.c_hdr().frozens)        ;      }
-	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update(g_store.job_file.hdr().frozens,g_store.frozens,add,items) ; }
-	inline void          JobBase::s_clear_frozens(                                       ) { g_store.job_file.hdr().frozens.clear() ; g_store.frozens.clear() ;    }
+	inline bool          JobBase::s_has_frozens  (                                       ) { return               !g_store.job_file.c_hdr().frozen_jobs.empty() ;                      }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(g_store.job_file.c_hdr().frozen_jobs)        ;                      }
+	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update( g_store.job_file.hdr().frozen_jobs         , g_store.frozen_jobs,add,items ) ; }
+	inline void          JobBase::s_clear_frozens(                                       ) {            g_store.job_file.hdr().frozen_jobs.clear() ; g_store.frozen_jobs.clear()     ; }
 	//
 	inline Job JobBase::s_idx(JobData const& jd) { return g_store.job_file.idx(jd) ; }
 	// cxtors & casts
@@ -664,7 +670,7 @@ namespace Engine {
 		clear() ;
 	}
 	// accesses
-	inline bool JobBase::frozen() const { return g_store.frozens.contains(Job(+*this)) ; }
+	inline bool JobBase::frozen() const { return g_store.frozen_jobs.contains(Job(+*this)) ; }
 	//
 	inline JobData const& JobBase::operator*() const { return g_store.job_file.c_at      (+*this) ; }
 	inline JobData      & JobBase::operator*()       { return g_store.job_file.at        (+*this) ; }
@@ -676,49 +682,54 @@ namespace Engine {
 	// statics
 	inline Node NodeBase::s_idx(NodeData const& jd) { return g_store.node_file.idx(jd) ; }
 
-	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                !g_store.node_file.c_hdr().manual_oks .empty() ;         }
-	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                !g_store.node_file.c_hdr().no_triggers.empty() ;         }
-	inline bool           NodeBase::s_has_srcs         (                                        ) { return                !g_store.node_file.c_hdr().srcs       .empty() ;         }
-	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks )        ;         }
-	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers)        ;         }
-	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().manual_oks ,g_store.manual_oks ,add,items) ; }
-	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().no_triggers,g_store.no_triggers,add,items) ; }
-	inline void           NodeBase::s_clear_manual_oks (                                        ) { g_store.node_file.hdr().manual_oks .clear() ; g_store.manual_oks .clear() ;    }
-	inline void           NodeBase::s_clear_no_triggers(                                        ) { g_store.node_file.hdr().no_triggers.clear() ; g_store.no_triggers.clear() ;    }
-	inline void           NodeBase::s_clear_srcs       (                                        ) { g_store.node_file.hdr().srcs       .clear() ;                             ;    }
+	inline bool           NodeBase::s_has_frozens      (                                        ) { return                !g_store.node_file.c_hdr().frozen_nodes.empty() ;          }
+	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                !g_store.node_file.c_hdr().manual_oks  .empty() ;          }
+	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                !g_store.node_file.c_hdr().no_triggers .empty() ;          }
+	inline bool           NodeBase::s_has_srcs         (                                        ) { return                !g_store.node_file.c_hdr().srcs        .empty() ;          }
+	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().frozen_nodes)        ;          }
+	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks  )        ;          }
+	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers )        ;          }
+	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().frozen_nodes,g_store.frozen_nodes,add,items) ; }
+	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().manual_oks  ,g_store.manual_oks  ,add,items) ; }
+	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().no_triggers ,g_store.no_triggers ,add,items) ; }
+	inline void           NodeBase::s_clear_frozens    (                                        ) { g_store.node_file.hdr().frozen_nodes.clear() ; g_store.frozen_nodes.clear() ;    }
+	inline void           NodeBase::s_clear_manual_oks (                                        ) { g_store.node_file.hdr().manual_oks  .clear() ; g_store.manual_oks  .clear() ;    }
+	inline void           NodeBase::s_clear_no_triggers(                                        ) { g_store.node_file.hdr().no_triggers .clear() ; g_store.no_triggers .clear() ;    }
+	inline void           NodeBase::s_clear_srcs       (                                        ) { g_store.node_file.hdr().srcs        .clear() ;                              ;    }
 	//
 	inline Targets NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = g_store.node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;              }
 	inline void    NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = g_store.node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ;   }
 
 	inline RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
 		// first match on suffix
-		PsfxIdx sfx_idx = g_store.sfxs.longest(target_name,::string{EngineStore::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
+		PsfxIdx sfx_idx = g_store.sfxs_file.longest(target_name,::string{EngineStore::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
 		if (!sfx_idx) return RuleTgts{} ;
-		PsfxIdx pfx_root = g_store.sfxs.c_at(sfx_idx) ;
+		PsfxIdx pfx_root = g_store.sfxs_file.c_at(sfx_idx) ;
 		// then match on prefix
-		PsfxIdx pfx_idx = g_store.pfxs.longest(pfx_root,target_name).first ;
+		PsfxIdx pfx_idx = g_store.pfxs_file.longest(pfx_root,target_name).first ;
 		if (!pfx_idx) return RuleTgts{} ;
-		return g_store.pfxs.c_at(pfx_idx) ;
+		return g_store.pfxs_file.c_at(pfx_idx) ;
 
 	}
 	// cxtors & casts
-	inline NodeBase::NodeBase( Name name_ , size_t sz , bool external ) {
+	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
 		if (!name_) return ;
 		*this = g_store.name_file.c_at(name_).node() ;
 		if (+*this) {
 			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
 		} else {
-			*this = g_store.node_file.emplace(name_,sz,external) ;
+			*this = g_store.node_file.emplace(name_,no_dir) ;
 			g_store.name_file.at(name_) = *this ;
 			(*this)->_full_name = name_ ;
 		}
 	}
-	inline NodeBase::NodeBase(::string const& n) {
-		*this = Node( g_store.name_file.insert(n) , n.size() , !Disk::is_lcl(n) ) ;
+	inline NodeBase::NodeBase( ::string const& n , bool no_dir ) {
+		*this = Node( g_store.name_file.insert(n) , no_dir ) ;
 	}
 	// accesses
-	inline bool NodeBase::manual_ok () const { return g_store.manual_oks .contains(Node(+*this)) ; }
-	inline bool NodeBase::no_trigger() const { return g_store.no_triggers.contains(Node(+*this)) ; }
+	inline bool NodeBase::frozen    () const { return g_store.frozen_nodes.contains(Node(+*this)) ; }
+	inline bool NodeBase::manual_ok () const { return g_store.manual_oks  .contains(Node(+*this)) ; }
+	inline bool NodeBase::no_trigger() const { return g_store.no_triggers .contains(Node(+*this)) ; }
 	//
 	inline NodeData const& NodeBase::operator*() const { return g_store.node_file.c_at      (+*this) ; }
 	inline NodeData      & NodeBase::operator*()       { return g_store.node_file.at        (+*this) ; }

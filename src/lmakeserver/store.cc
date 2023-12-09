@@ -68,6 +68,8 @@ namespace Engine {
 		g_store.rule_str_file    .init( dir+"/rule_str"     , writable ) ;
 		g_store.rule_file        .init( dir+"/rule"         , writable ) ;
 		g_store.rule_tgts_file   .init( dir+"/rule_tgts"    , writable ) ;
+		g_store.sfxs_file        .init( dir+"/sfxs"         , writable ) ;
+		g_store.pfxs_file        .init( dir+"/pfxs"         , writable ) ;
 		// commons
 		g_store.name_file        .init( dir+"/name"         , writable ) ;
 		// misc
@@ -77,17 +79,16 @@ namespace Engine {
 		}
 		// memory
 		// Rule
-		g_store.sfxs.init(New) ;
-		g_store.pfxs.init(New) ;
-		if (g_store.rule_file.empty()) for( [[maybe_unused]] Special s : Special::N ) g_store.rule_file.emplace() ;
+		if (g_store.rule_file.empty()) for( [[maybe_unused]] Special s : Special::Shared ) g_store.rule_file.emplace() ;
 		RuleBase::s_match_gen = g_store.rule_file.c_hdr() ;
 		g_store._compile_srcs () ;
 		g_store._compile_rules() ;
 		// jobs
-		for( Job  j : g_store.job_file .c_hdr().frozens     ) g_store.frozens    .insert(j) ;
+		for( Job  j : g_store.job_file .c_hdr().frozen_jobs ) g_store.frozen_jobs.insert(j) ;
 		// nodes
-		for( Node n : g_store.node_file.c_hdr().manual_oks  ) g_store.manual_oks .insert(n) ;
-		for( Node n : g_store.node_file.c_hdr().no_triggers ) g_store.no_triggers.insert(n) ;
+		for( Node n : g_store.node_file.c_hdr().frozen_nodes ) g_store.frozen_nodes.insert(n) ;
+		for( Node n : g_store.node_file.c_hdr().manual_oks   ) g_store.manual_oks  .insert(n) ;
+		for( Node n : g_store.node_file.c_hdr().no_triggers  ) g_store.no_triggers .insert(n) ;
 		//
 		trace("done",Pdate::s_now()) ;
 		//
@@ -118,12 +119,7 @@ namespace Engine {
 			g_store.invalidate_exec(true /*cmd_ok*/) ;                         // remote hosts may have been unreachable, do as if we have new resources
 		}
 		//
-		if ( g_config.path_max != old_config.path_max ) {
-			s_invalidate_match() ;                                             // we may discover new buildable nodes or vice versa
-			// update long name marker
-			bool new_is_longer = g_config.path_max > old_config.path_max ;
-			for( Node n : g_store.node_lst() ) n->new_path_max(new_is_longer) ;
-		}
+		if (g_config.path_max!=old_config.path_max) s_invalidate_match() ; // we may discover new buildable nodes or vice versa
 	}
 
 	void EngineStore::s_new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
@@ -151,11 +147,14 @@ namespace Engine {
 
 	void EngineStore::_compile_rule_datas() {
 		::vector<Rule> rules = rule_lst() ;
-		rule_datas.clear() ;                                                                              // clearing before resize ensure all unused entries are clean
-		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) grow(rule_datas,+s) = RuleData(s) ;
-		RuleData::s_name_sz = 0 ;
+		RuleData::s_name_sz = "frozen"s.size() ;                               // account for internal names
+		rule_datas.clear() ;                                                   // clearing before resize ensure all unused entries are clean
+		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) {
+			grow(rule_datas,+s) = RuleData(s)                                               ;
+			RuleData::s_name_sz = ::max( RuleData::s_name_sz , rule_datas[+s].name.size() ) ;
+		}
 		for( Rule r : rules ) {
-			grow(rule_datas,+r) = r.str() ;
+			grow(rule_datas,+r) = r.str()                                                   ;
 			RuleData::s_name_sz = ::max( RuleData::s_name_sz , rule_datas[+r].name.size() ) ;
 		}
 	}
@@ -174,8 +173,8 @@ namespace Engine {
 	}
 	// make a prefix/suffix map that records which rule has which prefix/suffix
 	void EngineStore::_compile_psfxs() {
-		sfxs.clear() ;
-		pfxs.clear() ;
+		sfxs_file.clear() ;
+		pfxs_file.clear() ;
 		// first compute a suffix map
 		::umap_s<uset<RuleTgt>> sfx_map ;
 		for( Rule r : rule_lst() )
@@ -202,22 +201,22 @@ namespace Engine {
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix
-			PsfxIdx pfx_root = pfxs.emplace_root() ;
-			sfxs.insert_at(sfx) = pfx_root ;
+			PsfxIdx pfx_root = pfxs_file.emplace_root() ;
+			sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
 				vector<RuleTgt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
 				::sort(
 					pfx_rule_tgt_vec
 				,	[]( RuleTgt const& a , RuleTgt const& b )->bool {
-						// compulsery : order by priority, with Anti's first within each prio
+						// compulsery : order by special rules first,priority, with Anti's first within each prio for special rules
 						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
 						// finally    : any stable sort is fine, just to avoid random order
 						::string a_tgt = a.target() ; size_t a_psfx_sz = parse_prefix(a_tgt).size() + parse_suffix(a_tgt).size() ;
 						::string b_tgt = b.target() ; size_t b_psfx_sz = parse_prefix(b_tgt).size() + parse_suffix(b_tgt).size() ;
-						return ::tuple(a->prio,a->special,a_psfx_sz,a->name) > ::tuple(b->prio,b->special,b_psfx_sz,b->name) ;
+						return ::tuple(a->is_special(),a->prio,a->special,a_psfx_sz,a->name) > ::tuple(b->is_special(),b->prio,b->special,b_psfx_sz,b->name) ;
 					}
 				) ;
-				pfxs.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;
+				pfxs_file.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;
 			}
 		}
 	}
@@ -232,7 +231,6 @@ namespace Engine {
 
 	void EngineStore::_compile_rules() {
 		_compile_rule_datas() ;
-		_compile_psfxs     () ;
 		RuleBase::s_by_name.clear() ;
 		for( Rule r : rule_lst() ) RuleBase::s_by_name[r->name] = r ;
 	}
@@ -304,19 +302,21 @@ namespace Engine {
 			if (+old_r) g_store.rule_file.at(old_r) = rs ;
 			else        g_store.rule_file.emplace(rs) ;
 		}
+		bool invalidate_match = n_modified_prio || n_new_rules || old_rules.size() ;
 		trace("rules",'-',old_rules.size(),'+',n_new_rules,"=cmd",n_modified_cmd,"=rsrcs",n_modified_rsrcs,"=prio",n_modified_prio) ;
 		//
-		g_store._compile_rules() ;                                             // recompute derived info
+		g_store._compile_rules() ;                                             // recompute derived info in memory
+		if (invalidate_match) g_store._compile_psfxs() ;                                             // recompute derived info on disk
 		_s_invalidate_exec(keep_cmd_gens) ;
 		// trace
 		Trace trace2 ;
-		for( PsfxIdx sfx_idx : g_store.sfxs.lst() ) {
-			::string sfx      = g_store.sfxs.str_key(sfx_idx) ;
-			PsfxIdx  pfx_root = g_store.sfxs.at     (sfx_idx) ;
+		for( PsfxIdx sfx_idx : g_store.sfxs_file.lst() ) {
+			::string sfx      = g_store.sfxs_file.str_key(sfx_idx) ;
+			PsfxIdx  pfx_root = g_store.sfxs_file.at     (sfx_idx) ;
 			bool single = !sfx.empty() && sfx[0]==StartMrkr ;
-			for( PsfxIdx pfx_idx : g_store.pfxs.lst(pfx_root) ) {
-				RuleTgts rts = g_store.pfxs.at(pfx_idx) ;
-				::string pfx = g_store.pfxs.str_key(pfx_idx) ;
+			for( PsfxIdx pfx_idx : g_store.pfxs_file.lst(pfx_root) ) {
+				RuleTgts rts = g_store.pfxs_file.at(pfx_idx) ;
+				::string pfx = g_store.pfxs_file.str_key(pfx_idx) ;
 				if (single) { SWEAR(pfx.empty(),pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
 				else        {                          trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
@@ -338,7 +338,7 @@ namespace Engine {
 				rules_stream<<rule->pretty_str() ;
 			}
 		}
-		return n_modified_prio || n_new_rules || old_rules.size() ;
+		return invalidate_match ;
 	}
 
 	bool/*invalidate*/ EngineStore::s_new_srcs( ::vector_s&& src_names , ::vector_s&& src_dir_names_s ) {
@@ -350,9 +350,10 @@ namespace Engine {
 		::set<Node            > new_src_dirs ;                                                            // .
 		Trace trace("_s_new_srcs") ;
 		// format inputs
-		for( bool dirs : {false,true} ) for( Node            s  : Node::s_srcs(dirs) )                   old_srcs.emplace(s ,dirs        ) ;
-		/**/                            for( ::string const& sn : src_names          )                   srcs    .emplace(sn,false/*dir*/) ;
-		/**/                            for( ::string      & sn : src_dir_names_s    ) { sn.pop_back() ; srcs    .emplace(sn,true /*dir*/) ; }
+		for( bool dirs : {false,true} ) for( Node s  : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs) ;
+		//
+		for( ::string const& sn : src_names       )                   srcs.emplace( Node(sn                      ) , false/*dir*/ ) ;
+		for( ::string      & sn : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , true /*dir*/ ) ; } // external src dirs need no uphill dir
 		//
 		for( auto [n,d] : srcs     ) for( Node d=n->dir ; +d ; d = d->dir ) if (!src_dirs    .insert(d).second) break ; // non-local nodes have no dir
 		for( auto [n,d] : old_srcs ) for( Node d=n->dir ; +d ; d = d->dir ) if (!old_src_dirs.insert(d).second) break ; // .
@@ -386,10 +387,10 @@ namespace Engine {
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		{	Trace trace2 ;
-			for( auto [n,d] : old_srcs     ) {        Node(n)->mk_no_src  () ;                          trace2('-',d?"dir":"",n) ; }
-			for( Node  d    : old_src_dirs )               d ->mk_no_src  () ;
-			for( auto [n,d] : new_srcs     ) { if (d) Node(n)->mk_anti_src() ; else Node(n)->mk_src() ; trace2('+',d?"dir":"",n) ; }
-			for( Node  d    : new_src_dirs )               d ->mk_anti_src() ;
+			for( auto [n,d] : old_srcs     ) { Node(n)->mk_no_src()                                ; trace2('-',d?"dir":"",n) ; }
+			for( Node  d    : old_src_dirs )        d ->mk_no_src()                                ;
+			for( auto [n,d] : new_srcs     ) { Node(n)->mk_src(d?Buildable::SrcDir:Buildable::Src) ; trace2('+',d?"dir":"",n) ; }
+			for( Node  d    : new_src_dirs )        d ->mk_src(Buildable::AntiSrc                ) ;
 		}
 		g_store._compile_srcs() ;
 		// user report

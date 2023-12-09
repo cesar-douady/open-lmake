@@ -16,22 +16,22 @@ namespace Engine {
 	struct ReqData ;
 	struct ReqInfo ;
 
-	ENUM_1( RunAction                // each action is included in the following one
-	,	Run = Dsk                      // for Job  : run job
+	ENUM( RunAction                    // each action is included in the following one
 	,	None                           // when used as done_action, means not done at all
 	,	Makable                        // do whatever is necessary to assert if job can be run / node does exist (data dependent)
 	,	Status                         // check deps (no disk access except sources), run if possible & necessary
-	,	Dsk                            // for Node : ensure up-to-date on disk
+	,	Dsk                            // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
+	,	Run                            // for Job  : force job to be run
 	)
 
-	ENUM( JobLvl                       // must be in chronological order
-	,	None                           // no analysis done yet (not in stats)
-	,	Dep                            // analyzing deps
-	,	Hit                            // cache hit
-	,	Queued                         // waiting for execution
-	,	Exec                           // executing
-	,	Done                           // done execution
-	,	End                            // job execution just ended (not in stats)
+	ENUM( JobLvl   // must be in chronological order
+	,	None       // no analysis done yet (not in stats)
+	,	Dep        // analyzing deps
+	,	Hit        // cache hit
+	,	Queued     // waiting for execution
+	,	Exec       // executing
+	,	Done       // done execution
+	,	End        // job execution just ended (not in stats)
 	)
 
 	ENUM_1( JobReport
@@ -162,6 +162,14 @@ namespace Engine {
 		using Chrono = ReqChrono ;
 		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
+
+		struct WaitInc {
+			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<::numeric_limits<WatcherIdx>::max()) ; _ri.n_wait++ ; } // increment
+			~WaitInc(           )           { SWEAR(_ri.n_wait>::numeric_limits<WatcherIdx>::min()) ; _ri.n_wait-- ; } // restore
+		private :
+			ReqInfo& _ri ;
+		} ;
+
 		// cxtors & casts
 		 ReqInfo(Req r={}) : req{r} , _n_watchers{0} , _watchers_a{} {}
 		 ~ReqInfo() {
@@ -181,9 +189,13 @@ namespace Engine {
 			return *this ;
 		}
 		// acesses
-		bool waiting         () const { return n_wait                                                      ; }
-		bool has_watchers    () const { return _n_watchers                                                 ; }
-		WatcherIdx n_watchers() const { return _n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers ; }
+		bool             done        (RunAction ra=RunAction::Status) const {                          return done_>=ra                                                   ; }
+		bool             waiting     (                              ) const {                          return n_wait>0                                                    ; }
+		bool             has_watchers(                              ) const {                          return _n_watchers                                                 ; }
+		WatcherIdx       n_watchers  (                              ) const {                          return _n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers ; }
+		JobChrono const& end_chrono  (                              ) const { SWEAR(!has_watchers()) ; return _end_chrono                                                 ; }
+		JobChrono      & end_chrono  (                              )       { SWEAR(!has_watchers()) ; return _end_chrono                                                 ; }
+		void             end_chrono  (JobChrono jc                  )       { SWEAR(!has_watchers()) ; _end_chrono = jc ;                                                   }
 		// services
 	private :
 		void _add_watcher(Watcher watcher) ;
@@ -192,7 +204,7 @@ namespace Engine {
 			_add_watcher(watcher) ;
 			watcher_req_info.n_wait++ ;
 		}
-		void wakeup_watchers() ;
+		void wakeup_watchers(JobChrono end_chrono=0) ;
 		Job  asking         () const ;
 		//
 		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
@@ -206,16 +218,18 @@ namespace Engine {
 			return propagate ;
 		}
 		// data
-		WatcherIdx  n_wait     = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
-		CoarseDelay pressure   ;                                                      //      16 bits, critical delay from end of job to end of req
-		Req         req        ;                                                      //       8 bits
-		RunAction   action  :3 = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
-		bool        live_out:1 = false             ;                                  //       1 bit  , if true <=> generate live output
+		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		bool        live_out:1                   = false             ;                                  //       1 bit  , if true <=> generate live output
+		CoarseDelay pressure                     ;                                                      //      16 bits, critical delay from end of job to end of req
+		Req         req                          ;                                                      //       8 bits
+		RunAction   action  :3                   = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
+		RunAction   done_   :3                   = RunAction::None   ;                                  //       3 bits , if >=action => done for this action (non-buildable Node's are always done)
 	private :
 		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ;              //  2   bits, number of watchers, if NWatcher <=> watchers is a vector
-		union { /* use array as long as possible, and vector when overflow*/   // 64 bits, notify watchers when done
-			::vector<Watcher          >* _watchers_v = nullptr ;
-			::array <Watcher,NWatchers>  _watchers_a ;
+		union {
+			::vector<Watcher          >* _watchers_v ;     // 64 bits, if   _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>  _watchers_a ;     // 64 bits, if 0<_n_watchers< VectorMrkr
+			JobChrono                    _end_chrono = 0 ; // 32 bits, if   _n_watchers==0          req independent
 		} ;
 	} ;
 	static_assert(sizeof(ReqInfo)==16) ;                                       // check expected size
@@ -247,13 +261,15 @@ namespace Engine {
 		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}               , l )  ; }
 		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const ;
 		//
-		void audit_job( Color , Pdate , ::string const& step , Rule , ::string const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , ::string const& step , Job                             , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , ::string const& step , JobExec const&                                              , Delay exec_time={} ) const ;
+		#define S ::string
+		void audit_job( Color , Pdate , S const& step , S const& rule_name , S const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , S const& step , Job                                    , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , S const& step , JobExec const&                                                     , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , ::string const& s , Rule r , ::string const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,r,jn,h,et) ; }
-		void audit_job( Color c , ::string const& s , Job j                       , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,j   ,h,et) ; }
-		void audit_job( Color c , ::string const& s , JobExec const& je , bool at_end=false                , Delay et={} ) const { audit_job(c,at_end?je.end_.date:je.start_.date,s,je    ,et) ; }
+		void audit_job( Color c , S const& s , S const& rn , S const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , S const& s , Job j                     , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,j    ,h,et) ; }
+		void audit_job( Color c , S const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_.date:je.start_.date,s,je     ,et) ; }
+		#undef S
 		//
 		void         audit_status( bool ok                                                                                                                              ) const ;
 		void         audit_stats (                                                                                                                                      ) const ;
@@ -285,13 +301,13 @@ namespace Engine {
 		Pdate                eta            ;                                  // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;                                  // number of jobs participating to stats.ete with exec_time from rule
 		// summary
-		size_t                                path_max    = 0 ;
-		::vector<Node>                        up_to_dates ;                    // asked nodes already done when starting
-		::umap<Job ,                JobIdx  > losts       ;                    // lost       jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,pair<bool/*ok*/,NodeIdx>> manuals     ;                    // manual files encountered                          (value.second is just for summary ordering purpose)
-		::umap<Job ,                JobIdx  > frozens     ;                    // frozen     jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > no_triggers ;                    // no-trigger nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > clash_nodes ;                    // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
+		::vector<Node>                        up_to_dates  ;                   // asked nodes already done when starting
+		::umap<Job ,                JobIdx  > losts        ;                   // lost       jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,pair<bool/*ok*/,NodeIdx>> manuals      ;                   // manual files encountered                          (value.second is just for summary ordering purpose)
+		::umap<Job ,                JobIdx  > frozen_jobs  ;                   // frozen     jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > long_names   ;                   // nodes with name too long                          (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > no_triggers  ;                   // no-trigger nodes                                  (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > clash_nodes  ;                   // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
 	} ;
 
 }
@@ -323,8 +339,8 @@ namespace Engine {
 	// ReqData
 	//
 
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule , j->name() , h       , et ) ; }
-	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                  , je.host , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , Job j , in_addr_t h , Delay et ) const { audit_job( c , d , s , j->rule->name , j->name() , h       , et ) ; }
+	inline void ReqData::audit_job( Color c , Pdate d , ::string const& s , JobExec const& je   , Delay et ) const { audit_job( c , d , s , je                        , je.host , et ) ; }
 
 	inline void ReqData::audit_node( Color c , ::string const& p , Node n , DepDepth l ) const { audit_info( c , p , +n?n->name():""s , l )  ; }
 

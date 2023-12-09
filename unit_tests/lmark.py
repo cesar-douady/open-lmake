@@ -32,13 +32,13 @@ else :
 	print(0,file=open('src','w'))
 
 	# freeze
-	None                                              ; None                              ; ut.lmake( 'test.cpy' ,                             rc=1 ) # check no rule
-	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , failed_frozen =1 ,          rc=1 ) # check missing dep
-	None                                              ; print(1,file=open('test','w'))    ; ut.lmake( 'test.cpy' , new_frozen    =1 , done=1 , rc=0 ) # check ok
-	sp.run(('lmark','-f','-d','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,                             rc=1 ) # check no rule
-	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , new_frozen    =1 ,          rc=0 ) # check steady
-	None                                              ; print(2,file=open('test','w'))    ; ut.lmake( 'test.cpy' , changed_frozen=1 , done=1 , rc=0 ) # check rebuild
-	sp.run(('lmark','-f','-a','test.cpy'),check=True) ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen        =1 ,          rc=0 ) # check frozen
+	None                                              ; None                              ; ut.lmake( 'test.cpy' ,                               rc=1 ) # check no rule
+	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , missing=1 ,                   rc=1 ) # check missing dep
+	None                                              ; print(1,file=open('test','w'))    ; ut.lmake( 'test.cpy' , new    =1 , done=1 ,          rc=0 ) # check ok
+	sp.run(('lmark','-f','-d','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,                      wash=1 , rc=1 ) # check wash
+	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , new    =1 , done=1 ,          rc=0 ) # check rebuild
+	None                                              ; print(2,file=open('test','w'))    ; ut.lmake( 'test.cpy' , changed=1 , done=1 ,          rc=0 ) # check rebuild
+	sp.run(('lmark','-f','-a','test.cpy'),check=True) ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen =1 ,                   rc=0 ) # check frozen
 
 	None                                              ; None                              ; ut.lmake( 'src.cpy2' , new           =1 , done=2 , rc=0 )
 	sp.run(('lmark','-f','-a','src.cpy' ),check=True) ; print(4,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2' , changed_frozen=1 , done=1 , rc=0 )

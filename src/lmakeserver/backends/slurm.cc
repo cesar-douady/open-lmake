@@ -129,12 +129,12 @@ namespace Backends::Slurm {
 		virtual Bool3 call_launch_after_end  () const { return No    ; }       // .
 
 		// services
-		virtual bool/*ok*/ config( Config::Backend const& config , bool dynamic ) {
+		virtual bool/*ok*/ config( vmap_ss const& dct , bool dynamic ) {
 			if( !dynamic && !SlurmApi::init() ) return false ;
 			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			//
 			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
-			for( auto const& [k,v] : config.dct ) {
+			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
 						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_chars<uint32_t>(v) ; continue ; } break ;
