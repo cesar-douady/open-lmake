@@ -137,9 +137,9 @@ namespace Backends::Slurm {
 			for( auto const& [k,v] : config.dct ) {
 				try {
 					switch (k[0]) {
-						case 'n' : if(k=="n_max_queue_jobs") { n_max_queue_jobs = from_chars<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if(k=="repo_key"        ) { repo_key         =                      v  ; continue ; } break ;
-						case 'u' : if(k=="use_nice"        ) { use_nice         = from_chars<bool    >(v) ; continue ; } break ;
+						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_chars<uint32_t>(v) ; continue ; } break ;
+						case 'r' : if(k=="repo_key"         ) { repo_key          =                      v  ; continue ; } break ;
+						case 'u' : if(k=="use_nice"         ) { use_nice          = from_chars<bool    >(v) ; continue ; } break ;
 						default : ;
 					}
 				} catch (::string const& e) { throw to_string("wrong value for entry "   ,k,": ",v) ; }
@@ -192,8 +192,8 @@ namespace Backends::Slurm {
 		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()               ; }
 		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend(rsa,req_forces[req]) ; }
 		//
-		virtual bool/*ok*/ fit_now(RsrcsAsk rsa) const {
-			return spawned_rsrcs.n_spawned(rsa) < n_max_queue_jobs ;
+		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
+			return spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
 		}
 		virtual ::string start_job( JobIdx , SpawnedEntry const& se ) const {
 			spawned_rsrcs.dec(se.rsrcs) ;
@@ -246,13 +246,13 @@ namespace Backends::Slurm {
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs    ;                                 // number of spawned jobs queued in slurm queue
-		::vector<RsrcsData> req_forces       ;                                 // indexed by req, resources forced by req
-		uint32_t            n_max_queue_jobs = -1                         ;    // no limit by default
-		bool                use_nice         = false                      ;
-		::string            repo_key         ;                                 // a short identifier of the repository
-		Pdate               time_origin      { "2023-01-01 00:00:00" }    ;    // this leaves room til 2091
-		float               nice_factor      { 1                     }    ;    // conversion factor in the form of number of nice points per second
+		SpawnedMap mutable  spawned_rsrcs     ;                                // number of spawned jobs queued in slurm queue
+		::vector<RsrcsData> req_forces        ;                                // indexed by req, resources forced by req
+		uint32_t            n_max_queued_jobs = -1                      ;      // no limit by default
+		bool                use_nice          = false                   ;
+		::string            repo_key          ;                                // a short identifier of the repository
+		Pdate               time_origin       { "2023-01-01 00:00:00" } ;      // this leaves room til 2091
+		float               nice_factor       { 1                     } ;      // conversion factor in the form of number of nice points per second
 	} ;
 
 	QueueThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
