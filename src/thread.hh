@@ -5,9 +5,13 @@
 
 #pragma once
 
+#include <condition_variable>
+#include <deque>
+#include <latch>
 #include <thread>
 
 #include "time.hh"
+#include "serialize.hh"
 
 template<class T> struct ThreadQueue : private ::deque<T> {
 private :

@@ -5,56 +5,30 @@
 
 #pragma once
 
-#include <features.h>                                                          // must be first as this impacts defs in system headers
+#include <netinet/ip.h>                // in_addr_t, in_port_t
+#include <signal.h>                    // SIG*, kill, killpg
+#include <sys/file.h>                  // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
 
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <link.h>
-#include <netdb.h>
-#include <netinet/ip.h>
-#include <signal.h>
-#include <stdio.h>                     // for P_tmpdir
-#include <sys/file.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <cctype>
-#include <climits>
-#include <cmath>
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
+#include <cstring>                     // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>
 #include <atomic>
 #include <array>
-#include <bit>
-#include <charconv>
-#include <compare>
+#include <charconv>                    // from_chars_result
 #include <concepts>
-#include <condition_variable>
-#include <deque>
 #include <fstream>
 #include <functional>
 #include <iomanip>
 #include <ios>
 #include <iostream>
-#include <latch>
 #include <limits>
 #include <map>
-#include <memory>
 #include <mutex>
-#include <numeric>
 #include <set>
 #include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <tuple>
-#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -635,12 +609,6 @@ template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t ls
 template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t lsb , T    v ) {                           return (x&~bits_msk<T>(w,lsb)) | bits_msk(v,w,lsb) ; } // set bits
 #undef SCI
 
-template<class T,class... Ts> static constexpr inline ::common_type_t<T,Ts...> gcd( T arg , Ts... args ) {
-	return std::gcd(arg,gcd(args...)) ;
-}
-template<class T> static constexpr inline T gcd(T arg) { return arg ; }
-static constexpr inline int8_t gcd() { return 0 ; }
-
 template<class N,class D> static constexpr inline N round_down(N n,D d) { return n - n%d             ; }
 template<class N,class D> static constexpr inline N div_down  (N n,D d) { return n/d                 ; }
 template<class N,class D> static constexpr inline N round_up  (N n,D d) { return round_down(n+d-1,d) ; }
@@ -663,14 +631,7 @@ namespace std {
 	template<class K         > OP( set        <K  > const& s    ) { char sep='{' ; if (s.empty()) os<<sep ; else for( K    const&  k    : s ) { os<<sep<<k         ; sep=',' ; } return os << '}' ; }
 	template<class K,class V > OP( umap       <K,V> const& m    ) { char sep='{' ; if (m.empty()) os<<sep ; else for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep=',' ; } return os << '}' ; }
 	template<class K,class V > OP( map        <K,V> const& m    ) { char sep='{' ; if (m.empty()) os<<sep ; else for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep=',' ; } return os << '}' ; }
-	//
-	template<class T1,class T2                           > OP( pair <T1,T2         > const& p ) { return os<<'('<< p.first <<','<<p.second <<                                                ')' ; }
-	/**/                                                   OP( tuple<              > const&   ) { return os<<'('<<                                                                           ')' ; }
-	template<class T1                                    > OP( tuple<T1            > const& t ) { return os<<'('<<get<0>(t)<<                                                                ')' ; }
-	template<class T1,class T2                           > OP( tuple<T1,T2         > const& t ) { return os<<'('<<get<0>(t)<<','<<get<1>(t)<<                                                ')' ; }
-	template<class T1,class T2,class T3                  > OP( tuple<T1,T2,T3      > const& t ) { return os<<'('<<get<0>(t)<<','<<get<1>(t)<<','<<get<2>(t)<<                                ')' ; }
-	template<class T1,class T2,class T3,class T4         > OP( tuple<T1,T2,T3,T4   > const& t ) { return os<<'('<<get<0>(t)<<','<<get<1>(t)<<','<<get<2>(t)<<','<<get<3>(t)<<                ')' ; }
-	template<class T1,class T2,class T3,class T4,class T5> OP( tuple<T1,T2,T3,T4,T5> const& t ) { return os<<'('<<get<0>(t)<<','<<get<1>(t)<<','<<get<2>(t)<<','<<get<3>(t)<<','<<get<4>(t)<<')' ; }
+	template<class A,class B > OP( pair       <A,B> const& p    ) { return os <<'('<< p.first <<','<< p.second <<')' ;                                                                              }
 	#undef OP
 
 	static inline ::ostream& operator<<( ::ostream& os , uint8_t const i ) { return os<<uint32_t(i) ; } // avoid output a char when actually a int

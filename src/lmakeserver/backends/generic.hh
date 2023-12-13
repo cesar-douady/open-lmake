@@ -163,16 +163,18 @@ namespace Backends {
 			return IsLocal ;
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
-			SWEAR(!reqs.contains(req)) ;
-			::unique_lock lock{Req::s_reqs_mutex} ;                                     // taking Req::s_reqs_mutex is compulsery to derefence req
-			reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }) ;
+			::unique_lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
+			bool          inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
+			SWEAR(inserted) ;
 		}
 		virtual void close_req(ReqIdx req) {
-			ReqEntry const& re = reqs.at(req) ;
+			auto it = reqs.find(req) ;
+			if (it==reqs.end()) return ;                                       // req has been killed
+			ReqEntry const& re = it->second ;
 			SWEAR(re.waiting_jobs.empty()) ;
 			SWEAR(re.queued_jobs .empty()) ;
-			reqs.erase(req) ;
-			if(reqs.empty()) {
+			reqs.erase(it) ;
+			if (reqs.empty()) {
 				SWEAR(waiting_jobs.empty()) ;
 				SWEAR(spawned_jobs.empty()) ;
 			}
@@ -267,39 +269,39 @@ namespace Backends {
 			::uset<JobIdx> res ;
 			Trace trace("kill_req",T,req) ;
 			if ( !req || reqs.size()<=1 ) {
-				for( auto const& [j,we] : waiting_jobs ) res.insert(j) ;
-				for( auto sjit=spawned_jobs.begin() ; sjit!=spawned_jobs.end() ;) { // /!\ we delete entries during iteration
-					JobIdx        j  = sjit->first  ;
-					SpawnedEntry& se = sjit->second ;
-					if (se.started) {
+				// kill waiting jobs
+				for( auto const& [j,_] : waiting_jobs ) res.insert(j) ;
+				waiting_jobs.clear() ;
+				// kill spawned jobs
+				for( auto sjit=spawned_jobs.begin() ; sjit!=spawned_jobs.end() ;) // /!\ we delete entries during iteration
+					if ( SpawnedEntry& se = sjit->second ; se.started ) {
 						se.n_reqs = 0 ;                                        // no req cares about job as there are no more reqs at all
 						sjit++ ;
 					} else {
-						res.insert(j) ;
+						JobIdx j = sjit->first ;
 						kill_queued_job(j,se) ;
 						spawned_jobs.erase(sjit++) ;
 					}
-				}
-				for( auto& [r,re] : reqs ) re.clear() ;
-				waiting_jobs.clear() ;
+				reqs.clear() ;
 			} else {
 				auto      rit = reqs.find(req) ; if (rit==reqs.end()) return {} ;
 				ReqEntry& re  = rit->second    ;
-				for( auto const& [j,je] : re.waiting_jobs ) {
+				// kill waiting jobs
+				for( auto const& [j,_] : re.waiting_jobs ) {
 					WaitingEntry& we = waiting_jobs.at(j) ;
 					if (we.n_reqs==1) { waiting_jobs.erase(j) ; res.insert(j) ; }
-					else              { we.n_reqs--           ;                 }
+					else                we.n_reqs--           ;
 				}
+				// kill spawned jobs
 				for( JobIdx j : re.queued_jobs ) {
 					SpawnedEntry& se = spawned_jobs.at(j) ;
 					SWEAR(!se.started) ;                                       // when job starts, it is not in spawned_jobs any more
 					if (--se.n_reqs) continue ;                                // do not cancel jobs needed for other request
-					res.insert(j) ;
 					kill_queued_job(j,se) ;
 					trace("killed",j,se.id) ;
 					spawned_jobs.erase(j) ;
 				}
-				re.clear() ;
+				reqs.erase(rit) ;
 			}
 			return res ;
 		}

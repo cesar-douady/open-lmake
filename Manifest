@@ -194,4 +194,5 @@ unit_tests/test18.script
 unit_tests/test19.script
 unit_tests/tmp.py
 unit_tests/uphill.py
+unit_tests/use_script.py
 unit_tests/wide.py

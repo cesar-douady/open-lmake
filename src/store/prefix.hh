@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <cstring> // memcpy
-
 #include "alloc.hh"
 
 namespace Store {

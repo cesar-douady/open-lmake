@@ -7,6 +7,7 @@
 #include "disk.hh"
 #include "hash.hh"
 #include "trace.hh"
+#include "thread.hh"
 #include "time.hh"
 
 #include "ptrace.hh"

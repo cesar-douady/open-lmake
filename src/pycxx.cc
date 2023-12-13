@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "process.hh"
+#include "thread.hh"
 
 #include "pycxx.hh"
 

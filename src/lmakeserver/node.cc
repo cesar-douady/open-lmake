@@ -118,45 +118,46 @@ namespace Engine {
 		Prio _prev_prio = -Infinity ;
 	} ;
 
-	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and return how many rule_tgts were consumed
-	// - special rules are always first
-	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
-	::pair<Buildable,RuleIdx/*shorten_by*/> NodeData::_gather_prio_job_tgts( ::vector<RuleTgt> const& rule_tgts , Req req , DepDepth lvl ) {
-		if (rule_tgts.empty()) return {Buildable::No,0}                                       ;                                              // fast path : avoid computing name()
-		else                   return _gather_prio_job_tgts( name() , rule_tgts , req , lvl ) ;
-	}
-	::pair<Buildable,RuleIdx/*shorten_by*/> NodeData::_gather_prio_job_tgts( ::string const& name_ , ::vector<RuleTgt> const& rule_tgts , Req req , DepDepth lvl ) {
-		//
-		Prio      prio      = -Infinity     ;                                  // initially, we are ready to accept any rule
-		RuleIdx   n         = 0             ;
-		Buildable buildable = Buildable::No ;                                  // return val if we find no job candidate
-		bool      is_lcl_   = is_lcl(name_) ;
-		//
-		::vector<JobTgt> jts ; jts.reserve(rule_tgts.size()) ;                 // typically, there is a single priority
-		for( RuleTgt const& rt : rule_tgts ) {
-			if (rt->is_special()) {
-				SWEAR(jts.empty(),jts) ;                                       // special rules are before plain rules
-				if (!Rule::FullMatch(rt,name_)) goto Continue ;
-				else switch (rt->special) {
+	// check rule_tgts_ special rules and return how many rule_tgts were consumed
+	// - if a sure job is found, then all rule_tgts_ are consumed as there will be no further match
+	::pair<Buildable,RuleIdx/*shorten_by*/> NodeData::_gather_special_rule_tgts( ::string const& name_ , ::vector<RuleTgt> const& rule_tgts_ ) {
+		RuleIdx n = 0 ;
+		for( RuleTgt const& rt : rule_tgts_ ) {
+			if (!rt->is_special()         ) return {Buildable::Maybe,n} ;
+			if (+Rule::FullMatch(rt,name_))
+				switch (rt->special) {
 					case Special::GenericSrc : return {Buildable::Src,NoIdx} ;
 					case Special::Anti       : return {Buildable::No ,NoIdx} ;
 					default : FAIL(rt->special) ;
 				}
-			} else if (!is_lcl_) {
-				return {Buildable::No,NoIdx} ;
-			} else if (rt->prio<prio) {
-				goto Done ;
-			} else {
-				//          vvvvvvvvvvvvvvvvvvvvvvvvvv
-				JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
-				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (!jt      )   goto Continue ;
+			n++ ;
+		}
+		return {Buildable::Maybe,NoIdx} ;                                      // node may be buildable from dir
+	}
+
+	// instantiate rule_tgts_ into job_tgts by taking the first iso-prio chunk and return how many rule_tgts were consumed
+	// - special rules (always first) are already processed
+	// - if a sure job is found, then all rule_tgts_ are consumed as there will be no further match
+	::pair<Buildable,RuleIdx/*shorten_by*/> NodeData::_gather_prio_job_tgts( ::string const& name_ , ::vector<RuleTgt> const& rule_tgts_ , Req req , DepDepth lvl ) {
+		//
+		Prio      prio      = -Infinity     ;                                  // initially, we are ready to accept any rule
+		RuleIdx   n         = 0             ;
+		Buildable buildable = Buildable::No ;                                  // return val if we find no job candidate
+		//
+		SWEAR(is_lcl(name_)) ;
+		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                // typically, there is a single priority
+		for( RuleTgt const& rt : rule_tgts_ ) {
+			SWEAR(!rt->is_special()) ;
+			if (rt->prio<prio) goto Done ;
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobTgt jt = JobTgt(rt,name_,req,lvl+1) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (+jt) {
 				if (jt.sure()) { buildable  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
 				else             buildable |= Buildable::Maybe ;
 				jts.push_back(jt) ;
+				prio = rt->prio ;
 			}
-			prio = rt->prio ;
-		Continue :
 			if (n!=NoIdx) n++ ;
 		}
 		n = NoIdx ;                                                            // we have exhausted all rules
@@ -176,20 +177,25 @@ namespace Engine {
 			case Buildable::AntiSrc : FAIL(buildable) ;
 			default : ;
 		}
-		::string name_ = name() ;
 		rule_tgts.clear() ;
 		job_tgts .clear() ;
 		status(NodeStatus::Unknown) ;
 		_set_match_gen(true/*ok*/) ;
-		if (name_.size()>g_config.path_max) {                                  // path is ridiculously long, make it unbuildable
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_set_buildable(Buildable::LongName) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			goto Return ;
+		//
+		::string          name_      = name()          ;
+		::vector<RuleTgt> rule_tgts_ = raw_rule_tgts() ;
+		//
+		{	auto [buildable,shorten_by] = _gather_special_rule_tgts(name_,rule_tgts_) ;
+			//                                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			if (buildable<=Buildable::No      ) { _set_buildable(Buildable::No      ) ; goto Return ; } // AntiRule have priority so no warning message is generated
+			if (name_.size()>g_config.path_max) { _set_buildable(Buildable::LongName) ; goto Return ; } // path is ridiculously long, make it unbuildable
+			if (buildable>=Buildable::Yes     ) { _set_buildable(buildable          ) ; goto Return ; }
+			//                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (shorten_by==NoIdx) rule_tgts_.clear()                                                 ;
+			else                   rule_tgts_.erase(rule_tgts_.begin(),rule_tgts_.begin()+shorten_by) ; // XXX : manage to avoid copy here
 		}
 		_set_buildable(Buildable::Loop) ;                                      // during analysis, temporarily set buildable to break loops that will be caught at exec time ...
-		/**/                                                                   // ... in case of crash, rescue mode is used and ensures all matches are recomputed
-		try {
+		try {                                                                  // ... in case of crash, rescue mode is used and ensures all matches are recomputed
 			Buildable db = Buildable::No ;
 			if (+dir) {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -209,11 +215,13 @@ namespace Engine {
 					default : FAIL(dir->buildable) ;
 				}
 			}
-			::vector<RuleTgt> rule_tgts_             = raw_rule_tgts()                                 ;
-			auto              [buildable,shorten_by] = _gather_prio_job_tgts(name_,rule_tgts_,req,lvl) ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvv
-			_set_buildable(db|buildable) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (!is_lcl(name_)) { _set_buildable(Buildable::No) ; goto Return ; }
+			//
+			auto [buildable,shorten_by] = _gather_prio_job_tgts(name_,rule_tgts_,req,lvl) ;
+			if (db==Buildable::Maybe) buildable |= Buildable::Maybe ;                       // we are at least as buildable as our dir
+			//vvvvvvvvvvvvvvvvvvvvvvv
+			_set_buildable(buildable) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^
 			if (shorten_by!=NoIdx) rule_tgts = ::vector_view_c<RuleTgt>(rule_tgts_,shorten_by) ;
 		} catch (::vector<Node>& e) {
 			_set_match_gen(false/*ok*/) ;                                      // restore Unknown as we do not want to appear as having been analyzed
@@ -240,7 +248,7 @@ namespace Engine {
 				if (req->long_names.try_emplace(idx(),req->long_names.size()).second) { // if inserted
 					size_t sz = lazy_name().size() ;
 					SWEAR( sz>g_config.path_max , sz , g_config.path_max ) ;
-					req->audit_node( Color::Err , to_string("name is too long (",sz,'>',g_config.path_max,") for") , idx() ) ;
+					req->audit_node( Color::Warning , to_string("name is too long (",sz,'>',g_config.path_max,") for") , idx() ) ;
 				}
 				[[fallthrough]] ;
 			case Buildable::AntiSrc   :

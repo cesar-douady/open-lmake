@@ -197,7 +197,7 @@ Done :
 
 bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
-	::umap<Fd,Req                      > req_tab         ;                     // indexed by out_fd
+	::umap<Fd/*out*/,Req               > req_tab         ;                     // if !entry is true <=> it is zombie, next event (Make, Kill or Close) will erase entry
 	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab          ;
 	Pdate                                next_stats_date = Pdate::s_now() ;
 	for (;;) {
@@ -246,49 +246,70 @@ bool/*interrupted*/ engine_loop() {
 						catch (::pair_ss const& e) { ok = false ;                 audit(req.out_fd,req.options,Color::Err,0,e.first,e.second) ; }
 						OMsgBuf().send( req.out_fd , ReqRpcReply(ok) ) ;
 					} break ;
+					// Make, Kill and Close management :
+					// there is exactly one Kill and one Close and one Make for each with only one guarantee : Close comes after Make
+					// there is one exception : if Kill comes before Make, no Req is created and we pretend it is directly closed
+					// to do that, we use zombie entries when Req is closed
 					case ReqProc::Make : {
-						Req r ;
-						try {
-							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-							if (!msg.empty()) audit( req.out_fd , req.options , Color::Note , 0 , msg ) ;
-							r = Req(req) ;
-						} catch(::string const& e) {
-							audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
-							OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
-							break ;
+						if ( auto it=req_tab.find(req.out_fd) ; it!=req_tab.end() ) {
+							SWEAR(!it->second) ;                                      // if entry already exists, it was created by Kill and is a zombie
+							req_tab.erase(it) ;                                       // entry is really dead now
+							trace("zombie_req",req) ;
+						} else {
+							Req r ;
+							try {
+								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+								if (!msg.empty()) audit( req.out_fd , req.options , Color::Note , 0 , msg ) ;
+								r = Req(req) ;
+							} catch(::string const& e) {
+								audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
+								OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
+								break ;
+							}
+							if (!req.as_job()) record_targets(r->job) ;
+							req_tab[req.out_fd] = r                      ;
+							fd_tab [r         ] = {req.in_fd,req.out_fd} ;
+							trace("new_req",r) ;
+							//vvvvvv
+							r.make() ;
+							//^^^^^^
 						}
-						if (!req.as_job()) record_targets(r->job) ;
-						req_tab[req.out_fd] = r                      ;
-						fd_tab [r         ] = {req.in_fd,req.out_fd} ;
-						trace("new_req",r) ;
-						//vvvvvv
-						r.make() ;
-						//^^^^^^
 					} break ;
-					// there is exactly one Kill and one Close for each Req created by Make but unordered :
-					// - there may be spurious Kill w/o corresponding Req if lmake is interrupted before sending its Req
-					// - close out fd on Close (or shutdown if it is a socket as we have a single fd for both directions) to tell client nothing more will come
-					// - release req_tab entry upon the first
-					// - close in_fd (or in/out fd if it is a socket) upon the second (not upon Close as epoll would be undefined behavior if it still waits on in fd)
 					case ReqProc::Kill : {
 						auto it = req_tab.find(req.out_fd) ;
-						if (it==req_tab.end()) { trace("close_in",req.in_fd ) ; ::close(req.in_fd)                    ; }
-						//                                                      vvvvvvvvvvvvvvvvv
-						else                   { trace("release" ,req.out_fd) ; it->second.kill() ; req_tab.erase(it) ; }
-						//                                                      ^^^^^^^^^^^^^^^^^
+						if (it==req_tab.end()) {
+							trace("kill_new",req) ;
+							req_tab.emplace(req.out_fd,Req()) ;                // Kill comes before Make, make a zombie entry and it will die when Make finally comes
+							/**/                       ::close(req.in_fd ) ;   // nothing comes after a Kill (the Make event is already received, just processed in reversed order)
+							if (req.out_fd!=req.in_fd) ::close(req.out_fd) ;   // no Req will be created, there will be no output
+						} else if (!it->second) {
+							trace("kill_zombie",req) ;
+							req_tab.erase(it) ;                                // entry was a zombie, it now really dead
+							::close(req.in_fd) ;                               // nothing comes after a Kill and the write side is already shutdown
+						} else {
+							trace("kill_req",req) ;
+							//vvvvvvvvvvvvvvv
+							it->second.kill() ;
+							//^^^^^^^^^^^^^^^
+							if (req.in_fd!=req.out_fd) ::close (req.in_fd        ) ; // nothing comes after a Kill
+							else                       shutdown(req.in_fd,SHUT_RD) ; // but the write side is stil alive as Req may still have stuff to send
+						}
 					} break ;
 					case ReqProc::Close : {
-						auto                              fd_it  = fd_tab .find(req.req   ) ;
-						::pair<Fd/*in*/,Fd/*out*/> const& fds    = fd_it->second            ;
-						auto                              req_it = req_tab.find(fds.second) ;
-						//vvvvvvvvvvvvv
-						req.req.close() ;
-						//^^^^^^^^^^^^^
-						if (fds.first!=fds.second) { trace("close_out",fds) ; ::close (fds.second        ) ; } // tell client no more data will be sent (pipe   : close fd                      )
-						else                       { trace("shutdown" ,fds) ; shutdown(fds.second,SHUT_WR) ; } // .                                     (socket : shutdown to leave input active)
-						if (req_it==req_tab.end()) { trace("close_in" ,fds) ; ::close (fds.first         ) ; }
-						else                       { trace("release"  ,fds) ; req_tab.erase(req_it)        ; }
-						fd_tab.erase(fd_it) ;
+						auto                              fit = fd_tab.find(req.req)     ;
+						::pair<Fd/*in*/,Fd/*out*/> const& fds = fit->second              ;
+						auto                              rit = req_tab.find(fds.second) ;
+						SWEAR(rit!=req_tab.end()) ;                                        // Close comes after a Make and entry exists (possibly a zombie if Kill already came)
+						SWEAR(+rit->second      ) ;                                        // we need to keep Req to do book-keeping
+						Req r = rit->second ;
+						trace("close_req",r) ;
+						//vvvvvvv
+						r.close() ;
+						//^^^^^^^
+						if      (r->zombie            ) ::close (fds.second        ) ; // tell client nothing will come now that Req is closed (receive side is already closed)
+						else if (fds.first!=fds.second) ::close (fds.second        ) ; // input and output are independent
+						else                            shutdown(fds.second,SHUT_WR) ; // receive side is stil alive as Kill was not received yet
+						fd_tab.erase(fit) ;
 					} break ;
 					default : FAIL(req.proc) ;
 				}

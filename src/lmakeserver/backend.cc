@@ -212,6 +212,9 @@ namespace Backends {
 			//                                  vvvvvvvvvvvvvvvvvvvvvvv
 			tie(start_backend_msg,entry.reqs) = s_start(entry.tag,+job) ;
 			//                                  ^^^^^^^^^^^^^^^^^^^^^^^
+			for( Req r : entry.reqs ) if (!r->zombie) goto Start ;
+			FAIL("job starts for zombie reqs only",job,entry.reqs) ;
+		Start :
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			Rule::SimpleMatch match = job->simple_match() ;
 			try {
@@ -286,26 +289,27 @@ namespace Backends {
 			//
 			job_exec = { job , fd.peer_addr() , New } ;                // job starts
 			// simple attrs
-			reply.addr                    = job_exec.host                       ;
-			reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir          ;
-			reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat         ;
-			reply.autodep_env.lnk_support = g_config.lnk_support                ;
-			reply.autodep_env.src_dirs_s  = g_src_dirs_s                        ;
-			reply.autodep_env.root_dir    = *g_root_dir                         ;
-			reply.autodep_env.tmp_dir     = ::move(tmp_dir               )      ; // tmp directory on disk
-			reply.autodep_env.tmp_view    = ::move(start_cmd_attrs.tmp   )      ; // tmp directory as viewed by job
-			reply.chroot                  = ::move(start_cmd_attrs.chroot)      ;
-			reply.cmd                     = ::move(cmd                   )      ;
-			reply.cwd_s                   = rule->cwd_s                         ;
-			reply.hash_algo               = g_config.hash_algo                  ;
-			reply.interpreter             = rule->interpreter                   ;
-			reply.keep_tmp                = keep_tmp                            ;
-			reply.kill_sigs               = ::move(start_none_attrs.kill_sigs)  ;
-			reply.live_out                = submit_attrs.live_out               ;
-			reply.method                  = start_cmd_attrs.method              ;
-			reply.small_id                = small_id                            ;
-			reply.timeout                 = start_rsrcs_attrs.timeout           ;
-			reply.remote_admin_dir        = g_config.remote_admin_dir           ;
+			reply.addr                    = job_exec.host                      ;
+			reply.autodep_env.auto_mkdir  = start_cmd_attrs.auto_mkdir         ;
+			reply.autodep_env.ignore_stat = start_cmd_attrs.ignore_stat        ;
+			reply.autodep_env.lnk_support = g_config.lnk_support               ;
+			reply.autodep_env.src_dirs_s  = g_src_dirs_s                       ;
+			reply.autodep_env.root_dir    = *g_root_dir                        ;
+			reply.autodep_env.tmp_dir     = ::move(tmp_dir               )     ; // tmp directory on disk
+			reply.autodep_env.tmp_view    = ::move(start_cmd_attrs.tmp   )     ; // tmp directory as viewed by job
+			reply.chroot                  = ::move(start_cmd_attrs.chroot)     ;
+			reply.cmd                     = ::move(cmd                   )     ;
+			reply.cwd_s                   = rule->cwd_s                        ;
+			reply.hash_algo               = g_config.hash_algo                 ;
+			reply.interpreter             = rule->interpreter                  ;
+			reply.keep_tmp                = keep_tmp                           ;
+			reply.kill_sigs               = ::move(start_none_attrs.kill_sigs) ;
+			reply.live_out                = submit_attrs.live_out              ;
+			reply.method                  = start_cmd_attrs.method             ;
+			reply.remote_admin_dir        = g_config.remote_admin_dir          ;
+			reply.small_id                = small_id                           ;
+			reply.timeout                 = start_rsrcs_attrs.timeout          ;
+			reply.use_script              = start_cmd_attrs.use_script         ;
 			// fancy attrs
 			for( ::pair_ss& kv : start_cmd_attrs  .env ) reply.env.push_back(::move(kv)) ;
 			for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
@@ -420,28 +424,32 @@ namespace Backends {
 		Trace trace("s_kill_req",req) ;
 		::vmap<JobIdx,pair<StartEntry::Conn,ChronoDate>> to_kill ;
 		{	::unique_lock lock { _s_mutex } ;                                  // lock for minimal time
-			for( Tag t : Tag::N ) {
-				if (!s_ready[+t]) continue ;
-				for( JobIdx j : s_tab[+t]->kill_req(req) ) {
+			for( Tag t : Tag::N )
+				if (s_ready[+t])
+					for( JobIdx j : s_tab[+t]->kill_req(req) )
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			for( auto& [j,e] : _s_start_tab ) {
+				if (req) {
+					auto it = e.reqs.find(req) ;
+					if (it==e.reqs.end()) continue ;
+					if (e.reqs.size()>1 ) {                                    // job is for some other req
+						e.reqs.erase(it) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::Continue , JobExec(j,New,New) , Req(req) ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						continue ;
+					}
+				}
+				if (+e.start) {
+					to_kill.emplace_back(j,::pair(e.conn,e.start)) ;
+				} else {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					_s_start_tab.erase(j) ;
 				}
-			}
-			for( auto& [j,e] : _s_start_tab ) {
-				if (req) {
-					auto it = e.reqs.find(req) ;
-					if (it==e.reqs.end()) continue ;
-					if (e.reqs.size()>1) {
-						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Continue , JobExec(j,New,New) , Req(req) ) ; // job is necessarly for some other req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						continue ;
-					}
-				}
-				to_kill.emplace_back(j,::pair(e.conn,e.start)) ;
 			}
 		}
 		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

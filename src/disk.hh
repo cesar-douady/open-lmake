@@ -5,6 +5,11 @@
 
 #pragma once
 
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>                  // fstatat
+#include <sys/types.h>
+
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"

@@ -1117,6 +1117,7 @@ namespace Engine {
 			/**/                     do_field( "autodep"     , mk_snake (sca.method     ) ) ;
 			if (!sca.chroot.empty()) do_field( "chroot"      ,           sca.chroot       ) ;
 			if (!sca.tmp   .empty()) do_field( "tmp"         ,           sca.tmp          ) ;
+			if ( sca.use_script    ) do_field( "use_script"  , to_string(sca.use_script ) ) ;
 		}
 		if (!sca.env.empty()) {
 			res << indent("environ :\n",i) << _pretty_env( i+1 , sca.env ) ;

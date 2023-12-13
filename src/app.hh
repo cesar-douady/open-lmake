@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <atomic>
-
 #include "disk.hh"
 #include "lib.hh"
 #include "time.hh"

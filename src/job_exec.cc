@@ -3,9 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <signal.h>
 #include <sys/resource.h>
-#include <sys/wait.h>
+#include <linux/limits.h>              // ARG_MAX
 
 #include "app.hh"
 #include "disk.hh"
@@ -149,9 +148,19 @@ int main( int argc , char* argv[] ) {
 		Fd child_stdin  = Child::None ;
 		Fd child_stdout = Child::Pipe ;
 		//
-		::vector_s args = g_start_info.interpreter ; args.reserve(args.size()+2) ;
-		args.emplace_back("-c"                                          ) ;
-		args.push_back   (g_start_info.cmd.first+g_start_info.cmd.second) ;
+		::vector_s& cmd_line = g_start_info.interpreter ;                                                            // avoid copying as interpreter is used only here
+		if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+			::string cmd_file   = to_string(g_start_info.remote_admin_dir,"/job_cmds/",g_start_info.small_id) ;
+			OFStream cmd_stream { dir_guard(cmd_file) }                                                       ;
+			cmd_stream << g_start_info.cmd.first << g_start_info.cmd.second ;
+			cmd_line.reserve(cmd_line.size()+1) ;
+			cmd_line.push_back(::move(cmd_file)) ;
+		} else {
+			cmd_line.reserve(cmd_line.size()+2) ;
+			cmd_line.push_back( "-c"                                             ) ;
+			cmd_line.push_back( g_start_info.cmd.first + g_start_info.cmd.second ) ;
+		}
+		trace("cmd_line",cmd_line) ;
 		//
 		::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(g_start_info.targets.size()) ;
 		for( VarIdx t=0 ; t<g_start_info.targets.size() ; t++ ) {
@@ -270,11 +279,11 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate start_job = Pdate::s_now() ;                                                          // as late as possible before child starts
-		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status status = g_gather_deps.exec_child( args , child_stdin , child_stdout , Child::Pipe ) ;
-		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job = Pdate::s_now() ;                                                    // as early as possible after child ends
+		Pdate start_job = Pdate::s_now() ;                                                              // as late as possible before child starts
+		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Status status = g_gather_deps.exec_child( cmd_line , child_stdin , child_stdout , Child::Pipe ) ;
+		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		Pdate         end_job = Pdate::s_now() ;                                                        // as early as possible after child ends
 		struct rusage rsrcs   ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//

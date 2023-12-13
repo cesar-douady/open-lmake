@@ -129,20 +129,6 @@ template<class T,class U> struct Serdeser<::pair<T,U>> {
 	static void s_serdes( ::istream& s , ::pair<T,U>      & p ) { serdes(s,p.first ) ; serdes(s,p.second) ; }
 } ;
 
-// need to go through a helper to manage recursion
-template<size_t I,class... T> struct SerdeserTupleHelper {           // recursive case
-	static void s_serdes( ::ostream& s , ::tuple<T...> const& t ) { serdes(s,::get<sizeof...(T)-I>(t)) ; SerdeserTupleHelper<I-1,T...>::s_serdes(s,t) ; }
-	static void s_serdes( ::istream& s , ::tuple<T...>      & t ) { serdes(s,::get<sizeof...(T)-I>(t)) ; SerdeserTupleHelper<I-1,T...>::s_serdes(s,t) ; }
-} ;
-template<class... T> struct SerdeserTupleHelper<0,T...> {            // terminal case
-	static void s_serdes( ::ostream& , ::tuple<T...> const& ) {}
-	static void s_serdes( ::istream& , ::tuple<T...>      & ) {}
-} ;
-template<class... T> struct Serdeser<::tuple<T...>> {
-	static void s_serdes( ::ostream& s , ::tuple<T...> const& t ) { SerdeserTupleHelper<sizeof...(T),T...>::s_serdes(s,t) ; }
-	static void s_serdes( ::istream& s , ::tuple<T...>      & t ) { SerdeserTupleHelper<sizeof...(T),T...>::s_serdes(s,t) ; }
-} ;
-
 //
 // MsgBuf
 //

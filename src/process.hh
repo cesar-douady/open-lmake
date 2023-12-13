@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <sys/signalfd.h>
 #include <sys/wait.h>
 #include <wait.h>
 

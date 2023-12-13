@@ -12,7 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* target not remade when too long and config.path_max is later increased
 ? crash has been seen upon ^C
 	- a job is ended while not started
 		- implies a crash because of s_target_dirs decremented in end_exec while not incremented in wash
@@ -59,11 +58,8 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* report Source/Anti name when appropriate
 * implement lshow -i for nodes
-* asking is reported when job is submitted
-	- but we want to know who is asking jobs that cannot be submitted
-	- we must note the info when make is called, not submit
-* report dangling files in summary
 * generate performance metrics
 	- useful/useless created jobs
 	- number of non buildable nodes

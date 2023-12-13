@@ -70,6 +70,7 @@ StdExecAttrs = {
 ,	'max_stderr_len'    : ( int   , True    )
 ,	'timeout'           : ( float , True    )
 ,	'tmp'               : ( str   , True    )
+,	'use_script'        : ( bool  , True    )
 }
 Keywords     = {'dep','deps','resources','stems','target','targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
@@ -437,6 +438,7 @@ class Handle :
 		self._handle_val('chroot'                   )
 		self._handle_val('interpreter'              )
 		self._handle_val('tmp'                      )
+		self._handle_val('use_script'               )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

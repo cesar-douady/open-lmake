@@ -105,6 +105,7 @@ class Rule(_RuleBase) :
 	ete            = 0                                     # Estimated Time Enroute, initial guess for job exec time (in s)
 	force          = False                                 # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 	ignore_stat    = False                                 # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
+	job_tokens     = 1                                     # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
 	keep_tmp       = False                                 # keep tmp dir after job execution
 	kill_sigs      = (_signal.SIGKILL,)                    # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 	n_retries      = 1                                     # number of retries in case of job lost. 1 is a reasonable value
@@ -116,7 +117,7 @@ class Rule(_RuleBase) :
 	max_stderr_len = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 	timeout        = None                                  # timeout allocated to job execution (in s), must be None or an int
 #	tmp            = '/tmp'                                # path under which the temporary directory is seen in the job
-	job_tokens     = 1                                     # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
+	use_script     = False                                 # use a script to run job rather than calling interpreter with -c
 	if has_ld_audit : autodep = 'ld_audit'                 # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 	else            : autodep = 'ld_preload'               # .
 	resources = {                                          # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps

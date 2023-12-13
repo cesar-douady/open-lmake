@@ -200,6 +200,7 @@ namespace Engine {
 			res += c ;
 		}
 		res+='\n' ;
+		if (start.interpreter.size()>2) res += "# the sheebang line above is informative only, interpreter is called explicitly" ;
 		//
 		res += start.cmd.first ;
 		//

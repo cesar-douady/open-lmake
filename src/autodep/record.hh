@@ -5,10 +5,6 @@
 
 #pragma once
 
-#include <cstring> // strdup, strlen
-
-#include <filesystem>
-
 #include "disk.hh"
 #include "gather_deps.hh"
 #include "rpc_job.hh"

@@ -4,9 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <err.h>
-#include <fcntl.h>
 #include <linux/sched.h>
-#include <syscall.h>                   // for SYS_* macros
 
 #include "disk.hh"
 #include "record.hh"

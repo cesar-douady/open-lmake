@@ -7,7 +7,6 @@
 
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#include <sys/signalfd.h>
 #include <sys/socket.h>
 
 #include "time.hh"

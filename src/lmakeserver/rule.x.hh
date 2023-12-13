@@ -209,6 +209,7 @@ namespace Engine {
 			acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
 			acquire_from_dct( method      , py_dct , "autodep"     ) ;
 			acquire_from_dct( tmp         , py_dct , "tmp"         ) ;
+			acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			//
 			if (chk) {
 				if (!tmp.empty()) {
@@ -235,6 +236,7 @@ namespace Engine {
 		::vmap_ss     env         ;
 		AutodepMethod method      = AutodepMethod::Dflt ;
 		::string      tmp         ;
+		bool          use_script  = false               ;
 	} ;
 
 	struct DbgEntry {

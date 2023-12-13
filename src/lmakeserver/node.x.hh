@@ -285,8 +285,12 @@ namespace Engine {
 		void         _make_raw         ( ReqInfo& , RunAction , Watcher asking_={} , MakeAction=MakeAction::None ) ;
 		void         _set_pressure_raw ( ReqInfo&                                                                ) const ;
 		//
-		::pair<Buildable/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts(                        ::vector<RuleTgt> const& rule_tgts , Req , DepDepth lvl=0 ) ;
-		::pair<Buildable/*buildable*/,RuleIdx/*shorten_by*/> _gather_prio_job_tgts( ::string const& name , ::vector<RuleTgt> const& rule_tgts , Req , DepDepth lvl=0 ) ;
+		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_special_rule_tgts( ::string const& name , ::vector<RuleTgt> const& rule_tgts                          ) ;
+		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_prio_job_tgts    ( ::string const& name , ::vector<RuleTgt> const& rule_tgts , Req   , DepDepth lvl=0 ) ;
+		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_prio_job_tgts    (                        ::vector<RuleTgt> const& rule_tgts , Req r , DepDepth lvl=0 ) {
+			if (rule_tgts.empty()) return {Buildable::No,0}                                     ;                                                                 // fast path : avoid computing name()
+			else                   return _gather_prio_job_tgts( name() , rule_tgts , r , lvl ) ;
+		}
 		//
 		void _set_match_gen(bool ok  ) ;
 		void _set_buildable(Buildable) ;

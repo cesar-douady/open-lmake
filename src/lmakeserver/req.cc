@@ -217,31 +217,30 @@ namespace Engine {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
 		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
-		Bool3                ok  = dep->ok(cri)           ;
 		const char*          err = nullptr                ;
-		if (ok!=Yes) {
-			switch (dep->status()) {
-				case NodeStatus::Multi      : err = "multi"                                            ; break ;
-				case NodeStatus::Transcient : err = "transcient sub-file"                              ; break ;
-				case NodeStatus::Uphill     : err = "sub-file"                                         ; break ;
-				case NodeStatus::Src        : err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
-				case NodeStatus::SrcDir     :
-					if (dep.dflags[Dflag::Required]) err = "missing" ;
-				break ;
-				case NodeStatus::None :
-					if      (dep->manual()==Yes         ) err = "dangling" ;
-					else if (dep.dflags[Dflag::Required]) err = "missing"  ;
-				break ;
-				case NodeStatus::Plain :
-					if      (cri.overwritten                   ) err = "overwritten" ;
-					else if (dep->manual()==Yes                ) err = "manual"      ;
-					else if (dep->conform_job_tgts(cri).empty()) err = "not built"   ; // if no better explanation found
-					else
-						for( Job job : dep->conform_job_tgts(cri) )
-							if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
-				break ;
-				default : FAIL(dep->status()) ;
-			}
+		switch (dep->status()) {
+			case NodeStatus::Multi      : err = "multi"               ; break ;
+			case NodeStatus::Transcient : err = "transcient sub-file" ; break ;
+			case NodeStatus::Uphill     : err = "sub-file"            ; break ;
+			case NodeStatus::Plain :
+				if      (dep->manual()==Yes                ) err = "manual"      ;
+				else if (cri.overwritten                   ) err = "overwritten" ;
+				else if (dep->conform_job_tgts(cri).empty()) err = "not built"   ; // if no better explanation found
+				else
+					for( Job job : dep->conform_job_tgts(cri) )
+						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
+			break ;
+			case NodeStatus::Src :
+				if (dep->crc==Crc::None) err = dep.frozen() ? "missing frozen" : "missing source" ;
+			break ;
+			case NodeStatus::SrcDir :
+				if (dep.dflags[Dflag::Required]) err = "missing" ;
+			break ;
+			case NodeStatus::None :
+				if      (dep->manual()==Yes         ) err = "dangling" ;
+				else if (dep.dflags[Dflag::Required]) err = "missing"  ;
+			break ;
+			default : FAIL(dep->status()) ;
 		}
 		if (err) return (*this)->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
 		else     return false                                                                         ;
@@ -387,6 +386,7 @@ namespace Engine {
 			!frozen_jobs.empty()
 		||	!no_triggers.empty()
 		||	!clash_nodes.empty()
+		||	!long_names .empty()
 		;
 		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
 			"+---------+\n"
@@ -426,17 +426,19 @@ namespace Engine {
 		}
 		if (!long_names.empty()) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
+			size_t               pm          = 0                   ;
 			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			for( auto [n,_] : ::vector_view_c(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Err , "name too long" , n ) ;
-			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Err , "..."               ) ;
-			size_t pm = 0 ; for( auto [n,_] : long_names_ ) pm = ::max( pm , n->name().size() ) ;
+			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
+			for( auto [n,_] : ::vector_view_c(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
+			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
 			SWEAR(pm>g_config.path_max) ;
 			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;
 		}
 		if (!frozen_jobs.empty()) {
 			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			size_t w = 0 ; for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
+			size_t w = 0 ;
+			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (!no_triggers.empty()) {
@@ -519,7 +521,7 @@ namespace Engine {
 		RuleIdx                         n_missing = 0                     ;    // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
-			audit_node( Color::Err , "name is too long :" , node  , lvl ) ;
+			audit_node( Color::Warning , "name is too long :" , node  , lvl ) ;
 			return ;
 		}
 		//
@@ -527,9 +529,9 @@ namespace Engine {
 			Node dir ; for( dir=node->dir ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir ) ;
 			swear_prod(+dir                              ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
 			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
-			/**/                                            audit_node( Color::Err     , "no rule for"            , name , lvl   ) ;
-			if (dir->conform_job_tgt().produces(dir,true) ) audit_node( Color::Warning , "dir is buildable :"     , dir  , lvl+1 ) ;
-			else                                            audit_node( Color::Warning , "dir may be buildable :" , dir  , lvl+1 ) ;
+			/**/                                audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
+			if (dir->status()!=NodeStatus::Src) audit_node( Color::Note , "dir is a source :"  , dir  , lvl+1 ) ;
+			else                                audit_node( Color::Note , "dir is buildable :" , dir  , lvl+1 ) ;
 			return ;
 		}
 		//

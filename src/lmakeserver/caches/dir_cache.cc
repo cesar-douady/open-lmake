@@ -18,8 +18,6 @@
 //			- target_id is the index of target as seen in meta-data
 //			- may be a regular file or a link
 
-#include <grp.h>
-
 #include "dir_cache.hh"
 
 using namespace Disk ;

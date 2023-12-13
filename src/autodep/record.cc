@@ -3,19 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <fcntl.h>
 #include <linux/limits.h>
-#include <netdb.h>
-
-#include <filesystem>
 
 #include "disk.hh"
 
 #include "record.hh"
 
-using namespace ::filesystem ;
-using namespace Disk         ;
-using namespace Time         ;
+using namespace Disk ;
+using namespace Time ;
 
 // /!\ : doing any call to libc during static initialization leads to incoherent results
 // so, do  dynamic init for all static variables
