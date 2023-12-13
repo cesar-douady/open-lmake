@@ -59,14 +59,14 @@ namespace Backends {
 			}
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
-			Conn           conn         ;
-			ChronoDate     start        ;
-			::uset_s       washed       ;
-			::vmap_ss      rsrcs        ;
-			::uset<ReqIdx> reqs         ;
-			SubmitAttrs    submit_attrs ;
-			bool           old          = false        ;   // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
-			Tag            tag          = Tag::Unknown ;
+			Conn             conn         ;
+			ChronoDate       start        ;
+			::uset_s         washed       ;
+			::vmap_ss        rsrcs        ;
+			::vector<ReqIdx> reqs         ;
+			SubmitAttrs      submit_attrs ;
+			bool             old          = false        ; // becomes true the first time heartbeat passes (only old entries are checked by heartbeat, so first time is skipped for improved perf)
+			Tag              tag          = Tag::Unknown ;
 		} ;
 
 		struct DeferredEntry {
@@ -93,7 +93,7 @@ namespace Backends {
 		static void s_new_req_eta(ReqIdx    ) ;
 		static void s_launch     (          ) ;
 		// called by job_exec thread
-		static ::pair_s<uset<ReqIdx>>   s_start    ( Tag , JobIdx          ) ;  // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::string/*msg*/          s_start    ( Tag , JobIdx          ) ;  // called by job_exec  thread, sub-backend lock must have been takend by caller
 		static ::pair_s<bool/*retry*/>  s_end      ( Tag , JobIdx , Status ) ;  // .
 		static ::pair_s<HeartbeatState> s_heartbeat( Tag , JobIdx          ) ;  // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
@@ -146,7 +146,7 @@ namespace Backends {
 		virtual void set_pressure( JobIdx , ReqIdx , SubmitAttrs const&                         ) {}    // set a new pressure for an existing req of a job
 		//
 		virtual void                     launch   (             ) = 0 ;                                   // called to trigger launch of waiting jobs
-		virtual ::pair_s<uset<ReqIdx>>   start    (JobIdx       ) = 0 ;                                   // tell sub-backend job started, return an informative message and reqs associated with job
+		virtual ::string/*msg*/          start    (JobIdx       ) = 0 ;                                   // tell sub-backend job started, return an informative message
 		virtual ::pair_s<bool/*retry*/>  end      (JobIdx,Status) { return {}                         ; } // tell sub-backend job ended, return a message and whether to retry jobs with garbage status
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx       ) { return {{},HeartbeatState::Alive} ; } // regularly called between launch and start, initially with enough delay for job to connect
 		//
@@ -154,8 +154,8 @@ namespace Backends {
 		//
 		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
 	protected :
-		::vector_s acquire_cmd_line( Tag , JobIdx , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, return job command line
-		/**/                                                                                   // SubmitAttrs must be the operator| of the submit/add_pressure corresponding values for the job
+		::vector_s acquire_cmd_line( Tag , JobIdx , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
+		/**/                                                                                                             // ... operator| of the submit/add_pressure corresponding values for the job
 	} ;
 
 }
@@ -170,7 +170,7 @@ namespace Backends {
 	inline void Backend::s_close_req  (ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
 	inline void Backend::s_new_req_eta(ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
 	//
-	inline ::pair_s<uset<ReqIdx>>   Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
+	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
 	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
 	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 

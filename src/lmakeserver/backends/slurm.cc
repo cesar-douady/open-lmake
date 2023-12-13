@@ -243,6 +243,7 @@ namespace Backends::Slurm {
 			int32_t nice = use_nice ? int32_t((prio-time_origin).sec()*nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                          // slurm will not accept negative values, default values overflow in ... 2091
 			spawned_rsrcs.inc(rs) ;
+			Trace trace("Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
 			return slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
 		}
 
@@ -450,15 +451,16 @@ namespace Backends::Slurm {
 		//This for loop with a retry comes from the scancel Slurm utility code
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
+		Trace trace("slurm_cancel",slurm_id) ;
 		for( int i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
 			int err = SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
 			if ( err==SLURM_SUCCESS || errno!=ESLURM_TRANSITION_STATE_NO_UPDATE ) {
-				Trace trace("Cancel slurm jobid: ",slurm_id) ;
+				trace("done") ;
 				return ;
 			}
 			sleep(5+i) ; // Retry
 		}
-		Trace trace("Error while killing job: ",slurm_id," error: ",SlurmApi::strerror(errno)) ;
+		trace("error",SlurmApi::strerror(errno)) ;
 	}
 
 	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {             // Maybe means job has not completed

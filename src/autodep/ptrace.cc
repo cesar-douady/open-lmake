@@ -147,7 +147,10 @@ void AutodepPtrace::s_prepare_child() {
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
 		scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ;
 		SWEAR(scmp) ;
-		for( auto const& [syscall,entry] : SyscallDescr::s_tab() ) {
+		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
+			SyscallDescr const& entry = s_tab[syscall] ;
+			if ( !entry                            ) continue ;                // entry is not allocated
 			if ( !entry.data_access && ignore_stat ) continue ;                // non stat-like access are always needed
 			//
 			seccomp_syscall_priority( scmp ,                                 syscall , entry.prio ) ;
@@ -175,7 +178,7 @@ void AutodepPtrace::s_prepare_child() {
 			default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;   // ignore other events
 		}
 	DoSyscall :
-		{	::umap<int/*syscall*/,SyscallDescr> const& s_tab = SyscallDescr::s_tab() ;
+		{	static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
 			sig = 0 ;
 			#if HAS_PTRACE_GET_SYSCALL_INFO                                    // use portable calls if implemented
 				struct ptrace_syscall_info syscall_info ;
@@ -193,11 +196,11 @@ void AutodepPtrace::s_prepare_child() {
 				#else
 					int syscall = np_ptrace_get_syscall(pid) ;                 // use non-portable calls if portable accesses are not implemented
 				#endif
-				auto it = s_tab.find(syscall) ;
-				if (HAS_SECCOMP) SWEAR(it!=s_tab.end(),"should not be awaken for nothing") ;
-				if (it!=s_tab.end()) {
-					info.idx = it->first ;
-					SyscallDescr const& descr = it->second ;
+				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
+				SyscallDescr const& descr = s_tab[syscall] ;
+				if (HAS_SECCOMP) SWEAR(+descr,"should not be awaken for nothing") ;
+				if (+descr) {
+					info.idx = syscall ;
 					#if HAS_PTRACE_GET_SYSCALL_INFO                            // use portable calls if implemented
 						// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
 						static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<remove_reference_t<decltype(entry_info.args[0])>> ) ;
@@ -229,7 +232,7 @@ void AutodepPtrace::s_prepare_child() {
 						int64_t res    = np_ptrace_get_res(pid) ;              // use non-portable calls if portable accesses are not implemented
 						int     errno_ = np_syscall_errno(res)  ;
 					#endif
-					int64_t new_res = s_tab.at(info.idx).exit( info.ctx , info.record , pid , res , errno_ ) ;
+					int64_t new_res = s_tab[info.idx].exit( info.ctx , info.record , pid , res , errno_ ) ;
 					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ;  // there is no such cases for now, if it arises, new_res must be reported
 					info.ctx = nullptr ;                                                                                     // ctx is used to retain some info between syscall entry and exit
 				}

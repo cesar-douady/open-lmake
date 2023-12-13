@@ -107,8 +107,7 @@ namespace Engine::Makefiles {
 	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
-		::string   deps_file   = _deps_file(action,new_) ;
-		::ifstream deps_stream { deps_file }             ;
+		::ifstream deps_stream { _deps_file(action,new_) } ;
 		for( ::string line ; ::getline(deps_stream,line) ;) {
 			switch (line[0]) {
 				case '+' : break ;
@@ -116,26 +115,24 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string d = line.substr(1) ;
-			/**/                                       if (is_abs(d)          ) continue         ; // d is outside repo and cannot be dangling, whether it is in a src_dir or not
-			/**/                                       if (Node(d)->is_src()  ) goto NotDangling ;
-			for( ::string const& sd_s : g_src_dirs_s ) if (d.starts_with(sd_s)) goto NotDangling ; // absolute src dirs wont match, but does not hurt
-			throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
-		NotDangling : ;
+			if (is_abs(d)) continue ;                                          // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			Node n{d} ;
+			n->set_buildable() ;                                                                // this is mandatory before is_src() can be called
+			if (!n->is_src()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
 	}
 
 	static void _gen_deps( ::string const& action , ::vector_s const& deps , ::string const& startup_dir_s ) {
 		::string              root_dir_s    = *g_root_dir+'/'                 ;
-		::string              deps_file     = _deps_file(action,false/*new*/) ;
 		::string              new_deps_file = _deps_file(action,true /*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
-		OFStream              os            { ::dir_guard(new_deps_file) }    ;
 		//
 		for( ::string const& sd_s : g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
 		//
-		{	for( ::string d : deps ) {
+		{	OFStream os { ::dir_guard(new_deps_file) } ;                       // ensure os is closed, or at least it must be flushed before calling _chk_dangling
+			for( ::string d : deps ) {
 				SWEAR(!d.empty()) ;
 				FileInfo fi{d} ;
 				if (is_abs(d)) {

@@ -22,7 +22,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*3 reimplement hierarchical repositories
+*2 reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
 	- ensure total prio of sub-rules
@@ -115,7 +115,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*2 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*1 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * add post_cmd as there is post_targets
@@ -185,7 +185,7 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*4 handle dir hierarchy in store
+*3 handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
 	- not difficult to code

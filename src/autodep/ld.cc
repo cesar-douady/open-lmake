@@ -413,6 +413,11 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#undef CC
 
 	// syscall
+	// /!\ we must be very careful to avoid dead-lock :
+	// - mutex calls futex management, which sometimes call syscall
+	// - so filter on s_tab must be done before locking (in HEADER)
+	// - this requires that s_tab does no memory allocation as memory allocation may call brk
+	// - hence it is a ::array, not a ::umap (which would be simpler)
 	long syscall( long n , ... ) {                                             // XXX : support, or at least detect tmp mapping
 		uint64_t args[6] ;
 		{	va_list lst ; va_start(lst,n) ;
@@ -424,11 +429,9 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		::umap<int/*syscall*/,SyscallDescr> const& s_tab = SyscallDescr::s_tab() ;
-		auto                                       it    = s_tab.find(n)         ;
-		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , it==s_tab.end() ) ;
-		//
-		SyscallDescr const& descr     = it->second ;
+		SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		SyscallDescr const&      descr = s_tab[n]              ;
+		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , !descr ) ;
 		void*               descr_ctx = nullptr    ;
 		{
 			[[maybe_unused]] Ctx audit_ctx ;                                                   // save user errno when required

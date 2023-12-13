@@ -240,7 +240,7 @@ for ext,basic_opts in basic_opts_tab.items() :
 			run( cmd_line , check=True )
 		n_tokens  = config.backends.local.cc
 		resources = pdict()
-		if True             : resources.mem = '500M'
+		if True             : resources.mem = '512M'
 		if backend=='local' : resources.cc  = 1
 
 class GccRule(Centos7Rule) :
