@@ -19,18 +19,18 @@ if __name__!='__main__' :
 	class A(PyRule):
 		target = 'src_name'
 		if step==1 :
-			def cmd():
+			def cmd() :
 				print('a_source_with_typo')
 		elif step==2 :
-			def cmd():
+			def cmd() :
 				print('a_source')
 
 	class Toto(PyRule):
 		target = 'tgt'
 		deps = {
-			'SRC_NAME': 'src_name'
+			'SRC_NAME' : 'src_name'
 		}
-		def cmd():
+		def cmd() :
 			src = open(SRC_NAME).read().strip()
 			lmake.target( src , source_ok=True , write=True )
 			open('a_source','w').write('something')

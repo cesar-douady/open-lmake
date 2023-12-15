@@ -367,13 +367,14 @@ struct TargetDigest {
 	using Accesses = Disk::Accesses ;
 	using Crc      = Hash::Crc      ;
 	// cxtors & casts
-	TargetDigest(                                       ) = default ;
+	TargetDigest(                                         ) = default ;
 	TargetDigest( Accesses a , bool w , Tflags t , bool u ) : accesses{a} , write{w} , tflags{t} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
-	Accesses accesses ;                // how target was accessed before it was written
-	bool     write    = false ;        // if true <=> file was written (and possibly further unlinked)
-	Tflags   tflags   ;
-	Crc      crc      ;                // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Accesses    accesses ;             // how target was accessed before it was written
+	bool        write    = false ;     // if true <=> file was written (and possibly further unlinked)
+	Tflags      tflags   ;
+	Crc         crc      ;             // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Time::Ddate date     ;
 } ;
 
 struct JobDigest {

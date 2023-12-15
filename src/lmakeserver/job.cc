@@ -470,8 +470,8 @@ namespace Engine {
 			for( auto const& [tn,td] : digest.targets ) {
 				Tflags tflags     = td.tflags                                                   ;
 				Node   target     { tn }                                                        ;
-				bool   unlink     = td.crc==Crc::None                                           ;
 				bool   inc        = tflags[Tflag::Incremental]                                  ;
+				bool   unlink     = td.crc==Crc::None                                           ;
 				Crc    crc        = td.write || unlink ? td.crc : inc ? target->crc : Crc::None ;
 				bool   target_err = false                                                       ;
 				//
@@ -538,15 +538,16 @@ namespace Engine {
 					seen_static_targets.insert(target) ;
 				}
 				//
-				bool         modified = false ;
-				FileInfoDate fid      { tn }  ;
-				if (!td.write) {
-					if      ( tflags[Tflag::ManualOk] && target->manual(fid)!=No ) crc = {tn,g_config.hash_algo} ;
-					else if ( inc || target->crc==Crc::None                      ) goto NoRefresh ;                // else target has been washed
+				bool  modified = false   ;
+				Ddate date     = td.date ;
+				if ( !td.write && !unlink ) {
+					if ( inc || target->crc==Crc::None                          ) goto NoRefresh ;
+					if ( tflags[Tflag::ManualOk] && target->manual(td.date)!=No ) { crc = {tn,g_config.hash_algo} ; date = file_date(tn)  ; }
+					else                                                                                            date = Ddate::s_now() ;   // target was washed (ideally it should be start date)
 				}
-				//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				modified = target->refresh( crc , fid.date_or_now() ) ;
-				//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//         vvvvvvvvvvvvvvvvvvvvvvvvv
+				modified = target->refresh(crc,date) ;
+				//         ^^^^^^^^^^^^^^^^^^^^^^^^^
 				if ( modified && crc!=Crc::None ) {
 					for( Req r : (*this)->reqs() ) {
 						Node::ReqInfo& tri = target->req_info(r) ;
@@ -941,7 +942,6 @@ namespace Engine {
 										( dep.is_date                                                              ) // if still waiting for a crc here, it will never come
 									||	( +dep.accesses && dep.known && make_action==MakeAction::End && !dep.crc() ) // when ending a job, known accessed deps should have a crc
 									) {
-										// XXX : review this code
 										if (is_target(dep->name())) {          // file still exists, still manual
 											if (dep->is_src()) goto Unstable ;
 											for( Job j : dep->conform_job_tgts(*cdri) )
@@ -1181,13 +1181,13 @@ namespace Engine {
 		::vmap<Node,bool/*ok*/> manual_targets ;
 		for( VarIdx ti=0 ; ti<static_target_nodes.size() ; ti++ ) {
 			Node t = static_target_nodes[ti] ;
-			if (t->manual_refresh(req,FileInfoDate(static_target_names[ti]))==Yes)
+			if (t->manual_refresh(req,file_date(static_target_names[ti]))==Yes)
 				manual_targets.emplace_back( t , t.manual_ok()||rule->tflags(ti)[Tflag::ManualOk] ) ;
 		}
 		Rule::FullMatch fm ;                                                   // lazy evaluated
 		for( Target t : star_targets ) {
 			::string tn = t->name() ;
-			if (t->manual_refresh(req,FileInfoDate(tn))==Yes)
+			if (t->manual_refresh(req,file_date(tn))==Yes)
 				manual_targets.emplace_back( t , t.manual_ok()||t.lazy_tflag(Tflag::ManualOk,match,fm,tn) ) ; // may solve fm lazy evaluation, tn is already ok
 		}
 		//

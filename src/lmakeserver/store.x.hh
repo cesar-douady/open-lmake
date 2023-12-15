@@ -203,6 +203,8 @@ namespace Engine {
 		void pop() ;
 		// accesses
 		::vector<RuleTgt> view () const ;
+		bool              empty() const ;
+		size_t            size () const ;
 		// services
 		void shorten_by    (RuleIdx by) ;
 		void invalidate_old(          ) ;
@@ -608,21 +610,21 @@ namespace Engine {
 	// RuleTgts
 	//
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::vector_view_c<RuleTgt> const& gs) : Base{g_store.rule_tgts_file.insert(gs)} {}
-	inline void RuleTgts::pop() { g_store.rule_tgts_file.pop(+*this) ; }
+	inline RuleTgts::RuleTgts(::vector_view_c<RuleTgt> const& gs) : Base{gs.empty()?RuleTgts():g_store.rule_tgts_file.insert(gs)} {}
+	inline void RuleTgts::pop() { g_store.rule_tgts_file.pop(+*this) ; *this = RuleTgts() ; }
 	//
 	inline RuleTgts& RuleTgts::operator=(::vector_view_c<RuleTgt> const& v) { *this = RuleTgts(v) ; return *this ; }
 	// accesses
-	inline ::vector<RuleTgt> RuleTgts::view() const { return g_store.rule_tgts_file.key(+*this) ; }
+	inline ::vector<RuleTgt> RuleTgts::view () const { return g_store.rule_tgts_file.key  (*this) ; }
+	inline bool              RuleTgts::empty() const { return g_store.rule_tgts_file.empty(*this) ; }
 	// services
 	inline void RuleTgts::shorten_by(RuleIdx by) {
-		if (by==RuleIdx(-1)) clear() ;
-		else                 *this = g_store.rule_tgts_file.insert_shorten_by( +*this , by ) ;
+		if (by==RuleIdx(-1)) { clear() ; return ; }
+		*this = g_store.rule_tgts_file.insert_shorten_by( *this , by ) ;
+		if (g_store.rule_tgts_file.empty(*this)) *this = RuleTgts() ;
 	}
 	inline void RuleTgts::invalidate_old() {
-		for( RuleTgt rt : view() ) {
-			if (rt.old()) { pop() ; return ; }
-		}
+		for( RuleTgt rt : view() ) if (rt.old()) { pop() ; break ; }
 	}
 
 	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
@@ -700,17 +702,6 @@ namespace Engine {
 	inline Targets NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = g_store.node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;              }
 	inline void    NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = g_store.node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ;   }
 
-	inline RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
-		// first match on suffix
-		PsfxIdx sfx_idx = g_store.sfxs_file.longest(target_name,::string{EngineStore::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
-		if (!sfx_idx) return RuleTgts{} ;
-		PsfxIdx pfx_root = g_store.sfxs_file.c_at(sfx_idx) ;
-		// then match on prefix
-		PsfxIdx pfx_idx = g_store.pfxs_file.longest(pfx_root,target_name).first ;
-		if (!pfx_idx) return RuleTgts{} ;
-		return g_store.pfxs_file.c_at(pfx_idx) ;
-
-	}
 	// cxtors & casts
 	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
 		if (!name_) return ;

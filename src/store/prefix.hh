@@ -506,6 +506,7 @@ namespace Store {
 		template<class... A> Idx emplace(A&&...) = delete ;
 		//
 		using Base::clear  ;
+		using Base::empty  ;
 		using Base::size   ;
 		using Base::_mutex ;
 
@@ -678,17 +679,18 @@ namespace Store {
 		Idx           insert_shorten_by( Idx , size_t by  ) ;
 		Idx           insert_dir       ( Idx , Char   sep ) ;
 		//
-		size_t          key_sz        ( Idx i , size_t psfx_sz=0 ) const                               { SLock lock{_mutex} ; return _key_sz         (i,psfx_sz) ; }
-		Vec             key           ( Idx i , size_t psfx_sz=0 ) const                               { SLock lock{_mutex} ; return _key     <false>(i,psfx_sz) ; }
-		Vec             prefix        ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) { SLock lock{_mutex} ; return _psfx    <false>(i,pfx_sz ) ; }
-		Vec             suffix        ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) { SLock lock{_mutex} ; return _psfx    <false>(i,sfx_sz ) ; }
-		::pair<Vec,Vec> key_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) { SLock lock{_mutex} ; return _key_psfx<false>(i,pfx_sz ) ; }
-		::pair<Vec,Vec> key_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) { SLock lock{_mutex} ; return _key_psfx<false>(i,sfx_sz ) ; }
-		Str             str_key       ( Idx i , size_t psfx_sz=0 ) const requires(             IsStr ) { SLock lock{_mutex} ; return _key     <true >(i,psfx_sz) ; }
-		Str             str_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) { SLock lock{_mutex} ; return _psfx    <true >(i,pfx_sz ) ; }
-		Str             str_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) { SLock lock{_mutex} ; return _psfx    <true >(i,sfx_sz ) ; }
-		::pair<Str,Str> str_key_prefix( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) { SLock lock{_mutex} ; return _key_psfx<true >(i,pfx_sz ) ; }
-		::pair<Str,Str> str_key_suffix( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) { SLock lock{_mutex} ; return _key_psfx<true >(i,sfx_sz ) ; }
+		bool            empty         ( Idx i                    ) const                               { if (!i) return true ; SLock lock{_mutex} ; return !_at            (i).prev    ; }
+		size_t          key_sz        ( Idx i , size_t psfx_sz=0 ) const                               {                       SLock lock{_mutex} ; return _key_sz         (i,psfx_sz) ; }
+		Vec             key           ( Idx i , size_t psfx_sz=0 ) const                               {                       SLock lock{_mutex} ; return _key     <false>(i,psfx_sz) ; }
+		Vec             prefix        ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       SLock lock{_mutex} ; return _psfx    <false>(i,pfx_sz ) ; }
+		Vec             suffix        ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       SLock lock{_mutex} ; return _psfx    <false>(i,sfx_sz ) ; }
+		::pair<Vec,Vec> key_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       SLock lock{_mutex} ; return _key_psfx<false>(i,pfx_sz ) ; }
+		::pair<Vec,Vec> key_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       SLock lock{_mutex} ; return _key_psfx<false>(i,sfx_sz ) ; }
+		Str             str_key       ( Idx i , size_t psfx_sz=0 ) const requires(             IsStr ) {                       SLock lock{_mutex} ; return _key     <true >(i,psfx_sz) ; }
+		Str             str_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       SLock lock{_mutex} ; return _psfx    <true >(i,pfx_sz ) ; }
+		Str             str_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       SLock lock{_mutex} ; return _psfx    <true >(i,sfx_sz ) ; }
+		::pair<Str,Str> str_key_prefix( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       SLock lock{_mutex} ; return _key_psfx<true >(i,pfx_sz ) ; }
+		::pair<Str,Str> str_key_suffix( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       SLock lock{_mutex} ; return _key_psfx<true >(i,sfx_sz ) ; }
 	private :
 		/**/             size_t                      _key_sz  ( Idx , size_t /*psfx_sz*/=0 ) const ;
 		template<bool S> VecStr<S>                   _key     ( Idx , size_t /*psfx_sz*/=0 ) const ;

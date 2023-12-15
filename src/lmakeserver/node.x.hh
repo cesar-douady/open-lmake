@@ -23,17 +23,19 @@ namespace Engine {
 
 	static constexpr uint8_t NodeNGuardBits = 1 ;                              // to be able to make Target
 
-	ENUM( Buildable                    // rematch (if no, no need to rematch when new match_gen)
-	,	LongName                       // yes    ,                                   name is longer than allowed in config
-	,	AntiSrc                        // no     ,                                   uphill dir of Src or SrcDir
-	,	SrcDir                         // no     ,                                   listed in manifest as dir (much like star targets, i.e. only existing files are deemed buildable)
-	,	No                             // yes    , <=No means node is not buildable
-	,	Maybe                          // yes    ,                                   buildability is data dependent (maybe converted to Yes by further analysis)
-	,	SubSrcDir                      // yes    ,                                   sub-file of a src dir listed in manifest
-	,	Yes                            // yes    , >=Yes means node is buildable
-	,	Src                            // no     ,                                   listed in manifest as file
-	,	SubSrc                         // yes    ,                                   sub-file of a src listed in manifest
-	,	Loop                           //                                            node is being analyzed, deemed buildable so as to block further analysis
+	ENUM( Buildable
+	,	LongName                       //                                   name is longer than allowed in config
+	,	DynAnti                        //                                   match dependent
+	,	Anti                           //                                   match independent
+	,	SrcDir                         //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
+	,	No                             // <=No means node is not buildable
+	,	Maybe                          //                                   buildability is data dependent (maybe converted to Yes by further analysis)
+	,	SubSrcDir                      //                                   sub-file of a src dir listed in manifest
+	,	Yes                            // >=Yes means node is buildable
+	,	DynSrc                         //                                   match dependent
+	,	Src                            //                                   match independent
+	,	SubSrc                         //                                   sub-file of a src listed in manifest
+	,	Loop                           //                                   node is being analyzed, deemed buildable so as to block further analysis
 	)
 
 	ENUM_1( NodeMakeAction
@@ -205,12 +207,12 @@ namespace Engine {
 		bool     has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return actual_job_tgt==j                              ; }
 		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return actual_job_tgt==jt                             ; }
 		//
-		Bool3 manual        (                  FileInfoDate const& ) const ;
-		Bool3 manual_refresh( Req            , FileInfoDate const& ) ;                                                         // refresh date if file was updated but steady
-		Bool3 manual_refresh( JobData const& , FileInfoDate const& ) ;                                                         // .
-		Bool3 manual        (                                      ) const { return manual        (  FileInfoDate(name())) ; }
-		Bool3 manual_refresh( Req            r                     )       { return manual_refresh(r,FileInfoDate(name())) ; }
-		Bool3 manual_refresh( JobData const& j                     )       { return manual_refresh(j,FileInfoDate(name())) ; }
+		Bool3 manual        ( Ddate                  ) const ;
+		Bool3 manual_refresh( Req            , Ddate ) ;                                                            // refresh date if file was updated but steady
+		Bool3 manual_refresh( JobData const& , Ddate ) ;                                                            // .
+		Bool3 manual        (                        ) const { return manual        (  Disk::file_date(name())) ; }
+		Bool3 manual_refresh( Req            r       )       { return manual_refresh(r,Disk::file_date(name())) ; }
+		Bool3 manual_refresh( JobData const& j       )       { return manual_refresh(j,Disk::file_date(name())) ; }
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -235,13 +237,20 @@ namespace Engine {
 		}
 		Bool3 ok    (ReqInfo const& cri) const { SWEAR(cri.done()) ; return cri.overwritten ? No : ok() ; }
 		bool  is_src(                  ) const {
+			SWEAR(match_ok()) ;
 			switch (buildable) {
-				case Buildable::No        : return false ;
+				case Buildable::LongName  :
+				case Buildable::DynAnti   :
+				case Buildable::Anti      :
+				case Buildable::SrcDir    : return true  ;
+				case Buildable::No        :
 				case Buildable::Maybe     : return false ;
+				case Buildable::SubSrcDir : return true  ;
 				case Buildable::Yes       : return false ;
-				case Buildable::Loop      :
-				case Buildable::Unknown   : FAIL(buildable) ;
-				default                   : return true ;
+				case Buildable::DynSrc    :
+				case Buildable::Src       :
+				case Buildable::SubSrc    : return true  ;
+				default : FAIL() ;
 			}
 		}
 		//
@@ -285,11 +294,11 @@ namespace Engine {
 		void         _make_raw         ( ReqInfo& , RunAction , Watcher asking_={} , MakeAction=MakeAction::None ) ;
 		void         _set_pressure_raw ( ReqInfo&                                                                ) const ;
 		//
-		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_special_rule_tgts( ::string const& name , ::vector<RuleTgt> const& rule_tgts                          ) ;
-		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_prio_job_tgts    ( ::string const& name , ::vector<RuleTgt> const& rule_tgts , Req   , DepDepth lvl=0 ) ;
-		::pair<Buildable,RuleIdx/*shorten_by*/> _gather_prio_job_tgts    (                        ::vector<RuleTgt> const& rule_tgts , Req r , DepDepth lvl=0 ) {
-			if (rule_tgts.empty()) return {Buildable::No,0}                                     ;                                                                 // fast path : avoid computing name()
-			else                   return _gather_prio_job_tgts( name() , rule_tgts , r , lvl ) ;
+		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
+		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
+		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
+			if (rule_tgts.empty()) return Buildable::No                             ;          // fast path : avoid computing name()
+			else                   return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
 		void _set_match_gen(bool ok  ) ;
@@ -364,15 +373,15 @@ namespace Engine {
 	inline bool NodeData::done( ReqInfo const& cri ) const { return cri.done(cri.action) || buildable<=Buildable::No ; }
 	inline bool NodeData::done( Req            r   ) const { return done(c_req_info(r))                              ; }
 
-	inline Bool3 NodeData::manual(FileInfoDate const& fid) const {
+	inline Bool3 NodeData::manual(Ddate d) const {
 		const char* res_str ;
 		Bool3       res     ;
-		if      (crc==Crc::None) { res_str = +fid?"created":"not_exist" ; res = No | +fid ; }
-		else if (!fid          ) { res_str = "disappeared"              ; res = Maybe     ; }
-		else if (fid.date==date) { res_str = "steady"                   ; res = No        ; }
-		else                     { res_str = "newer"                    ; res = Yes       ; }
+		if      (crc==Crc::None) { if (!d) return No ; res_str = "created"     ; res = Yes   ; }
+		else if (!d            ) {                     res_str = "disappeared" ; res = Maybe ; }
+		else if (d==date       ) {         return No ;                                         }
+		else                     {                     res_str = "newer"       ; res = Yes   ; }
 		//
-		if (res!=No) Trace("manual",idx(),fid.tag,fid.date,crc,date,res_str) ;
+		Trace("manual",idx(),d,date,crc,date,res_str) ;
 		return res ;
 	}
 
@@ -401,13 +410,12 @@ namespace Engine {
 	}
 
 	inline void NodeData::_set_match_gen(bool ok) {
-		if      (!ok                        ) { match_gen = 0                 ; buildable = Buildable::Unknown ; }
-		else if (match_gen<Rule::s_match_gen)   match_gen = Rule::s_match_gen ;
+		if      (!ok                        ) { buildable = Buildable::Unknown       ; match_gen = 0                 ; }
+		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ; }
 	}
 
 	inline void NodeData::_set_buildable(Buildable b) {
-		SWEAR(match_gen>=Rule::s_match_gen,match_gen,Rule::s_match_gen) ;
-		SWEAR(b!=Buildable::Unknown                                   ) ;
+		SWEAR(b!=Buildable::Unknown) ;
 		buildable = b ;
 	}
 
@@ -429,12 +437,12 @@ namespace Engine {
 	}
 
 	inline void NodeData::refresh() {
-		FileInfoDate fid{name()} ;
-		switch (manual(fid)) {
-			case Yes   : refresh( {}        , fid.date       ) ; break ;
+		Ddate d = Disk::file_date(name()) ;
+		switch (manual(d)) {
+			case Yes   : refresh( {}        , d              ) ; break ;
 			case Maybe : refresh( Crc::None , Ddate::s_now() ) ; break ;
 			case No    :                                         break ;
-			default : FAIL(fid) ;
+			default : FAIL(d) ;
 		}
 	}
 

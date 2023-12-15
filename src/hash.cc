@@ -23,8 +23,7 @@ namespace Hash {
 		}
 	}
 
-	Crc::Crc( ::string const& filename , Algo algo ) {
-		FileInfo fi{filename} ;
+	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
 		switch (fi.tag) {
 			case FileTag::Reg :
 			case FileTag::Exe : {

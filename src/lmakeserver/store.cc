@@ -40,6 +40,22 @@ namespace Engine {
 	umap_s<RuleBase> RuleBase::s_by_name   ;
 
 	//
+	// NodeBase
+	//
+
+	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
+		// first match on suffix
+		PsfxIdx sfx_idx = g_store.sfxs_file.longest(target_name,::string{EngineStore::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
+		if (!sfx_idx) return RuleTgts{} ;
+		PsfxIdx pfx_root = g_store.sfxs_file.c_at(sfx_idx) ;
+		// then match on prefix
+		PsfxIdx pfx_idx = g_store.pfxs_file.longest(pfx_root,target_name).first ;
+		if (!pfx_idx) return RuleTgts{} ;
+		return g_store.pfxs_file.c_at(pfx_idx) ;
+
+	}
+
+	//
 	// Store
 	//
 
@@ -392,7 +408,7 @@ namespace Engine {
 			for( auto [n,d] : old_srcs     ) { Node(n)->mk_no_src()                                ; trace2('-',d?"dir":"",n) ; }
 			for( Node  d    : old_src_dirs )        d ->mk_no_src()                                ;
 			for( auto [n,d] : new_srcs     ) { Node(n)->mk_src(d?Buildable::SrcDir:Buildable::Src) ; trace2('+',d?"dir":"",n) ; }
-			for( Node  d    : new_src_dirs )        d ->mk_src(Buildable::AntiSrc                ) ;
+			for( Node  d    : new_src_dirs )        d ->mk_src(Buildable::Anti                   ) ;
 		}
 		g_store._compile_srcs() ;
 		// user report
@@ -432,10 +448,10 @@ namespace Engine {
 	}
 	void EngineStore::s_invalidate_match() {
 		MatchGen& match_gen = g_store.rule_file.hdr() ;
-		if (match_gen<NMatchGen-1) {
+		if (match_gen<NMatchGen) {
 			// increase generation, which automatically makes all nodes !match_ok()
-			Trace("s_invalidate_match","new gen",match_gen+1) ;
 			match_gen++ ;
+			Trace("s_invalidate_match","new gen",match_gen) ;
 			Rule::s_match_gen = match_gen ;
 		} else {
 			_s_collect_old_rules() ;

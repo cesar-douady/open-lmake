@@ -195,9 +195,15 @@ int main( int argc , char* argv[] ) {
 					//^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("dep   ",dd,file) ;
 				} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
-					if ( !info.file_date                                   ) a = Accesses::None ;
-					if ( ad.write && !ad.unlink && info.tflags[Tflag::Crc] ) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+					if (!info.file_date) a = Accesses::None ;
 					TargetDigest td{a,ad.write,info.tflags,ad.unlink} ;
+					if (ad.unlink) {
+						td.crc  = Crc::None      ;
+						td.date = Ddate::s_now() ;
+					} else if (ad.write) {
+						if (info.tflags[Tflag::Crc]) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
+						else                         td.date = file_date(file) ;              // if no crc computation, gather date, though
+					}
 					targets.emplace_back( file , td ) ;
 					trace("target",td,info.file_date,file) ;
 				}
@@ -300,12 +306,15 @@ int main( int argc , char* argv[] ) {
 			for(;;) {
 				auto [popped,crc_spec] = crc_queue.try_pop() ;
 				if (!popped) return ;
-				Crc crc{ crc_spec.second , g_start_info.hash_algo } ;
+				Ddate date ;
+				Crc   crc  { date/*out*/ , crc_spec.second , g_start_info.hash_algo } ;
 				if (crc==Crc::None) spurious_unlink_queue.push(crc_spec.second) ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				targets[crc_spec.first].second.crc = crc ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				trace("crc",id,crc,targets[crc_spec.first].first) ;
+				TargetDigest& td = targets[crc_spec.first].second ;
+				//vvvvvvvvvvvv
+				td.date = date ;
+				td.crc  = crc  ;
+				//^^^^^^^^^^^^
+				trace("crc_date",id,crc,date,targets[crc_spec.first].first) ;
 			}
 		} ;
 		{	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , crc_queue.size() ) ;

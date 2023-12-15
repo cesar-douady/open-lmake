@@ -205,38 +205,41 @@ namespace Caches {
 
 	JobDigest DirCache::download( Job job , Id const& id ) {
 		Trace trace("download",job,id) ;
-		::string    jn         = _unique_name(job,id)       ;
-		AutoCloseFd dfd        = open_read(dir_fd,jn)       ;
-		::vector_s  copied     ;
-		JobInfoEnd  report_end ;
+		::string    jn     = _unique_name(job,id) ;
+		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
+		::vector_s  copied ;
 		try {
+			JobInfoStart report_start ;
+			JobInfoEnd   report_end   ;
 			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;      // because we read the data , shared is ok
 				IFStream is           { to_string(dir,'/',jn,"/data") } ;
-				auto     report_start = deserialize<JobInfoStart>(is)   ;
-				/**/     report_end   = deserialize<JobInfoEnd  >(is)   ;
+				deserialize(is,report_start) ;
+				deserialize(is,report_end  ) ;
 				// update some info
-				report_start.pre_start.job = +job ;                            // this id does not come cached entry since it may not be the same value in the original repo
+				report_start.pre_start.job = +job ;                            // id is not stored in cache
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
-					::string const& tn = report_end.end.digest.targets[ti].first ;
+					auto&           entry = report_end.end.digest.targets[ti] ;
+					::string const& tn    = entry.first                       ;
 					copied.push_back(tn) ;
 					_copy( dfd , to_string(ti) , tn , true/*unlink_dst*/ , false/*mk_read_only*/ ) ;
+					entry.second.date = file_date(tn) ;                                              // target date is not stored in cache
 				}
 				copied.push_back(job->ancillary_file()) ;
 				OFStream os { dir_guard(copied.back()) } ;
-				serialize( os , report_start ) ;
-				serialize( os , report_end   ) ;
+				serialize(os,report_start) ;
+				serialize(os,report_end  ) ;
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
 			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;               // because we manipulate LRU, need exclusive
 				_lru_first(jn,_lru_remove(jn)) ;
 			}
+			return report_end.end.digest ;
 		} catch(::string const& e) {
 			for( ::string const& f : copied ) unlink(f) ;                      // clean up partial job
 			throw e ;
 		}
-		return report_end.end.digest ;
 	}
 
 	bool DirCache::upload( Job job , JobDigest const& digest ) {
@@ -264,6 +267,8 @@ namespace Caches {
 			report_start.pre_start.seq_id = 0 ;                                // no seq_id since no execution
 			report_start.pre_start.job    = 0 ;                                // job_id may not be the same in the destination repo
 			report_start.rsrcs.clear() ;                                       // caching resources is meaningless as they have no impact on content
+			// remove target dates
+			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
 			// transform date into crc
 			::vmap_s<DepDigest> deps ;
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {

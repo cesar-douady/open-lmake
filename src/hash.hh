@@ -56,9 +56,16 @@ namespace Hash {
 		static const Crc Unknown ;                                             // crc has not been computed
 		static const Crc None    ;                                             // file does not exist
 		// cxtors & casts
-		constexpr          Crc(                                 ) = default ;
-		constexpr explicit Crc( uint64_t v                      ) : _val{v} {}
-		/**/               Crc( ::string const& filename , Algo ) ;
+		constexpr          Crc(                                                           ) = default ;
+		constexpr explicit Crc( uint64_t v                                                ) : _val{v} {}
+		/**/               Crc(                         ::string const& filename , Algo a ) : Crc{ Disk::FileInfo(filename) , filename , a } {}
+		/**/               Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
+			Disk::FileInfoDate fid{filename} ;
+			d     = fid.date            ;
+			*this = Crc(fid,filename,a) ;
+		}
+	private :
+		/**/ Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;
 		// accesses
 	public :
 		constexpr bool              operator== (Crc const& other) const { return +*this== +other            ; }
