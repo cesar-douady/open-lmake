@@ -225,11 +225,12 @@ namespace Disk {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
-			::string   real   = {}        ;                // real path relative to root if in_repo or found in a relative src_dir ...
-			//                                             // ... or absolute if found in an absolute src_dir or mapped in tmp, else empty
-			::vector_s lnks   = {}        ;                // links followed to get to real
-			Kind       kind   = Kind::Ext ;                // do not process awkard files
-			bool       mapped = false     ;                // if true <=> tmp mapping has been used
+			::string   real          = {}        ;         // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
+			::vector_s lnks          = {}        ;         // links followed to get to real
+			::string   last_lnk      = {}        ;         // last followed link that is not uphill of another link
+			Accesses   last_accesses = {}        ;         // Access::Lnk if file does not exist and !no_follow
+			Kind       kind          = Kind::Ext ;         // do not process awkard files
+			bool       mapped        = false     ;         // if true <=> tmp mapping has been used
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp

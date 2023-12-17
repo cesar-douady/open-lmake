@@ -65,8 +65,8 @@ template<class Item> struct QueueThread {
 	using Queue = ThreadQueue<::pair<Pdate,Item>> ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , QueueThread* self , ::function<void(Item&&)> func ) {
-		Trace::t_key = key ;
-		Trace trace("_s_thread_func<Queue>") ;
+		t_thread_key = key ;
+		Trace trace("QueueThread::_s_thread_func") ;
 		for(;;) {
 			auto [popped,info] = self->_queue.pop(stop) ;
 			if ( !popped                       ) break ;
@@ -105,19 +105,20 @@ template<class Req> struct ServerThread {
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,Fd)> func ) {
 		static constexpr uint64_t One = 1 ;
-		Trace::t_key = key ;
+		t_thread_key = key ;
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
 		::stop_callback    stop_cb {                                           // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
+				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
 				ssize_t cnt = ::write(stop_fd,&One,sizeof(One)) ;
-				SWEAR( cnt==sizeof(One) , cnt ) ;
+				SWEAR( cnt==sizeof(One) , cnt , stop_fd ) ;
 			}
 		} ;
 		//
-		Trace trace("_s_thread_func<Fd>",self->fd,self->fd.port()) ;
+		Trace trace("ServerThread::_s_thread_func",self->fd,self->fd.port(),stop_fd) ;
 		self->_ready.count_down() ;
 		//
 		epoll.add_read(self->fd,EventKind::Master) ;
@@ -138,9 +139,10 @@ private :
 						slaves.try_emplace(::move(slave_fd)) ;
 					} break ;
 					case EventKind::Stop : {
-						uint64_t _   ;
-						ssize_t  cnt = ::read(efd,&_,sizeof(_)) ;
-						SWEAR( cnt==sizeof(_) , cnt ) ;
+						uint64_t one ;
+						ssize_t  cnt = ::read(efd,&one,sizeof(one)) ;
+						SWEAR( cnt==sizeof(one) , cnt ) ;
+						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(sfd) ;
 						trace("done") ;
 						return ;

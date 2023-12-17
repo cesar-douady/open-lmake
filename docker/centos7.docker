@@ -11,6 +11,8 @@ RUN yum install -y python36
 RUN yum install -y python36-devel
 RUN yum install -y autoconf
 RUN yum install -y automake
+RUN yum install -y epel-release
+RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
 #RUN yum install -y libseccomp
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy

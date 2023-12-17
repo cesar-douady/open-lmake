@@ -387,7 +387,7 @@ namespace Engine {
 			case ReqKey::Resources :
 				for( Rule r : Rule::s_lst() ) {
 					if (r->cmd_gen==r->rsrcs_gen) continue ;
-					r.rule_data().cmd_gen = r->rsrcs_gen ;
+					r.data().cmd_gen = r->rsrcs_gen ;
 					r.stamp() ;                                                                  // we have modified rule, we must record it to make modif persistent
 					audit( ecr.out_fd , ro , Color::Note , 0 , to_string("refresh ",r->name) ) ;
 				}

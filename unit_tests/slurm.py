@@ -28,6 +28,7 @@ if 'slurm' in lmake.backends :
 			,	'SECOND' : '{File2}'
 			}
 			backend = 'slurm'
+			resources = {'mem':'20M'}
 
 		class CatSh(Cat) :
 			target = '{File1}+{File2}_sh'

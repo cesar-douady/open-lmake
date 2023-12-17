@@ -26,10 +26,9 @@ static constexpr Channels DfltChannels = Channels::All ;
 		static void s_new_trace_file(::string const&      ) {}
 		template<class T> static ::string str( T const& , ::string const& ) { return {} ; }
 		// static data
-		static              bool             s_backup_trace ;
-		static              ::atomic<size_t> s_sz           ;
-		static              Channels         s_channels     ;
-		static thread_local char             t_key          ;
+		static bool             s_backup_trace ;
+		static ::atomic<size_t> s_sz           ;
+		static Channels         s_channels     ;
 		// cxtors & casts
 		/**/                  Trace( Channel                              ) {}
 		template<class... Ts> Trace( Channel , const char* , Ts const&... ) {}
@@ -59,7 +58,6 @@ static constexpr Channels DfltChannels = Channels::All ;
 		static              bool             s_backup_trace ;
 		static              ::atomic<size_t> s_sz           ;                  // max overall size of trace, beyond, trace wraps
 		static              Channels         s_channels     ;
-		static thread_local char             t_key          ;
 	private :
 		static size_t  _s_pos   ;      // current line number
 		static bool    _s_ping  ;      // ping-pong to distinguish where trace stops in the middle of a trace
@@ -102,7 +100,7 @@ static constexpr Channels DfltChannels = Channels::All ;
 		static constexpr char Seps[] = ".,'\"`~-+^" ;
 		if (!_t_buf) _t_buf = new OStringStream ;
 		//
-		*_t_buf << (_s_ping?'"':'\'') << t_key << Time::Pdate::s_now().str(3/*prec*/,true/*in_day*/) << '\t' ;
+		*_t_buf << (_s_ping?'"':'\'') << t_thread_key << Time::Pdate::s_now().str(3/*prec*/,true/*in_day*/) << '\t' ;
 		for( int i=0 ; i<_t_lvl ; i++ ) {
 			if ( _first && i==_t_lvl-1 ) *_t_buf << '*'                          ;
 			else                         *_t_buf << Seps[ i % (sizeof(Seps)-1) ] ;

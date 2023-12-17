@@ -257,7 +257,7 @@ template<bool At,int FlagArg> bool/*skip_syscall*/ entry_stat( void* & /*ctx*/ ,
 	} catch (int) {}
 	return false ;
 }
-template<bool At,int FlagArg> bool/*skip_syscall*/ entry_solve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> bool/*skip_syscall*/ entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	bool no_follow ;
 	switch (FlagArg) {
 		case FlagAlways : no_follow = true                                   ; break ;
@@ -265,7 +265,7 @@ template<bool At,int FlagArg> bool/*skip_syscall*/ entry_solve( void* & /*ctx*/ 
 		default         : no_follow = args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
 	}
 	try {
-		Record::Solve s{ r , _path<At>(pid,args+0) , no_follow , comment } ;
+		Record::Solve s{ r , _path<At>(pid,args+0) , no_follow , false/*read*/ , comment } ;
 		_update<At>(args+0,s) ;
 	} catch (int) {}
 	return false ;
@@ -316,10 +316,10 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {           // this must *not* do
 		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { entry_lnk     <true       ,true      > , exit_lnk      , 1  , true      , "Linkat"            } ;
 	#endif
 	#ifdef SYS_mkdir
-		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { entry_solve   <false      ,FlagNever > , nullptr       , 1  , false     , "Mkdir"             } ;
+		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { entry_mkdir   <false      ,FlagNever > , nullptr       , 1  , false     , "Mkdir"             } ;
 	#endif
 	#ifdef SYS_mkdirat
-		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { entry_solve   <true       ,FlagNever > , nullptr       , 1  , false     , "Mkdirat"           } ;
+		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { entry_mkdir   <true       ,FlagNever > , nullptr       , 1  , false     , "Mkdirat"           } ;
 	#endif
 	#ifdef SYS_name_to_handle_at
 		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { entry_open    <true                  > , exit_open     , 1  , true      , "Name_to_handle_at" } ;

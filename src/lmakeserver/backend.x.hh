@@ -79,8 +79,12 @@ namespace Backends {
 		} ;
 
 		// statics
-		static bool s_is_local( Tag                                                           ) ;
-		static void s_config  ( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) ;
+		static bool             s_is_local  (Tag) ;
+		static bool             s_ready     (Tag) ;
+		static ::string const&  s_config_err(Tag) ;
+		static ::vmap_s<size_t> s_n_tokenss (Tag) ;
+		//
+		static void s_config( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -118,9 +122,8 @@ namespace Backends {
 		using DeferredThread = QueueThread <DeferredEntry> ;
 		// static data
 	public :
-		static ::string       s_executable     ;
-		static Backend*       s_tab  [+Tag::N] ;
-		static ::atomic<bool> s_ready[+Tag::N] ;
+		static ::string s_executable   ;
+		static Backend* s_tab[+Tag::N] ;
 
 	private :
 		static JobExecThread *          _s_job_start_thread       ;
@@ -135,8 +138,9 @@ namespace Backends {
 	public :
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool       is_local(                                     ) const { return true ; }
-		virtual bool/*ok*/ config  ( ::vmap_ss const& , bool /*dynamic*/ )       { return true ; }
+		virtual bool             is_local (                                     ) const { return true ; }
+		virtual ::vmap_s<size_t> n_tokenss(                                     ) const { return {}   ; }
+		virtual void             config   ( ::vmap_ss const& , bool /*dynamic*/ )       {               }
 		//
 		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}    // called before any operation on req , n_jobs is the maximum number of jobs that can be launched (lmake -j option)
 		virtual void           new_req_eta( ReqIdx                       ) {}    // inform backend that req has a new eta, which may change job priorities
@@ -158,6 +162,8 @@ namespace Backends {
 	protected :
 		::vector_s acquire_cmd_line( Tag , JobIdx , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
 		/**/                                                                                                             // ... operator| of the submit/add_pressure corresponding values for the job
+		// data
+		::string config_err ;
 	} ;
 
 }
@@ -165,13 +171,16 @@ namespace Backends {
 #ifdef IMPL
 namespace Backends {
 
-	inline bool Backend::s_is_local(Tag t) { return s_tab[+t]->is_local() ; }
+	inline bool             Backend::s_is_local  (Tag t) { return              s_tab[+t]->is_local()         ; }
+	inline bool             Backend::s_ready     (Tag t) { return s_tab[+t] && s_tab[+t]->config_err.empty() ; }
+	inline ::string const&  Backend::s_config_err(Tag t) { return              s_tab[+t]->config_err         ; }
+	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return              s_tab[+t]->n_tokenss()        ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
 	#define UL ::unique_lock
-	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->open_req   (r,nj) ; }
-	inline void Backend::s_close_req  (ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
-	inline void Backend::s_new_req_eta(ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
+	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : Tag::N ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
+	inline void Backend::s_close_req  (ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
+	inline void Backend::s_new_req_eta(ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
 	#undef UL
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }

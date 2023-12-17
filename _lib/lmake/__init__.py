@@ -56,6 +56,7 @@ config = pdict(
 	,	host_length    = None          # length of the host field (lines will be misaligned if a host is longer)
 	,	has_exec_time  = True          # if True, output the exec_time field
 	)
+,	n_tokens_tab = pdict()             # table of number of tokens referenced by rules. This indirection allows dynamic update of this value while rules cannot be dynamically updated
 ,	backends = pdict(                  # PER_BACKEND : provide a default configuration for each backend
 		precisions = pdict(            # precision of resources allocated for jobs, one entry for each standard resource (for all backends).
 			cpu = 4                    # encodes the highest number with full granularity, 4 is a reasonable value
@@ -70,7 +71,7 @@ config = pdict(
 			#                            - a host name            : the address of the host as found in networkd database (as shown by ping)
 			#                            - default is loopback for local backend and hostname for the others
 			cpu = _cpu                 # total number of cpus available for the process, and hence for all jobs launched locally
-		,	mem = _mem                 # total available memory in MBytes
+		,	mem = f'{_mem>>20}M'       # total available memory in MBytes
 		,	tmp = 0                    # total available temporary disk space in MBytes
 		)
 	)

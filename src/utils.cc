@@ -69,6 +69,8 @@
 // assert
 //
 
+thread_local char t_thread_key = '?' ;
+
 void set_sig_handler( int sig , void (*handler)(int) ) {
 	sigset_t         empty  ; ::sigemptyset(&empty) ;
 	struct sigaction action ;

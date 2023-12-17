@@ -574,8 +574,8 @@ struct JobExecRpcReq {
 		// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
 		void update( AccessDigest const& , AccessOrder ) ;
 		// data
-		Accesses accesses   = {}    ;  // if +dfs <=> files are read
-		Dflags   dflags     = {}    ;  // if +dfs <=> files are read
+		Accesses accesses   = {}    ;  // if +accesses <=> files are read
+		Dflags   dflags     = {}    ;
 		bool     write      = false ;  // if true <=> files are written, possibly unlinked later
 		Tflags   neg_tflags = {}    ;  // if write, removed Tflags
 		Tflags   pos_tflags = {}    ;  // if write, added   Tflags

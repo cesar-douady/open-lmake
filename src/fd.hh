@@ -41,7 +41,7 @@ struct Fd {
 	void write(::string_view const& data) {
 		for( size_t cnt=0 ; cnt<data.size() ;) {
 			ssize_t c = ::write(fd,data.data(),data.size()) ;
-			SWEAR(c>0) ;
+			if (c<=0) throw to_string("cannot write to ",fd) ;
 			cnt += c ;
 		}
 	}

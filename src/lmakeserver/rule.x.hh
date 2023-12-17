@@ -138,13 +138,13 @@ namespace Engine {
 
 	// used at match time, but participate in nothing
 	struct CreateNoneAttrs {
-		static constexpr const char* Msg = "tokens" ;
+		static constexpr const char* Msg = "create ancillary attributes" ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
-			size_t tokens ;
+			size_t tokens = 0/*garbage*/ ;
 			Attrs::acquire_from_dct( tokens , py_dct , "job_tokens" ) ;
-			if (tokens==0)                                    tokens1 = 0                                ;
+			if      (tokens==0                              ) tokens1 = 0                                ;
 			else if (tokens>::numeric_limits<Tokens1>::max()) tokens1 = ::numeric_limits<Tokens1>::max() ;
 			else                                              tokens1 = tokens-1                         ;
 		}
@@ -310,7 +310,7 @@ namespace Engine {
 
 	// used at end of job execution, participate in cmd
 	struct EndCmdAttrs {
-		static constexpr const char* Msg = "allow stderr" ;
+		static constexpr const char* Msg = "end command attributes" ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
@@ -322,7 +322,7 @@ namespace Engine {
 
 	// used at end of job execution, participate in nothing
 	struct EndNoneAttrs {
-		static constexpr const char* Msg = "max stderr length" ;
+		static constexpr const char* Msg = "end ancillary attributes" ;
 		// services
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
@@ -539,7 +539,7 @@ namespace Engine {
 		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd           crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no            crc, evaluated after  execution
 		::vmap_s<DbgEntry>        dbg_info           ;                         // in no            crc, contains info to debug cmd that must not appear in cmd crc
-		size_t                    n_tokens           = 1     ;                 // available tokens for this rule, used to estimate req ETE (cannot be dynamic)
+		::string                  n_tokens_key       ;                         // in no            crc, contains the key in config.n_tokenss to determine n_tokens
 		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
 		bool                      force              = false ;
@@ -549,6 +549,7 @@ namespace Engine {
 		Tflags min_tflags       = Tflags::None ;
 		VarIdx n_static_stems   = 0            ;
 		VarIdx n_static_targets = 0            ;
+		size_t n_tokens         = 1            ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                                                // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                                // for a given cmd, resources generation, must be >=cmd_gen
@@ -974,7 +975,7 @@ namespace Engine {
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,dbg_info          ) ;
-			::serdes(s,n_tokens          ) ;
+			::serdes(s,n_tokens_key      ) ;
 			::serdes(s,interpreter       ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;

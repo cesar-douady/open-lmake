@@ -813,9 +813,9 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "interpreter" ; if (dct.hasKey(field)) Attrs::acquire( interpreter , dct[field].ptr()                    ) ; if (interpreter.empty()) throw "no interpreter found"s ;
-			field = "is_python"   ; if (dct.hasKey(field)) Attrs::acquire( is_python   , dct[field].ptr()                    ) ; else                     throw "not found"s            ;
-			field = "n_tokens"    ; if (dct.hasKey(field)) Attrs::acquire( n_tokens    , dct[field].ptr() , size_t(1)/*min*/ ) ;
+			field = "interpreter" ; if (dct.hasKey(field)) Attrs::acquire( interpreter  ,            dct[field]       .ptr() ) ; if (interpreter.empty()) throw "no interpreter found"s ;
+			field = "is_python"   ; if (dct.hasKey(field)) Attrs::acquire( is_python    ,            dct[field]       .ptr() ) ; else                     throw "not found"s            ;
+			field = "n_tokens"    ; if (dct.hasKey(field)) Attrs::acquire( n_tokens_key , Py::Object(dct[field]).str().ptr() ) ;
 			//
 			/**/                                       var_idxs["targets"       ] = {VarCmd::Targets,0} ;
 			for( VarIdx t=0 ; t<targets.size() ; t++ ) var_idxs[targets[t].first] = {VarCmd::Target ,t} ;
@@ -1068,12 +1068,12 @@ namespace Engine {
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , CreateNoneAttrs const& sna ) {
-		if (sna.tokens1) return to_string( ::string(i,'\t') , "job_tokens : " , sna.tokens1+1 ) ;
-		else             return {}                                                              ;
+		if (sna.tokens1) return to_string(::string(i,'\t'),"job_tokens : ",sna.tokens1+1,'\n') ;
+		else             return {}                                                             ;
 	}
 	static ::string _pretty( size_t i , CacheNoneAttrs const& cna ) {
 		if (!cna.key.empty()) return to_string(::string(i,'\t'),"key : ",cna.key,'\n') ;
-		else                  return {}                                               ;
+		else                  return {}                                                ;
 	}
 	static ::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
 		::vmap_ss entries ;
@@ -1191,9 +1191,9 @@ namespace Engine {
 		if (!is_special()) {
 			::string i ; for( ::string const& c : interpreter ) append_to_string( i , i.empty()?"":" " , c ) ;
 			//
-			if (force) entries.emplace_back( "force"       , to_string(force   ) ) ;
-			/**/       entries.emplace_back( "n_tokens"    , to_string(n_tokens) ) ;
-			/**/       entries.emplace_back( "interpreter" , i                   ) ;
+			if (force                ) entries.emplace_back( "force"       , to_string(force                         ) ) ;
+			if (!n_tokens_key.empty()) entries.emplace_back( "n_tokens"    , to_string(n_tokens_key," (",n_tokens,')') ) ;
+			/**/                       entries.emplace_back( "interpreter" , i                                         ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (!stems.empty()) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ) ;

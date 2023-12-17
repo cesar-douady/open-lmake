@@ -177,9 +177,13 @@ public :
 	struct Solve : Real {
 		// search (executable if asked so) file in path_var
 		Solve()= default ;
-		Solve( Record& r , Path&& path , bool no_follow , ::string const& comment_={} ) : Real{::move(path),comment_} {
-			real = r._solve( *this , no_follow , comment ).real ;
+		Solve( Record& r , Path&& path , bool no_follow , bool read , ::string const& comment_={} ) : Real{::move(path),comment_} {
+			SolveReport sr = r._solve( *this , no_follow , read , comment ) ;
+			real     = ::move(sr.real)  ;
+			accesses = sr.last_accesses ;
 		}
+		// data
+		Accesses accesses ;
 	} ;
 	struct ChDir : Solve {
 		// cxtors & casts
@@ -273,7 +277,7 @@ public :
 	struct Symlnk : Solve {
 		// cxtors & casts
 		Symlnk() = default ;
-		Symlnk( Record& r , Path&& p , ::string const& c="write" ) : Solve{r,::move(p),true/*no_follow*/,c} {}
+		Symlnk( Record& r , Path&& p , ::string const& c="write" ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,c} {}
 		// services
 		int operator()( Record& , int rc ) ;
 		// data
@@ -289,7 +293,7 @@ public :
 	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }
 	//
 protected :
-	SolveReport _solve( Path& , bool no_follow , ::string const& comment={} ) ;
+	SolveReport _solve( Path& , bool no_follow , bool read , ::string const& comment={} ) ;
 	//
 	// data
 protected :

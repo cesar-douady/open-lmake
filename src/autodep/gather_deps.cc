@@ -74,7 +74,7 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 	return           os << ')'                          ;
 }
 
-bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
+bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
 	SWEAR( !file.empty() , comment ) ;
 	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
@@ -90,7 +90,7 @@ bool/*new*/ GatherDeps::_new_access( PD pd , ::string const& file , DD dd , Acce
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	info->update(pd,dd,ad,parallel_id_) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (*info!=old_info) Trace("_new_access", STR(is_new) , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
+	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
 	return is_new ;
 }
 
@@ -98,8 +98,8 @@ void GatherDeps::static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , :
 	SWEAR( accesses.empty() , accesses ) ;                                                             // ensure we do not insert static deps after hidden ones
 	parallel_id++ ;
 	for( auto const& [f,d] : static_deps )
-		if (f==stdin) _new_access( pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , parallel_id , "stdin"       ) ;
-		else          _new_access( pd , f , +d.accesses?d.date():DD() , {d.accesses            ,d.dflags} , parallel_id , "static_deps" ) ;
+		if (f==stdin) _new_access( {}/*fd*/ , pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , parallel_id , "stdin"       ) ; // fd for trace purpose only
+		else          _new_access( {}/*fd*/ , pd , f , +d.accesses?d.date():DD() , {d.accesses            ,d.dflags} , parallel_id , "static_deps" ) ; // .
 }
 
 void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
@@ -253,6 +253,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		if (!delayed_check_deps.empty()) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
 		if ( events.empty() && !delayed_check_deps.empty() ) {                                  // process delayed check deps after all other events
+			trace("delayed_chk_deps") ;
 			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
 			delayed_check_deps.clear() ;
 			continue ;
@@ -261,13 +262,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			Kind kind = event.data<Kind>() ;
 			Fd   fd   = event.fd()         ;
 			SWEAR(!delayed_check_deps.contains(fd)) ;                          // while we are waiting for an answer, we should not be receiving any more requests
+			if (kind!=Kind::Slave) trace(kind,fd,epoll.cnt) ;
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
 					char          buf[4096] ;
 					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					::string_view buf_view  { buf , size_t(cnt) }                                      ;
-					if      (!cnt              ) { trace("close",kind) ; epoll.close(fd) ;           }
+					if      (!cnt              ) { trace("close") ; epoll.close(fd) ;                }
 					else if (kind==Kind::Stderr) { stderr.append(buf_view) ;                         }
 					else                         { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
 				} break ;
@@ -280,15 +282,16 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					if      (WIFEXITED  (wstatus)) _set_status( status , WEXITSTATUS(wstatus)!=0       ?Status::Err:Status::Ok       ) ;
 					else if (WIFSIGNALED(wstatus)) _set_status( status , is_sig_sync(WTERMSIG(wstatus))?Status::Err:Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
-					trace("status",status,::hex,wstatus,::dec) ;
+					trace(status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
 					epoll.cnt-- ;                                              // do not wait for new connections on master socket, but if one arrives before all flows are closed, process it
 				} break ;
 				case Kind::Master : {
-					Fd slave{master_fd.accept()} ;                             // sync to tell child we have seen the connection
+					SWEAR(fd==master_fd) ;
+					Fd slave = master_fd.accept() ;
+					trace(slave) ;
 					epoll.add_read(slave,Kind::Slave) ;
 					slaves[slave] ;                                            // allocate entry
-					trace("master",slave) ;
 				} break ;
 				case Kind::ServerReply : {
 					JobRpcReply jrr ;
@@ -296,7 +299,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					SWEAR(it!=server_replies.end()) ;
 					try         { if (!it->second.buf.receive_step(fd,jrr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
-					trace("server_reply",fd,jrr) ;
+					trace(jrr) ;
 					//                                                                                              vvvvvvvvvvvvv
 					if      ( jrr.proc==JobProc::ChkDeps && jrr.ok==Maybe ) { _set_status(status,Status::ChkDeps) ; kill_job_cb() ;                            }
 					else if ( +it->second.fd                              )                                         sync(it->second.fd,JobExecRpcReply(jrr)) ;
@@ -308,32 +311,30 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 					JobExecRpcReq jerr  ;
 					try         { if (!slaves.at(fd).receive_step(fd,jerr)) continue ; }
 					catch (...) {                                                      } // server disappeared, give up
-					bool sync_ = jerr.sync ;                                             // capture essential info so as to be able to move jerr
-					Proc proc  = jerr.proc ;                                             // .
+					Proc proc  = jerr.proc ;                                             // capture essential info so as to be able to move jerr
+					bool sync_ = jerr.sync ;                                             // .
+					if (proc!=Proc::Access) trace(kind,fd,epoll.cnt,proc) ;              // there may be too many Access'es, only trace within _new_accesses
 					switch (proc) {
-						case Proc::None      :                                                     goto Close ;
-						case Proc::Tmp       : seen_tmp = true ; trace("slave",fd,jerr) ;          break      ;
+						case Proc::None      : epoll.close(fd) ; slaves.erase(fd) ;                                             break ;
+						case Proc::Tmp       : seen_tmp = true ;                                                                break ;
 						//                     vvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : _new_accesses(jerr) ;                                                         break ;
-						case Proc::DepInfos  : _new_accesses(jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ;      // if sync, handle_req_to_server replies
+						case Proc::Access    : _new_accesses(fd,jerr) ;                                                         break ;
+						case Proc::DepInfos  : _new_accesses(fd,jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ; // if sync, handle_req_to_server replies
 						//                     ^^^^^^^^^^^^^^^^^^^
-						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ;                       sync_ = false ; break ;      // if sync, reply is delayed as well
-						case Proc::Trace     : trace("from_job",jerr.comment) ;                                              break ;
+						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ;                          sync_ = false ; break ; // if sync, reply is delayed as well
+						case Proc::Trace     : trace(jerr.comment) ;                                                            break ;
 						default : fail(proc) ;
 					}
 					//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;
 					//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					break ;
-				Close :
-					trace("slave","close",proc,fd) ;
-					epoll.close (fd) ;
-					slaves.erase(fd) ;
 				} break ;
 				default : FAIL(kind) ;
 			}
 		}
 	}
+	trace("done") ;
 	reorder() ;                                                                // ensure server sees a coherent view
 	return status ;
 }

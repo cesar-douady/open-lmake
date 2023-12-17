@@ -293,7 +293,7 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	// in case of success, tmpl is modified to contain the file that was actually opened
 	#define MKSTEMP(syscall,tmpl,sfx_len,args) \
 		HEADER0(syscall,args) ;                                                                                \
-		Solve r  { tmpl , true/*no_follow*/ } ;                                                                \
+		Solve r  { tmpl , true/*no_follow*/ , false/*read*/ } ;                                                \
 		int   fd = r(orig args)               ;                                                                \
 		if (F(r)!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , F(r)+strlen(F(r))-sfx_len-6 , 6 ) ;            \
 		if (fd>=0     ) Record::Open(auditer(),F(r),O_CWT|O_NOFOLLOW,"mkstemp")(auditer(),true/*has_fd*/,fd) ; \
@@ -363,10 +363,10 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
 	//                                                                                          no_follow
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,"access"   } ; return r(orig(F(r),m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,"faccessat"} ; return r(orig(P(r),m,f)) ; }
-	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true                 } ; return r(orig(F(r)    )) ; }
-	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true                 } ; return r(orig(F(r)    )) ; }
+	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,      "access"   } ; return r(orig(F(r),m  )) ; }
+	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,      "faccessat"} ; return r(orig(P(r),m,f)) ; }
+	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true     ,false            } ; return r(orig(F(r)    )) ; }
+	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true     ,false            } ; return r(orig(F(r)    )) ; }
 	//                                                                                                                 no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
@@ -392,9 +392,9 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	char* canonicalize_file_name(CC* p                   ) NE { HEADER1(canonicalize_file_name,p,(p      )) ; Stat r{p,false    ,"canonicalize_file_name"} ; return r(orig(F(r)      )) ; }
 
 	// mkdir
-	//                                                                                no_follow
-	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Solve r{   p ,true     } ; return r(orig(F(r),m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Solve r{{d,p},true     } ; return r(orig(P(r),m)) ; }
+	//                                                                                no_follow,read
+	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),m)) ; }
 
 	// scandir
 	using NmLst   = struct dirent  ***                                       ;
@@ -403,11 +403,11 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	using Fltr64  = int (*)(const struct dirent64*                         ) ;
 	using Cmp     = int (*)(const struct dirent**  ,const struct dirent  **) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-	//                                                                                                             no_follow
-	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true     } ; return r(orig(F(r),nl,f,c)) ; }
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true     } ; return r(orig(F(r),nl,f,c)) ; }
-	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     } ; return r(orig(P(r),nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     } ; return r(orig(P(r),nl,f,c)) ; }
+	//                                                                                                             no_follow read
+	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),nl,f,c)) ; }
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),nl,f,c)) ; }
+	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),nl,f,c)) ; }
 
 	#undef P
 	#undef CC

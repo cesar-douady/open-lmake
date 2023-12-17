@@ -148,7 +148,6 @@ protected :
 } ;
 
 struct IMsgBuf : MsgBuf {
-	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                   // prepare to receive len
 	// statics
 	template<class T> static T s_receive(const char* str) {
 		Len len = s_sz(str) ;
@@ -156,6 +155,8 @@ struct IMsgBuf : MsgBuf {
 		return deserialize<T>(IStringStream(::string( str+sizeof(Len) , len ))) ; // XXX : avoid copy (use string_view in C++26)
 		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
+	// cxtors & casts
+	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                   // prepare to receive len
 	// services
 	template<class T> T receive(Fd fd) {
 		T res ;

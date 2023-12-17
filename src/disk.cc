@@ -354,8 +354,9 @@ namespace Disk {
 
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real
-		size_t end    ;
-		int    n_lnks = 0 ;
+		size_t   end      ;
+		int      n_lnks   = 0 ;
+		::string last_lnk ;
 		for (
 		;	pos <= cur->size()
 		;		pos = end+1
@@ -374,71 +375,70 @@ namespace Disk {
 					continue ;
 				}
 			}
-			size_t prev_real_size = real.size() ;
+			size_t    prev_real_size = real.size()                      ;
+			::string* nxt            = &local_file[cur!=&local_file[1]] ;      // bounce, initially, when cur is neither local_file's, any buffer is ok
 			real.push_back('/') ;
 			real.append(*cur,pos,end-pos) ;
 			in_admin.update(_admin_dir,real) ;                                 // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
-			if ( !exists || ( no_follow && last ) ) continue     ;             // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( in_tmp                           ) goto Proceed ;             // note that tmp can lie within repo or admin
-			if ( in_admin                         ) continue     ;
-			if ( in_proc                          ) goto Proceed ;
-			if ( !in_repo                         ) continue     ;
-			switch (lnk_support) {                                             // in repo
+			if ( !exists           ) continue       ;                          // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last ) continue       ;                          // dont care about last component if no_follow
+			if ( in_tmp            ) goto HandleLnk ;                          // note that tmp can lie within repo or admin
+			if ( in_admin          ) continue       ;
+			if ( in_proc           ) goto HandleLnk ;
+			switch (lnk_support) {
 				case LnkSupport::None : continue ;
-				case LnkSupport::File : if (last) break ; else continue ;
+				case LnkSupport::File : if (last) break ; else continue ;      // only handle sym links as last component
 				case LnkSupport::Full : break ;
 				default               : FAIL(lnk_support) ;
 			}
-		Proceed :
-			// manage links
-			::string* nxt = &local_file[cur!=&local_file[1]] ;                 // bounce, initially, when cur is neither local_file's, any buffer is ok
-			//
-			if ( has_tmp_view && in_tmp ) { *nxt = read_lnk( tmp_dir + (real.c_str()+tmp_view.size()) ) ; mapped = true ; }
-			else                          { *nxt = read_lnk(            real                          ) ;                 }
+		HandleLnk :
+			if ( has_tmp_view && in_tmp ) { *nxt = read_lnk( tmp_dir + real.substr(tmp_view.size()) ) ; mapped = true ; }
+			else                          { *nxt = read_lnk( real                                   ) ;                 }
+			if ( !in_tmp && !in_proc ) {
+				if ( in_repo && real.size()==root_dir.size() ) continue ;                        // at repo root, no sym link to handle
+				::string rel_real = in_repo ? real.substr(root_dir.size()+1) : _find_src(real) ; // outside repo, real may lie in a source dir
+				if ( rel_real.empty()                        ) continue ;
+				//
+				if (nxt->empty())   last_lnk =                        rel_real  ;
+				else              { last_lnk.clear() ; lnks.push_back(rel_real) ; }
+			}
 			if (nxt->empty()) {
-				exists = errno!=ENOENT ;
+				if (errno==ENOENT) exists = false ;
 				// do not generate dep for intermediate dir that are not links as we indirectly depend on them through the last components
 				// for example if a/b/c is a link to d/e and we access a/b/c/f, we generate the link a/b/c :
 				// - a & a/b will be indirectly depended on through a/b/c
 				// - d & d/e will be indrectly depended on through caller depending on d/e/f (the real accessed file returned as the result)
 				continue ;
 			}
-			exists = true ;
-			if (!(in_tmp||in_admin||in_proc)) {
-				if (in_repo) {
-					if (real.size()>root_dir.size()) lnks.push_back(real.substr(root_dir.size()+1)) ;
-				} else {
-					::string src = _find_src(real) ;
-					if (!src.empty()) lnks.push_back(src) ;
-				}
-			}
 			if (n_lnks++>=s_n_max_lnks) return {{},::move(lnks)} ;             // link loop detected, same check as system
-			// avoiding the following copy is very complex (would require to manage a stack) and links to dir are uncommon
 			if (!last) {                                                       // append unprocessed part
 				nxt->push_back('/'       ) ;
-				nxt->append   (*cur,end+1) ;
+				nxt->append   (*cur,end+1) ;                                   // avoiding this copy is very complex (would require to manage a stack) and links to dir are uncommon
 			}
 			if ((*nxt)[0]=='/') { end =  0 ; prev_real_size = 0 ; }            // absolute link target : flush real
 			else                { end = -1 ;                      }            // end must point to the /, invent a virtual one before the string
 			real.resize(prev_real_size) ;                                      // links are relative to containing dir, suppress last component
 			cur = nxt ;
 		}
+		Accesses last_accesses ; if ( !exists && !no_follow ) last_accesses |= Access::Lnk ; // if have accessed a component which is not protected by a sub-component, signal it
 		// admin is typically in repo, tmp might be, repo root is in_repo
 		if (in_tmp) {
-			if (has_tmp_view) return { tmp_dir + (real.c_str()+tmp_view.size()) , ::move(lnks) , Kind::Tmp , true/*mapped*/ } ; // avoid calling substr that creates a temporary string
-			else              return { ::move(real)                             , ::move(lnks) , Kind::Tmp , mapped         } ; // if no tmp view, no need for real path
-		} else {
-			if (in_proc ) return { ::move(real) , ::move(lnks) , Kind::Proc  , mapped } ;
-			if (in_admin) return { ::move(real) , ::move(lnks) , Kind::Admin , mapped } ;
-			if (in_repo ) {
-				if (real.size()>root_dir.size()) return { real.substr(root_dir.size()+1) , ::move(lnks) , Kind::Repo , mapped } ;
-				else                             return { ::move(real)                   , ::move(lnks) , Kind::Root , mapped } ;
-			}
-			else {
-				::string src = _find_src(real) ;
-				if (src.empty()) return { ::move(real) , ::move(lnks) , Kind::Ext     , mapped } ;
-				else             return { ::move(src ) , ::move(lnks) , Kind::SrcDirs , mapped } ;
-			}
+			if (has_tmp_view               ) return { tmp_dir + real.substr(tmp_view.size()) , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Tmp     , true/*mapped*/ } ;
+			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Tmp     , mapped         } ;
+		}
+		if (in_proc ) {
+			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Proc    , mapped         } ;
+		}
+		if (in_admin) {
+			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Admin   , mapped         } ;
+		}
+		if (in_repo ) {
+			if (real.size()>root_dir.size()) return { real.substr(root_dir.size()+1)         , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Repo    , mapped         } ;
+			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Root    , mapped         } ;
+		}
+		{	::string src = _find_src(real) ;
+			if (src.empty()                ) return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Ext     , mapped         } ;
+			else                             return { ::move(src )                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::SrcDirs , mapped         } ;
 		}
 	}
 
@@ -455,7 +455,7 @@ namespace Disk {
 			//
 			::ifstream real_stream { mk_abs(sr.real,root_dir) } ;
 			Accesses   a           = Access::Reg                ;
-			if (sr.kind<=Kind::Dep) res.emplace_back(sr.real,a) ;
+			if (sr.kind<=Kind::Dep) res.emplace_back(sr.real,sr.last_accesses|a) ;
 			//
 			char hdr[2] ;
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;

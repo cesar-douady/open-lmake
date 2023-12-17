@@ -83,7 +83,13 @@ namespace Engine {
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		job->make(jri,RunAction::Status) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( Node d : job->deps ) if (d->done(*this)) (*this)->up_to_dates.push_back(d) ;
+		for( Node d : job->deps ) {
+			/**/                           if (!d->done(*this)                   ) continue ;
+			Job j = d->conform_job_tgt() ; if (!j                                ) continue ;
+			/**/                           if (j->run_status!=RunStatus::Complete) continue ;
+			//
+			(*this)->up_to_dates.push_back(d) ;
+		}
 		chk_end() ;
 	}
 

@@ -15,7 +15,6 @@ namespace Engine {
 	static inline ::string _audit_indent( ::string const& txt , size_t lvl ) { return indent<' ',2>(txt,lvl) ; }
 
 	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name , ::string const& sfx ) {
-		SWEAR(Trace::t_key=='=',Trace::t_key) ;
 		::string report_txt = color_pfx(ro,c) ;
 		::string log_txt    ;
 		//
@@ -127,23 +126,34 @@ namespace Engine {
 			}
 			//
 			fields[0] = "console" ;
-			if (!py_map.hasKey(fields[0])) throw "not found"s ;
-			Py::Mapping py_console = py_map[fields[0]] ;
-			fields.emplace_back() ;
-			fields[1] = "date_precision" ;
-			if (py_console.hasKey(fields[1])) {
-				Py::Object py_date_prec = py_console[fields[1]] ;
-				if (py_date_prec==Py::None()) console.date_prec = uint8_t(-1)                                        ;
-				else                          console.date_prec = static_cast<unsigned long>(Py::Long(py_date_prec)) ;
+			if (py_map.hasKey(fields[0])) {
+				Py::Mapping py_console = py_map[fields[0]] ;
+				fields.emplace_back() ;
+				fields[1] = "date_precision" ;
+				if (py_console.hasKey(fields[1])) {
+					Py::Object py_date_prec = py_console[fields[1]] ;
+					if (py_date_prec==Py::None()) console.date_prec = uint8_t(-1)                                        ;
+					else                          console.date_prec = static_cast<unsigned long>(Py::Long(py_date_prec)) ;
+				}
+				fields[1] = "host_length" ;
+				if (py_console.hasKey(fields[1])) {
+					Py::Object py_host_len = py_console[fields[1]] ;
+					if (py_host_len.isTrue()) console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
+				}
+				fields[1] = "has_exec_time" ;
+				if (py_console.hasKey(fields[1])) console.has_exec_time = Py::Object(py_console[fields[1]]).as_bool() ;
+				fields.pop_back() ;
 			}
-			fields[1] = "host_length" ;
-			if (py_console.hasKey(fields[1])) {
-				Py::Object py_host_len = py_console[fields[1]] ;
-				if (py_host_len.isTrue()) console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
+			//
+			fields[0] = "n_tokens_tab" ;
+			if (py_map.hasKey(fields[0])) {
+				Py::Mapping py_n_tokens_tab = py_map[fields[0]] ;
+				for( auto const& [py_key,py_val] : py_n_tokens_tab ) {
+					fields[1] = Py::String(py_key) ;
+					size_t v = Py::Long(py_val) ;
+					if (v) static_n_tokenss[fields[1]] = v ;                   // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+				}
 			}
-			fields[1] = "has_exec_time" ;
-			if (py_console.hasKey(fields[1])) console.has_exec_time = Py::Object(py_console[fields[1]]).as_bool() ;
-			fields.pop_back() ;
 			//
 			fields[0] = "backends" ;
 			if (!py_map.hasKey(fields[0])) throw "not found"s ;
@@ -237,11 +247,15 @@ namespace Engine {
 	::string Config::pretty_str() const {
 		OStringStream res ;
 		//
+		// clean
+		//
 		res << "clean :\n" ;
 		/**/                                res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
 		if (hash_algo!=Algo::Xxh          ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
 		/**/                                res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
 		if (!user_local_admin_dir .empty()) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
+		//
+		// static
 		//
 		res << "static :\n" ;
 		if (heartbeat     >Delay()     ) res << "\theartbeat      : " << heartbeat     .short_str() <<'\n' ;
@@ -252,6 +266,7 @@ namespace Engine {
 		else                             res << "\tpath_max       : " <<        "<unlimited>"       <<'\n' ;
 		if (!rules_module.empty()      ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
 		if (!srcs_module .empty()      ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
+		//
 		if (!caches.empty()) {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,cache] : caches ) {
@@ -262,38 +277,62 @@ namespace Engine {
 				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< ::setw(w)<<k     <<" : "<< v         <<'\n' ;
 			}
 		}
+		//
+		// dynamic
+		//
 		res << "dynamic :\n" ;
 		/**/                                res << "\tmax_error_lines  : " << max_err_lines             <<'\n' ;
 		if (!user_remote_admin_dir.empty()) res << "\tremote_admin_dir : " << user_remote_admin_dir     <<'\n' ;
 		if (!user_remote_tmp_dir  .empty()) res << "\tremote_tmp_dir   : " << user_remote_tmp_dir       <<'\n' ;
+		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
 		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
+		//
 		bool has_digits = false ; for( StdRsrc r : StdRsrc::N ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
 			res << "\tresource precisions :\n" ;
 			for( StdRsrc r : StdRsrc::N ) if (rsrc_digits[+r]) res << to_string("\t\t",mk_snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
 		}
+		//
+		res << "\tn_tokens :\n" ;
+		size_t wk = 0 ;
+		size_t wv = 0 ;
+		for( ::map_s<size_t> const& tab : {static_n_tokenss,dyn_n_tokenss} ) {
+			for( auto const& [k,v] : tab ) {
+				wk = ::max( wk , k           .size() ) ;
+				wv = ::max( wv , to_string(v).size() ) ;
+			}
+		}
+		for( auto const& [k,v] : static_n_tokenss ) if (!dyn_n_tokenss.contains(k)) res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
+		for( auto const& [k,v] : dyn_n_tokenss    )                                 res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
+		//
 		res << "\tbackends :\n" ;
 		for( BackendTag t : BackendTag::N ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (!bbe          ) continue ;                                     // not implemented
-			if (!be.configured) continue ;                                     // not configured
+			if (!bbe                          ) continue ;                     // not implemented
+			if (!be.configured                ) continue ;                     // not configured
+			if (!Backends::Backend::s_ready(t)) {
+				res <<"\t\t"<< mk_snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
+				continue ;
+			}
+			res <<"\t\t"<< mk_snake(t) <<" :\n" ;
 			size_t w  = 9 ;                                                    // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
-			res <<"\t\t"<< mk_snake(t) <<" :\n" ;
 			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
 			/**/                              res <<"\t\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
+		//
 		if (trace!=TraceConfig()) {
-			res << "\tbackends :\n" ;
+			res << "\ttrace :\n" ;
 			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     ;
 			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs ;
 			if (trace.channels!=TraceConfig().channels) { res << "\t\tchannels :" ; for( Channel c : Channel::N ) if (trace.channels[c]) res <<' '<< mk_snake(c) ; }
 		}
+		//
 		return res.str() ;
 	}
 
@@ -312,13 +351,18 @@ namespace Engine {
 		if ( user_remote_tmp_dir  .empty() ) remote_tmp_dir   = PrivateAdminDir+"/remote_tmp"s   ; else remote_tmp_dir   = user_remote_tmp_dir   + repo_key ;
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
+		dyn_n_tokenss.clear() ;
+		for( BackendTag t : BackendTag::N )
+			if (Backends::Backend::s_ready(t))
+				for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
+					if (v) dyn_n_tokenss[to_string(mk_snake(k),'.',k)] = v ;   // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//
 		Caches::Cache::s_config(caches) ;
 		// check non-local backends have non-local addresses
 		for( BackendTag t : BackendTag::N ) {
-			if (!Backends::Backend::s_ready[+t]) continue ;                    // backend is not supposed to be used
+			if (!Backends::Backend::s_ready(t)) continue ;                     // backend is not supposed to be used
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 			if (bbe->is_local()    ) continue ;

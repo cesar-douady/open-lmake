@@ -16,7 +16,6 @@ using namespace Time ;
 bool              Trace::s_backup_trace = false        ;
 ::atomic<size_t>  Trace::s_sz           = 100<<20      ;   // limit to reasonable value until overridden
 Channels          Trace::s_channels     = DfltChannels ;   // by default, trace default channel
-thread_local char Trace::t_key          = '?'          ;
 
 #ifndef NO_TRACE
 
@@ -31,8 +30,8 @@ thread_local char Trace::t_key          = '?'          ;
 
 	void Trace::s_start(Channels cs) {
 		if ( !g_trace_file || g_trace_file->empty() ) return ;
-		t_key      = '=' ;                                                     // called from main thread
-		s_channels = cs  ;
+		t_thread_key = '=' ;                                                   // called from main thread
+		s_channels   = cs  ;
 		dir_guard(*g_trace_file) ;
 		_s_open() ;
 	}

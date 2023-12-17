@@ -348,6 +348,7 @@ namespace Backends {
 					RsrcsAsk const&       rsrcs_ask      = candidate->first             ;
 					Rsrcs                 rsrcs          = adapt(*rsrcs_ask)            ;
 					::vmap_ss             rsrcs_map      = export_(*rsrcs)              ;
+					bool                  ok             = true                         ;
 					//
 					::vector<ReqIdx> rs { +req } ;
 					for( auto const& [r,re] : reqs )
@@ -360,6 +361,7 @@ namespace Backends {
 						trace("child",req,j,prio,id,cmd_line) ;
 					} catch (::string const& e) {
 						err_jobs.push_back({j,{e,rsrcs_map}}) ;
+						ok = false ;
 					}
 					waiting_jobs.erase(wit) ;
 					//
@@ -374,8 +376,8 @@ namespace Backends {
 							if (pes.size()==1) re.waiting_queues.erase(wit2) ; // last entry for this rsrcs, erase the entire queue
 							else               pes              .erase(pe  ) ;
 						}
-						re.waiting_jobs.erase (wit1) ;
-						re.queued_jobs .insert(j   ) ;
+						/**/    re.waiting_jobs.erase (wit1) ;
+						if (ok) re.queued_jobs .insert(j   ) ;
 					}
 					if (pressure_set.size()==1) queues      .erase(candidate     ) ; // last entry for this rsrcs, erase the entire queue
 					else                        pressure_set.erase(pressure_first) ;

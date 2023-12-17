@@ -323,7 +323,7 @@ namespace Engine {
 		constexpr RuleBase(Special s ) : Base{RuleIdx(+s)} { SWEAR( +s && s!=Special::Unknown ) ; } // Special::0 is a marker that says not special
 		void invalidate_old() ;
 		// accesses
-		RuleData      & rule_data ()       ;
+		RuleData      & data      ()       ;
 		RuleData const& operator* () const ;
 		RuleData const* operator->() const { return &**this ; }
 		//
@@ -414,7 +414,7 @@ namespace Engine {
 		//
 	private :
 		static void               _s_init_config      (                                                                              ) ;
-		static void               _s_set_config       ( Config     && new_config                                                     ) ;
+		static void               _s_store_config     (                                                                              ) ;
 		static void               _s_diff_config      ( Config const& old_config , bool dynamic                                      ) ;
 		static void               _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
 		static void               _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
@@ -439,6 +439,7 @@ namespace Engine {
 		void _compile_psfxs     (        ) ;
 		void _compile_srcs      (        ) ;
 		void _compile_rules     (        ) ;
+		void _compile_n_tokenss (        ) ;
 		//
 		//
 	public :
@@ -733,7 +734,7 @@ namespace Engine {
 	// cxtors & casts
 	inline void RuleBase::invalidate_old() { if (old()) g_store.rule_file.pop(Rule(*this)) ; }
 	// accesses
-	inline RuleData      & RuleBase::rule_data()       {                       return g_store.rule_datas[+*this]              ; }
+	inline RuleData      & RuleBase::data     ()       {                       return g_store.rule_datas[+*this]              ; }
 	inline RuleData const& RuleBase::operator*() const {                       return g_store.rule_datas[+*this]              ; }
 	inline bool            RuleBase::old      () const {                       return !is_shared() && !_str()                 ; }
 	inline ::string_view   RuleBase::str      () const {                       return g_store.rule_str_file.str_view(+_str()) ; }

@@ -176,6 +176,8 @@ namespace Engine {
 		::string                                                                 user_remote_admin_dir ;
 		::string                                                                 user_remote_tmp_dir   ;
 		Console                                                                  console               ;
+		::map_s<size_t>                                                          static_n_tokenss      ;
+		::map_s<size_t>                                                          dyn_n_tokenss         ;
 		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {} ;     // precision of standard resources
 		::array<Backend,+BackendTag::N>                                          backends              ;          // backend may refuse dynamic modification
 		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {} ;

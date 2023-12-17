@@ -9,16 +9,29 @@
 
 #include "pycxx.hh"
 
+#include "disk.hh"
+
 namespace Py {
 
 	PyObject* g_ellipsis = nullptr ;
 
 	void init(bool multi_thread) {
 		static bool once=false ; if (once) return ; else once = true ;
+		Py_IgnoreEnvironmentFlag = true ;                                      // favor repeatability
+		Py_NoUserSiteDirectory   = true ;                                      // .
 		Py_Initialize() ;
 		PyObject* eval_env = PyDict_New() ;
-		g_ellipsis = PyRun_String("..."                              ,Py_eval_input,eval_env,eval_env) ;
-		/**/         PyRun_String("import sys ; sys.path.append('.')",Py_file_input,eval_env,eval_env) ;
+		g_ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;
+		//
+		PyRun_String(
+			to_string(
+				"import sys\n"
+			,	"sys.path = [ ",mk_py_str(*g_lmake_dir+"/lib")," , *sys.path , '.' ]\n"
+			).c_str()
+		,	Py_file_input
+		,	eval_env
+		,	eval_env
+		) ;
 		Py_DECREF(eval_env) ;
 		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
 	}

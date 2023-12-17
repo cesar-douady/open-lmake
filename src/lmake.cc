@@ -17,7 +17,7 @@ using namespace Time ;
 ::atomic<bool> g_seen_int = false ;
 
 static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
-	Trace::t_key = 'I' ;
+	t_thread_key = 'I' ;
 	Trace trace ;
 	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;          // transform request_stop into an event we wait for
 	trace("start") ;

@@ -256,6 +256,7 @@ namespace Engine {
 		// services
 		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in a
 			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference
+			if (unlinked       ) return false          ;                       // file did not exist despite a non-None crc
 			if (a[Access::Stat]) return true           ;                       // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (+crc           ) return a[Access::Reg] ;

@@ -107,7 +107,7 @@ void record_targets(Job job) {
 }
 
 void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
-	Trace::t_key = 'Q' ;
+	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
 	::stop_callback    stop_cb        { stop , [](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for

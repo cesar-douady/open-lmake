@@ -437,6 +437,8 @@ template<       ::integral I> ::string to_string_with_units  (I               x)
 // assert
 //
 
+extern thread_local char t_thread_key ;
+
 static bool/*done*/ kill_self      ( int sig                        ) ;
 /**/   void         set_sig_handler( int sig , void (*handler)(int) ) ;
 /**/   void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
@@ -452,7 +454,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		busy = true ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<" :" ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<" :"<<t_thread_key<<':' ;
 		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;

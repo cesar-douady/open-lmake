@@ -35,29 +35,34 @@ JobIdx       g_job           = 0/*garbage*/ ;
 bool         g_killed        = false        ;
 
 void kill_thread_func(::stop_token stop) {
-	Trace::t_key = '~' ;
-	Trace trace("kill_thread_func") ;
+	t_thread_key = 'K' ;
+	Trace trace("kill_thread_func",g_start_info.kill_sigs) ;
 	for( size_t i=0 ;; i++ ) {
 		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : SIGKILL ;
+		trace("sig",sig) ;
 		if (!g_gather_deps.kill(sig)  ) return ;                                          // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
 		if (!Delay(1.).sleep_for(stop)) return ;                                          // job_exec has ended
 	}
 }
 
 void kill_job() {
+	Trace trace("kill_job") ;
 	static ::jthread kill_thread{kill_thread_func} ;                           // launch job killing procedure while continuing to behave normally
 }
 
 bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
+	Trace trace("handle_server_req",jsrr) ;
 	switch (jsrr.proc) {
 		case JobServerRpcProc::Heartbeat :
-			if (jsrr.seq_id!=g_seq_id)                                         // report that the job the server tries to connect to no longer exists
+			if (jsrr.seq_id!=g_seq_id) {                                       // report that the job the server tries to connect to no longer exists
+				trace("bad_id",g_seq_id,jsrr.seq_id) ;
 				try {
 					OMsgBuf().send(
 						ClientSockFd( g_service_end , NConnectionTrials )
 					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::LateLost} )
 					) ;
 				} catch (::string const& e) {}                                 // if server is dead, no harm
+			}
 		break ;
 		case JobServerRpcProc::Kill :
 			g_killed = true ;
@@ -79,7 +84,7 @@ int main( int argc , char* argv[] ) {
 	g_seq_id        = from_chars<SeqId >(argv[4]) ;
 	g_job           = from_chars<JobIdx>(argv[5]) ;
 	//
-	ServerThread<JobServerRpcReq> server_thread{'-',handle_server_req} ;
+	ServerThread<JobServerRpcReq> server_thread{'S',handle_server_req} ;
 	//
 	JobRpcReq req_info   { JobProc::Start , g_seq_id , g_job , server_thread.fd.port()                             } ;
 	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error
@@ -160,7 +165,6 @@ int main( int argc , char* argv[] ) {
 			cmd_line.push_back( "-c"                                             ) ;
 			cmd_line.push_back( g_start_info.cmd.first + g_start_info.cmd.second ) ;
 		}
-		trace("cmd_line",cmd_line) ;
 		//
 		::vector<Py::Pattern>  target_patterns ; target_patterns.reserve(g_start_info.targets.size()) ;
 		for( VarIdx t=0 ; t<g_start_info.targets.size() ; t++ ) {
@@ -297,7 +301,7 @@ int main( int argc , char* argv[] ) {
 		//
 		ThreadQueue<::string> spurious_unlink_queue  ;
 		auto crc_thread_func = [&](size_t id) -> void {
-			Trace::t_key =
+			t_thread_key =
 				id<10 ? '0'+id    :
 				id<36 ? 'a'+id-10 :
 				id<62 ? 'A'+id-36 :

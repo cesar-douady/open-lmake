@@ -22,7 +22,15 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*2 reimplement hierarchical repositories
+*1 support normal resources for slurm
+	- map to licenses and gres depending on slurm config
+	- probe slurm daemon for licenses and gres
+	- etablish a mapping idx(uint32_t)->name
+	- store a vmap<uint32_t(idx),uint32_t(val)> as a resource
+	- handle multi-steps
+*2 introduce a new color orange for speculative errors
+	- that become red when job turns out to be certain
+*5 reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
 	- ensure total prio of sub-rules
@@ -115,9 +123,14 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+* replace targets -match by file_info attribute
+	- provide file_info and post_file_info
+	- process in order targets, file_info, post_file_info,post_targets
+	? consider fusion between Tflags and Dflags as file_info may have both
+*4 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
+* support formulas in n_tokens
 * add post_cmd as there is post_targets
 * result cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
@@ -185,7 +198,13 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*3 handle dir hierarchy in store
+*3 avoid ack at job start
+	- pass all infos in command line
+		- or pass a tmp file that contains all info if too large
+		- specially if it becomes necessary to pass targets & deps
+	- find a way to be certain that seq_id is not necessary to qualify job start
+	- either wash targets at acquire_cmd_line time or wash in job_exec
+*6 handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
 	- not difficult to code

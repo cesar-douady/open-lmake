@@ -49,7 +49,6 @@ namespace Backends {
 
 	::string                          Backend::s_executable              ;
 	Backend*                          Backend::s_tab  [+Tag::N]          ;
-	::atomic<bool>                    Backend::s_ready[+Tag::N]          = {} ;
 	::mutex                           Backend::_s_mutex                  ;
 	::map<JobIdx,Backend::StartEntry> Backend::_s_start_tab              ;
 	SmallIds<SmallId>                 Backend::_s_small_ids              ;
@@ -70,11 +69,11 @@ namespace Backends {
 	}
 
 	static inline bool _localize( Tag t , ReqIdx ri ) {
-		::unique_lock lock{Req::s_reqs_mutex} ;                                  // taking Req::s_reqs_mutex is compulsery to derefence req
-		return Req(ri)->options.flags[ReqFlag::Local] || !Backend::s_ready[+t] ; // if asked backend is not usable, force local execution
+		::unique_lock lock{Req::s_reqs_mutex} ;                                 // taking Req::s_reqs_mutex is compulsery to derefence req
+		return Req(ri)->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
 	}
 
-	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
+	void Backend::s_submit( Tag tag , JobIdx ji , ReqIdx ri , SubmitAttrs&&submit_attrs , ::vmap_ss&& rsrcs ) {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
@@ -83,8 +82,9 @@ namespace Backends {
 			if (!s_tab[+tag]) throw to_string("backend ",mk_snake(tag)," is not implemented") ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
+			trace("local",rsrcs) ;
 		}
-		if (!s_ready[+tag]) throw "local backend is not available"s ;
+		if (!s_ready(tag)) throw "local backend is not available"s ;
 		submit_attrs.tag = tag ;
 		s_tab[+tag]->submit(ji,ri,submit_attrs,::move(rsrcs)) ;
 	}
@@ -116,7 +116,7 @@ namespace Backends {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_launch") ;
 		for( Tag t : Tag::N ) {
-			if (!s_ready[+t]) continue ;
+			if (!s_ready(t)) continue ;
 			try {
 				s_tab[+t]->launch() ;
 			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
@@ -428,7 +428,7 @@ namespace Backends {
 		::vmap  <JobIdx,pair<StartEntry::Conn,Pdate>> to_wakeup ;
 		{	::unique_lock lock { _s_mutex } ;                                  // lock for minimal time
 			for( Tag t : Tag::N )
-				if (s_ready[+t])
+				if (s_ready(t))
 					for( JobIdx j : s_tab[+t]->kill_req(req) )
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
@@ -463,7 +463,7 @@ namespace Backends {
 	}
 
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {
-		Trace::t_key = 'H' ;
+		t_thread_key = 'H' ;
 		Trace trace(BeChnl,"_heartbeat_thread_func") ;
 		Pdate  last_wrap_around = Pdate::s_now() ;
 		//
@@ -534,12 +534,16 @@ namespace Backends {
 		static JobExecThread  job_end_thread        {'E',_s_handle_job_end        ,1000/*backlog*/} ; _s_job_end_thread         = &job_end_thread         ;
 		static DeferredThread deferred_report_thread{'R',_s_handle_deferred_report                } ; _s_deferred_report_thread = &deferred_report_thread ;
 		static DeferredThread deferred_wakeup_thread{'W',_s_handle_deferred_wakeup                } ; _s_deferred_wakeup_thread = &deferred_wakeup_thread ;
+		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
 		::unique_lock lock{_s_mutex} ;
-		for( Tag t : Tag::N )
-			if ( s_tab[+t] && config[+t].configured )                          // if implemented and configured
-				s_ready[+t] = s_tab[+t]->config(config[+t].dct,dynamic) ;
+		for( Tag t : Tag::N ) {
+			if (!s_tab[+t]            ) {                                                                                        trace("not_implemented",t  ) ; continue ; }
+			if (!config[+t].configured) {                                             s_tab[+t]->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; }
+			try                         { s_tab[+t]->config(config[+t].dct,dynamic) ; s_tab[+t]->config_err.clear()            ; trace("ready"          ,t  ) ;            }
+			catch (::string const& e)   { SWEAR(!e.empty())                         ; s_tab[+t]->config_err = e                ; trace("err"            ,t,e) ;            } // empty config_err ...
+		}                                                                                                                                                                    // ... means ready
 		job_start_thread.wait_started() ;
 		job_mngt_thread .wait_started() ;
 		job_end_thread  .wait_started() ;

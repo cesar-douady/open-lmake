@@ -169,13 +169,13 @@ LMAKE_REMOTE_FILES = \
 	$(LIB)/clmake.so
 
 LMAKE_BASIC_SAN_OBJS = \
-	src/disk$(SAN).o         \
-	src/fd$(SAN).o           \
-	src/hash$(SAN).o         \
-	src/lib$(SAN).o          \
-	src/non_portable$(SAN).o \
-	src/process$(SAN).o      \
-	src/time$(SAN).o         \
+	src/disk$(SAN).o    \
+	src/fd$(SAN).o      \
+	src/hash$(SAN).o    \
+	src/lib$(SAN).o     \
+	src/non_portable.o  \
+	src/process$(SAN).o \
+	src/time$(SAN).o    \
 	src/utils$(SAN).o
 
 LMAKE_BASIC_OBJS = \
@@ -477,7 +477,7 @@ $(BIN)/xxhsum : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
 	$(SRC)/xxhsum.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 #
 # job_exec

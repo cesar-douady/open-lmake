@@ -75,10 +75,11 @@ void Record::_report_access( JobExecRpcReq const& jerr ) const {
 	_s_report(jerr) ;
 }
 
-Record::SolveReport Record::_solve( Path& path , bool no_follow , ::string const& comment ) {
+Record::SolveReport Record::_solve( Path& path , bool no_follow , bool read , ::string const& comment ) {
 	if (!path.file) return {} ;
 	SolveReport sr = real_path.solve(path.at,path.file,no_follow) ;
-	for( ::string& lnk : sr.lnks ) _report_dep( ::move(lnk) , file_date(s_root_fd(),lnk) , Access::Lnk , comment+".lnk" ) ;
+	for( ::string& lnk : sr.lnks )       _report_dep( ::move(lnk        ) , file_date(s_root_fd(),lnk        ) , Access::Lnk , comment+".lnk" ) ;
+	if ( !read && !sr.last_lnk.empty() ) _report_dep( ::move(sr.last_lnk) , file_date(s_root_fd(),sr.last_lnk) , Access::Lnk , comment+".dir" ) ; // if read, we indirectly depend on last_lnk as uphill
 	sr.lnks.clear() ;
 	if ( sr.mapped && path.file && path.file[0] ) {                                                                // else path is ok as it is
 		if      (is_abs(sr.real)) path.share   (               sr.real.empty()?"/":sr.real.c_str()             ) ;
@@ -95,12 +96,11 @@ JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
 		bool            some_in_tmp = false               ;
 		::string        c           = jerr.comment+".lnk" ;
 		::vmap_s<Ddate> files       ;
-		bool            write       = jerr.digest.write   ;
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR(!f.empty()) ;
-			Path        p  = {Fd::Cwd,f.c_str()}              ;                // we can play with the at field at will
-			SolveReport sr = _solve( p , jerr.no_follow , c ) ;
-			if (write?sr.kind==Kind::Repo:sr.kind<=Kind::Dep) files.emplace_back( sr.real , file_date(s_root_fd(),sr.real) ) ;
+			Path        p  = {Fd::Cwd,f.c_str()}                                      ; // we can play with the at field at will
+			SolveReport sr = _solve( p , jerr.no_follow , +jerr.digest.accesses , c ) ;
+			if ( jerr.digest.write ? sr.kind==Kind::Repo : sr.kind<=Kind::Dep ) files.emplace_back( sr.real , file_date(s_root_fd(),sr.real) ) ;
 			some_in_tmp |= sr.kind==Kind::Tmp ;
 		}
 		jerr.files     = ::move(files) ;
@@ -131,7 +131,7 @@ ssize_t Record::backdoor( const char* msg , char* buf , size_t sz ) {
 	return             os << p.file             ;
 }
 
-Record::ChDir::ChDir( Record& r , Path&& path ) : Solve{r,::move(path),true/*no_follow*/} {
+Record::ChDir::ChDir( Record& r , Path&& path ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/} {
 	if ( s_autodep_env().auto_mkdir && kind==Kind::Repo ) Disk::make_dir(s_root_fd(),real,false/*unlink_ok*/) ;
 }
 int Record::ChDir::operator()( Record& r , int rc , pid_t pid ) {
@@ -141,7 +141,7 @@ int Record::ChDir::operator()( Record& r , int rc , pid_t pid ) {
 	return rc ;
 }
 
-Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
+Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,true/*read*/,comment_} { // behave like a read-modify-write
 	if (kind<=Kind::Dep) {
 		FileInfoDate fid{s_root_fd(),real} ;
 		if ( +fid && exe!=(fid.tag==FileTag::Exe) ) date = fid.date  ;         //  only consider as a target if exe bit changes, file date is updated, capture date before
@@ -151,45 +151,47 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::st
 int Record::Chmod::operator()( Record& r , int rc , bool no_file ) {
 	if (kind<=Kind::Dep) {
 		bool ok = rc>=0  ;
-		if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , Access::Reg ,               comment  ) ; // file date is updated if created, use original date
-		else if ( ok                     ) r._report_dep   ( ::move(real) , date , Access::Reg ,               comment  ) ; // in src dirs, only the read side is reported
-		else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , Access::Reg , (comment+='!',comment) ) ;
+		if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , accesses|Access::Reg ,               comment  ) ; // file date is updated if created, use original date
+		else if ( ok                     ) r._report_dep   ( ::move(real) , date , accesses|Access::Reg ,               comment  ) ; // in src dirs, only the read side is reported
+		else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , accesses|Access::Reg , (comment+='!',comment) ) ;
 	}
 	return rc ;
 }
 
-Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
+Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,true/*read*/,comment_} {
 	SolveReport sr {.real=real,.kind=kind} ;
 	for( auto&& [file,a] : r.real_path.exec(sr) ) r._report_dep( ::move(file) , a , comment ) ;
 }
 
 Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , int flags , ::string const& comment_ ) :
 	no_follow { bool(flags&AT_SYMLINK_FOLLOW)                                             }
-,	src       { r , ::move(src_) , !no_follow        , to_string(comment_,".src",::hex,'.',flags) }
-,	dst       { r , ::move(dst_) , true/*no_follow*/ , to_string(comment_,".dst",::hex,'.',flags) }
+,	src       { r , ::move(src_) , !no_follow        , true /*read*/ , to_string(comment_,".src",::hex,'.',flags) }
+,	dst       { r , ::move(dst_) , true/*no_follow*/ , false/*read*/ , to_string(comment_,".dst",::hex,'.',flags) }
 {}
 int Record::Lnk::operator()( Record& r , int rc , bool no_file ) {
 	if (src.real==dst.real) return rc ;                                        // this includes case where both are outside repo as they would be both empty
 	bool ok = rc>=0 ;
 	//
-	Accesses a = Access::Reg ; if (no_follow) a |= Access::Lnk ;                                                       // if no_follow, a sym link may be hard linked
-	if ( src.kind<=Kind::Dep && (ok||no_file) )                  r._report_dep( ::move(src.real) , a , src.comment ) ; // if no_follow, the symlink can be linked
+	Accesses a = Access::Reg ; if (no_follow) a |= Access::Lnk ;                                                                    // if no_follow, a sym link may be hard linked
+	if ( src.kind<=Kind::Dep && (ok||no_file) )                  r._report_dep( ::move(src.real) , src.accesses|a , src.comment ) ;
 	//
 	if (dst.kind==Kind::Repo) { if ( ok                        ) r._report_target( ::move(dst.real) , dst.comment ) ; }
 	else                      { if ( ok && dst.kind==Kind::Tmp ) r._report_tmp   (                                ) ; }
 	return rc ;
 }
 
-Record::Open::Open( Record& r , Path&& path , int flags , ::string const& comment_ ) : Solve{ r , ::move(path) , bool(flags&O_NOFOLLOW) , to_string(comment_,::hex,'.',flags) } {
-	bool do_stat = flags&O_PATH ;
+static inline bool _do_stat (int flags) { return flags&O_PATH                                                        ; }
+static inline bool _do_read (int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
+static inline bool _do_write(int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_RDONLY                     ; }
+Record::Open::Open( Record& r , Path&& path , int flags , ::string const& comment_ ) :
+	Solve{ r , ::move(path) , bool(flags&O_NOFOLLOW) , _do_read(flags) , to_string(comment_,::hex,'.',flags) }
+,	do_read {_do_read (flags)}
+,	do_write{_do_write(flags)}
+{
 	//
-	if ( flags&(O_DIRECTORY|O_TMPFILE)          ) { kind=Kind::Ext ; return ; } // we already solved, this is enough for a directory
-	if ( do_stat && s_autodep_env().ignore_stat ) { kind=Kind::Ext ; return ; }
-	//
-	do_read  = !do_stat && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ;
-	do_write = !do_stat && (flags&O_ACCMODE)!=O_RDONLY                     ;
-	//
-	if ( do_read && do_write && kind<=Kind::Dep ) date = file_date(s_root_fd(),real) ; // file date is updated by open if it does not exist, capture date before
+	if ( flags&(O_DIRECTORY|O_TMPFILE)                  ) { kind=Kind::Ext ; return ; } // we already solved, this is enough for a directory
+	if ( _do_stat(flags) && s_autodep_env().ignore_stat ) { kind=Kind::Ext ; return ; }
+	if ( do_read && do_write && kind<=Kind::Dep         ) date = file_date(s_root_fd(),real) ; // file date is updated by open if it does not exist, capture date before
 }
 int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file ) {
 	bool     ok = fd_rc>=0                                       ;
@@ -200,26 +202,26 @@ int Record::Open::operator()( Record& r , bool has_fd , int fd_rc , bool no_file
 	} else if (do_write) {
 		comment += do_read ? ".upd" : ".wr" ;
 		if (do_read) {
-			if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , a  ,               comment  ) ; // file date is updated if created, use original date
-			else if ( ok                     ) r._report_dep   ( ::move(real) , date , a  ,               comment  ) ; // in src dirs, only the read side is reported
-			else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , a  , (comment+='!',comment) ) ;
+			if      ( ok && kind==Kind::Repo ) r._report_update( ::move(real) , date , accesses|a  ,               comment  ) ; // file date is updated if created, use original date
+			else if ( ok                     ) r._report_dep   ( ::move(real) , date , accesses|a  ,               comment  ) ; // in src dirs, only the read side is reported
+			else if ( no_file                ) r._report_dep   ( ::move(real) , DD() , accesses|a  , (comment+='!',comment) ) ;
 		} else {
-			if      ( ok && kind==Kind::Repo ) r._report_target( ::move(real) ,                           comment  ) ;
+			if      ( ok && kind==Kind::Repo ) r._report_target( ::move(real) ,                                    comment  ) ;
 		}
 	} else {
 		comment += do_read ? ".rd" : ".path" ;
-		if      ( ok && has_fd ) r._report_dep( ::move(real) , file_date(fd_rc) , a ,               comment  ) ;
-		else if ( ok           ) r._report_dep( ::move(real) ,                    a , (comment+="*",comment) ) ; // if no fd available, use auto-date
-		else if ( no_file      ) r._report_dep( ::move(real) , DD()             , a , (comment+='!',comment) ) ;
+		if      ( ok && has_fd ) r._report_dep( ::move(real) , file_date(fd_rc) , accesses|a ,               comment  ) ;
+		else if ( ok           ) r._report_dep( ::move(real) ,                    accesses|a , (comment+="*",comment) ) ; // if no fd available, use auto-date
+		else if ( no_file      ) r._report_dep( ::move(real) , DD()             , accesses|a , (comment+='!',comment) ) ;
 	}
 	return fd_rc ;
 }
 
-Record::Read::Read( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
-	if (kind<=Kind::Dep) r._report_dep( ::move(real) , Access::Reg , comment ) ;
+Record::Read::Read( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,true/*read*/,comment_} {
+	if (kind<=Kind::Dep) r._report_dep( ::move(real) , accesses|Access::Reg , comment ) ;
 }
 
-Record::ReadLnk::ReadLnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,comment_} , buf{buf_} , sz{sz_} {
+Record::ReadLnk::ReadLnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string const& comment_ ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,comment_} , buf{buf_} , sz{sz_} {
 	SWEAR(at!=Backdoor) ;
 }
 
@@ -245,26 +247,31 @@ ssize_t Record::ReadLnk::operator()( Record& r , ssize_t len ) {
 		}
 	}
 	if (kind<=Kind::Dep) {
-		if (len>=0) r._report_dep( ::move(real) , Access::Lnk , comment     ) ;
-		else        r._report_dep( ::move(real) , Access::Lnk , comment+'~' ) ; // file may be regular, so let _report_dep determine the date ...
-	}                                                                           // ... optimizing based on no_file (date is DD()) is not reliable as no_file may have false positives
+		if (len>=0) r._report_dep( ::move(real) , accesses|Access::Lnk , comment     ) ;
+		else        r._report_dep( ::move(real) , accesses|Access::Lnk , comment+'~' ) ; // file may be regular, so let _report_dep determine the date ...
+	}                                                                                    // ... optimizing based on no_file (date is DD()) is not reliable as no_file may have false positives
 	return len ;
 }
 
 // flags is not used if echange is not supported
+#ifndef RENAME_EXCHANGE
+	#define RENAME_EXCHANGE 0
+#endif
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , uint flags [[maybe_unused]] , ::string const& comment_ ) :
-	src{ r , ::move(src_) , true/*no_follow*/ , to_string(comment_+".rd",::hex,'.',flags) }
-,	dst{ r , ::move(dst_) , true/*no_follow*/ , to_string(comment_+".wr",::hex,'.',flags) }
+	src{ r , ::move(src_) , true/*no_follow*/ , true/*read*/                , to_string(comment_+".src",::hex,'.',flags) }
+,	dst{ r , ::move(dst_) , true/*no_follow*/ , bool(flags&RENAME_EXCHANGE) , to_string(comment_+".dst",::hex,'.',flags) }
 {
-	#ifdef RENAME_EXCHANGE
-		exchange = flags & RENAME_EXCHANGE ;
-	#endif
+	exchange = flags & RENAME_EXCHANGE ;
 }
 int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 	if (src.real==dst.real) return rc ;                                           // this includes case where both are outside repo as they would be both empty
 	if (exchange) {
 		src.comment += "<>" ;
 		dst.comment += "<>" ;
+	}
+	if ( rc==0 || no_file ) {
+			if (             src.kind<=Kind::Dep && +src.accesses ) r._report_dep( ::string(src.real) , src.accesses , src.comment+".last" ) ;
+			if ( exchange && dst.kind<=Kind::Dep && +dst.accesses ) r._report_dep( ::string(dst.real) , dst.accesses , dst.comment+".last" ) ;
 	}
 	if (rc==0) {
 		if ( dst.kind==Kind::Tmp || (exchange&&src.kind==Kind::Tmp) ) r._report_tmp() ;
@@ -297,6 +304,9 @@ int Record::Rename::operator()( Record& r , int rc , bool no_file ) {
 	}
 	return rc ;
 }
+#if RENAME_EXCHANGE==0
+	#undef RENAME_EXCHANGE
+#endif
 
 Record::Search::Search( Record& r , Path const& path , bool exec , const char* path_var , ::string const& comment ) {
 	SWEAR( path.at==Fd::Cwd , path.at ) ;                                                                             // it is meaningless to search with a dir fd
@@ -336,7 +346,7 @@ Record::Search::Search( Record& r , Path const& path , bool exec , const char* p
 	}
 }
 
-Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,comment_} {
+Record::Stat::Stat( Record& r , Path&& path , bool no_follow , ::string const& comment_ ) : Solve{r,::move(path),no_follow,true/*read*/,comment_} {
 	if (s_autodep_env().ignore_stat) kind = Kind::Ext ;                        // no report if stats are ignored
 }
 int Record::Stat::operator()( Record& r , int rc , bool no_file ) {
@@ -349,7 +359,7 @@ int Record::Symlnk::operator()( Record& r , int rc ) {
 	return rc ;
 }
 
-Record::Unlink::Unlink( Record& r , Path&& p , bool remove_dir , ::string const& c ) : Solve{r,::move(p),true/*no_follow*/,c} {
+Record::Unlink::Unlink( Record& r , Path&& p , bool remove_dir , ::string const& c ) : Solve{r,::move(p),true/*no_follow*/,false/*read*/,c} {
 	if (remove_dir) kind = Kind::Ext ;
 }
 int Record::Unlink::operator()( Record& r , int rc ) {

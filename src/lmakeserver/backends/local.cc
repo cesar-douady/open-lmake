@@ -94,7 +94,7 @@ namespace Backends::Local {
 	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,RsrcsDataAsk,true/*IsLocal*/> {
 
 		static void _wait_thread_func( ::stop_token stop , LocalBackend* self ) {
-			Trace::t_key = 'L' ;
+			t_thread_key = 'L' ;
 			self->_wait_jobs(stop) ;
 		}
 
@@ -112,7 +112,11 @@ namespace Backends::Local {
 
 		// services
 
-		virtual bool/*ok*/ config( ::vmap_ss const& dct , bool dynamic ) {
+		::vmap_s<size_t> n_tokenss() const {
+			return capacity() ;
+		}
+
+		virtual void config( ::vmap_ss const& dct , bool dynamic ) {
 			if (dynamic) {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
 				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
@@ -140,8 +144,6 @@ namespace Backends::Local {
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
 			}
-			//
-			return true ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;

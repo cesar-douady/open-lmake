@@ -270,18 +270,16 @@ namespace Caches {
 			// remove target dates
 			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
 			// transform date into crc
-			::vmap_s<DepDigest> deps ;
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {
 				Node d{dn} ;
 				if (dd.is_date) { SWEAR( dd.date()==d->date , dd.date() , d->date ) ; dd.crc(d->crc) ; }
 				else            { SWEAR( d->up_to_date(dd)                        ) ;                  }
-				deps.emplace_back(dn,dd) ;
 			}
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;
 			::string deps_file = to_string(dir,'/',jn,"/deps") ;
 			{ OFStream os { data_file } ; serialize(os,report_start) ; serialize(os,report_end) ; }
-			{ OFStream os { deps_file } ; serialize(os,deps        ) ;                            } // store deps in a compact format so that matching is fast
+			{ OFStream os { deps_file } ; serialize(os,report_end.end.digest.deps) ;              } // store deps in a compact format so that matching is fast
 			/**/                                       new_sz += FileInfo(data_file).sz ;
 			/**/                                       new_sz += FileInfo(deps_file).sz ;
 			for( auto const& [tn,_] : digest.targets ) new_sz += FileInfo(tn       ).sz ;

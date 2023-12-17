@@ -57,16 +57,17 @@ public :
 	}
 	// services
 private :
-	bool/*new*/ _new_access( PD , ::string const& , DD , AccessDigest const& , NodeIdx parallel_id , ::string const& comment={} ) ;
+	bool/*new*/ _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , NodeIdx parallel_id , ::string const& comment={} ) ; // fd for trace purpose only
 	//
-	void _new_accesses(JobExecRpcReq const& jerr) {
+	void _new_accesses( Fd fd , JobExecRpcReq const& jerr ) {                  // fd for trace purpose only
 		SWEAR(!jerr.auto_date) ;
 		parallel_id++ ;
-		for( auto const& [f,dd] : jerr.files ) _new_access( jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
+		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
 	}
 public :
-	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access(pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0/*parallel_id*/,c) ; }
-	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access(pd,d,dd,{.accesses=a,.dflags=dfs                },0/*parallel_id*/,c) ; }
+	//                                                                                                                                                                             parallel_id
+	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access({},pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0          ,c) ; }
+	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access({},pd,d,dd,{.accesses=a,.dflags=dfs                },0          ,c) ; }
 	//
 	void static_deps( PD , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin={}                           ) ;
 	void new_exec   ( PD , ::string const& exe                                               , ::string const& ="exec" ) ;

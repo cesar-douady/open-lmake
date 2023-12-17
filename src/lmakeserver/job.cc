@@ -59,7 +59,6 @@ namespace Engine {
 			}
 			bool weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
 			bool warn  = weird && has_flag(Tflag::Warning)                           ;
-			if (!inc      ) t->unlinked = true ;
 			if (warn      ) to_report.emplace_back(t,inc) ;
 			if (tn.empty()) to_wash.emplace_back(t->name(),::pair(t,inc)) ;    // if tn was not lazy evaluated
 			else            to_wash.emplace_back(tn       ,::pair(t,inc)) ;
@@ -115,6 +114,7 @@ namespace Engine {
 				::close(rfd) ;
 			} else {
 				unlink(tn) ;
+				t->unlinked = true ;
 			}
 			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , ::dir_name(tn) ) ; // _s_target_dirs must protect all dirs beneath it
 		}
@@ -651,8 +651,17 @@ namespace Engine {
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
-			SWEAR( ri.lvl==JobLvl::Exec , ri.lvl ) ;                           // update statistics if this does not hold
-			ri.lvl = JobLvl::End ;                                             // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+			switch (ri.lvl) {
+				case JobLvl::Queued :
+					req->stats.cur(ReqInfo::Lvl::Queued)-- ;
+					req->stats.cur(ReqInfo::Lvl::Exec  )++ ;
+				[[fallthrough]] ;
+				case JobLvl::Exec :
+					ri.lvl = JobLvl::End ;                                     // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+				break ;
+				default :
+					FAIL(ri.lvl) ;
+			}
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
@@ -1159,7 +1168,7 @@ namespace Engine {
 	}
 
 	bool/*targets_ok*/ JobData::_targets_ok( Req req , Rule::SimpleMatch const& match ) {
-		Trace trace("_targets_ok",idx(),req) ;
+		Trace trace("_targets_ok",idx(),req,status,run_status) ;
 		::vector_view_c_s   static_target_names = match.static_targets() ;
 		::umap<Node,VarIdx> static_target_map   ;
 		::vector<Node>      static_target_nodes ; static_target_nodes.reserve(static_target_names.size()) ;

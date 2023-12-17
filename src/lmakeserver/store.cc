@@ -103,12 +103,10 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N ) if (new_config.backends[+t].addr!=old_config.backends[+t].addr) return true  ;
 		/**/                                                                                                return false ;
 	}
-	void EngineStore::_s_set_config(Config&& new_config) {
-		g_config = ::move(new_config) ;
+	void EngineStore::_s_store_config() {
 		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
-		{	OFStream config_stream{AdminDir+"/config"s} ;
-			config_stream << g_config.pretty_str() ;
-		}
+		OFStream config_stream{AdminDir+"/config"s} ;
+		config_stream << g_config.pretty_str() ;
 	}
 
 	void EngineStore::_s_diff_config( Config const& old_config , bool dynamic ) {
@@ -136,10 +134,12 @@ namespace Engine {
 		if (  dynamic && !d                                        ) return ;  // fast path, nothing to update
 		//
 		/**/                                                         Config old_config = g_config ;
-		if (             +d                                        ) _s_set_config(::move(config))      ;
+		if (             +d                                        ) g_config = ::move(config) ;
 		/**/                                                         g_config.open(dynamic)             ;
+		if (             +d                                        ) _s_store_config()                  ;
 		if ( !dynamic                                              ) _s_init_srcs_rules(rescue)         ;
 		if (             +d                                        ) _s_diff_config(old_config,dynamic) ;
+		if (  dynamic                                              ) g_store._compile_n_tokenss()       ; // recompute Rule::n_tokens as they refer to the config
 		trace("done",Pdate::s_now()) ;
 		SWEAR(g_config.booted,g_config) ;                                      // we'd better have a config at the end
 	}
@@ -266,6 +266,17 @@ namespace Engine {
 		_compile_rule_datas() ;
 		RuleBase::s_by_name.clear() ;
 		for( Rule r : rule_lst() ) RuleBase::s_by_name[r->name] = r ;
+		_compile_n_tokenss() ;
+	}
+
+	void EngineStore::_compile_n_tokenss() {
+		for( Rule r : rule_lst() ) {
+			RuleData& rd = r.data() ;
+			try { rd.n_tokens = from_string_with_units<0,size_t>(rd.n_tokens_key) ; continue ; } catch (...) {}
+			try { rd.n_tokens = g_config.dyn_n_tokenss   .at    (rd.n_tokens_key) ; continue ; } catch (...) {}
+			try { rd.n_tokens = g_config.static_n_tokenss.at    (rd.n_tokens_key) ; continue ; } catch (...) {}
+			/**/  rd.n_tokens = 1                                                 ;
+		}
 	}
 
 	void EngineStore::_save_rules() {

@@ -176,6 +176,7 @@ unit_tests/slurm.py
 unit_tests/sources.py
 unit_tests/src.py
 unit_tests/star.py
+unit_tests/sym_lnk.py
 unit_tests/tar.py
 unit_tests/target.py
 unit_tests/target2.py
