@@ -225,14 +225,12 @@ void AutodepPtrace::s_prepare_child() {
 				#endif
 				if (HAS_SECCOMP) SWEAR(info.has_exit_proc,"should not have been stopped on exit") ;
 				if (info.has_exit_proc) {
-					#if HAS_PTRACE_GET_SYSCALL_INFO                                                 // use portable calls if implemented
-						int64_t res    = syscall_info.exit.rval                                   ;
-						int     errno_ = syscall_info.exit.is_error ? -syscall_info.exit.rval : 0 ;
+					#if HAS_PTRACE_GET_SYSCALL_INFO                            // use portable calls if implemented
+						int64_t res    = syscall_info.exit.rval ;
 					#else
 						int64_t res    = np_ptrace_get_res(pid) ;              // use non-portable calls if portable accesses are not implemented
-						int     errno_ = np_syscall_errno(res)  ;
 					#endif
-					int64_t new_res = s_tab[info.idx].exit( info.ctx , info.record , pid , res , errno_ ) ;
+					int64_t new_res = s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
 					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ;  // there is no such cases for now, if it arises, new_res must be reported
 					info.ctx = nullptr ;                                                                                     // ctx is used to retain some info between syscall entry and exit
 				}

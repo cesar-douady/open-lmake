@@ -14,9 +14,9 @@ namespace Caches {
 		// services
 		virtual void config(Config::Cache const&) ;
 		//
-		virtual Match      match   ( Job , Req              ) ;
-		virtual JobDigest  download( Job , Id        const& ) ;
-		virtual bool/*ok*/ upload  ( Job , JobDigest const& ) ;
+		virtual Match      match   ( Job , Req                                 ) ;
+		virtual JobDigest  download( Job , Id        const& , JobReason const& ) ;
+		virtual bool/*ok*/ upload  ( Job , JobDigest const&                    ) ;
 	private :
 		Sz   _lru_remove( ::string const& entry             ) ;
 		void _lru_first ( ::string const& entry , Sz sz     ) ;

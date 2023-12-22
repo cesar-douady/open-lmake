@@ -134,6 +134,9 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	if (n_kw_args) {
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
 		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
+	}
+	if (!unlink) pos_tflags = {Tflag::Crc,Tflag::Write} ;                      // we declare that we write, allow it and compute crc by default
+	if (n_kw_args) {
 		for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ )
 			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
 				n_kw_args-- ;
@@ -147,8 +150,8 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
-	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.write=!unlink,.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.unlink=unlink} , no_follow , "target" ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
+	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=No|!unlink,.unlink=No|unlink} , no_follow , "target" ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                               ;
 	//
 	Py_RETURN_NONE ;
 }

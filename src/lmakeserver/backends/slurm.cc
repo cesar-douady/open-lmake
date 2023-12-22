@@ -18,6 +18,18 @@ using namespace Disk ;
 namespace Backends::Slurm {
 
 	//
+	// daemon info
+	//
+
+	struct Daemon {
+		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
+		// data
+		Pdate           time_origin { "2023-01-01 00:00:00" } ;                // this leaves room til 2091
+		float           nice_factor { 1                     } ;                // conversion factor in the form of number of nice points per second
+		::map_s<size_t> licenses    ;                                          // licenses sampled from daemon
+	} ;
+
+	//
 	// resources
 	//
 
@@ -26,24 +38,24 @@ namespace Backends::Slurm {
 		// accesses
 		bool operator==(RsrcsDataSingle const&) const = default ;
 		// data
-		uint16_t cpu      = 0 ;        // number of logical cpu  (sbatch --cpus-per-task  option)
-		uint32_t mem      = 0 ;        // memory in MB           (sbatch --mem            option) default : illegal (memory reservation is compulsery)
-		uint32_t tmp      = 0 ;        // tmp disk in MB         (sbatch --tmp            option)
-		::string part     ;            // partition name         (sbatch -p,--partition   option)
-		::string gres     ;            // generic resources      (sbatch --gres           option)
-		::string licence  ;            // licence                (sbtach -L,--licenses    option)
-		::string feature  ;            // feature/contraint      (sbatch -C,--constraint  option)
-		::string qos      ;            // Quality Of Service     (sbtach -q,--qos         option)
-		::string reserv   ;            // Reservation            (sbtach -r,--reservation option)
-		::string excludes ;            // List of required nodes (sbatch -w,--nodelist    option)
-		::string nodes    ;            // List of excludes nodes (sbatch -x,--exclude     option)
+		uint16_t cpu      = 0 ;        // number of logical cpu  (sbatch    --cpus-per-task option)
+		uint32_t mem      = 0 ;        // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
+		uint32_t tmp      = 0 ;        // tmp disk in MB         (sbatch    --tmp           option)
+		::string excludes ;            // list of excludes nodes (sbatch -x,--exclude       option)
+		::string feature  ;            // feature/contraint      (sbatch -C,--constraint    option)
+		::string gres     ;            // generic resources      (sbatch    --gres          option)
+		::string licenses ;            // licenses               (sbtach -L,--licenses      option)
+		::string nodes    ;            // list of required nodes (sbatch -w,--nodelist      option)
+		::string part     ;            // partition name         (sbatch -p,--partition     option)
+		::string qos      ;            // quality of service     (sbtach -q,--qos           option)
+		::string reserv   ;            // reservation            (sbtach -r,--reservation   option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
 		using Base = ::vector<RsrcsDataSingle> ;
 		// cxtors & casts
-		RsrcsData(                ) = default ;
-		RsrcsData(::vmap_ss const&) ;
+		RsrcsData(                      ) = default ;
+		RsrcsData( ::vmap_ss&& , Daemon ) ;
 		// services
 		::vmap_ss mk_vmap(void) const ;
 	} ;
@@ -58,13 +70,13 @@ namespace std {
 			Hash::Xxh h ;
 			h.update(rs.size()) ;
 			for( auto r : rs ) {
-				h.update(r.cpu    ) ;
-				h.update(r.mem    ) ;
-				h.update(r.tmp    ) ;
-				h.update(r.part   ) ;
-				h.update(r.gres   ) ;
-				h.update(r.licence) ;
-				h.update(r.feature) ;
+				h.update(r.cpu     ) ;
+				h.update(r.mem     ) ;
+				h.update(r.tmp     ) ;
+				h.update(r.feature ) ;
+				h.update(r.gres    ) ;
+				h.update(r.licenses) ;
+				h.update(r.part    ) ;
 			}
 			return +::move(h).digest() ;
 		}
@@ -81,12 +93,12 @@ namespace Backends::Slurm {
 
 	void slurm_init() ;
 
-	p_cxxopts                 create_parser        (                        ) ;
-	RsrcsData                 parse_args           (::string const& args    ) ;
-	void                      slurm_cancel         (uint32_t        slurm_id) ;
-	::pair_s<Bool3/*job_ok*/> slurm_job_state      (uint32_t        slurm_id) ;
-	::string                  read_stderr          (JobIdx                  ) ;
-	::string                  slurm_priority_params(                        ) ;
+	p_cxxopts                 create_parser     (                        ) ;
+	RsrcsData                 parse_args        (::string const& args    ) ;
+	void                      slurm_cancel      (uint32_t        slurm_id) ;
+	::pair_s<Bool3/*job_ok*/> slurm_job_state   (uint32_t        slurm_id) ;
+	::string                  read_stderr       (JobIdx                  ) ;
+	Daemon                    slurm_sense_daemon(                        ) ;
 	//
 	uint32_t slurm_spawn_job( ::string const& key , JobIdx , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
@@ -129,12 +141,12 @@ namespace Backends::Slurm {
 		virtual Bool3 call_launch_after_end  () const { return No    ; }       // .
 
 		// services
+
 		virtual void config( vmap_ss const& dct , bool dynamic ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
 			if (!dynamic) slurm_init() ;
 			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			//
-			bool prev_use_nice = use_nice ;
 			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
@@ -147,30 +159,20 @@ namespace Backends::Slurm {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw to_string("wrong value for entry "   ,k,": ",v) ; }
 				/**/                        { trace("bad_key",k  ) ; throw to_string("unexpected config entry: ",k       ) ; }
 			}
-			if (!prev_use_nice) {
-				::string spp=slurm_priority_params() ;                     // sense slurm daemon even if !use_nice so as to fall back to local in case of failure
-				trace("slurm_prio_params",STR(use_nice),spp) ;
-				if (use_nice) {
-					static ::string const to_mrkr  = "time_origin=" ;
-					static ::string const npd_mrkr = "nice_factor=" ;
-					//
-					size_t pos = spp.find(to_mrkr) ;
-					if (pos!=Npos) {
-						pos += to_mrkr.size() ;
-						size_t end = spp.find(',',pos) ;
-						time_origin = Pdate(spp.substr(pos,end)) ;
-					}
-					//
-					pos = spp.find(npd_mrkr) ;
-					if (pos!=Npos) {
-						pos += npd_mrkr.size() ;
-						size_t end = spp.find(',',pos) ;
-						nice_factor = from_chars<float>(spp.substr(pos,end)) ;
-					}
-				}
-			}
+			if (!dynamic) daemon = slurm_sense_daemon() ;
 			trace("done") ;
 		}
+
+		virtual ::vmap_ss descr() const {
+			::vmap_ss res ;
+			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,to_string(v)) ;
+			return res ;
+		}
+
+		virtual ::vmap_s<size_t> n_tokenss() const {
+			return mk_vmap(daemon.licenses) ;
+		}
+
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity ) const {
 			bool             single = false             ;
 			::umap_s<size_t> capa   = mk_umap(capacity) ;
@@ -184,18 +186,20 @@ namespace Backends::Slurm {
 			else        for( auto&& [k,v] : rs ) { ::string s = to_string_rsrc(k,::min(v,capa[k])) ; res.emplace_back( ::move(k) , ::move(s) ) ; }
 			return res ;
 		}
+
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
 			Base::open_req(req,n_jobs) ;
 			grow(req_forces,req) = parse_args(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
 		}
+
 		virtual void close_req(ReqIdx req) {
 			Base::close_req(req) ;
 			if(reqs.empty()) SWEAR(spawned_rsrcs.empty(),spawned_rsrcs) ;
 		}
 
-		virtual RsrcsData adapt  ( RsrcsData const& rsa              ) const { return rsa                        ; }
-		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()               ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend(rsa,req_forces[req]) ; }
+		virtual RsrcsData adapt  ( RsrcsData const& rsa              ) const { return rsa                                            ; }
+		virtual ::vmap_ss export_( RsrcsData const& rs               ) const { return rs.mk_vmap()                                   ; }
+		virtual RsrcsData import_( ::vmap_ss     && rsa , ReqIdx req ) const { return blend( {::move(rsa),daemon} ,req_forces[req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(RsrcsAsk const& rsa) const {
 			return spawned_rsrcs.n_spawned(rsa) < n_max_queued_jobs ;
@@ -244,7 +248,7 @@ namespace Backends::Slurm {
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}
 		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
-			int32_t nice = use_nice ? int32_t((prio-time_origin).sec()*nice_factor) : 0 ;
+			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
 			Trace trace(Channel::Backend,"Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
 			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
@@ -253,13 +257,12 @@ namespace Backends::Slurm {
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs     ;                                // number of spawned jobs queued in slurm queue
-		::vector<RsrcsData> req_forces        ;                                // indexed by req, resources forced by req
-		uint32_t            n_max_queued_jobs = -1                      ;      // no limit by default
-		bool                use_nice          = false                   ;
-		::string            repo_key          ;                                // a short identifier of the repository
-		Pdate               time_origin       { "2023-01-01 00:00:00" } ;      // this leaves room til 2091
-		float               nice_factor       { 1                     } ;      // conversion factor in the form of number of nice points per second
+		SpawnedMap mutable  spawned_rsrcs     ;            // number of spawned jobs queued in slurm queue
+		::vector<RsrcsData> req_forces        ;            // indexed by req, resources forced by req
+		uint32_t            n_max_queued_jobs = -1    ;    // no limit by default
+		bool                use_nice          = false ;
+		::string            repo_key          ;            // a short identifier of the repository
+		Daemon              daemon            ;            // info sensed from slurm daemon
 	} ;
 
 	QueueThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
@@ -271,6 +274,14 @@ namespace Backends::Slurm {
 	bool _inited = (SlurmBackend::s_init(),true) ;
 
 	//
+	// Daemon
+	//
+
+	::ostream& operator<<( ::ostream& os , Daemon const& d ) {
+		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<')' ;
+	}
+
+	//
 	// RsrcsData
 	//
 
@@ -280,7 +291,7 @@ namespace Backends::Slurm {
 		if ( rsds.tmp             ) os <<','<< rsds.tmp <<"MB" ;
 		if (!rsds.part    .empty()) os <<','<< rsds.part       ;
 		if (!rsds.gres    .empty()) os <<','<< rsds.gres       ;
-		if (!rsds.licence .empty()) os <<','<< rsds.licence    ;
+		if (!rsds.licenses.empty()) os <<','<< rsds.licenses   ;
 		if (!rsds.feature .empty()) os <<','<< rsds.feature    ;
 		if (!rsds.qos     .empty()) os <<','<< rsds.qos        ;
 		if (!rsds.reserv  .empty()) os <<','<< rsds.reserv     ;
@@ -289,26 +300,57 @@ namespace Backends::Slurm {
 		return                      os <<')'                   ;
 	}
 
-	inline RsrcsData::RsrcsData(::vmap_ss const& m) : Base{1} {                                // ensure we have at least 1 entry as we sometimes access element 0
-		auto fill = [&]( ::string const& k , const char* field=nullptr ) -> RsrcsDataSingle& {
-			if ( field && k.starts_with(field) ) return grow( *this , from_chars<uint32_t>(&k[strlen(field)],true/*empty_ok*/) ) ;
-			else                                 throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
-		} ;
-		for( auto const& [k,v] : m )
+	static inline void _sort_entry(::string& s) {                              // normalize to favor resources sharing
+		if (s.find(',')==Npos) return ;
+		::vector_s v = split(s,',') ;
+		SWEAR(v.size()>1) ;
+		sort(v) ;
+		s = v[0] ;
+		for( size_t i=1 ; i<v.size() ; i++ ) append_to_string(s,',',v[i]) ;
+	}
+	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} {        // ensure we have at least 1 entry as we sometimes access element 0
+		sort(m) ;
+		for( auto&& [kn,v] : ::move(m) ) {
+			size_t           p    = kn.find(':')                                       ;
+			::string         k    = p==Npos ? kn :                      k.substr(0,p)  ;
+			uint32_t         n    = p==Npos ? 0  : from_chars<uint32_t>(k.substr(p  )) ;
+			RsrcsDataSingle& rsds = grow(*this,n)                                      ;
+			auto chk_first = [&](::string const& msg) -> void {
+				if (n) throw to_string(msg," are only for 1st component of job, not component ",n) ;
+			} ;
 			switch (k[0]) {
-				case 'c' : fill(k,"cpu"     ).cpu      = from_string_with_units<    uint32_t>(v) ; break ;
-				case 'e' : fill(k,"excludes").excludes =                                      v  ; break ;
-				case 'f' : fill(k,"feature" ).feature  =                                      v  ; break ;
-				case 'g' : fill(k,"gres"    ).gres     = "gres:"+                             v  ; break ;
-				case 'l' : fill(k,"licence" ).licence  =                                      v  ; break ;
-				case 'm' : fill(k,"mem"     ).mem      = from_string_with_units<'M',uint32_t>(v) ; break ;
-				case 'n' : fill(k,"nodes"   ).nodes    =                                      v  ; break ;
-				case 'p' : fill(k,"part"    ).part     =                                      v  ; break ;
-				case 'q' : fill(k,"qos"     ).qos      =                                      v  ; break ;
-				case 'r' : fill(k,"reserv"  ).reserv   =                                      v  ; break ;
-				case 't' : fill(k,"tmp"     ).tmp      = from_string_with_units<'M',uint32_t>(v) ; break ;
-				default  : fill(k) ;
+				case 'c' : if (k=="cpu"     ) {                  rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"     ) {                  rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 't' : if (k=="tmp"     ) {                  rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'e' : if (k=="excludes") {                  rsds.excludes = ::move(                              v) ; continue ; } break ;
+				case 'f' : if (k=="feature" ) {                  rsds.feature  = ::move(                              v) ; continue ; } break ;
+				case 'g' : if (k=="gres"    ) { _sort_entry(v) ; rsds.gres     = ::move(                              v) ; continue ; } break ;
+				case 'n' : if (k=="nodes"   ) {                  rsds.nodes    = ::move(                              v) ; continue ; } break ;
+				case 'p' : if (k=="part"    ) {                  rsds.part     = ::move(                              v) ; continue ; } break ;
+				case 'q' : if (k=="qos"     ) {                  rsds.qos      = ::move(                              v) ; continue ; } break ;
+				case 'r' : if (k=="reserv"  ) {                  rsds.reserv   = ::move(                              v) ; continue ; } break ;
+				case 'l' :
+					if (k=="licenses") {
+						chk_first(k) ;
+						_sort_entry(v) ;
+						rsds.licenses = ::move(v) ;
+						continue ;
+					}
+				break ;
+				default : ;
 			}
+			::string kv = to_string(k,':',v) ;
+			//
+			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
+				chk_first(k) ;
+				if (!rsds.licenses.empty()) rsds.licenses += ',' ;
+				rsds.licenses += ::move(kv) ;
+				continue ;
+			}
+			//
+			throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+
+		}
 		if (!(*this)[0].mem) throw "reserving memory is compulsery"s ;
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
@@ -327,14 +369,14 @@ namespace Backends::Slurm {
 				if ( force1.cpu             ) rsrcs[i].cpu      = force1.cpu      ;
 				if ( force1.mem             ) rsrcs[i].mem      = force1.mem      ;
 				if ( force1.tmp             ) rsrcs[i].tmp      = force1.tmp      ;
-				if (!force1.part    .empty()) rsrcs[i].part     = force1.part     ;
-				if (!force1.gres    .empty()) rsrcs[i].gres     = force1.gres     ;
-				if (!force1.licence .empty()) rsrcs[i].licence  = force1.licence  ;
+				if (!force1.excludes.empty()) rsrcs[i].excludes = force1.excludes ;
 				if (!force1.feature .empty()) rsrcs[i].feature  = force1.feature  ;
+				if (!force1.gres    .empty()) rsrcs[i].gres     = force1.gres     ;
+				if (!force1.licenses.empty()) rsrcs[i].licenses = force1.licenses ;
+				if (!force1.nodes   .empty()) rsrcs[i].nodes    = force1.nodes    ;
+				if (!force1.part    .empty()) rsrcs[i].part     = force1.part     ;
 				if (!force1.qos     .empty()) rsrcs[i].qos      = force1.qos      ;
 				if (!force1.reserv  .empty()) rsrcs[i].reserv   = force1.reserv   ;
-				if (!force1.nodes   .empty()) rsrcs[i].nodes    = force1.nodes    ;
-				if (!force1.excludes.empty()) rsrcs[i].excludes = force1.excludes ;
 			}
 		return rsrcs ;
 	}
@@ -365,6 +407,7 @@ namespace Backends::Slurm {
 		if (!dst) throw to_string("cannot find ",name," in ",LibSlurm) ;
 	}
 	void slurm_init() {
+		Trace trace("slurm_init") ;
 		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
 		if (!handler) throw to_string("cannot find ",LibSlurm) ;
 		//
@@ -381,6 +424,7 @@ namespace Backends::Slurm {
 		_load_func( handler , SlurmApi::strerror                          , "slurm_strerror"                          ) ;
 		_load_func( handler , SlurmApi::submit_batch_het_job              , "slurm_submit_batch_het_job"              ) ;
 		_load_func( handler , SlurmApi::submit_batch_job                  , "slurm_submit_batch_job"                  ) ;
+		trace("done") ;
 	}
 
 	static inline ::string slurm_err() {
@@ -393,15 +437,15 @@ namespace Backends::Slurm {
 			( "c,cpus-per-task" , "cpus-per-task" , cxxopts::value<uint16_t>() )
 			( "mem"             , "mem"           , cxxopts::value<uint32_t>() )
 			( "tmp"             , "tmp"           , cxxopts::value<uint32_t>() )
-			( "C,constraint"    , "Constraint"    , cxxopts::value<::string>() )
+			( "C,constraint"    , "constraint"    , cxxopts::value<::string>() )
+			( "x,exclude"       , "exclude nodes" , cxxopts::value<::string>() )
 			( "gres"            , "gres"          , cxxopts::value<::string>() )
 			( "L,licenses"      , "licenses"      , cxxopts::value<::string>() )
-			( "p,partition"     , "Partition"     , cxxopts::value<::string>() )
+			( "w,nodelist"      , "nodes"         , cxxopts::value<::string>() )
+			( "p,partition"     , "partition"     , cxxopts::value<::string>() )
 			( "q,qos"           , "qos"           , cxxopts::value<::string>() )
 			( "reservation"     , "reservation"   , cxxopts::value<::string>() )
-			( "w,nodelist"      , "nodes"         , cxxopts::value<::string>() )
-			( "x,exclude"       , "exclude nodes" , cxxopts::value<::string>() )
-			( "h,help"          , "Print usage"                                )
+			( "h,help"          , "print usage"                                )
 		;
 		return allocated;
 	}
@@ -435,7 +479,7 @@ namespace Backends::Slurm {
 				if (result.count("constraint"   )) res1.feature  = result["constraint"   ].as<::string>() ;
 				if (result.count("exclude"      )) res1.excludes = result["exclude"      ].as<::string>() ;
 				if (result.count("gres"         )) res1.gres     = result["gres"         ].as<::string>() ;
-				if (result.count("licenses"     )) res1.licence  = result["licenses"     ].as<::string>() ;
+				if (result.count("licenses"     )) res1.licenses = result["licenses"     ].as<::string>() ;
 				if (result.count("nodelist"     )) res1.nodes    = result["nodelist"     ].as<::string>() ;
 				if (result.count("partition"    )) res1.part     = result["partition"    ].as<::string>() ;
 				if (result.count("qos"          )) res1.qos      = result["qos"          ].as<::string>() ;
@@ -569,16 +613,16 @@ namespace Backends::Slurm {
 			j->work_dir        = wd.data()                                                   ;
 			j->name            = const_cast<char*>(job_name.c_str())                         ;
 			//
-			if(!r.excludes.empty()) j->exc_nodes     = const_cast<char*>(r.excludes.data()) ;
-			if(!r.nodes   .empty()) j->req_nodes     = const_cast<char*>(r.nodes   .data()) ;
-			if(!r.reserv  .empty()) j->reservation   = const_cast<char*>(r.reserv  .data()) ;
-			if(!r.qos     .empty()) j->qos           = const_cast<char*>(r.qos     .data()) ;
-			if(!r.feature .empty()) j->features      = const_cast<char*>(r.feature .data()) ;
-			if(!r.licence .empty()) j->licenses      = const_cast<char*>(r.licence .data()) ;
-			if(!r.part    .empty()) j->partition     = const_cast<char*>(r.part    .data()) ;
-			if(!r.gres    .empty()) j->tres_per_node = const_cast<char*>(r.gres    .data()) ;
-			if(i==0               ) j->script        =                   script    .data()  ;
-			/**/                    j->nice          = NICE_OFFSET+nice                     ;
+			if(!r.excludes.empty()) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
+			if(!r.feature .empty()) j->features      = const_cast<char*>(r.feature       .data()) ;
+			if(!r.gres    .empty()) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
+			if(!r.licenses.empty()) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
+			if(!r.nodes   .empty()) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
+			if(!r.part    .empty()) j->partition     = const_cast<char*>(r.part          .data()) ;
+			if(!r.qos     .empty()) j->qos           = const_cast<char*>(r.qos           .data()) ;
+			if(!r.reserv  .empty()) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
+			if(i==0               ) j->script        =                   script          .data()  ;
+			/**/                    j->nice          = NICE_OFFSET+nice                           ;
 			i++ ;
 		}
 		bool                   err = false  /*garbage*/ ;
@@ -599,13 +643,43 @@ namespace Backends::Slurm {
 		return msg->job_id ;
 	}
 
-	::string slurm_priority_params() {
+	Daemon slurm_sense_daemon() {
+		Trace trace("slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX : remember last conf read so as to pass a real update_time param & optimize call
 		if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw to_string("cannot reach slurm daemon : ",slurm_err()) ;
 		SWEAR(conf) ;
-		if (conf->priority_params) { ::string res = conf->priority_params ; SlurmApi::free_ctl_conf(conf) ; return res ; }
-		else                       {                                        SlurmApi::free_ctl_conf(conf) ; return {}  ; }
+		Daemon res ;
+		trace("conf",STR(conf)) ;
+		if (conf->priority_params) {
+			static ::string const to_mrkr  = "time_origin=" ;
+			static ::string const npd_mrkr = "nice_factor=" ;
+			trace("priority_params",conf->priority_params) ;
+			//
+			::string spp = conf->priority_params ;
+			if ( size_t pos=spp.find(to_mrkr) ; pos!=Npos ) {
+				pos += to_mrkr.size() ;
+				res.time_origin = Pdate(spp.substr(pos,spp.find(',',pos))) ;
+			}
+			//
+			if ( size_t pos=spp.find(npd_mrkr) ; pos!=Npos ) {
+				pos += npd_mrkr.size() ;
+				res.nice_factor = from_chars<float>(spp.substr(pos,spp.find(',',pos))) ;
+			}
+		}
+		if (conf->licenses) {
+			trace("licenses",conf->licenses) ;
+			::vector_s rsrc_vec = split(conf->licenses,',') ;
+			for( ::string const& r : rsrc_vec ) {
+				size_t   p = r.find(':')                                     ;
+				::string k = r.substr(0,p)                                   ;
+				size_t   v = p==Npos ? 1 : from_chars<size_t>(r.substr(p+1)) ;
+				//
+				res.licenses.emplace(k,v) ;
+			}
+		}
+		SlurmApi::free_ctl_conf(conf) ;
+		return res ;
 	}
 
 }

@@ -17,14 +17,8 @@ void* get_libc_handle() {
 }
 
 struct Ctx {
-	// Our errno is not the same as user's errno.
-	// This is practical so our accesses do not interferes with user's ones.
-	// However, accessing user's errno for our own use is a pain and in fact, there are system bugs that makes it impossible on some systems.
-	// So we will assume, when there is an access error, that this is due to a missing file, which should be the case most often and any way, this is conservative.
-	// For example a failed open because of no file triggers a dep, but if it is because, say, access rights, then we have not accessed the file and no reason to trigger a dep.
-	bool get_no_file  () const { return true ; }
-	void save_errno   ()       {}
-	void restore_errno()       {}
+	void save_errno   () {}                                                    // our errno is not the same as user errno, so nothing to do
+	void restore_errno() {}                                                    // .
 } ;
 
 struct Lock {

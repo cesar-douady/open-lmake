@@ -100,14 +100,14 @@
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                  os << "AccessDigest("           ;
-	if (+ad.accesses  ) { os <<sep     << ad.accesses   ; sep = "," ; }
-	if (+ad.dflags    ) { os <<sep     << ad.dflags     ; sep = "," ; }
-	if ( ad.write     ) { os <<sep     << "write"       ; sep = "," ; }
-	if (+ad.neg_tflags) { os <<sep<<'-'<< ad.neg_tflags ; sep = "," ; }
-	if (+ad.pos_tflags) { os <<sep<<'+'<< ad.pos_tflags ; sep = "," ; }
-	if ( ad.unlink    ) { os <<sep     << "unlink"      ; sep = "," ; }
-	return                os <<')'                      ;
+	/**/                  os << "AccessDigest("                ;
+	if (+ad.accesses  ) { os <<sep     << ad.accesses          ; sep = "," ; }
+	if (+ad.dflags    ) { os <<sep     << ad.dflags            ; sep = "," ; }
+	if ( ad.write!=No ) { os <<sep     << "write:"<<ad.write   ; sep = "," ; }
+	if (+ad.neg_tflags) { os <<sep<<'-'<< ad.neg_tflags        ; sep = "," ; }
+	if (+ad.pos_tflags) { os <<sep<<'+'<< ad.pos_tflags        ; sep = "," ; }
+	if ( ad.unlink!=No) { os <<sep     << "unlink:"<<ad.unlink ; sep = "," ; }
+	return                os <<')'                             ;
 }
 
 void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
@@ -124,9 +124,8 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 		pos_tflags |= ad.pos_tflags & ~neg_tflags ;                            // .
 	}
 	if (!ad.idle()) {
-		if      (idle()                   ) unlink = ad.unlink ;
-		else if (order==AccessOrder::After) unlink = ad.unlink ;
-		write |= ad.write ;
+		if ( idle() || order==AccessOrder::After ) { unlink &= ~ad.write ; unlink |= ad.unlink ; }
+		/**/                                         write |= ad.write ;
 	}
 }
 

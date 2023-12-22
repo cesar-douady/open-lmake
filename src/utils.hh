@@ -508,9 +508,10 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 
-static inline bool/*done*/ kill_process(pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid," !") ; return ::kill  (pid,sig)==0 ;         } // ensure no system wide catastrophe !
-static inline bool/*done*/ kill_group  (pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid," !") ; return ::killpg(pid,sig)==0 ;         } // .
-static inline bool/*done*/ kill_self   (          int sig) {                                                 return kill_process(::getpid(),sig) ; } // raise kills the thread, not the process
+static inline bool/*done*/ kill_process(              pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid) ; return ::kill  (pid,sig)==0 ; } // ensure no system wide catastrophe !
+static inline bool/*done*/ kill_group  (              pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid) ; return ::killpg(pid,sig)==0 ; } // .
+static inline bool/*done*/ kill_process(bool as_group,pid_t pid,int sig) { return as_group ? kill_group(pid,sig) : kill_process(pid,sig) ;          }
+static inline bool/*done*/ kill_self   (                        int sig) { return kill_process(::getpid(),sig)                           ;          } // raise kills the thread, not the process
 
 //
 // vector_view

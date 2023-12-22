@@ -124,8 +124,8 @@ namespace Caches {
 		//
 		::string prev_file = to_string(dir,'/',here.prev,"/lru") ;
 		::string next_file = to_string(dir,'/',here.next,"/lru") ;
-		auto prev = deserialize<Lru>(IFStream  (prev_file)) ;
-		auto next = deserialize<Lru>(IFStream  (next_file)) ;
+		auto prev = deserialize<Lru>(IFStream(prev_file)) ;
+		auto next = deserialize<Lru>(IFStream(next_file)) ;
 		//
 		prev.next = here.next ;
 		next.prev = here.prev ;
@@ -152,6 +152,7 @@ namespace Caches {
 	}
 
 	Cache::Match DirCache::match( Job job , Req req ) {
+		Trace trace("match",job,req) ;
 		::string     jn       = _unique_name(job)             ;
 		::uset<Node> new_deps ;
 		AutoCloseFd  dfd      =  open_read(dir_fd,jn)         ;
@@ -175,7 +176,7 @@ namespace Caches {
 					}
 				}
 				if (nds.empty()) {
-					Trace trace("match","hit",job,r) ;
+					trace("hit",r) ;
 					return { .completed=true , .hit=Yes , .id{r} } ;           // hit
 				}
 				if (!found) {
@@ -190,7 +191,7 @@ namespace Caches {
 			}
 		} catch (::string const&) {}                                           // if directory does not exist, it is as it was empty
 		if (!found) {
-			Trace trace("match","miss",job) ;
+			trace("miss") ;
 			return { .completed=true , .hit=No } ;
 		}
 		// demonstration that new_deps is not empty :
@@ -199,15 +200,15 @@ namespace Caches {
 		// - hence it is the same for all such entries
 		// - and this dep belongs to new_deps
 		SWEAR(!new_deps.empty()) ;
-		Trace trace("match","deps",job,new_deps) ;
+		trace("deps",new_deps) ;
 		return { .completed=true , .hit=Maybe , .new_deps{::mk_vector(new_deps)} } ;
 	}
 
-	JobDigest DirCache::download( Job job , Id const& id ) {
-		Trace trace("download",job,id) ;
+	JobDigest DirCache::download( Job job , Id const& id , JobReason const& reason ) {
 		::string    jn     = _unique_name(job,id) ;
 		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
 		::vector_s  copied ;
+		Trace trace("download",job,id,jn) ;
 		try {
 			JobInfoStart report_start ;
 			JobInfoEnd   report_end   ;
@@ -217,6 +218,7 @@ namespace Caches {
 				deserialize(is,report_end  ) ;
 				// update some info
 				report_start.pre_start.job = +job ;                            // id is not stored in cache
+				report_start.submit_attrs.reason = reason ;
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
 					auto&           entry = report_end.end.digest.targets[ti] ;
@@ -233,17 +235,21 @@ namespace Caches {
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
 			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;               // because we manipulate LRU, need exclusive
-				_lru_first(jn,_lru_remove(jn)) ;
+				Sz sz = _lru_remove(jn) ;
+				_lru_first(jn,sz) ;
+				trace("done",sz) ;
 			}
 			return report_end.end.digest ;
 		} catch(::string const& e) {
 			for( ::string const& f : copied ) unlink(f) ;                      // clean up partial job
+			trace("failed") ;
 			throw e ;
 		}
 	}
 
 	bool DirCache::upload( Job job , JobDigest const& digest ) {
 		::string jn = _unique_name(job,repo) ;
+		Trace trace("DirCache::upload",job,jn) ;
 		make_dir(dir_fd,jn) ;
 		//
 		Sz          old_sz = 0                    ;
@@ -264,8 +270,11 @@ namespace Caches {
 			auto     report_start = deserialize<JobInfoStart>(is) ;
 			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
 			// update some specific info
-			report_start.pre_start.seq_id = 0 ;                                // no seq_id since no execution
-			report_start.pre_start.job    = 0 ;                                // job_id may not be the same in the destination repo
+			report_start.pre_start.seq_id    = 0  ;                            // no seq_id   since no execution
+			report_start.start    .small_id  = 0  ;                            // no small_id since no execution
+			report_start.pre_start.job       = 0  ;                            // job_id may not be the same in the destination repo
+			report_start.eta                 = {} ;                            // dont care about timing info in cache
+			report_start.submit_attrs.reason = {} ;                            // cache does not care about original reason
 			report_start.rsrcs.clear() ;                                       // caching resources is meaningless as they have no impact on content
 			// remove target dates
 			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
@@ -286,11 +295,13 @@ namespace Caches {
 			if (new_sz>old_sz) _mk_room(old_sz,new_sz) ;
 			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ ) _copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlink_dst*/ , true/*mk_read_only*/ ) ;
 		} catch (::string const&) {
+			trace("failed") ;
 			unlink_inside(dfd) ;
 			_mk_room(new_sz,0) ;                                               // finally, we did not populate the entry
 			return false ;
 		}
 		_lru_first(jn,new_sz) ;
+		trace("done",new_sz) ;
 		return true ;
 	}
 

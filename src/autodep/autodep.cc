@@ -65,10 +65,10 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather_deps.accesses ) {
 		if (ai.digest.idle()) continue ;
-		deps_stream << (+ai.digest.accesses?'<':' ') ;
-		deps_stream << (ai.digest.write    ?'>':' ') ;
-		deps_stream << (ai.digest.unlink   ?'!':' ') ;
-		deps_stream << target << '\n'                ;
+		deps_stream << ( +ai.digest.accesses  ? '<' : ' ' ) ;
+		deps_stream << ( ai.digest.write !=No ? '>' : ' ' ) ;
+		deps_stream << ( ai.digest.unlink!=No ? '!' : ' ' ) ;
+		deps_stream << target << '\n'                       ;
 	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;

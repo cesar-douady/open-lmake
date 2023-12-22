@@ -318,12 +318,14 @@ namespace Engine {
 				res <<"\t\t"<< mk_snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
 				continue ;
 			}
-			res <<"\t\t"<< mk_snake(t) <<" :\n" ;
-			size_t w  = 9 ;                                                    // room for interface
+			res <<"\t\t"<< mk_snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
+			::vmap_ss descr = bbe->descr() ;
+			size_t w = 9 ;                                                     // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
+			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
 			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			/**/                              res <<"\t\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
 		}
 		//
 		if (trace!=TraceConfig()) {

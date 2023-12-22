@@ -43,7 +43,7 @@ struct SyscallDescr {
 	constexpr bool operator!() const { return !+*this ; }
 	// data
 	bool/*skip*/   (*entry)( void*& , Record& , pid_t , uint64_t args[6] , const char* comment ) = nullptr ;
-	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res , int errno_               ) = nullptr ;
+	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                            ) = nullptr ;
 	uint8_t        prio                                                                          = 0       ; // prio for libseccomp (0 means entry is not allocated)
 	bool           data_access                                                                   = false   ;
 	const char*    comment                                                                       = nullptr ;
@@ -71,7 +71,7 @@ template<bool At,bool Path> bool/*skip_syscall*/ entry_chdir( void* & ctx , Reco
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res , int /*errno_*/ ) {
+int64_t/*res*/ exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (!ctx) return res ;
 	Record::ChDir* cd = static_cast<Record::ChDir*>(ctx) ;
 	(*cd)(r,res,pid) ;
@@ -88,10 +88,10 @@ template<bool At,bool Path,bool Flags> bool/*skip_syscall*/ entry_chmod( void* &
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_chmod( void* ctx , Record& r , pid_t , int64_t res , int errno_ ) {
+int64_t/*res*/ exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
 	Record::Chmod* cm = static_cast<Record::Chmod*>(ctx) ;
-	(*cm)(r,res,errno_==ENOENT) ;
+	(*cm)(r,res) ;
 	delete cm ;
 	return res ;
 }
@@ -113,9 +113,9 @@ bool/*skip_syscall*/ entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args
 	ctx = sz ;
 	return false ;
 }
-int64_t/*res*/ exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res , int errno_ ) {
-	if (errno_                  ) return res ;                                             // in case of error, man getcwd says buffer is undefined => nothing to do
-	if (Record::s_has_tmp_view()) return res ;                                             // no tmp mapping                                        => nothing to do
+int64_t/*res*/ exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res ) {
+	if (!res                     ) return res ;                                            // in case of error, man getcwd says buffer is undefined => nothing to do
+	if (!Record::s_has_tmp_view()) return res ;                                            // no tmp mapping                                        => nothing to do
 	SWEAR(pid==0,pid) ;                                                                    // tmp mapping is not supported with ptrace (need to report fixed result to caller)
 	char*   buf = reinterpret_cast<char*  >(res) ;
 	size_t* sz  = reinterpret_cast<size_t*>(ctx) ;
@@ -134,10 +134,10 @@ template<bool At,bool Flags> bool/*skip_syscall*/ entry_lnk( void* & ctx , Recor
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res , int errno_ ) {
+int64_t/*res*/ exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
 	if (!ctx) return res ;
 	Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
-	(*l)(r,res,errno_==ENOENT) ;
+	(*l)(r,res) ;
 	delete l ;
 	return res ;
 }
@@ -152,10 +152,10 @@ template<bool At> bool/*skip_syscall*/ entry_open( void* & ctx , Record& r , pid
 	catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res , int errno_ ) {
+int64_t/*res*/ exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
 	if (!ctx) return res ;
 	Record::Open* o = static_cast<Record::Open*>(ctx) ;
-	(*o)( r , false/*has_fd*/ , res , errno_==ENOENT ) ;
+	(*o)( r , res ) ;
 	delete o ;
 	return res ;
 }
@@ -179,8 +179,8 @@ template<bool At> bool/*skip_syscall*/ entry_read_lnk( void* & ctx , Record& r ,
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res , int /*errno_*/ ) {
-	if (!ctx) return res ;                                                                         // backdoor case
+int64_t/*res*/ exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
+	if (!ctx) return res ;                                                        // backdoor case
 	Record::ReadLnk* rl = static_cast<Record::ReadLnk*>(ctx) ;
 	SWEAR( pid==0 || !Record::s_has_tmp_view() , pid ) ;                       // tmp mapping is not supported with ptrace (need to report new value to caller)
 	(*rl)(r,res) ;
@@ -198,10 +198,10 @@ template<bool At,bool Flags> bool/*skip_syscall*/ entry_rename( void* & ctx , Re
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res , int errno_ ) {
+int64_t/*res*/ exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
 	if (!ctx) return res ;
 	Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
-	(*rn)(r,res,errno_==ENOENT) ;
+	(*rn)(r,res) ;
 	delete rn ;
 	return res ;
 }
@@ -215,7 +215,7 @@ template<bool At> bool/*skip_syscall*/ entry_sym_lnk( void* & ctx , Record& r , 
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res , int /*errno_*/ ) {
+int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
 	Record::Symlnk* sl = static_cast<Record::Symlnk*>(ctx) ;
 	(*sl)(r,res) ;
@@ -232,7 +232,7 @@ template<bool At,bool Flags> bool/*skip_syscall*/ entry_unlink( void* & ctx , Re
 	} catch (int) {}
 	return false ;
 }
-int64_t/*res*/ exit_unlink( void* ctx , Record& r , pid_t , int64_t res , int /*errno_*/ ) {
+int64_t/*res*/ exit_unlink( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
 	Record::Unlink* u = static_cast<Record::Unlink*>(ctx) ;
 	(*u)(r,res) ;

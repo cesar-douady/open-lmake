@@ -112,11 +112,12 @@ namespace Backends::Local {
 
 		// services
 
-		::vmap_s<size_t> n_tokenss() const {
+		virtual ::vmap_s<size_t> n_tokenss() const {
 			return capacity() ;
 		}
 
 		virtual void config( ::vmap_ss const& dct , bool dynamic ) {
+			Trace trace("Local::config",STR(dynamic),dct) ;
 			if (dynamic) {
 				/**/                                         if (rsrc_keys.size()!=dct.size()) throw "cannot change resource names while lmake is running"s ;
 				for( size_t i=0 ; i<rsrc_keys.size() ; i++ ) if (rsrc_keys[i]!=dct[i].first  ) throw "cannot change resource names while lmake is running"s ;
@@ -131,7 +132,7 @@ namespace Backends::Local {
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i=0 ; i<capacity_.size() ; i++ ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
-			Trace("config",MyTag,"capacity",'=',capacity_) ;
+			trace("capacity",capacity()) ;
 			static ::jthread wait_jt{_wait_thread_func,this} ;
 			//
 			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                     // ensure each job can compute CRC on all cpu's in parallel
@@ -144,6 +145,7 @@ namespace Backends::Local {
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
 			}
+			trace("done") ;
 		}
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;

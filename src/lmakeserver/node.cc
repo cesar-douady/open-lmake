@@ -338,7 +338,7 @@ namespace Engine {
 				//vvvvvvvvvvvvvvvvvvvvvvvv
 				refresh( crc_ , fid.date ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^
-				if (fid.date>req->start) ri.overwritten = true ;
+				if ( !steady && fid.date>req->start ) ri.overwritten = true ;
 				::string step  = new_? "new" : steady ? "steady" : "changed" ;
 				if (idx().frozen()) req->audit_job( Color::Warning  , step , "frozen" , lazy_name() ) ;
 				else                req->audit_job( Color::HiddenOk , step , "src"    , lazy_name() ) ;

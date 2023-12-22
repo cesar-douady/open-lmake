@@ -14,15 +14,6 @@ struct Ctx {
 	// services
 	void save_errno   () { errno_ = errno  ; }
 	void restore_errno() { errno  = errno_ ; }
-	//
-	bool get_no_file() const {
-		switch (errno_) {
-			case EISDIR  :
-			case ENOENT  :
-			case ENOTDIR : return true  ;
-			default      : return false ;
-		}
-	}
 	// data
 	int errno_ ;
 } ;

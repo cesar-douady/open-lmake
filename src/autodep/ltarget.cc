@@ -59,8 +59,9 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.args.empty()) return 0 ;                                                                   // fast path : declare no targets
 	for( ::string const& f : cmd_line.args ) if (f.empty()) exit(2,"cannot declare empty file as target") ;
 	//
-	if (cmd_line.flags[Flag::Unlink  ]) unlink    = true ;
-	if (cmd_line.flags[Flag::NoFollow]) no_follow = true ;
+	if (cmd_line.flags[Flag::Unlink  ]) unlink     = true                      ;
+	if (cmd_line.flags[Flag::NoFollow]) no_follow  = true                      ;
+	if (!unlink                       ) pos_tflags = {Tflag::Crc,Tflag::Write} ; // we declare that we write, allow it and compute crc by default
 	//
 	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= Tflag::Crc       ;
 	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= Tflag::Dep       ;
@@ -84,7 +85,7 @@ int main( int argc , char* argv[]) {
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access
 	,	::move(cmd_line.args)
-	,	{.write=!unlink,.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.unlink=unlink}
+	,	{ .neg_tflags=neg_tflags , .pos_tflags=pos_tflags , .write=No|!unlink , .unlink=No|unlink }
 	,	no_follow
 	,	"ltarget"
 	) ) ;

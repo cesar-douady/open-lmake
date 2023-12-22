@@ -139,6 +139,7 @@ namespace Backends {
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
 		virtual bool             is_local (                                     ) const { return true ; }
+		virtual ::vmap_ss        descr    (                                     ) const { return {}   ; }
 		virtual ::vmap_s<size_t> n_tokenss(                                     ) const { return {}   ; }
 		virtual void             config   ( ::vmap_ss const& , bool /*dynamic*/ )       {               }
 		//

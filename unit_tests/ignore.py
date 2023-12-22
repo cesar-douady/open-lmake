@@ -15,8 +15,8 @@ if __name__!='__main__' :
 
 	class Cat(Rule) :
 		targets = {
-			'DST' : 'hello.cpy'
-		,	'SCRATCH' : ('hello',ignore_flags,'-write')
+			'DST'     :  'hello.cpy'
+		,	'SCRATCH' : ('hello'    ,ignore_flags,'-write')
 		}
 		cmd = 'cat hello > {DST}'
 

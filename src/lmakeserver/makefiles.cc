@@ -117,8 +117,8 @@ namespace Engine::Makefiles {
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                          // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
-			n->set_buildable() ;                                                                // this is mandatory before is_src() can be called
-			if (!n->is_src()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
+			n->set_buildable() ;                                                                                  // this is mandatory before is_src() or is_anti() can be called
+			if ( !n->is_src() && !n->is_anti()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
 	}
@@ -210,7 +210,6 @@ namespace Engine::Makefiles {
 
 	ENUM( Reason   // reason to re-read makefiles
 	,	None       // must be first to be false
-	,	SrcDirs
 	,	Set
 	,	Cleared
 	,	Modified
@@ -226,11 +225,8 @@ namespace Engine::Makefiles {
 			if (dynamic ) throw "cannot dynamically read sources within config"s ;
 			else          goto Load                                              ;
 		}
-		switch (new_) {
-			case Reason::None    : reason = _chk_deps( "sources" , startup_dir_s )        ; break ;
-			case Reason::SrcDirs : FAIL() ;
-			default              : reason = to_string("config.sources_module was "s,new_) ; break ;
-		}
+		if (+new_         ) reason = to_string("config.sources_module was "s,new_) ;
+		else                reason = _chk_deps( "sources" , startup_dir_s )        ;
 		if (reason.empty()) return {{},false/*done*/}                                               ;
 		if (dynamic       ) throw to_string("cannot dynamically read sources (because ",reason,')') ;
 		reason = "read sources because " + reason ;
@@ -252,11 +248,8 @@ namespace Engine::Makefiles {
 			if ( dynamic           ) throw "cannot dynamically read rules within config"s ;
 			else                     goto Load                                            ;
 		}
-		switch (new_) {
-			case Reason::None    : reason = _chk_deps( "rules" , startup_dir_s )        ; break ;
-			case Reason::SrcDirs : reason = "sources dirs changed"                      ; break ;
-			default              : reason = to_string("config.rules_module was "s,new_) ; break ;
-		}
+		if (+new_         ) reason = to_string("config.rules_module was "s,new_) ;
+		else                reason = _chk_deps( "rules" , startup_dir_s )        ;
 		if (reason.empty()) return {{},false/*done*/}                                             ;
 		if (dynamic       ) throw to_string("cannot dynamically read rules (because ",reason,')') ;
 		reason = "read rules because " + reason ;
@@ -300,8 +293,6 @@ namespace Engine::Makefiles {
 			::vector_s             srcs        ;
 			::vector_s             src_dirs_s  ;
 			::pair_s<bool/*done*/> srcs_digest = _refresh_srcs( srcs , src_dirs_s , srcs_deps  , new_srcs  , dynamic , py_info , startup_dir_s ) ;
-			//
-			if ( srcs_digest.second && src_dirs_s!=g_src_dirs_s ) new_rules |= Reason::SrcDirs ;
 			//                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			bool invalidate_src = srcs_digest.second && EngineStore::s_new_srcs( ::move(srcs) , ::move(src_dirs_s) ) ;
 			//                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

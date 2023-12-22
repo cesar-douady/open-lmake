@@ -20,7 +20,7 @@ if __name__!='__main__' :
 
 	class Test(Rule) :
 		target = 'test'
-		post_targets = { 'SUB' : ( '{*:.*}.src' , '-match','source_ok' ) }
+		post_targets = { 'SUB' : ( '{*:.*}.src' , '-match','source_ok','incremental' ) }
 		cmd = '''
 			echo sub > sub.src
 			cat sub.src.cpy

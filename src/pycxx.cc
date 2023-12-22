@@ -19,6 +19,7 @@ namespace Py {
 		static bool once=false ; if (once) return ; else once = true ;
 		Py_IgnoreEnvironmentFlag = true ;                                      // favor repeatability
 		Py_NoUserSiteDirectory   = true ;                                      // .
+		Py_DontWriteBytecodeFlag = true ;                                      // be as non-intrusive as possible
 		Py_Initialize() ;
 		PyObject* eval_env = PyDict_New() ;
 		g_ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;

@@ -45,8 +45,8 @@ struct GatherDeps {
 		PD           last_write_date  ;                    // if !digest.idle(), last  write/unlink date
 		AccessDigest digest           ;
 		DD           file_date        ;                    // if +digest.accesses , date of file when read as first access
-		NodeIdx      parallel_id      = 0 ;
-		Tflags       tflags           ;                    // resulting flags after appliation of info flags modifiers
+		NodeIdx      parallel_id      = 0          ;
+		Tflags       tflags           = DfltTflags ;       // resulting flags after appliation of info flags modifiers
 	} ;
 	// cxtors & casts
 public :
@@ -64,28 +64,25 @@ private :
 		parallel_id++ ;
 		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
 	}
+	void _confirm( Fd , JobExecRpcReq const& jerr ) {
+		for( auto const& [f,_] : jerr.files ) accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ;
+	}
 public :
-	//                                                                                                                                                                             parallel_id
-	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access({},pd,t,{},{.write=true,.neg_tflags=n,.pos_tflags=p},0          ,c) ; }
-	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access({},pd,d,dd,{.accesses=a,.dflags=dfs                },0          ,c) ; }
+	//                                                                                                                                                                            parallel_id
+	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access({},pd,t,{},{.neg_tflags=n,.pos_tflags=p,.write=Yes},0          ,c) ; }
+	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access({},pd,d,dd,{.accesses=a,.dflags=dfs               },0          ,c) ; }
 	//
 	void static_deps( PD , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin={}                           ) ;
 	void new_exec   ( PD , ::string const& exe                                               , ::string const& ="exec" ) ;
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		OMsgBuf().send(sock,jerr) ;
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig) {
-		::unique_lock lock{_pid_mutex} ;
-		killed = true ;                                                        // prevent child from starting if killed before
-		if (pid<=1      ) return false                 ;
-		if (create_group) return kill_group  (pid,sig) ;
-		else              return kill_process(pid,sig) ;
-	}
+	bool/*done*/ kill(int sig=-1) ;                                            // is sig==-1, use best effort to kill job
 	//
 	void reorder() ;                                                           // reorder accesses by first read access
 	// data
@@ -95,7 +92,7 @@ public :
 	::function<void       (                    )> kill_job_cb  = [](                    )->void   {                           } ; // function to kill job
 	ServerSockFd                                  master_fd    ;
 	in_addr_t                                     addr         = NoSockAddr                                                     ; // local addr to which we can be contacted by running job
-	bool                                          create_group = false                                                          ; // if true <=> process is launched in its own group
+	::atomic<bool>                                create_group = false                                                          ; // if true <=> process is launched in its own group
 	AutodepMethod                                 method       = AutodepMethod::Dflt                                            ;
 	AutodepEnv                                    autodep_env  ;
 	Time::Delay                                   timeout      ;
@@ -110,6 +107,8 @@ public :
 	NodeIdx                                       parallel_id  = 0                                                              ; // id to identify parallel deps
 	bool                                          seen_tmp     = false                                                          ;
 	int                                           wstatus      = 0/*garbage*/                                                   ;
+	Fd                                            child_stdout ;                                                                  // fd used to gather stdout
+	Fd                                            child_stderr ;                                                                  // fd used to gather stderr
 	::string                                      stdout       ;                                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr       ;                                                                  // contains child stderr if child_stderr==Pipe
 private :

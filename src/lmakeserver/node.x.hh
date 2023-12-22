@@ -234,22 +234,26 @@ namespace Engine {
 				default                : return Maybe                             ;
 			}
 		}
-		Bool3 ok    (ReqInfo const& cri) const { SWEAR(cri.done()) ; return cri.overwritten ? No : ok() ; }
-		bool  is_src(                  ) const {
+		Bool3 ok(ReqInfo const& cri) const { SWEAR(cri.done()) ; return cri.overwritten ? No : ok() ; }
+		//
+		bool is_src() const {
+			SWEAR(match_ok()) ;
+			switch (buildable) {
+				case Buildable::DynSrc :
+				case Buildable::Src    : return true  ;
+				default                : return false ;
+			}
+		}
+		bool is_anti() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
 				case Buildable::LongName  :
 				case Buildable::DynAnti   :
 				case Buildable::Anti      :
-				case Buildable::SrcDir    : return true  ;
-				case Buildable::No        :
-				case Buildable::Maybe     : return false ;
-				case Buildable::SubSrcDir : return true  ;
-				case Buildable::Yes       : return false ;
-				case Buildable::DynSrc    :
-				case Buildable::Src       :
+				case Buildable::SrcDir    :
+				case Buildable::SubSrcDir :
 				case Buildable::SubSrc    : return true  ;
-				default : FAIL() ;
+				default                   : return false ;
 			}
 		}
 		//

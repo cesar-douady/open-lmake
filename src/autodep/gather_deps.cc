@@ -127,7 +127,48 @@ void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 	swear_prod(::write(fd,&One,8)==8,"cannot report child wstatus",wstatus) ;
 }
 
-Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd child_stdout , Fd child_stderr ) {
+bool/*done*/ GatherDeps::kill(int sig) {
+	Trace trace("kill",sig,pid,STR(create_group),child_stdout,child_stderr) ;
+	::unique_lock lock{_pid_mutex} ;
+	killed = true ;                                                            // prevent child from starting if killed before
+	int  kill_sig = sig>=0 ? sig : SIGKILL ;
+	bool res      = false                  ;
+	//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if (pid>1) res = kill_process(create_group,pid,kill_sig) ;
+	//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( sig<0 && (child_stdout||!child_stderr) ) {                            // kill all processes (or process groups) connected to a stream we wait for
+		pid_t        ctl_pid   = getpid() ;
+		::string     stdout_fn ; if (+child_stdout) stdout_fn = read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ;
+		::string     stderr_fn ; if (+child_stderr) stderr_fn = read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ;
+		::set<pid_t> to_kill   ;                                                                                        // maintain an ordered tab to favor repeatability
+		for( ::string const& proc_entry : lst_dir("/proc")  ) {
+			for( char c : proc_entry ) if (c>'9'||c<'0') goto NextProc ;
+			try {
+				pid_t child_pid = from_chars<pid_t>(proc_entry) ;
+				if (child_pid==ctl_pid) goto NextProc ;
+				for( ::string const& fd_entry : lst_dir(to_string("/proc/",proc_entry,"/fd")) ) {
+					::string fd_fn = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
+					if ( fd_fn.empty()                        ) continue ;                     // fd has disappeared, ignore
+					if ( fd_fn!=stdout_fn && fd_fn!=stderr_fn ) continue ;                     // not the fd we are looking for
+					if (create_group) {
+						child_pid = ::getpgid(child_pid) ;
+						if (child_pid<=1) goto NextProc ;                           // no pgid available, ignore
+					}
+					to_kill.insert(child_pid) ;
+					break ;
+				}
+			} catch(::string const&) {}                                        // if we cannot read /proc/pid, process is dead, ignore
+		NextProc : ;
+		}
+		trace("to_kill",to_kill) ;
+		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( pid_t p : to_kill ) res |= kill_process(create_group,p,kill_sig) ;
+		//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	}
+	return res ;
+}
+
+Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
 	using Kind = GatherDepsKind ;
 	using Proc = JobExecRpcProc ;
 	Trace trace("exec_child",STR(create_group),method,autodep_env,args) ;
@@ -148,7 +189,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 			// we split the responsability into 2 processes :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-			bool in_parent = child.spawn( create_group/*as_group*/ , {} , child_stdin , child_stdout , child_stderr ) ;
+			bool in_parent = child.spawn( create_group/*as_group*/ , {} , cstdin , cstdout , cstderr ) ;
 			if (!in_parent) {
 				Child grand_child ;
 				AutodepPtrace::s_autodep_env = new AutodepEnv{autodep_env} ;
@@ -190,15 +231,15 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				child.spawn(
 					create_group , args
-				,	child_stdin  , child_stdout , child_stderr
-				,	env          , &add_env
+				,	cstdin , cstdout , cstderr
+				,	env , &add_env
 				,	chroot
 				,	cwd
 				) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} catch(::string const& e) {
-				if (child_stderr==Child::Pipe) stderr = e ;
-				else                           child_stderr.write(e) ;
+				if (cstderr==Child::Pipe) stderr = e ;
+				else                      cstderr.write(e) ;
 				return Status::EarlyErr ;
 			}
 			trace("pid",child.pid) ;
@@ -235,11 +276,11 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 		return false ;
 	} ;
 	//
-	if (+timeout                 ) end = PD::s_now() + timeout ;
-	if (child_stdout==Child::Pipe) epoll.add_read(child.stdout,Kind::Stdout  ) ;
-	if (child_stderr==Child::Pipe) epoll.add_read(child.stderr,Kind::Stderr  ) ;
-	/**/                           epoll.add_read(child_fd    ,Kind::ChildEnd) ;
-	/**/                           epoll.add_read(master_fd   ,Kind::Master  ) ;
+	if (+timeout            ) end = PD::s_now() + timeout ;
+	if (cstdout==Child::Pipe) epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ;
+	if (cstderr==Child::Pipe) epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ;
+	/**/                      epoll.add_read(child_fd            ,Kind::ChildEnd) ;
+	/**/                      epoll.add_read(master_fd           ,Kind::Master  ) ;
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
 		if (+end) {
@@ -319,6 +360,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd child_stdin , Fd chil
 						case Proc::Tmp       : seen_tmp = true ;                                                                break ;
 						//                     vvvvvvvvvvvvvvvvvvv
 						case Proc::Access    : _new_accesses(fd,jerr) ;                                                         break ;
+						case Proc::Confirm   : _confirm     (fd,jerr) ;                                                         break ;
 						case Proc::DepInfos  : _new_accesses(fd,jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ; // if sync, handle_req_to_server replies
 						//                     ^^^^^^^^^^^^^^^^^^^
 						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ;                          sync_ = false ; break ; // if sync, reply is delayed as well

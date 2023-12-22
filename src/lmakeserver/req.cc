@@ -402,15 +402,15 @@ namespace Engine {
 		if (!options.startup_dir_s.empty()) audit_info( Color::Note , to_string("startup dir : ",options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (!up_to_dates.empty()) {
-			bool seen_up_to_dates = false ;
-			for( Node n : up_to_dates ) if (!n->is_src()) { seen_up_to_dates = true ; break ; }
+			static ::string src_msg   = "file is a source"       ;
+			static ::string plain_msg = "was already up to date" ;
+			size_t w = 0 ;
 			for( Node n : up_to_dates )
-				if (n->is_src()) {
-					if (seen_up_to_dates                ) audit_node( Color::Warning                     , "file is a source       :" , n ) ; // align if necessary
-					else                                  audit_node( Color::Warning                     , "file is a source :"       , n ) ;
-				} else {
-					if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , "was already up to date :" , n ) ;
-				}
+				if      (n->is_src()                     ) w = ::max(w,src_msg  .size()) ;
+				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg.size()) ;
+			for( Node n : up_to_dates )
+				if      (n->is_src()                     ) audit_node( Color::Warning                     , to_string(::setw(w),src_msg  ," :") , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg," :") , n ) ;
 		}
 		if (!losts.empty()) {
 			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;

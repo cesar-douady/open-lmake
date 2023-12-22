@@ -58,8 +58,10 @@ namespace Engine {
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
-				if (add) { if ( n.frozen()) throw ::pair("already frozen"s,n->name()) ; }
-				else     { if (!n.frozen()) throw ::pair("not frozen"s    ,n->name()) ; }
+				if      ( !add && !n.frozen()  ) throw ::pair("not frozen"s          ,n->name()) ;
+				else if (  add && n->is_src () ) throw ::pair("cannot freeze source"s,n->name()) ;
+				else if (  add && n->is_anti() ) throw ::pair("cannot freeze anti"s  ,n->name()) ;
+				else if (  add && n.frozen()   ) throw ::pair("already frozen"s      ,n->name()) ;
 				//
 				nodes.push_back(n) ;
 			} ;
@@ -69,11 +71,12 @@ namespace Engine {
 			} else {
 				bool force = ro.flags[ReqFlag::Force] ;
 				for( Node t : ecr.targets() ) {
+					t->set_buildable() ;
 					Job j = t->actual_job_tgt ;
-					if      ( !j.active() && add                                        ) handle_node(t) ;
-					else if ( t->is_src()                                               ) handle_node(t) ;
-					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
-					else                                                                  throw ::pair("target was not produced by its offical job"s,t->name()) ;
+					if      ( add && !j.active()                                        ) handle_node(t) ;
+					else if ( t->is_src() || t->is_anti()                               ) handle_node(t) ;
+					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job(j) ;
+					else                                                                  throw ::pair(to_string("target was produced by unofficial ",j->rule->name),t->name()) ;
 				}
 			}
 			bool mod_nodes = !nodes.empty() ;
@@ -407,7 +410,7 @@ namespace Engine {
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule               ;
-		IFStream         job_stream   { job->ancillary_file() } ;
+		::ifstream       job_stream   { job->ancillary_file() } ;
 		JobInfoStart     report_start ;
 		JobInfoEnd       report_end   ;
 		bool             has_start    = false                   ;

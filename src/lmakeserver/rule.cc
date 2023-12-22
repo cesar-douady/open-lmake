@@ -747,7 +747,6 @@ namespace Engine {
 					if ( !is_canon(target)                                                  ) throw to_string("target must be canonical : "                                    ,target) ;
 					if ( !flags[Tflag::Star       ] && is_native_star                       ) throw to_string("flag star cannot be reset because target contains star stems : ",target) ;
 					if (  flags[Tflag::Match      ] && !missing_stems.empty()               ) throw to_string("missing stems ",missing_stems," in target : "                   ,target) ;
-					if (  flags[Tflag::Uniquify   ] && !flags[Tflag::Incremental]           ) throw           "flag uniquify is meaningless for non-incremental targets"s               ;
 					if ( !flags[Tflag::Match      ] && is_special()                         ) throw           "non-matching targets are meaningless for source and anti-rules"s         ;
 					if (  flags[Tflag::Star       ] && is_stdout                            ) throw           "stdout cannot be directed to a star target"s                             ;
 					if (  flags[Tflag::Phony      ] && is_stdout                            ) throw           "stdout cannot be directed to a phony target"s                            ;

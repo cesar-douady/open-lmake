@@ -22,8 +22,8 @@ _rules = lmake._rules                  # list of rules that must be filled in by
 # use these flags to completely ignore activity on target(s) they qualify
 # this can also be used as a help to tailor your flags to your own needs
 ignore_flags = (
-	'-crc'         # do not generate a crc (just saves time)
-,	'-dep'         # do not generate a dep if read
+#	'-crc'         # generate a crc, the most non-intrusive case
+	'-dep'         # do not generate a dep if read
 ,	'-essential'   # do not show on graphical tool (to come)
 ,	'incremental'  # allow target to exist before job is run
 ,	'manual_ok'    # allow overwriting manual modifications

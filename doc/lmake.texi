@@ -895,6 +895,7 @@ Usage : @code{ltarget [-<short-option>|--<long-option>]... files ...}
 If for some reasons you run with autodep method @code{none}, this is the way to report targets.
 
 It is possible to alter the target flags for these targets which, by default, have the flags mentioned in the rule.
+Default flags are augmented with @code{crc} and @code{write} if the @code{--unlink} option is not used.
 
 The following options are supported :
 @itemize @bullet
@@ -905,14 +906,12 @@ The following options are supported :
 @item @code{-e} or @code{--essential}    : show when generating user oriented graphs
 @item @code{-f} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
 @item @code{-s} or @code{--source-ok}    : ok to overwrite source files
-@item @code{-t} or @code{--stat}         : inode accesses (stat-like) are not ignored
 @item @code{-w} or @code{--write}        : writes are allowed (possibly followed by reads which are ignored)
 @item @code{-C} or @code{--no-crc}       : do not generate a crc for this target (compulsery if Match)
 @item @code{-D} or @code{--no-dep}       : reads not followed by writes do not trigger dependencies
 @item @code{-E} or @code{--no-essential} : do not show when generating user oriented graphs
 @item @code{-F} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
 @item @code{-S} or @code{--no-source-ok} : not ok to overwrite source files
-@item @code{-T} or @code{--no-stat}      : inode accesses (stat-like) are ignored
 @item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
 @end itemize
 
@@ -2377,7 +2376,7 @@ The consequence is only cosmetic, it has no other impact.
 @item Type
 @tab @code{list} or @code{tuple}
 @item Default
-@tab @code{()}
+@tab @code{(signal.SIGKILL,)}
 @item Dynamic
 @tab Yes. Environment includes stems, targets, deps and resources.
 @end multitable
@@ -2385,13 +2384,18 @@ The consequence is only cosmetic, it has no other impact.
 This attribute provides a list of signals to send the job when @lmake decides to kill it.
 A job is killed when :
 @itemize @minus
-@item @kbd{^C} is hit if it is not necessary for another running @lmake command which has not received a @kbd{^C}.
+@item @kbd{^C} is hit if it is not necessary for another running @lmake command that has not received a @kbd{^C}.
 @item When timeout is reached.
 @item When @code{check_deps} is called and some dependencies are not up to date.
 @end itemize
 
-The signals listed in this list are sent in turn, once every second. If the list is exhausted and the job is still alive, @code{KILLSIG}'s are sent, once per second.
+The signals listed in this list are sent in turn, once every second.
 Longer interval can be obtained by inserting @code{0}'s. @code{0} signals are not sent and anyway, these would have no impact if they were.
+
+If the list is exhausted and the job is still alive, a more agressive method is used.
+The process group of the job, as well as the process group of any process connected to a stream we are waiting for, are sent @code{SIGKILL} signals instead of just the process group of the job.
+The streams we are waiting for are @code{stderr}, and @code{stdout} unless the @code{target} attribute is used (as opposed to the @code{targets} attribute)
+in which case @code{stdout} is redirected to the the target and is not waited for.
 
 Note: some backends, such as Slurm, may have other means to manage timeouts. Both mechanisms will be usable.
 

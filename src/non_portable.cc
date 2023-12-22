@@ -17,11 +17,6 @@ int np_get_fd(::filebuf& fb) {
 	return static_cast<FileBuf&>(fb).fd() ;
 }
 
-int np_syscall_errno( int64_t res ) {
-	if ( res<0 && -res<=MaxErrno ) return -res ;
-	else                           return 0    ;
-}
-
 long np_ptrace_get_syscall(int pid) {
 	errno = 0 ;
 	struct ::user_regs_struct regs ;

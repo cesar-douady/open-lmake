@@ -25,7 +25,7 @@ bool/*parent*/ Child::spawn(
 	if (stderr_fd==Pipe) c2pe.open() ; else if (+stderr_fd) c2pe.write = stderr_fd ;
 	as_group = as_group_ ;
 	pid      = fork()    ;
-	if (!pid) { // child
+	if (!pid) {                                                                // if in child
 		if (as_group) ::setpgid(0,0) ;
 		//
 		sigset_t full_mask ; ::sigfillset(&full_mask) ;

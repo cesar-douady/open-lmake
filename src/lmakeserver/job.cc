@@ -489,10 +489,13 @@ namespace Engine {
 				bool   target_err = false                                                         ;
 				//
 				target->set_buildable() ;
-				if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
-					local_err = target_err = true ;
-					if (unlink) severe_analysis_err.emplace_back("unexpected unlink of source",target) ;
-					else        severe_analysis_err.emplace_back("unexpected write to source" ,target) ;
+				if ( td.write && target->is_src() ) {
+					if (!crc) crc = Crc(tn,g_config.hash_algo) ;               // force crc computation if updating a source
+					if (!tflags[Tflag::SourceOk]) {
+						local_err = target_err = true ;
+						if (unlink) severe_analysis_err.emplace_back("unexpected unlink of source",target) ;
+						else        severe_analysis_err.emplace_back("unexpected write to source" ,target) ;
+					}
 				}
 				if (
 					td.write                                                   // we actually wrote
@@ -558,7 +561,10 @@ namespace Engine {
 				if ( modified && crc!=Crc::None ) {
 					for( Req r : (*this)->reqs() ) {
 						Node::ReqInfo& tri = target->req_info(r) ;
-						if (tri.done()) tri.overwritten = true ;               // target was already done for another req, this update overwrites target if it changes it
+						if (tri.done()) {
+							trace("overwritten",target) ;
+							tri.overwritten = true ;                           // target was already done for a Req, this update overwrites target if it changes it
+						}
 					}
 				}
 			NoRefresh :
@@ -1167,7 +1173,7 @@ namespace Engine {
 		return false/*may_new_dep*/ ;
 	}
 
-	bool/*targets_ok*/ JobData::_targets_ok( Req req , Rule::SimpleMatch const& match ) {
+	bool/*ok*/ JobData::_targets_ok( Req req , Rule::SimpleMatch const& match ) {
 		Trace trace("_targets_ok",idx(),req,status,run_status) ;
 		::vector_view_c_s   static_target_names = match.static_targets() ;
 		::umap<Node,VarIdx> static_target_map   ;
@@ -1298,9 +1304,9 @@ namespace Engine {
 			switch (cache_match.hit) {
 				case Yes :
 					try {
-						JobExec                       je            { idx() , New , New }                   ; // job starts and ends, no host
-						::vmap<Node,bool/*uniquify*/> report_unlink = wash(match)                           ;
-						JobDigest                     digest        = cache->download(idx(),cache_match.id) ;
+						JobExec                       je            { idx() , New , New }                          ; // job starts and ends, no host
+						::vmap<Node,bool/*uniquify*/> report_unlink = wash(match)                                  ;
+						JobDigest                     digest        = cache->download(idx(),cache_match.id,reason) ;
 						if (!report_unlink.empty()) je.report_start(ri,report_unlink) ;
 						if (ri.live_out           ) je.live_out    (ri,digest.stdout) ;
 						ri.lvl = Lvl::Hit ;

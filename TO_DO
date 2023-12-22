@@ -22,12 +22,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*1 support normal resources for slurm
-	- map to licenses and gres depending on slurm config
-	- probe slurm daemon for licenses and gres
-	- etablish a mapping idx(uint32_t)->name
-	- store a vmap<uint32_t(idx),uint32_t(val)> as a resource
-	- handle multi-steps
 *2 introduce a new color orange for speculative errors
 	- that become red when job turns out to be certain
 *5 reimplement hierarchical repositories

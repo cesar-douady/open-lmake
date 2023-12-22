@@ -24,24 +24,24 @@ using namespace Time ;
 
 static constexpr int NConnectionTrials = 3 ;               // number of times to try connect when connecting to server
 
-ServerSockFd g_server_fd     ;
-GatherDeps   g_gather_deps   { New }        ;
-JobRpcReply  g_start_info    ;
-::string     g_service_start ;
-::string     g_service_mngt  ;
-::string     g_service_end   ;
-SeqId        g_seq_id        = 0/*garbage*/ ;
-JobIdx       g_job           = 0/*garbage*/ ;
-bool         g_killed        = false        ;
+ServerSockFd   g_server_fd     ;
+GatherDeps     g_gather_deps   { New }        ;
+JobRpcReply    g_start_info    ;
+::string       g_service_start ;
+::string       g_service_mngt  ;
+::string       g_service_end   ;
+SeqId          g_seq_id        = 0/*garbage*/ ;
+JobIdx         g_job           = 0/*garbage*/ ;
+::atomic<bool> g_killed        = false        ;            // written by thread S and read by main thread
 
 void kill_thread_func(::stop_token stop) {
 	t_thread_key = 'K' ;
 	Trace trace("kill_thread_func",g_start_info.kill_sigs) ;
 	for( size_t i=0 ;; i++ ) {
-		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : SIGKILL ;
+		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : -1 ; // -1 means best effort
 		trace("sig",sig) ;
-		if (!g_gather_deps.kill(sig)  ) return ;                                          // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
-		if (!Delay(1.).sleep_for(stop)) return ;                                          // job_exec has ended
+		if (!g_gather_deps.kill(sig)  ) return ;                               // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
+		if (!Delay(1.).sleep_for(stop)) return ;                               // job_exec has ended
 	}
 }
 
@@ -50,7 +50,7 @@ void kill_job() {
 	static ::jthread kill_thread{kill_thread_func} ;                           // launch job killing procedure while continuing to behave normally
 }
 
-bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd /*fd*/ ) {
+bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 	Trace trace("handle_server_req",jsrr) ;
 	switch (jsrr.proc) {
 		case JobServerRpcProc::Heartbeat :
@@ -173,10 +173,16 @@ int main( int argc , char* argv[] ) {
 			else                        target_patterns.emplace_back(          ) ;
 		}
 		//
-		::vmap_s<TargetDigest>              targets      ;
-		::vmap_s<DepDigest   >              deps         ;
-		ThreadQueue<::pair<NodeIdx,string>> crc_queue    ;
-		::vector<pair_ss>                   analysis_err ;
+		struct CrcSpec {
+			NodeIdx  idx   = -1   /*garbage*/ ;
+			bool     maybe = false/*garbage*/ ;
+			::string file  ;
+
+		} ;
+		::vmap_s<TargetDigest> targets      ;
+		::vmap_s<DepDigest   > deps         ;
+		ThreadQueue<CrcSpec>   crc_queue    ;
+		::vector<pair_ss>      analysis_err ;
 		//
 		auto analyze = [&](bool at_end)->void {
 			trace("analyze",STR(at_end)) ;
@@ -200,13 +206,13 @@ int main( int argc , char* argv[] ) {
 					trace("dep   ",dd,file) ;
 				} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
 					if (!info.file_date) a = Accesses::None ;
-					TargetDigest td{a,ad.write,info.tflags,ad.unlink} ;
-					if (ad.unlink) {
+					TargetDigest td{ a , info.tflags , ad.write!=No , ad.unlink!=No } ;
+					if (ad.unlink==Yes) {
 						td.crc  = Crc::None      ;
 						td.date = Ddate::s_now() ;
-					} else if (ad.write) {
-						if (info.tflags[Tflag::Crc]) crc_queue.emplace(targets.size(),file) ; // defer crc computation to prepare for // computation
-						else                         td.date = file_date(file) ;              // if no crc computation, gather date, though
+					} else if (ad.write!=No) {
+						if (info.tflags[Tflag::Crc]) crc_queue.emplace( targets.size() , ad.write==Maybe||ad.unlink==Maybe , file ) ; // defer crc computation to prepare for // computation
+						else                         td.date = file_date(file) ;                                                      // if no crc computation, gather date, though
 					}
 					targets.emplace_back( file , td ) ;
 					trace("target",td,info.file_date,file) ;
@@ -311,14 +317,17 @@ int main( int argc , char* argv[] ) {
 				auto [popped,crc_spec] = crc_queue.try_pop() ;
 				if (!popped) return ;
 				Ddate date ;
-				Crc   crc  { date/*out*/ , crc_spec.second , g_start_info.hash_algo } ;
-				if (crc==Crc::None) spurious_unlink_queue.push(crc_spec.second) ;
-				TargetDigest& td = targets[crc_spec.first].second ;
+				Crc   crc  { date/*out*/ , crc_spec.file , g_start_info.hash_algo } ;
+				if (crc==Crc::None) {
+					date = Ddate::s_now() ;
+					if (!crc_spec.maybe) spurious_unlink_queue.push(crc_spec.file) ;
+				}
+				TargetDigest& td = targets[crc_spec.idx].second ;
 				//vvvvvvvvvvvv
 				td.date = date ;
 				td.crc  = crc  ;
 				//^^^^^^^^^^^^
-				trace("crc_date",id,crc,date,targets[crc_spec.first].first) ;
+				trace("crc_date",id,crc,date,targets[crc_spec.idx].first) ;
 			}
 		} ;
 		{	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , crc_queue.size() ) ;
