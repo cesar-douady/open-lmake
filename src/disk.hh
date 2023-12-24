@@ -81,7 +81,7 @@ namespace Disk {
 		FileTag tag = FileTag::None ;
 	} ;
 
-	struct FileInfoDate : FileInfo {
+	struct FileInfoDate : FileInfo {                                           // XXX : review usage, access uphill dirs when necessary and suppress protection here
 		friend ::ostream& operator<<( ::ostream& , FileInfoDate const& ) ;
 		// cxtors & casts
 		FileInfoDate(                              ) = default ;

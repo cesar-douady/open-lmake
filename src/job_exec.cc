@@ -174,9 +174,9 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		struct CrcSpec {
-			NodeIdx  idx   = -1   /*garbage*/ ;
-			bool     maybe = false/*garbage*/ ;
-			::string file  ;
+			NodeIdx  idx    = -1   /*garbage*/ ;
+			Bool3    exists = Maybe/*garbage*/ ;
+			::string file   ;
 
 		} ;
 		::vmap_s<TargetDigest> targets      ;
@@ -185,8 +185,9 @@ int main( int argc , char* argv[] ) {
 		::vector<pair_ss>      analysis_err ;
 		//
 		auto analyze = [&](bool at_end)->void {
-			trace("analyze",STR(at_end)) ;
-			NodeIdx prev_parallel_id = 0 ;
+			Trace trace("analyze",STR(at_end)) ;
+			NodeIdx prev_parallel_id = 0              ;
+			Ddate   target_now       = Ddate::s_now() ;
 			for( auto const& [file,info] : g_gather_deps.accesses ) {
 				JobExecRpcReq::AccessDigest const& ad = info.digest ;
 				Accesses                           a  = ad.accesses ;  if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
@@ -204,17 +205,16 @@ int main( int argc , char* argv[] ) {
 					deps.emplace_back(file,dd) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("dep   ",dd,file) ;
-				} else if (at_end) {                                                              // else we are handling chk_deps and we only care about deps
+				} else if (at_end) {                                           // else we are handling chk_deps and we only care about deps
 					if (!info.file_date) a = Accesses::None ;
-					TargetDigest td{ a , info.tflags , ad.write!=No , ad.unlink!=No } ;
-					if (ad.unlink==Yes) {
-						td.crc  = Crc::None      ;
-						td.date = Ddate::s_now() ;
-					} else if (ad.write!=No) {
-						if (info.tflags[Tflag::Crc]) crc_queue.emplace( targets.size() , ad.write==Maybe||ad.unlink==Maybe , file ) ; // defer crc computation to prepare for // computation
-						else                         td.date = file_date(file) ;                                                      // if no crc computation, gather date, though
-					}
-					targets.emplace_back( file , td ) ;
+					TargetDigest td{
+						a
+					,	info.tflags
+					,	ad.write!=No
+					,	ad.unlink==Yes ? Crc::None : Crc::Unknown                                         // prepare crc in case it is not computed
+					,	ad.unlink==Yes ? target_now : info.tflags[Tflag::Crc] ? Ddate() : file_date(file) // if !date, compute crc and associated date
+					} ;
+					targets.emplace_back(file,td) ;
 					trace("target",td,info.file_date,file) ;
 				}
 			}
@@ -305,7 +305,7 @@ int main( int argc , char* argv[] ) {
 		//
 		analyze(true/*at_end*/) ;
 		//
-		ThreadQueue<::string> spurious_unlink_queue  ;
+		::atomic<NodeIdx> target_idx = 0 ;
 		auto crc_thread_func = [&](size_t id) -> void {
 			t_thread_key =
 				id<10 ? '0'+id    :
@@ -313,28 +313,26 @@ int main( int argc , char* argv[] ) {
 				id<62 ? 'A'+id-36 :
 				/**/    '>'
 			;
-			for(;;) {
-				auto [popped,crc_spec] = crc_queue.try_pop() ;
-				if (!popped) return ;
-				Ddate date ;
-				Crc   crc  { date/*out*/ , crc_spec.file , g_start_info.hash_algo } ;
-				if (crc==Crc::None) {
-					date = Ddate::s_now() ;
-					if (!crc_spec.maybe) spurious_unlink_queue.push(crc_spec.file) ;
-				}
-				TargetDigest& td = targets[crc_spec.idx].second ;
-				//vvvvvvvvvvvv
-				td.date = date ;
-				td.crc  = crc  ;
-				//^^^^^^^^^^^^
-				trace("crc_date",id,crc,date,targets[crc_spec.idx].first) ;
+			Trace trace("crc") ;
+			NodeIdx cnt = 0 ;
+			for( NodeIdx ti ; (ti=target_idx++)<targets.size() ; cnt++ ) {     // cnt is for trace only
+				auto& [tn,td] = targets[ti] ; if (+td.date) continue ;         // crc is already computed or not supposed to be computed
+				td.crc = Crc( td.date/*out*/ , tn , g_start_info.hash_algo ) ;
+				trace("crc_date",ti,td.crc,td.date,tn) ;
 			}
+			trace("done",cnt) ;
 		} ;
-		{	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , crc_queue.size() ) ;
+		{	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , targets.size() ) ;
 			::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 			for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i) ; // just constructing a destructing the threads will execute & join them, resulting in computed crc's
+			// protection against NFS strange notion of coherency : open all uphill dirs
+			// XXX : provide an option to avoid this protection if running on top of a reliable file system
+			::uset_s dirs {{""}} ;                                             // XXX : pre-populate with target dirs instead of top-level
+			::close(::open(".",O_DIRECTORY)) ;                                 // open top-level // XXX : pre-open target dirs instead of top-level
+			for( auto const& t : targets )
+				for( ::string d=dir_name(t.first) ; dirs.insert(d).second ; d = dir_name(d) )
+					::close(::open(d.c_str(),O_DIRECTORY)) ;                                  // open all other discovered dirs
 		}
-		while (!spurious_unlink_queue.empty()) analysis_err.emplace_back("target was spuriously unlinked :",spurious_unlink_queue.pop()) ;
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try                     { unlink_inside(g_start_info.autodep_env.tmp_dir) ; }

@@ -973,7 +973,7 @@ namespace Engine {
 											if (dep_ok!=Maybe) {
 												req->audit_node(Color::Err,"manual",dep) ;                          // maybe a job is writing to dep as an unexpected target, but we cant distinguish
 												req->manuals.emplace(dep,::pair(false/*ok*/,req->manuals.size())) ;
-												trace("manual",dep) ;
+												trace("manual",dep,STR(dep.is_date),dep.is_date?dep.date():Ddate(),dep->date,file_date(dep->name())) ;
 											} else {
 												req->audit_node(Color::Err ,"dangling"          ,dep  ) ; // maybe a job is writing to dep as an unexpected target, but we cant distinguish
 												req->audit_node(Color::Note,"consider : git add",dep,1) ;
@@ -1114,7 +1114,7 @@ namespace Engine {
 	}
 
 	::pair<SpecialStep,Bool3/*modified*/> JobData::_update_target( Node t , ::string const& tn , VarIdx ti ) {
-		FileInfoDate fid{tn} ;
+		FileInfoDate fid{tn} ;                                                                                 // XXX : access dir hierarchy to protect against NFS
 		if ( +fid && fid.date==t->date && +t->crc ) return {SpecialStep::Idle,No/*modified*/} ;
 		Trace trace("src",fid.date,t->date) ;
 		Crc   crc      { tn , g_config.hash_algo }                                           ;

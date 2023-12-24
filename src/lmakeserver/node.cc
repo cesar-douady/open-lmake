@@ -321,7 +321,7 @@ namespace Engine {
 			default : FAIL(dir->buildable) ;
 		}
 	Src :
-		{	FileInfoDate fid{ lazy_name() } ;
+		{	FileInfoDate fid{ lazy_name() } ;                                  // XXX : access dir hierarchy to protect against NFS
 			trace("src",status(),fid.date,date) ;
 			if (!fid) {
 				if (status()==NodeStatus::None) goto NoSrc ;                                             // if status was pre-set to None, it means we accept NoSrc

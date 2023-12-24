@@ -89,7 +89,7 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string     dep_name = line.substr(1) ;
-			FileInfoDate fid      { dep_name }     ;
+			FileInfoDate fid      { dep_name }     ;                                                                    // XXX : access dir hierarchy to protect against NFS
 			if      (  exists && !fid               ) reason = "removed"                                              ;
 			else if (  exists && fid.date>deps_date ) reason = "modified"                                             ; // in case of equality, be optimistic as deps may be modified during the ...
 			else if ( !exists && +fid               ) reason = "created"                                              ; // ... read process (typically .pyc files) and file resolution is such ...

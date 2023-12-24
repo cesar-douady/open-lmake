@@ -95,7 +95,7 @@ bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD d
 }
 
 void GatherDeps::static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin ) {
-	SWEAR( accesses.empty() , accesses ) ;                                                             // ensure we do not insert static deps after hidden ones
+	SWEAR( accesses.empty() , accesses ) ;                                                               // ensure we do not insert static deps after hidden ones
 	parallel_id++ ;
 	for( auto const& [f,d] : static_deps )
 		if (f==stdin) _new_access( {}/*fd*/ , pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , parallel_id , "stdin"       ) ; // fd for trace purpose only

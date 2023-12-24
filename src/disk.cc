@@ -385,14 +385,22 @@ namespace Disk {
 			if ( in_tmp            ) goto HandleLnk ;                          // note that tmp can lie within repo or admin
 			if ( in_admin          ) continue       ;
 			if ( in_proc           ) goto HandleLnk ;
+			if ( !in_repo          ) continue       ;
+			//
+			if (!last)                                                                       // at last level, dirs are rare and NFS does the coherency job
+				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW) ; +dfd) { // sym links are rare, so this has no significant perf impact ...
+					::close(dfd) ;                                                           // ... and protects against NFS strange notion of coherency
+					continue ;
+				}
+			//
 			switch (lnk_support) {
-				case LnkSupport::None : continue ;
-				case LnkSupport::File : if (last) break ; else continue ;      // only handle sym links as last component
-				case LnkSupport::Full : break ;
-				default               : FAIL(lnk_support) ;
+				case LnkSupport::None :                                 continue ;
+				case LnkSupport::File : if (last) goto HandleLnk ; else continue ; // only handle sym links as last component
+				case LnkSupport::Full :           goto HandleLnk ;
+				default : FAIL(lnk_support) ;
 			}
 		HandleLnk :
-			if ( has_tmp_view && in_tmp ) { *nxt = read_lnk( tmp_dir + real.substr(tmp_view.size()) ) ; mapped = true ; }
+			if ( has_tmp_view && in_tmp ) { *nxt = read_lnk( tmp_dir + real.substr(tmp_view.size()) ) ; mapped = true ; } // XXX : optimize by leveraging dir fd computed on previous loop
 			else                          { *nxt = read_lnk( real                                   ) ;                 }
 			if ( !in_tmp && !in_proc ) {
 				if ( in_repo && real.size()==root_dir.size() ) continue ;                        // at repo root, no sym link to handle

@@ -364,15 +364,12 @@ struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
 	using Accesses = Disk::Accesses ;
 	using Crc      = Hash::Crc      ;
-	// cxtors & casts
-	TargetDigest(                                         ) = default ;
-	TargetDigest( Accesses a , Tflags t , bool w , bool u ) : accesses{a} , tflags{t} , write{w} , crc{u?Crc::None:Crc::Unknown} {}
 	// data
-	Accesses    accesses ;             // how target was accessed before it was written
+	Accesses    accesses ;                                 // how target was accessed before it was written
 	Tflags      tflags   ;
-	bool        write    = false ;     // if true <=> file was written (and possibly further unlinked)
-	Crc         crc      ;             // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
-	Time::Ddate date     ;
+	bool        write    = false        ;                  // if true <=> file was written (and possibly further unlinked)
+	Crc         crc      = Crc::Unknown ;                  // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Time::Ddate date     = {}           ;
 } ;
 
 struct JobDigest {
