@@ -243,7 +243,7 @@ namespace Backends::Slurm {
 			int32_t nice = use_nice ? int32_t((prio-time_origin).sec()*nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                          // slurm will not accept negative values, default values overflow in ... 2091
 			spawned_rsrcs.inc(rs) ;
-			Trace trace("Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
+			Trace trace(Channel::Backend,"Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
 			return slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
 		}
 
@@ -403,6 +403,7 @@ namespace Backends::Slurm {
 
 	RsrcsData parseSlurmArgs(::string const& args) {
 		static ::string slurm = "slurm" ;                                        // apparently "slurm"s.data() does not work as memory is freed right away
+		Trace trace(Channel::Backend,"parseSlurArgs",args) ;
 		//
 		if (args.empty()) return {} ;                                          // fast path
 		//
@@ -451,19 +452,27 @@ namespace Backends::Slurm {
 		//This for loop with a retry comes from the scancel Slurm utility code
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
-		Trace trace("slurm_cancel",slurm_id) ;
-		for( int i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
-			int err = SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
-			if ( err==SLURM_SUCCESS || errno!=ESLURM_TRANSITION_STATE_NO_UPDATE ) {
-				trace("done") ;
-				return ;
+		Trace trace(Channel::Backend,"slurm_cancel",slurm_id) ;
+		int err = 0/*garbage*/ ;
+		int i   = 0/*garbage*/ ;
+		for( i=0 ; i<10/*MAX_CANCEL_RETRY*/ ; i++ ) {
+			err = SlurmApi::kill_job(slurm_id,SIGKILL,KILL_FULL_JOB) ;
+			switch (err) {
+				case ESLURM_INVALID_JOB_ID                     :                                             // job has already gone
+				case ESLURM_ALREADY_DONE                       :                                             // .
+				case SLURM_SUCCESS                             : trace("done",err) ;                return ;
+				case SLURM_COMMUNICATIONS_CONNECTION_ERROR     :                                             // hope it is transcient
+				case SLURMCTLD_COMMUNICATIONS_CONNECTION_ERROR :                                             // .
+				case ESLURM_TRANSITION_STATE_NO_UPDATE         : trace("retry",i)  ; ::sleep(1+i) ; break  ;
+				default : goto Bad ;
 			}
-			sleep(5+i) ; // Retry
 		}
-		trace("error",SlurmApi::strerror(errno)) ;
+	Bad :
+		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",err,' ',SlurmApi::strerror(errno)) ;
 	}
 
 	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {             // Maybe means job has not completed
+		Trace trace(Channel::Backend,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
 		if ( SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL) != SLURM_SUCCESS ) return { "cannot load job info : "s+SlurmApi::strerror(errno) , Yes/*job_ok*/ } ; // no info on job -> retry
@@ -504,12 +513,13 @@ namespace Backends::Slurm {
 		return { {} , Maybe|completed } ;
 	}
 
-	inline ::string getLogPath      (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
-	inline ::string getLogStderrPath(JobIdx job) { return getLogPath(job) + "/stderr"s                    ; }
-	inline ::string getLogStdoutPath(JobIdx job) { return getLogPath(job) + "/stdout"s                    ; }
+	static inline ::string _getLogPath      (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
+	static inline ::string _getLogStderrPath(JobIdx job) { return _getLogPath(job) + "/stderr"s                   ; }
+	static inline ::string _getLogStdoutPath(JobIdx job) { return _getLogPath(job) + "/stdout"s                   ; }
 
 	::string readStderrLog(JobIdx job) {
-		::string err_file = getLogStderrPath(job) ;
+		Trace trace(Channel::Backend,"Slurm::readStderrLog",job) ;
+		::string err_file = _getLogStderrPath(job) ;
 		try {
 			::string res = read_content(err_file) ;
 			if (res.empty()) return {} ;
@@ -519,7 +529,7 @@ namespace Backends::Slurm {
 		}
 	}
 
-	inline ::string cmd_to_string(::vector_s const& cmd_line) {
+	static inline ::string _cmd_to_string(::vector_s const& cmd_line) {
 		::string res = "#!/bin/sh" ;
 		char sep = '\n' ;
 		for ( ::string const& s : cmd_line ) { append_to_string(res,sep,s) ; sep = ' ' ; }
@@ -528,20 +538,21 @@ namespace Backends::Slurm {
 	}
 	uint32_t slurm_spawn_job( ::string const& key , JobIdx job , int32_t nice , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) {
 		static char* env[1] = {const_cast<char *>("")} ;
+		Trace trace(Channel::Backend,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
 		SWEAR(nice        >=0) ;
 		//
-		::string                 wd        = *g_root_dir             ;
-		auto                     job_name  = key + Job(job)->name()  ;
-		::string                 script    = cmd_to_string(cmd_line) ;
+		::string                 wd        = *g_root_dir              ;
+		auto                     job_name  = key + Job(job)->name()   ;
+		::string                 script    = _cmd_to_string(cmd_line) ;
 		::string                 s_errPath ;
 		::string                 s_outPath ;
-		::vector<job_desc_msg_t> jDesc     { rsrcs.size() }          ;
+		::vector<job_desc_msg_t> jDesc     { rsrcs.size() }           ;
 		if(verbose) {
-			s_errPath = getLogStderrPath(job) ;
-			s_outPath = getLogStdoutPath(job) ;
-			make_dir(getLogPath(job)) ;
+			s_errPath = _getLogStderrPath(job) ;
+			s_outPath = _getLogStdoutPath(job) ;
+			make_dir(_getLogPath(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &jDesc[i] ;

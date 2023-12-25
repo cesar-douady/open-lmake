@@ -56,7 +56,6 @@ namespace Engine {
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
 		friend ::ostream& operator<<( ::ostream& , Req const ) ;
-		using Chrono    = ReqChrono                    ;
 		using ErrReport = ::vmap<Node,DepDepth/*lvl*/> ;
 		// init
 		static void s_init() {}
@@ -70,19 +69,7 @@ namespace Engine {
 		static Idx               s_n_reqs     () {                                    return s_reqs_by_start.size() ; }
 		static ::vector<Req>     s_reqs_by_eta() { ::unique_lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
 		static ::vmap<Req,Pdate> s_etas       () ;
-		//
-		static void s_tick() ;
-		static bool s_before( Chrono c1 , Chrono c2 ) {
-			static_assert(::is_unsigned_v<Chrono>) ;                           // unsigned arithmetic are guaranteed to work modulo 2^n
-			SWEAR( c1 && c2 && s_chrono , c1 , c2 , s_chrono ) ;
-			return Chrono(s_chrono-c1) > Chrono(s_chrono-c2) ;                 // following expr can be analyzed as :
-			/**/                                                               // - roughly, c1 is before c2 if c1<c2, or if -c1>-c2
-			/**/                                                               // - we must interpret values as relative to s_chrono so wrapping is supported
-			/**/                                                               // - s_chrono is super late, i.e. later than latest Req, so if c1==s_chrono, it is before nothing
-		}
-		static Chrono s_next_chrono() { return s_chrono ; }
 		// static data
-		static Chrono            s_chrono        ;
 		static SmallIds<ReqIdx > s_small_ids     ;
 		static ::vector<Req>     s_reqs_by_start ;         // INVARIANT : ordered by item->start
 		//
@@ -159,7 +146,6 @@ namespace Engine {
 		friend Req ;
 		friend ::ostream& operator<<( ::ostream& , ReqInfo const& ) ;
 		using Idx    = ReqIdx    ;
-		using Chrono = ReqChrono ;
 		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
 
@@ -189,13 +175,10 @@ namespace Engine {
 			return *this ;
 		}
 		// acesses
-		bool             done        (RunAction ra=RunAction::Status) const {                          return done_>=ra                                                   ; }
-		bool             waiting     (                              ) const {                          return n_wait>0                                                    ; }
-		bool             has_watchers(                              ) const {                          return _n_watchers                                                 ; }
-		WatcherIdx       n_watchers  (                              ) const {                          return _n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers ; }
-		JobChrono const& end_chrono  (                              ) const { SWEAR(!has_watchers()) ; return _end_chrono                                                 ; }
-		JobChrono      & end_chrono  (                              )       { SWEAR(!has_watchers()) ; return _end_chrono                                                 ; }
-		void             end_chrono  (JobChrono jc                  )       { SWEAR(!has_watchers()) ; _end_chrono = jc ;                                                   }
+		bool       done        (RunAction ra=RunAction::Status) const { return done_>=ra                                               ; }
+		bool       waiting     (                              ) const { return n_wait>0                                                ; }
+		bool       has_watchers(                              ) const { return _n_watchers                                             ; }
+		WatcherIdx n_watchers  (                              ) const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
 		// services
 	private :
 		void _add_watcher(Watcher watcher) ;
@@ -204,7 +187,7 @@ namespace Engine {
 			_add_watcher(watcher) ;
 			watcher_req_info.n_wait++ ;
 		}
-		void wakeup_watchers(JobChrono end_chrono=0) ;
+		void wakeup_watchers() ;
 		Job  asking         () const ;
 		//
 		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
@@ -227,9 +210,8 @@ namespace Engine {
 	private :
 		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ;              //  2   bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::vector<Watcher          >* _watchers_v ;     // 64 bits, if   _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>  _watchers_a ;     // 64 bits, if 0<_n_watchers< VectorMrkr
-			JobChrono                    _end_chrono = 0 ; // 32 bits, if   _n_watchers==0          req independent
+			::vector<Watcher          >* _watchers_v ;     // 64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>  _watchers_a ;     // 64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
 	static_assert(sizeof(ReqInfo)==16) ;                                       // check expected size
@@ -242,7 +224,6 @@ namespace Engine {
 	struct ReqData {
 		friend struct Req ;
 		using Idx    = ReqIdx    ;
-		using Chrono = ReqChrono ;
 		template<IsWatcher T> struct InfoMap : ::umap<T,typename T::ReqInfo> { typename T::ReqInfo dflt ; } ;
 		static constexpr size_t StepSz = 14 ;                                                                 // size of the field representing step in output
 		// static data
@@ -266,9 +247,9 @@ namespace Engine {
 		void audit_job( Color , Pdate , S const& step , Job                                    , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , S const& step , JobExec const&                                                     , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , S const& s , S const& rn , S const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , S const& s , Job j                     , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                    ,s,j    ,h,et) ; }
-		void audit_job( Color c , S const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_.date:je.start_.date,s,je     ,et) ; }
+		void audit_job( Color c , S const& s , S const& rn , S const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , S const& s , Job j                     , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,j    ,h,et) ; }
+		void audit_job( Color c , S const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_:je.start_,s,je     ,et) ; }
 		#undef S
 		//
 		void         audit_status( bool ok                                                                                                                              ) const ;
@@ -283,7 +264,6 @@ namespace Engine {
 		// data
 	public :
 
-		Chrono               chrono         = 0/*garbage*/ ;
 		Idx                  idx_by_start   = Idx(-1)      ;
 		Idx                  idx_by_eta     = Idx(-1)      ;
 		Job                  job            ;                                  // owned if job->rule->special==Special::Req
@@ -318,13 +298,6 @@ namespace Engine {
 	//
 	// Req
 	//
-
-	inline void Req::s_tick() {
-		SWEAR(s_chrono,s_chrono) ;
-		/**/                                                                    s_chrono++ ;
-		if ( !s_chrono                                                        ) s_chrono = 1 ;             // 0 is reserved to mean no info
-		if ( !s_reqs_by_start.empty() && s_chrono==s_reqs_by_start[0]->chrono ) throw "chrono overflow"s ;
-	}
 
 	inline ReqData const& Req::operator*() const { return s_store[+*this] ; }
 	inline ReqData      & Req::operator*()       { return s_store[+*this] ; }

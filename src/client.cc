@@ -19,7 +19,7 @@ static bool server_ok( Fd fd , ::string const& tag ) {
 	bool ok  = false                                 ;
 	int  cnt = ::read( fd , &ok , sizeof(bool) ) ;
 	if (cnt!=sizeof(bool)) return false ;
-	Trace trace(tag,STR(ok),fd) ;
+	Trace trace("server_ok",tag,STR(ok),fd) ;
 	return ok ;
 }
 

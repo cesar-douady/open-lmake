@@ -44,51 +44,21 @@ namespace Engine {
 	,	Err
 	)
 
-	struct ChronoDate {
-		friend ::ostream& operator<<( ::ostream& , ChronoDate const& ) ;
-		// cxtors & casts
-		ChronoDate(           ) = default ;
-		ChronoDate(bool is_end) ;
-		// accesses
-		bool operator==(ChronoDate const&) const = default ;
-		bool operator+ (                 ) const { return chrono  ; }
-		bool operator! (                 ) const { return !+*this ; }
-		// data
-		JobChrono chrono = 0 ;
-		Pdate     date   ;
-	} ;
-
 	struct Job : JobBase {
 		friend ::ostream& operator<<( ::ostream& , Job const ) ;
 		using JobBase::side ;
 		//
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
-		using Chrono     = JobChrono     ;
-		// statics
-		static bool   s_start_before_end( Chrono start , Chrono end ) {
-			static_assert(::is_unsigned_v<Chrono>) ;                           // unsigned arithmetic are guaranteed to work modulo 2^n
-			SWEAR( start && end , start , end ) ;                              // 0 is reserved to mean no info
-			return Chrono(start-s_chrono) < Chrono(end-s_chrono) ;
-		}
-		static Chrono s_now(bool is_end) { s_tick(is_end) ; SWEAR(s_chrono) ; return s_chrono ; } // 0 is reserved to mean no info
-		static Chrono s_now(           ) {                  SWEAR(s_chrono) ; return s_chrono ; } // .
-		static void s_tick(bool is_end) {
-			SWEAR(s_chrono) ;                                                  // 0 is reserved to mean no info
-			if ( !s_chrono_is_end && is_end ) {
-				/**/           s_chrono++ ;                                    // only incremented when seeing an start->end transition to save ticks as much as possible as chrono is only 32 bits
-				if (!s_chrono) s_chrono++ ;                                    // 0 is reserved to mean no info
-			}
-			s_chrono_is_end = is_end ;
-		}
 		// static data
-		static Chrono s_chrono        ;                                        // in case of equality start==end, start is posterior
-		static bool   s_chrono_is_end ;
+	protected :
+		static ::map <Time::Pdate,Job        > _s_start_date_to_jobs ;         // start_date of all running jobs, used to detect target clashes
+		static ::umap<Job        ,Time::Pdate> _s_job_to_end_dates   ;         // end_dates of all jobs that have ended after the earliest start date mentioned above
+		static ::map <Time::Pdate,Job        > _s_end_date_to_jobs   ;         // .
 		// cxtors & casts
-		using JobBase::JobBase ;
-	private :
 		Job( Rule::FullMatch&& , Req={} , DepDepth lvl=0 ) ;                   // plain Job, req is only for error reporting
 	public :
+		using JobBase::JobBase ;
 		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ;        // plain Job, match on target
 		Job( Rule    , ::string const& jn , Req={} , DepDepth lvl=0 ) ;        // plain Job, match on name, for use when required from command line
 		//
@@ -97,6 +67,11 @@ namespace Engine {
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;               // multi
 		// accesses
 		bool active() const ;
+		Time::Pdate end_date() const {
+			auto it = _s_job_to_end_dates.find(*this) ;
+			if (it==_s_job_to_end_dates.end()) return {}         ;             // job still running or has ended long ago, no risk of clash (clash is detected upon the end of the second job)
+			else                               return it->second ;
+		}
 	} ;
 
 	struct JobTgt : Job {
@@ -135,13 +110,13 @@ namespace Engine {
 		// cxtors & casts
 		JobExec() = default ;
 		//
-		JobExec( Job j ,               ChronoDate s={}                   ) : Job{j} ,           start_{s}                        {} // not executing or started job
-		JobExec( Job j , in_addr_t h , ChronoDate s={} , ChronoDate e={} ) : Job{j} , host{h} , start_{s} , end_{e             } {}
-		JobExec( Job j , in_addr_t h , ChronoDate s    , NewType         ) : Job{j} , host{h} , start_{s} , end_{true/*is_end*/} {}
+		JobExec( Job j ,               Pdate s={}              ) : Job{j} ,           start_{s}                              {} // not executing or started job
+		JobExec( Job j , in_addr_t h , Pdate s={} , Pdate e={} ) : Job{j} , host{h} , start_{s} , end_{e                   } {}
+		JobExec( Job j , in_addr_t h , Pdate s    , NewType    ) : Job{j} , host{h} , start_{s} , end_{Time::Pdate::s_now()} {}
 		//
-		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{false/*is_end*/}                        {} // starting job
-		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{false/*is_end*/}                        {} // .
-		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{true /*is_end*/} , end_{true/*is_end*/} {} // instantaneous job, no need to distinguish start, cannot have host
+		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{Time::Pdate::s_now()}                {} // starting job
+		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{Time::Pdate::s_now()}                {} // .
+		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {} // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
 		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
@@ -155,7 +130,6 @@ namespace Engine {
 		bool/*modified*/ end        ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg ) ;       // hit indicates that result is from a cache hit
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
 		void             not_started(                                                                         ) ;       // Req was killed before it started
-		//
 		//
 		void audit_end(
 			::string    const& pfx
@@ -178,10 +152,15 @@ namespace Engine {
 		) const {
 			audit_end(pfx,cri,{}/*backend_msg*/,ae,stderr,max_stderr_len,modified,exec_time) ;
 		}
+		// start/end date book keeping
+	private :
+		void _set_start_date() ;
+		void _set_end_date  () ;
 		// data
-		in_addr_t  host   = NoSockAddr ;
-		ChronoDate start_ ;
-		ChronoDate end_   ;
+	public :
+		in_addr_t host   = NoSockAddr ;
+		Pdate     start_ ;
+		Pdate     end_   ;
 	} ;
 
 }
@@ -245,7 +224,6 @@ namespace Engine {
 		using Idx        = JobIdx        ;
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
-		using Chrono     = JobChrono     ;
 		// static data
 	private :
 		static ::shared_mutex    _s_target_dirs_mutex ;
@@ -302,22 +280,9 @@ namespace Engine {
 				else                                 return is_ok(status)!=Yes ;
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
-		//
-		Chrono       end_chrono(        ) const {            for( Req r : reqs() ) if (Chrono c=c_req_info(r).end_chrono()) return c ; return 0 ; } // Req independent but stored in req_info
-		bool/*done*/ end_chrono(Chrono c)       {                                                                                                   // .
-			SWEAR(c) ;
-			bool done = false ;
-			for( Req r : reqs() ) {
-				ReqInfo& ri = req_info(r) ;
-				if (ri.has_watchers()) continue ;
-				ri.end_chrono(c) ;
-				done = true ;
-			}
-			return done ;
-		}
 		// services
-		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
-		::vmap<Node,bool/*uniquify*/>/*report*/                                wash           (Rule::SimpleMatch const&) const ; // thread-safe
+		::pair<vmap_s<pair<Node,bool/*uniquify*/>>/*wash*/,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
+		::vmap<Node,bool/*uniquify*/>/*report*/                                                   wash           (Rule::SimpleMatch const&) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -378,12 +343,6 @@ namespace Engine {
 #endif
 #ifdef IMPL
 namespace Engine {
-
-	//
-	// ChronoDate
-	//
-
-	inline ChronoDate::ChronoDate(bool is_end) : chrono{Job::s_now(is_end)} , date{Pdate::s_now()} {}
 
 	//
 	// Job
@@ -470,17 +429,8 @@ namespace Engine {
 		else                     return it->second                 ;
 	}
 	inline JobData::ReqInfo& JobData::req_info(Req req) const {
-		auto     te = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)) ;
-		ReqInfo& ri = te.first->second                                        ;
-		if (te.second)                                                          // if inserted
-			for( Req r : reqs() ) {
-				if (r==req            ) continue ;
-				ReqInfo const& cri = c_req_info(r) ;
-				if (cri.has_watchers()) continue ;
-				ri.end_chrono(cri.end_chrono()) ;                              // copy Req independent fields from any other ReqInfo (they are all identical)
-				break ;
-			}
-		return ri ;
+		auto te = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)) ;
+		return te.first->second ;
 	}
 	inline JobData::ReqInfo& JobData::req_info(ReqInfo const& cri) const {
 		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate

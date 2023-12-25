@@ -132,9 +132,6 @@ HAS_SECCOMP            := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h && echo 
 HAS_SLURM              := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)
 PYTHON_LD_LIBRARY_PATH := $(shell awk '$$2=="PYTHON_LD_LIBRARY_PATH" { print substr($$3,2,length($$3)-2) }' sys_config.h)
 
-# Slurm
-SLURM_LINK_OPTIONS := $(if $(HAS_SLURM),-lresolv)
-
 # Engine
 ENGINE_LIB  := $(SRC)/lmakeserver
 BACKEND_LIB := $(ENGINE_LIB)/backends
@@ -376,7 +373,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/store$(SAN).o                             \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(SLURM_LINK_OPTIONS) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \

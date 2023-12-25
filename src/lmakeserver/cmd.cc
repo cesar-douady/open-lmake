@@ -239,27 +239,27 @@ namespace Engine {
 			append_to_string(abs_cwd,'/',start.cwd_s) ;
 			abs_cwd.pop_back() ;
 		}
-		Rule::SimpleMatch                                            match           = j->simple_match()                             ;
-		::string                                                     script          = "#!/bin/bash\n"                               ;
-		::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>> targets_to_wash = j->targets_to_wash(match)                     ;
-		::vmap_s<bool/*uniquify*/> const&                            to_wash         = targets_to_wash.first                         ;
-		bool                                                         is_python       = j->rule->is_python                            ;
-		bool                                                         dbg             = flags[ReqFlag::Debug]                         ;
-		bool                                                         redirected      = !start.stdin.empty() || !start.stdout.empty() ;
-		::uset_s                                                     to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t->name()) ;
+		Rule::SimpleMatch                                                       match           = j->simple_match()                             ;
+		::string                                                                script          = "#!/bin/bash\n"                               ;
+		::pair<vmap_s<pair<Node,bool/*uniquify*/>>,vmap<Node,bool/*uniquify*/>> targets_to_wash = j->targets_to_wash(match)                     ;
+		::vmap_s<pair<Node,bool/*uniquify*/>> const&                            to_wash         = targets_to_wash.first                         ;
+		bool                                                                    is_python       = j->rule->is_python                            ;
+		bool                                                                    dbg             = flags[ReqFlag::Debug]                         ;
+		bool                                                                    redirected      = !start.stdin.empty() || !start.stdout.empty() ;
+		::uset_s                                                                to_report       ; for( auto [t,_] : targets_to_wash.second ) to_report.insert(t->name()) ;
 		//
 		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
 		//
-		for( auto const& [_,u] : to_wash )
-			if (u) {
+		for( auto const& [_,tu] : to_wash )
+			if (tu.second) {
 				append_to_string( script , "uniquify() { if [ -f \"$1\" ] ; then mv \"$1\" \"$1.$$\" ; cp -p \"$1.$$\" \"$1\" ; rm -f \"$1.$$\" ; fi ; }" ) ;
 				break ;
 			}
-		for( auto const& [tn,u] : to_wash )
-			if (!to_report.contains(tn)) append_to_string( script , (u?"uniquify ":"rm -f ") , tn , '\n' ) ;
+		for( auto const& [tn,tu] : to_wash )
+			if (!to_report.contains(tn)) append_to_string( script , (tu.second?"uniquify ":"rm -f ") , tn , '\n' ) ;
 		if (!to_report.empty()) {
 			script += "( set -x\n" ;
-			for( auto const& [tn,u] : to_wash ) if (to_report.contains(tn)) append_to_string( script , '\t' , (u?"uniquify ":"rm -f ") , tn , '\n' ) ;
+			for( auto const& [tn,tu] : to_wash ) if (to_report.contains(tn)) append_to_string( script , '\t' , (tu.second?"uniquify ":"rm -f ") , tn , '\n' ) ;
 			script += ")\n" ;
 		}
 		for( ::string const& d : match.target_dirs() ) append_to_string( script , "mkdir -p " , d , '\n' ) ;

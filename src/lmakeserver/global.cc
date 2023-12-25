@@ -103,109 +103,134 @@ namespace Engine {
 
 	Config::Config(Py::Mapping const& py_map) : booted{true} {                 // if config is read from makefiles, it is booted
 		db_version = Version::Db ;                                             // record current version
-		::string field ;
+		::vector_s fields = {{}} ;
 		try {
-			Py::Object v ;
-			field = "hash_algo"        ; v = py_map[field] ; if (py_map.hasKey(field)) hash_algo             = mk_enum<Hash::Algo>   (Py::String(v))               ;
-			field = "local_admin_dir"  ; v = py_map[field] ; if (py_map.hasKey(field)) user_local_admin_dir  =                        Py::String(v)                ;
-			field = "heartbeat"        ; v = py_map[field] ; if (py_map.hasKey(field)) heartbeat             = v.isTrue()?Time::Delay(Py::Float (v)):Time::Delay() ;
-			field = "heartbeat_tick"   ; v = py_map[field] ; if (py_map.hasKey(field)) heartbeat_tick        = v.isTrue()?Time::Delay(Py::Float (v)):Time::Delay() ;
-			field = "max_dep_depth"    ; v = py_map[field] ; if (py_map.hasKey(field)) max_dep_depth         = size_t                (Py::Long  (v))               ;
-			field = "network_delay"    ; v = py_map[field] ; if (py_map.hasKey(field)) network_delay         = Time::Delay           (Py::Float (v))               ;
-			field = "path_max"         ; v = py_map[field] ; if (py_map.hasKey(field)) path_max              = size_t                (Py::Long  (v))               ;
-			field = "rules_module"     ; v = py_map[field] ; if (py_map.hasKey(field)) rules_module          =                        Py::String(v)                ;
-			field = "sources_module"   ; v = py_map[field] ; if (py_map.hasKey(field)) srcs_module           =                        Py::String(v)                ;
-			field = "trace_size"       ; v = py_map[field] ; if (py_map.hasKey(field)) trace_sz              = size_t                (Py::Long  (v))               ;
-			field = "max_error_lines"  ; v = py_map[field] ; if (py_map.hasKey(field)) max_err_lines         = size_t                (Py::Long  (v))               ;
-			field = "remote_admin_dir" ; v = py_map[field] ; if (py_map.hasKey(field)) user_remote_admin_dir =                        Py::String(v)                ;
-			field = "remote_tmp_dir"   ; v = py_map[field] ; if (py_map.hasKey(field)) user_remote_tmp_dir   =                        Py::String(v)                ;
+			fields[0] = "hash_algo"        ; if (py_map.hasKey(fields[0])) hash_algo             = mk_enum<Hash::Algo>                   (Py::String(py_map[fields[0]]))               ;
+			fields[0] = "local_admin_dir"  ; if (py_map.hasKey(fields[0])) user_local_admin_dir  =                                        Py::String(py_map[fields[0]])                ;
+			fields[0] = "heartbeat"        ; if (py_map.hasKey(fields[0])) heartbeat             = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
+			fields[0] = "heartbeat_tick"   ; if (py_map.hasKey(fields[0])) heartbeat_tick        = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
+			fields[0] = "max_dep_depth"    ; if (py_map.hasKey(fields[0])) max_dep_depth         = size_t                                (Py::Long  (py_map[fields[0]]))               ;
+			fields[0] = "network_delay"    ; if (py_map.hasKey(fields[0])) network_delay         = Time::Delay                           (Py::Float (py_map[fields[0]]))               ;
+			fields[0] = "path_max"         ; if (py_map.hasKey(fields[0])) path_max              = size_t                                (Py::Long  (py_map[fields[0]]))               ;
+			fields[0] = "rules_module"     ; if (py_map.hasKey(fields[0])) rules_module          =                                        Py::String(py_map[fields[0]])                ;
+			fields[0] = "sources_module"   ; if (py_map.hasKey(fields[0])) srcs_module           =                                        Py::String(py_map[fields[0]])                ;
+			fields[0] = "max_error_lines"  ; if (py_map.hasKey(fields[0])) max_err_lines         = size_t                                (Py::Long  (py_map[fields[0]]))               ;
+			fields[0] = "remote_admin_dir" ; if (py_map.hasKey(fields[0])) user_remote_admin_dir =                                        Py::String(py_map[fields[0]])                ;
+			fields[0] = "remote_tmp_dir"   ; if (py_map.hasKey(fields[0])) user_remote_tmp_dir   =                                        Py::String(py_map[fields[0]])                ;
 			//
-			field = "link_support" ;
-			if (py_map.hasKey(field)) {
-				Py::Object py_lnk_support = py_map[field] ;
+			fields[0] = "link_support" ;
+			if (py_map.hasKey(fields[0])) {
+				Py::Object py_lnk_support = py_map[fields[0]] ;
 				if      (!py_lnk_support.isTrue()  ) lnk_support = LnkSupport::None                                          ;
 				else if (py_lnk_support==Py::True()) lnk_support = LnkSupport::Full                                          ;
 				else                                 lnk_support = mk_enum<LnkSupport>(::string(Py::String(py_lnk_support))) ;
 			}
 			//
-			field = "console" ;
-			if (!py_map.hasKey(field)) throw "not found"s ;
-			Py::Mapping py_console = py_map[field] ;
-			field = "console.date_precision" ;
-			if (py_console.hasKey("date_precision")) {
-				Py::Object py_date_prec = py_console["date_precision"] ;
+			fields[0] = "console" ;
+			if (!py_map.hasKey(fields[0])) throw "not found"s ;
+			Py::Mapping py_console = py_map[fields[0]] ;
+			fields.emplace_back() ;
+			fields[1] = "date_precision" ;
+			if (py_console.hasKey(fields[1])) {
+				Py::Object py_date_prec = py_console[fields[1]] ;
 				if (py_date_prec==Py::None()) console.date_prec = uint8_t(-1)                                        ;
 				else                          console.date_prec = static_cast<unsigned long>(Py::Long(py_date_prec)) ;
 			}
-			field = "console.host_length" ;
-			if (py_console.hasKey("host_length")) {
-				Py::Object py_host_len = py_console["host_length"] ;
+			fields[1] = "host_length" ;
+			if (py_console.hasKey(fields[1])) {
+				Py::Object py_host_len = py_console[fields[1]] ;
 				if (py_host_len.isTrue()) console.host_len = static_cast<unsigned long>(Py::Long(py_host_len)) ;
 			}
-			field = "console.has_exec_time" ;
-			if (py_console.hasKey("has_exec_time")) console.has_exec_time = Py::Object(py_console["has_exec_time"]).as_bool() ;
+			fields[1] = "has_exec_time" ;
+			if (py_console.hasKey(fields[1])) console.has_exec_time = Py::Object(py_console[fields[1]]).as_bool() ;
+			fields.pop_back() ;
 			//
-			field = "backends" ;
-			if (!py_map.hasKey(field)) throw "not found"s ;
-			Py::Mapping py_backends = py_map[field] ;
-			if (py_backends.hasKey("precisions")) {
-				Save<::string> sav      { field , field+".precisions" }         ;
-				Py::Mapping    py_precs = Py::Object(py_backends["precisions"]) ;
+			fields[0] = "backends" ;
+			if (!py_map.hasKey(fields[0])) throw "not found"s ;
+			Py::Mapping py_backends = py_map[fields[0]] ;
+			fields.emplace_back() ;
+			fields[1] = "precision" ;
+			if (py_backends.hasKey(fields[1])) {
+				Py::Mapping    py_precs = Py::Object(py_backends[fields[1]]) ;
+				fields.emplace_back() ;
 				for( StdRsrc r : StdRsrc::N ) {
-					::string r_str = mk_snake(r) ;
-					if (!py_precs.hasKey(r_str)) continue ;
-					Save<::string> sav  { field , to_string(field,'.',r_str) }                  ;
-					unsigned long  prec = static_cast<unsigned long>(Py::Long(py_precs[r_str])) ;
+					fields[2] = mk_snake(r) ;
+					if (!py_precs.hasKey(fields[2])) continue ;
+					unsigned long  prec = static_cast<unsigned long>(Py::Long(py_precs[fields[2]])) ;
 					if (prec==0                ) continue ;
 					if (!::has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
 					if (prec==1                ) throw "must be 0 or at least 2"s             ;
 					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                     // number of kept digits
 				}
+				fields.pop_back() ;
 			}
 			for( BackendTag t : BackendTag::N ) {
-				::string ts = mk_snake(t) ;
+				fields[1] = mk_snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-				field = "backends."+ts ;
-				if ( !bbe                  ) continue ;                                                                  // not implemented
-				if (!py_backends.hasKey(ts)) continue ;                                                                  // not configured
-				try                       { backends[+t] = Backend( Py::Mapping(py_backends[ts]) , bbe->is_local() ) ; }
-				catch (::string const& e) { ::cerr<<"Warning : backend "<<ts<<" could not be configured : "<<e<<endl ; }
+				if (!bbe                          ) continue ;                                                                  // not implemented
+				if (!py_backends.hasKey(fields[1])) continue ;                                                                  // not configured
+				try                       { backends[+t] = Backend( Py::Mapping(py_backends[fields[1]]) , bbe->is_local() ) ; }
+				catch (::string const& e) { ::cerr<<"Warning : backend "<<fields[1]<<" could not be configured : "<<e<<endl ; }
+			}
+			fields.pop_back() ;
+			//
+			fields[0] = "caches" ;
+			if (py_map.hasKey(fields[0])) {
+				fields.emplace_back() ;
+				for( auto const& [py_key,py_val] : Py::Mapping(py_map[fields[0]]) ) {
+					fields[1] = Py::String(py_key) ;
+					caches[fields[1]] = Cache(Py::Mapping(py_val)) ;
+				}
+				fields.pop_back() ;
 			}
 			//
-			field = "caches" ;
-			if (py_map.hasKey(field)) {
-				for( auto const& [py_key,py_val] : Py::Mapping(py_map[field]) ) {
-					::string key = Py::String(py_key) ;
-					field = "caches."+key ;
-					caches[key] = Cache(Py::Mapping(py_val)) ;
-				}
-			}
-			field = "colors" ;
-			if (!py_map.hasKey(field)) throw "not found"s ;
-			Py::Mapping py_colors = py_map[field] ;
+			fields[0] = "colors" ;
+			if (!py_map.hasKey(fields[0])) throw "not found"s ;
+			Py::Mapping py_colors = py_map[fields[0]] ;
+			fields.emplace_back() ;
 			for( Color c{1} ; c<Color::N ; c++ ) {
-				::string cs = mk_snake(c) ;
-				field = "colors."+cs ;
-				if (!py_colors.hasKey(cs)) throw "not found"s ;
-				Py::Sequence py_c1 = Py::Object(py_colors[cs]) ;
+				fields[1] = mk_snake(c) ;
+				if (!py_colors.hasKey(fields[1])) throw "not found"s ;
+				Py::Sequence py_c1 = Py::Object(py_colors[fields[1]]) ;
 				if (py_c1.size()!=2) throw to_string("size is ",py_c1.size(),"!=2") ;
+				fields.emplace_back() ;
 				for( bool r : {false,true} ) {
-					field = to_string( "colors." , cs , r?".reverse":".normal" ) ;
+					fields[2] = r?"reverse":"normal" ;
 					Py::Sequence py_c2 = Py::Object(py_c1[r]) ;
 					if (py_c2.size()!=3) throw to_string("size is ",py_c2.size(),"!=3") ;
+					fields.emplace_back() ;
 					for( size_t rgb=0 ; rgb<3 ; rgb++ ) {
-						field = to_string( "colors." , cs , r?".reverse":".normal" , rgb==0?".r":rgb==1?".g":".b" ) ;
+						fields[3] = ::string( "rgb"+rgb , 1 ) ;
 						size_t cc = size_t(Py::Long(py_c2[rgb])) ;
 						if (cc>=256) throw to_string("color is ",cc,">=256") ;
 						colors[+c][r][rgb] = size_t(Py::Long(py_c2[rgb])) ;
 					}
+					fields.pop_back() ;
 				}
+				fields.pop_back() ;
+			}
+			fields.pop_back() ;
+			//
+			fields[0] = "trace" ;
+			if (py_map.hasKey(fields[0])) {
+				Py::Mapping py_trace = py_map[fields[0]] ;
+				fields.emplace_back() ;
+				fields[1] = "size"     ; if (py_trace.hasKey(fields[1])) trace.sz     = from_string_with_units<0,size_t>(Py::Object(py_trace[fields[1]]).str()) ;
+				fields[1] = "n_jobs"   ; if (py_trace.hasKey(fields[1])) trace.n_jobs = size_t(Py::Long(py_trace[fields[1]]))                                   ;
+				fields[1] = "channels" ; if (py_trace.hasKey(fields[1])) {
+					trace.channels = Channels() ;
+					Py::Sequence py_cs = Py::Object(py_trace[fields[1]]) ;
+					for( auto const& py_c : py_cs ) trace.channels |= mk_enum<Channel>(Py::String(py_c)) ;
+				}
+				fields.pop_back() ;
 			}
 		} catch(::string& e) {
-			e = to_string("while processing config.",field," :\n",indent(e)) ;
+			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
+			e = to_string("while processing ",field," :\n",indent(e)) ;
 			throw ;
 		} catch(Py::Exception& e) {
-			throw to_string("while processing config.",field," :\n\t",e.errorValue()) ;
+			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
+			throw to_string("while processing ",field," :\n\t",e.errorValue()) ;
 		}
 	}
 
@@ -262,6 +287,12 @@ namespace Engine {
 			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
 			/**/                              res <<"\t\t\t"<< ::setw(w)<<"local"     <<" : "<< bbe->is_local()                   <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
+		}
+		if (trace!=TraceConfig()) {
+			res << "\tbackends :\n" ;
+			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     ;
+			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs ;
+			if (trace.channels!=TraceConfig().channels) { res << "\t\tchannels :" ; for( Channel c : Channel::N ) if (trace.channels[c]) res <<' '<< mk_snake(c) ; }
 		}
 		return res.str() ;
 	}

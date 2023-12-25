@@ -13,8 +13,9 @@ using namespace Disk ;
 
 namespace Engine {
 
-	JobChrono Job::s_chrono        = 1     ;                                   // 0 is reserved to mean no info
-	bool      Job::s_chrono_is_end = false ;
+	::map <Pdate,Job  > Job::_s_start_date_to_jobs ;
+	::umap<Job  ,Pdate> Job::_s_job_to_end_dates   ;
+	::map <Pdate,Job  > Job::_s_end_date_to_jobs   ;
 
 	//
 	// jobs thread
@@ -40,91 +41,82 @@ namespace Engine {
 		return true ;
 	}
 
-	::pair<vmap_s<bool/*uniquify*/>,vmap<Node,bool/*uniquify*/>/*report*/> JobData::targets_to_wash(Rule::SimpleMatch const& match) const {
-		::vmap<Node,bool/*uniquify*/> to_report ;
-		::vmap_s<   bool/*uniquify*/> to_wash   ;
+	::pair<vmap_s<pair<Node,bool/*uniquify*/>>/*wash*/,vmap<Node,bool/*uniquify*/>/*report*/> JobData::targets_to_wash(Rule::SimpleMatch const& match) const {
+		::vmap_s<pair<Node,bool/*uniquify*/>> to_wash   ;
+		::vmap<Node,bool/*uniquify*/>         to_report ;
 		Trace trace("targets_to_wash",idx()) ;
+		auto handle_target = [&]( Node t , ::string const& tn/*lazy_evaluated*/ , ::function<bool(Tflag)> has_flag )->void {
+			if (t->crc==Crc::None) return ;                                                                                  // nothing to wash
+			if (t->unlinked      ) return ;                                                                                  // already unlinked somehow
+			if (t->is_src()      ) return ;                                                                                  // never touch a source
+			bool inc  =        has_flag(Tflag::Incremental) ;
+			bool uniq = inc && has_flag(Tflag::Uniquify   ) ;
+			if (inc) {
+				struct ::stat st ;
+				if (!uniq                                ) return ;
+				if (::lstat(tn.c_str(),&st)<0            ) return ;
+				if (!(S_ISREG(st.st_mode)&&st.st_nlink>1)) return ;            // no need to manage symlinks as they cannot be modified in place
+			}
+			bool weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
+			bool warn  = weird && has_flag(Tflag::Warning)                           ;
+			if (!inc      ) t->unlinked = true ;
+			if (warn      ) to_report.emplace_back(t,inc) ;
+			if (tn.empty()) to_wash.emplace_back(t->name(),::pair(t,inc)) ;    // if tn was not lazy evaluated
+			else            to_wash.emplace_back(tn       ,::pair(t,inc)) ;
+			trace(t,STR(warn),STR(inc)) ;
+		} ;
 		// handle static targets
 		::vector_view_c_s sts = match.static_targets() ;
 		for( VarIdx ti=0 ; ti<sts.size() ; ti++ ) {
-			::string const& tn = sts[ti] ;
-			Node            t  { tn }    ;
-			if (t->crc==Crc::None) continue ;                                  // nothing to wash
-			if (t->is_src()      ) continue ;                                  // never touch a source
-			Tflags tf   = rule->tflags(ti)              ;
-			bool   inc  =        tf[Tflag::Incremental] ;
-			bool   uniq = inc && tf[Tflag::Uniquify   ] ;
-			if (inc) {
-				struct ::stat st ;
-				if (!uniq                                ) continue ;
-				if (::lstat(tn.c_str(),&st)<0            ) continue ;
-				if (!(S_ISREG(st.st_mode)&&st.st_nlink>1)) continue ;          // no need to manage symlinks as they cannot be modified in place
-			}
-			bool weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
-			bool warn  = weird && tf[Tflag::Warning]                                 ;
-			if (warn) { trace("static",t,STR(inc)) ; to_report.emplace_back(t ,inc) ; }
-			/**/                                     to_wash  .emplace_back(tn,inc) ;
+			::string const& tn  = sts[ti]          ;
+			Tflags          tfs = rule->tflags(ti) ;
+			handle_target( Node(tn) , tn , [&](Tflag tf)->bool { return tfs[tf] ; } ) ;
 		}
 		// handle star targets
 		Rule::FullMatch fm ;                                                   // lazy evaluated
 		for( Target t : star_targets ) {
-			if (t->crc==Crc::None) continue ;                                  // nothing to wash
-			if (t->is_src()      ) continue ;                                  // never touch a source
-			::string tn    ;
-			bool     inc   =        t.lazy_tflag(Tflag::Incremental,match,fm,tn) ; // may solve fm & tn lazy evalution
-			bool     uniq  = inc && t.lazy_tflag(Tflag::Incremental,match,fm,tn) ; // .
-			if (inc) {
-				struct ::stat st ;
-				if (!uniq                                ) continue ;
-				if (::lstat(tn.c_str(),&st)<0            ) continue ;
-				if (!(S_ISREG(st.st_mode)&&st.st_nlink>1)) continue ;          // no need to manage symlinks as they cannot be modified in place
-			}
-			bool weird = inc || ( !t->has_actual_job(idx()) && t->has_actual_job() ) ;
-			bool warn  = weird && t.lazy_tflag(Tflag::Warning ,match,fm,tn)          ;      // may solve fm & tn lazy evalution
-			if (tn.empty()) tn = t->name() ;                                                 // solve lazy evaluation if not already done
-			if (warn      ) { trace("star",t,STR(inc)) ; to_report.emplace_back(t ,inc) ; }
-			/**/                                         to_wash  .emplace_back(tn,inc) ;
+			::string tn ;                                                                             // lazy evaluated
+			handle_target( t , tn , [&](Tflag tf)->bool { return t.lazy_tflag(tf,match,fm,tn) ; } ) ; // may solve fm & tn lazy evalution
 		}
 		return {to_wash,to_report} ;
 	}
 
 	::vmap<Node,bool/*uniquify*/>/*report*/ JobData::wash(Rule::SimpleMatch const& match) const {
 		Trace trace("wash",idx()) ;
-		::vmap_s<   bool/*uniquify*/> to_wash   ;
-		::vmap<Node,bool/*uniquify*/> to_report ;
 		// compute targets to wash
-		::tie(to_wash,to_report) = targets_to_wash(match) ;
+		auto [to_wash,to_report] = targets_to_wash(match) ;
 		// remove old_targets
 		::set_s       to_del_dirs   ;                                          // ordered to ensure to_del_dirs are removed deepest first
 		::vector_s    to_mk_dirs    = match.target_dirs()    ;
 		::set_s       to_mk_dir_set = mk_set(to_mk_dirs)     ;                 // uncomfortable on how a hash tab may work with repetitive calls to begin/erase, safer with a set
 		::unique_lock lock          { _s_target_dirs_mutex } ;
-		for( auto const& [t,u] : to_wash ) {
-			trace("unlink_target",t,STR(u)) ;
+		for( auto const& [tn,tu] : to_wash ) {
+			auto [t,u] = tu ;
+			trace("unlink_target",tn,t,STR(u)) ;
 			if (u) {
 				// uniquify file so as to ensure modifications do not alter other hard links
-				int           rfd     = ::open(t.c_str(),O_RDONLY|O_NOFOLLOW)                  ; if (rfd             <0) throw to_string("cannot open for reading : ",t) ;
-				struct ::stat st      ;                                                          if (::fstat(rfd,&st)<0) throw to_string("cannot stat : "            ,t) ;
-				void*         content = ::mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,rfd,0) ; if (!content          ) throw to_string("cannot map : "             ,t) ;
-				int           rc      = ::unlink(t.c_str())                                    ; if (rc              <0) throw to_string("cannot unlink : "          ,t) ;
-				int           wfd     = ::open(t.c_str(),O_WRONLY|O_CREAT,st.st_mode&07777)    ; if (wfd             <0) throw to_string("cannot open for writing : ",t) ;
+				int           rfd     = ::open(tn.c_str(),O_RDONLY|O_NOFOLLOW)                 ; if (rfd             <0) throw to_string("cannot open for reading : ",tn) ;
+				struct ::stat st      ;                                                          if (::fstat(rfd,&st)<0) throw to_string("cannot stat : "            ,tn) ;
+				void*         content = ::mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,rfd,0) ; if (!content          ) throw to_string("cannot map : "             ,tn) ;
+				int           rc      = ::unlink(tn.c_str())                                   ; if (rc              <0) throw to_string("cannot unlink : "          ,tn) ;
+				int           wfd     = ::open(tn.c_str(),O_WRONLY|O_CREAT,st.st_mode&07777)   ; if (wfd             <0) throw to_string("cannot open for writing : ",tn) ;
 				ssize_t       cnt     = 0/*garbage*/                                           ;
 				//
 				for( off_t pos=0 ; pos<st.st_size ; pos+=cnt ) {
 					cnt = ::write( wfd , reinterpret_cast<char const*>(content)+cnt , st.st_size-pos)  ;
-					if (cnt<=0) throw to_string("cannot write : ",t) ;
+					if (cnt<=0) throw to_string("cannot write : ",tn) ;
 				}
 				//
 				struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
-				::futimens(wfd,times) ;
+				::futimens(wfd,times) ;                                                         // maintain original date
 				//
 				::close(wfd) ;
 				::munmap(content,st.st_size) ;
 				::close(rfd) ;
 			} else {
-				unlink(t) ;
+				unlink(tn) ;
 			}
-			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , ::dir_name(t) ) ; // _s_target_dirs must protect all dirs beneath it
+			_acc_to_del_dirs( to_del_dirs , _s_target_dirs , to_mk_dir_set , ::dir_name(tn) ) ; // _s_target_dirs must protect all dirs beneath it
 		}
 		// create target dirs
 		while (to_mk_dir_set.size()) {
@@ -159,8 +151,9 @@ namespace Engine {
 				}
 			}
 		}
-		for( ::string const& dir : to_mk_dirs ) { trace("protect_dir",dir) ; _s_target_dirs[dir]++ ; } // update _target_dirs once we are sure job will start
-		return to_report ;
+		for( ::string const& dir     : to_mk_dirs ) { trace("protect_dir",dir) ; _s_target_dirs[dir]++ ; } // update _target_dirs once we are sure job will start
+		for( auto&           [tn,tu] : to_wash    ) if (!tu.second) tu.first->unlinked = true ;            // only note unlinked targets once all exceptions are cleared to avoid infinitely ...
+		return to_report ;                                                                                 // ... regenerating, no harm, just use a heavier process to restore them when required
 	}
 
 	void JobData::end_exec() const {
@@ -178,15 +171,6 @@ namespace Engine {
 	//
 	// main thread
 	//
-
-	//
-	// ChronoDate
-	//
-
-	::ostream& operator<<( ::ostream& os , ChronoDate const& cd ) {
-		if (+cd) return os <<'('<< cd.chrono <<','<< cd.date <<')' ;
-		else     return os <<"CD()"                                ;
-	}
 
 	//
 	// JobTgts
@@ -278,6 +262,32 @@ namespace Engine {
 	// JobExec
 	//
 
+	void JobExec::_set_start_date() {
+		if (!_s_start_date_to_jobs.emplace(start_,*this).second) FAIL("date conflict",*this,_s_start_date_to_jobs.at(start_)) ;
+	}
+
+	void JobExec::_set_end_date() {
+		if ( auto it = _s_start_date_to_jobs.find(start_) ; it!=_s_start_date_to_jobs.end() ) { // if started was not called (e.g. if cache hit), job is not recorded in _s_start_date_to_jobs
+			SWEAR(it->second==*this) ;
+			_s_start_date_to_jobs.erase(it) ;
+		}
+		if (_s_start_date_to_jobs.empty()) {
+			_s_job_to_end_dates.clear() ;
+			_s_end_date_to_jobs.clear() ;
+		} else {
+			Pdate earliest = _s_start_date_to_jobs.begin()->first ;
+			for( auto it=_s_end_date_to_jobs.begin() ; it!=_s_end_date_to_jobs.end() ;) {
+				if (it->first>earliest) break ;
+				_s_job_to_end_dates.erase(it->second) ;
+				_s_end_date_to_jobs.erase(it++      ) ;
+			}
+			if (end_>earliest) {
+				/**/  _s_job_to_end_dates.emplace(*this,end_ )          ;
+				swear(_s_end_date_to_jobs.emplace(end_ ,*this).second ) ;
+			}
+		}
+	}
+
 	void JobExec::continue_( Req req , bool report ) {
 		Trace trace("continue_",*this,req,STR(report)) ;
 		ReqInfo& ri = (*this)->req_info(req) ;
@@ -346,7 +356,7 @@ namespace Engine {
 		if (!ri.live_out) return ;
 		Req r = ri.req ;
 		// identify job (with a continue message if no start message), dated as now and with current exec time
-		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,New),false/*at_end*/,Pdate::s_now()-start_.date) ;
+		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,New),false/*at_end*/,Pdate::s_now()-start_) ;
 		r->last_info = *this ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		r->audit_info(Color::None,txt,0) ;
@@ -383,10 +393,12 @@ namespace Engine {
 	void JobExec::started( bool report , ::vmap<Node,bool/*uniquify*/> const& report_unlink , ::string const& stderr , ::string const& backend_msg ) {
 		Trace trace("started",*this) ;
 		SWEAR( !(*this)->rule->is_special() , (*this)->rule->special ) ;
+		_set_start_date() ;
+		report |= !report_unlink.empty() || !stderr.empty() ;
 		for( Req req : (*this)->running_reqs() ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			ri.start_reported = false ;
-			if ( report || !report_unlink.empty() || !stderr.empty() ) report_start(ri,report_unlink,stderr,backend_msg) ;
+			if (report) report_start(ri,report_unlink,stderr,backend_msg) ;
 			//
 			if (ri.lvl==ReqInfo::Lvl::Queued) {
 				req->stats.cur(ReqInfo::Lvl::Queued)-- ;
@@ -454,7 +466,7 @@ namespace Engine {
 		//
 		// handle targets
 		//
-		if (status>Status::Early) {                                                // if early, we have not touched the targets
+		if (status>Status::Early) {                                                // if early, we have not touched the targets, not even washed them
 			auto report_if_missing = [&]( ::string const& tn , Tflags tf )->void {
 				if (+(tf&Tflags(Tflag::Star,Tflag::Phony))) return ;               // these are not required targets
 				if (status!=Status::Ok                    ) return ;               // it is quite normal to have missing targets when job is in error
@@ -468,12 +480,13 @@ namespace Engine {
 			//
 			::vector<Target> star_targets ;                                    // typically, there is either no star targets or they are most of them, lazy reserve if one is seen
 			for( auto const& [tn,td] : digest.targets ) {
-				Tflags tflags     = td.tflags                                                   ;
-				Node   target     { tn }                                                        ;
-				bool   inc        = tflags[Tflag::Incremental]                                  ;
-				bool   unlink     = td.crc==Crc::None                                           ;
-				Crc    crc        = td.write || unlink ? td.crc : inc ? target->crc : Crc::None ;
-				bool   target_err = false                                                       ;
+				Tflags tflags     = td.tflags                                                     ;
+				Node   target     { tn }                                                          ;
+				bool   inc        = tflags[Tflag::Incremental]                                    ;
+				bool   unlink     = td.crc==Crc::None                                             ;
+				bool   touched    = td.write || unlink                                            ;
+				Crc    crc        = touched ? td.crc : target->unlinked ? Crc::None : target->crc ;
+				bool   target_err = false                                                         ;
 				//
 				target->set_buildable() ;
 				if ( !tflags[Tflag::SourceOk] && td.write && target->is_src() ) {
@@ -481,32 +494,26 @@ namespace Engine {
 					if (unlink) severe_analysis_err.emplace_back("unexpected unlink of source",target) ;
 					else        severe_analysis_err.emplace_back("unexpected write to source" ,target) ;
 				}
-				if ( Chrono tec ;
+				if (
 					td.write                                                   // we actually wrote
 				&&	target->has_actual_job() && !target->has_actual_job(*this) // there is another job
-				&&	+(tec=target->actual_job_tgt->end_chrono())                // which has been executed
-				&&	s_start_before_end( start_.chrono , tec )                  // dates overlap, which means both jobs were running concurrently (we are the second to end)
+				&&	target->actual_job_tgt.end_date() > start_
 				) {
 					Job    aj       = target->actual_job_tgt   ;               // common_tflags cannot be tried as target may be unexpected for aj
 					VarIdx aj_idx   = aj->full_match().idx(tn) ;               // this is expensive, but pretty exceptional
 					Tflags aj_flags = aj->rule->tflags(aj_idx) ;
 					trace("clash",*this,tflags,aj,aj_idx,aj_flags,target) ;
 					// /!\ This may be very annoying !
-					//     Even completed Req's may have been poluted as at the time t->actual_job_tgt completed, it was not aware of the clash.
-					//     Putting target in clash_nodes will generate a frightening message to user asking to relaunch all concurrent commands, even past ones.
-					//     Note that once we have detected the frightening situation and warned the user, we do not care masking further clashes by overwriting actual_job_tgt.
+					//     Even completed Req's may have been poluted as at the time t->actual_job_tgt completed, it was not aware of the clash. But this is too complexe and too rare to detect.
+					//     Putting target in clash_nodes will generate a message to user asking to relaunch command.
 					if (tflags  [Tflag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
 					if (aj_flags[Tflag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
-						Rule::SimpleMatch aj_match{aj} ;
-						for( Req r : (*this)->reqs() ) {
-							ReqInfo& ajri = aj->req_info(r) ;
-							ajri.done_ = ajri.done_ & RunAction::Status ;                              // whether there is clash or not, this job must be rerun if we need the actual files
-							for( Node ajt : aj_match.static_targets() ) if (ajt->done(r)) goto Clash ;
-							for( Node ajt : aj->star_targets          ) if (ajt->done(r)) goto Clash ;
-							continue ;
-						Clash :                                                // one of the targets is done, this is the annoying case
+						for( Req r : target->reqs() ) {
+							Node::ReqInfo& tri = target->req_info(r) ;
+							if (!tri.done(RunAction::Dsk)) continue ;
+							tri.done_ = RunAction::Status ;                    // target must be re-analyzed if we need the actual files
 							trace("critical_clash") ;
-							r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
+							r->clash_nodes.emplace(target,r->clash_nodes.size()) ; // but req r may not be aware of it
 						}
 					}
 				}
@@ -540,10 +547,10 @@ namespace Engine {
 				//
 				bool  modified = false   ;
 				Ddate date     = td.date ;
-				if ( !td.write && !unlink ) {
-					if ( inc || target->crc==Crc::None                          ) goto NoRefresh ;
-					if ( tflags[Tflag::ManualOk] && target->manual(td.date)!=No ) { crc = {tn,g_config.hash_algo} ; date = file_date(tn)  ; }
-					else                                                                                            date = Ddate::s_now() ;   // target was washed (ideally it should be start date)
+				if (!touched) {
+					if      ( target->unlinked                                       )                                   date = Ddate::s_now() ;   // ideally, should be start date
+					else if ( tflags[Tflag::ManualOk] && target->manual(td.date)!=No ) { crc = {tn,g_config.hash_algo} ; date = file_date(tn)  ; }
+					else                                                               goto NoRefresh ;
 				}
 				//         vvvvvvvvvvvvvvvvvvvvvvvvv
 				modified = target->refresh(crc,date) ;
@@ -604,6 +611,8 @@ namespace Engine {
 		//
 		// wrap up
 		//
+		_set_end_date() ;                                                      // must be called after target analysis to ensure clash detection
+		//
 		switch (status) {
 			case Status::Ok      : if ( !digest.stderr.empty() && !end_cmd_attrs.allow_stderr ) { analysis_err       .emplace_back("non-empty stderr",Node()) ; local_err = true ; } break ;
 			case Status::Timeout :                                                              { severe_analysis_err.emplace_back("timeout"         ,Node()) ;                    } break ;
@@ -645,7 +654,6 @@ namespace Engine {
 			SWEAR( ri.lvl==JobLvl::Exec , ri.lvl ) ;                           // update statistics if this does not hold
 			ri.lvl = JobLvl::End ;                                             // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 		}
-		(*this)->end_chrono(end_.chrono) ;                                     // update end_chrono for done Req's
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",local_reason,status,ri) ;
@@ -692,7 +700,7 @@ namespace Engine {
 					Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest ) ;
 					cached = true ;
 				}
-				ri.wakeup_watchers(end_.chrono) ;                              // update end_chrono for this Req
+				ri.wakeup_watchers() ;
 			} else {
 				audit_end( +local_reason?"":"may_" , ri , backend_msg , ae , {} , -1/*max_stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				req->missing_audits[*this] = { false/*hit*/ , any_modified , ae } ;
@@ -1181,12 +1189,14 @@ namespace Engine {
 		::vmap<Node,bool/*ok*/> manual_targets ;
 		for( VarIdx ti=0 ; ti<static_target_nodes.size() ; ti++ ) {
 			Node t = static_target_nodes[ti] ;
+			t->set_buildable() ;                                                // target may be washed from another thread, which requires is_src(), thus match_ok(), so prepare it now
 			if (t->manual_refresh(req,file_date(static_target_names[ti]))==Yes)
 				manual_targets.emplace_back( t , t.manual_ok()||rule->tflags(ti)[Tflag::ManualOk] ) ;
 		}
 		Rule::FullMatch fm ;                                                   // lazy evaluated
 		for( Target t : star_targets ) {
 			::string tn = t->name() ;
+			t->set_buildable() ;                                               // target may be washed from another thread, which requires is_src(), thus match_ok(), so prepare it now
 			if (t->manual_refresh(req,file_date(tn))==Yes)
 				manual_targets.emplace_back( t , t.manual_ok()||t.lazy_tflag(Tflag::ManualOk,match,fm,tn) ) ; // may solve fm lazy evaluation, tn is already ok
 		}

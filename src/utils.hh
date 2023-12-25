@@ -754,7 +754,7 @@ template<StdEnum E> ::map_s<E> _mk_enum_tab() {
 	return res ;
 }
 template<StdEnum E> static inline E mk_enum_no_throw(::string const& x) {
-	static map_s<E> const* s_tab = new map_s<E>{_mk_enum_tab<E>()} ;           // ensure table is never destroyed as we have no control of the order
+	static map_s<E> const* s_tab = new ::map_s<E>{_mk_enum_tab<E>()} ;         // ensure table is never destroyed as we have no control of the order
 	auto it = s_tab->find(x) ;
 	if (it==s_tab->end()) return E::Unknown ;
 	else                  return it->second ;
@@ -767,6 +767,12 @@ template<StdEnum E> static inline bool can_mk_enum(::string const& x) {
 template<StdEnum E> static inline E mk_enum(::string const& x) {
 	E res = mk_enum_no_throw<E>(x) ;
 	if (res==E::Unknown) throw to_string("cannot make enum ",_s_enum_name(E(0))," from ",x) ;
+	return res ;
+}
+
+template<StdEnum E> static inline BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
+	BitMap<E> res ;
+	for( ::string const& s : split(x,sep) ) res |= mk_enum<E>(s) ;
 	return res ;
 }
 

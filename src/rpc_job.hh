@@ -497,6 +497,7 @@ struct JobRpcReply {
 				::serdes(s,stdout          ) ;
 				::serdes(s,targets         ) ;
 				::serdes(s,timeout         ) ;
+				::serdes(s,trace_n_jobs    ) ;
 				::serdes(s,use_script      ) ;
 			break ;
 			default : FAIL(proc) ;
@@ -523,6 +524,7 @@ struct JobRpcReply {
 	::string                  stdout           ;                               // proc == Start
 	::vector<TargetSpec>      targets          ;                               // proc == Start
 	Time::Delay               timeout          ;                               // proc == Start
+	JobIdx                    trace_n_jobs     = 0                   ;         // proc == Start
 	bool                      use_script       = false               ;         // proc == Start
 	Bool3                     ok               = Maybe               ;         // proc == ChkDeps , if No <=> deps in error, if Maybe <=> deps not ready
 	::vector<pair<Bool3,Crc>> infos            ;                               // proc == DepInfos

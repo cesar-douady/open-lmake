@@ -262,23 +262,16 @@ namespace Engine {
 			case Buildable::No        : status(NodeStatus::None) ; goto NoSrc ;
 			case Buildable::DynSrc    :
 			case Buildable::Src       : status(NodeStatus::Src ) ; goto Src   ;
-			case Buildable::Maybe     :
-			case Buildable::Yes       :
-			case Buildable::SubSrcDir :
-			case Buildable::SubSrc    :                            break      ;
-			default : FAIL(buildable) ;
+			default                   :                            break      ;
 		}
 		if (!dir) goto NotDone ;
 		// step 2 : handle what can be done without making dir
 		switch (dir->buildable) {
-			case Buildable::DynAnti   :
-			case Buildable::Anti      :
-			case Buildable::No        :                            goto NotDone ;
-			case Buildable::SrcDir    : status(NodeStatus::None) ; goto Src     ; // status is overwritten Src if node actually exists
-			case Buildable::Yes       :
-			case Buildable::Maybe     :
-			case Buildable::SubSrcDir :                            break        ;
-			default : FAIL(dir->buildable) ;
+			case Buildable::DynAnti :
+			case Buildable::Anti    :
+			case Buildable::No      :                            goto NotDone ;
+			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ; // status is overwritten Src if node actually exists
+			default                 :                            break        ;
 		}
 		if ( Node::ReqInfo& dri = dir->req_info(req) ; !dir->done(dri)) {  // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
@@ -320,8 +313,8 @@ namespace Engine {
 			case Buildable::SubSrcDir :
 				if (dir->crc==Crc::None) { status(NodeStatus::None) ; goto Src ; } // status is overwritten Src if node actually exists
 				[[fallthrough]] ;
-			case Buildable::Src    :
 			case Buildable::DynSrc :
+			case Buildable::Src    :
 				if (dir->crc.is_lnk()) status(NodeStatus::Transcient) ;        // our dir is a link, we are transcient
 				else                   status(NodeStatus::Uphill    ) ;        // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;

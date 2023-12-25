@@ -117,6 +117,13 @@ namespace Engine {
 			::vmap_ss   dct ;
 		} ;
 
+		struct TraceConfig {
+			bool operator==(TraceConfig const&) const = default ;
+			size_t   sz       = 100<<20      ;
+			Channels channels = DfltChannels ;
+			JobIdx   n_jobs   = 1000         ;
+		} ;
+
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
 		// data
@@ -127,7 +134,7 @@ namespace Engine {
 		size_t         path_max       = -1   ;             // if -1 <=> unlimited
 		::string       rules_module   ;
 		::string       srcs_module    ;
-		size_t         trace_sz       = 0    ;
+		TraceConfig    trace          ;
 		::map_s<Cache> caches         ;
 	} ;
 

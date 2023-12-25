@@ -109,7 +109,7 @@ if __name__!='__main__' :
 		cmd = 'echo hello >&2'
 
 	class AutoMkdir(Rule) :
-		target = r'auto_mkdir.{File:\w*}'
+		target       = r'auto_mkdir.{File:\w*}'
 		allow_stderr = True
 		def auto_mkdir() :
 			if step==1 : raise RuntimeError
@@ -118,7 +118,7 @@ if __name__!='__main__' :
 
 	class Cmd(Rule) :
 		target = 'cmd'
-		deps = { 'HELLO' : 'hello' }
+		deps   = { 'HELLO' : 'hello' }
 		if step==1 : cmd = 'cat {HELLO} ; echo {bad}'
 		else       : cmd = 'cat {HELLO} ; echo {step}'
 

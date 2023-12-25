@@ -16,7 +16,6 @@ namespace Engine {
 	// Req
 	//
 
-	ReqChrono         Req::s_chrono        = 1 ;
 	SmallIds<ReqIdx > Req::s_small_ids     ;
 	::vector<Req    > Req::s_reqs_by_start ;
 	::mutex           Req::s_reqs_mutex    ;
@@ -57,7 +56,6 @@ namespace Engine {
 		data.options      = ecr.options          ;
 		data.audit_fd     = ecr.out_fd           ;
 		data.stats.start  = Pdate::s_now()       ;
-		data.chrono       = s_chrono             ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -73,10 +71,6 @@ namespace Engine {
 			close(close_backend) ;
 			throw ;
 		}
-		//
-		try                     { s_tick() ;                                                                                 } // only when we are sure req is alive
-		catch (::string const&) { throw "too many requests : wait until oldest command finishes before sending a new one"s ; } // XXX : implement chrono remapping
-		//
 		Trace trace("Req",*this,s_n_reqs(),data.start) ;
 	}
 
@@ -321,12 +315,11 @@ namespace Engine {
 
 	void ReqInfo::_add_watcher(Watcher watcher) {
 		switch (_n_watchers) {
-			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case VectorMrkr : _watchers_v->emplace_back(                    watcher)  ;                 break ; // vector stays vector , simple
-			case 0          : new(&_watchers_a) ::array<Watcher,NWatchers>{{watcher}} ; _n_watchers++ ; break ; // create array        , simple
-			default         : _watchers_a[_n_watchers] =                    watcher   ; _n_watchers++ ; break ; // array stays array   , simple
-			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			case NWatchers :                                                                                    // array becomes vector, complex
+			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case VectorMrkr : _watchers_v->emplace_back( watcher) ;                 break ; // vector stays vector , simple
+			default         : _watchers_a[_n_watchers] = watcher  ; _n_watchers++ ; break ; // array stays array   , simple
+			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case NWatchers :                                                                // array becomes vector, complex
 				::array<Watcher,NWatchers> tmp = _watchers_a ;
 				_watchers_a.~array() ;
 				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;  // cannot put {} here or it is taken as an initializer list
@@ -339,18 +332,16 @@ namespace Engine {
 		}
 	}
 
-	void ReqInfo::wakeup_watchers(JobChrono end_chrono_) {
-		SWEAR(!waiting()) ;                                                       // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;                                              // copy watchers aside before calling them as during a call, we could become not done and be waited for again
+	void ReqInfo::wakeup_watchers() {
+		SWEAR(!waiting()) ;                                                    // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;                                           // copy watchers aside before calling them as during a call, we could become not done and be waited for again
 		if (_n_watchers==VectorMrkr) {
 			watchers = ::move(*_watchers_v) ;
 			delete _watchers_v ;                                               // transform vector into array as there is no watchers any more
 		} else {
 			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
-			_watchers_a.~array() ;
 		}
 		_n_watchers = 0 ;
-		end_chrono(end_chrono_) ;
 		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
 		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
 			if      (waiting()      ) _add_watcher(*it) ;                                                      // if waiting again, add back watchers we have got and that we no more want to call
@@ -451,7 +442,7 @@ namespace Engine {
 			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			audit_info( Color::Warning ,
 				"These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n"
-				"Re-executing all lmake commands that were running in parallel is strongly recommanded\n"
+				"Re-executing this lmake commands is strongly recommanded\n"
 			) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 		}

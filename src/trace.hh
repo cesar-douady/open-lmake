@@ -11,20 +11,30 @@
 
 extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards, relative to admin dir
 
+ENUM( Channel
+,	Default
+,	Backend
+)
+using Channels = BitMap<Channel> ;
+static constexpr Channels DfltChannels = Channels::All ;
+
 #ifdef NO_TRACE
 
 	struct Trace {
 		// statics
-		static void s_start         (               ) {}
-		static void s_new_trace_file(::string const&) {}
+		static void s_start         (Channels=DfltChannels) {}
+		static void s_new_trace_file(::string const&      ) {}
 		template<class T> static ::string str( T const& , ::string const& ) { return {} ; }
 		// static data
 		static              bool             s_backup_trace ;
 		static              ::atomic<size_t> s_sz           ;
+		static              Channels         s_channels     ;
 		static thread_local char             t_key          ;
 		// cxtors & casts
-		Trace() = default ;
-		template<class T,class... Ts> Trace( T const& , Ts const&... ) {}
+		/**/                  Trace( Channel                              ) {}
+		template<class... Ts> Trace( Channel , const char* , Ts const&... ) {}
+		/**/                  Trace(                                      ) {}
+		template<class... Ts> Trace(           const char* , Ts const&... ) {}
 		// services
 		/**/                  void hide      (bool =true  ) {}
 		template<class... Ts> void operator()(Ts const&...) {}
@@ -35,8 +45,8 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 
 	struct Trace {
 		// statics
-		static void s_start         (               ) ;
-		static void s_new_trace_file(::string const&) ;
+		static void s_start         (Channels=DfltChannels) ;
+		static void s_new_trace_file(::string const&      ) ;
 	private :
 		static void _s_open() ;
 		//
@@ -47,7 +57,8 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 		/**/              static ::string str( int8_t   v , ::string const& s ) { return str(int(v),s)      ; } // avoid confusion with char
 		// static data
 		static              bool             s_backup_trace ;
-		static              ::atomic<size_t> s_sz           ;                  // max number of lines
+		static              ::atomic<size_t> s_sz           ;                  // max overall size of trace, beyond, trace wraps
+		static              Channels         s_channels     ;
 		static thread_local char             t_key          ;
 	private :
 		static size_t  _s_pos   ;      // current line number
@@ -61,18 +72,17 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 		//
 		// cxtors & casts
 	public :
-		Trace() : _save_lvl{_t_lvl} , _save_hide{_t_hide} {}
-		template<class T,class... Ts> Trace( T const& first_arg , Ts const&... args ) : Trace{} {
-			_first_arg = to_string(first_arg) ;
-			//
-			_first = true ;
+		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels[channel]}                            {}
+		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels[channel]} , _first{true} , _tag{tag} {
 			(*this)(args...) ;
 			_first = false ;
 		}
+		/**/                  Trace(                                     ) : Trace{Channel::Default            } {}
+		template<class... Ts> Trace( const char* tag , Ts const&... args ) : Trace{Channel::Default,tag,args...} {}
 		// services
-		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                   }
-		template<class... Ts> void operator()(Ts const&... args) { if ( +_s_fd && s_sz && !_save_hide.saved ) _record<false/*protect*/>(args...) ; }
-		template<class... Ts> void protect   (Ts const&... args) { if ( +_s_fd && s_sz && !_save_hide.saved ) _record<true /*protect*/>(args...) ; }
+		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                  }
+		template<class... Ts> void operator()(Ts const&... args) { if ( +_s_fd && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
+		template<class... Ts> void protect   (Ts const&... args) { if ( +_s_fd && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
@@ -81,10 +91,11 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 		template<bool P            > void _output(int8_t          x) { *_t_buf << int(x)                ; } // avoid confusion with char
 		template<bool P            > void _output(bool            x) = delete ;                             // bool is not explicit enough, use strings
 		// data
-		SaveInc<int > _save_lvl  ;
-		Save   <bool> _save_hide ;
-		bool          _first     = false ;
-		::string      _first_arg ;
+		SaveInc<int > _sav_lvl  ;
+		Save   <bool> _sav_hide ;
+		bool          _active   = true  ;
+		bool          _first    = false ;
+		::string      _tag      ;
 	} ;
 
 	template<bool P,class... Ts> void Trace::_record(Ts const&... args) {
@@ -97,7 +108,7 @@ extern ::string* g_trace_file ;     // pointer to avoid init/fini order hazards,
 			else                         *_t_buf << Seps[ i % (sizeof(Seps)-1) ] ;
 			*_t_buf << '\t' ;
 		}
-		*_t_buf << _first_arg ;
+		*_t_buf << _tag ;
 		int _[1+sizeof...(Ts)] = { 0 , (*_t_buf<<' ',_output<P>(args),0)... } ; (void)_ ;
 		*_t_buf << '\n' ;
 		//

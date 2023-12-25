@@ -22,9 +22,7 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
-static constexpr int     NConnectionTrials = 3                                                ; // number of times to try connect when connecting to server
-static constexpr uint8_t TraceNameSz       = JobHistorySz<=10 ? 1 : JobHistorySz<=100 ? 2 : 3 ;
-static_assert(JobHistorySz<=1000) ;                                                             // above, it would be wise to make hierarchical names
+static constexpr int NConnectionTrials = 3 ;               // number of times to try connect when connecting to server
 
 ServerSockFd g_server_fd     ;
 GatherDeps   g_gather_deps   { New }        ;
@@ -103,10 +101,12 @@ int main( int argc , char* argv[] ) {
 		end_report.digest.stderr = to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
 		goto End ;
 	}
-	{
-		g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",::right,::setfill('0'),::setw(TraceNameSz),g_seq_id%JobHistorySz)} ;
-		::unlink(g_trace_file->c_str()) ;                                      // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
-		//
+	{	if (g_start_info.trace_n_jobs) {
+			g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",g_seq_id%g_start_info.trace_n_jobs)} ;
+			//
+			Trace::s_sz = 10<<20 ;                                             // this is more than enough
+			::unlink(g_trace_file->c_str()) ;                                  // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+		}
 		app_init() ;
 		Py::init() ;
 		//

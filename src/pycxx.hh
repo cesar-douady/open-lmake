@@ -43,7 +43,8 @@ namespace Py {
 		Pattern(Object   const& from   ) : Object{from                           } {}
 		Pattern(::string const& pattern) : Pattern{} {
 			static Callable py_compile = boost(import_module("re").getAttr("compile")) ;
-			static_cast<Object&>(*this) = py_compile.apply(TupleN(String(pattern))) ;
+			static Object   py_dotall  = boost(import_module("re").getAttr("DOTALL" )) ;
+			static_cast<Object&>(*this) = py_compile.apply(TupleN(String(pattern),py_dotall)) ;
 		}
 		// accesses
 		::string pattern() const { return String(getAttr("pattern")) ; }

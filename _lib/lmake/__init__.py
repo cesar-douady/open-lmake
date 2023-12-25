@@ -51,7 +51,6 @@ config = pdict(
 #,	rules_module     = 'rules'         # module to import to define rules. By default, rules are directly defined in Lmakefile.py
 #,	sources_module   = 'sources'       # module to import to define sources. By default, list files in Manifest or by searching git (including sub-modules)
 ,	sub_prio_boost   = 1               # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
-,	trace_size       = 100<<20         # size of trace
 ,	console = pdict(                   # tailor output lines
 		date_precision = None          # number of second decimals in the timestamp field
 	,	host_length    = None          # length of the host field (lines will be misaligned if a host is longer)
@@ -92,5 +91,10 @@ config = pdict(
 	,	ok          = [ [  0,128,  0] , [128,255,128] ] # green
 	,	warning     = [ [155,  0,255] , [255,  0,255] ] # magenta
 	,	err         = [ [155,  0,  0] , [255,  0,  0] ] # red
+	)
+,	trace = pdict(
+#		size = 100<20                    # overall size of lmakeserver trace
+#	,	n_jobs = 1000                    # number of kept job traces
+#	,	channels = ('backend','default') # channels traced in lmakeserver trace
 	)
 )

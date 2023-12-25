@@ -18,12 +18,14 @@ import lmake
 from lmake       import config,pdict
 from lmake.rules import Rule,AntiRule
 
-backend = 'slurm' if 'slurm' in lmake.backends else 'local'
-
-config.backends.slurm = {
-	'use_nice'          : True
-,	'n_max_queued_jobs' : 3
-}
+if 'slurm' in lmake.backends :
+	backend = 'slurm'
+	config.backends.slurm = {
+		'use_nice'          : True
+	,	'n_max_queued_jobs' : 3
+	}
+else :
+	backend = 'local'
 
 config.caches.dir = {
 	'tag'  : 'dir'

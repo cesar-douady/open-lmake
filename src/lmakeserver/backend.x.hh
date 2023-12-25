@@ -14,6 +14,8 @@ namespace Backends {
 
 	using Tag = BackendTag ;
 
+	static constexpr Channel BeChnl = Channel::Backend ;
+
 }
 using Backends::Backend ;
 #endif
@@ -60,7 +62,7 @@ namespace Backends {
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
 			Conn             conn         ;
-			ChronoDate       start        ;
+			Pdate            start        ;
 			::uset_s         washed       ;
 			::vmap_ss        rsrcs        ;
 			::vector<ReqIdx> reqs         ;
@@ -102,15 +104,15 @@ namespace Backends {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req              ( ReqIdx=0                                                                      ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , ChronoDate const& start , JobServerRpcProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                                                  ) ;
-		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq && , Fd={}                                                          ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobRpcReq && , Fd={}                                                          ) ;
-		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq && , Fd={}                                                          ) ;
-		static void            _s_handle_deferred_report( DeferredEntry&&                                                               ) ;
-		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                               ) ;
-		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                                   ) ;
+		static void            _s_kill_req              ( ReqIdx=0                                                                 ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( JobIdx , StartEntry::Conn const& , Pdate const& start , JobServerRpcProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                                             ) ;
+		static bool/*keep_fd*/ _s_handle_job_start      ( JobRpcReq && , Fd={}                                                     ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobRpcReq && , Fd={}                                                     ) ;
+		static bool/*keep_fd*/ _s_handle_job_end        ( JobRpcReq && , Fd={}                                                     ) ;
+		static void            _s_handle_deferred_report( DeferredEntry&&                                                          ) ;
+		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                                          ) ;
+		static Status          _s_release_start_entry   ( ::map<JobIdx,StartEntry>::iterator , Status                              ) ;
 		//
 		using JobExecThread  = ServerThread<JobRpcReq    > ;
 		using DeferredThread = QueueThread <DeferredEntry> ;
@@ -166,13 +168,15 @@ namespace Backends {
 	inline bool Backend::s_is_local(Tag t) { return s_tab[+t]->is_local() ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { ::unique_lock lock{_s_mutex} ; Trace trace("s_open_req"   ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->open_req   (r,nj) ; }
-	inline void Backend::s_close_req  (ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
-	inline void Backend::s_new_req_eta(ReqIdx r          ) { ::unique_lock lock{_s_mutex} ; Trace trace("s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
+	#define UL ::unique_lock
+	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->open_req   (r,nj) ; }
+	inline void Backend::s_close_req  (ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->close_req  (r   ) ; }
+	inline void Backend::s_new_req_eta(ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : Tag::N ) if (s_ready[+t]) s_tab[+t]->new_req_eta(r   ) ; }
+	#undef UL
 	//
-	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
-	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
-	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace("s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
+	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
+	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }
+	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 }
 

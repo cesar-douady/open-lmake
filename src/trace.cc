@@ -11,11 +11,12 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_trace_file ;               // pointer to avoid init/fini order hazards, relative to admin dir
+::string* g_trace_file = nullptr ;     // pointer to avoid init/fini order hazards, relative to admin dir
 
-bool              Trace::s_backup_trace = false ;
-::atomic<size_t>  Trace::s_sz           = -1    ;          // do not limit trace as long as not instructed to
-thread_local char Trace::t_key          = '?'   ;
+bool              Trace::s_backup_trace = false        ;
+::atomic<size_t>  Trace::s_sz           = 100<<20      ;   // limit to reasonable value until overridden
+Channels          Trace::s_channels     = DfltChannels ;   // by default, trace default channel
+thread_local char Trace::t_key          = '?'          ;
 
 #ifndef NO_TRACE
 
@@ -28,9 +29,10 @@ thread_local char Trace::t_key          = '?'   ;
 	thread_local bool           Trace::_t_hide = false   ;
 	thread_local OStringStream* Trace::_t_buf  = nullptr ;
 
-	void Trace::s_start() {
+	void Trace::s_start(Channels cs) {
 		if ( !g_trace_file || g_trace_file->empty() ) return ;
-		t_key = '=' ;                                                          // called from main thread
+		t_key      = '=' ;                                                     // called from main thread
+		s_channels = cs  ;
 		dir_guard(*g_trace_file) ;
 		_s_open() ;
 	}
@@ -45,6 +47,8 @@ thread_local char Trace::t_key          = '?'   ;
 		_s_open() ;
 	}
 	void Trace::_s_open() {
+		if (!s_sz      ) return ;                                              // no room to trace
+		if (!s_channels) return ;                                              // nothing to trace
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
@@ -53,6 +57,7 @@ thread_local char Trace::t_key          = '?'   ;
 		}
 		_s_fd = open_write(*g_trace_file) ;
 		_s_fd.no_std() ;
+		_s_pos = 0 ;
 	}
 
 #endif

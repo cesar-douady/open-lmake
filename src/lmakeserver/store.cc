@@ -13,25 +13,6 @@ using namespace Disk ;
 
 namespace Engine {
 
-	// str has target syntax
-	// return suffix after last stem (StartMrkr+str if no stem)
-	static ::string parse_suffix(::string const& str) {
-		size_t pos = 0 ;
-		for(;;) {
-			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
-			if (nxt_pos==Npos) break ;
-			pos = nxt_pos+1+sizeof(VarIdx) ;
-		}
-		if (pos==0) return EngineStore::StartMrkr+str ;                        // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos)            ;                        // suppress stem marker & stem idx
-	}
-	// return prefix before first stem (empty if no stem)
-	static ::string parse_prefix(::string const& str) {
-		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ;                              // absence of stem is already signal in parse_suffix, we just need to pretend there is no prefix
-		else           return str.substr(0,pos) ;
-	}
-
 	//
 	// RuleBase
 	//
@@ -176,7 +157,42 @@ namespace Engine {
 			RuleData::s_name_sz = ::max( RuleData::s_name_sz , rule_datas[+r].name.size() ) ;
 		}
 	}
-	template<bool IsSfx> static void _propagate_to_longer(::umap_s<uset<RuleTgt>>& psfx_map) {
+	// str has target syntax
+	// return suffix after last stem (StartMrkr+str if no stem)
+	static ::string _parse_sfx(::string const& str) {
+		size_t pos = 0 ;
+		for(;;) {
+			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
+			if (nxt_pos==Npos) break ;
+			pos = nxt_pos+1+sizeof(VarIdx) ;
+		}
+		if (pos==0) return EngineStore::StartMrkr+str ;                        // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos)            ;                        // suppress stem marker & stem idx
+	}
+	// return prefix before first stem (empty if no stem)
+	static ::string _parse_pfx(::string const& str) {
+		size_t pos = str.find(Rule::StemMrkr) ;
+		if (pos==Npos) return {}                ;                              // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		else           return str.substr(0,pos) ;
+	}
+	struct Rt : RuleTgt {
+		// cxtors & casts
+		Rt() = default  ;
+		Rt( Rule r , VarIdx ti ) : RuleTgt{r,ti} , pfx{_parse_pfx(target())} , sfx{_parse_sfx(target())} {}
+		// data (cache)
+		::string pfx ;
+		::string sfx ;
+	} ;
+
+}
+namespace std {
+	template<> struct hash<Engine::Rt> {
+		size_t operator()(Engine::Rt const& rt) const { return hash<Engine::RuleTgt>()(rt) ; } // there is no more info in a Rt than in a RuleTgt
+	} ;
+}
+namespace Engine {
+
+	template<bool IsSfx> static void _propagate_to_longer(::umap_s<uset<Rt>>& psfx_map) {
 		::vector_s psfxs = ::mk_key_vector(psfx_map) ;
 		::sort( psfxs , [](::string const& a,::string const& b){ return a.size()<b.size() ; } ) ;
 		for( ::string const& long_psfx : psfxs ) {
@@ -194,27 +210,25 @@ namespace Engine {
 		sfxs_file.clear() ;
 		pfxs_file.clear() ;
 		// first compute a suffix map
-		::umap_s<uset<RuleTgt>> sfx_map ;
+		::umap_s<uset<Rt>> sfx_map ;
 		for( Rule r : rule_lst() )
 			for( VarIdx ti=0 ; ti<r->targets.size() ; ti++ ) {
-				RuleTgt rt{r,ti} ;
+				Rt rt{r,ti} ;
 				if (!rt.tflags()[Tflag::Match]) continue ;
-				sfx_map[ parse_suffix(rt.target()) ].insert(rt) ;
+				sfx_map[rt.sfx].insert(rt) ;
 			}
 		_propagate_to_longer<true/*IsSfx*/>(sfx_map) ;                         // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
-			::umap_s<uset<RuleTgt>> pfx_map ;
+			::umap_s<uset<Rt>> pfx_map ;
 			if ( sfx.starts_with(StartMrkr) ) {
 				::string_view sfx1 = ::string_view(sfx).substr(1) ;
-				for( RuleTgt rt : sfx_rule_tgts ) {
-					::string pfx = parse_prefix(rt.target()) ;
-					if (sfx1.starts_with(pfx)) pfx_map[""].insert(rt) ;
-				}
+				for( Rt const& rt : sfx_rule_tgts )
+					if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
-				for( RuleTgt rt : sfx_rule_tgts )
-					pfx_map[ parse_prefix(rt.target()) ].insert(rt) ;
+				for( Rt const& rt : sfx_rule_tgts )
+					pfx_map[rt.pfx].insert(rt) ;
 				_propagate_to_longer<false/*IsSfx*/>(pfx_map) ;                // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//
@@ -222,19 +236,20 @@ namespace Engine {
 			PsfxIdx pfx_root = pfxs_file.emplace_root() ;
 			sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
-				vector<RuleTgt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
+				vector<Rt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
 				::sort(
 					pfx_rule_tgt_vec
-				,	[]( RuleTgt const& a , RuleTgt const& b )->bool {
-						// compulsery : order by special rules first,priority, with Anti's first within each prio for special rules
+				,	[]( Rt const& a , Rt const& b )->bool {
+						// compulsery : order by priority, with special Rule's before plain Rule's, with Anti's before GenericSrc's within each priority level
 						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
 						// finally    : any stable sort is fine, just to avoid random order
-						::string a_tgt = a.target() ; size_t a_psfx_sz = parse_prefix(a_tgt).size() + parse_suffix(a_tgt).size() ;
-						::string b_tgt = b.target() ; size_t b_psfx_sz = parse_prefix(b_tgt).size() + parse_suffix(b_tgt).size() ;
-						return ::tuple(a->is_special(),a->prio,a->special,a_psfx_sz,a->name) > ::tuple(b->is_special(),b->prio,b->special,b_psfx_sz,b->name) ;
+						return
+							::tuple( a->is_special() , a->prio , a->special , a.pfx.size()+a.sfx.size() , a->name )
+						>	::tuple( b->is_special() , b->prio , b->special , b.pfx.size()+b.sfx.size() , b->name )
+						;
 					}
 				) ;
-				pfxs_file.insert_at(pfx_root,pfx) = RuleTgts(pfx_rule_tgt_vec) ;
+				pfxs_file.insert_at(pfx_root,pfx) = RuleTgts(mk_vector<RuleTgt>(pfx_rule_tgt_vec)) ;
 			}
 		}
 	}

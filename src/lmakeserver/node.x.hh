@@ -30,7 +30,7 @@ namespace Engine {
 	,	SrcDir                         //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
 	,	No                             // <=No means node is not buildable
 	,	Maybe                          //                                   buildability is data dependent (maybe converted to Yes by further analysis)
-	,	SubSrcDir                      //                                   sub-file of a src dir listed in manifest
+	,	SubSrcDir                      //                                   sub-file of a src (Src or DynSrc)
 	,	Yes                            // >=Yes means node is buildable
 	,	DynSrc                         //                                   match dependent
 	,	Src                            //                                   match independent
@@ -179,7 +179,6 @@ namespace Engine {
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
-		//
 		// cxtors & casts
 		NodeData() = default ;
 		NodeData( Name n , bool no_dir ) : DataBase{n} {
