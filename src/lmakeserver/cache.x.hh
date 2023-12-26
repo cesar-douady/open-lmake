@@ -41,9 +41,9 @@ namespace Caches {
 		// default implementation : no caching, but enforce protocal
 		virtual void config(Config::Cache const&) {}
 		//
-		virtual Match      match   ( Job , Req                                 ) { return { .completed=true , .hit=No } ; }
-		virtual JobDigest  download( Job , Id        const& , JobReason const& ) { FAIL() ;                               } // no download possible since we never match
-		virtual bool/*ok*/ upload  ( Job , JobDigest const&                    ) { return false ;                         }
+		virtual Match      match   ( Job , Req                                                   ) { return { .completed=true , .hit=No } ; }
+		virtual JobDigest  download( Job , Id        const& , JobReason const& , Disk::NfsGuard& ) { FAIL() ;                               } // no download possible since we never match
+		virtual bool/*ok*/ upload  ( Job , JobDigest const& ,                    Disk::NfsGuard& ) { return false ;                         }
 
 	} ;
 

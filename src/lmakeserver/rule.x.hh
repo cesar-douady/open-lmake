@@ -190,7 +190,7 @@ namespace Engine {
 		BitMap<VarCmd> init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; return {} ; }
 		void           update(                       PyObject* py_dct                           ) {
 			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
-			if ( !key.empty() && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
+			if ( +key && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
 		// data
 		::string key ;
@@ -212,13 +212,12 @@ namespace Engine {
 			acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			//
 			if (chk) {
-				if (!tmp.empty()) {
+				if (+tmp)
 					switch (method) {
 						case AutodepMethod::None   :                                                                                 // cannot map if not spying
 						case AutodepMethod::Ptrace : throw to_string("cannot map tmp directory from ",tmp," with autodep=",method) ; // cannot allocate memory in traced child to hold mapped path
 						default : ;
 					}
-				}
 				switch (method) {
 					case AutodepMethod::None      :                                                                                 break ;
 					case AutodepMethod::Ptrace    :                                                                                 break ;
@@ -446,6 +445,13 @@ namespace Engine {
 		friend Rule ;
 		static constexpr VarIdx NoVar = Rule::NoVar ;
 
+		struct TargetEntry {
+			// data
+			::string         pattern   = {}         ;
+			Tflags           tflags    = DfltTflags ;
+			::vector<VarIdx> conflicts = {}         ;      // the idx of the previous targets that may conflict with this one
+		} ;
+
 		// statics
 		static bool s_sure(Tflags tf) { return !tf[Tflag::Star] || tf[Tflag::Phony] ; } // if phony, a target is deemed generated, even if it does not exist, hence it is sure
 		// static data
@@ -498,7 +504,7 @@ namespace Engine {
 
 		// services
 		void add_cwd( ::string& file , bool top ) const {
-			if (!( top || file.empty() || cwd_s.empty() )) file.insert(0,cwd_s) ;
+			if (!( top || !file || !cwd_s )) file.insert(0,cwd_s) ;
 		}
 	private :
 		bool _get_cmd_needs_deps() const {                                     // if deps are needed for cmd computation, then static deps are deemed to be read...
@@ -516,16 +522,16 @@ namespace Engine {
 
 		// user data
 	public :
-		Special              special    = Special::None ;
-		Prio                 prio       = 0             ;                      // the priority of the rule
-		::string             name       ;                                      // the short message associated with the rule
-		::vmap_ss            stems      ;                                      // stems   are ordered : statics then stars
-		::string             cwd_s      ;                                      // cwd in which to interpret targets & deps and execute cmd (with ending /)
-		::string             job_name   ;                                      // used to show in user messages, same format as a target
-		::vmap_s<TargetSpec> targets    ;                                      // keep user order, except static targets before star targets
-		VarIdx               stdout_idx = NoVar         ;                      // index of target used as stdout
-		VarIdx               stdin_idx  = NoVar         ;                      // index of dep used as stdin
-		bool                 allow_ext  = false         ;                      // if true <=> rule may match outside repo
+		Special               special    = Special::None ;
+		Prio                  prio       = 0             ;                     // the priority of the rule
+		::string              name       ;                                     // the short message associated with the rule
+		::vmap_ss             stems      ;                                     // stems are ordered : statics then stars, stems used as both static and star appear twice
+		::string              cwd_s      ;                                     // cwd in which to interpret targets & deps and execute cmd (with ending /)
+		::string              job_name   ;                                     // used to show in user messages, same format as a target
+		::vmap_s<TargetEntry> targets    ;                                     // keep user order, except static targets before star targets
+		VarIdx                stdout_idx = NoVar         ;                     // index of target used as stdout
+		VarIdx                stdin_idx  = NoVar         ;                     // index of dep used as stdin
+		bool                  allow_ext  = false         ;                     // if true <=> rule may match outside repo
 		// following is only if plain rules
 		DynamicDepsAttrs          deps_attrs         ;                         // in match         crc, evaluated at job creation time
 		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no            crc, evaluated at job creation time
@@ -576,16 +582,16 @@ namespace Engine {
 		bool operator+ (                  ) const { return +rule ; }
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
-		::vector_s                  const& targets() const { if (!_has_targets) { _compute_targets()                   ; _has_targets = true ; } return _targets ; }
-		::vmap_s<pair_s<AccDflags>> const& deps   () const { if (!_has_deps   ) { _deps = rule->deps_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
-		::vector_view_c_s           static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
+		::vector_s                  const& targets       () const { if (!_has_targets) { _compute_targets()                   ; _has_targets = true ; } return _targets ; }
+		::vmap_s<pair_s<AccDflags>> const& deps          () const { if (!_has_deps   ) { _deps = rule->deps_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
+		::vector_view_c_s                  static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
 	protected :
 		void _compute_targets() const ;
 		// services
 	public :
-		::pair_ss  full_name  () const ;
-		::string   name       () const { return full_name().first ; }
-		::vector_s target_dirs() const ;
+		::pair_ss      full_name  () const ;
+		::string       name       () const { return full_name().first ; }
+		::vector<Node> target_dirs() const ;
 		// data
 		Rule       rule  ;
 		::vector_s stems ;             // static stems only of course
@@ -698,9 +704,9 @@ namespace Engine {
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
-			if ( !py_src                 ) {                                                    return false ; }
-			if (  Env && py_src==Py_None ) {                                 dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
-			if ( !Env && py_src==Py_None ) { if (dst.empty()) return false ; dst = {}         ; return true  ; }
+			if ( !py_src                 )                                               return false ;
+			if (  Env && py_src==Py_None ) {                          dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
+			if ( !Env && py_src==Py_None ) { if (!dst) return false ; dst = {}         ; return true  ; }
 			//
 			bool is_str = PyUnicode_Check(py_src) ;
 			if (!is_str) py_src = PyObject_Str(py_src) ;
@@ -712,8 +718,8 @@ namespace Engine {
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) {
-			if (!py_src        ) {                  return false ;                           }
-			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			if (!py_src        )             return false ;
+			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
 			bool updated = false ;
 			if (!PySequence_Check(py_src)) throw "not a sequence"s ;
@@ -738,8 +744,8 @@ namespace Engine {
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-			if (!py_src        ) {                  return false ;                           }
-			if (py_src==Py_None) { if (dst.empty()) return false ; dst = {} ; return true  ; }
+			if (!py_src        )             return false ;
+			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
 			bool updated = false ;
 			::map_s<T> map = mk_map(dst) ;
@@ -823,7 +829,7 @@ namespace Engine {
 		code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
 		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
 		glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
-		if (!glbs_str.empty()) {
+		if (+glbs_str) {
 			PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
 			PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
 			PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
@@ -854,15 +860,15 @@ namespace Engine {
 		for( auto [k,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (k) {
-				case VarCmd::Stem   :                                                                                      cb_str(r->stems  [i].first,stems[i]             ) ;   break ;
-				case VarCmd::Target :                                                   if (!tgts[i].empty()             ) cb_str(r->targets[i].first,tgts [i]             ) ;   break ;
-				case VarCmd::Dep    :                                                   if (!deps[i].second.first.empty()) cb_str(deps      [i].first,deps [i].second.first) ;   break ;
-				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()          ) cb_str(it->first          ,it->second           ) ; } break ;
+				case VarCmd::Stem   :                                                                              cb_str(r->stems  [i].first,stems[i]             ) ;   break ;
+				case VarCmd::Target :                                                   if (+tgts[i]             ) cb_str(r->targets[i].first,tgts [i]             ) ;   break ;
+				case VarCmd::Dep    :                                                   if (+deps[i].second.first) cb_str(deps      [i].first,deps [i].second.first) ;   break ;
+				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()  ) cb_str(it->first          ,it->second           ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                         dct.emplace_back(r->stems  [j].first,stems[j] ) ; cb_dct("stems"    ,dct  ) ; break ;
-				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (!tgts[j]  .empty()) dct.emplace_back(r->targets[j].first,tgts [j] ) ; cb_dct("targets"  ,dct  ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,daf] : deps             ) if (!daf.first.empty()) dct.emplace_back(k                  ,daf.first) ; cb_dct("deps"     ,dct  ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                                         cb_dct("resources",rsrcs) ; break ;
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                 dct.emplace_back(r->stems  [j].first,stems[j] ) ; cb_dct("stems"    ,dct  ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (+tgts[j]  ) dct.emplace_back(r->targets[j].first,tgts [j] ) ; cb_dct("targets"  ,dct  ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,daf] : deps             ) if (+daf.first) dct.emplace_back(k                  ,daf.first) ; cb_dct("deps"     ,dct  ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                                 cb_dct("resources",rsrcs) ; break ;
 				default : FAIL(k) ;
 			}
 		}
@@ -884,10 +890,10 @@ namespace Engine {
 				VarCmd k = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
 				VarIdx i = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
 				switch (k) {
-					case VarCmd::Stem   :                                                                                      res += stems[i]              ;   break ;
-					case VarCmd::Target :                                                                                      res += tgts [i]              ;   break ;
-					case VarCmd::Dep    :                                                   if (!deps[i].second.first.empty()) res += deps [i].second.first ;   break ;
-					case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()          ) res += it->second            ; } break ;
+					case VarCmd::Stem   :                                                                              res += stems[i]              ;   break ;
+					case VarCmd::Target :                                                                              res += tgts [i]              ;   break ;
+					case VarCmd::Dep    :                                                   if (+deps[i].second.first) res += deps [i].second.first ;   break ;
+					case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()  ) res += it->second            ; } break ;
 					default : FAIL(k) ;
 				}
 			} else {

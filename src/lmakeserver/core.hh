@@ -19,16 +19,15 @@
 #include "trace.hh"
 
 namespace Engine {
-	using Access       = Disk::Access       ;
-	using Accesses     = Disk::Accesses     ;
-	using FileInfo     = Disk::FileInfo     ;
-	using FileInfoDate = Disk::FileInfoDate ;
-	using FileTag      = Disk::FileTag      ;
-	using Crc          = Hash::Crc          ;
-	using Delay        = Time::Delay        ;
-	using CoarseDelay  = Time::CoarseDelay  ;
-	using Ddate        = Time::Ddate        ;
-	using Pdate        = Time::Pdate        ;
+	using Access      = Disk::Access      ;
+	using Accesses    = Disk::Accesses    ;
+	using FileInfo    = Disk::FileInfo    ;
+	using FileTag     = Disk::FileTag     ;
+	using Crc         = Hash::Crc         ;
+	using Delay       = Time::Delay       ;
+	using CoarseDelay = Time::CoarseDelay ;
+	using Ddate       = Time::Ddate       ;
+	using Pdate       = Time::Pdate       ;
 }
 
 #define STRUCT_DECL

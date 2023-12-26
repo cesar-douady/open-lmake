@@ -46,7 +46,7 @@ bool/*parent*/ Child::spawn(
 		const char** child_env  = const_cast<const char**>(environ) ;
 		::vector_s   env_vector ;                                              // ensure actual env strings lifetime last until execve call
 		if (env) {
-			SWEAR(!args.empty()) ;                                             // cannot fork with env
+			SWEAR(+args) ;                                                     // cannot fork with env
 			size_t n_env = env->size() + (add_env?add_env->size():0) ;
 			env_vector.reserve(n_env) ;
 			for( auto const* e : {env,add_env} )
@@ -60,11 +60,11 @@ bool/*parent*/ Child::spawn(
 		} else {
 			if (add_env) for( auto const& [k,v] : *add_env ) set_env(k,v) ;
 		}
-		if (!chroot_.empty()) { if (::chroot(chroot_.c_str())!=0) throw to_string("cannot chroot to : ",chroot_) ; }
-		if (!cwd_   .empty()) { if (::chdir (cwd_   .c_str())!=0) throw to_string("cannot chdir to : " ,cwd_   ) ; }
-		if (pre_exec        ) { pre_exec() ;                                                                       }
+		if (+chroot_) { if (::chroot(chroot_.c_str())!=0) throw to_string("cannot chroot to : ",chroot_) ; }
+		if (+cwd_   ) { if (::chdir (cwd_   .c_str())!=0) throw to_string("cannot chdir to : " ,cwd_   ) ; }
+		if (pre_exec)   pre_exec() ;
 		//
-		if (args.empty()) return false ;
+		if (!args) return false ;
 		#if HAS_CLOSE_RANGE
 			//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                       // activate this code (uncomment) as an alternative to set CLOEXEC in IFStream/OFStream
 		#endif

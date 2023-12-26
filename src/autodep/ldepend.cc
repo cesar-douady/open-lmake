@@ -34,8 +34,8 @@ int main( int argc , char* argv[]) {
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (cmd_line.args.empty()) return 0 ;                                                           // fast path : depends on nothing
-	for( ::string const& f : cmd_line.args ) if (f.empty()) exit(2,"cannot depend on empty file") ;
+	if (!cmd_line.args) return 0 ;                                                           // fast path : depends on nothing
+	for( ::string const& f : cmd_line.args ) if (!f) exit(2,"cannot depend on empty file") ;
 	//
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;

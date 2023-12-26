@@ -25,9 +25,8 @@ JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
 	}
 
 	// backdoor did not work, try direct connection to server
-	if (!get_env("LMAKE_AUTODEP_ENV","").empty()) {
+	if (+get_env("LMAKE_AUTODEP_ENV",""))
 		return Record().backdoor(JobExecRpcReq(jerr)) ;
-	}
 
 	// nothing worked, try to mimic server as much as possible, but of course no crc is available
 	if ( jerr.sync && jerr.proc==JobExecRpcProc::DepInfos ) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;

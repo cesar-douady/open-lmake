@@ -194,7 +194,7 @@ namespace Backends::Slurm {
 
 		virtual void close_req(ReqIdx req) {
 			Base::close_req(req) ;
-			if(reqs.empty()) SWEAR(spawned_rsrcs.empty(),spawned_rsrcs) ;
+			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
 		virtual RsrcsData adapt  ( RsrcsData const& rsa              ) const { return rsa                                            ; }
@@ -227,7 +227,7 @@ namespace Backends::Slurm {
 		JobDead :
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (!stderr.empty()) info.first = ensure_nl(::move(info.first))+stderr ; // full report
+				if (+stderr) info.first = ensure_nl(::move(info.first))+stderr ; // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -237,7 +237,7 @@ namespace Backends::Slurm {
 			//
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (!stderr.empty()) info.first = ensure_nl(::move(info.first))+stderr ;
+				if (+stderr) info.first = ensure_nl(::move(info.first))+stderr ;
 			}
 			spawned_rsrcs.dec(se.rsrcs) ;
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
@@ -286,18 +286,18 @@ namespace Backends::Slurm {
 	//
 
 	::ostream& operator<<( ::ostream& os , RsrcsDataSingle const& rsds ) {
-		/**/                        os <<'('<< rsds.cpu        ;
-		/**/                        os <<','<< rsds.mem <<"MB" ;
-		if ( rsds.tmp             ) os <<','<< rsds.tmp <<"MB" ;
-		if (!rsds.part    .empty()) os <<','<< rsds.part       ;
-		if (!rsds.gres    .empty()) os <<','<< rsds.gres       ;
-		if (!rsds.licenses.empty()) os <<','<< rsds.licenses   ;
-		if (!rsds.feature .empty()) os <<','<< rsds.feature    ;
-		if (!rsds.qos     .empty()) os <<','<< rsds.qos        ;
-		if (!rsds.reserv  .empty()) os <<','<< rsds.reserv     ;
-		if (!rsds.excludes.empty()) os <<','<< rsds.excludes   ;
-		if (!rsds.nodes   .empty()) os <<','<< rsds.nodes      ;
-		return                      os <<')'                   ;
+		/**/                os <<'('<< rsds.cpu        ;
+		/**/                os <<','<< rsds.mem <<"MB" ;
+		if ( rsds.tmp     ) os <<','<< rsds.tmp <<"MB" ;
+		if (+rsds.part    ) os <<','<< rsds.part       ;
+		if (+rsds.gres    ) os <<','<< rsds.gres       ;
+		if (+rsds.licenses) os <<','<< rsds.licenses   ;
+		if (+rsds.feature ) os <<','<< rsds.feature    ;
+		if (+rsds.qos     ) os <<','<< rsds.qos        ;
+		if (+rsds.reserv  ) os <<','<< rsds.reserv     ;
+		if (+rsds.excludes) os <<','<< rsds.excludes   ;
+		if (+rsds.nodes   ) os <<','<< rsds.nodes      ;
+		return              os <<')'                   ;
 	}
 
 	static inline void _sort_entry(::string& s) {                              // normalize to favor resources sharing
@@ -343,7 +343,7 @@ namespace Backends::Slurm {
 			//
 			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
 				chk_first(k) ;
-				if (!rsds.licenses.empty()) rsds.licenses += ',' ;
+				if (+rsds.licenses) rsds.licenses += ',' ;
 				rsds.licenses += ::move(kv) ;
 				continue ;
 			}
@@ -363,20 +363,20 @@ namespace Backends::Slurm {
 	}
 
 	RsrcsData blend( RsrcsData&& rsrcs , RsrcsData const& force ) {
-		if (!force.empty())
+		if (+force)
 			for( size_t i=0 ; i<::min(rsrcs.size(),force.size()) ; i++ ) {
 				RsrcsDataSingle const& force1 = force[i] ;
-				if ( force1.cpu             ) rsrcs[i].cpu      = force1.cpu      ;
-				if ( force1.mem             ) rsrcs[i].mem      = force1.mem      ;
-				if ( force1.tmp             ) rsrcs[i].tmp      = force1.tmp      ;
-				if (!force1.excludes.empty()) rsrcs[i].excludes = force1.excludes ;
-				if (!force1.feature .empty()) rsrcs[i].feature  = force1.feature  ;
-				if (!force1.gres    .empty()) rsrcs[i].gres     = force1.gres     ;
-				if (!force1.licenses.empty()) rsrcs[i].licenses = force1.licenses ;
-				if (!force1.nodes   .empty()) rsrcs[i].nodes    = force1.nodes    ;
-				if (!force1.part    .empty()) rsrcs[i].part     = force1.part     ;
-				if (!force1.qos     .empty()) rsrcs[i].qos      = force1.qos      ;
-				if (!force1.reserv  .empty()) rsrcs[i].reserv   = force1.reserv   ;
+				if ( force1.cpu     ) rsrcs[i].cpu      = force1.cpu      ;
+				if ( force1.mem     ) rsrcs[i].mem      = force1.mem      ;
+				if ( force1.tmp     ) rsrcs[i].tmp      = force1.tmp      ;
+				if (+force1.excludes) rsrcs[i].excludes = force1.excludes ;
+				if (+force1.feature ) rsrcs[i].feature  = force1.feature  ;
+				if (+force1.gres    ) rsrcs[i].gres     = force1.gres     ;
+				if (+force1.licenses) rsrcs[i].licenses = force1.licenses ;
+				if (+force1.nodes   ) rsrcs[i].nodes    = force1.nodes    ;
+				if (+force1.part    ) rsrcs[i].part     = force1.part     ;
+				if (+force1.qos     ) rsrcs[i].qos      = force1.qos      ;
+				if (+force1.reserv  ) rsrcs[i].reserv   = force1.reserv   ;
 			}
 		return rsrcs ;
 	}
@@ -451,10 +451,10 @@ namespace Backends::Slurm {
 	}
 
 	RsrcsData parse_args(::string const& args) {
-		static ::string slurm = "slurm" ;                                        // apparently "slurm"s.data() does not work as memory is freed right away
+		static ::string slurm = "slurm" ;                                      // apparently "slurm"s.data() does not work as memory is freed right away
 		Trace trace(Channel::Backend,"parse_args",args) ;
 		//
-		if (args.empty()) return {} ;                                          // fast path
+		if (!args) return {} ;                                                 // fast path
 		//
 		::vector_s arg_vec   = split(args,' ')           ;
 		uint32_t   argc      = 1                         ;
@@ -463,7 +463,7 @@ namespace Backends::Slurm {
 		bool       seen_help = false                     ;
 		//
 		argv[0] = slurm.data() ;
-		arg_vec.push_back(":") ;                                              // sentinel to parse last args
+		arg_vec.push_back(":") ;                                               // sentinel to parse last args
 		for ( ::string& ca : arg_vec ) {
 			if (ca!=":") {
 				argv[argc++] = ca.data() ;
@@ -567,8 +567,8 @@ namespace Backends::Slurm {
 		::string err_file = _get_stderr_path(job) ;
 		try {
 			::string res = read_content(err_file) ;
-			if (res.empty()) return {} ;
-			else             return to_string("stderr from : ",err_file,'\n',res) ;
+			if (!res) return {}                                            ;
+			else      return to_string("stderr from : ",err_file,'\n',res) ;
 		} catch (::string const&) {
 			return to_string("stderr not found : ",err_file) ;
 		}
@@ -597,7 +597,7 @@ namespace Backends::Slurm {
 		if(verbose) {
 			s_errPath = _get_stderr_path(job) ;
 			s_outPath = _get_stdout_path(job) ;
-			make_dir(_get_log_dir(job)) ;
+			mkdir(_get_log_dir(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			job_desc_msg_t* j = &job_descr[i] ;
@@ -613,16 +613,16 @@ namespace Backends::Slurm {
 			j->work_dir        = wd.data()                                                   ;
 			j->name            = const_cast<char*>(job_name.c_str())                         ;
 			//
-			if(!r.excludes.empty()) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
-			if(!r.feature .empty()) j->features      = const_cast<char*>(r.feature       .data()) ;
-			if(!r.gres    .empty()) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
-			if(!r.licenses.empty()) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
-			if(!r.nodes   .empty()) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
-			if(!r.part    .empty()) j->partition     = const_cast<char*>(r.part          .data()) ;
-			if(!r.qos     .empty()) j->qos           = const_cast<char*>(r.qos           .data()) ;
-			if(!r.reserv  .empty()) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
-			if(i==0               ) j->script        =                   script          .data()  ;
-			/**/                    j->nice          = NICE_OFFSET+nice                           ;
+			if(+r.excludes) j->exc_nodes     = const_cast<char*>(r.excludes      .data()) ;
+			if(+r.feature ) j->features      = const_cast<char*>(r.feature       .data()) ;
+			if(+r.gres    ) j->tres_per_node = const_cast<char*>(("gres:"+r.gres).data()) ;
+			if(+r.licenses) j->licenses      = const_cast<char*>(r.licenses      .data()) ;
+			if(+r.nodes   ) j->req_nodes     = const_cast<char*>(r.nodes         .data()) ;
+			if(+r.part    ) j->partition     = const_cast<char*>(r.part          .data()) ;
+			if(+r.qos     ) j->qos           = const_cast<char*>(r.qos           .data()) ;
+			if(+r.reserv  ) j->reservation   = const_cast<char*>(r.reserv        .data()) ;
+			if(i==0       ) j->script        =                   script          .data()  ;
+			/**/            j->nice          = NICE_OFFSET+nice                           ;
 			i++ ;
 		}
 		bool                   err = false  /*garbage*/ ;

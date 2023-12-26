@@ -41,7 +41,7 @@ void server_cleanup() {
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
 	if (mrkr!=::pair_s(_g_host,pid)) return ;                                  // not our file, dont touch it
-	::unlink(_g_server_mrkr.c_str()) ;
+	unlink(_g_server_mrkr) ;
 	trace("cleaned") ;
 }
 
@@ -57,7 +57,7 @@ bool/*crashed*/ start_server() {
 	Trace trace("start_server",_g_server_mrkr,_g_host,pid) ;
 	dir_guard(_g_server_mrkr) ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
-	if ( !mrkr.first.empty() && mrkr.first!=_g_host ) {
+	if ( +mrkr.first && mrkr.first!=_g_host ) {
 		trace("already_existing_elsewhere",mrkr) ;
 		return false/*unused*/ ;                                               // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
 	}
@@ -66,7 +66,7 @@ bool/*crashed*/ start_server() {
 			trace("already_existing",mrkr) ;
 			return false/*unused*/ ;
 		}
-		::unlink(_g_server_mrkr.c_str()) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlink(_g_server_mrkr) ;                                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		crashed = true ;
 		trace("vanished",mrkr) ;
 	}
@@ -84,7 +84,7 @@ bool/*crashed*/ start_server() {
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	_g_server_running = ::link(tmp.c_str(),_g_server_mrkr.c_str())==0 ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	::unlink(tmp.c_str()) ;
+	unlink(tmp) ;
 	trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
 	return crashed ;
 }
@@ -102,7 +102,7 @@ void record_targets(Job job) {
 		known_targets.push_back(tn) ;
 	}
 	{	::ofstream targets_stream { dir_guard(targets_file) } ;
-		for( ::string tn : known_targets ) if (!tn.empty()) targets_stream << tn << '\n' ;
+		for( ::string tn : known_targets ) if (+tn) targets_stream << tn << '\n' ;
 	}
 }
 
@@ -179,7 +179,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 			}
 		}
 		//
-		if ( !_g_is_daemon && in_tab.empty() ) break ;                         // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = Fd(_g_server_fd.accept()) ;
@@ -192,7 +192,7 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 Done :
 	_g_done = true ;
 	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                             // ensure engine loop sees we are done
-	trace("end_loop") ;
+	trace("done") ;
 }
 
 bool/*interrupted*/ engine_loop() {
@@ -209,7 +209,7 @@ bool/*interrupted*/ engine_loop() {
 			//^^^^^^^^^^^^^^^^^
 		}
 		if ( Pdate now ; empty || (now=Pdate::s_now())>next_stats_date ) {
-			for( auto const& [fd,req] : req_tab ) req->audit_stats() ;         // refresh title
+			for( auto const& [fd,r] : req_tab ) r->audit_stats() ;             // refresh title
 			next_stats_date = now+Delay(1.) ;
 		}
 		if ( empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
@@ -239,11 +239,10 @@ bool/*interrupted*/ engine_loop() {
 					case ReqProc::Show   : {
 						trace(req) ;
 						bool ok = true/*garbage*/ ;
-						if ( !req.options.flags[ReqFlag::Quiet] && !startup_dir_s.empty() )
-							audit( req.out_fd , req.options , Color::Note , 0 , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
-						try                        { ok = g_cmd_tab[+req.proc](req) ;                                                           }
-						catch (::string  const& e) { ok = false ; if (!e.empty()) audit(req.out_fd,req.options,Color::Err,0,e               ) ; }
-						catch (::pair_ss const& e) { ok = false ;                 audit(req.out_fd,req.options,Color::Err,0,e.first,e.second) ; }
+						if ( !req.options.flags[ReqFlag::Quiet] && +startup_dir_s )
+							audit( req.out_fd , req.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
+						try                        { ok = g_cmd_tab[+req.proc](req) ;                                  }
+						catch (::string  const& e) { ok = false ; if (+e) audit(req.out_fd,req.options,Color::Err,e) ; }
 						OMsgBuf().send( req.out_fd , ReqRpcReply(ok) ) ;
 					} break ;
 					// Make, Kill and Close management :
@@ -252,24 +251,24 @@ bool/*interrupted*/ engine_loop() {
 					// to do that, we use zombie entries when Req is closed
 					case ReqProc::Make : {
 						if ( auto it=req_tab.find(req.out_fd) ; it!=req_tab.end() ) {
-							SWEAR(!it->second) ;                                      // if entry already exists, it was created by Kill and is a zombie
-							req_tab.erase(it) ;                                       // entry is really dead now
+							SWEAR(!it->second) ;                                      // if entry already exists, it was created by Kill and is deemed already closed
+							req_tab.erase(it) ;
 							trace("zombie_req",req) ;
 						} else {
 							Req r ;
 							try {
 								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-								if (!msg.empty()) audit( req.out_fd , req.options , Color::Note , 0 , msg ) ;
+								if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
 								r = Req(req) ;
 							} catch(::string const& e) {
-								audit( req.out_fd , req.options , Color::Err , 0 , e ) ;
+								audit( req.out_fd , req.options , Color::Err , e ) ;
 								OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
 								break ;
 							}
 							if (!req.as_job()) record_targets(r->job) ;
 							req_tab[req.out_fd] = r                      ;
 							fd_tab [r         ] = {req.in_fd,req.out_fd} ;
-							trace("new_req",r) ;
+							trace("new_req",req,r) ;
 							//vvvvvv
 							r.make() ;
 							//^^^^^^
@@ -279,15 +278,15 @@ bool/*interrupted*/ engine_loop() {
 						auto it = req_tab.find(req.out_fd) ;
 						if (it==req_tab.end()) {
 							trace("kill_new",req) ;
-							req_tab.emplace(req.out_fd,Req()) ;                // Kill comes before Make, make a zombie entry and it will die when Make finally comes
+							req_tab.emplace(req.out_fd,Req()) ;                // Kill comes before Make, make an empty entry and it will die when Make finally comes
 							/**/                       ::close(req.in_fd ) ;   // nothing comes after a Kill (the Make event is already received, just processed in reversed order)
 							if (req.out_fd!=req.in_fd) ::close(req.out_fd) ;   // no Req will be created, there will be no output
 						} else if (!it->second) {
-							trace("kill_zombie",req) ;
-							req_tab.erase(it) ;                                // entry was a zombie, it now really dead
+							trace("kill_closed",req) ;
+							req_tab.erase(it) ;                                // entry was closed
 							::close(req.in_fd) ;                               // nothing comes after a Kill and the write side is already shutdown
 						} else {
-							trace("kill_req",req) ;
+							trace("kill_req",req,it->second) ;
 							//vvvvvvvvvvvvvvv
 							it->second.kill() ;
 							//^^^^^^^^^^^^^^^
@@ -301,14 +300,17 @@ bool/*interrupted*/ engine_loop() {
 						auto                              rit = req_tab.find(fds.second) ;
 						SWEAR(rit!=req_tab.end()) ;                                        // Close comes after a Make and entry exists (possibly a zombie if Kill already came)
 						SWEAR(+rit->second      ) ;                                        // we need to keep Req to do book-keeping
-						Req r = rit->second ;
-						trace("close_req",r) ;
+						Req  r      = rit->second ;
+						bool zombie = r->zombie   ;                            // fetch before r is closed
+						if (zombie) req_tab.erase(rit) ;                       // entry was killed
+						else        rit->second = {} ;                         // entry is yet to be killed
+						trace("close_req",req,r,STR(zombie)) ;
 						//vvvvvvv
 						r.close() ;
 						//^^^^^^^
-						if      (r->zombie            ) ::close (fds.second        ) ; // tell client nothing will come now that Req is closed (receive side is already closed)
-						else if (fds.first!=fds.second) ::close (fds.second        ) ; // input and output are independent
-						else                            shutdown(fds.second,SHUT_WR) ; // receive side is stil alive as Kill was not received yet
+						if      (zombie               ) ::close (fds.second        ) ; // kill already seen, close connection if it is a socket
+						else if (fds.first!=fds.second) ::close (fds.second        ) ; // input and output are independentm nothing is sent after a close
+						else                            shutdown(fds.second,SHUT_WR) ; // receive side is still alive as Kill was not received yet
 						fd_tab.erase(fit) ;
 					} break ;
 					default : FAIL(req.proc) ;
@@ -361,7 +363,7 @@ int main( int argc , char** argv ) {
 	Bad :
 		exit(2,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	if (g_startup_dir_s) SWEAR( g_startup_dir_s->empty() || g_startup_dir_s->back()=='/' ) ;
+	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
 	Fd int_fd = open_sig_fd(SIGINT) ;                                          // must be done before app_init so that all threads block the signal
@@ -384,8 +386,8 @@ int main( int argc , char** argv ) {
 	try { msg = Makefiles::refresh(crashed,refresh_) ; }
 	//                     ^^^^^^^^^^^^^^^^^^^^^^^^^
 	catch (::string const& e) { exit(2,e) ; }
-	if (!msg.empty() ) ::cerr << ensure_nl(msg) ;
-	if (!_g_is_daemon) ::setpgid(0,0)        ;                                 // once we have reported we have started, lmake will send us a message to kill us
+	if (+msg         ) ::cerr << ensure_nl(msg) ;
+	if (!_g_is_daemon) ::setpgid(0,0)           ;                              // once we have reported we have started, lmake will send us a message to kill us
 	//
 	{	::string v ;
 		Trace::s_channels = g_config.trace.channels ;
@@ -398,7 +400,7 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlink(g_config.remote_tmp_dir) ;                                          // cleanup
+	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ;                           // cleanup
 	//
 	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;

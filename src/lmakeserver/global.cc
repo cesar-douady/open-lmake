@@ -12,25 +12,23 @@ namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
 
-	static inline ::string _audit_indent( ::string const& txt , size_t lvl ) { return indent<' ',2>(txt,lvl) ; }
+	static inline ::string _audit_indent( ::string&& t , DepDepth l ) {
+		if (l) return indent<' ',2>(t,l) ;
+		else   return ::move       (t  ) ;
+	}
 
-	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name , ::string const& sfx ) {
-		::string report_txt = color_pfx(ro,c) ;
-		::string log_txt    ;
+	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl ) {
+		if (!txt) return ;
 		//
-		if (!pfx .empty()) {                                                            report_txt += pfx                                         ; log_txt += pfx                 ; }
-		if (!name.empty()) { if (!log_txt.empty()) { report_txt+=' ' ; log_txt+=' ' ; } report_txt += mk_printable(mk_rel(name,ro.startup_dir_s)) ; log_txt += mk_printable(name ) ; }
-		if (!sfx .empty()) { if (!log_txt.empty()) { report_txt+=' ' ; log_txt+=' ' ; } report_txt += sfx                                         ; log_txt += sfx                 ; }
+		::string                     report_txt  = color_pfx(ro,c)                ;
+		/**/                         report_txt += localize(txt,ro.startup_dir_s) ;
+		if (report_txt.back()=='\n') report_txt.pop_back()                        ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
+		/**/                         report_txt += color_sfx(ro,c)                ;
+		/**/                         report_txt += '\n'                           ;
 		//
-		if (log_txt.empty()     ) return ;
-		if (log_txt.back()=='\n') { report_txt.pop_back() ; log_txt.pop_back() ; } // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
-		report_txt += color_sfx(ro,c) ;
-		//
-		if (lvl) { report_txt  = _audit_indent(report_txt,lvl) ; log_txt  = _audit_indent(log_txt,lvl) ; }
-		/**/     { report_txt += '\n'                          ; log_txt += '\n'                       ; }
-		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace
-		try { OMsgBuf().send( out_fd , ReqRpcReply(report_txt) ) ; } catch (::string const& e) { Trace("audit","lost_client",e,report_txt) ; }
-		try { log << log_txt << ::flush ;                          } catch (::string const& e) { Trace("audit","lost_log"   ,e,log_txt   ) ; }
+		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace)
+		try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl)) ) ;         } catch (::string const& e) { Trace("audit","lost_client",e) ; }
+		try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
 	}
 
 	//
@@ -60,7 +58,7 @@ namespace Engine {
 		if (sc.max_dep_depth       ) os <<",MD" << sc.max_dep_depth          ;
 		if (sc.max_err_lines       ) os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
-		if (!sc.caches.empty()     ) os <<','   << sc.caches                 ;
+		if (+sc.caches             ) os <<','   << sc.caches                 ;
 		for( Tag t : Tag::N        ) os <<','   << t <<':'<< sc.backends[+t] ;
 		return os<<')' ;
 	}
@@ -109,11 +107,12 @@ namespace Engine {
 			fields[0] = "heartbeat"        ; if (py_map.hasKey(fields[0])) heartbeat             = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
 			fields[0] = "heartbeat_tick"   ; if (py_map.hasKey(fields[0])) heartbeat_tick        = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
 			fields[0] = "max_dep_depth"    ; if (py_map.hasKey(fields[0])) max_dep_depth         = size_t                                (Py::Long  (py_map[fields[0]]))               ;
+			fields[0] = "max_error_lines"  ; if (py_map.hasKey(fields[0])) max_err_lines         = size_t                                (Py::Long  (py_map[fields[0]]))               ;
 			fields[0] = "network_delay"    ; if (py_map.hasKey(fields[0])) network_delay         = Time::Delay                           (Py::Float (py_map[fields[0]]))               ;
 			fields[0] = "path_max"         ; if (py_map.hasKey(fields[0])) path_max              = size_t                                (Py::Long  (py_map[fields[0]]))               ;
+			fields[0] = "reliable_dirs"    ; if (py_map.hasKey(fields[0])) reliable_dirs         =                                                   py_map[fields[0]].isTrue()        ;
 			fields[0] = "rules_module"     ; if (py_map.hasKey(fields[0])) rules_module          =                                        Py::String(py_map[fields[0]])                ;
 			fields[0] = "sources_module"   ; if (py_map.hasKey(fields[0])) srcs_module           =                                        Py::String(py_map[fields[0]])                ;
-			fields[0] = "max_error_lines"  ; if (py_map.hasKey(fields[0])) max_err_lines         = size_t                                (Py::Long  (py_map[fields[0]]))               ;
 			fields[0] = "remote_admin_dir" ; if (py_map.hasKey(fields[0])) user_remote_admin_dir =                                        Py::String(py_map[fields[0]])                ;
 			fields[0] = "remote_tmp_dir"   ; if (py_map.hasKey(fields[0])) user_remote_tmp_dir   =                                        Py::String(py_map[fields[0]])                ;
 			//
@@ -234,6 +233,15 @@ namespace Engine {
 				}
 				fields.pop_back() ;
 			}
+			// do some adjustments
+			for( BackendTag t : BackendTag::N ) {
+				if (!backends[+t].configured         ) continue        ;
+				if (!Backends::Backend::s_ready   (t)) continue        ;
+				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
+			}
+			reliable_dirs    = true ;                                          // all backends are local, dirs are necessarily reliable
+			console.host_len = 0    ;                                          // host has no interest if all jobs are local
+		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
 			e = to_string("while processing ",field," :\n",indent(e)) ;
@@ -250,10 +258,10 @@ namespace Engine {
 		// clean
 		//
 		res << "clean :\n" ;
-		/**/                                res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		if (hash_algo!=Algo::Xxh          ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
-		/**/                                res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
-		if (!user_local_admin_dir .empty()) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
+		/**/                       res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
+		if (hash_algo!=Algo::Xxh ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
+		/**/                       res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
+		if (+user_local_admin_dir) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
 		//
 		// static
 		//
@@ -264,10 +272,10 @@ namespace Engine {
 		/**/                             res << "\tnetwork_delay  : " << network_delay .short_str() <<'\n' ;
 		if (path_max!=size_t(-1)       ) res << "\tpath_max       : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max       : " <<        "<unlimited>"       <<'\n' ;
-		if (!rules_module.empty()      ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
-		if (!srcs_module .empty()      ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
+		if (+rules_module              ) res << "\trules_module   : " <<        rules_module        <<'\n' ;
+		if (+srcs_module               ) res << "\tsources_module : " <<        srcs_module         <<'\n' ;
 		//
-		if (!caches.empty()) {
+		if (+caches) {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,cache] : caches ) {
 				size_t w = 3 ;                                                 // room for tag
@@ -281,9 +289,10 @@ namespace Engine {
 		// dynamic
 		//
 		res << "dynamic :\n" ;
-		/**/                                res << "\tmax_error_lines  : " << max_err_lines             <<'\n' ;
-		if (!user_remote_admin_dir.empty()) res << "\tremote_admin_dir : " << user_remote_admin_dir     <<'\n' ;
-		if (!user_remote_tmp_dir  .empty()) res << "\tremote_tmp_dir   : " << user_remote_tmp_dir       <<'\n' ;
+		/**/                        res << "\tmax_error_lines  : " << max_err_lines         <<'\n' ;
+		/**/                        res << "\treliable_dirs    : " << reliable_dirs         <<'\n' ;
+		if (+user_remote_admin_dir) res << "\tremote_admin_dir : " << user_remote_admin_dir <<'\n' ;
+		if (+user_remote_tmp_dir  ) res << "\tremote_tmp_dir   : " << user_remote_tmp_dir   <<'\n' ;
 		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -342,15 +351,15 @@ namespace Engine {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		static ::string repo_key ;
-		if (repo_key.empty()) {
+		if (!repo_key) {
 			Hash::Xxh key_hash ;
 			key_hash.update(*g_root_dir) ;
 			repo_key = '/' + ::string(::move(key_hash).digest()) ;
 		}
 		//
-		if ( user_local_admin_dir .empty() ) local_admin_dir  = PrivateAdminDir+"/local_admin"s  ; else local_admin_dir  = user_local_admin_dir  + repo_key ;
-		if ( user_remote_admin_dir.empty() ) remote_admin_dir = PrivateAdminDir+"/remote_admin"s ; else remote_admin_dir = user_remote_admin_dir + repo_key ;
-		if ( user_remote_tmp_dir  .empty() ) remote_tmp_dir   = PrivateAdminDir+"/remote_tmp"s   ; else remote_tmp_dir   = user_remote_tmp_dir   + repo_key ;
+		local_admin_dir  = +user_local_admin_dir  ? user_local_admin_dir  + repo_key : PrivateAdminDir+"/local_admin"s  ;
+		remote_admin_dir = +user_remote_admin_dir ? user_remote_admin_dir + repo_key : PrivateAdminDir+"/remote_admin"s ;
+		remote_tmp_dir   = +user_remote_tmp_dir   ? user_remote_tmp_dir   + repo_key : PrivateAdminDir+"/remote_tmp"s   ;
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;
@@ -371,8 +380,8 @@ namespace Engine {
 			if (be.addr!=NoSockAddr) continue ;                                                              // backend has an address
 			::string ifce ; for( auto const& [k,v] : be.dct ) { if (k=="interface") { ifce = v ; break ; } }
 			::string ts   = mk_snake(t) ;
-			if (ifce.empty()) throw to_string("cannot find host address. Consider adding in Lmakefile.py : lmake.config.backends.",ts,".interface = <something that works>") ;
-			else              throw to_string("bad interface ",ifce," for backend ",ts) ;
+			if (+ifce) throw to_string("bad interface ",ifce," for backend ",ts) ;
+			else       throw to_string("cannot find host address. Consider adding in Lmakefile.py : lmake.config.backends.",ts,".interface = <something that works>") ;
 		}
 	}
 
@@ -432,8 +441,8 @@ namespace Engine {
 			else                     { err_str += _audit_indent(mk_rel(target,startup_dir_s),1) ; err_str += '\n' ; }
 		}
 		//
-		if (err_str.empty()) return targets                                         ;
-		else                 throw  to_string("files are outside repo :\n",err_str) ;
+		if (+err_str) throw to_string("files are outside repo :\n",err_str) ;
+		return targets ;
 	}
 
 	Job EngineClosureReq::job(::string const& startup_dir_s) const {
@@ -453,9 +462,8 @@ namespace Engine {
 			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
 		}
 		if (candidates.size()==1) return candidates[0] ;
+		if (!candidates         ) throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)) ;
 		//
-		if (candidates.empty())
-			throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)) ;
 		::string err_str = "several rules match, consider :\n" ;
 		for( Job j : candidates ) {
 			err_str += _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) ;

@@ -29,10 +29,12 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1                                     ) syntax.usage("must have a single argument to generate an executable script") ;
-	if ( cmd_line.flags[ReqFlag::Verbose] && cmd_line.key!=ReqKey::Deps && cmd_line.key!=ReqKey::Targets ) syntax.usage("verbose is only for showing deps or targets"                 ) ;
-	if ( cmd_line.flags[ReqFlag::Debug  ] && cmd_line.key!=ReqKey::ExecScript                            ) syntax.usage("debug is only for showing executable script"                 ) ;
-	if ( cmd_line.flags[ReqFlag::Job    ] && cmd_line.key==ReqKey::InvDeps                               ) syntax.usage("dependents cannot be shown for jobs"                         ) ;
+	bool may_verbose = cmd_line.key==ReqKey::Deps || cmd_line.key==ReqKey::Targets || cmd_line.key==ReqKey::Stderr ;
+	//
+	if ( cmd_line.key==ReqKey::ExecScript && cmd_line.args.size()!=1          ) syntax.usage("must have a single argument to generate an executable script") ;
+	if ( cmd_line.flags[ReqFlag::Verbose] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr"         ) ;
+	if ( cmd_line.flags[ReqFlag::Debug  ] && cmd_line.key!=ReqKey::ExecScript ) syntax.usage("debug is only for showing executable script"                 ) ;
+	if ( cmd_line.flags[ReqFlag::Job    ] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"                         ) ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ::cout , ReqProc::Show , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

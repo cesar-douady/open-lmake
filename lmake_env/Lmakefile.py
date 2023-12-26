@@ -31,7 +31,6 @@ config.caches.dir = {
 	'tag'  : 'dir'
 ,	'repo' : lmake.root_dir
 ,	'dir'  : osp.dirname(lmake.root_dir)+'/lmake_env-cache'
-,	'size' : 1_000_000_000
 }
 
 lmake.version = (0,1)

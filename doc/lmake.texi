@@ -1373,14 +1373,16 @@ In the current version, only 2 tags may be used :
 @tab -
 @tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies a key identifying the repository.
 In order to avoid poluting the cache during typical edit-run-debug loops with data that will never be reused, the cache restrict its data to at most one entry for each job in each repo.
-This attribute is used to identiy a repository. If 2 repositories use the same key, then results produced in one will replace those produced in the other one.
+This attribute is used to identiy a repository.
+If 2 repositories use the same key, then results produced in one will replace those produced in the other one.
+Symetrically, if you use 2 different keys for the same repo, then the cache may store several entries for the same repo.
 Besides this restriction, a classical LRU algorithm is used.
 @item @code{caches.<dir>.dir}
 @tab -
-@tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies the directory in which the cache puts its data.
-@item @code{caches.<dir>.size}
-@tab -
-@tab Valid only when @code{tag} is @code{'dir'}. This attribute specifies the maximum size the cache can occupy.
+@tab Valid only when @code{tag} is @code{'dir'}.
+This attribute specifies the directory in which the cache puts its data.
+The directory must pre-exist and contain a file @file{LMAKE/size} containing the size the cache may occupy on disk.
+The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.
 @end multitable
 
 @chapter Sources

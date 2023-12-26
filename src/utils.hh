@@ -80,72 +80,51 @@ template<class T> T const& mk_const(T const& x) { return x ; }
 //
 
 // array
-template<                size_t N            > using array_s    = ::array             <       string,N    > ;
-template<class K,class V,size_t N            > using amap       = ::array<pair        <K     ,V>    ,N    > ;
-template<        class V,size_t N            > using amap_s     = ::amap              <string,V     ,N    > ;
-template<                size_t N            > using amap_ss    = ::amap_s            <       string,N    > ;
+template<                size_t N> using array_s  = ::array        <       string,N> ;
+template<class K,class V,size_t N> using amap     = ::array<pair   <K     ,V>    ,N> ;
+template<        class V,size_t N> using amap_s   = ::amap         <string,V     ,N> ;
+template<                size_t N> using amap_ss  = ::amap_s       <       string,N> ;
 
 // pair
-template<class V                             > using pair_s     = ::pair              <string,V           > ;
-/**/                                           using pair_ss    = ::pair_s            <       string      > ;
+template<class V                 > using pair_s   = ::pair         <string,V       > ;
+/**/                               using pair_ss  = ::pair_s       <       string  > ;
 
 // map
-template<        class V         ,class... Ts> using map_s_x    = ::map               <string,V     ,Ts...> ;
-template<                         class... Ts> using map_ss_x   = ::map_s_x           <       string,Ts...> ;
-template<        class V                     > using map_s      = ::map               <string,V           > ;
-/**/                                           using map_ss     = ::map_s             <       string      > ;
-
-// mmap
-template<        class V         ,class... Ts> using mmap_s_x   = ::multimap          <string,V     ,Ts...> ;
-template<                         class... Ts> using mmap_ss_x  = ::mmap_s_x          <       string,Ts...> ;
-template<        class V                     > using mmap_s     = ::multimap          <string,V           > ;
-/**/                                           using mmap_ss    = ::mmap_s            <       string      > ;
-
-// mset
-template<                         class... Ts> using mset_s_x   = ::multiset          <       string,Ts...> ;
-/**/                                           using mset_s     = ::multiset          <       string      > ;
+template<        class V         > using map_s    = ::map          <string,V       > ;
+/**/                               using map_ss   = ::map_s        <       string  > ;
 
 // set
-template<                         class... Ts> using set_s_x    = ::set               <       string,Ts...> ;
-/**/                                           using set_s      = ::set               <       string      > ;
+/**/                               using set_s    = ::set          <       string  > ;
 
 // umap
-template<class K,class V         ,class... Ts> using umap_x     = ::unordered_map     <K     ,V     ,Ts...> ;
-template<        class V         ,class... Ts> using umap_s_x   = ::umap_x            <string,V     ,Ts...> ;
-template<                         class... Ts> using umap_ss_x  = ::umap_s_x          <       string,Ts...> ;
-template<class K,class V                     > using umap       = ::unordered_map     <K     ,V           > ;
-template<        class V                     > using umap_s     = ::umap              <string,V           > ;
-/**/                                           using umap_ss    = ::umap_s            <       string      > ;
-
-// ummap
-template<class K,class V         ,class... Ts> using ummap_x    = ::unordered_multimap<K     ,V     ,Ts...> ;
-template<        class V         ,class... Ts> using ummap_s_x  = ::ummap_x           <string,V     ,Ts...> ;
-template<                         class... Ts> using ummap_ss_x = ::ummap_s_x         <       string,Ts...> ;
-template<class K,class V                     > using ummap      = ::unordered_multimap<K     ,V           > ;
-template<        class V                     > using ummap_s    = ::ummap             <string,V           > ;
-/**/                                           using ummap_ss   = ::ummap_s           <       string      > ;
-
-// umset
-template<class K                 ,class... Ts> using umset_x    = ::unordered_multiset<K            ,Ts...> ;
-template<                         class... Ts> using umset_s_x  = ::umset_x           <string       ,Ts...> ;
-template<class K                             > using umset      = ::unordered_multiset<K                  > ;
-/**/                                           using umset_s    = ::umset             <string             > ;
+template<class K,class  V         > using umap     = ::unordered_map<K     ,V       > ;
+template<        class  V         > using umap_s   = ::umap         <string,V       > ;
+/**/                               using umap_ss  = ::umap_s       <       string  > ;
 
 // uset
-template<class K                 ,class... Ts> using uset_x     = ::unordered_set     <K            ,Ts...> ;
-template<                         class... Ts> using uset_s_x   = ::uset_x            <string       ,Ts...> ;
-template<class K                             > using uset       = ::unordered_set     <K                  > ;
-/**/                                           using uset_s     = ::uset              <string             > ;
+template<class K                 > using uset     = ::unordered_set<K              > ;
+/**/                               using uset_s   = ::uset         <string         > ;
 
 // vector
-template<                         class... Ts> using vector_s_x = ::vector            <       string,Ts...> ;
-template<class K,class V         ,class... Ts> using vmap_x     = ::vector<pair<       K     ,V>    ,Ts...> ;
-template<        class V         ,class... Ts> using vmap_s_x   = ::vmap_x            <string,V     ,Ts...> ;
-template<                         class... Ts> using vmap_ss_x  = ::vmap_s_x          <       string,Ts...> ;
-/**/                                           using vector_s   = ::vector            <       string      > ;
-template<class K,class V                     > using vmap       = ::vector<pair<       K     ,V>          > ;
-template<        class V                     > using vmap_s     = ::vmap              <string,V           > ;
-/**/                                           using vmap_ss    = ::vmap_s            <       string      > ;
+/**/                               using vector_s = ::vector       <       string  > ;
+template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>      > ;
+template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
+/**/                               using vmap_ss  = ::vmap_s       <       string  > ;
+
+template<class T,size_t N> static inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
+template<class T,size_t N> static inline constexpr bool operator!(::array <T,N> const& a) { return !+a                  ; }
+template<class T,class  U> static inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
+template<class T,class  U> static inline constexpr bool operator!(::pair  <T,U> const& p) { return !+p                  ; }
+template<class K,class  V> static inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> static inline constexpr bool operator!(::map   <K,V> const& m) { return !+m                  ; }
+template<class K,class  V> static inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> static inline constexpr bool operator!(::umap  <K,V> const& m) { return !+m                  ; }
+template<class K         > static inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+template<class K         > static inline constexpr bool operator!(::set   <K  > const& s) { return !+s                  ; }
+template<class K         > static inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+template<class K         > static inline constexpr bool operator!(::uset  <K  > const& s) { return !+s                  ; }
+template<class T         > static inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+template<class T         > static inline constexpr bool operator!(::vector<T  > const& v) { return !+v                  ; }
 
 #define VT(T) typename T::value_type
 
@@ -271,6 +250,11 @@ struct IStringStream : ::istringstream {
 // string
 //
 
+static inline bool operator+(::string      const& s) { return !s.empty() ; }
+static inline bool operator!(::string      const& s) { return !+s        ; }
+static inline bool operator+(::string_view const& s) { return !s.empty() ; }
+static inline bool operator!(::string_view const& s) { return !+s        ; }
+
 static constexpr size_t Npos = ::string::npos ;
 
 template<class... A> static inline ::string to_string(A const&... args) {
@@ -287,7 +271,7 @@ static inline ::string to_string(                 ) { return {}  ; }           /
 using ::std::from_chars ;
 template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
 	static constexpr bool IsBool = is_same_v<I,bool> ;
-	if ( empty_ok && txt.empty() ) return 0 ;
+	if ( empty_ok && !txt ) return 0 ;
 	::conditional_t<IsBool,size_t,I> res = 0/*garbage*/ ;
 	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res , hex?16:10 ) ;
@@ -299,7 +283,7 @@ template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_ch
 template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 //
 template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F from_chars( S const& txt , bool empty_ok=false ) {
-	if ( empty_ok && txt.empty() ) return 0 ;
+	if ( empty_ok && !txt ) return 0 ;
 	F res = 0/*garbage*/ ;
 	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res ) ;
@@ -330,11 +314,15 @@ static inline constexpr bool is_print(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
 
-template<char Delimiter=0> ::string         mk_printable   ( ::string const&                ) ;
+template<char Delimiter=0>               ::string mk_printable(::string const&    ) ;
+template<char Delimiter=0> static inline ::string mk_printable(::string     && txt) {
+	for( char c : txt ) if ( !is_print(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
+	return ::move(txt) ;                                                                            // fast path : avoid analysis & copy
+}
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
-static inline ::string ensure_nl(::string     && txt) { if ( !txt.empty() && txt.back()!='\n' ) txt += '\n' ; return txt ; }
-static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                                  }
+static inline ::string ensure_nl(::string     && txt) { if ( +txt && txt.back()!='\n' ) txt += '\n' ; return txt ; }
+static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                          }
 
 template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
@@ -356,10 +344,18 @@ template<char C='\t',size_t N=1> static inline ::string indent( ::string const& 
 }
 
 static inline bool is_identifier(::string const& s) {
-	/**/              if (s.empty()                        ) return false ;
+	/**/              if (!s                               ) return false ;
 	/**/              if (!( ::isalpha(s[0]) || s[0]=='_' )) return false ;
 	for( char c : s ) if (!( ::isalnum(c   ) || c   =='_' )) return false ;
 	/**/                                                     return true  ;
+}
+
+static inline ::string strip(::string const& txt) {
+	size_t start = 0          ;
+	size_t end   = txt.size() ;
+	while ( start<end && ::is_space(txt[start])) start++ ;
+	while ( start<end && ::is_space(txt[end-1])) end  -- ;
+	return txt.substr(start,end-start) ;
 }
 
 // split into space separated words
@@ -549,6 +545,9 @@ template<class T> struct vector_view {
 		return res ;
 	}
 	// accesses
+	bool operator+() const { return _sz     ; }
+	bool operator!() const { return !+*this ; }
+	//
 	T      * data      (        ) const { return _data        ; }
 	T      * begin     (        ) const { return _data        ; }
 	T const* cbegin    (        ) const { return _data        ; }
@@ -558,7 +557,6 @@ template<class T> struct vector_view {
 	T      & back      (        ) const { return _data[_sz-1] ; }
 	T      & operator[](size_t i) const { return _data[i    ] ; }
 	size_t   size      (        ) const { return  _sz         ; }
-	bool     empty     (        ) const { return !_sz         ; }
 	// services
 	View  subvec( size_t start , size_t sz=Npos ) const requires( IsConst) { return View ( begin()+start , ::min(sz,_sz-start) ) ; }
 	ViewC subvec( size_t start , size_t sz=Npos ) const requires(!IsConst) { return ViewC( begin()+start , ::min(sz,_sz-start) ) ; }
@@ -626,15 +624,15 @@ static constexpr double Infinity = ::numeric_limits<double>::infinity() ;
 namespace std {
 
 	#define OP(...) static inline ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
-	template<class T,size_t N> OP(             T    const  a[N] ) { char sep='[' ; if (!N       ) os<<sep ; else for( T    const&  x    : a ) { os<<sep<<x         ; sep=',' ; } return os << ']' ; }
-	template<class T,size_t N> OP( array      <T,N> const& a    ) { char sep='[' ; if (!N       ) os<<sep ; else for( T    const&  x    : a ) { os<<sep<<x         ; sep=',' ; } return os << ']' ; }
-	template<class T         > OP( vector     <T  > const& v    ) { char sep='[' ; if (v.empty()) os<<sep ; else for( T    const&  x    : v ) { os<<sep<<x         ; sep=',' ; } return os << ']' ; }
-	template<class T         > OP( vector_view<T  > const& v    ) { char sep='[' ; if (v.empty()) os<<sep ; else for( T    const&  x    : v ) { os<<sep<<x         ; sep=',' ; } return os << ']' ; }
-	template<class K         > OP( uset       <K  > const& s    ) { char sep='{' ; if (s.empty()) os<<sep ; else for( K    const&  k    : s ) { os<<sep<<k         ; sep=',' ; } return os << '}' ; }
-	template<class K         > OP( set        <K  > const& s    ) { char sep='{' ; if (s.empty()) os<<sep ; else for( K    const&  k    : s ) { os<<sep<<k         ; sep=',' ; } return os << '}' ; }
-	template<class K,class V > OP( umap       <K,V> const& m    ) { char sep='{' ; if (m.empty()) os<<sep ; else for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep=',' ; } return os << '}' ; }
-	template<class K,class V > OP( map        <K,V> const& m    ) { char sep='{' ; if (m.empty()) os<<sep ; else for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep=',' ; } return os << '}' ; }
-	template<class A,class B > OP( pair       <A,B> const& p    ) { return os <<'('<< p.first <<','<< p.second <<')' ;                                                                              }
+	template<class T,size_t N> OP(             T    const  a[N] ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
+	template<class T,size_t N> OP( array      <T,N> const& a    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
+	template<class T         > OP( vector     <T  > const& v    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : v ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
+	template<class T         > OP( vector_view<T  > const& v    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : v ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
+	template<class K         > OP( uset       <K  > const& s    ) { os <<'{' ; const char* sep="" ; for( K    const&  k    : s ) { os<<sep<<k         ; sep="," ; } return os <<'}' ; }
+	template<class K         > OP( set        <K  > const& s    ) { os <<'{' ; const char* sep="" ; for( K    const&  k    : s ) { os<<sep<<k         ; sep="," ; } return os <<'}' ; }
+	template<class K,class V > OP( umap       <K,V> const& m    ) { os <<'{' ; const char* sep="" ; for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep="," ; } return os <<'}' ; }
+	template<class K,class V > OP( map        <K,V> const& m    ) { os <<'{' ; const char* sep="" ; for( auto const& [k,v] : m ) { os<<sep<<k<<':'<<v ; sep="," ; } return os <<'}' ; }
+	template<class A,class B > OP( pair       <A,B> const& p    ) { return os <<'('<< p.first <<','<< p.second <<')' ;                                                                }
 	#undef OP
 
 	static inline ::ostream& operator<<( ::ostream& os , uint8_t const i ) { return os<<uint32_t(i) ; } // avoid output a char when actually a int
@@ -855,7 +853,7 @@ static inline void del_env(::string const& name) {
 template<::unsigned_integral T> struct SmallIds {
 	T acquire() {
 		T res ;
-		if (free_ids.empty()) {
+		if (!free_ids) {
 			res = n_allocated ;
 			n_allocated++ ;
 			SWEAR(n_allocated) ;                                               // ensure no overflow
@@ -1009,7 +1007,11 @@ template<char U,::integral I> I from_string_with_units(::string const& s) {
 }
 
 template<char U,::integral I> ::string to_string_with_units(I x) {
-	if (!x) return to_string(0,U) ;
+	if (!x) {
+		if (U) return to_string(0,U) ;
+		else   return to_string(0  ) ;
+	}
+	//
 	switch (U) {
 		case 'a' : if (x&0x3ff) return to_string(x,'a') ; x >>= 10 ; [[fallthrough]] ;
 		case 'f' : if (x&0x3ff) return to_string(x,'f') ; x >>= 10 ; [[fallthrough]] ;

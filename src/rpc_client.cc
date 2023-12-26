@@ -6,14 +6,14 @@
 #include "rpc_client.hh"
 
 ::ostream& operator<<( ::ostream& os , ReqOptions const& ro ) {
-	os << "ReqOptions(" ;
 	const char* sep = "" ;
-	if (!ro.startup_dir_s.empty()) { os <<sep<< ro.startup_dir_s ; sep = "," ; }
-	if ( ro.reverse_video==Yes   ) { os <<sep<< "reverse_video"  ; sep = "," ; }
-	if ( ro.reverse_video==No    ) { os <<sep<< "normal_video"   ; sep = "," ; }
-	if (+ro.key                  ) { os <<sep<< ro.key           ; sep = "," ; }
-	if (+ro.flags                ) { os <<sep<< ro.flags         ; sep = "," ; }
-	return os << ')' ;
+	/**/                          os << "ReqOptions("         ;
+	if (+ro.startup_dir_s     ) { os <<sep<< ro.startup_dir_s ; sep = "," ; }
+	if ( ro.reverse_video==Yes) { os <<sep<< "reverse_video"  ; sep = "," ; }
+	if ( ro.reverse_video==No ) { os <<sep<< "normal_video"   ; sep = "," ; }
+	if (+ro.key               ) { os <<sep<< ro.key           ; sep = "," ; }
+	if (+ro.flags             ) { os <<sep<< ro.flags         ; sep = "," ; }
+	return                        os <<')'                    ;
 }
 
 ::ostream& operator<<( ::ostream& os , ReqRpcReq const& rrr ) {

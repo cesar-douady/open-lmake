@@ -172,10 +172,10 @@ namespace Backends {
 #ifdef IMPL
 namespace Backends {
 
-	inline bool             Backend::s_is_local  (Tag t) { return              s_tab[+t]->is_local()         ; }
-	inline bool             Backend::s_ready     (Tag t) { return s_tab[+t] && s_tab[+t]->config_err.empty() ; }
-	inline ::string const&  Backend::s_config_err(Tag t) { return              s_tab[+t]->config_err         ; }
-	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return              s_tab[+t]->n_tokenss()        ; }
+	inline bool             Backend::s_is_local  (Tag t) { return               s_tab[+t]->is_local()  ; }
+	inline bool             Backend::s_ready     (Tag t) { return s_tab[+t] && !s_tab[+t]->config_err  ; }
+	inline ::string const&  Backend::s_config_err(Tag t) { return               s_tab[+t]->config_err  ; }
+	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return               s_tab[+t]->n_tokenss() ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
 	#define UL ::unique_lock

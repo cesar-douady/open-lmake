@@ -110,7 +110,7 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials ) {
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
-	if (server.empty()) return LoopBackAddr ;
+	if (!server) return LoopBackAddr ;
 	// by standard dot notation
 	{	in_addr_t addr  = 0     ;                                              // address being decoded
 		int       byte  = 0     ;                                              // ensure component is less than 256

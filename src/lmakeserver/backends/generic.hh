@@ -171,12 +171,12 @@ namespace Backends {
 			auto it = reqs.find(req) ;
 			if (it==reqs.end()) return ;                                       // req has been killed
 			ReqEntry const& re = it->second ;
-			SWEAR(re.waiting_jobs.empty()) ;
-			SWEAR(re.queued_jobs .empty()) ;
+			SWEAR(!re.waiting_jobs) ;
+			SWEAR(!re.queued_jobs ) ;
 			reqs.erase(it) ;
-			if (reqs.empty()) {
-				SWEAR(waiting_jobs.empty()) ;
-				SWEAR(spawned_jobs.empty()) ;
+			if (!reqs) {
+				SWEAR(!waiting_jobs) ;
+				SWEAR(!spawned_jobs) ;
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first

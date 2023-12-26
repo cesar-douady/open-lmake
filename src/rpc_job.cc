@@ -3,7 +3,66 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "disk.hh"
+#include "hash.hh"
+
 #include "rpc_job.hh"
+
+using namespace Disk ;
+using namespace Hash ;
+
+//
+// FileAction
+//
+
+::ostream& operator<<( ::ostream& os , FileAction const& fa ) {
+	/**/                                                  os << "FileAction(" << fa.tag ;
+	if ( fa.tag<=FileActionTag::HasFile                 ) os <<','<< fa.date            ;
+	if ( fa.tag<=FileActionTag::HasFile && fa.manual_ok ) os <<",manual_ok"             ;
+	return                                                os <<')'                      ;
+}
+
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction> const& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
+	::uset_s   keep_dirs ;
+	::vector_s unlinks   ;
+	::string   msg       ;
+	bool       ok        = true ;
+	//
+	auto keep = [&](::string const& dir)->void {
+		for( ::string d=dir ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ;
+	} ;
+	//
+	for( auto const& [f,a] : pre_actions ) {                                                             // pre_actions are adequately sorted
+		{ if ( a.tag>FileActionTag::HasFile     ) continue ; } FileInfo fi = FileInfo(nfs_guard.access(f)) ;
+		{ if ( !fi || fi.date==a.date           ) continue ; } append_to_string( msg , "manual " , mk_file(f) ) ;
+		{ if ( a.manual_ok                      ) continue ; }
+		{ if ( +a.crc && a.crc.match(Crc(f,ha)) ) continue ; } ok = false ;
+	}
+	if (ok)
+		for( auto const& [f,a] : pre_actions ) {                                   // pre_actions are adequately sorted
+			SWEAR(+f) ;                                                            // acting on root dir is non-sense
+			switch (a.tag) {
+				case FileActionTag::Keep     :                                                               break ;
+				case FileActionTag::Unlink   : nfs_guard.change(f) ; if (unlink  (f)) unlinks.push_back(f) ; break ;
+				case FileActionTag::Uniquify : nfs_guard.change(f) ; if (uniquify(f)) keep(dir_name(f))    ; break ;
+				case FileActionTag::Mkdir :
+					if (!keep_dirs.contains(f)) {
+						mkdir(f,nfs_guard) ;
+						keep(f) ;
+					}
+				break ;
+				case FileActionTag::Rmdir :
+					for( ::string d=f ; +d && !keep_dirs.contains(d) ; d=dir_name(d) ) {
+						nfs_guard.change(f) ;
+						try                     { rmdir(f) ; }
+						catch (::string const&) { keep (f) ; }
+					}
+				break ;
+				default : FAIL(a) ;
+			}
+		}
+	return {unlinks,{msg,ok}} ;
+}
 
 //
 // JobReason
@@ -47,7 +106,7 @@
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::LiveOut  : os <<','<< jrr.txt         ; break ;
+		case JobProc::LiveOut  : os <<','<< jrr.backend_msg ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.digest.deps ; break ;
 		case JobProc::End      : os <<','<< jrr.digest      ; break ;
 		default                :                              break ;
@@ -59,8 +118,8 @@
 // JobRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , TargetSpec const& tf ) {
-	return os << "TargetSpec(" << tf.pattern <<','<< tf.tflags <<','<< tf.conflicts <<')' ;
+::ostream& operator<<( ::ostream& os , TargetSpec const& ts ) {
+	return os << "TargetSpec(" << ts.pattern <<','<< ts.tflags <<')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
@@ -69,24 +128,24 @@
 		case JobProc::ChkDeps  : os <<','<< jrr.ok    ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
 		case JobProc::Start :
-			/**/                          os <<',' << hex<<jrr.addr<<dec               ;
-			/**/                          os <<',' << jrr.autodep_env                  ;
-			if (!jrr.chroot.empty()     ) os <<',' << jrr.chroot                       ;
-			if (!jrr.cwd_s .empty()     ) os <<',' << jrr.cwd_s                        ;
-			/**/                          os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			if (!jrr.static_deps.empty()) os <<',' << jrr.static_deps                  ;
-			/**/                          os <<',' << jrr.interpreter                  ;
-			if (jrr.keep_tmp            ) os <<',' << "keep_tmp"                       ;
-			/**/                          os <<',' << jrr.kill_sigs                    ;
-			if (jrr.live_out            ) os <<',' << "live_out"                       ;
-			/**/                          os <<',' << jrr.method                       ;
-			/**/                          os <<',' << jrr.remote_admin_dir             ;
-			/**/                          os <<',' << jrr.small_id                     ;
-			if (!jrr.stdin   .empty()   ) os <<'<' << jrr.stdin                        ;
-			if (!jrr.stdout  .empty()   ) os <<'>' << jrr.stdout                       ;
-			/**/                          os <<"*>"<< jrr.targets                      ;
-			if (+jrr.timeout            ) os <<',' << jrr.timeout                      ;
-			/**/                          os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
+			/**/                  os <<',' << hex<<jrr.addr<<dec               ;
+			/**/                  os <<',' << jrr.autodep_env                  ;
+			if (+jrr.chroot     ) os <<',' << jrr.chroot                       ;
+			if (+jrr.cwd_s      ) os <<',' << jrr.cwd_s                        ;
+			/**/                  os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			if (+jrr.static_deps) os <<',' << jrr.static_deps                  ;
+			/**/                  os <<',' << jrr.interpreter                  ;
+			if (jrr.keep_tmp    ) os <<',' << "keep_tmp"                       ;
+			/**/                  os <<',' << jrr.kill_sigs                    ;
+			if (jrr.live_out    ) os <<',' << "live_out"                       ;
+			/**/                  os <<',' << jrr.method                       ;
+			/**/                  os <<',' << jrr.remote_admin_dir             ;
+			/**/                  os <<',' << jrr.small_id                     ;
+			if (+jrr.stdin      ) os <<'<' << jrr.stdin                        ;
+			if (+jrr.stdout     ) os <<'>' << jrr.stdout                       ;
+			/**/                  os <<"*>"<< jrr.targets                      ;
+			if (+jrr.timeout    ) os <<',' << jrr.timeout                      ;
+			/**/                  os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
@@ -100,14 +159,14 @@
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                  os << "AccessDigest("                ;
-	if (+ad.accesses  ) { os <<sep     << ad.accesses          ; sep = "," ; }
-	if (+ad.dflags    ) { os <<sep     << ad.dflags            ; sep = "," ; }
-	if ( ad.write!=No ) { os <<sep     << "write:"<<ad.write   ; sep = "," ; }
-	if (+ad.neg_tflags) { os <<sep<<'-'<< ad.neg_tflags        ; sep = "," ; }
-	if (+ad.pos_tflags) { os <<sep<<'+'<< ad.pos_tflags        ; sep = "," ; }
-	if ( ad.unlink!=No) { os <<sep     << "unlink:"<<ad.unlink ; sep = "," ; }
-	return                os <<')'                             ;
+	/**/                                 os << "AccessDigest("                                      ;
+	if (+ad.accesses                 ) { os <<sep     << ad.accesses                                ; sep = "," ; }
+	if (+ad.dflags                   ) { os <<sep     << ad.dflags                                  ; sep = "," ; }
+	if ( ad.prev_write  || ad.write  ) { os <<sep     << "write:"<<ad.prev_write<<"->"<<ad.write    ; sep = "," ; }
+	if (+ad.neg_tflags               ) { os <<sep<<'-'<< ad.neg_tflags                              ; sep = "," ; }
+	if (+ad.pos_tflags               ) { os <<sep<<'+'<< ad.pos_tflags                              ; sep = "," ; }
+	if ( ad.prev_unlink || ad.unlink ) { os <<sep     << "unlink:"<<ad.prev_unlink<<"->"<<ad.unlink ; sep = "," ; }
+	return                               os <<')'                                                   ;
 }
 
 void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
@@ -124,19 +183,19 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 		pos_tflags |= ad.pos_tflags & ~neg_tflags ;                            // .
 	}
 	if (!ad.idle()) {
-		if ( idle() || order==AccessOrder::After ) { unlink &= ~ad.write ; unlink |= ad.unlink ; }
-		/**/                                         write |= ad.write ;
+		if ( idle() || order==AccessOrder::After ) { prev_unlink = unlink ; unlink &= !ad.write ; unlink |= ad.unlink ; }
+		/**/                                       { prev_write  = write  ;                       write  |=  ad.write ; }
 	}
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
-	/**/                       os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
-	if (jerr.sync            ) os << ",sync"                                         ;
-	if (jerr.auto_date       ) os << ",auto_date"                                    ;
-	if (jerr.no_follow       ) os << ",no_follow"                                    ;
-	/**/                       os <<',' << jerr.digest                               ;
-	if (!jerr.comment.empty()) os <<',' << jerr.comment                              ;
-	if (jerr.has_files()) {
+	/**/                os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
+	if (jerr.sync     ) os << ",sync"                                         ;
+	if (jerr.auto_date) os << ",auto_date"                                    ;
+	if (jerr.no_follow) os << ",no_follow"                                    ;
+	/**/                os <<',' << jerr.digest                               ;
+	if (+jerr.comment ) os <<',' << jerr.comment                              ;
+	if (jerr.proc>=JobExecRpcProc::HasFile) {
 		if ( +jerr.digest.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
 		} else {

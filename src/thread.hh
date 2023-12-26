@@ -17,8 +17,7 @@ template<class T> struct ThreadQueue : private ::deque<T> {
 private :
 	using Base = ::deque<T> ;
 public :
-	using Base::empty ;
-	using Base::size  ;
+	using Base::size ;
 	// cxtors & casts
 	ThreadQueue() = default ;
 	bool operator+() const {
@@ -39,8 +38,8 @@ public :
 	}
 	::pair<bool/*popped*/,T> try_pop() {
 		::unique_lock lock{_mutex} ;
-		if (empty()) return {false/*popped*/,T()} ;
-		return {true/*popped*/,_pop()} ;
+		if (Base::empty()) return {false/*popped*/,T()   } ;
+		else               return {true /*popped*/,_pop()} ;
 	}
 	::pair<bool/*popped*/,T> pop(::stop_token tkn) {
 		::unique_lock lock{_mutex} ;

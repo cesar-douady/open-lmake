@@ -30,9 +30,9 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 	Syntax() = default ;
 	Syntax(                                 ::umap<Flag,FlagSpec> const& fs    ) : Syntax{{},fs} {}
 	Syntax( ::umap<Key,KeySpec> const& ks , ::umap<Flag,FlagSpec> const& fs={} ) {
-		has_dflt_key = ks.empty() || ks.contains(Key::None) ;
+		has_dflt_key = !ks || ks.contains(Key::None) ;
 		//
-		SWEAR(!( has_dflt_key && !ks.empty() && ks.at(Key::None).short_name )) ;
+		SWEAR(!( has_dflt_key && +ks && ks.at(Key::None).short_name )) ;
 		//
 		for( auto const& [k,s] : ks ) keys [+k] = s ;
 		for( auto const& [f,s] : fs ) flags[+f] = s ;
@@ -74,7 +74,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	size_t flag_sz = 0     ; for( Flag f : Flag::N ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , mk_snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : Flag::N )                           has_arg |= flags[+e].has_arg                     ;
 	//
-	if (!msg.empty()) ::cerr << msg <<'\n' ;
+	if (+msg           ) ::cerr << msg <<'\n' ;
 	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
 	if (OptionsAnywhere) ::cerr << "options may be interleaved with args\n"                                                                                                               ;
 	/**/                 ::cerr << "-h or --help : print this help\n"                                                                                                                     ;

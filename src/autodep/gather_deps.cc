@@ -4,11 +4,8 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
-#include "disk.hh"
 #include "hash.hh"
-#include "trace.hh"
 #include "thread.hh"
-#include "time.hh"
 
 #include "ptrace.hh"
 
@@ -74,8 +71,8 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 	return           os << ')'                          ;
 }
 
-bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ , ::string const& comment ) {
-	SWEAR( !file.empty() , comment ) ;
+bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD dd , AccessDigest const& ad , ::string const& comment ) {
+	SWEAR( +file , comment ) ;
 	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
 	bool        is_new = it==access_map.end()  ;
@@ -87,27 +84,25 @@ bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD d
 		info = &accesses[it->second].second ;
 	}
 	AccessInfo old_info = *info ;                                              // for tracing only
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update(pd,dd,ad,parallel_id_) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update(pd,dd,ad,parallel_id) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
 	return is_new ;
 }
 
-void GatherDeps::static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin ) {
-	SWEAR( accesses.empty() , accesses ) ;                                                               // ensure we do not insert static deps after hidden ones
-	parallel_id++ ;
+void GatherDeps::new_static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin ) {
 	for( auto const& [f,d] : static_deps )
-		if (f==stdin) _new_access( {}/*fd*/ , pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , parallel_id , "stdin"       ) ; // fd for trace purpose only
-		else          _new_access( {}/*fd*/ , pd , f , +d.accesses?d.date():DD() , {d.accesses            ,d.dflags} , parallel_id , "static_deps" ) ; // .
+		if (f==stdin) _new_access( {}/*fd*/ , pd , f , file_date(f)              , {d.accesses|Access::Reg,d.dflags} , "stdin"       ) ; // fd for trace purpose only
+		else          _new_access( {}/*fd*/ , pd , f , +d.accesses?d.date():DD() , {d.accesses            ,d.dflags} , "static_deps" ) ; // .
 }
 
 void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	Disk::RealPath              rp { autodep_env }                    ;
 	Disk::RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		DD       dd = file_date(f) ;
-		new_dep( pd , ::move(f) , dd , a , {} , c ) ;
+		parallel_id++ ;
+		_new_access( {} , pd , f , file_date(f) , {.accesses=a,.dflags={}} , c ) ;
 	}
 }
 
@@ -148,7 +143,7 @@ bool/*done*/ GatherDeps::kill(int sig) {
 				if (child_pid==ctl_pid) goto NextProc ;
 				for( ::string const& fd_entry : lst_dir(to_string("/proc/",proc_entry,"/fd")) ) {
 					::string fd_fn = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
-					if ( fd_fn.empty()                        ) continue ;                     // fd has disappeared, ignore
+					if ( !fd_fn                               ) continue ;                     // fd has disappeared, ignore
 					if ( fd_fn!=stdout_fn && fd_fn!=stderr_fn ) continue ;                     // not the fd we are looking for
 					if (create_group) {
 						child_pid = ::getpgid(child_pid) ;
@@ -291,9 +286,9 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 			}
 			wait_ns = (end-now).nsec() ;
 		}
-		if (!delayed_check_deps.empty()) wait_ns = 0 ;
+		if (+delayed_check_deps) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
-		if ( events.empty() && !delayed_check_deps.empty() ) {                                  // process delayed check deps after all other events
+		if ( !events && +delayed_check_deps ) {                                // process delayed check deps after all other events
 			trace("delayed_chk_deps") ;
 			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
 			delayed_check_deps.clear() ;
@@ -355,11 +350,13 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					Proc proc  = jerr.proc ;                                             // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                             // .
 					if (proc!=Proc::Access) trace(kind,fd,epoll.cnt,proc) ;              // there may be too many Access'es, only trace within _new_accesses
+					SWEAR(!jerr.auto_date) ;                                             // this should have been solved earlier
 					switch (proc) {
 						case Proc::None      : epoll.close(fd) ; slaves.erase(fd) ;                                             break ;
 						case Proc::Tmp       : seen_tmp = true ;                                                                break ;
 						//                     vvvvvvvvvvvvvvvvvvv
 						case Proc::Access    : _new_accesses(fd,jerr) ;                                                         break ;
+						case Proc::Guard     : _new_guards  (fd,jerr) ;                                                         break ;
 						case Proc::Confirm   : _confirm     (fd,jerr) ;                                                         break ;
 						case Proc::DepInfos  : _new_accesses(fd,jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ; // if sync, handle_req_to_server replies
 						//                     ^^^^^^^^^^^^^^^^^^^
@@ -411,8 +408,8 @@ void GatherDeps::reorder() {
 		if (to_del.contains(i)) { trace("skip_from_next",file) ; goto Skip ; }
 		if ( info.is_dep() ) {
 			if ( info.digest.accesses==Access::Stat && dirs.contains(file) ) { trace("skip_from_prev",file) ; goto Skip ; } // as soon as an entry is removed, we must copy the following ones
-			for( ::string dir=dir_name(file) ; !dir.empty() ; dir=dir_name(dir) )
-				if (!dirs.insert(dir).second) break ;                             // all uphill dirs are already inserted if a dir has been inserted
+			for( ::string dir=dir_name(file) ; +dir ; dir=dir_name(dir) )
+				if (!dirs.insert(dir).second) break ;                          // all uphill dirs are already inserted if a dir has been inserted
 		}
 		if (cpy) accesses[n] = ::move(accesses[i]) ;
 		n++ ;

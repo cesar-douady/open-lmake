@@ -3,8 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import  os     as _os
-#import socket as _socket
+import os as _os
 
 from clmake import *                                                           # if not in an lmake repo, root_dir is not set to current dir
 from .utils import *
@@ -41,15 +40,19 @@ config = pdict(
 	heartbeat        = 10              # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
 ,	heartbeat_tick   =  0.1            # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
 ,	link_support     = 'Full'          # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
-#,	local_admin_dir  = 'LMAKE'         # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
+#,	local_admin_dir  = 'LMAKE_LOCAL'   # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
 ,	max_dep_depth    = 1000            # used to detect infinite recursions and loops
 ,	max_error_lines  = 100             # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay    = 1               # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 ,	path_max         = 400             # max path length, but a smaller value makes debugging easier (by default, not activated)
-#,	remote_admin_dir = 'LMAKE'         # directory in which to store job trace during remote job execution                                      (default is within LMAKE dir)
-#,	remote_tmp_dir   = 'LMAKE'         # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
-#,	rules_module     = 'rules'         # module to import to define rules. By default, rules are directly defined in Lmakefile.py
-#,	sources_module   = 'sources'       # module to import to define sources. By default, list files in Manifest or by searching git (including sub-modules)
+#,	reliable_dirs    = False           # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
+	#                                    - forced true if only local backend is used
+	#                                    - set   true  for ceph
+	#                                    - leave false for NFS
+#,	remote_admin_dir = 'LMAKE_REMOTE'  # directory in which to store job trace during remote job execution                                      (default is within LMAKE dir)
+#,	remote_tmp_dir   = 'LMAKE_TMP'     # directory in which to store tmp data  during remote job execution (not used when keep_tmp is enforced) (default is within LMAKE dir)
+#,	rules_module     = 'rules'         # module to import to define rules  . By default, rules are directly defined in Lmakefile.py
+#,	sources_module   = 'sources'       # module to import to define sources. By default, 'lmake.auto_sources' which lists files in Manifest or searches git (recursively) if lmake.sources is not set
 ,	sub_prio_boost   = 1               # increment to add to rules defined in sub-repository (multiplied by directory depth of sub-repository) to boost local rules
 ,	console = pdict(                   # tailor output lines
 		date_precision = None          # number of second decimals in the timestamp field

@@ -50,8 +50,6 @@ namespace Engine {
 
 	template<class JN> concept IsWatcher = IsOneOf<JN,Job,Node> ;
 
-	using AnalysisErr = ::vector<pair_s<Node>> ;
-
 	struct Req
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
@@ -130,9 +128,9 @@ namespace Engine {
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		bool        hit          = false/*garbage*/ ;      // else it is a rerun
-		bool        modified     = false/*garbage*/ ;
-		AnalysisErr analysis_err ;
+		bool     hit         = false/*garbage*/ ;          // else it is a rerun
+		bool     modified    = false/*garbage*/ ;
+		::string backend_msg ;
 	} ;
 
 }
@@ -223,9 +221,12 @@ namespace Engine {
 
 	struct ReqData {
 		friend struct Req ;
-		using Idx    = ReqIdx    ;
-		template<IsWatcher T> struct InfoMap : ::umap<T,typename T::ReqInfo> { typename T::ReqInfo dflt ; } ;
-		static constexpr size_t StepSz = 14 ;                                                                 // size of the field representing step in output
+		using Idx = ReqIdx ;
+		template<IsWatcher T> struct InfoMap : ::umap<T,typename T::ReqInfo> {
+			typename T::ReqInfo dflt ;
+			using ::umap<T,typename T::ReqInfo>::umap ;
+		} ;
+		static constexpr size_t StepSz = 14 ;              // size of the field representing step in output
 		// static data
 	private :
 		static ::mutex _s_audit_mutex ;                    // should not be static, but if per ReqData, this would prevent ReqData from being movable
@@ -238,8 +239,8 @@ namespace Engine {
 		// services
 		void audit_summary(bool err) const ;
 		//
-		void audit_info( Color c , ::string const& t , ::string const& lt , DepDepth l=0 ) const { audit(audit_fd,log_stream,options,c,l,t,lt) ; }
-		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit_info( c , t , {}               , l )  ; }
+		void audit_info( Color c , ::string const& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , to_string(t,' ',Disk::mk_file(lt)) , l ) ; }
+		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                                  , l ) ; }
 		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const ;
 		//
 		#define S ::string
@@ -254,23 +255,22 @@ namespace Engine {
 		//
 		void         audit_status( bool ok                                                                                                                              ) const ;
 		void         audit_stats (                                                                                                                                      ) const ;
-		bool/*seen*/ audit_stderr( ::string const& backend_msg , AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
-		bool/*seen*/ audit_stderr(                               AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
-			return audit_stderr( {}/*backend_msg*/ , analysis_err , stderr , max_stderr_lines , lvl ) ;
+		bool/*seen*/ audit_stderr( ::string const& backend_msg , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
+		bool/*seen*/ audit_stderr(                               ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
+			return audit_stderr( {}/*backend_msg*/ , stderr , max_stderr_lines , lvl ) ;
 		}
 	private :
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
-		void             _report_no_rule( Node                                                                           , DepDepth lvl=0 ) ;
+		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
 		// data
 	public :
-
-		Idx                  idx_by_start   = Idx(-1)      ;
-		Idx                  idx_by_eta     = Idx(-1)      ;
+		Idx                  idx_by_start   = Idx(-1) ;
+		Idx                  idx_by_eta     = Idx(-1) ;
 		Job                  job            ;                                  // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
-		bool                 zombie         = false        ;                   // req has been killed, waiting to be closed when all jobs are actually killed
+		bool                 zombie         = false   ;                        // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;                                  // to report to user
 		OFStream mutable     log_stream     ;                                  // saved output

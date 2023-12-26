@@ -78,6 +78,7 @@ void* get_orig(const char* syscall) {
 ,	{ "__libc_fork"         , { reinterpret_cast<void*>(Audited::__libc_fork         ) } }
 ,	{ "link"                , { reinterpret_cast<void*>(Audited::link                ) } }
 ,	{ "linkat"              , { reinterpret_cast<void*>(Audited::linkat              ) } }
+,	{ "mkdir"               , { reinterpret_cast<void*>(Audited::mkdir               ) } } // necessary against NFS strange notion of coherence as this touches containing dir
 ,	{ "mkostemp"            , { reinterpret_cast<void*>(Audited::mkostemp            ) } }
 ,	{ "mkostemp64"          , { reinterpret_cast<void*>(Audited::mkostemp64          ) } }
 ,	{ "mkostemps"           , { reinterpret_cast<void*>(Audited::mkostemps           ) } }
@@ -105,6 +106,7 @@ void* get_orig(const char* syscall) {
 ,	{ "rename"              , { reinterpret_cast<void*>(Audited::rename              ) } }
 ,	{ "renameat"            , { reinterpret_cast<void*>(Audited::renameat            ) } }
 ,	{ "renameat2"           , { reinterpret_cast<void*>(Audited::renameat2           ) } }
+,	{ "rmdir"               , { reinterpret_cast<void*>(Audited::rmdir               ) } } // necessary against NFS strange notion of coherence as this touches containing dir
 ,	{ "symlink"             , { reinterpret_cast<void*>(Audited::symlink             ) } }
 ,	{ "symlinkat"           , { reinterpret_cast<void*>(Audited::symlinkat           ) } }
 ,	{ "system"              , { reinterpret_cast<void*>(Audited::system              ) } }
@@ -120,8 +122,6 @@ void* get_orig(const char* syscall) {
 ,	{ "access"    , { reinterpret_cast<void*>(Audited::access   ) , LnkSupport::File } }
 ,	{ "faccessat" , { reinterpret_cast<void*>(Audited::faccessat) , LnkSupport::File } }
 ,	{ "opendir"   , { reinterpret_cast<void*>(Audited::opendir  ) , LnkSupport::File } }
-,	{ "rmdir"     , { reinterpret_cast<void*>(Audited::rmdir    ) , LnkSupport::File } }
-,	{ "mkdir"     , { reinterpret_cast<void*>(Audited::mkdir    ) , LnkSupport::File } }
 ,	{ "mkdirat"   , { reinterpret_cast<void*>(Audited::mkdirat  ) , LnkSupport::File } }
 ,	{ "statx"     , { reinterpret_cast<void*>(Audited::statx    ) , LnkSupport::File } }
 //

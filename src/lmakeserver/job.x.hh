@@ -131,26 +131,9 @@ namespace Engine {
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
 		void             not_started(                                                                         ) ;       // Req was killed before it started
 		//
-		void audit_end(
-			::string    const& pfx
-		,	ReqInfo     const&
-		,	::string    const& backend_msg
-		,	AnalysisErr const&
-		,	::string    const& stderr
-		,	size_t             max_stderr_len
-		,	bool               modified
-		,	Delay              exec_time   = {}
-		) const ;
-		void audit_end(
-			::string    const& pfx
-		,	ReqInfo     const& cri
-		,	AnalysisErr const& ae
-		,	::string    const& stderr
-		,	size_t             max_stderr_len
-		,	bool               modified
-		,	Delay              exec_time   = {}
-		) const {
-			audit_end(pfx,cri,{}/*backend_msg*/,ae,stderr,max_stderr_len,modified,exec_time) ;
+		void audit_end( ::string const& pfx , ReqInfo const&     , ::string const& backend_msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& cri ,                               ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time={} ) const {
+			audit_end(pfx,cri,{}/*backend_msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// start/end date book keeping
 	private :
@@ -226,8 +209,9 @@ namespace Engine {
 		using MakeAction = JobMakeAction ;
 		// static data
 	private :
-		static ::shared_mutex    _s_target_dirs_mutex ;
-		static ::umap_s<NodeIdx> _s_target_dirs       ;    // dirs created for job execution that must not be deleted // XXX : use Node rather than string
+		static ::shared_mutex              _s_target_dirs_mutex ;
+		static ::umap<Node,NodeIdx/*cnt*/> _s_target_dirs       ;              // dirs created for job execution that must not be deleted
+		static ::umap<Node,NodeIdx/*cnt*/> _s_hier_target_dirs  ;              // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
 		JobData() = default ;
@@ -281,8 +265,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		// services
-		::pair<vmap_s<pair<Node,bool/*uniquify*/>>/*wash*/,vmap<Node,bool/*uniquify*/>/*report*/> targets_to_wash(Rule::SimpleMatch const&) const ; // thread-safe
-		::vmap<Node,bool/*uniquify*/>/*report*/                                                   wash           (Rule::SimpleMatch const&) const ; // thread-safe
+		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions( Rule::SimpleMatch const& , bool manual_ok=false , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -311,11 +294,11 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
-		::pair<SpecialStep,Bool3/*modified*/> _update_target   (              Node target , ::string const& target_name , VarIdx target_id ) ;
-		bool/*maybe_new_deps*/                _submit_special  ( ReqInfo&                                                                  ) ;
-		bool                                  _targets_ok      ( Req        , Rule::SimpleMatch const&                                     ) ;
-		bool/*maybe_new_deps*/                _submit_plain    ( ReqInfo&   , JobReason , CoarseDelay pressure                             ) ;
-		void                                  _set_pressure_raw( ReqInfo&   ,             CoarseDelay                                      ) const ;
+		::pair<SpecialStep,Bool3/*modified*/> _update_target( Node target , ::string const& target_name , bool star , Disk::NfsGuard& ) ;
+		//
+		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                    ) ;
+		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& , JobReason , CoarseDelay pressure ) ;
+		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
 	public :
 		Node             asking                   ;                                                         //     32 bits,        last target needing this job

@@ -17,7 +17,6 @@ if __name__!='__main__' :
 		'tag'  : 'dir'
 	,	'repo' : lmake.root_dir
 	,	'dir'  : lmake.root_dir+'/CACHE'
-	,	'size' : 1_000_000_000
 	}
 
 	class Auto(Rule) :
@@ -53,7 +52,8 @@ else :
 
 	print('hello',file=open('hello','w'))
 
-	os.makedirs('CACHE')
+	os.makedirs('CACHE/LMAKE')
+	print('1M',file=open('CACHE/LMAKE/size','w'))
 
 	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 )              # check target is out of date
 	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 )              # check target is up to date

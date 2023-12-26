@@ -60,9 +60,9 @@ namespace Hash {
 		constexpr explicit Crc( uint64_t v                                                ) : _val{v} {}
 		/**/               Crc(                         ::string const& filename , Algo a ) : Crc{ Disk::FileInfo(filename) , filename , a } {}
 		/**/               Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
-			Disk::FileInfoDate fid{filename} ;
-			d     = fid.date            ;
-			*this = Crc(fid,filename,a) ;
+			Disk::FileInfo fi{filename} ;
+			d     = fi.date            ;
+			*this = Crc(fi,filename,a) ;
 		}
 	private :
 		/**/ Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;

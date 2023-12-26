@@ -4,7 +4,10 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
+#include "disk.hh"
 #include "rpc_job.hh"
+
+using namespace Disk ;
 
 template<class V> void _print_map(::vmap_s<V> const& m) {
 	size_t w = 0 ;
@@ -33,6 +36,8 @@ void print_pre_start(JobRpcReq const& jrr) {
 	//
 	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
 	::cout << "job    : " << jrr.job    <<'\n' ;
+	//
+	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(jrr.backend_msg)) ;
 }
 
 void print_start(JobRpcReply const& jrr) {
@@ -80,9 +85,10 @@ void print_end(JobRpcReq const& jrr) {
 	//
 	::cout << "digest.targets :\n"      ; _print_attrs(jd.targets     )          ;
 	::cout << "digest.deps :\n"         ; _print_attrs(jd.deps        )          ;
-	::cout << "digest.analysis_err :\n" ; _print_map  (jd.analysis_err)          ;
 	::cout << "digest.stderr :\n"       ; ::cout << ensure_nl(indent(jd.stderr)) ;
 	::cout << "digest.stdout :\n"       ; ::cout << ensure_nl(indent(jd.stdout)) ;
+	//
+	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(localize(jrr.backend_msg))) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -98,12 +104,10 @@ int main( int argc , char* argv[] ) {
 		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
 		print_pre_start   (report_start.pre_start   ) ;
 		print_start       (report_start.start       ) ;
-		if (!report_start.backend_msg.empty()) ::cout << "backend_msg :\n" << ensure_nl(::move(report_start.backend_msg)) ;
 	} catch(...) {}
 	try {
 		auto report_end = deserialize<JobInfoEnd>(job_stream) ;
 		print_end(report_end.end) ;
-		if (!report_end.backend_msg.empty()) ::cout << "backend_msg :\n" << ensure_nl(::move(report_end.backend_msg)) ;
 	} catch(...) {}
 	return 0 ;
 }

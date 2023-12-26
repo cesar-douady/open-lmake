@@ -11,16 +11,20 @@ namespace Caches {
 
 	struct DirCache : Cache {                                                  // PER_CACHE : inherit from Cache and provide implementation
 		using Sz = Disk::DiskSz ;
+		static constexpr char Head[] = "LMAKE" ;
 		// services
 		virtual void config(Config::Cache const&) ;
 		//
-		virtual Match      match   ( Job , Req                                 ) ;
-		virtual JobDigest  download( Job , Id        const& , JobReason const& ) ;
-		virtual bool/*ok*/ upload  ( Job , JobDigest const&                    ) ;
+		virtual Match      match   ( Job , Req                                                   ) ;
+		virtual JobDigest  download( Job , Id        const& , JobReason const& , Disk::NfsGuard& ) ;
+		virtual bool/*ok*/ upload  ( Job , JobDigest const& ,                    Disk::NfsGuard& ) ;
+		//
+		void chk(ssize_t delta_sz=0) const ;
 	private :
-		Sz   _lru_remove( ::string const& entry             ) ;
-		void _lru_first ( ::string const& entry , Sz sz     ) ;
-		void _mk_room   ( Sz old_sz             , Sz new_sz ) ;
+		::string _lru_file  ( ::string const& entry             ) const { return to_string(dir,'/',entry,"/lru") ; }
+		Sz       _lru_remove( ::string const& entry             ) ;
+		void     _lru_first ( ::string const& entry , Sz sz     ) ;
+		void     _mk_room   ( Sz old_sz             , Sz new_sz ) ;
 		// data
 		::string repo   ;
 		::string dir    ;

@@ -55,7 +55,7 @@ namespace Engine {
 		::string dir      = g_config.local_admin_dir+"/store" ;
 		bool     writable = g_store.writable                  ;
 		//
-		make_dir(dir) ;
+		mkdir(dir) ;
 		// jobs
 		g_store.job_file         .init( dir+"/job"          , writable ) ;
 		g_store.deps_file        .init( dir+"/deps"         , writable ) ;
@@ -78,7 +78,7 @@ namespace Engine {
 		}
 		// memory
 		// Rule
-		if (g_store.rule_file.empty()) for( [[maybe_unused]] Special s : Special::Shared ) g_store.rule_file.emplace() ;
+		if (!g_store.rule_file) for( [[maybe_unused]] Special s : Special::Shared ) g_store.rule_file.emplace() ;
 		RuleBase::s_match_gen = g_store.rule_file.c_hdr() ;
 		g_store._compile_srcs () ;
 		g_store._compile_rules() ;
@@ -121,7 +121,7 @@ namespace Engine {
 
 	void EngineStore::s_new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("s_new_config",Pdate::s_now(),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                              ) make_dir( AdminDir+"/outputs"s , true/*unlink_ok*/ ) ;
+		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlink_ok*/ ) ;
 		if ( !dynamic                                              ) _s_init_config() ;
 		if (  dynamic                                              ) SWEAR(g_config.booted,g_config) ; // we must update something
 		//
@@ -357,12 +357,12 @@ namespace Engine {
 		for( PsfxIdx sfx_idx : g_store.sfxs_file.lst() ) {
 			::string sfx      = g_store.sfxs_file.str_key(sfx_idx) ;
 			PsfxIdx  pfx_root = g_store.sfxs_file.at     (sfx_idx) ;
-			bool single = !sfx.empty() && sfx[0]==StartMrkr ;
+			bool     single   = +sfx && sfx[0]==StartMrkr          ;
 			for( PsfxIdx pfx_idx : g_store.pfxs_file.lst(pfx_root) ) {
 				RuleTgts rts = g_store.pfxs_file.at(pfx_idx) ;
 				::string pfx = g_store.pfxs_file.str_key(pfx_idx) ;
-				if (single) { SWEAR(pfx.empty(),pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
-				else        {                          trace2( pfx+'*'+sfx           , ':' ) ; }
+				if (single) { SWEAR(!pfx,pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
+				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
 				for( RuleTgt rt : rts.view() ) trace3( +Rule(rt) , ':' , rt->prio , rt->name , rt.key() ) ;
 			}
@@ -442,7 +442,7 @@ namespace Engine {
 			for( auto [n,d] : srcs ) srcs_stream << n->name() << (d?"/":"") <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
-		return !old_srcs.empty() || !new_srcs.empty() ;
+		return+!old_srcs || +new_srcs ;
 	}
 
 	void EngineStore::_s_set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) {

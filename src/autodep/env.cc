@@ -16,7 +16,7 @@ using namespace Disk ;
 }
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
-	if (env.empty()) return ;
+	if (!env) return ;
 	size_t sz  = 0/*garbage*/        ;
 	size_t pos = env.find(':'      ) ; if (pos==Npos) goto Fail ;
 	/**/   pos = env.find(':',pos+1) ; if (pos==Npos) goto Fail ;
@@ -26,11 +26,12 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	// options
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : auto_mkdir  = true             ; break ;
-			case 'i' : ignore_stat = true             ; break ;
-			case 'n' : lnk_support = LnkSupport::None ; break ;
-			case 'f' : lnk_support = LnkSupport::File ; break ;
-			case 'a' : lnk_support = LnkSupport::Full ; break ;
+			case 'd' : auto_mkdir    = true             ; break ;
+			case 'i' : ignore_stat   = true             ; break ;
+			case 'n' : lnk_support   = LnkSupport::None ; break ;
+			case 'f' : lnk_support   = LnkSupport::File ; break ;
+			case 'a' : lnk_support   = LnkSupport::Full ; break ;
+			case 'r' : reliable_dirs = true             ; break ;
 			default  : goto Fail ;
 		}
 	//source dirs
@@ -59,8 +60,9 @@ AutodepEnv::operator ::string() const {
 	res += service ;
 	// options
 	res += ':' ;
-	if (auto_mkdir ) res += 'd' ;
-	if (ignore_stat) res += 'i' ;
+	if (auto_mkdir   ) res += 'd' ;
+	if (ignore_stat  ) res += 'i' ;
+	if (reliable_dirs) res += 'r' ;
 	switch (lnk_support) {
 		case LnkSupport::None : res += 'n' ; break ;
 		case LnkSupport::File : res += 'f' ; break ;

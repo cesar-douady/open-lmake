@@ -84,6 +84,7 @@ template<class Action,bool DP=false> struct AuditAction : Ctx,Action {
 using ChDir   = AuditAction<Record::ChDir              > ;
 using Chmod   = AuditAction<Record::Chmod              > ;
 using Exec    = AuditAction<Record::Exec               > ;
+using Mkdir   = AuditAction<Record::Mkdir              > ;
 using Lnk     = AuditAction<Record::Lnk    ,true       > ;
 using Open    = AuditAction<Record::Open               > ;
 using Read    = AuditAction<Record::Read               > ;
@@ -159,6 +160,11 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#define NE           noexcept
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
 	#define EXE(  mode ) bool((mode )&S_IXUSR            )
+	#ifdef RENAME_EXCHANGE
+		#define REXC(flags) bool((flags)&RENAME_EXCHANGE)
+	#else
+		#define REXC(flags) false
+	#endif
 
 	#define ORIG(syscall) static decltype(::syscall)* orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall))
 	// cwd is implicitely accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
@@ -283,9 +289,14 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#pragma GCC diagnostic pop
 
 	// link
-	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
-	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HEADER2(linkat,op,np,(od,op,nd,np,f)) ; Lnk r{{od,op},{nd,np},f} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false/*no_follow*/ } ; return r(orig(F(r.src),F(r.dst)  )) ; }
+	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HEADER2(linkat,op,np,(od,op,nd,np,f)) ; Lnk r{{od,op},{nd,np},ASLNF(f)           } ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
+	// mkdir
+	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Mkdir r{   p } ; return r(orig(F(r),m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p}} ; return r(orig(P(r),m)) ; }
+
+	// mkstemp
 	#define O_CWT (O_CREAT|O_WRONLY|O_TRUNC)
 	// in case of success, tmpl is modified to contain the file that was actually opened
 	#define MKSTEMP(syscall,tmpl,sfx_len,args) \
@@ -340,10 +351,13 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 		else                { ReadLnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz))         ; }
 	}
 
-	// rename
-	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,0u,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
-	int renameat (int od,CC* op,int nd,CC* np       ) NE { HEADER2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},0u,"renameat" } ; return r(orig(P(r.src),P(r.dst)  )) ; }
-	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},f ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	// rename                                                                                                                  exchange
+	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false   ,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
+	int renameat (int od,CC* op,int nd,CC* np       ) NE { HEADER2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},false   ,"renameat" } ; return r(orig(P(r.src),P(r.dst)  )) ; }
+	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f) ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+
+	// rmdir
+	int rmdir(CC* p) NE { HEADER1(rmdir,p,(p)) ; Unlink r{p,true/*rmdir*/,"rmdir"} ; return r(orig(F(r))) ; }
 
 	// symlink
 	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Symlnk r{     pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
@@ -354,15 +368,14 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	int truncate64(CC* pth,off_t len) NE { HEADER1(truncate64,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(F(r),len)) ; }
 
 	// unlink
-	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlink r{     pth ,false/*remove_dir*/    ,"unlink"  } ; return r(orig(F(r)     )) ; }
+	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlink r{     pth ,false/*rmdir*/         ,"unlink"  } ; return r(orig(F(r)     )) ; }
 	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlink r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	//                                                                                          no_follow
+	//                                                                                          no_follow read
 	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,      "access"   } ; return r(orig(F(r),m  )) ; }
 	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,      "faccessat"} ; return r(orig(P(r),m,f)) ; }
 	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true     ,false            } ; return r(orig(F(r)    )) ; }
-	int  rmdir    (      CC* p            ) NE { HEADER1(rmdir    ,p,(  p    )) ; Solve r{   p ,true     ,false            } ; return r(orig(F(r)    )) ; }
 	//                                                                                                                 no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
@@ -386,11 +399,6 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	char* realpath              (CC* p,char* rp          ) NE { HEADER1(realpath              ,p,(p,rp   )) ; Stat r{p,false    ,"realpath              "} ; return r(orig(F(r),rp   )) ; }
 	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HEADER1(__realpath_chk        ,p,(p,rp,rl)) ; Stat r{p,false    ,"__realpath_chk        "} ; return r(orig(F(r),rp,rl)) ; }
 	char* canonicalize_file_name(CC* p                   ) NE { HEADER1(canonicalize_file_name,p,(p      )) ; Stat r{p,false    ,"canonicalize_file_name"} ; return r(orig(F(r)      )) ; }
-
-	// mkdir
-	//                                                                                no_follow,read
-	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),m)) ; }
 
 	// scandir
 	using NmLst   = struct dirent  ***                                       ;
@@ -454,6 +462,7 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	#undef ORIG
 
 	#undef EXE
+	#undef REXC
 	#undef ASLNF
 	#undef NE
 

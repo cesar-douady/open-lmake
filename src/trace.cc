@@ -29,7 +29,7 @@ Channels          Trace::s_channels     = DfltChannels ;   // by default, trace 
 	thread_local OStringStream* Trace::_t_buf  = nullptr ;
 
 	void Trace::s_start(Channels cs) {
-		if ( !g_trace_file || g_trace_file->empty() ) return ;
+		if ( !g_trace_file || !*g_trace_file ) return ;
 		t_thread_key = '=' ;                                                   // called from main thread
 		s_channels   = cs  ;
 		dir_guard(*g_trace_file) ;
@@ -51,8 +51,8 @@ Channels          Trace::s_channels     = DfltChannels ;   // by default, trace 
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
-			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (!prev_old.empty()) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
-			/**/                                                                       if (!prev_old.empty()) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
+			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
+			/**/                                                                       if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
 		_s_fd = open_write(*g_trace_file) ;
 		_s_fd.no_std() ;

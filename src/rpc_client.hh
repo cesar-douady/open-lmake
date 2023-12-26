@@ -156,9 +156,9 @@ struct ReqRpcReply {
 	friend ::ostream& operator<<( ::ostream& , ReqRpcReply const& ) ;
 	using Kind = ReqKind ;
 	// cxtors & casts
-	ReqRpcReply(                      ) = default ;
-	ReqRpcReply(bool            ok_   ) : kind{Kind::Status} , ok {ok_ } {}
-	ReqRpcReply(::string const& txt_  ) : kind{Kind::Txt   } , txt{txt_} {}
+	ReqRpcReply(               ) = default ;
+	ReqRpcReply(bool       ok_ ) : kind{Kind::Status} , ok {ok_ }         {}
+	ReqRpcReply(::string&& txt_) : kind{Kind::Txt   } , txt{::move(txt_)} {}
 	//
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = ReqRpcReply() ;

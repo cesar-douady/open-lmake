@@ -68,12 +68,12 @@ static void connect_to_server(bool refresh) {
 		// retry if not successful, may be a race between several clients trying to connect to/launch servers
 	}
 	::string kill_server_msg ;
-	if (!server_service.empty()) {
+	if (+server_service) {
 		::string server_host = SockFd::s_host(server_service) ;
 		if (server_host!=host()) kill_server_msg = to_string("ssh ",SockFd::s_host(server_service),' ') ;
 	}
-	if (server_pid              ) kill_server_msg += to_string("kill ",server_pid       ) ;
-	if (!kill_server_msg.empty()) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
+	if (server_pid      ) kill_server_msg += to_string("kill ",server_pid       ) ;
+	if (!kill_server_msg) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
 	exit(2
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg

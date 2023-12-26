@@ -122,7 +122,7 @@ struct PidInfo {
 ::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
 void AutodepPtrace::_init(pid_t cp) {
-	SWEAR( s_autodep_env->tmp_view.empty() , s_autodep_env->tmp_view ) ;       // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
+	SWEAR( !s_autodep_env->tmp_view , s_autodep_env->tmp_view ) ;              // mapping tmp is incompatible with ptrace as memory allocation in child process is impossible
 	Record::s_autodep_env(*s_autodep_env) ;
 	child_pid = cp ;
 	//
@@ -140,7 +140,7 @@ void AutodepPtrace::_init(pid_t cp) {
 
 void AutodepPtrace::s_prepare_child() {
 	AutodepEnv const& ade = Record::s_autodep_env(*s_autodep_env) ;
-	SWEAR( ade.tmp_view.empty()                 , ade.tmp_view ) ;             // cannot support directory mapping as there is no way to allocate memory in the traced process
+	SWEAR( !ade.tmp_view                        , ade.tmp_view ) ;             // cannot support directory mapping as there is no way to allocate memory in the traced process
 	SWEAR( ade.lnk_support!=LnkSupport::Unknown )                ;
 	#if HAS_SECCOMP
 		// prepare seccomp filter

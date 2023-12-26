@@ -19,10 +19,10 @@ extern "C" {
 
 ::pair_ss search_root_dir(::string const& cwd_) {
 	::string root_s_dir = cwd_ ;
-	if (root_s_dir.empty()     ) root_s_dir =           cwd()           ;
+	if (!root_s_dir     ) root_s_dir =           cwd()           ;
 	if (root_s_dir.front()!='/') root_s_dir = to_string(cwd(),'/',cwd_) ;
 	::vector_s candidates ;
-	for(; !root_s_dir.empty() ; root_s_dir = dir_name(root_s_dir) ) if (is_target(root_s_dir+"/Lmakefile.py")) candidates.push_back(root_s_dir) ;
+	for(; +root_s_dir ; root_s_dir = dir_name(root_s_dir) ) if (is_target(root_s_dir+"/Lmakefile.py")) candidates.push_back(root_s_dir) ;
 	switch (candidates.size()) {
 		case 0 : throw "cannot find root dir"s ;
 		case 1 : root_s_dir = candidates[0] ; break ;

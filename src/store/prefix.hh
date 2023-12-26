@@ -506,7 +506,6 @@ namespace Store {
 		template<class... A> Idx emplace(A&&...) = delete ;
 		//
 		using Base::clear  ;
-		using Base::empty  ;
 		using Base::size   ;
 		using Base::_mutex ;
 
@@ -1398,7 +1397,6 @@ namespace Store {
 		using HdrNv   = NoVoid<Hdr>            ;
 		using Base::HasData ;
 		using Base::IsStr   ;
-		using Base::empty   ;
 		using Base::clear   ;
 		using Base::_mutex  ;
 		static constexpr bool HasHdr = !is_void_v<Hdr> ;
@@ -1414,7 +1412,7 @@ namespace Store {
 		}
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable , ::forward<A>(hdr_args)... ) ;
-			if (empty()) _boot() ;
+			if (!*this) _boot() ;
 		}
 	private :
 		void _boot() {

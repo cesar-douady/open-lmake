@@ -96,7 +96,6 @@ namespace Store {
 		void shorten(Idx,Sz) = delete ;
 		//
 		using Base::size   ;
-		using Base::empty  ;
 		using Base::_mutex ;
 		// cxtors & casts
 		using Base::Base ;
@@ -110,7 +109,7 @@ namespace Store {
 		StrView     str_view(Idx idx) const requires(IsStr) { VecView res = view(idx) ;  return StrView(res.begin(),res.size()) ; }
 		// services
 		template<::convertible_to<Item> I> Idx emplace(::vector_view<I> const& v) {
-			if (v.empty()) return 0                                               ;
+			if (!v) return 0                                               ;
 			ULock lock{_mutex} ;
 			return Base::emplace( Chunk::s_n_items(v.size()) , v ) ;
 		}
@@ -138,10 +137,10 @@ namespace Store {
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx assign( Idx idx , ::vector_view<I> const& v ) {
-			//                                 vvvvvvvvvv
-			if (!idx     ) {            return emplace(v) ; }
-			if (v.empty()) { pop(idx) ; return 0          ; }
-			//                                 ^^^^^^^^^^
+			//                            vvvvvvvvvv
+			if (!idx) {            return emplace(v) ; }
+			if (!v  ) { pop(idx) ; return 0          ; }
+			//                            ^^^^^^^^^^
 			ULock lock{_mutex} ;
 			Chunk& chunk = Base::at(idx)              ;
 			IdxSz  old_n = chunk.n_items()            ;
@@ -165,10 +164,10 @@ namespace Store {
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx append( Idx idx , ::vector_view<I> const& v ) {
-			//                    vvvvvvvvvv
-			if (!idx     ) return emplace(v) ;
-			if (v.empty()) return idx        ;
-			//                    ^^^^^^^^^^
+			//               vvvvvvvvvv
+			if (!idx) return emplace(v) ;
+			if (!v  ) return idx        ;
+			//               ^^^^^^^^^^
 			ULock lock{_mutex} ;
 			Chunk& chunk = Base::at(idx)                       ;
 			IdxSz  old_n = chunk.n_items()                     ;

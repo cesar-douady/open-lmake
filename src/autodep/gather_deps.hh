@@ -11,6 +11,7 @@
 #include "process.hh"
 #include "rpc_job.hh"
 #include "time.hh"
+#include "trace.hh"
 
 #include "env.hh"
 
@@ -27,7 +28,6 @@ struct GatherDeps {
 	using Proc         = JobExecRpcProc              ;
 	using DD           = Time::Ddate                 ;
 	using PD           = Time::Pdate                 ;
-	using FI           = Disk::FileInfo              ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
@@ -57,23 +57,27 @@ public :
 	}
 	// services
 private :
-	bool/*new*/ _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , NodeIdx parallel_id , ::string const& comment={} ) ; // fd for trace purpose only
+	bool/*new*/ _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , ::string const& comment={} ) ; // fd for trace purpose only
 	//
 	void _new_accesses( Fd fd , JobExecRpcReq const& jerr ) {                  // fd for trace purpose only
-		SWEAR(!jerr.auto_date) ;
 		parallel_id++ ;
-		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , parallel_id , jerr.comment ) ;
+		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , jerr.comment ) ;
 	}
-	void _confirm( Fd , JobExecRpcReq const& jerr ) {
-		for( auto const& [f,_] : jerr.files ) accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ;
+	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
+		Trace trace("_confirm",fd) ;
+		for( auto const& [f,_] : jerr.files ) { trace(f) ; accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ; }
+	}
+	void _new_guards( Fd fd , JobExecRpcReq const& jerr ) {                    // fd for trace purpose only
+		Trace trace("_new_guards",fd) ;
+		for( auto const& [f,_] : jerr.files ) { trace(f) ; guards.insert(f) ; }
 	}
 public :
-	//                                                                                                                                                                            parallel_id
-	void new_target( PD pd , ::string const& t , Tflags n , Tflags p             , ::string const& c="target" ) { _new_access({},pd,t,{},{.neg_tflags=n,.pos_tflags=p,.write=Yes},0          ,c) ; }
-	void new_dep   ( PD pd , ::string const& d , DD dd , Accesses a , Dflags dfs , ::string const& c="dep"    ) { _new_access({},pd,d,dd,{.accesses=a,.dflags=dfs               },0          ,c) ; }
+	void new_target( PD pd , ::string const& t , Tflags n , Tflags p , ::string const& c="static_target" ) { _new_access({},pd,t,{},{.neg_tflags=n,.pos_tflags=p,.write=true},c) ; }
+	void new_unlink( PD pd , ::string const& t ,                       ::string const& c="static_unlink" ) { _new_access({},pd,t,{},{.unlink=true                           },c) ; }
+	void new_guard (         ::string const& f                                                           ) { guards.insert(f) ;                                                    }
 	//
-	void static_deps( PD , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin={}                           ) ;
-	void new_exec   ( PD , ::string const& exe                                               , ::string const& ="exec" ) ;
+	void new_static_deps( PD , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin={}                                  ) ;
+	void new_exec       ( PD , ::string const& exe                                               , ::string const& ="static_exec" ) ;
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
@@ -104,6 +108,7 @@ public :
 	 ::map_ss const*                              env          = nullptr                                                        ;
 	vmap_s<AccessInfo>                            accesses     ;
 	umap_s<NodeIdx   >                            access_map   ;
+	uset_s                                        guards       ;                                                                  // dir creation/deletion that must be guarded against NFS
 	NodeIdx                                       parallel_id  = 0                                                              ; // id to identify parallel deps
 	bool                                          seen_tmp     = false                                                          ;
 	int                                           wstatus      = 0/*garbage*/                                                   ;

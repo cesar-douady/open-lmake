@@ -51,7 +51,7 @@ namespace Store {
 			capacity = round_up( capacity_ , g_page ) ;
 			//
 			ULock lock{_mutex} ;
-			if (name.empty()) {
+			if (!name) {
 				size = 0 ;
 			} else {
 				int open_flags = O_LARGEFILE | O_CLOEXEC ;
@@ -75,7 +75,8 @@ namespace Store {
 			_fd.close() ;
 		}
 		// accesses
-		bool empty() const { return !size ; }
+		bool operator+() const { return size    ; }
+		bool operator!() const { return !+*this ; }
 		// services
 		void lock           ()       {        _mutex.lock           () ; }     // behave as a mutex, so file can be used in ::unique_lock et al.
 		bool try_lock       ()       { return _mutex.try_lock       () ; }     // but if AutoLock, then there is no reason to access it from outside
@@ -123,9 +124,9 @@ namespace Store {
 			//
 			int map_prot  = PROT_READ ;
 			int map_flags = 0         ;
-			if (writable    ) map_prot  |= PROT_WRITE                  ;
-			if (name.empty()) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
-			else              map_flags |= MAP_SHARED                  ;
+			if (writable) map_prot  |= PROT_WRITE                  ;
+			if (!name   ) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
+			else          map_flags |= MAP_SHARED                  ;
 			//
 			void* actual = ::mmap( base+old_size , size-old_size , map_prot , MAP_FIXED|map_flags , _fd , old_size ) ;
 			if (actual!=base+old_size) FAIL_PROD(hex,size_t(base),size_t(actual),dec,old_size,size,strerror(errno)) ;

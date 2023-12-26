@@ -65,10 +65,10 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather_deps.accesses ) {
 		if (ai.digest.idle()) continue ;
-		deps_stream << ( +ai.digest.accesses  ? '<' : ' ' ) ;
-		deps_stream << ( ai.digest.write !=No ? '>' : ' ' ) ;
-		deps_stream << ( ai.digest.unlink!=No ? '!' : ' ' ) ;
-		deps_stream << target << '\n'                       ;
+		deps_stream << ( +ai.digest.accesses ? '<' : ' ' ) ;
+		deps_stream << ( ai.digest.write     ? '>' : ' ' ) ;
+		deps_stream << ( ai.digest.unlink    ? '!' : ' ' ) ;
+		deps_stream << target << '\n'                      ;
 	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;
@@ -76,7 +76,7 @@ int main( int argc , char* argv[] ) {
 	NodeIdx  prev_parallel_id = 0     ;
 	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {        // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = parallel_id && parallel_id==prev_parallel_id ;
-		if (!prev_dep.empty()) {
+		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
 			else if ( !prev_parallel &&  parallel ) deps_stream << "/ "  ;
 			else if (  prev_parallel &&  parallel ) deps_stream << "| "  ;

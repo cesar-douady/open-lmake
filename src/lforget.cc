@@ -22,8 +22,8 @@ int main( int argc , char* argv[] ) {
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	switch (cmd_line.key) {
-		case ReqKey::Error     : if (!cmd_line.args.empty()) syntax.usage("must not have targets when forgetting resources") ; break ;
-		case ReqKey::Resources : if (!cmd_line.args.empty()) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
+		case ReqKey::Error     : if (+cmd_line.args) syntax.usage("must not have targets when forgetting resources") ; break ;
+		case ReqKey::Resources : if (+cmd_line.args) syntax.usage("must not have targets when forgetting errors"   ) ; break ;
 		default : ;
 	}
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

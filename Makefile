@@ -89,6 +89,7 @@ COMMA         := ,
 
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
+ASSEMBLE            := $(CC)             -S                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
 LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=) # e.g. : LIBARY_PATH=/a/b:/c:/a/b/c/..
 LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                 # e.g. : /a/b:/c:/a/b/c/..
@@ -327,6 +328,7 @@ $(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(PREPROCESS) $(
 $(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
 
 $(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(INCLUDES) -o $@ $<
+$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
 $(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(INCLUDES) -o $@ $<
 $(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(INCLUDES) -o $@ $<
 
@@ -615,7 +617,8 @@ $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
 $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
-	mkdir -p $(LMAKE_ENV)-cache
+	mkdir -p $(LMAKE_ENV)-cache/LMAKE
+	echo '300M' > $(LMAKE_ENV)-cache/LMAKE/size
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
 	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)

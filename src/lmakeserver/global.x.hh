@@ -3,6 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "disk.hh"
 #include "hash.hh"
 #include "pycxx.hh"
 #include "rpc_client.hh"
@@ -172,7 +173,8 @@ namespace Engine {
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
-		size_t                                                                   max_err_lines         = 0  ;     // unlimited
+		size_t                                                                   max_err_lines         = 0     ; // unlimited
+		bool                                                                     reliable_dirs         = false ; // if true => dirs coherence is enforced when files are modified
 		::string                                                                 user_remote_admin_dir ;
 		::string                                                                 user_remote_tmp_dir   ;
 		Console                                                                  console               ;
@@ -217,10 +219,10 @@ namespace Engine {
 		::string remote_tmp_dir   ;
 	} ;
 
-	/**/          void audit( Fd out_fd , ::ostream& trace , ReqOptions const&    , Color   , DepDepth     , ::string const& pfx , ::string const& name={} , ::string const& sfx={} ) ;
-	static inline void audit( Fd out_fd ,                    ReqOptions const& ro , Color c , DepDepth lvl , ::string const& pfx , ::string const& name={} , ::string const& sfx={} ) {
+	/**/          void audit( Fd out_fd , ::ostream& trace , ReqOptions const&    , Color   , ::string const&     , DepDepth    =0 ) ;
+	static inline void audit( Fd out_fd ,                    ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl=0 ) {
 		OFakeStream fake ;
-		audit( out_fd , fake , ro , c , lvl , pfx , name , sfx ) ;
+		audit( out_fd , fake , ro , c , txt , lvl ) ;
 	}
 
 	template<class... A> static inline ::string title    ( ReqOptions const& , A&&... ) ;
@@ -255,14 +257,14 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
 		JobProc                       proc          = JobProc::None ;
 		JobExec                       exec          = {}            ;
-		bool                          report        = false         ;          // if proc==Start
-		::vmap<Node,bool/*uniquify*/> report_unlink = {}            ;          // if proc==Start
-		::string                      txt           = {}            ;          // if proc==Start | LiveOut
-		Req                           req           = {}            ;          // if proc==Continue
-		::vmap_ss                     rsrcs         = {}            ;          // if proc==End
-		JobDigest                     digest        = {}            ;          // if proc==End
-		::string                      backend_msg   = {}            ;          // if proc==End
-		Fd                            reply_fd      = {}            ;          // if proc==ChkDeps
+		bool                          report        = false         ;          // if proc == Start
+		::vmap<Node,bool/*uniquify*/> report_unlink = {}            ;          // if proc == Start
+		::string                      txt           = {}            ;          // if proc == Start | LiveOut
+		Req                           req           = {}            ;          // if proc == Continue
+		::vmap_ss                     rsrcs         = {}            ;          // if proc == End
+		JobDigest                     digest        = {}            ;          // if proc == End
+		::string                      backend_msg   = {}            ;          // if proc == End
+		Fd                            reply_fd      = {}            ;          // if proc == ChkDeps
 	} ;
 
 	struct EngineClosure {
@@ -342,6 +344,12 @@ namespace Engine {
 #endif
 #ifdef IMPL
 namespace Engine {
+
+	static inline ::string reason_str(JobReason const& reason) {
+		::string res = reason.msg() ;
+		if (reason.node) append_to_string( res ,' ', Disk::mk_file(Node(reason.node)->name()) ) ;
+		return res ;
+	}
 
 	template<class... A> static inline ::string title( ReqOptions const& ro , A&&... args ) {
 		if (ro.reverse_video==Maybe) return {} ;

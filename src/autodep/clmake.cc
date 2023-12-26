@@ -58,7 +58,7 @@ static ::vector_s _get_files( PyObject* args ) {
 		/**/                          { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) _push_str( res , PyTuple_GET_ITEM(args,i) ) ; }
 	}
 	for( size_t i=0 ; i<res.size() ; i++ )
-		if (res[i].empty()) {
+		if (!res[i]) {
 			const char* th = nullptr ;
 			switch ((i+1)%10) {
 				case 1  : th = "st" ; break ;
@@ -99,7 +99,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
 	if (verbose) {
-		if (files.empty()) return PyDict_New() ;                               // fast path : depend on no files
+		if (!files) return PyDict_New() ;                               // fast path : depend on no files
 		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                               ;
@@ -150,8 +150,8 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
-	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=No|!unlink,.unlink=No|unlink} , no_follow , "target" ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                               ;
+	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=!unlink,.unlink=unlink} , no_follow , "target" ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
 	//
 	Py_RETURN_NONE ;
 }
@@ -171,7 +171,7 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	if (views.size()==0) views.push_back(cwd()) ;
 	SWEAR( views.size()==1 , views.size() ) ;
 	::string const& view = views[0] ;
-	if (view.empty()) return PyUnicode_FromString("") ;
+	if (!view) return PyUnicode_FromString("") ;
 	//
 	RealPath::SolveReport solve_report = RealPath(_g_autodep_support).solve(view,no_follow) ;
 	//

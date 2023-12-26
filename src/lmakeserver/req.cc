@@ -100,7 +100,7 @@ namespace Engine {
 	}
 
 	void Req::close(bool close_backend) {
-		Trace trace("close",*this) ;
+		Trace trace("close",*this,STR(close_backend)) ;
 		SWEAR((*this)->is_open()) ;
 		kill() ;                                                               // in case req is closed before being done
 		if (close_backend) Backend::s_close_req(+*this) ;
@@ -205,10 +205,10 @@ namespace Engine {
 			else                                               { prefix = "    " ;                    }
 			(*this)->audit_node( Color::Note , prefix,cycle[i] , 1 ) ;
 		}
-		if (!to_forget.empty() || !to_raise.empty() ) {
+		if ( +to_forget || +to_raise ) {
 			(*this)->audit_info( Color::Note , "consider :\n" ) ;
 			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d "           , n , 1 ) ;
-			if (!to_raise.empty())    (*this)->audit_info( Color::Note , "add to Lmakefile.py :" ,     1 ) ;
+			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :" ,     1 ) ;
 			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 2 ) ;
 		}
 	}
@@ -219,22 +219,18 @@ namespace Engine {
 		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
 		const char*          err = nullptr                ;
 		switch (dep->status()) {
-			case NodeStatus::Multi      : err = "multi"               ; break ;
-			case NodeStatus::Transcient : err = "transcient sub-file" ; break ;
-			case NodeStatus::Uphill     : err = "sub-file"            ; break ;
+			case NodeStatus::Multi      :                                  err = "multi"                                            ; break ;
+			case NodeStatus::Transcient :                                  err = "missing transcient sub-file"                      ; break ;
+			case NodeStatus::Uphill     : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                        ; break ;
+			case NodeStatus::Src        : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
+			case NodeStatus::SrcDir     : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
 			case NodeStatus::Plain :
-				if      (dep->manual()==Yes                ) err = "manual"      ;
-				else if (cri.overwritten                   ) err = "overwritten" ;
-				else if (dep->conform_job_tgts(cri).empty()) err = "not built"   ; // if no better explanation found
+				if      (dep->manual()==Yes         ) err = "manual"      ;
+				else if (cri.overwritten            ) err = "overwritten" ;
+				else if (!dep->conform_job_tgts(cri)) err = "not built"   ;    // if no better explanation found
 				else
 					for( Job job : dep->conform_job_tgts(cri) )
 						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
-			break ;
-			case NodeStatus::Src :
-				if (dep->crc==Crc::None) err = dep.frozen() ? "missing frozen" : "missing source" ;
-			break ;
-			case NodeStatus::SrcDir :
-				if (dep.dflags[Dflag::Required]) err = "missing" ;
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual()==Yes         ) err = "dangling" ;
@@ -265,9 +261,7 @@ namespace Engine {
 				auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
 				auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
 				EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
-				AnalysisErr       ae             ;
-				for( auto const& [t,n] : report_end.end.digest.analysis_err ) ae.emplace_back(t,Node(n)) ;
-				seen_stderr |= (*this)->audit_stderr( ae , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+				seen_stderr = (*this)->audit_stderr( report_end.end.backend_msg , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 			} catch(...) {
 				(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 			}
@@ -297,9 +291,10 @@ namespace Engine {
 			bool         seen_stderr = false                                                        ;
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
+			NfsGuard     nfs_guard   { g_config.reliable_dirs }                                     ;
 			if (job->rule->special==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable) _report_err             (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
-				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) (*this)->_report_no_rule(d                                            ) ;
+				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) (*this)->_report_no_rule(d,nfs_guard                                  ) ;
 			} else {
 				/**/                                                                  _report_err             (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
@@ -379,29 +374,23 @@ namespace Engine {
 	}
 
 	void ReqData::audit_summary(bool err) const {
-		bool warning =
-			!frozen_jobs.empty()
-		||	!no_triggers.empty()
-		||	!clash_nodes.empty()
-		||	!long_names .empty()
-		;
+		bool warning = +frozen_jobs || +no_triggers || +clash_nodes || +long_names ;
 		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
 			"+---------+\n"
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Err  , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)               ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )               ) ) ;
-		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)               ) ) ;
-		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )               ) ) ;
-		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )               ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str() ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str() ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str() ) ) ;
+		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Err  , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)                                ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )                                ) ) ;
+		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)                                ) ) ;
+		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )                                ) ) ;
+		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )                                ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str()                  ) ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
-		if (!options.startup_dir_s.empty()) audit_info( Color::Note , to_string("startup dir : ",options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
-		//
-		if (!up_to_dates.empty()) {
+		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;
 			static ::string plain_msg = "was already up to date" ;
 			size_t w = 0 ;
@@ -412,7 +401,7 @@ namespace Engine {
 				if      (n->is_src()                     ) audit_node( Color::Warning                     , to_string(::setw(w),src_msg  ," :") , n ) ;
 				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg," :") , n ) ;
 		}
-		if (!losts.empty()) {
+		if (+losts) {
 			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;
 			::sort( losts_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0     ;
@@ -421,7 +410,7 @@ namespace Engine {
 			for( auto [j,_] : ::vector_view_c(losts_,0,g_config.n_errs(losts_.size())) ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
 			if ( g_config.errs_overflow(losts_.size()) )                                 audit_info( e       ?Color::Err:Color::Warning , "..."                                                  ) ;
 		}
-		if (!long_names.empty()) {
+		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
 			size_t               pm          = 0                   ;
 			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
@@ -431,19 +420,19 @@ namespace Engine {
 			SWEAR(pm>g_config.path_max) ;
 			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;
 		}
-		if (!frozen_jobs.empty()) {
+		if (+frozen_jobs) {
 			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
-		if (!no_triggers.empty()) {
+		if (+no_triggers) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
 			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
-		if (!clash_nodes.empty()) {
+		if (+clash_nodes) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
 			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			audit_info( Color::Warning ,
@@ -461,7 +450,7 @@ namespace Engine {
 		/**/                                         msg <<      ::setw(StepSz                   )<<step                                        ;
 		/**/                                         msg <<' '<< ::setw(RuleData::s_name_sz      )<<rule_name                                   ;
 		if (g_config.console.has_exec_time         ) msg <<' '<< ::setw(6                        )<<(+exec_time?exec_time.short_str():"")       ;
-		audit( audit_fd , log_stream , options , c , 0 , msg.str() , job_name ) ;
+		audit( audit_fd , log_stream , options , c , to_string(msg.str(),' ',mk_file(job_name)) ) ;
 		last_info = {} ;
 	}
 
@@ -471,10 +460,9 @@ namespace Engine {
 		log_stream << "status : " << (ok?"ok":"failed") << '\n' ;
 	}
 
-	bool/*seen*/ ReqData::audit_stderr( ::string const& backend_msg , AnalysisErr const& analysis_err , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
-		if (!backend_msg.empty())                 audit_info( Color::Note , backend_msg , lvl ) ;
-		for( auto const& [pfx,n] : analysis_err ) audit_node( Color::Note , pfx , n     , lvl ) ;
-		if (stderr.empty()) return !analysis_err.empty() ;
+	bool/*seen*/ ReqData::audit_stderr( ::string const& backend_msg , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
+		if (+backend_msg                ) audit_info( Color::Note , backend_msg , lvl ) ;
+		if (!stderr                     ) return +backend_msg ;
 		if (max_stderr_lines!=size_t(-1)) {
 			::string_view shorten = first_lines(stderr,max_stderr_lines) ;
 			if (shorten.size()<stderr.size()) {
@@ -493,7 +481,7 @@ namespace Engine {
 				options
 			,	stats.ended(JobReport::Failed)==0 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
 			,	                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
-			,	g_config.caches.empty()           ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
+			,	!g_config.caches                  ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
 			,	stats.ended(JobReport::Rerun )==0 ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
 			,	                                                    " running:" , stats.cur  (JobLvl   ::Exec  )
 			,	stats.cur  (JobLvl   ::Queued)==0 ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
@@ -510,7 +498,7 @@ namespace Engine {
 		return !n_err/*overflow*/ ;
 	}
 
-	void ReqData::_report_no_rule( Node node , DepDepth lvl ) {
+	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
 		::string                        name      = node->name()          ;
 		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
 		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
@@ -546,12 +534,12 @@ namespace Engine {
 			n_missing++ ;
 		}
 		//
-		if ( !art && mrts.empty()    ) audit_node( Color::Err  , "no rule match"      , name , lvl   ) ;
-		else                           audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
-		if ( !art && is_target(name) ) audit_node( Color::Note , "consider : git add" , name , lvl+1 ) ;
+		if ( !art && !mrts                             ) audit_node( Color::Err  , "no rule match"      , name , lvl   ) ;
+		else                                             audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
+		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , name , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                          // second pass to do report
-			JobTgt                      jt          { rt , name } ; // do not pass *this as req to avoid generating error message at cxtor time
+		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
+			JobTgt                      jt          { rt , name } ;            // do not pass *this as req to avoid generating error message at cxtor time
 			::string                    reason      ;
 			Node                        missing_dep ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
@@ -559,8 +547,7 @@ namespace Engine {
 			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
-				// first search a non-buildable, if not found, deps have been made and we search for non makable
-				for( bool search_non_buildable : {true,false} )
+				for( bool search_non_buildable : {true,false} )                // first search a non-buildable, if not found, deps have been made and we search for non makable
 					for( auto const& [k,daf] : static_deps ) {
 						Node d{daf.first} ;
 						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
@@ -570,14 +557,15 @@ namespace Engine {
 					}
 			Found :
 				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
-				FileInfo fi{missing_dep->name()} ;
+				::string mdn = missing_dep->name()     ;
+				FileInfo fi  { nfs_guard.access(mdn) } ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , to_string("rule ",rt->name,' ',reason     ) ,               lvl+1 ) ;
 			//
-			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , lvl+2 ) ;
+			if ( +missing_dep && n_missing==1 && (!g_config.max_err_lines||lvl<g_config.max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
 		if (+art) audit_info( Color::Note , to_string("anti-rule ",art->name," matches") , lvl+1 ) ;
@@ -588,11 +576,10 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , JobAudit const& ja ) {
-		os << "JobAudit(" ;
-		/**/                          os << (ja.hit?"hit":"rerun") ;
-		if (ja.modified             ) os << ",modified"            ;
-		if (!ja.analysis_err.empty()) os <<','<< ja.analysis_err   ;
-		return os <<')' ;
+		/**/                 os << "JobAudit(" << (ja.hit?"hit":"rerun") ;
+		if (ja.modified    ) os << ",modified"                           ;
+		if (+ja.backend_msg) os <<','<< ja.backend_msg                   ;
+		return               os <<')'                                    ;
 
 	}
 

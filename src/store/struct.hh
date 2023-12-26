@@ -67,22 +67,22 @@ namespace Store {
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
 			Base::init( name , _offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
-			if (!Base::empty()) return ;
+			if (Base::operator+()) return ;
 			SWEAR(writable) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
-	public :
-		Sz            size (                 ) const requires(HasFile) { return _struct_hdr().sz ; }
-		bool          empty(                 ) const                   { return size()==1        ; }
-		HdrNv  const& hdr  (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
-		HdrNv       & hdr  (                 )       requires(HasHdr ) { SWEAR(writable) ; return _struct_hdr().hdr                                     ; }
-		HdrNv  const& c_hdr(                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
-		DataNv const& at   (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
-		DataNv      & at   (Idx           idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_offset(+idx))    ; }
-		DataNv const& c_at (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
-		Idx           idx  (DataNv const& at ) const requires(HasData) {                   return Idx(&at-reinterpret_cast<Data const*>(base+_offset0)) ; }
-		void          clear(Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                ; }
+		bool          operator+(                 ) const                   { return size()>1         ; }
+		bool          operator!(                 ) const                   { return !+*this          ; }
+		Sz            size     (                 ) const requires(HasFile) { return _struct_hdr().sz ; }
+		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
+		HdrNv       & hdr      (                 )       requires(HasHdr ) { SWEAR(writable) ; return _struct_hdr().hdr                                     ; }
+		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
+		DataNv const& at       (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
+		DataNv      & at       (Idx           idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_offset(+idx))    ; }
+		DataNv const& c_at     (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
+		Idx           idx      (DataNv const& at ) const requires(HasData) {                   return Idx(&at-reinterpret_cast<Data const*>(base+_offset0)) ; }
+		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                ; }
 	private :
 		StructHdr const& _struct_hdr() const requires(HasFile) {                   return *reinterpret_cast<StructHdr const*>(base) ; }
 		StructHdr      & _struct_hdr()       requires(HasFile) { SWEAR(writable) ; return *reinterpret_cast<StructHdr      *>(base) ; }

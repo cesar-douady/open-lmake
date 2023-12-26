@@ -12,15 +12,9 @@ using namespace filesystem ;
 namespace Disk {
 
 	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
-		/**/     os<< "FileInfo("<<fi.tag ;
-		if (+fi) os<<','<<fi.sz           ;
-		return   os<<')'                  ;
-	}
-
-	::ostream& operator<<( ::ostream& os , FileInfoDate const& fid ) {
-		/**/      os << "FileInfoDate("<< fid.tag    ;
-		if (+fid) os <<','<< fid.sz <<','<< fid.date ;
-		return    os <<')'                           ;
+		/**/     os<< "FileInfo("<<fi.tag       ;
+		if (+fi) os<<','<<fi.sz <<','<< fi.date ;
+		return   os<<')'                        ;
 	}
 
 	ENUM( CanonState
@@ -37,11 +31,11 @@ namespace Disk {
 			switch (c) {
 				case '/' :
 					switch (state) {
-						case CanonState::Empty  :                                               return false ;
-						case CanonState::Dot    :                                               return false ;
-						case CanonState::DotDot :                          if (!accept_dot_dot) return false ; break ;
-						case CanonState::First  :                                                                      // seen from /, First is like Plain
-						case CanonState::Plain  : accept_dot_dot = false ;                                     break ; // .. is only accepted as relative prefix
+						case CanonState::Empty  :                      return false ;
+						case CanonState::Dot    :                      return false ;
+						case CanonState::DotDot : if (!accept_dot_dot) return false ; break ;
+						case CanonState::First  :                                             // seen from /, First is like Plain
+						case CanonState::Plain  : accept_dot_dot = false ;            break ; // .. is only accepted as relative prefix
 						default : FAIL(state) ;
 					}
 					state = CanonState::Empty ;
@@ -71,39 +65,25 @@ namespace Disk {
 		return true ;
 	}
 
-	FileInfo::FileInfo(Stat const& st) {
+	FileInfo::FileInfo( Fd at , ::string const& name ) {
+		Stat st ;
+		errno = 0 ;
+		::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW ) ;
 		switch (errno) {
 			case 0       :                       break  ;
 			case ENOENT  :
-			case ENOTDIR : tag = FileTag::None ; return ;                  // no available info
-			default      : tag = FileTag::Err  ; return ;                  // .
+			case ENOTDIR : tag = FileTag::None ; return ;                      // no available info
+			default      : tag = FileTag::Err  ; return ;                      // .
 		}
 		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;          }
 		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;          }
 		else if (S_ISDIR(st.st_mode)) { tag =                      FileTag::Dir                ; return ; } // no reliable info
 		else                          { tag =                      FileTag::Err                ; return ; } // .
-		sz = st.st_size ;
+		sz   = st.st_size ;
+		date = Ddate(st)  ;
 	}
 
-	FileInfoDate::FileInfoDate( Fd at , ::string const& name ) {
-		const char* n      = name.c_str() ;
-		AutoCloseFd new_at ;                                                   // declare outside if so fd is not closed before stat call
-		if (!name.empty()) {
-			new_at = ::openat(at,n,O_RDONLY|O_NOFOLLOW) ;                      // if we want the date, we must ensure we do an open so this may work with NFS
-			if (+new_at) {
-				n  = ""     ;
-				at = new_at ;
-			}
-		}
-		Stat st = _s_stat(at,n) ;
-		static_cast<FileInfo&>(*this) = FileInfo(st) ;
-		if (+*this) {
-			date = Ddate(st)  ;
-			sz   = st.st_size ;
-		}
-	}
-
-	FileMap::FileMap( Fd at , ::string const& filename) {
+	FileMap::FileMap( Fd at , ::string const& filename ) {
 		FileInfo fi{at,filename} ;
 		if (!fi.is_reg()) return ;
 		sz = fi.sz ;
@@ -124,8 +104,8 @@ namespace Disk {
 
 	vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix ) {
 		Fd dir_fd = at ;
-		if      (!dir.empty()) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
-		else if (at==Fd::Cwd ) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
+		if      (+dir       ) dir_fd = ::openat( at , dir.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		else if (at==Fd::Cwd) dir_fd = ::openat( at , "."         , O_RDONLY|O_DIRECTORY ) ;
 		if (!dir_fd) throw to_string("cannot open dir ",at==Fd::Cwd?"":to_string('@',at,':'),dir) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
@@ -145,16 +125,54 @@ namespace Disk {
 	}
 
 	void unlink_inside( Fd at , ::string const& dir ) {
-		::string dir_s = dir.empty() ? ""s : dir+'/' ;
-		for( ::string const& f : lst_dir(at,dir,dir_s) ) unlink(at,f) ;
+		::string dir_s = +dir ? dir+'/' : ""s ;
+		for( ::string const& f : lst_dir(at,dir,dir_s) ) unlink(at,f,true/*dir_ok*/) ;
 	}
 
-	void unlink( Fd at , ::string const& file ) {
-		if (::unlinkat(at,file.c_str(),0)==0           ) return ;
-		if (errno==ENOENT                              ) return ;
+	bool/*done*/ unlink( Fd at , ::string const& file , bool dir_ok ) {
+		if (::unlinkat(at,file.c_str(),0)==0           ) return true /*done*/ ;
+		if (errno==ENOENT                              ) return false/*done*/ ;
+		if (!dir_ok                                    ) throw to_string("cannot unlink "     ,file) ;
 		if (errno!=EISDIR                              ) throw to_string("cannot unlink file ",file) ;
 		unlink_inside(at,file) ;
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot unlink dir " ,file) ;
+		return true/*done*/ ;
+	}
+
+	bool/*done*/ uniquify( Fd at , ::string const& file ) {                            // uniquify file so as to ensure modifications do not alter other hard links
+		SWEAR(+file) ;                                                         // cannot unlink at without file
+		const char*   f   = file.c_str() ;
+		const char*   msg = nullptr      ;
+		struct ::stat st  ;
+		{
+			int     src     = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)                ; if (src<0         )                                     return false/*done*/ ;
+			/**/                                                                       if (st.st_nlink<=1)                                     return true /*done*/ ;
+			int     rfd     = ::openat(at,f,O_RDONLY|O_NOFOLLOW)                     ; if (rfd<0         ) { msg = "cannot open for reading" ; goto Bad             ; }
+			void*   content = ::mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,rfd,0) ; if (!content      ) { msg = "cannot map"              ; goto Bad             ; }
+			int     urc     = ::unlinkat(at,f,0)                                     ; if (urc<0         ) { msg = "cannot unlink"           ; goto Bad             ; }
+			int     wfd     = ::openat(at,f,O_WRONLY|O_CREAT,st.st_mode&07777)       ; if (wfd<0         ) { msg = "cannot open for writing" ; goto Bad             ; }
+			ssize_t cnt     = 0/*garbage*/                                           ;
+			//
+			for( off_t pos=0 ; pos<st.st_size ; pos+=cnt ) {
+				cnt = ::write( wfd , reinterpret_cast<char const*>(content)+cnt , st.st_size-pos)  ;
+				if (cnt<=0) throw to_string("cannot write to ",file) ;
+			}
+			//
+			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
+			::futimens(wfd,times) ;                                                         // maintain original date
+			//
+			::close(wfd) ;
+			::munmap(content,st.st_size) ;
+			::close(rfd) ;
+			return true/*done*/ ;
+		}
+	Bad :
+		if (at==Fd::Cwd) throw to_string(msg,' ',         file) ;
+		else             throw to_string(msg," @",+at,':',file) ;
+	}
+
+	void rmdir( Fd at , ::string const& dir ) {
+		if (::unlinkat(at,dir.c_str(),AT_REMOVEDIR)!=0) throw to_string("cannot rmdir ",dir) ;
 	}
 
 	::vector_s read_lines(::string const& filename) {
@@ -168,7 +186,7 @@ namespace Disk {
 	}
 
 	::string read_content(::string const& file) {
-		IFStream is{file} ;
+		::ifstream is{file} ;
 		if (!is                  ) throw to_string("file not found : ",file) ;
 		if (::istream::sentry(is)) return to_string(is.rdbuf())              ; // /!\ rdbuf() fails on an empty file
 		else                       return {}                                 ;
@@ -176,13 +194,13 @@ namespace Disk {
 
 	void write_lines( ::string const& file , ::vector_s const& lines ) {
 		OFStream file_stream{file} ;
-		if (!lines.empty()) SWEAR_PROD(bool(file_stream)) ;
+		if (+lines) SWEAR_PROD(bool(file_stream)) ;
 		for( ::string const& l : lines ) file_stream << l << '\n' ;
 	}
 
 	void write_content( ::string const& file , ::string const& content ) {
 		OFStream file_stream{file} ;
-		if (!content.empty()) SWEAR_PROD(bool(file_stream)) ;
+		if (+content) SWEAR_PROD(bool(file_stream)) ;
 		file_stream << content ;
 	}
 
@@ -205,24 +223,40 @@ namespace Disk {
 		return res ;
 	}
 
-	void make_dir( Fd at , ::string const& dir , bool unlink_ok ) {
-		::vector_s to_mk{dir} ;
-		while (to_mk.size()) {
-			::string const& d = to_mk.back() ;                                 // process by starting top most : as to_mk is ordered, parent necessarily appears before child
+	static inline int/*n_dirs*/ _mkdir( Fd at , ::string const& dir , NfsGuard* nfs_guard , bool multi , bool unlink_ok ) {
+		::vector_s  to_mk { dir }   ;
+		const char* msg   = nullptr ;
+		int         res   = 0       ;
+		while (+to_mk) {
+			::string const& d = to_mk.back() ;                                     // parents are after children in to_mk
+			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d) ; }
 			if (::mkdirat(at,d.c_str(),0777)==0) {
-				to_mk.pop_back() ;                                             // created, ok
-			} else if (errno==EEXIST) {
-				if      (is_dir(at,d)) to_mk.pop_back()                                                    ; // already exists, ok
-				else if (unlink_ok) ::unlinkat(at,d.c_str(),0)                                             ;
-				else                throw to_string("must unlink ",at==Fd::Cwd?"":to_string('@',at,':'),d) ;
-			} else {
-				::string dd = dir_name(d) ;
-				if ( (errno!=ENOENT&&errno!=ENOTDIR) || dd.empty() )
-					throw to_string("cannot create dir ",at==Fd::Cwd?"":to_string('@',at,':'),d) ; // if ENOTDIR, a parent is not a dir, it will be fixed up
-				to_mk.push_back(::move(dd)) ;                                                      // retry after parent is created
+				res++ ;
+				to_mk.pop_back() ;
+				continue ;
+			} // done
+			switch (errno) {
+				case EEXIST :
+					if ( unlink_ok && !is_dir(at,d) ) unlink(at,d) ;           // retry
+					else                              to_mk.pop_back() ;       // done
+				break ;
+				case ENOENT  :
+				case ENOTDIR :
+					if (                           !multi ) { msg = "cannot create dir"     ; goto Bad ; }
+					if ( ::string dd=dir_name(d) ; +dd    )   to_mk.push_back(::move(dd)) ;                // retry after parent is created
+					else                                    { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will be fixed up
+				break  ;
+				default :
+					msg = "cannot create dir" ;
+				Bad :
+					if (at==Fd::Cwd) throw to_string(msg,' ' ,       d) ;
+					else             throw to_string(msg," @",at,':',d) ;
 			}
 		}
+		return res ;
 	}
+	int/*n_dirs*/ mkdir( Fd at , ::string const& dir ,                       bool multi , bool unlink_ok ) { return _mkdir(at,dir,nullptr   ,multi,unlink_ok) ; }
+	int/*n_dirs*/ mkdir( Fd at , ::string const& dir , NfsGuard& nfs_guard , bool multi , bool unlink_ok ) { return _mkdir(at,dir,&nfs_guard,multi,unlink_ok) ; }
 
 	::string dir_name(::string const& file) {
 		size_t sep = file.rfind('/') ;
@@ -236,15 +270,14 @@ namespace Disk {
 		else           return file               ;
 	}
 
-	::string const& dir_guard( Fd at , ::string const& file ) {
+	void dir_guard( Fd at , ::string const& file ) {
 		::string dir = dir_name(file) ;
-		if (!dir.empty()) make_dir(at,dir,true/*unlink_ok*/) ;
-		return file ;
+		if (+dir) mkdir(at,dir) ;
 	}
 
 	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
-		SWEAR( is_abs(file) == is_abs_s(dir_s)    , file , dir_s ) ;
-		SWEAR( dir_s.empty() || dir_s.back()=='/' ,        dir_s ) ;
+		SWEAR( is_abs(file) == is_abs_s(dir_s) , file , dir_s ) ;
+		SWEAR( !dir_s || dir_s.back()=='/'     ,        dir_s ) ;
 		size_t last_slash1 = 0 ;
 		for( size_t i=0 ; i<file.size() ; i++ ) {
 			if (file[i]!=dir_s[i]) break ;
@@ -261,13 +294,31 @@ namespace Disk {
 		::string_view d_sv = dir_s ;
 		::string_view f_v  = file  ;
 		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
-			SWEAR(!d_sv.empty()) ;
+			SWEAR(+d_sv) ;
 			d_sv = d_sv.substr(0,d_sv.size()-1) ;                              // suppress ending /
 			size_t last_slash = d_sv.rfind('/') ;
-			if (last_slash==Npos) { SWEAR(!d_sv.empty()) ; d_sv = d_sv.substr(0,0           ) ; }
-			else                  {                        d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
+			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = d_sv.substr(0,0           ) ; }
+			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
 		}
 		return to_string(d_sv,f_v) ;
+	}
+
+	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) {
+		size_t   pos = first_file        ;
+		::string res = txt.substr(0,pos) ;
+		while (pos!=Npos) {
+			pos++ ;                                                            // clobber marker
+			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;                       // ensure we have enough room to find file length
+			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ;
+			pos += sizeof(FileNameIdx) ;                                       // clobber file length
+			SWEAR(txt.size()>=pos+len) ;                                       // ensure we have enough room to read file
+			res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ;
+			pos += len ;
+			size_t new_pos = txt.find(FileMrkr,pos) ;
+			res += txt.substr(pos,new_pos-pos) ;
+			pos  = new_pos ;
+		}
+		return res ;
 	}
 
 	//
@@ -275,12 +326,12 @@ namespace Disk {
 	//
 
 	::ostream& operator<<( ::ostream& os , RealPathEnv const& rpe ) {
-		/**/                         os << "RealPathEnv(" << rpe.lnk_support ;
-		/**/                         os <<','<< rpe.root_dir                 ;
-		if (!rpe.tmp_dir   .empty()) os <<','<< rpe.tmp_dir                  ;
-		if (!rpe.tmp_view  .empty()) os <<','<< rpe.tmp_view                 ;
-		if (!rpe.src_dirs_s.empty()) os <<','<< rpe.src_dirs_s               ;
-		return                       os <<')'                                ;
+		/**/                 os << "RealPathEnv(" << rpe.lnk_support ;
+		/**/                 os <<','<< rpe.root_dir                 ;
+		if (+rpe.tmp_dir   ) os <<','<< rpe.tmp_dir                  ;
+		if (+rpe.tmp_view  ) os <<','<< rpe.tmp_view                 ;
+		if (+rpe.src_dirs_s) os <<','<< rpe.src_dirs_s               ;
+		return               os <<')'                                ;
 	}
 
 	::ostream& operator<<( ::ostream& os , RealPath::SolveReport const& sr ) {
@@ -288,18 +339,18 @@ namespace Disk {
 	}
 
 	void RealPath::init( RealPathEnv const& rpe , pid_t p ) {
-		/**/                   SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
-		/**/                   SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
-		if (!tmp_view.empty()) SWEAR( is_abs(rpe.tmp_view) , rpe.tmp_view ) ;
+		/**/           SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
+		/**/           SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
+		if (+tmp_view) SWEAR( is_abs(rpe.tmp_view) , rpe.tmp_view ) ;
 		//
 		static_cast<RealPathEnv&>(*this) = rpe ;
 		pid                              = p   ;
 		//
-		/**/                 cwd_         = pid ? read_lnk(to_string("/proc/",pid,"/cwd")) : cwd() ;
-		/**/                 _admin_dir   = to_string(root_dir,'/',AdminDir)                       ;
-		/**/                 has_tmp_view = !tmp_view.empty()                                      ;
-		if (tmp_dir.empty()) tmp_dir      = get_env("TMPDIR",P_tmpdir)                             ;
-		if (!has_tmp_view  ) tmp_view     = tmp_dir                                                ;
+		/**/               cwd_         = pid ? read_lnk(to_string("/proc/",pid,"/cwd")) : cwd() ;
+		/**/               _admin_dir   = to_string(root_dir,'/',AdminDir)                       ;
+		/**/               has_tmp_view = +tmp_view                                              ;
+		if (!tmp_dir     ) tmp_dir      = get_env("TMPDIR",P_tmpdir)                             ;
+		if (!has_tmp_view) tmp_view     = tmp_dir                                                ;
 		//
 		for ( ::string const& sd_s : src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,root_dir)) ;
 	}
@@ -371,7 +422,7 @@ namespace Disk {
 			if ((*cur)[pos]=='.') {
 				if ( end==pos+1                       ) continue ;             // component is .
 				if ( end==pos+2 && (*cur)[pos+1]=='.' ) {                      // component is ..
-					if (!real.empty()) real.resize(real.rfind('/')) ;
+					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
 			}
@@ -387,9 +438,9 @@ namespace Disk {
 			if ( in_proc           ) goto HandleLnk ;
 			if ( !in_repo          ) continue       ;
 			//
-			if (!last)                                                                       // at last level, dirs are rare and NFS does the coherency job
-				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW) ; +dfd) { // sym links are rare, so this has no significant perf impact ...
-					::close(dfd) ;                                                           // ... and protects against NFS strange notion of coherency
+			if ( !last && !reliable_dirs )                                                              // at last level, dirs are rare and NFS does the coherence job
+				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME) ; +dfd ) { // sym links are rare, so this has no significant perf impact ...
+					::close(dfd) ;                                                                      // ... and protects against NFS strange notion of coherence
 					continue ;
 				}
 			//
@@ -405,12 +456,12 @@ namespace Disk {
 			if ( !in_tmp && !in_proc ) {
 				if ( in_repo && real.size()==root_dir.size() ) continue ;                        // at repo root, no sym link to handle
 				::string rel_real = in_repo ? real.substr(root_dir.size()+1) : _find_src(real) ; // outside repo, real may lie in a source dir
-				if ( rel_real.empty()                        ) continue ;
+				if ( !rel_real                               ) continue ;
 				//
-				if (nxt->empty())   last_lnk =                        rel_real  ;
-				else              { last_lnk.clear() ; lnks.push_back(rel_real) ; }
+				if (!*nxt)   last_lnk =                        rel_real  ;
+				else       { last_lnk.clear() ; lnks.push_back(rel_real) ; }
 			}
-			if (nxt->empty()) {
+			if (!*nxt) {
 				if (errno==ENOENT) exists = false ;
 				// do not generate dep for intermediate dir that are not links as we indirectly depend on them through the last components
 				// for example if a/b/c is a link to d/e and we access a/b/c/f, we generate the link a/b/c :
@@ -445,7 +496,7 @@ namespace Disk {
 			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Root    , mapped         } ;
 		}
 		{	::string src = _find_src(real) ;
-			if (src.empty()                ) return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Ext     , mapped         } ;
+			if (!src                       ) return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Ext     , mapped         } ;
 			else                             return { ::move(src )                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::SrcDirs , mapped         } ;
 		}
 	}

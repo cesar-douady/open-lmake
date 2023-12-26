@@ -168,11 +168,11 @@ namespace Engine {
 		}
 		n = NoIdx ;                                                            // we have exhausted all rules
 	Done :
-		//                vvvvvvvvvvvvvvvvvvvvvvvvv
-		if (!jts.empty()) job_tgts .append    (jts) ;
-		if (n==NoIdx    ) rule_tgts.clear     (   ) ;
-		else              rule_tgts.shorten_by(n  ) ;
-		//                ^^^^^^^^^^^^^^^^^^^^^^^^^
+		//            vvvvvvvvvvvvvvvvvvvvvvvvv
+		if (+jts    ) job_tgts .append    (jts) ;
+		if (n==NoIdx) rule_tgts.clear     (   ) ;
+		else          rule_tgts.shorten_by(n  ) ;
+		//            ^^^^^^^^^^^^^^^^^^^^^^^^^
 		return buildable ;
 	}
 
@@ -181,7 +181,7 @@ namespace Engine {
 		switch (buildable) {                                                   // ensure we do no update sources
 			case Buildable::Src    :
 			case Buildable::SrcDir :
-			case Buildable::Anti   : SWEAR(rule_tgts.empty()) ; goto Return ;
+			case Buildable::Anti   : SWEAR(!rule_tgts,rule_tgts) ; goto Return ;
 			default : ;
 		}
 		status(NodeStatus::Unknown) ;
@@ -244,7 +244,7 @@ namespace Engine {
 		Req      req   = ri.req ;
 		::string name_ ;                                                       // lazy evaluated
 		auto lazy_name = [&]()->::string const& {
-			if (name_.empty()) name_ = name() ;
+			if (!name_) name_ = name() ;
 			return name_ ;
 		} ;
 		// step 1 : handle what can be done without dir
@@ -273,9 +273,9 @@ namespace Engine {
 			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ; // status is overwritten Src if node actually exists
 			default                 :                            break        ;
 		}
-		if ( Node::ReqInfo& dri = dir->req_info(req) ; !dir->done(dri)) {  // fast path : no need to call make if dir is done
+		if ( Node::ReqInfo& dri = dir->req_info(req) ; !dir->done(dri)) {      // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
-				ReqInfo::WaitInc sav_n_wait{ri} ;                          // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+				ReqInfo::WaitInc sav_n_wait{ri} ;                              // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				dir->make( dri , RunAction::Status , idx() ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -284,9 +284,9 @@ namespace Engine {
 			//
 			if (dri.waiting()) {
 				dir->add_watcher(dri,idx(),ri,ri.pressure) ;
-				goto NotDone ;                                             // return value is meaningless when waiting
+				goto NotDone ;                                                 // return value is meaningless when waiting
 			}
-			SWEAR(dir->done(dri)) ;                                        // after having called make, dep must be either waiting or done
+			SWEAR(dir->done(dri)) ;                                            // after having called make, dep must be either waiting or done
 		}
 		// step 3 : handle what needs dir status
 		switch (dir->buildable) {
@@ -321,24 +321,25 @@ namespace Engine {
 			default : FAIL(dir->buildable) ;
 		}
 	Src :
-		{	FileInfoDate fid{ lazy_name() } ;                                  // XXX : access dir hierarchy to protect against NFS
-			trace("src",status(),fid.date,date) ;
-			if (!fid) {
+		{	NfsGuard nfs_guard { g_config.reliable_dirs }        ;
+			FileInfo fi        { nfs_guard.access(lazy_name()) } ;
+			trace("src",status(),fi.date,date) ;
+			if (!fi) {
 				if (status()==NodeStatus::None) goto NoSrc ;                                             // if status was pre-set to None, it means we accept NoSrc
 				req->audit_job( Color::Err , "missing" , idx().frozen()?"frozen":"src" , lazy_name() ) ;
 				if (crc==Crc::None) goto Done ;
 				refresh( Crc::None , Ddate::s_now() ) ;
 			} else {
 				status(NodeStatus::Src) ;                                      // overwrite status if it was pre-set to None
-				if ( +crc && fid.date==date ) goto Done ;
+				if ( +crc && fi.date==date ) goto Done ;
 				Crc crc_ { lazy_name() , g_config.hash_algo } ;
 				SWEAR( +crc_ && crc_!=Crc::None ) ;
 				bool new_   = crc==Crc::None  ;
 				bool steady = crc_.match(crc) ;
-				//vvvvvvvvvvvvvvvvvvvvvvvv
-				refresh( crc_ , fid.date ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^
-				if ( !steady && fid.date>req->start ) ri.overwritten = true ;
+				//vvvvvvvvvvvvvvvvvvvvvvv
+				refresh( crc_ , fi.date ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^
+				if ( !steady && fi.date>req->start ) ri.overwritten = true ;
 				::string step  = new_? "new" : steady ? "steady" : "changed" ;
 				if (idx().frozen()) req->audit_job( Color::Warning  , step , "frozen" , lazy_name() ) ;
 				else                req->audit_job( Color::HiddenOk , step , "src"    , lazy_name() ) ;
@@ -349,7 +350,7 @@ namespace Engine {
 		{	Crc crc_ = status()==NodeStatus::Transcient ? Crc::Unknown : Crc::None ;
 			if (crc==crc_) goto Done ;                                                       // node is not polluted
 			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && manual_refresh(req)==No ) {
-				unlink(lazy_name()) ;                                                        // wash pollution if not manual
+				unlink(lazy_name(),true/*dir_ok*/) ;                                         // wash pollution if not manual
 				req->audit_job( Color::Warning , "wash" , "" , lazy_name() ) ;
 			}
 			refresh( crc_ , Ddate::s_now() ) ;                                 // if not physically unlinked, node will be manual
@@ -454,7 +455,7 @@ namespace Engine {
 								if      (!has_actual_job(  )) reason = {JobReasonTag::NoTarget     ,+idx()} ;
 								else if (!has_actual_job(jt)) reason = {JobReasonTag::PolutedTarget,+idx()} ;
 								else {
-									if (manual_==Bool3::Unknown) manual_ = manual() ;
+									if (manual_==Bool3::Unknown) manual_ = manual_refresh(req) ; // lazy solve manual_
 									switch (manual_) {
 										case Yes   : reason = {JobReasonTag::PolutedTarget,+idx()} ; break ;
 										case Maybe : reason = {JobReasonTag::NoTarget     ,+idx()} ; break ;
@@ -563,9 +564,11 @@ namespace Engine {
 		if (nd.crc==Crc::None) return {m,false/*refreshed*/} ;                 // file appeared, it cannot be steady
 		//
 		::string nm = nd.name() ;
-		if (!nd.crc.match(Crc(nm,g_config.hash_algo))) return {Yes,false/*refreshed*/} ; // real modif
+		Ddate ndd ;
+		Crc   crc { ndd , nm , g_config.hash_algo } ;
+		if (!nd.crc.match(crc)) return {Yes,false/*refreshed*/} ;              // real modif
 		//
-		nd.date = file_date(nm) ;
+		nd.date = ndd ;
 		return {No,true/*refreshed*/} ;                                        // file is steady
 	}
 	Bool3 NodeData::manual_refresh( Req req , Ddate d ) {

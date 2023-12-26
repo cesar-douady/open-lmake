@@ -121,7 +121,6 @@ namespace Engine {
 	private :
 		bool _multi () const { return !this->template is_a<Item  >() ; }       // 0 is both a Vector and an Item, so this way 0 is !_multi ()
 		bool _single() const { return !this->template is_a<Vector>() ; }       // 0 is both a Vector and an Item, so this way 0 is !_single()
-		bool _empty () const { return !*this                         ; }
 		// services
 	public :
 		void shorten_by(Sz by) ;
@@ -158,7 +157,6 @@ namespace Engine {
 		operator ::vector_view      <Item>()                       { return view    () ; }
 		operator ::basic_string_view<Item>() const requires(IsStr) { return str_view() ; }
 		// accesses
-		bool                      empty   () const                 { return !size() ; }
 		::vector_view_c    <Item> view    () const                 { return { items() , size() } ; }
 		::vector_view      <Item> view    ()                       { return { items() , size() } ; }
 		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
@@ -203,7 +201,6 @@ namespace Engine {
 		void pop() ;
 		// accesses
 		::vector<RuleTgt> view () const ;
-		bool              empty() const ;
 		size_t            size () const ;
 		// services
 		void shorten_by    (RuleIdx by) ;
@@ -230,9 +227,10 @@ namespace Engine {
 		DataBase(      ) = default ;
 		DataBase(Name n) : _full_name{n} {} ;
 		// accesses
-		Name     dir_name    (                    ) const { return _full_name.dir   (      ) ; }
 		::string full_name   (FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
 		size_t   full_name_sz(FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
+	protected :
+		Name _dir_name() const { return _full_name.dir() ; }
 		// data
 	private :
 		Name _full_name ;
@@ -274,6 +272,7 @@ namespace Engine {
 	{	using Base = Idxed<NodeIdx,NodeNGuardBits> ;
 		// statics
 		static Node           s_idx              ( NodeData const&                  ) ;
+		static bool           s_is_known         ( ::string const&                  ) ;
 		static bool           s_has_frozens      (                                  ) ;
 		static bool           s_has_manual_oks   (                                  ) ;
 		static bool           s_has_no_triggers  (                                  ) ;
@@ -602,22 +601,21 @@ namespace Engine {
 	//
 	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
 		inline void CrunchVectorBase<Idx,Item,NGuardBits>::append(::vector_view<I> const& v ) {
-			if      (_empty()  ) { assign(v) ;                                                     ; }
-			else if (_multi()  ) { *this = VectorHelper<Idx,Item>::g_file().append (     *this ,v) ; }
-			else if (!v.empty()) { *this = VectorHelper<Idx,Item>::g_file().emplace(Item(*this),v) ; }
+			if      (!*this  ) assign(v) ;
+			else if (_multi()) *this = VectorHelper<Idx,Item>::g_file().append (     *this ,v) ;
+			else if (+v      ) *this = VectorHelper<Idx,Item>::g_file().emplace(Item(*this),v) ;
 		}
 
 	//
 	// RuleTgts
 	//
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::vector_view_c<RuleTgt> const& gs) : Base{gs.empty()?RuleTgts():g_store.rule_tgts_file.insert(gs)} {}
+	inline RuleTgts::RuleTgts(::vector_view_c<RuleTgt> const& gs) : Base{+gs?g_store.rule_tgts_file.insert(gs):RuleTgts()} {}
 	inline void RuleTgts::pop() { g_store.rule_tgts_file.pop(+*this) ; *this = RuleTgts() ; }
 	//
 	inline RuleTgts& RuleTgts::operator=(::vector_view_c<RuleTgt> const& v) { *this = RuleTgts(v) ; return *this ; }
 	// accesses
-	inline ::vector<RuleTgt> RuleTgts::view () const { return g_store.rule_tgts_file.key  (*this) ; }
-	inline bool              RuleTgts::empty() const { return g_store.rule_tgts_file.empty(*this) ; }
+	inline ::vector<RuleTgt> RuleTgts::view() const { return g_store.rule_tgts_file.key  (*this) ; }
 	// services
 	inline void RuleTgts::shorten_by(RuleIdx by) {
 		if (by==RuleIdx(-1)) { clear() ; return ; }
@@ -630,8 +628,8 @@ namespace Engine {
 
 	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
 		bool modified = false ;
-		if (add) for( Item j : items ) modified |= mem.insert(j).second ;
-		else     for( Item j : items ) modified |= mem.erase (j)        ;
+		if      (add ) for( Item j : items ) modified |= mem.insert(j).second ;
+		else if (+mem) for( Item j : items ) modified |= mem.erase (j)        ; // fast path : no need to update mem if it is already empty
 		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
 	}
 	template<class Disk,class Item> inline void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
@@ -643,8 +641,8 @@ namespace Engine {
 	// JobBase
 	//
 	// statics
-	inline bool          JobBase::s_has_frozens  (                                       ) { return               !g_store.job_file.c_hdr().frozen_jobs.empty() ;                      }
-	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(g_store.job_file.c_hdr().frozen_jobs)        ;                      }
+	inline bool          JobBase::s_has_frozens  (                                       ) { return               +g_store.job_file.c_hdr().frozen_jobs  ;                             }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(g_store.job_file.c_hdr().frozen_jobs) ;                             }
 	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update( g_store.job_file.hdr().frozen_jobs         , g_store.frozen_jobs,add,items ) ; }
 	inline void          JobBase::s_clear_frozens(                                       ) {            g_store.job_file.hdr().frozen_jobs.clear() ; g_store.frozen_jobs.clear()     ; }
 	//
@@ -683,15 +681,16 @@ namespace Engine {
 	// NodeBase
 	//
 	// statics
-	inline Node NodeBase::s_idx(NodeData const& jd) { return g_store.node_file.idx(jd) ; }
+	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  g_store.node_file.idx   (nd  ) ; }
+	inline bool NodeBase::s_is_known( ::string const& name) { return +g_store.name_file.search(name) ; }
 
-	inline bool           NodeBase::s_has_frozens      (                                        ) { return                !g_store.node_file.c_hdr().frozen_nodes.empty() ;          }
-	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                !g_store.node_file.c_hdr().manual_oks  .empty() ;          }
-	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                !g_store.node_file.c_hdr().no_triggers .empty() ;          }
-	inline bool           NodeBase::s_has_srcs         (                                        ) { return                !g_store.node_file.c_hdr().srcs        .empty() ;          }
-	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().frozen_nodes)        ;          }
-	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks  )        ;          }
-	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers )        ;          }
+	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +g_store.node_file.c_hdr().frozen_nodes  ;                 }
+	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                +g_store.node_file.c_hdr().manual_oks    ;                 }
+	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +g_store.node_file.c_hdr().no_triggers   ;                 }
+	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +g_store.node_file.c_hdr().srcs          ;                 }
+	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().frozen_nodes) ;                 }
+	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks  ) ;                 }
+	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers ) ;                 }
 	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().frozen_nodes,g_store.frozen_nodes,add,items) ; }
 	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().manual_oks  ,g_store.manual_oks  ,add,items) ; }
 	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().no_triggers ,g_store.no_triggers ,add,items) ; }

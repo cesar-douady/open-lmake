@@ -71,7 +71,7 @@ namespace Engine {
 		//
 		static constexpr RuleIdx NoIdx      = -1                  ;
 		static constexpr RuleIdx MaxRuleIdx = -(+NodeStatus::N+1) ;
-		//
+		// cxtors & casts
 		using NodeBase::NodeBase ;
 	} ;
 
@@ -182,7 +182,7 @@ namespace Engine {
 		// cxtors & casts
 		NodeData() = default ;
 		NodeData( Name n , bool no_dir ) : DataBase{n} {
-			if (!no_dir) dir = dir_name() ;
+			if (!no_dir) dir = _dir_name() ;
 		}
 		~NodeData() {
 			job_tgts.pop() ;
@@ -301,8 +301,8 @@ namespace Engine {
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (rule_tgts.empty()) return Buildable::No                             ;          // fast path : avoid computing name()
-			else                   return _gather_prio_job_tgts( name() , r , lvl ) ;
+			if (!rule_tgts) return Buildable::No                             ;                 // fast path : avoid computing name()
+			else            return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
 		void _set_match_gen(bool ok  ) ;
@@ -320,7 +320,7 @@ namespace Engine {
 		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
 		bool      unlinked :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
 	private :
-		RuleIdx   _conform_idx = -+NodeStatus::Unknown         ; //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		RuleIdx _conform_idx = -+NodeStatus::Unknown ;           //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 	} ;
 	static_assert(sizeof(NodeData)==48) ;                                      // check expected size
 
@@ -458,7 +458,7 @@ namespace Engine {
 		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
 		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
 		if (!fm       ) fm = sm              ;                                 // solve lazy evaluation
-		if (tn.empty()) tn = (*this)->name() ;                                 // .
+		if (!tn       ) tn = (*this)->name() ;                                 // .
 		/**/            return sm.rule->tflags(fm.idx(tn))[tf] ;
 	}
 

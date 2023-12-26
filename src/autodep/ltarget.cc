@@ -56,8 +56,8 @@ int main( int argc , char* argv[]) {
 	Tflags            neg_tflags ;
 	Tflags            pos_tflags ;
 	//
-	if (cmd_line.args.empty()) return 0 ;                                                                   // fast path : declare no targets
-	for( ::string const& f : cmd_line.args ) if (f.empty()) exit(2,"cannot declare empty file as target") ;
+	if (!cmd_line.args) return 0 ;                                                                   // fast path : declare no targets
+	for( ::string const& f : cmd_line.args ) if (!f) exit(2,"cannot declare empty file as target") ;
 	//
 	if (cmd_line.flags[Flag::Unlink  ]) unlink     = true                      ;
 	if (cmd_line.flags[Flag::NoFollow]) no_follow  = true                      ;
@@ -85,7 +85,7 @@ int main( int argc , char* argv[]) {
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access
 	,	::move(cmd_line.args)
-	,	{ .neg_tflags=neg_tflags , .pos_tflags=pos_tflags , .write=No|!unlink , .unlink=No|unlink }
+	,	{ .neg_tflags=neg_tflags , .pos_tflags=pos_tflags , .write=!unlink , .unlink=unlink }
 	,	no_follow
 	,	"ltarget"
 	) ) ;

@@ -97,7 +97,7 @@ namespace Hash {
 	Crc _Md5::digest() && {
 		FAIL() ;                                                               // XXX : suppress md5 code altogether
 		if (!_closed) {                                                        // this way, operator() can be called several times (but then no update possible)
-			if (!_salt.empty()) _update( _salt.c_str() , _salt.size() ) ;
+			if (+_salt) _update( _salt.c_str() , _salt.size() ) ;
 			uint32_t offset = _cnt & (sizeof(_blk)-1)   ;
 			uint8_t* bp     = _bblk() + offset          ;
 			uint32_t avail  = sizeof(_blk) - (offset+1) ;                      // _blk is never full, so this is always >=0

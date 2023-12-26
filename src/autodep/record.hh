@@ -22,7 +22,7 @@ struct Record {
 	using ReportCb   = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
 	static bool s_is_simple   (const char*) ;
-	static bool s_has_tmp_view(           ) { return !s_autodep_env().tmp_view.empty() ; }
+	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ; }
 	//
 	static Fd s_root_fd() {
 		if (!_s_root_fd) {
@@ -72,8 +72,11 @@ public :
 	Record(pid_t pid=0) : real_path{s_autodep_env(),pid} {}
 	// services
 private :
-	void _report_access( ::string&& f , DD d , Accesses a , Bool3 update , ::string const& c={} ) const {
+	void _report_access( ::string&& f , DD d , Accesses a , bool update , ::string const& c={} ) const {
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , c ) ) ;
+	}
+	void _report_guard( ::string&& f , ::string const& c={} ) const {
+		_s_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , c )) ;
 	}
 	//
 	void _report_access( JobExecRpcReq const& jerr ) const ;
@@ -85,27 +88,27 @@ private :
 	// - access is reported as Maybe before the access
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
-	void _report_dep    ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , No    , c ) ; }
-	void _report_dep    ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_root_fd(),f) , a , No    , c ) ; }
-	void _report_update ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , Maybe , c ) ; }
+	void _report_dep    ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , false/*update*/ , c ) ; }
+	void _report_dep    ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_root_fd(),f) , a , false/*update*/ , c ) ; }
+	void _report_update ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , true /*update*/ , c ) ; }
 	//
-	void _report_confirm( ::vector_s&& fs , bool ok ) const { _s_report(JobExecRpcReq(JobExecRpcProc::Confirm,::move(fs),ok)) ; }
-	void _report_confirm( ::string  && f  , bool ok ) const { _report_confirm(::vector_s({::move(f)}),ok) ;                   ; }
+	void _report_confirm( ::vector_s&& fs , bool ok ) const { _s_report(JobExecRpcReq( JobExecRpcProc::Confirm , ::move(fs) , ok )) ; }
+	void _report_confirm( ::string  && f  , bool ok ) const { _report_confirm(::vector_s({::move(f)}),ok) ;                         ; }
 	//
 	void _report_deps( ::vmap_s<DD>&& fs , Accesses a , bool u , ::string const& c={} ) const {
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=Maybe&u } , c ) ) ;
+		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=u } , c ) ) ;
 	}
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string const& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , a , u , c ) ;
 	}
-	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.write =Maybe} , c ) ) ; }
-	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.unlink=Maybe} , c ) ) ; }
+	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.write =true} , c ) ) ; }
+	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.unlink=true} , c ) ) ; }
 	void _report_targets( ::vector_s&& fs , ::string const& c={} ) const {
 		vmap_s<DD> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),DD()) ;
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write=Maybe} , c ) ) ;
+		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write=true} , c ) ) ;
 	}
 	void _report_tmp( bool sync=false , ::string const& comment={} ) const {
 		if      (!tmp_cache) tmp_cache = true ;
@@ -217,13 +220,16 @@ public :
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;
-		Lnk( Record& , Path&& src , Path&& dst , int flags=0 , ::string const& comment="lnk" ) ;
+		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string const& comment="lnk" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 		// data
-		bool  no_follow = true ;
-		Solve src       ;
-		Solve dst       ;
+		Solve src ;
+		Solve dst ;
+	} ;
+	struct Mkdir : Solve {
+		Mkdir() = default ;
+		Mkdir( Record& , Path&& , ::string const& comment="read" ) ;
 	} ;
 	struct Open : Solve {
 		// cxtors & casts
@@ -235,7 +241,6 @@ public :
 		bool do_write = false ;
 	} ;
 	struct Read : Solve {
-		// cxtors & casts
 		Read() = default ;
 		Read( Record& , Path&& , bool no_follow , ::string const& comment="read" ) ;
 	} ;
@@ -256,7 +261,7 @@ public :
 	struct Rename {
 		// cxtors & casts
 		Rename() = default ;
-		Rename( Record& , Path&& src , Path&& dst , uint flags=0 , ::string const& comment="rename" ) ;
+		Rename( Record& , Path&& src , Path&& dst , bool exchange , ::string const& comment="rename" ) ;
 		// services
 		int operator()( Record& , int rc ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data

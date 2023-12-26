@@ -62,6 +62,23 @@ template<bool At> static inline void _update( uint64_t* args , Record::Path cons
 	else    {                  args[0] = reinterpret_cast<uint64_t>(p.file) ; }
 }
 
+static constexpr int FlagAlways = -1 ;
+static constexpr int FlagNever  = -2 ;
+template<bool At,int FlagArg> static inline bool flag( uint64_t args[6] , int flag ) {
+	switch (FlagArg) {
+		case FlagAlways : return true                    ;
+		case FlagNever  : return false                   ;
+		default         : return args[FlagArg+At] & flag ;
+	}
+}
+template<bool At,int FlagArg> static inline bool flag() {
+	switch (FlagArg) {
+		case FlagAlways : return true   ;
+		case FlagNever  : return false  ;
+		default         : FAIL(FlagArg) ;
+	}
+}
+
 // chdir
 template<bool At,bool Path> bool/*skip_syscall*/ entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
 	try {
@@ -80,9 +97,9 @@ int64_t/*res*/ exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
 }
 
 // chmod
-template<bool At,bool Path,bool Flags> bool/*skip_syscall*/ entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,bool Path,int FlagArg> bool/*skip_syscall*/ entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , Flags&&(args[2+At]&AT_SYMLINK_NOFOLLOW) , comment ) ;
+		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = cm ;
 		_update<At>(args+0,*cm) ;
 	} catch (int) {}
@@ -98,9 +115,9 @@ int64_t/*res*/ exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
 
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
-template<bool At,bool Flags> bool/*skip_syscall*/ entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> bool/*skip_syscall*/ entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Exec e{ r , _path<At>(pid,args+0) , Flags&&(args[3+At]&AT_SYMLINK_NOFOLLOW) , comment } ;
+		Record::Exec e{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,e) ;
 	} catch (int) {}
 	return false ;
@@ -125,9 +142,9 @@ int64_t/*res*/ exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res ) {
 }
 
 // hard link
-template<bool At,bool Flags> bool/*skip_syscall*/ entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> bool/*skip_syscall*/ entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , Flags?args[2+At*2]:0 , comment ) ;
+		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = l ;
 		_update<At>(args+0,l->src) ;
 		_update<At>(args+2,l->dst) ;
@@ -140,6 +157,15 @@ int64_t/*res*/ exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
 	(*l)(r,res) ;
 	delete l ;
 	return res ;
+}
+
+// mkdir
+template<bool At> bool/*skip_syscall*/ entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	try {
+		Record::Mkdir m{ r , _path<At>(pid,args+0) , comment } ;
+		_update<At>(args+0,m) ;
+	} catch (int) {}
+	return false ;
 }
 
 // open
@@ -189,9 +215,14 @@ int64_t/*res*/ exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) 
 }
 
 // rename
-template<bool At,bool Flags> bool/*skip_syscall*/ entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> bool/*skip_syscall*/ entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , Flags?args[2+At*2]:0 , comment ) ;
+		#ifdef RENAME_EXCHANGE
+			bool exchange = flag<At,FlagArg>(args,RENAME_EXCHANGE) ;
+		#else
+			bool exchange = false                                  ;
+		#endif
+		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , comment ) ;
 		ctx = rn ;
 		_update<At>(args+0,rn->src) ;
 		_update<At>(args+2,rn->dst) ;
@@ -224,9 +255,9 @@ int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 }
 
 // unlink
-template<bool At,bool Flags> bool/*skip_syscall*/ entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> bool/*skip_syscall*/ entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , Flags&&(args[1+At]&AT_REMOVEDIR) , comment ) ;
+		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_REMOVEDIR) , comment ) ;
 		ctx = u ;
 		_update<At>(args+0,*u) ;
 	} catch (int) {}
@@ -241,32 +272,11 @@ int64_t/*res*/ exit_unlink( void* ctx , Record& r , pid_t , int64_t res ) {
 }
 
 // access
-static constexpr int FlagAlways = -1 ;
-static constexpr int FlagNever  = -2 ;
 template<bool At,int FlagArg> bool/*skip_syscall*/ entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	bool no_follow ;
-	switch (FlagArg) {
-		case FlagAlways : no_follow = true                                   ; break ;
-		case FlagNever  : no_follow = false                                  ; break ;
-		default         : no_follow = args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
-	}
 	try {
-		Record::Stat s{ r , _path<At>(pid,args+0) , no_follow , comment } ;
+		Record::Stat s{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,s) ;
 		s(r) ;
-	} catch (int) {}
-	return false ;
-}
-template<bool At,int FlagArg> bool/*skip_syscall*/ entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	bool no_follow ;
-	switch (FlagArg) {
-		case FlagAlways : no_follow = true                                   ; break ;
-		case FlagNever  : no_follow = false                                  ; break ;
-		default         : no_follow = args[FlagArg+At] & AT_SYMLINK_NOFOLLOW ;
-	}
-	try {
-		Record::Solve s{ r , _path<At>(pid,args+0) , no_follow , false/*read*/ , comment } ;
-		_update<At>(args+0,s) ;
 	} catch (int) {}
 	return false ;
 }
@@ -275,6 +285,8 @@ template<bool At,int FlagArg> bool/*skip_syscall*/ entry_mkdir( void* & /*ctx*/ 
 SyscallDescr::Tab const& SyscallDescr::s_tab() {           // this must *not* do any mem allocation (or syscall impl in ld.cc breaks), so it cannot be a umap
 	static Tab s_tab = {} ;
 	//	/!\ prio must be non-zero as zero means entry is not allocated
+	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
+	#define NFS_GUARD true
 	//	                                                                                 entry           At    Path  flag         exit            prio data access comment
 	#ifdef SYS_faccessat
 		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { entry_stat    <true       ,2         > , nullptr       , 2  , false     , "Faccessat"         } ;
@@ -292,34 +304,34 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {           // this must *not* do
 		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { entry_chdir   <true ,false           > , exit_chdir    , 1  , true                            } ;
 	#endif
 	#ifdef SYS_chmod
-		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { entry_chmod   <false,true ,false     > , exit_chmod    , 1  , true      , "Chmod"             } ;
+		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { entry_chmod   <false,true ,FlagNever > , exit_chmod    , 1  , true      , "Chmod"             } ;
 	#endif
 	#ifdef SYS_fchmod
-		static_assert(SYS_fchmod           <NSyscalls) ; s_tab[SYS_fchmod           ] = { entry_chmod   <true ,false,false     > , exit_chmod    , 1  , true      , "Fchmod"            } ;
+		static_assert(SYS_fchmod           <NSyscalls) ; s_tab[SYS_fchmod           ] = { entry_chmod   <true ,false,FlagNever > , exit_chmod    , 1  , true      , "Fchmod"            } ;
 	#endif
 	#ifdef SYS_fchmodat
-		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { entry_chmod   <true ,true ,true      > , exit_chmod    , 1  , true      , "Fchmodat"          } ;
+		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { entry_chmod   <true ,true ,2         > , exit_chmod    , 1  , true      , "Fchmodat"          } ;
 	#endif
 	#ifdef SYS_execve
-		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { entry_execve  <false      ,false     > , nullptr       , 1  , true      , "Execve"            } ;
+		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { entry_execve  <false      ,FlagNever > , nullptr       , 1  , true      , "Execve"            } ;
 	#endif
 	#ifdef SYS_execveat
-		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { entry_execve  <true       ,true      > , nullptr       , 1  , true      , "Execveat"          } ;
+		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { entry_execve  <true       ,3         > , nullptr       , 1  , true      , "Execveat"          } ;
 	#endif
 	#if defined(SYS_getcwd) && !defined(PTRACE) // tmp mapping is not supported with ptrace
 		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { entry_getcwd                           , exit_getcwd   , 1  , true                            } ;
 	#endif
 	#ifdef SYS_link
-		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { entry_lnk     <false      ,false     > , exit_lnk      , 1  , true      , "Link"              } ;
+		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { entry_lnk     <false      ,FlagNever > , exit_lnk      , 1  , true      , "Link"              } ;
 	#endif
 	#ifdef SYS_linkat
-		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { entry_lnk     <true       ,true      > , exit_lnk      , 1  , true      , "Linkat"            } ;
+		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { entry_lnk     <true       ,2         > , exit_lnk      , 1  , true      , "Linkat"            } ;
 	#endif
 	#ifdef SYS_mkdir
-		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { entry_mkdir   <false      ,FlagNever > , nullptr       , 1  , false     , "Mkdir"             } ;
+		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { entry_mkdir   <false                 > , nullptr       , 1  , NFS_GUARD , "Mkdir"             } ;
 	#endif
 	#ifdef SYS_mkdirat
-		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { entry_mkdir   <true       ,FlagNever > , nullptr       , 1  , false     , "Mkdirat"           } ;
+		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { entry_mkdir   <true                  > , nullptr       , 1  , NFS_GUARD , "Mkdirat"           } ;
 	#endif
 	#ifdef SYS_name_to_handle_at
 		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { entry_open    <true                  > , exit_open     , 1  , true      , "Name_to_handle_at" } ;
@@ -343,16 +355,16 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {           // this must *not* do
 		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { entry_read_lnk<true                  > , exit_read_lnk , 2  , true      , "Readlinkat"        } ;
 	#endif
 	#if SYS_rename
-		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { entry_rename  <false      ,false     > , exit_rename   , 1  , true      , "Rename"            } ;
+		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { entry_rename  <false      ,FlagNever > , exit_rename   , 1  , true      , "Rename"            } ;
 	#endif
 	#ifdef SYS_renameat
-		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { entry_rename  <true       ,false     > , exit_rename   , 1  , true      , "Renameat"          } ;
+		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { entry_rename  <true       ,FlagNever > , exit_rename   , 1  , true      , "Renameat"          } ;
 	#endif
 	#ifdef SYS_renameat2
-		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { entry_rename  <true       ,true      > , exit_rename   , 1  , true      , "Renameat2"         } ;
+		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { entry_rename  <true       ,2         > , exit_rename   , 1  , true      , "Renameat2"         } ;
 	#endif
 	#ifdef SYS_rmdir
-		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { entry_stat    <false      ,FlagAlways> , nullptr       , 1  , false     , "Rmdir"             } ;
+		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { entry_unlink  <false      ,FlagAlways> , nullptr       , 1  , NFS_GUARD , "Rmdir"             } ;
 	#endif
 	#ifdef SYS_stat
 		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { entry_stat    <false      ,FlagNever > , nullptr       , 2  , false     , "Stat"              } ;
@@ -388,10 +400,11 @@ SyscallDescr::Tab const& SyscallDescr::s_tab() {           // this must *not* do
 		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { entry_sym_lnk <true                  > , exit_sym_lnk  , 1  , true      , "Symlinkat"         } ;
 	#endif
 	#ifdef SYS_unlink
-		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { entry_unlink  <false      ,false     > , exit_unlink   , 1  , true      , "Unlink"            } ;
+		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { entry_unlink  <false      ,FlagNever > , exit_unlink   , 1  , true      , "Unlink"            } ;
 	#endif
 	#ifdef SYS_unlinkat
-		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { entry_unlink  <true       ,true      > , exit_unlink   , 1  , true      , "Unlinkat"          } ;
+		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { entry_unlink  <true       ,1         > , exit_unlink   , 1  , true      , "Unlinkat"          } ;
 	#endif
+	#undef NFS_GUARD
 	return s_tab ;
 }
