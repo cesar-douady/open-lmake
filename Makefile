@@ -91,20 +91,13 @@ SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 ASSEMBLE            := $(CC)             -S                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
-LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=) # e.g. : LIBARY_PATH=/a/b:/c:/a/b/c/..
-LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                 # e.g. : /a/b:/c:/a/b/c/..
-LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                            # e.g. : /a/b /c /a/b/c/..
-LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                             # e.g. : /a/b /c /a/b
-LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                 # e.g. : /a/b /c
-LINK_LIB_PATH       := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH))       # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c
 LINK_O              := $(CC) $(COVERAGE) -r
-LINK_SO             := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread -shared-libgcc -shared
-LINK_BIN            := $(CC) $(COVERAGE) $(LINK_LIB_PATH) -pthread
+LINK_SO             := $(CC) $(COVERAGE) -pthread -shared-libgcc -shared
+LINK_BIN            := $(CC) $(COVERAGE) -pthread
 LINK_LIB            := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
 PYTHON_LIB_BASE     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
-PYTHON_LIB_DIR      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
-PYTHON_LINK_OPTIONS := -L$(PYTHON_LIB_DIR) -Wl,-rpath=$(PYTHON_LIB_DIR) -l$(PYTHON_LIB_BASE)
+PYTHON_LINK_OPTIONS := -l$(PYTHON_LIB_BASE)
 PYTHON_VERSION      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
 CFLAGS              := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
 CXXFLAGS            := $(CFLAGS) -std=$(LANG)
@@ -138,19 +131,21 @@ ENGINE_LIB  := $(SRC)/lmakeserver
 BACKEND_LIB := $(ENGINE_LIB)/backends
 
 # LMAKE
-LMAKE_SERVER_FILES = \
+LMAKE_SERVER_PY_FILES = \
 	$(SLIB)/read_makefiles.py        \
 	$(SLIB)/serialize.py             \
-	$(SBIN)/lmakeserver              \
-	$(SBIN)/ldump                    \
-	$(SBIN)/ldump_job                \
 	$(LIB)/lmake/__init__.py         \
 	$(LIB)/lmake/auto_sources.py     \
 	$(LIB)/lmake/import_machinery.py \
 	$(LIB)/lmake/rules.py            \
 	$(LIB)/lmake/sources.py          \
 	$(LIB)/lmake/utils.py            \
-	$(LIB)/lmake_runtime.py          \
+	$(LIB)/lmake_runtime.py
+
+LMAKE_SERVER_BIN_FILES = \
+	$(SBIN)/lmakeserver              \
+	$(SBIN)/ldump                    \
+	$(SBIN)/ldump_job                \
 	$(BIN)/autodep                   \
 	$(BIN)/ldebug                    \
 	$(BIN)/lforget                   \
@@ -159,6 +154,9 @@ LMAKE_SERVER_FILES = \
 	$(BIN)/lshow                     \
 	$(BIN)/xxhsum
 
+LMAKE_SERVER_FILES = \
+	$(LMAKE_SERVER_PY_FILES)         \
+	$(LMAKE_SERVER_BIN_FILES)
 
 LMAKE_REMOTE_FILES = \
 	$(SBIN)/job_exec      \
@@ -666,3 +664,15 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 	for d in $^ ; do mkdir -p $$(dirname $(ARCHIVE_DIR)/$$d) ; cp $$d $(ARCHIVE_DIR)/$$d ; done
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 
+#
+# For debian packaging
+#
+install: $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html
+	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
+	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
+	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
+	install -D $(DOC)/lmake.html $(DESTDIR)/$(prefix)/share/doc/open-lmake/html/lmake.html
+
+# uncoment to automatically cleanup repo before building package
+# clean:
+# 	git clean -ffdx

@@ -1,0 +1,24 @@
+Source: open-lmake
+Section: devel
+Priority: optional
+Maintainer: Cesar Douady <cesar.douady@doliam.fr>
+Build-Depends:
+ debhelper-compat (= 13),
+ python3,
+ libslurm-dev,
+ libseccomp-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/cesar-douady/open-lmake
+
+Package: open-lmake
+Architecture: amd64 arm64
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ python3
+Recommends: libslurm37 | libslurm38 | libslurm39 | libslurm40
+Description: pythonic workflow management system
+ Build systems like GNU Make are frequently used to create complicated
+ workflows. This project aims to reduce the complexity of creating workflows
+ by leveraging Python language, together with a fast and
+ comfortable execution environment.

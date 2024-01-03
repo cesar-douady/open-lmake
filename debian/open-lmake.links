@@ -1,0 +1,10 @@
+/usr/lib/open-lmake/bin/autodep     /usr/bin/autodep
+/usr/lib/open-lmake/bin/lforget     /usr/bin/ldebug
+/usr/lib/open-lmake/bin/ldebug      /usr/bin/lforget
+/usr/lib/open-lmake/bin/lmake       /usr/bin/lmake
+/usr/lib/open-lmake/bin/lmark       /usr/bin/lmark
+/usr/lib/open-lmake/bin/lshow       /usr/bin/lshow
+/usr/lib/open-lmake/bin/xxhsum      /usr/bin/xxhsum
+/usr/lib/open-lmake/bin/lcheck_deps /usr/bin/lcheck_deps
+/usr/lib/open-lmake/bin/ldepend     /usr/bin/ldepend
+/usr/lib/open-lmake/bin/ltarget     /usr/bin/ltarget
