@@ -18,13 +18,13 @@ int main( int argc , char* /*argv*/[] ) {
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	Py::init() ;
 	//
-	EngineStore::s_new_config({}/*config*/,false/*dynamic*/) ;
+	Persistent::new_config({}/*config*/,false/*dynamic*/) ;
 	//
-	for( const Rule r : g_store.rule_lst() ) _out( {}           , to_string(r                ) , r->name   ) ;
-	for( const Job  j : g_store.job_lst () ) _out( to_string(j) , to_string(j->rule          ) , j->name() ) ;
-	for( const Node n : g_store.node_lst() ) _out( to_string(n) , to_string(n->actual_job_tgt) , n->name() ) ;
+	for( const Rule r : Persistent::rule_lst() ) _out( {}           , to_string(r                ) , r->name   ) ;
+	for( const Job  j : Persistent::job_lst () ) _out( to_string(j) , to_string(j->rule          ) , j->name() ) ;
+	for( const Node n : Persistent::node_lst() ) _out( to_string(n) , to_string(n->actual_job_tgt) , n->name() ) ;
 	//
-	g_store.chk() ;
+	Persistent::chk() ;
 	//
 	return 0 ;
 }

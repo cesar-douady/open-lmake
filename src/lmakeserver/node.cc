@@ -70,7 +70,7 @@ namespace Engine {
 		_set_buildable(buildable) ;
 	}
 
-	::vector_view_c<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
+	::c_vector_view<JobTgt> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
 		if (prio_idx==NoIdx) return {} ;
 		JobTgts const& jts = job_tgts ;                                        // /!\ jts is a CrunchVector, so if single element, a subvec would point to it, so it *must* be a ref
 		if (prio_idx>=jts.size()) {
@@ -78,7 +78,7 @@ namespace Engine {
 			return {} ;
 		}
 		RuleIdx                 sz   = 0                    ;
-		::vector_view_c<JobTgt> sjts = jts.subvec(prio_idx) ;
+		::c_vector_view<JobTgt> sjts = jts.subvec(prio_idx) ;
 		Prio                    prio = -Infinity            ;
 		for( JobTgt jt : sjts ) {
 			Prio new_prio = jt->rule->prio ;
@@ -125,7 +125,7 @@ namespace Engine {
 		job_tgts.clear() ;
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			if (!rt->is_special()) {
-				rule_tgts = ::vector_view_c<RuleTgt>(rule_tgts_,n) ;
+				rule_tgts = ::c_vector_view<RuleTgt>(rule_tgts_,n) ;
 				return Buildable::Maybe ;
 			}
 			if (+Rule::FullMatch(rt,name_))
@@ -180,6 +180,8 @@ namespace Engine {
 		Trace trace("set_buildable",idx(),lvl) ;
 		switch (buildable) {                                                   // ensure we do no update sources
 			case Buildable::Src    :
+			case Buildable::Decode :
+			case Buildable::Encode :
 			case Buildable::SrcDir :
 			case Buildable::Anti   : SWEAR(!rule_tgts,rule_tgts) ; goto Return ;
 			default : ;
@@ -262,6 +264,8 @@ namespace Engine {
 			case Buildable::No        : status(NodeStatus::None) ; goto NoSrc ;
 			case Buildable::DynSrc    :
 			case Buildable::Src       : status(NodeStatus::Src ) ; goto Src   ;
+			case Buildable::Decode    :
+			case Buildable::Encode    : status(NodeStatus::Src ) ; goto Codec ;
 			default                   :                            break      ;
 		}
 		if (!dir) goto NotDone ;
@@ -346,12 +350,16 @@ namespace Engine {
 			}
 			goto ActuallyDone ;
 		}
+	Codec :
+		{	if (date>req->start) ri.overwritten = true ;
+			goto ActuallyDone ;
+		}
 	NoSrc :
 		{	Crc crc_ = status()==NodeStatus::Transcient ? Crc::Unknown : Crc::None ;
-			if (crc==crc_) goto Done ;                                                       // node is not polluted
-			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && manual_refresh(req)==No ) {
-				unlink(lazy_name(),true/*dir_ok*/) ;                                         // wash pollution if not manual
-				req->audit_job( Color::Warning , "wash" , "" , lazy_name() ) ;
+			if (crc==crc_) goto Done ;                                                   // node is not polluted
+			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && lazy_manual(ri)==No ) {
+				unlink(lazy_name(),true/*dir_ok*/) ;                                     // wash pollution if not manual
+				req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 			}
 			refresh( crc_ , Ddate::s_now() ) ;                                 // if not physically unlinked, node will be manual
 			goto ActuallyDone ;
@@ -393,12 +401,12 @@ namespace Engine {
 		} else {
 			// check if we need to regenerate node
 			if (ri.done(ri.action)) {
-				if (!unlinked                   ) goto Wakeup ;                    // no need to regenerate
-				if (ri.action<=RunAction::Status) goto Wakeup ;                    // no need for the file on disk
-				if (status()!=NodeStatus::Plain ) goto Wakeup ;                    // no hope to regenerate, proceed as a done target
-				ri.done_    = RunAction::Status ;                                  // regenerate
-				ri.prio_idx = conform_idx()     ;                                  // .
-				ri.single   = true              ;                                  // only ask to run conform job
+				if (!unlinked                   ) goto Wakeup ;                // no need to regenerate
+				if (ri.action<=RunAction::Status) goto Wakeup ;                // no need for the file on disk
+				if (status()!=NodeStatus::Plain ) goto Wakeup ;                // no hope to regenerate, proceed as a done target
+				ri.done_    = RunAction::Status ;                              // regenerate
+				ri.prio_idx = conform_idx()     ;                              // .
+				ri.single   = true              ;                              // only ask to run conform job
 				goto Make ;
 			}
 			// fast path : check jobs we were waiting for, lighter than full analysis
@@ -414,7 +422,7 @@ namespace Engine {
 			ri.prio_idx = it.idx ;                                             // go on with next prio
 		}
 	Make :
-		for ( Bool3 manual_ = unlinked ? Maybe : Bool3::Unknown ;;) {          // manual_ is lazy evaluated
+		for(;;) {
 			SWEAR(prod_idx==NoIdx,prod_idx) ;
 			if (ri.prio_idx>=job_tgts.size()) {                                // gather new job_tgts from rule_tgts
 				SWEAR(!ri.single) ;                                            // we only regenerate using an existing job
@@ -454,16 +462,15 @@ namespace Engine {
 							if (jt.produces(idx())) {
 								if      (!has_actual_job(  )) reason = {JobReasonTag::NoTarget     ,+idx()} ;
 								else if (!has_actual_job(jt)) reason = {JobReasonTag::PolutedTarget,+idx()} ;
-								else {
-									if (manual_==Bool3::Unknown) manual_ = manual_refresh(req) ; // lazy solve manual_
-									switch (manual_) {
+								else if (unlinked           ) reason = {JobReasonTag::NoTarget     ,+idx()} ;
+								else
+									switch (lazy_manual(ri)) {
 										case Yes   : reason = {JobReasonTag::PolutedTarget,+idx()} ; break ;
 										case Maybe : reason = {JobReasonTag::NoTarget     ,+idx()} ; break ;
 										case No    :                                                 break ;
-										default : FAIL(manual_) ;
+										default : FAIL(lazy_manual(ri)) ;
 									}
 								}
-							}
 						break ;
 						default : FAIL(ri.action) ;
 					}
@@ -554,7 +561,9 @@ namespace Engine {
 		//
 		if (unlinked) trace("!unlinked") ;
 		unlinked = false ;                                                                             // dont care whether file exists, it has been generated according to its job
-		if (modified) for( Req r : reqs() ) if (c_req_info(r).done()) req_info(r).overwritten = true ;
+		if (modified)
+			for( Req r : reqs() )
+				if ( Node::ReqInfo& ri=req_info(r) ; ri.done() ) { trace("overwrite",*this) ; ri.reset() ; } // target is not done any more
 		return modified ;
 	}
 
@@ -599,7 +608,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Deps const& ds ) {
-		return os << vector_view_c<Dep>(ds) ;
+		return os << c_vector_view<Dep>(ds) ;
 	}
 
 	//

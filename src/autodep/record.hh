@@ -72,11 +72,11 @@ public :
 	Record(pid_t pid=0) : real_path{s_autodep_env(),pid} {}
 	// services
 private :
-	void _report_access( ::string&& f , DD d , Accesses a , bool update , ::string const& c={} ) const {
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , c ) ) ;
+	void _report_access( ::string&& f , DD d , Accesses a , bool update , ::string&& c={} ) const {
+		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , { .accesses=a , .write=update } , ::move(c) ) ) ;
 	}
-	void _report_guard( ::string&& f , ::string const& c={} ) const {
-		_s_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , c )) ;
+	void _report_guard( ::string&& f , ::string&& c={} ) const {
+		_s_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
 	}
 	//
 	void _report_access( JobExecRpcReq const& jerr ) const ;
@@ -88,32 +88,32 @@ private :
 	// - access is reported as Maybe before the access
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
-	void _report_dep    ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , false/*update*/ , c ) ; }
-	void _report_dep    ( ::string&& f ,         Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_root_fd(),f) , a , false/*update*/ , c ) ; }
-	void _report_update ( ::string&& f , DD dd , Accesses a , ::string const& c={} ) const { _report_access( ::move(f) , dd                             , a , true /*update*/ , c ) ; }
+	void _report_dep    ( ::string&& f , DD dd , Accesses a , ::string&& c={} ) const { _report_access( ::move(f) , dd                             , a , false/*update*/ , ::move(c) ) ; }
+	void _report_dep    ( ::string&& f ,         Accesses a , ::string&& c={} ) const { _report_access( ::move(f) , Disk::file_date(s_root_fd(),f) , a , false/*update*/ , ::move(c) ) ; }
+	void _report_update ( ::string&& f , DD dd , Accesses a , ::string&& c={} ) const { _report_access( ::move(f) , dd                             , a , true /*update*/ , ::move(c) ) ; }
 	//
 	void _report_confirm( ::vector_s&& fs , bool ok ) const { _s_report(JobExecRpcReq( JobExecRpcProc::Confirm , ::move(fs) , ok )) ; }
 	void _report_confirm( ::string  && f  , bool ok ) const { _report_confirm(::vector_s({::move(f)}),ok) ;                         ; }
 	//
-	void _report_deps( ::vmap_s<DD>&& fs , Accesses a , bool u , ::string const& c={} ) const {
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=u } , c ) ) ;
+	void _report_deps( ::vmap_s<DD>&& fs , Accesses a , bool u , ::string&& c={} ) const {
+		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , { .accesses=a , .unlink=u } , ::move(c) ) ) ;
 	}
-	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string const& c={} ) const {
+	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<DD> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
-		_report_deps( ::move(fds) , a , u , c ) ;
+		_report_deps( ::move(fds) , a , u , ::move(c) ) ;
 	}
-	void _report_target ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.write =true} , c ) ) ; }
-	void _report_unlink ( ::string  && f  , ::string const& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.unlink=true} , c ) ) ; }
-	void _report_targets( ::vector_s&& fs , ::string const& c={} ) const {
+	void _report_target ( ::string  && f  , ::string&& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.write =true} , ::move(c) ) ) ; }
+	void _report_unlink ( ::string  && f  , ::string&& c={} ) const { _report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),DD()}} , {.unlink=true} , ::move(c) ) ) ; }
+	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<DD> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),DD()) ;
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write=true} , c ) ) ;
+		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write=true} , ::move(c) ) ) ;
 	}
-	void _report_tmp( bool sync=false , ::string const& comment={} ) const {
+	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!tmp_cache) tmp_cache = true ;
 		else if (!sync     ) return ;
-		_s_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,comment)) ;
+		_s_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
 	}
 public :
 	template<class... A> void report_trace(A const&... args) {
@@ -180,18 +180,17 @@ public :
 	struct Real : Path {
 		// cxtors & casts
 		Real() = default ;
-		Real( Path&& path , ::string const& comment_={} ) : Path{::move(path)} , comment{comment_} {}
+		Real(Path&& path) : Path{::move(path)} {}
 		// services
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		// data
-		::string real    = {} ;
-		::string comment = {} ;
+		::string real = {} ;
 	} ;
 	struct Solve : Real {
 		// search (executable if asked so) file in path_var
 		Solve()= default ;
-		Solve( Record& r , Path&& path , bool no_follow , bool read , ::string const& comment_={} ) : Real{::move(path),comment_} {
-			SolveReport sr = r._solve( *this , no_follow , read , comment ) ;
+		Solve( Record& r , Path&& path , bool no_follow , bool read , ::string const& c={} ) : Real{::move(path)} {
+			SolveReport sr = r._solve( *this , no_follow , read , c ) ;
 			real     = ::move(sr.real)  ;
 			accesses = sr.last_accesses ;
 		}
@@ -201,26 +200,26 @@ public :
 	struct ChDir : Solve {
 		// cxtors & casts
 		ChDir() = default ;
-		ChDir( Record& , Path&& ) ;
+		ChDir( Record& , Path&& , ::string&& comment={}) ;
 		// services
 		int operator()( Record& , int rc , pid_t pid=0 ) ;
 	} ;
 	struct Chmod : Solve {
 		// cxtors & casts
 		Chmod() = default ;
-		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string const& comment="write" ) ;
+		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string&& comment="chmod" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 	} ;
 	struct Exec : Solve {
 		// cxtors & casts
 		Exec() = default ;
-		Exec( Record& , Path&& , bool no_follow , ::string const& comment="exec" ) ;
+		Exec( Record& , Path&& , bool no_follow , ::string&& comment="exec" ) ;
 	} ;
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;
-		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string const& comment="lnk" ) ;
+		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string&& comment="lnk" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 		// data
@@ -229,12 +228,12 @@ public :
 	} ;
 	struct Mkdir : Solve {
 		Mkdir() = default ;
-		Mkdir( Record& , Path&& , ::string const& comment="read" ) ;
+		Mkdir( Record& , Path&& , ::string&& comment="mkdir" ) ;
 	} ;
 	struct Open : Solve {
 		// cxtors & casts
 		Open() = default ;
-		Open( Record& , Path&& , int flags , ::string const& comment="open" ) ;
+		Open( Record& , Path&& , int flags , ::string&& comment="open" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 		// data
@@ -242,14 +241,14 @@ public :
 	} ;
 	struct Read : Solve {
 		Read() = default ;
-		Read( Record& , Path&& , bool no_follow , ::string const& comment="read" ) ;
+		Read( Record& , Path&& , bool no_follow , ::string&& comment="read" ) ;
 	} ;
 	struct ReadLnk : Solve {
 		// cxtors & casts
 		ReadLnk() = default ;
 		// buf and sz are only used when mapping tmp or processing backdoor
-		ReadLnk( Record&   , Path&&   , char* buf , size_t sz , ::string const& comment="read_lnk" ) ;
-		ReadLnk( Record& r , Path&& p ,                         ::string const& comment="read_lnk" ) : ReadLnk{r,::move(p),nullptr/*buf*/,0/*sz*/,comment} {
+		ReadLnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment="read_lnk" ) ;
+		ReadLnk( Record& r , Path&& p ,                         ::string&& c      ="read_lnk" ) : ReadLnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {
 			SWEAR(p.at!=Backdoor) ;                                            // backdoor works in cxtor and need buf to put its result
 		}
 		// services
@@ -261,9 +260,9 @@ public :
 	struct Rename {
 		// cxtors & casts
 		Rename() = default ;
-		Rename( Record& , Path&& src , Path&& dst , bool exchange , ::string const& comment="rename" ) ;
+		Rename( Record& , Path&& src , Path&& dst , bool exchange , ::string&& comment="rename" ) ;
 		// services
-		int operator()( Record& , int rc ) ;                    // if file is updated and did not exist, its date must be capture before the actual syscall
+		int operator()( Record& , int rc ) ;                                   // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data
 		Solve      src     ;
 		Solve      dst     ;
@@ -273,23 +272,20 @@ public :
 	struct Search : Real {
 		// search (executable if asked so) file in path_var
 		Search() = default ;
-		Search( Record& , Path const& , bool exec , const char* path_var , ::string const& comment="search" ) ;
+		Search( Record& , Path const& , bool exec , const char* path_var , ::string&& comment="search" ) ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
 		Stat() = default ;
-		Stat( Record& , Path&& , bool no_follow , ::string const& comment="stat" ) ;
+		Stat( Record& , Path&& , bool no_follow , ::string&& comment="stat" ) ;
 		// services
-		int operator()( Record& , int rc=0 ) ;
-		template<class T> T* operator()( Record& r , T* res ) {
-			(*this)( r , -!res ) ;                                             // map null (indicating error) to -a and non-null (indicating success) to 0
-			return res ;
-		}
+		/**/              void operator()( Record&           ) {                            }
+		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }
 	} ;
 	struct Symlnk : Solve {
 		// cxtors & casts
 		Symlnk() = default ;
-		Symlnk( Record& r , Path&& p , ::string const& c="write" ) ;
+		Symlnk( Record& r , Path&& p , ::string&& comment="symlink" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 		// data
@@ -297,7 +293,7 @@ public :
 	struct Unlink : Solve {
 		// cxtors & casts
 		Unlink() = default ;
-		Unlink( Record& , Path&& , bool remove_dir=false , ::string const& comment="unlink" ) ;
+		Unlink( Record& , Path&& , bool remove_dir=false , ::string&& comment="unlink" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 	} ;
@@ -310,6 +306,6 @@ protected :
 	// data
 protected :
 	Disk::RealPath             real_path    ;
-	mutable bool               tmp_cache    = false   ;    // record that tmp usage has been reported, no need to report any further
+	mutable bool               tmp_cache    = false ;      // record that tmp usage has been reported, no need to report any further
 	mutable ::umap_s<Accesses> access_cache ;              // map file to read accesses
 } ;

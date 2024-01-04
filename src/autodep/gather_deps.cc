@@ -71,7 +71,7 @@ void GatherDeps::AccessInfo::update( PD pd , DD dd , AccessDigest const& ad , No
 	return           os << ')'                          ;
 }
 
-bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD dd , AccessDigest const& ad , ::string const& comment ) {
+void GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD dd , AccessDigest const& ad , ::string const& comment ) {
 	SWEAR( +file , comment ) ;
 	AccessInfo* info   = nullptr/*garbage*/    ;
 	auto        it     = access_map.find(file) ;
@@ -88,7 +88,6 @@ bool/*new*/ GatherDeps::_new_access( Fd fd , PD pd , ::string const& file , DD d
 	info->update(pd,dd,ad,parallel_id) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , file , dd , ad , parallel_id , comment , *info ) ; // only trace if something changes
-	return is_new ;
 }
 
 void GatherDeps::new_static_deps( PD pd , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin ) {
@@ -131,7 +130,7 @@ bool/*done*/ GatherDeps::kill(int sig) {
 	//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	if (pid>1) res = kill_process(create_group,pid,kill_sig) ;
 	//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( sig<0 && (child_stdout||!child_stderr) ) {                            // kill all processes (or process groups) connected to a stream we wait for
+	if ( sig<0 && (+child_stdout||+child_stderr) ) {                           // kill all processes (or process groups) connected to a stream we wait for
 		pid_t        ctl_pid   = getpid() ;
 		::string     stdout_fn ; if (+child_stdout) stdout_fn = read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ;
 		::string     stderr_fn ; if (+child_stderr) stderr_fn = read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ;
@@ -141,14 +140,12 @@ bool/*done*/ GatherDeps::kill(int sig) {
 			try {
 				pid_t child_pid = from_chars<pid_t>(proc_entry) ;
 				if (child_pid==ctl_pid) goto NextProc ;
+				if (create_group      ) child_pid = ::getpgid(child_pid) ;
+				if (child_pid<=1      ) goto NextProc ;                                           // no pgid available, ignore
 				for( ::string const& fd_entry : lst_dir(to_string("/proc/",proc_entry,"/fd")) ) {
 					::string fd_fn = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
-					if ( !fd_fn                               ) continue ;                     // fd has disappeared, ignore
-					if ( fd_fn!=stdout_fn && fd_fn!=stderr_fn ) continue ;                     // not the fd we are looking for
-					if (create_group) {
-						child_pid = ::getpgid(child_pid) ;
-						if (child_pid<=1) goto NextProc ;                           // no pgid available, ignore
-					}
+					if ( !fd_fn                               ) continue ;                      // fd has disappeared, ignore
+					if ( fd_fn!=stdout_fn && fd_fn!=stderr_fn ) continue ;                      // not the fd we are looking for
 					to_kill.insert(child_pid) ;
 					break ;
 				}
@@ -263,9 +260,9 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 			server_replies[reply_fd].fd = sync_ ? fd : Fd() ;
 		} else if (jerr.sync) {
 			JobExecRpcReply sync_reply ;
-			sync_reply.proc  = proc ;
-			sync_reply.ok    = Yes                                          ; // try to mimic server as much as possible when none is available
-			sync_reply.infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
+			sync_reply.proc      = proc ;
+			sync_reply.ok        = Yes                                          ; // try to mimic server as much as possible when none is available
+			sync_reply.dep_infos = ::vector<pair<Bool3/*ok*/,Crc>>(sz,{Yes,{}}) ; // .
 			sync(fd,sync_reply) ;
 		}
 		return false ;
@@ -305,7 +302,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					char          buf[4096] ;
 					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					::string_view buf_view  { buf , size_t(cnt) }                                      ;
-					if      (!cnt              ) { trace("close") ; epoll.close(fd) ;                }
+					if      (!cnt              ) { trace("close") ; epoll.del(fd) ;                  }   // /!\ fd is closed when child is destructed, closing it twice may close somebody else's fd
 					else if (kind==Kind::Stderr) { stderr.append(buf_view) ;                         }
 					else                         { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
 				} break ;
@@ -352,23 +349,27 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					if (proc!=Proc::Access) trace(kind,fd,epoll.cnt,proc) ;              // there may be too many Access'es, only trace within _new_accesses
 					SWEAR(!jerr.auto_date) ;                                             // this should have been solved earlier
 					switch (proc) {
-						case Proc::None      : epoll.close(fd) ; slaves.erase(fd) ;                                             break ;
-						case Proc::Tmp       : seen_tmp = true ;                                                                break ;
-						//                     vvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : _new_accesses(fd,jerr) ;                                                         break ;
-						case Proc::Guard     : _new_guards  (fd,jerr) ;                                                         break ;
-						case Proc::Confirm   : _confirm     (fd,jerr) ;                                                         break ;
-						case Proc::DepInfos  : _new_accesses(fd,jerr) ; handle_req_to_server(fd,::move(jerr)) ; sync_ = false ; break ; // if sync, handle_req_to_server replies
+						case Proc::None      : epoll.close(fd) ; slaves.erase(fd) ;    break                ;
+						case Proc::Tmp       : seen_tmp = true ;                       break                ;
+						//                     vvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access    : _new_accesses(fd,jerr) ;                break                ;
+						case Proc::Guard     : _new_guards  (fd,jerr) ;                break                ;
+						case Proc::Confirm   : _confirm     (fd,jerr) ;                break                ;
+						case Proc::DepInfos  : _new_accesses(fd,jerr) ;                goto ForwardToServer ;
+						case Proc::Decode    : _decode      (fd,jerr) ;                goto ForwardToServer ;
+						case Proc::Encode    : _encode      (fd,jerr) ;                goto ForwardToServer ;
 						//                     ^^^^^^^^^^^^^^^^^^^
-						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ;                          sync_ = false ; break ; // if sync, reply is delayed as well
-						case Proc::Trace     : trace(jerr.comment) ;                                                            break ;
+						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply         ; // if sync, reply is delayed as well
+						case Proc::Trace     : trace(jerr.txt) ;                       break                ;
 						default : fail(proc) ;
 					}
-					//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;
-					//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					break ;
-				} break ;
+				ForwardToServer :
+					handle_req_to_server(fd,::move(jerr)) ;
+				NoReply : ;
+					break ;
+				}
 				default : FAIL(kind) ;
 			}
 		}

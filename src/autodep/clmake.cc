@@ -39,36 +39,82 @@ static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) 
 	}
 }
 
-static void _push_str( ::vector_s& v , PyObject* o) {
-	if (!PyObject_IsTrue(o)) return ;
-	PyObject* s = PyObject_Str(o) ;
-	if (!s) throw "cannot convert argument to str"s ;
-	v.emplace_back(PyUnicode_AsUTF8(s)) ;
+static ::string _mk_str( PyObject* o , ::string const& arg_name={} ) {
+	/**/                                  if (!o) throw to_string("missing argument"       ,+arg_name?" ":"",arg_name          ) ;
+	PyObject* s   = PyObject_Str(o)     ; if (!s) throw to_string("cannot convert argument",+arg_name?" ":"",arg_name," to str") ;
+	::string  res = PyUnicode_AsUTF8(s) ;
 	Py_DECREF(s) ;
+	return res ;
 }
-static ::vector_s _get_files( PyObject* args ) {
-	::vector_s res ;
-	ssize_t n_args = PyTuple_GET_SIZE(args) ;
+
+static uint8_t _mk_uint8( PyObject* o , ::string const& arg_name={} ) {
+	if (!o) throw to_string("missing argument",+arg_name?" ":"",arg_name) ;
+	int  overflow = 0/*garbage*/                          ;
+	long val      = PyLong_AsLongAndOverflow(o,&overflow) ;
+	if ( overflow || val<0 || val>::numeric_limits<uint8_t>::max() ) throw to_string("overflow for argument",+arg_name?" ":"",arg_name) ;
+	return uint8_t(val) ;
+}
+
+static ::vector_s _get_files(PyObject* args) {
+	::vector_s res  ;
+	ssize_t  n_args = PyTuple_GET_SIZE(args) ;
+	//
+	auto push = [&](PyObject* o)->void {
+		if (PyObject_IsTrue(o)) res.push_back(_mk_str(o)) ;
+	} ;
+	//
 	if (n_args==1) {
 		args = PyTuple_GET_ITEM(args,0) ;
-		if      (PyTuple_Check(args)) { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) _push_str( res , PyTuple_GET_ITEM(args,i) ) ; }
-		else if (PyList_Check (args)) { ssize_t n = PyList_Size (args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) _push_str( res , PyList_GET_ITEM (args,i) ) ; }
-		else                          {                                  res.reserve(1) ;                                _push_str( res ,                  args    ) ; }
+		if      (PyTuple_Check(args)) { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyTuple_GET_ITEM(args,i)) ; }
+		else if (PyList_Check (args)) { ssize_t n = PyList_Size (args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyList_GET_ITEM (args,i)) ; }
+		else                          {                                  res.reserve(1) ;                                push(                 args   ) ; }
 	} else {
-		/**/                          { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) _push_str( res , PyTuple_GET_ITEM(args,i) ) ; }
+		/**/                            ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyTuple_GET_ITEM(args,i)) ;
 	}
-	for( size_t i=0 ; i<res.size() ; i++ )
-		if (!res[i]) {
-			const char* th = nullptr ;
-			switch ((i+1)%10) {
-				case 1  : th = "st" ; break ;
-				case 2  : th = "nd" ; break ;
-				case 3  : th = "rd" ; break ;
-				default : th = "th" ;
-			}
-			throw to_string(i+1,th," arg is empty") ;
-		}
+	for( size_t i=0 ; i<res.size() ; i++ ) SWEAR(+res[i]) ;
 	return res ;
+}
+
+static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	ssize_t n_args    =      PyTuple_GET_SIZE(args)     ;
+	ssize_t n_kw_args = kw ? PyDict_Size     (kw  ) : 0 ;
+	try {
+		::string code = _mk_str( n_args>0 ? PyTuple_GET_ITEM(args,0) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"code")) : nullptr , "code" ) ;
+		::string file = _mk_str( n_args>1 ? PyTuple_GET_ITEM(args,1) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"file")) : nullptr , "file" ) ;
+		::string ctx  = _mk_str( n_args>2 ? PyTuple_GET_ITEM(args,2) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"ctx" )) : nullptr , "ctx"  ) ;
+		//
+		if (n_kw_args) throw "unexpected keyword arg"s ;
+		//
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) ) ;
+		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                              ;
+		if (reply.ok!=Yes) throw reply.txt ;
+		return PyUnicode_FromString(reply.txt.c_str()) ;
+	} catch (::string const& e) {
+		if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError,e.c_str()) ;
+		return nullptr ;
+	}
+}
+
+static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	ssize_t n_args    =      PyTuple_GET_SIZE(args)     ;
+	ssize_t n_kw_args = kw ? PyDict_Size     (kw  ) : 0 ;
+	try {
+		::string val     = _mk_str  ( n_args>0 ? PyTuple_GET_ITEM(args,0) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"value"  )) : nullptr , "code"    ) ;
+		::string file    = _mk_str  ( n_args>1 ? PyTuple_GET_ITEM(args,1) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"file"   )) : nullptr , "file"    ) ;
+		::string ctx     = _mk_str  ( n_args>2 ? PyTuple_GET_ITEM(args,2) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"ctx"    )) : nullptr , "ctx"     ) ;
+		uint8_t  min_len = _mk_uint8( n_args>3 ? PyTuple_GET_ITEM(args,3) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"min_len")) : nullptr , "min_len" ) ;
+		//
+		if (n_kw_args) throw "unexpected keyword arg"s ;
+		if (min_len>MaxCodecBits) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits,')') ;
+		//
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
+		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                       ;
+		if (reply.ok!=Yes) throw reply.txt ;
+		return PyUnicode_FromString(reply.txt.c_str()) ;
+	} catch (::string const& e) {
+		if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError,e.c_str()) ;
+		return nullptr ;
+	}
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
@@ -101,20 +147,20 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	if (verbose) {
 		if (!files) return PyDict_New() ;                               // fast path : depend on no files
 		//
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow , "depend" ) ;
-		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                               ;
-		SWEAR( reply.infos.size()==jerr.files.size() , reply.infos.size() , jerr.files.size() ) ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow ) ;
+		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                    ;
+		SWEAR( reply.dep_infos.size()==jerr.files.size() , reply.dep_infos.size() , jerr.files.size() ) ;
 		PyObject* res = PyDict_New() ;
-		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
+		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
 			PyObject* v = PyTuple_New(2) ;
-			switch (reply.infos[i].first) {
+			switch (reply.dep_infos[i].first) {
 				case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
 				case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
 				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
-				default : FAIL(reply.infos[i].first) ;
+				default : FAIL(reply.dep_infos[i].first) ;
 			}
 			// answer returned value, even if dep is out-of-date, as if crc turns out to be correct, the job will not be rerun
-			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.infos[i].second).c_str()) ) ;
+			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.dep_infos[i].second).c_str()) ) ;
 			PyDict_SetItemString( res , jerr.files[i].first.c_str() , v ) ;
 			Py_DECREF(v) ;
 		}
@@ -125,35 +171,29 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	}
 }
 
-static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
-	bool    unlink     = false                    ;
-	bool    no_follow  = false                    ;
-	Tflags  neg_tflags ;
-	Tflags  pos_tflags ;
-	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
+static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	if ( PyTuple_GET_SIZE(args)!=1 || kw ) {
+		PyErr_SetString(PyExc_TypeError,"expect exactly a single positional argument") ;
+		return nullptr ;
 	}
-	if (!unlink) pos_tflags = {Tflag::Crc,Tflag::Write} ;                      // we declare that we write, allow it and compute crc by default
-	if (n_kw_args) {
-		for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ )
-			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
-				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) pos_tflags |= tf ;
-				else                       neg_tflags |= tf ;
-			}
-		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
+	PyObject* py_be = PyTuple_GET_ITEM(args,0) ;
+	if (!PyUnicode_Check(py_be)) {
+		PyErr_SetString(PyExc_TypeError,"argument must be a str") ;
+		return nullptr ;
 	}
-	if ( unlink && (+neg_tflags||+pos_tflags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
-	::vector_s files ;
-	try                       { files = _get_files(args) ;                                    }
-	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	//
-	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=!unlink,.unlink=unlink} , no_follow , "target" ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
-	//
-	Py_RETURN_NONE ;
+	const char* be  = PyUnicode_AsUTF8(py_be) ;
+	BackendTag  tag = BackendTag::Unknown     ;
+	try {
+		tag = mk_enum<BackendTag>(be) ;
+	} catch (::string const& e) {
+		PyErr_SetString(PyExc_ValueError,("unknown backend "s+be).c_str()) ;
+		return nullptr ;
+	}
+	switch (tag) {
+		case BackendTag::Local : Py_RETURN_TRUE                    ;
+		case BackendTag::Slurm : return PyBool_FromLong(HAS_SLURM) ;
+		default : FAIL(tag) ;
+	} ;
 }
 
 static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
@@ -193,29 +233,35 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	}
 }
 
-static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	if ( PyTuple_GET_SIZE(args)!=1 || kw ) {
-		PyErr_SetString(PyExc_TypeError,"expect exactly a single positional argument") ;
-		return nullptr ;
+static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
+	bool    unlink     = false                    ;
+	bool    no_follow  = false                    ;
+	Tflags  neg_tflags ;
+	Tflags  pos_tflags ;
+	if (n_kw_args) {
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
+		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
 	}
-	PyObject* py_be = PyTuple_GET_ITEM(args,0) ;
-	if (!PyUnicode_Check(py_be)) {
-		PyErr_SetString(PyExc_TypeError,"argument must be a str") ;
-		return nullptr ;
+	if (!unlink) pos_tflags = {Tflag::Crc,Tflag::Write} ;                      // we declare that we write, allow it and compute crc by default
+	if (n_kw_args) {
+		for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ )
+			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
+				n_kw_args-- ;
+				if (PyObject_IsTrue(py_v)) pos_tflags |= tf ;
+				else                       neg_tflags |= tf ;
+			}
+		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 	}
-	const char* be  = PyUnicode_AsUTF8(py_be) ;
-	BackendTag  tag = BackendTag::Unknown     ;
-	try {
-		tag = mk_enum<BackendTag>(be) ;
-	} catch (::string const& e) {
-		PyErr_SetString(PyExc_ValueError,("unknown backend "s+be).c_str()) ;
-		return nullptr ;
-	}
-	switch (tag) {
-		case BackendTag::Local : Py_RETURN_TRUE                    ;
-		case BackendTag::Slurm : return PyBool_FromLong(HAS_SLURM) ;
-		default : FAIL(tag) ;
-	} ;
+	if ( unlink && (+neg_tflags||+pos_tflags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
+	::vector_s files ;
+	try                       { files = _get_files(args) ;                                    }
+	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
+	//
+	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=!unlink,.unlink=unlink} , no_follow , "target" ) ;
+	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
+	//
+	Py_RETURN_NONE ;
 }
 
 static PyMethodDef funcs[] = {
@@ -224,25 +270,35 @@ static PyMethodDef funcs[] = {
 	,	METH_VARARGS|METH_KEYWORDS
 	,	"check_deps(verbose=False). Ensure that all previously seen deps are up-to-date."
 	}
+,	{	"decode"
+	,	reinterpret_cast<PyCFunction>(decode)
+	,	METH_VARARGS|METH_KEYWORDS
+	,	"decode(code,file,ctx). Return the associated value passed by encode(value,file,ctx)."
+	}
 ,	{	"depend"
 	,	reinterpret_cast<PyCFunction>(depend)
 	,	METH_VARARGS|METH_KEYWORDS
 	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,critical=False,ignore_error=False,essential=False). Mark all arguments as parallel dependencies."
 	}
-,	{	"target"
-	,	reinterpret_cast<PyCFunction>(target)
+,	{	"encode"
+	,	reinterpret_cast<PyCFunction>(encode)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets."
+	,	"encode(value,file,ctx,min_length=1). Return a code associated with value. If necessary create such a code of length at least min_length after a checksum computed after value."
+	}
+,	{	"has_backend"
+	,	reinterpret_cast<PyCFunction>(has_backend)
+	,	METH_VARARGS|METH_KEYWORDS
+	,	"has_backend(backend). Return true if the corresponding backend is implememented."
 	}
 ,	{	"search_sub_root_dir"
 	,	reinterpret_cast<PyCFunction>(search_sub_root_dir)
 	,	METH_VARARGS|METH_KEYWORDS
 	,	"search_sub_root_dir(cwd=os.getcwd()). Return the nearest hierarchical root dir relative to the actual root dir."
 	}
-,	{	"has_backend"
-	,	reinterpret_cast<PyCFunction>(has_backend)
+,	{	"target"
+	,	reinterpret_cast<PyCFunction>(target)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"has_backend(backend). Return true if the corresponding backend is implememented."
+	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets."
 	}
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;

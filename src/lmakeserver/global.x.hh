@@ -219,11 +219,10 @@ namespace Engine {
 		::string remote_tmp_dir   ;
 	} ;
 
-	/**/          void audit( Fd out_fd , ::ostream& trace , ReqOptions const&    , Color   , ::string const&     , DepDepth    =0 ) ;
-	static inline void audit( Fd out_fd ,                    ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl=0 ) {
-		OFakeStream fake ;
-		audit( out_fd , fake , ro , c , txt , lvl ) ;
-	}
+	/**/          void audit( Fd out , ::ostream& log , ReqOptions const&    , Color   , ::string const&   , DepDepth  =0 , char sep=0 ) ;
+	static inline void audit( Fd out ,                  ReqOptions const& ro , Color c , ::string const& t , DepDepth l=0 , char sep=0 ) { OFakeStream fs ; audit(out,fs ,ro,c          ,t,l,sep) ; }
+	static inline void audit( Fd out , ::ostream& log , ReqOptions const& ro ,           ::string const& t , DepDepth l=0 , char sep=0 ) {                  audit(out,log,ro,Color::None,t,l,sep) ; }
+	static inline void audit( Fd out ,                  ReqOptions const& ro ,           ::string const& t , DepDepth l=0 , char sep=0 ) { OFakeStream fs ; audit(out,fs ,ro,Color::None,t,l,sep) ; }
 
 	template<class... A> static inline ::string title    ( ReqOptions const& , A&&... ) ;
 	/**/                 static inline ::string color_pfx( ReqOptions const& , Color  ) ;
@@ -340,6 +339,26 @@ namespace Engine {
 
 	extern ThreadQueue<EngineClosure> g_engine_queue ;
 
+	struct CodecClosure {
+		friend ::ostream& operator<<( ::ostream& , CodecClosure const& ) ;
+		// cxtors & casts
+		#define S ::string
+		CodecClosure() = default ;
+		CodecClosure( bool e , S&& code , S&& f , S&& c              , Fd fd_ ) : encode{e} ,               fd{fd_} , txt{::move(code)} , file{::move(f)} , ctx{::move(c)} { SWEAR(!encode) ; }
+		CodecClosure( bool e , S&& code , S&& f , S&& c , uint8_t ml , Fd fd_ ) : encode{e} , min_len{ml} , fd{fd_} , txt{::move(code)} , file{::move(f)} , ctx{::move(c)} { SWEAR( encode) ; }
+		#undef S
+		// data
+		bool     encode  = false/*garbage*/ ;
+		uint8_t  min_len = 0    /*garbage*/ ;
+		Fd       fd      ;                                 // fd to which replies must be sent
+		::string txt     ;
+		::string file    ;
+		::string ctx     ;
+
+	} ;
+
+	extern ThreadQueue<CodecClosure> g_codec_queue ;
+
 }
 #endif
 #ifdef IMPL
@@ -357,14 +376,13 @@ namespace Engine {
 	}
 
 	static inline ::string color_pfx( ReqOptions const& ro , Color color ) {
-		Bool3 rv = ro.reverse_video ;
-		if ( color==Color::None || rv==Maybe ) return {} ;
-		::array<uint8_t,3/*RGB*/> const& colors = g_config.colors[+color][rv==Yes] ;
-		return to_string( "\x1b[38;2;" , int(colors[0]) ,';', int(colors[1]) ,';', int(colors[2]) , 'm' ) ;
+		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
+		::array<uint8_t,3/*RGB*/> const& colors = g_config.colors[+color][ro.reverse_video==Yes] ;
+		return to_string( "\x1b[38;2;" , int(colors[0/*R*/]) ,';', int(colors[1/*G*/]) ,';', int(colors[2/*B*/]) , 'm' ) ;
 	}
 
 	static inline ::string color_sfx(ReqOptions const& ro , Color color ) {
-		if ( color==Color::None || ro.reverse_video==Maybe ) return {} ;
+		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
 		return "\x1b[0m" ;
 	}
 

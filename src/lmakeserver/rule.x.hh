@@ -584,7 +584,7 @@ namespace Engine {
 		// accesses
 		::vector_s                  const& targets       () const { if (!_has_targets) { _compute_targets()                   ; _has_targets = true ; } return _targets ; }
 		::vmap_s<pair_s<AccDflags>> const& deps          () const { if (!_has_deps   ) { _deps = rule->deps_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
-		::vector_view_c_s                  static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
+		::c_vector_view_s                  static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
 	protected :
 		void _compute_targets() const ;
 		// services

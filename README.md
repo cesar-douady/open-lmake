@@ -107,6 +107,7 @@ it has been tested with the dockers listed in the docker directory
 
 ## name prefixes
 - `_`   : private (including static functions in .cc files that are de facto not accessible from elsewhere)
+- `c_`  : const
 - `s_`  : static
 - `g_`  : global
 - `t_`  : thread local
@@ -121,6 +122,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- words may be abbreviated using only consons such as src for source
 	- these may be combined as in dst for destination
 	- words may further be abbreviated to a single letter when name spans no more than a few lines
+	- words include standard name such as syscall names or libc functions
 - special cases :
 	<table>
 	<tr> <th> abbrev    </th> <th> full-name              </tdh </tr>
@@ -252,9 +254,27 @@ Names are suffixed with \_ if needed to suppress ambiguities
 - when lmake is executed, a trace of activity is generated for debug purpose
 - this is true for all executables (lmake, lmakeserver, autodep, ...)
 - traces are located in :
-	- `LMAKE/trace/<executable>`
+	- `LMAKE/lmake/local_admin/trace/<executable>`
 		- for lmakeserver, the most important trace, an history of a few last execution is kept
-	- `LMAKE/trace/job_exec/<job_id>` for remote job execution
+	- `LMAKE/lmake/remote_admin/job_trace/<seq_id>` for remote job execution
+- trace entries are timestamped and a letter indicates the thread :
+	- '=' refers to the main thread
+	- in server :
+		- C : cancel jobs in slurm backend
+		- D : handle lencode/ldecode
+		- E : job end
+		- H : heartbeat
+		- L : wait terminated processes in local backend
+		- M : job management
+		- R : deferred reports
+		- S : job start
+		- W : deferred processing of wakeup connection errors
+	- in job exec :
+		- K        : kill job in a timely fashion
+		- S        : reply to server requests
+		- <number> : compute crc
+	- in lmake :
+		- I : manage ^C
 
 # modification
 

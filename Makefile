@@ -165,7 +165,9 @@ LMAKE_REMOTE_FILES = \
 	$(SLIB)/ld_audit.so   \
 	$(SLIB)/ld_preload.so \
 	$(BIN)/lcheck_deps    \
+	$(BIN)/ldecode        \
 	$(BIN)/ldepend        \
+	$(BIN)/lencode        \
 	$(BIN)/ltarget        \
 	$(LIB)/clmake.so
 
@@ -366,6 +368,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/cache$(SAN).o                             \
 	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o                  \
 	$(SRC)/lmakeserver/cmd$(SAN).o                               \
+	$(SRC)/lmakeserver/codec$(SAN).o                             \
 	$(SRC)/lmakeserver/global$(SAN).o                            \
 	$(SRC)/lmakeserver/job$(SAN).o                               \
 	$(SRC)/lmakeserver/makefiles$(SAN).o                         \
@@ -481,11 +484,37 @@ $(BIN)/xxhsum : \
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
+$(BIN)/autodep : \
+	$(LMAKE_BASIC_SAN_OBJS)            \
+	$(SRC)/app$(SAN).o                 \
+	$(SRC)/rpc_job$(SAN).o             \
+	$(SRC)/trace$(SAN).o               \
+	$(SRC)/autodep/env$(SAN).o         \
+	$(SRC)/autodep/gather_deps$(SAN).o \
+	$(SRC)/autodep/ptrace$(SAN).o      \
+	$(SRC)/autodep/record$(SAN).o      \
+	$(SRC)/autodep/autodep$(SAN).o
+	mkdir -p $(@D)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+
 #
-# job_exec
+# remote
 #
 
-# ldepend generates error when -fsanitize=thread, but is mono-thread, so we don't care
+# remote executables generate errors when -fsanitize=thread, but are mono-thread, so we don't care
+
+$(BIN)/ldecode : \
+	$(LMAKE_BASIC_OBJS)      \
+	$(SRC)/app.o             \
+	$(SRC)/rpc_job.o         \
+	$(SRC)/trace.o           \
+	$(SRC)/autodep/support.o \
+	$(SRC)/autodep/env.o     \
+	$(SRC)/autodep/record.o  \
+	$(SRC)/autodep/ldecode.o
+	mkdir -p $(BIN)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+
 $(BIN)/ldepend : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/app.o             \
@@ -495,6 +524,18 @@ $(BIN)/ldepend : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ldepend.o
+	mkdir -p $(BIN)
+	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+
+$(BIN)/lencode : \
+	$(LMAKE_BASIC_OBJS)      \
+	$(SRC)/app.o             \
+	$(SRC)/rpc_job.o         \
+	$(SRC)/trace.o           \
+	$(SRC)/autodep/support.o \
+	$(SRC)/autodep/env.o     \
+	$(SRC)/autodep/record.o  \
+	$(SRC)/autodep/lencode.o
 	mkdir -p $(BIN)
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
@@ -522,18 +563,7 @@ $(BIN)/lcheck_deps : \
 	mkdir -p $(BIN)
 	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
-$(BIN)/autodep : \
-	$(LMAKE_BASIC_SAN_OBJS)            \
-	$(SRC)/app$(SAN).o                 \
-	$(SRC)/rpc_job$(SAN).o             \
-	$(SRC)/trace$(SAN).o               \
-	$(SRC)/autodep/env$(SAN).o         \
-	$(SRC)/autodep/gather_deps$(SAN).o \
-	$(SRC)/autodep/ptrace$(SAN).o      \
-	$(SRC)/autodep/record$(SAN).o      \
-	$(SRC)/autodep/autodep$(SAN).o
-	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+# remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
 $(SLIB)/ld_preload.so : \
 	$(LMAKE_BASIC_OBJS)     \

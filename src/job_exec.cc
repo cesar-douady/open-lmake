@@ -121,59 +121,63 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 }
 
 ::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > analyze( ::string& msg , bool at_end ) {
-	Trace trace("analyze",STR(at_end)) ;
-	::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > res ; res.second.reserve(g_gather_deps.accesses.size()) ; // typically most of accesses are deps
-	NodeIdx prev_parallel_id = 0              ;
-	Ddate   target_now       = Ddate::s_now() ;
+	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
+	::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > res              ;     res.second.reserve(g_gather_deps.accesses.size()) ; // typically most of accesses are deps
+	NodeIdx                                            prev_parallel_id = 0 ;
+	//
+	if (at_end) Ddate::s_refresh_now() ;
+	//
+trace("step1") ; // XXX : temporary until long ^C bug is fixed
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
+trace("step2",file) ; // XXX : temporary until long ^C bug is fixed
 		JobExecRpcReq::AccessDigest const& ad = info.digest ;
-		Accesses                           a  = ad.accesses ;  if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
+		Accesses                           a  = ad.accesses ; if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
 		if (info.is_dep()) {
+trace("step3") ; // XXX : temporary until long ^C bug is fixed
 			bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
 			DepDigest dd       { a , ad.dflags , parallel }                             ;
 			prev_parallel_id = info.parallel_id ;
 			if (+a) {
-				dd.date(info.file_date) ;
-				dd.garbage = file_date(file)!=info.file_date ;                 // file date is not coherent from first access to end of job, we do not know what we have read
+				if (file_date(file)==info.file_date) dd.date(info.file_date) ;
+				else                                 dd.crc ({}            ) ; // file date is not coherent from first access to end of job, we do not know what we have read
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.second.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,file) ;
 		} else if (at_end) {                                                   // else we are handling chk_deps and we only care about deps
+trace("step4") ; // XXX : temporary until long ^C bug is fixed
 			if (!info.file_date) a = Accesses::None ;
-			try                       { chk(info.tflags) ;                                                       }
-			catch (::string const& e) { append_to_string( msg , "bad flags (",e,") ",mk_file(file)) ; continue ; } // dont know what to do with such an access
+			try {
+				chk(info.tflags) ;
+			} catch (::string const& e) {                                      // dont know what to do with such an access
+				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
+				trace("bad_flags",info.tflags,file) ;
+				continue ;
+			}
 			TargetDigest td{
 				a
 			,	info.tflags
 			,	ad.write
-			,	ad.prev_unlink && ad.unlink ? Crc::None : Crc::Unknown                                         // prepare crc in case it is not computed
-			,	ad.prev_unlink && ad.unlink ? target_now : info.tflags[Tflag::Crc] ? Ddate() : file_date(file) // if !date, compute crc and associated date
+			,	ad.prev_unlink && ad.unlink ? Crc::None      : Crc::Unknown                                        // prepare crc in case it is not computed
+			,	ad.prev_unlink && ad.unlink ? Ddate::s_now() : info.tflags[Tflag::Crc] ? Ddate() : file_date(file) // if !date, compute crc and associated date
 			} ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.first.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target",td,STR(ad.unlink),info.tflags,info.file_date,file) ;
 		}
+trace("step5") ; // XXX : temporary until long ^C bug is fixed
 	}
+	trace("done",res.first.size(),res.second.size()) ;
 	return res ;
 }
 
 Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 	JobRpcReq jrr ;
 	::string  _   ;
-	switch (jerr.proc) {
-		case JobExecRpcProc::ChkDeps :
-			jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(_,false/*at_end*/).second/*deps*/ ) ;
-		break ;
-		case JobExecRpcProc::DepInfos : {
-			::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
-			jrr = JobRpcReq( JobProc::DepInfos , g_seq_id , g_job , ::move(ds) ) ;
-		} break ;
-		default : FAIL(jerr.proc) ;
-	}
+	if (jerr.proc==JobExecRpcProc::ChkDeps) jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(_,false/*at_end*/).second/*deps*/ ) ;
+	else                                    jrr = JobRpcReq(                    g_seq_id , g_job , ::move(jerr)                              ) ;
 	Trace trace("server_cb",jerr.proc,jrr.digest.deps.size()) ;
 	ClientSockFd fd{g_service_mngt} ;
 	//    vvvvvvvvvvvvvvvvvvvvvv
@@ -273,7 +277,7 @@ int main( int argc , char* argv[] ) {
 	}
 	//
 	if (::chdir(g_start_info.autodep_env.root_dir.c_str())!=0) {
-		end_report.backend_msg = to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
+		end_report.msg = to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
 		goto End ;
 	}
 	{	if (g_start_info.trace_n_jobs) {
@@ -286,6 +290,7 @@ int main( int argc , char* argv[] ) {
 		Py::init() ;
 		//
 		Trace trace("main",g_service_start,g_service_mngt,g_service_end,g_seq_id,g_job) ;
+		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
 		//
@@ -296,8 +301,8 @@ int main( int argc , char* argv[] ) {
 			else                 g_known_targets  .emplace     (p,tf) ;
 		//
 		::map_ss cmd_env ;
-		try                       { cmd_env = prepare_env() ;               }
-		catch (::string const& e) { end_report.backend_msg = e ; goto End ; }
+		try                       { cmd_env = prepare_env() ;       }
+		catch (::string const& e) { end_report.msg = e ; goto End ; }
 		//
 		/**/                       g_gather_deps.addr         = g_start_info.addr        ;
 		/**/                       g_gather_deps.autodep_env  = g_start_info.autodep_env ;
@@ -314,7 +319,7 @@ int main( int argc , char* argv[] ) {
 		/**/                       g_gather_deps.kill_job_cb  = kill_job                 ;
 		//
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
-		end_report.backend_msg = wash_report.first ;
+		end_report.msg = wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::Manual ; goto End ; }
 		g_gather_deps.new_static_deps( start_overhead , g_start_info.static_deps , g_start_info.stdin ) ; // ensure static deps are generated first
 		//
@@ -347,7 +352,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if      (+msg    ) status = Status::Err    ;
 		else if (g_killed) status = Status::Killed ;
-		end_report.backend_msg = msg ;
+		end_report.msg = msg ;
 		end_report.digest = {
 			.status       = status
 		,	.targets      { ::move(targets             ) }

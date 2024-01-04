@@ -125,8 +125,10 @@ static constexpr Channels DfltChannels = Channels::All ;
 				_s_pos  = 0               ;
 				new_pos = buf_view.size() ;
 			}
-			_s_fd.write(buf_view) ;
-			_s_pos = new_pos ;
+			try {
+				_s_fd.write(buf_view) ;
+				_s_pos = new_pos ;
+			} catch (::string const&) {}                                       // ignore errors, as this has no impact on actual program being executed
 		}
 		_t_buf->str({}) ;
 	}

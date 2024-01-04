@@ -23,8 +23,6 @@
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
-			case '\\' :                                  // must be escaped
-			case '\'' : res += '\\'  ; [[fallthrough]] ; // .
 			case '\a' : res += "\\a" ; break ;           // special case
 			case '\b' : res += "\\b" ; break ;           // .
 			case '\f' : res += "\\f" ; break ;           // .
@@ -32,6 +30,8 @@
 			case '\r' : res += "\\r" ; break ;           // .
 			case '\t' : res += "\\t" ; break ;           // .
 			case '\v' : res += "\\v" ; break ;           // .
+			case '\\' :                                  // must be escaped
+			case '\'' : res += '\\'  ; [[fallthrough]] ; // .
 			default :
 				if (is_print(c)) res +=                                                            c   ;
 				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;

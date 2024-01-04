@@ -300,7 +300,7 @@ namespace Backends::Slurm {
 		return              os <<')'                   ;
 	}
 
-	static inline void _sort_entry(::string& s) {                              // normalize to favor resources sharing
+	static inline void _sort_entry(::string& s) {
 		if (s.find(',')==Npos) return ;
 		::vector_s v = split(s,',') ;
 		SWEAR(v.size()>1) ;
@@ -311,40 +311,32 @@ namespace Backends::Slurm {
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} {        // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
-			size_t           p    = kn.find(':')                                       ;
-			::string         k    = p==Npos ? kn :                      k.substr(0,p)  ;
-			uint32_t         n    = p==Npos ? 0  : from_chars<uint32_t>(k.substr(p  )) ;
-			RsrcsDataSingle& rsds = grow(*this,n)                                      ;
-			auto chk_first = [&](::string const& msg) -> void {
-				if (n) throw to_string(msg," are only for 1st component of job, not component ",n) ;
+			size_t           p    = kn.find(':')                                          ;
+			::string         k    = p==Npos ? kn :                      kn.substr(0  ,p)  ;
+			uint32_t         n    = p==Npos ? 0  : from_chars<uint32_t>(kn.substr(p+1  )) ;
+			RsrcsDataSingle& rsds = grow(*this,n)                                         ;
+			//
+			auto chk_first = [&]()->void {
+				if (n) throw to_string(k," is only for 1st component of job, not component ",n) ;
 			} ;
 			switch (k[0]) {
-				case 'c' : if (k=="cpu"     ) {                  rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) {                  rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 't' : if (k=="tmp"     ) {                  rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
-				case 'e' : if (k=="excludes") {                  rsds.excludes = ::move(                              v) ; continue ; } break ;
-				case 'f' : if (k=="feature" ) {                  rsds.feature  = ::move(                              v) ; continue ; } break ;
-				case 'g' : if (k=="gres"    ) { _sort_entry(v) ; rsds.gres     = ::move(                              v) ; continue ; } break ;
-				case 'n' : if (k=="nodes"   ) {                  rsds.nodes    = ::move(                              v) ; continue ; } break ;
-				case 'p' : if (k=="part"    ) {                  rsds.part     = ::move(                              v) ; continue ; } break ;
-				case 'q' : if (k=="qos"     ) {                  rsds.qos      = ::move(                              v) ; continue ; } break ;
-				case 'r' : if (k=="reserv"  ) {                  rsds.reserv   = ::move(                              v) ; continue ; } break ;
-				case 'l' :
-					if (k=="licenses") {
-						chk_first(k) ;
-						_sort_entry(v) ;
-						rsds.licenses = ::move(v) ;
-						continue ;
-					}
-				break ;
+				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_units<    uint32_t>(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_units<'M',uint32_t>(v) ; continue ; } break ;
+				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                              (v) ; continue ; } break ;
+				case 'f' : if (k=="feature" ) {                                rsds.feature  = ::move                              (v) ; continue ; } break ;
+				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                              (v) ; continue ; } break ; // normalize to favor resources sharing
+				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                              (v) ; continue ; } break ; // normalize to favor resources sharing
+				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                              (v) ; continue ; } break ;
+				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                              (v) ; continue ; } break ;
+				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                              (v) ; continue ; } break ;
+				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                              (v) ; continue ; } break ;
 				default : ;
 			}
-			::string kv = to_string(k,':',v) ;
-			//
 			if ( auto it = d.licenses.find(k) ; it!=d.licenses.end() ) {
-				chk_first(k) ;
+				chk_first() ;
 				if (+rsds.licenses) rsds.licenses += ',' ;
-				rsds.licenses += ::move(kv) ;
+				rsds.licenses += to_string(k,':',v) ;
 				continue ;
 			}
 			//

@@ -38,7 +38,8 @@ for i in range(1,len(sys.argv),2) :
 
 assert cmd
 
-print(' '.join(cmd))
+print()
+print('+',' '.join(cmd))
 proc     = sp.Popen( cmd , universal_newlines=True , stdout=sp.PIPE , preexec_fn=os.setpgrp )
 stdout,_ = proc.communicate()
 sys.stdout.write(stdout)

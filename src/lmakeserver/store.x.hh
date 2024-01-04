@@ -42,8 +42,17 @@
 //
 
 #ifdef STRUCT_DECL
+
 namespace Engine {
+
+	struct Dep    ;
+	struct Target ;
+
 	extern SeqId* g_seq_id ;           // used to identify launched jobs. Persistent so that we keep as many old traces as possible
+
+}
+
+namespace Engine::Persistent {
 
 	template<class V> struct GenericVector ;
 
@@ -52,16 +61,21 @@ namespace Engine {
 	template<class Idx_,class Item_                     > using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_>> ;
 	template<class Idx_,class Item_                     > using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_>> ;
 
-	struct Dep    ;
-	struct Target ;
 	using DepsBase    = SimpleVector<NodeIdx,Dep   > ;
 	using TargetsBase = SimpleVector<NodeIdx,Target> ;
 
 }
+
+namespace Engine {
+	using DepsBase    = Persistent::DepsBase    ;
+	using TargetsBase = Persistent::TargetsBase ;
+}
+
 #endif
 
 #ifdef STRUCT_DEF
-namespace Engine {
+
+namespace Engine::Persistent {
 
 	//
 	// Vector's
@@ -142,22 +156,22 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base  ;
 		//
-		template<IsA<Item> I> requires( ::is_const_v<I>) GenericVector(::vector           <::remove_const_t<I>> const& v) : Base{vector_view_c<I>(v)} {}
-		template<IsA<Item> I> requires(!::is_const_v<I>) GenericVector(::vector           <                 I > const& v) : Base{vector_view_c<I>(v)} {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string_view<                 I > const& s) : Base{vector_view_c<I>(s)} {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string     <                 I > const& s) : Base{vector_view_c<I>(s)} {}
+		template<IsA<Item> I> requires( ::is_const_v<I>) GenericVector(::vector           <::remove_const_t<I>> const& v) : Base{c_vector_view<I>(v)} {}
+		template<IsA<Item> I> requires(!::is_const_v<I>) GenericVector(::vector           <                 I > const& v) : Base{c_vector_view<I>(v)} {}
+		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string_view<                 I > const& s) : Base{c_vector_view<I>(s)} {}
+		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string     <                 I > const& s) : Base{c_vector_view<I>(s)} {}
 		//
 		template<IsA<Item> I>                            void assign(::vector_view      <                 I > const& v) { Base::assign(                 v ) ; }
-		template<IsA<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) {       assign(vector_view_c<I>(v)) ; }
-		template<IsA<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) {       assign(vector_view_c<I>(v)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) {       assign(vector_view_c<I>(s)) ; }
+		template<IsA<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) {       assign(c_vector_view<I>(v)) ; }
+		template<IsA<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) {       assign(c_vector_view<I>(v)) ; }
+		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) {       assign(c_vector_view<I>(s)) ; }
+		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) {       assign(c_vector_view<I>(s)) ; }
 		//
-		operator ::vector_view_c    <Item>() const                 { return view    () ; }
+		operator ::c_vector_view    <Item>() const                 { return view    () ; }
 		operator ::vector_view      <Item>()                       { return view    () ; }
 		operator ::basic_string_view<Item>() const requires(IsStr) { return str_view() ; }
 		// accesses
-		::vector_view_c    <Item> view    () const                 { return { items() , size() } ; }
+		::c_vector_view    <Item> view    () const                 { return { items() , size() } ; }
 		::vector_view      <Item> view    ()                       { return { items() , size() } ; }
 		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
 		//
@@ -174,15 +188,15 @@ namespace Engine {
 		Item const& operator[](size_t i) const { return items()[i       ] ; }  // .
 		Item      & operator[](size_t i)       { return items()[i       ] ; }  // .
 		//
-		::vector_view_c    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::vector_view_c    ( begin()+start , ::min(sz,size()-start) ) ; }
+		::c_vector_view    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::c_vector_view    ( begin()+start , ::min(sz,size()-start) ) ; }
 		::vector_view      <Item>       subvec( size_t start , size_t sz=Npos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }
 		::basic_string_view<Item> const substr( size_t start , size_t sz=Npos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
 		::basic_string_view<Item>       substr( size_t start , size_t sz=Npos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
 		// services
 		template<IsA<Item> I> void append(::vector_view      <I> const& v) { return Base::append(                v ) ; }
-		template<IsA<Item> I> void append(::vector           <I> const& v) { return       append(::vector_view_c(v)) ; }
-		template<IsA<Item> I> void append(::basic_string_view<I> const& s) { return       append(::vector_view_c(s)) ; }
-		template<IsA<Item> I> void append(::basic_string     <I> const& s) { return       append(::vector_view_c(s)) ; }
+		template<IsA<Item> I> void append(::vector           <I> const& v) { return       append(::c_vector_view(v)) ; }
+		template<IsA<Item> I> void append(::basic_string_view<I> const& s) { return       append(::c_vector_view(s)) ; }
+		template<IsA<Item> I> void append(::basic_string     <I> const& s) { return       append(::c_vector_view(s)) ; }
 	} ;
 	template<class V> ::ostream& operator<<( ::ostream& os , GenericVector<V> const& gv ) {
 		bool first = true ;
@@ -191,13 +205,15 @@ namespace Engine {
 		return                                                                os <<']' ;
 	}
 
+	using RuleStr = SimpleVector<RuleStrIdx,char> ;
+
 	struct RuleTgts
 	:	             Idxed<RuleTgtsIdx>
 	{	using Base = Idxed<RuleTgtsIdx> ;
 		// cxtors & casts
 		using Base::Base ;
-		RuleTgts           (::vector_view_c<RuleTgt> const&  ) ;
-		RuleTgts& operator=(::vector_view_c<RuleTgt> const& v) ;
+		RuleTgts           (::c_vector_view<RuleTgt> const&  ) ;
+		RuleTgts& operator=(::c_vector_view<RuleTgt> const& v) ;
 		void pop() ;
 		// accesses
 		::vector<RuleTgt> view () const ;
@@ -265,8 +281,6 @@ namespace Engine {
 		bool    frozen  () const ;
 	} ;
 
-	using JobTgtsBase = CrunchVector<JobIdx,JobTgt> ;
-
 	struct NodeBase
 	:	             Idxed<NodeIdx,NodeNGuardBits>
 	{	using Base = Idxed<NodeIdx,NodeNGuardBits> ;
@@ -288,8 +302,8 @@ namespace Engine {
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
 		//
-		static Targets s_srcs( bool dirs                                    ) ;
-		static void    s_srcs( bool dirs , bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
+		static Targets const s_srcs( bool dirs                                    ) ;
+		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
@@ -306,8 +320,6 @@ namespace Engine {
 		bool            manual_ok () const ;
 		bool            no_trigger() const ;
 	} ;
-
-	using RuleStr = SimpleVector<RuleStrIdx,char> ;
 
 	struct RuleBase
 	:	             Idxed<RuleIdx>
@@ -333,7 +345,7 @@ namespace Engine {
 		// services
 		void stamp() const ;
 	private :
-		RuleStr _str() const ;
+		Persistent::RuleStr _str() const ;
 	} ;
 
 	struct SfxBase
@@ -354,19 +366,30 @@ namespace Engine {
 		Node node() const ;
 	} ;
 
-
 }
+
+namespace Engine {
+	using Name        = Persistent::Name                        ;
+	using JobBase     = Persistent::JobBase                     ;
+	using JobTgtsBase = Persistent::CrunchVector<JobIdx,JobTgt> ;
+	using NodeBase    = Persistent::NodeBase                    ;
+	using RuleBase    = Persistent::RuleBase                    ;
+	using RuleTgts    = Persistent::RuleTgts                    ;
+	using DataBase    = Persistent::DataBase                    ;
+}
+
 #endif
 #ifdef INFO_DEF
-namespace Engine {
 
+namespace Engine {
 	extern Config     g_config     ;
 	extern ::vector_s g_src_dirs_s ;
-
 }
+
 #endif
 #ifdef IMPL
-namespace Engine {
+
+namespace Engine::Persistent {
 
 	struct JobHdr {
 		SeqId   seq_id      ;
@@ -398,100 +421,67 @@ namespace Engine {
 	// commons
 	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
-	struct EngineStore {
-		static constexpr char StartMrkr = 0x0 ;                                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
+	static constexpr char StartMrkr = 0x0 ;                                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 
-		struct NewRulesSrcs ;
+	// statics
+	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
+	//
+	bool/*invalidate*/ new_srcs        ( ::vector_s          && srcs , ::vector_s&& src_dirs_s ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                ) ;
+	void               invalidate_match(                                                       ) ;
+	void               invalidate_exec ( bool cmd_ok                                           ) ;
+	//
+	NodeFile::Lst  node_lst() ;
+	JobFile ::Lst  job_lst () ;
+	::vector<Rule> rule_lst() ;
+	//
+	void chk() ;
+	//
+	void _init_config       (                                                                              ) ;
+	void _diff_config       ( Config const& old_config , bool dynamic                                      ) ;
+	void _save_config       (                                                                              ) ;
+	void _init_srcs_rules   ( bool rescue=false                                                            ) ;
+	void _new_max_dep_depth ( DepDepth                                                                     ) ;
+	void _save_rules        (                                                                              ) ;
+	void _compile_rule_datas(                                                                              ) ;
+	void _compile_psfxs     (                                                                              ) ;
+	void _compile_srcs      (                                                                              ) ;
+	void _compile_rules     (                                                                              ) ;
+	void _compile_n_tokenss (                                                                              ) ;
+	void _invalidate_exec   ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
+	void _collect_old_rules (                                                                              ) ;
+	void _set_exec_gen      ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
 
-		// statics
-	public :
-		static void s_new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
-		//
-		static bool/*invalidate*/ s_new_srcs        ( ::vector_s          && srcs , ::vector_s&& src_dirs_s ) ;
-		static bool/*invalidate*/ s_new_rules       ( ::umap<Crc,RuleData>&&                                ) ;
-		static void               s_invalidate_match(                                                       ) ;
-		//
-	private :
-		static void               _s_init_config      (                                                                              ) ;
-		static void               _s_store_config     (                                                                              ) ;
-		static void               _s_diff_config      ( Config const& old_config , bool dynamic                                      ) ;
-		static void               _s_init_srcs_rules  ( bool rescue=false                                                            ) ;
-		static void               _s_set_exec_gen     ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
-		static void               _s_collect_old_rules(                                                                              ) ;
-		static void               _s_invalidate_exec  ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
-		// cxtors
-	public :
-		EngineStore(bool w) : writable{w} {}
-		// accesses
-		NodeFile::Lst  node_lst() const { return node_file.lst() ; }
-		JobFile ::Lst  job_lst () const { return job_file .lst() ; }
-		::vector<Rule> rule_lst() const {
-			::vector<Rule> res ; res.reserve(rule_file.size()) ;
-			for( Rule r : rule_file.lst() ) if ( !r.is_shared() && !r.old() ) res.push_back(r) ;
-			return res ;
-		}
-		// services
-	private :
-		void _new_max_dep_depth (DepDepth) ;
-		void _save_rules        (        ) ;
-		void _compile_rule_datas(        ) ;
-		void _compile_psfxs     (        ) ;
-		void _compile_srcs      (        ) ;
-		void _compile_rules     (        ) ;
-		void _compile_n_tokenss (        ) ;
-		//
-		//
-	public :
-		void invalidate_exec(bool cmd_ok) ;
-		void chk() const {
-			// files
-			/**/                                 job_file         .chk(                   ) ; // jobs
-			/**/                                 deps_file        .chk(                   ) ; // .
-			/**/                                 star_targets_file.chk(                   ) ; // .
-			/**/                                 node_file        .chk(                   ) ; // nodes
-			/**/                                 job_tgts_file    .chk(                   ) ; // .
-			/**/                                 rule_str_file    .chk(                   ) ; // rules
-			/**/                                 rule_file        .chk(                   ) ; // .
-			/**/                                 rule_tgts_file   .chk(                   ) ; // .
-			/**/                                 sfxs_file        .chk(                   ) ; // .
-			for( PsfxIdx idx : sfxs_file.lst() ) pfxs_file        .chk(sfxs_file.c_at(idx)) ; // .
-			/**/                                 name_file        .chk(                   ) ; // commons
-		}
-		// data
-		bool writable = false ;
-		// on disk
-		JobFile      job_file          ;                   // jobs
-		DepsFile     deps_file         ;                   // .
-		TargetsFile  star_targets_file ;                   // .
-		NodeFile     node_file         ;                   // nodes
-		JobTgtsFile  job_tgts_file     ;                   // .
-		RuleStrFile  rule_str_file     ;                   // rules
-		RuleFile     rule_file         ;                   // .
-		RuleTgtsFile rule_tgts_file    ;                   // .
-		SfxFile      sfxs_file         ;                   // .
-		PfxFile      pfxs_file         ;                   // .
-		NameFile     name_file         ;                   // commons
-		// in memory
-		::uset<Job >       frozen_jobs  ;
-		::uset<Node>       frozen_nodes ;
-		::uset<Node>       manual_oks   ;
-		::uset<Node>       no_triggers  ;
-		::vector<RuleData> rule_datas   ;
-	} ;
+	// visible data
+	extern bool writable ;
 
-	extern EngineStore g_store  ;
+	// on disk
+	extern JobFile      _job_file          ;               // jobs
+	extern DepsFile     _deps_file         ;               // .
+	extern TargetsFile  _star_targets_file ;               // .
+	extern NodeFile     _node_file         ;               // nodes
+	extern JobTgtsFile  _job_tgts_file     ;               // .
+	extern RuleStrFile  _rule_str_file     ;               // rules
+	extern RuleFile     _rule_file         ;               // .
+	extern RuleTgtsFile _rule_tgts_file    ;               // .
+	extern SfxFile      _sfxs_file         ;               // .
+	extern PfxFile      _pfxs_file         ;               // .
+	extern NameFile     _name_file         ;               // commons
+	// in memory
+	extern ::uset<Job >       _frozen_jobs  ;
+	extern ::uset<Node>       _frozen_nodes ;
+	extern ::uset<Node>       _manual_oks   ;
+	extern ::uset<Node>       _no_triggers  ;
+	extern ::vector<RuleData> _rule_datas   ;
 
 	template<class Idx_,class Item_> struct VectorHelper ;
 	//
-	template<> struct VectorHelper<NodeIdx   ,Dep   > { static constexpr DepsFile   & g_file() { return g_store.deps_file         ; } } ;
-	template<> struct VectorHelper<NodeIdx   ,Target> { static constexpr TargetsFile& g_file() { return g_store.star_targets_file ; } } ;
-	template<> struct VectorHelper<JobIdx    ,JobTgt> { static constexpr JobTgtsFile& g_file() { return g_store.job_tgts_file     ; } } ;
-	template<> struct VectorHelper<RuleStrIdx,char  > { static constexpr RuleStrFile& g_file() { return g_store.rule_str_file     ; } } ;
-
-}
-#endif
-#ifdef IMPL
-namespace Engine {
+	#define SC static constexpr
+	template<> struct VectorHelper<NodeIdx   ,Dep   > { SC DepsFile   & g_file() { return _deps_file         ; } SC DepsFile    const& gc_file() { return _deps_file         ; } } ;
+	template<> struct VectorHelper<NodeIdx   ,Target> { SC TargetsFile& g_file() { return _star_targets_file ; } SC TargetsFile const& gc_file() { return _star_targets_file ; } } ;
+	template<> struct VectorHelper<JobIdx    ,JobTgt> { SC JobTgtsFile& g_file() { return _job_tgts_file     ; } SC JobTgtsFile const& gc_file() { return _job_tgts_file     ; } } ;
+	template<> struct VectorHelper<RuleStrIdx,char  > { SC RuleStrFile& g_file() { return _rule_str_file     ; } SC RuleStrFile const& gc_file() { return _rule_str_file     ; } } ;
+	#undef SC
 
 	//
 	// JobNode
@@ -506,17 +496,150 @@ namespace Engine {
 	// Name
 	//
 	// cxtors & casts
-	inline void Name::pop() { g_store.name_file.pop(+*this) ; }
+	inline void Name::pop() { Persistent::_name_file.pop(+*this) ; }
 	// accesses
-	inline ::string Name::str   (size_t sfx_sz) const { return g_store.name_file.str_key(+*this,sfx_sz) ; }
-	inline size_t   Name::str_sz(size_t sfx_sz) const { return g_store.name_file.key_sz (+*this,sfx_sz) ; }
+	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_name_file.str_key(+*this,sfx_sz) ; }
+	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_name_file.key_sz (+*this,sfx_sz) ; }
 	// services
-	inline Name     Name::dir   (             ) const { return g_store.name_file.insert_dir(*this,'/')  ; }
+	inline Name     Name::dir   (             ) const { return Persistent::_name_file.insert_dir(*this,'/')  ; }
+
+	//
+	// RuleTgts
+	//
+	// cxtors & casts
+	inline RuleTgts::RuleTgts(::c_vector_view<RuleTgt> const& gs) : Base{+gs?_rule_tgts_file.insert(gs):RuleTgts()} {}
+	inline void RuleTgts::pop() { _rule_tgts_file.pop(+*this) ; *this = RuleTgts() ; }
+	//
+	inline RuleTgts& RuleTgts::operator=(::c_vector_view<RuleTgt> const& v) { *this = RuleTgts(v) ; return *this ; }
+	// accesses
+	inline ::vector<RuleTgt> RuleTgts::view() const { return _rule_tgts_file.key(*this) ; }
+	// services
+	inline void RuleTgts::shorten_by(RuleIdx by) {
+		if (by==RuleIdx(-1)) { clear() ; return ; }
+		*this = _rule_tgts_file.insert_shorten_by( *this , by ) ;
+		if (_rule_tgts_file.empty(*this)) *this = RuleTgts() ;
+	}
+	inline void RuleTgts::invalidate_old() {
+		for( RuleTgt rt : view() ) if (rt.old()) { pop() ; break ; }
+	}
+
+	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
+		bool modified = false ;
+		if      (add ) for( Item j : items ) modified |= mem.insert(j).second ;
+		else if (+mem) for( Item j : items ) modified |= mem.erase (j)        ; // fast path : no need to update mem if it is already empty
+		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
+	}
+	template<class Disk,class Item> inline void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
+		::uset<Item> mem = mk_uset<Item>(disk) ;
+		_s_update(disk,mem,add,items) ;
+	}
+
+	//
+	// JobBase
+	//
+	// statics
+	inline bool          JobBase::s_has_frozens  (                                       ) { return               +_job_file.c_hdr().frozen_jobs  ;                      }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(_job_file.c_hdr().frozen_jobs) ;                      }
+	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update( _job_file.hdr().frozen_jobs         , _frozen_jobs,add,items ) ; }
+	inline void          JobBase::s_clear_frozens(                                       ) {            _job_file.hdr().frozen_jobs.clear() ; _frozen_jobs.clear()     ; }
+	//
+	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
+	// cxtors & casts
+	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {    // 1st arg is only used to disambiguate
+		*this = _job_file.emplace(::forward<A>(args)...) ;
+	}
+	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) {
+		Name name_ = _name_file.insert(name_sfx.first,name_sfx.second) ;
+		*this = _name_file.c_at(+name_).job() ;
+		if (+*this) {
+			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
+			if (!new_) return ;
+			**this = JobData(::forward<A>(args)...) ;
+		} else {
+			_name_file.at(+name_) = *this = _job_file.emplace(::forward<A>(args)...) ;
+		}
+		(*this)->_full_name = name_ ;
+	}
+	inline void JobBase::pop() {
+		if (!*this) return ;
+		if (+(*this)->_full_name) (*this)->_full_name.pop() ;
+		_job_file.pop(+*this) ;
+		clear() ;
+	}
+	// accesses
+	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+*this)) ; }
+	//
+	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+*this) ; }
+	inline JobData      & JobBase::operator*()       { return _job_file.at  (+*this) ; }
+	//
+
+	//
+	// NodeBase
+	//
+	// statics
+	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  _node_file.idx   (nd  ) ; }
+	inline bool NodeBase::s_is_known( ::string const& name) { return +_name_file.search(name) ; }
+
+	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +_node_file.c_hdr().frozen_nodes  ;          }
+	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                +_node_file.c_hdr().manual_oks    ;          }
+	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +_node_file.c_hdr().no_triggers   ;          }
+	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +_node_file.c_hdr().srcs          ;          }
+	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(_node_file.c_hdr().frozen_nodes) ;          }
+	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(_node_file.c_hdr().manual_oks  ) ;          }
+	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(_node_file.c_hdr().no_triggers ) ;          }
+	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(_node_file.hdr().frozen_nodes,_frozen_nodes,add,items) ; }
+	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(_node_file.hdr().manual_oks  ,_manual_oks  ,add,items) ; }
+	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(_node_file.hdr().no_triggers ,_no_triggers ,add,items) ; }
+	inline void           NodeBase::s_clear_frozens    (                                        ) { _node_file.hdr().frozen_nodes.clear() ; _frozen_nodes.clear() ;    }
+	inline void           NodeBase::s_clear_manual_oks (                                        ) { _node_file.hdr().manual_oks  .clear() ; _manual_oks  .clear() ;    }
+	inline void           NodeBase::s_clear_no_triggers(                                        ) { _node_file.hdr().no_triggers .clear() ; _no_triggers .clear() ;    }
+	inline void           NodeBase::s_clear_srcs       (                                        ) { _node_file.hdr().srcs        .clear() ;                       ;    }
+	//
+	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;            }
+	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ; }
+
+	// cxtors & casts
+	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
+		if (!name_) return ;
+		*this = _name_file.c_at(name_).node() ;
+		if (+*this) {
+			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
+		} else {
+			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir) ;
+			(*this)->_full_name = name_                                    ;
+		}
+	}
+	inline NodeBase::NodeBase( ::string const& n , bool no_dir ) {
+		*this = Node( _name_file.insert(n) , no_dir ) ;
+	}
+	// accesses
+	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+*this)) ; }
+	inline bool NodeBase::manual_ok () const { return _manual_oks  .contains(Node(+*this)) ; }
+	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+*this)) ; }
+	//
+	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+*this) ; }
+	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+*this) ; }
+
+	//
+	// RuleBase
+	//
+	//statics
+	inline ::vector<Rule> RuleBase::s_lst() { return Persistent::rule_lst() ; }
+	// cxtors & casts
+	inline void RuleBase::invalidate_old() { if (old()) _rule_file.pop(Rule(*this)) ; }
+	// accesses
+	inline RuleData      & RuleBase::data     ()       {                       return _rule_datas[+*this]              ; }
+	inline RuleData const& RuleBase::operator*() const {                       return _rule_datas[+*this]              ; }
+	inline bool            RuleBase::old      () const {                       return !is_shared() && !_str()          ; }
+	inline ::string_view   RuleBase::str      () const {                       return _rule_str_file.str_view(+_str()) ; }
+	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(Rule(*this))     ; }
+	// services
+	inline void RuleBase::stamp() const { _rule_file.at(*this) = _rule_str_file.assign(_str(),::string(**this)) ; }
 
 	//
 	// SimpleVectorBase
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> constexpr Idx SimpleVectorBase<Idx,Item,NGuardBits>::EmptyIdx = VectorHelper<Idx,Item>::g_file().EmptyIdx ;
+	template<class Idx,class Item,uint8_t NGuardBits> constexpr Idx SimpleVectorBase<Idx,Item,NGuardBits>::EmptyIdx = VectorHelper<Idx,Item>::gc_file().EmptyIdx ;
 	// cxtors & casts
 	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
 		inline SimpleVectorBase<Idx,Item,NGuardBits>::SimpleVectorBase(::vector_view<I> const& v) : Base(VectorHelper<Idx,Item>::g_file().emplace(v)) {}
@@ -529,9 +652,9 @@ namespace Engine {
 	template<class Idx,class Item,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,NGuardBits>::pop  () { VectorHelper<Idx,Item>::g_file().pop(+*this) ; forget() ; }
 	template<class Idx,class Item,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,NGuardBits>::clear() { pop() ;                                                   }
 	// accesses
-	template<class Idx,class Item,uint8_t NGuardBits> inline Item const* SimpleVectorBase<Idx,Item,NGuardBits>::items() const      { return VectorHelper<Idx,Item>::g_file().items(+*this) ; }
-	template<class Idx,class Item,uint8_t NGuardBits> inline Item      * SimpleVectorBase<Idx,Item,NGuardBits>::items()            { return VectorHelper<Idx,Item>::g_file().items(+*this) ; }
-	template<class Idx,class Item,uint8_t NGuardBits> inline auto        SimpleVectorBase<Idx,Item,NGuardBits>::size () const ->Sz { return VectorHelper<Idx,Item>::g_file().size (+*this) ; }
+	template<class Idx,class Item,uint8_t NGuardBits> inline Item const* SimpleVectorBase<Idx,Item,NGuardBits>::items() const      { return VectorHelper<Idx,Item>::gc_file().items(+*this) ; }
+	template<class Idx,class Item,uint8_t NGuardBits> inline Item      * SimpleVectorBase<Idx,Item,NGuardBits>::items()            { return VectorHelper<Idx,Item>::g_file ().items(+*this) ; }
+	template<class Idx,class Item,uint8_t NGuardBits> inline auto        SimpleVectorBase<Idx,Item,NGuardBits>::size () const ->Sz { return VectorHelper<Idx,Item>::gc_file().size (+*this) ; }
 	// services
 	template<class Idx,class Item,uint8_t NGuardBits>
 		inline void SimpleVectorBase<Idx,Item,NGuardBits>::shorten_by(Sz by) {
@@ -574,7 +697,7 @@ namespace Engine {
 	template<class Idx,class Item,uint8_t NGuardBits>
 		inline Item const* CrunchVectorBase<Idx,Item,NGuardBits>::items() const {
 			if (_single()) return &static_cast<Item const&>(*this)              ;
-			/**/           return VectorHelper<Idx,Item>::g_file().items(*this) ;
+			/**/           return VectorHelper<Idx,Item>::gc_file().items(*this) ;
 		}
 	template<class Idx,class Item,uint8_t NGuardBits>
 		inline Item* CrunchVectorBase<Idx,Item,NGuardBits>::items() {
@@ -584,7 +707,7 @@ namespace Engine {
 	template<class Idx,class Item,uint8_t NGuardBits>
 		inline auto CrunchVectorBase<Idx,Item,NGuardBits>::size() const -> Sz {
 			if (_single()) return 1 ;
-			/**/           return VectorHelper<Idx,Item>::g_file().size(*this) ;
+			/**/           return VectorHelper<Idx,Item>::gc_file().size(*this) ;
 		}
 	// services
 	template<class Idx,class Item,uint8_t NGuardBits>
@@ -607,139 +730,17 @@ namespace Engine {
 		}
 
 	//
-	// RuleTgts
-	//
-	// cxtors & casts
-	inline RuleTgts::RuleTgts(::vector_view_c<RuleTgt> const& gs) : Base{+gs?g_store.rule_tgts_file.insert(gs):RuleTgts()} {}
-	inline void RuleTgts::pop() { g_store.rule_tgts_file.pop(+*this) ; *this = RuleTgts() ; }
-	//
-	inline RuleTgts& RuleTgts::operator=(::vector_view_c<RuleTgt> const& v) { *this = RuleTgts(v) ; return *this ; }
-	// accesses
-	inline ::vector<RuleTgt> RuleTgts::view() const { return g_store.rule_tgts_file.key  (*this) ; }
-	// services
-	inline void RuleTgts::shorten_by(RuleIdx by) {
-		if (by==RuleIdx(-1)) { clear() ; return ; }
-		*this = g_store.rule_tgts_file.insert_shorten_by( *this , by ) ;
-		if (g_store.rule_tgts_file.empty(*this)) *this = RuleTgts() ;
-	}
-	inline void RuleTgts::invalidate_old() {
-		for( RuleTgt rt : view() ) if (rt.old()) { pop() ; break ; }
-	}
-
-	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
-		bool modified = false ;
-		if      (add ) for( Item j : items ) modified |= mem.insert(j).second ;
-		else if (+mem) for( Item j : items ) modified |= mem.erase (j)        ; // fast path : no need to update mem if it is already empty
-		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
-	}
-	template<class Disk,class Item> inline void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
-		::uset<Item> mem = mk_uset<Item>(disk) ;
-		_s_update(disk,mem,add,items) ;
-	}
-
-	//
-	// JobBase
-	//
-	// statics
-	inline bool          JobBase::s_has_frozens  (                                       ) { return               +g_store.job_file.c_hdr().frozen_jobs  ;                             }
-	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(g_store.job_file.c_hdr().frozen_jobs) ;                             }
-	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update( g_store.job_file.hdr().frozen_jobs         , g_store.frozen_jobs,add,items ) ; }
-	inline void          JobBase::s_clear_frozens(                                       ) {            g_store.job_file.hdr().frozen_jobs.clear() ; g_store.frozen_jobs.clear()     ; }
-	//
-	inline Job JobBase::s_idx(JobData const& jd) { return g_store.job_file.idx(jd) ; }
-	// cxtors & casts
-	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {    // 1st arg is only used to disambiguate
-		*this = g_store.job_file.emplace(::forward<A>(args)...) ;
-	}
-	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) {
-		Name name_ = g_store.name_file.insert(name_sfx.first,name_sfx.second) ;
-		*this      = g_store.name_file.c_at(+name_).job() ;
-		if (+*this) {
-			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
-			if (!new_) return ;
-			**this = JobData(::forward<A>(args)...) ;
-		} else {
-			*this = g_store.job_file.emplace(::forward<A>(args)...) ;
-			g_store.name_file.at(+name_) = *this ;
-		}
-		(*this)->_full_name = name_ ;
-	}
-	inline void JobBase::pop() {
-		if (!*this) return ;
-		if (+(*this)->_full_name) (*this)->_full_name.pop() ;
-		g_store.job_file.pop(+*this) ;
-		clear() ;
-	}
-	// accesses
-	inline bool JobBase::frozen() const { return g_store.frozen_jobs.contains(Job(+*this)) ; }
-	//
-	inline JobData const& JobBase::operator*() const { return g_store.job_file.c_at      (+*this) ; }
-	inline JobData      & JobBase::operator*()       { return g_store.job_file.at        (+*this) ; }
+	// Persistent
 	//
 
-	//
-	// NodeBase
-	//
-	// statics
-	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  g_store.node_file.idx   (nd  ) ; }
-	inline bool NodeBase::s_is_known( ::string const& name) { return +g_store.name_file.search(name) ; }
-
-	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +g_store.node_file.c_hdr().frozen_nodes  ;                 }
-	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                +g_store.node_file.c_hdr().manual_oks    ;                 }
-	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +g_store.node_file.c_hdr().no_triggers   ;                 }
-	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +g_store.node_file.c_hdr().srcs          ;                 }
-	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().frozen_nodes) ;                 }
-	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().manual_oks  ) ;                 }
-	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(g_store.node_file.c_hdr().no_triggers ) ;                 }
-	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().frozen_nodes,g_store.frozen_nodes,add,items) ; }
-	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().manual_oks  ,g_store.manual_oks  ,add,items) ; }
-	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(g_store.node_file.hdr().no_triggers ,g_store.no_triggers ,add,items) ; }
-	inline void           NodeBase::s_clear_frozens    (                                        ) { g_store.node_file.hdr().frozen_nodes.clear() ; g_store.frozen_nodes.clear() ;    }
-	inline void           NodeBase::s_clear_manual_oks (                                        ) { g_store.node_file.hdr().manual_oks  .clear() ; g_store.manual_oks  .clear() ;    }
-	inline void           NodeBase::s_clear_no_triggers(                                        ) { g_store.node_file.hdr().no_triggers .clear() ; g_store.no_triggers .clear() ;    }
-	inline void           NodeBase::s_clear_srcs       (                                        ) { g_store.node_file.hdr().srcs        .clear() ;                              ;    }
-	//
-	inline Targets NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = g_store.node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;              }
-	inline void    NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = g_store.node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ;   }
-
-	// cxtors & casts
-	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
-		if (!name_) return ;
-		*this = g_store.name_file.c_at(name_).node() ;
-		if (+*this) {
-			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
-		} else {
-			*this = g_store.node_file.emplace(name_,no_dir) ;
-			g_store.name_file.at(name_) = *this ;
-			(*this)->_full_name = name_ ;
-		}
+	inline NodeFile::Lst  node_lst() { return _node_file.lst() ; }
+	inline JobFile ::Lst  job_lst () { return _job_file .lst() ; }
+	inline ::vector<Rule> rule_lst() {
+		::vector<Rule> res ; res.reserve(_rule_file.size()) ;
+		for( Rule r : _rule_file.lst() ) if ( !r.is_shared() && !r.old() ) res.push_back(r) ;
+		return res ;
 	}
-	inline NodeBase::NodeBase( ::string const& n , bool no_dir ) {
-		*this = Node( g_store.name_file.insert(n) , no_dir ) ;
-	}
-	// accesses
-	inline bool NodeBase::frozen    () const { return g_store.frozen_nodes.contains(Node(+*this)) ; }
-	inline bool NodeBase::manual_ok () const { return g_store.manual_oks  .contains(Node(+*this)) ; }
-	inline bool NodeBase::no_trigger() const { return g_store.no_triggers .contains(Node(+*this)) ; }
-	//
-	inline NodeData const& NodeBase::operator*() const { return g_store.node_file.c_at      (+*this) ; }
-	inline NodeData      & NodeBase::operator*()       { return g_store.node_file.at        (+*this) ; }
-
-	//
-	// RuleBase
-	//
-	//statics
-	inline ::vector<Rule> RuleBase::s_lst() { return g_store.rule_lst() ; }
-	// cxtors & casts
-	inline void RuleBase::invalidate_old() { if (old()) g_store.rule_file.pop(Rule(*this)) ; }
-	// accesses
-	inline RuleData      & RuleBase::data     ()       {                       return g_store.rule_datas[+*this]              ; }
-	inline RuleData const& RuleBase::operator*() const {                       return g_store.rule_datas[+*this]              ; }
-	inline bool            RuleBase::old      () const {                       return !is_shared() && !_str()                 ; }
-	inline ::string_view   RuleBase::str      () const {                       return g_store.rule_str_file.str_view(+_str()) ; }
-	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return g_store.rule_file.c_at(Rule(*this))     ; }
-	// services
-	inline void RuleBase::stamp() const { g_store.rule_file.at(*this) = g_store.rule_str_file.assign(_str(),::string(**this)) ; }
 
 }
+
 #endif

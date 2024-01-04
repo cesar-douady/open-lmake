@@ -321,8 +321,10 @@ template<char Delimiter=0> static inline ::string mk_printable(::string     && t
 }
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
-static inline ::string ensure_nl(::string     && txt) { if ( +txt && txt.back()!='\n' ) txt += '\n' ; return txt ; }
-static inline ::string ensure_nl(::string const& txt) { return ensure_nl(::string(txt)) ;                          }
+static inline ::string ensure_nl   (::string     && txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; return txt ; }
+static inline ::string ensure_no_nl(::string     && txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; return txt ; }
+static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::string(txt)) ;                          }
+static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::string(txt)) ;                          }
 
 template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
@@ -568,24 +570,24 @@ protected :
 	T*     _data = nullptr ;
 	size_t _sz   = 0       ;
 } ;
-template<class T> struct vector_view_c : vector_view<T const> {
+template<class T> struct c_vector_view : vector_view<T const> {
 	using Base = vector_view<T const> ;
 	using Base::begin ;
 	using Base::_sz   ;
 	// cxtors & casts
 	using Base::Base ;
-	vector_view_c( T const* begin                        , size_t sz    ) : Base{begin  ,sz} {}
-	vector_view_c( ::vector<T> const& v , size_t start=0 , size_t sz=-1 ) : Base{v,start,sz} {}
+	c_vector_view( T const* begin                        , size_t sz    ) : Base{begin  ,sz} {}
+	c_vector_view( ::vector<T> const& v , size_t start=0 , size_t sz=-1 ) : Base{v,start,sz} {}
 	// services
-	vector_view_c subvec( size_t start , size_t sz=Npos ) const { return vector_view_c( begin()+start , ::min(sz,_sz-start) ) ; }
+	c_vector_view subvec( size_t start , size_t sz=Npos ) const { return c_vector_view( begin()+start , ::min(sz,_sz-start) ) ; }
 } ;
 
 using vector_view_s = vector_view<::string> ;
 template<class K,class V> using vmap_view    = vector_view<::pair<K,V>> ;
 template<        class V> using vmap_view_s  = vmap_view  <::string,V > ;
 /**/                      using vmap_view_ss = vmap_view_s<::string   > ;
-using vector_view_c_s = vector_view_c<::string> ;
-template<class K,class V> using vmap_view_c    = vector_view_c<::pair<K,V>> ;
+using c_vector_view_s = c_vector_view<::string> ;
+template<class K,class V> using vmap_view_c    = c_vector_view<::pair<K,V>> ;
 template<        class V> using vmap_view_c_s  = vmap_view_c  <::string,V > ;
 /**/                      using vmap_view_c_ss = vmap_view_c_s<::string   > ;
 
@@ -754,21 +756,21 @@ template<StdEnum E> ::map_s<E> _mk_enum_tab() {
 	}
 	return res ;
 }
-template<StdEnum E> static inline E mk_enum_no_throw(::string const& x) {
-	static map_s<E> const* s_tab = new ::map_s<E>{_mk_enum_tab<E>()} ;         // ensure table is never destroyed as we have no control of the order
+template<StdEnum E> static inline ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
+	static map_s<E> const* s_tab = new ::map_s<E>{_mk_enum_tab<E>()} ;               // ensure table is never destroyed as we have no control of the order
 	auto it = s_tab->find(x) ;
-	if (it==s_tab->end()) return E::Unknown ;
-	else                  return it->second ;
+	if (it==s_tab->end()) return {{}        ,false/*ok*/} ;
+	else                  return {it->second,true /*ok*/} ;
 }
 
 template<StdEnum E> static inline bool can_mk_enum(::string const& x) {
-	return mk_enum_no_throw<E>(x)!=E::Unknown ;
+	return _mk_enum<E>(x).second ;
 }
 
 template<StdEnum E> static inline E mk_enum(::string const& x) {
-	E res = mk_enum_no_throw<E>(x) ;
-	if (res==E::Unknown) throw to_string("cannot make enum ",_s_enum_name(E(0))," from ",x) ;
-	return res ;
+	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
+	if (!res.second) throw to_string("cannot make enum ",_s_enum_name(E())," from ",x) ;
+	return res.first ;
 }
 
 template<StdEnum E> static inline BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {

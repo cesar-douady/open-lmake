@@ -209,10 +209,11 @@ void AutodepPtrace::s_prepare_child() {
 						::array<uint64_t,6> arg_array = np_ptrace_get_args(pid) ; // use non-portable calls if portable accesses are not implemented
 						uint64_t *          args      = arg_array.data()        ; // we need a variable to hold the data while we pass the pointer
 					#endif
+					SWEAR(!info.ctx,syscall) ;                                                       // ensure following SWEAR on info.ctx is pertinent
 					bool skip = descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
 					if (skip) np_ptrace_clear_syscall(pid) ;
 					info.has_exit_proc = descr.exit && !skip ;
-					if (!info.has_exit_proc) SWEAR(!info.ctx) ;                // no need for a context if we are not called at exit
+					if (!info.has_exit_proc) SWEAR(!info.ctx,syscall) ;        // no need for a context if we are not called at exit
 				} else {
 					info.has_exit_proc = false ;
 				}
@@ -226,13 +227,13 @@ void AutodepPtrace::s_prepare_child() {
 				if (HAS_SECCOMP) SWEAR(info.has_exit_proc,"should not have been stopped on exit") ;
 				if (info.has_exit_proc) {
 					#if HAS_PTRACE_GET_SYSCALL_INFO                            // use portable calls if implemented
-						int64_t res    = syscall_info.exit.rval ;
+						int64_t res = syscall_info.exit.rval ;
 					#else
-						int64_t res    = np_ptrace_get_res(pid) ;              // use non-portable calls if portable accesses are not implemented
+						int64_t res = np_ptrace_get_res(pid) ;                 // use non-portable calls if portable accesses are not implemented
 					#endif
 					int64_t new_res = s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
-					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ;  // there is no such cases for now, if it arises, new_res must be reported
-					info.ctx = nullptr ;                                                                                     // ctx is used to retain some info between syscall entry and exit
+					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ; // there is no such cases for now, if it arises, new_res must be reported
+					info.ctx = nullptr ;                                                                                    // ctx is used to retain some info between syscall entry and exit
 				}
 				info.on_going = false ;
 				goto NextSyscall ;
@@ -242,7 +243,7 @@ void AutodepPtrace::s_prepare_child() {
 		::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , sig ) ;
 		goto Done ;
 	SyscallExit :
-		::ptrace( StopAtSyscallExit , pid , 0/*addr*/ , sig ) ;
+		::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig ) ;
 		goto Done ;
 	} else if ( WIFEXITED(wstatus) || WIFSIGNALED(wstatus) ) {                 // not sure we are informed that a process exits
 		if (pid==child_pid) return {true/*done*/,wstatus} ;

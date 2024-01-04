@@ -430,13 +430,13 @@ namespace Engine {
 	//
 
 	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , JobData const& job ) {
+		SWEAR(run_action!=RunAction::Dsk) ;                                                                // Dsk is only for Node's
 		Bool3 ok = is_ok(job.status) ;
 		if ( ok==Maybe && action>=RunAction::Status ) run_action = RunAction::Run ;
 		if (make_action>=MakeAction::Dec) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
 		}
-		if (run_action==RunAction::Dsk) run_action = RunAction::Status ;       // seen from here, Dsk is same as Status (only difference is that asking must be checked, not a state for us)
 		if (run_action>action) {                                               // increasing action requires to reset checks
 			lvl     = lvl & Lvl::Dep ;
 			dep_lvl = 0              ;

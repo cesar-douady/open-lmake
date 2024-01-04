@@ -50,18 +50,15 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::NoStat      , { .short_name=char(::toupper(TflagChars[+Tflag::Stat     ])) , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
 	,	{ Flag::NoWrite     , { .short_name=char(::toupper(TflagChars[+Tflag::Write    ])) , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line   { syntax,argc,argv } ;
-	bool              unlink     = false              ;
-	bool              no_follow  = false              ;
-	Tflags            neg_tflags ;
-	Tflags            pos_tflags ;
+	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (!cmd_line.args) return 0 ;                                                                   // fast path : declare no targets
-	for( ::string const& f : cmd_line.args ) if (!f) exit(2,"cannot declare empty file as target") ;
+	if (!cmd_line.args) return 0 ;                                                                         // fast path : declare no targets
+	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot declare empty file as target") ;
 	//
-	if (cmd_line.flags[Flag::Unlink  ]) unlink     = true                      ;
-	if (cmd_line.flags[Flag::NoFollow]) no_follow  = true                      ;
-	if (!unlink                       ) pos_tflags = {Tflag::Crc,Tflag::Write} ; // we declare that we write, allow it and compute crc by default
+	Tflags neg_tflags ;
+	Tflags pos_tflags ;
+	bool   unlink     = cmd_line.flags[Flag::Unlink  ] ;
+	bool   no_follow  = cmd_line.flags[Flag::NoFollow] ;
 	//
 	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= Tflag::Crc       ;
 	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= Tflag::Dep       ;
@@ -79,8 +76,9 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoStat     ]) neg_tflags |= Tflag::Stat      ;
 	if (cmd_line.flags[Flag::NoWrite    ]) neg_tflags |= Tflag::Write     ;
 	//
-	if ( +(neg_tflags&pos_tflags)             ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
-	if ( unlink && (+neg_tflags||+pos_tflags) ) syntax.usage(          "cannot unlink and set/reset flags"s                                 ) ;
+	if      ( +(neg_tflags&pos_tflags)   ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
+	if      ( !unlink                    ) pos_tflags |= Tflags(Tflag::Crc,Tflag::Write) & ~neg_tflags ;                                   // we say we write, allow it and compute crc by default
+	else if ( +neg_tflags || +pos_tflags ) syntax.usage("cannot unlink and set/reset flags"s) ;
 	//
 	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
 		JobExecRpcProc::Access

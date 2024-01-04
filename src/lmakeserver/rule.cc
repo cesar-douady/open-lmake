@@ -424,10 +424,9 @@ namespace Engine {
 
 	void SubmitRsrcsAttrs::s_canon(::vmap_ss& rsrcs) {
 		for ( auto& [k,v] : rsrcs ) {
-			StdRsrc r = mk_enum_no_throw<StdRsrc>(k) ;
-			if (r==StdRsrc::Unknown) continue ;                                // resource is not standard
-			if (k!=mk_snake(r)     ) continue ;                                // .
-			uint64_t val = 0 /*garbage*/ ;
+			/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ; // resource is not standard
+			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=mk_snake(r)          ) continue ; // .
+			uint64_t val = 0 /*garbage*/       ;
 			try                     { val = from_string_with_units<uint64_t>(v) ; }
 			catch (::string const&) { continue ;                                  } // value is not recognized
 			//

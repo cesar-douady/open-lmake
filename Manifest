@@ -39,7 +39,9 @@ src/autodep/lcheck_deps.cc
 src/autodep/ld.cc
 src/autodep/ld_audit.cc
 src/autodep/ld_preload.cc
+src/autodep/ldecode.cc
 src/autodep/ldepend.cc
+src/autodep/lencode.cc
 src/autodep/ltarget.cc
 src/autodep/ptrace.cc
 src/autodep/ptrace.hh
@@ -76,6 +78,8 @@ src/lmakeserver/caches/dir_cache.cc
 src/lmakeserver/caches/dir_cache.hh
 src/lmakeserver/cmd.cc
 src/lmakeserver/cmd.x.hh
+src/lmakeserver/codec.cc
+src/lmakeserver/codec.x.hh
 src/lmakeserver/core.hh
 src/lmakeserver/core.x.hh
 src/lmakeserver/global.cc
@@ -194,6 +198,7 @@ unit_tests/test17.script
 unit_tests/test18.script
 unit_tests/test19.script
 unit_tests/tmp.py
+unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
 unit_tests/wide.py

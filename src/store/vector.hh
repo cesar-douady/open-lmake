@@ -33,7 +33,7 @@ namespace Store {
 			static constexpr size_t MinSz = MinSz_ ;
 			//
 			static constexpr bool IsTrivial = ::Store::IsTrivial<Item> ;
-			using VecView = ::vector_view_c<Item> ;
+			using VecView = ::c_vector_view<Item> ;
 			using Base::sz    ;
 			using Base::items ;
 			// statics
@@ -87,7 +87,7 @@ namespace Store {
 		static constexpr bool IsStr = IsChar<Item> ;
 		//
 		using Char    = AsChar<Item>              ;
-		using VecView = ::vector_view_c    <Item> ;
+		using VecView = ::c_vector_view    <Item> ;
 		using StrView = ::basic_string_view<Char> ;
 		using ULock   = UniqueLock<AutoLock>      ;
 		using SLock   = SharedLock<AutoLock>      ;
@@ -190,18 +190,18 @@ namespace Store {
 			return idx ;
 		}
 		//
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::vector           <I> const& v)                 { return emplace(     ::vector_view_c<I>(v)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& x0,::vector           <I> const& v)                 { return emplace(  x0,::vector_view_c<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::vector           <I> const& v)                 { return assign (i,   ::vector_view_c<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::vector           <I> const& v)                 { return append (i,   ::vector_view_c<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string_view<I> const& s) requires(IsStr) { return emplace(     ::vector_view_c<I>(s)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string_view<I> const& s) requires(IsStr) { return emplace(  c0,::vector_view_c<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return assign (i,   ::vector_view_c<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return append (i,   ::vector_view_c<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string     <I> const& s) requires(IsStr) { return emplace(     ::vector_view_c<I>(s)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string     <I> const& s) requires(IsStr) { return emplace(  c0,::vector_view_c<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return assign (i,   ::vector_view_c<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return append (i,   ::vector_view_c<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx emplace(                   ::vector           <I> const& v)                 { return emplace(     ::c_vector_view<I>(v)) ; }
+		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& x0,::vector           <I> const& v)                 { return emplace(  x0,::c_vector_view<I>(v)) ; }
+		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::vector           <I> const& v)                 { return assign (i,   ::c_vector_view<I>(v)) ; }
+		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::vector           <I> const& v)                 { return append (i,   ::c_vector_view<I>(v)) ; }
+		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string_view<I> const& s) requires(IsStr) { return emplace(     ::c_vector_view<I>(s)) ; }
+		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string_view<I> const& s) requires(IsStr) { return emplace(  c0,::c_vector_view<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return assign (i,   ::c_vector_view<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return append (i,   ::c_vector_view<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string     <I> const& s) requires(IsStr) { return emplace(     ::c_vector_view<I>(s)) ; }
+		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string     <I> const& s) requires(IsStr) { return emplace(  c0,::c_vector_view<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return assign (i,   ::c_vector_view<I>(s)) ; }
+		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return append (i,   ::c_vector_view<I>(s)) ; }
 	} ;
 
 }

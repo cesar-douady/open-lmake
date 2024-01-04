@@ -66,6 +66,7 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	Local                              // if proc==                  Make               , lauch all jobs locally
 ,	ManualOk                           // if proc==                  Make | Mark        , allow lmake to overwrite manual files
 ,	NoTrigger                          // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
+,	Porcelaine                         //                                                 generate easy to parse output
 ,	Quiet                              //                                                 do not generate user oriented messages
 ,	Rule                               //                                                 rule name when interpreting arg as job name
 ,	SourceOk                           // if proc==                  Make               , allow lmake to overwrite source files

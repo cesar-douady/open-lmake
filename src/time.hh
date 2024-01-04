@@ -167,6 +167,8 @@ namespace Time {
 		using Base = TimeBase<uint64_t> ;
 		friend ::ostream& operator<<( ::ostream& , Date const ) ;
 		friend Delay ;
+		friend Ddate ;
+		friend Pdate ;
 		static const Date None ;
 		// cxtors & casts
 		using Base::Base ;
@@ -232,24 +234,27 @@ namespace Time {
 		// cxtors & casts
 	public :
 		Ddate(                ) = default ;
-		Ddate(struct ::stat st) : Date{st.st_mtim} {_val&=~0x1 ; if (st.st_mode&S_IXUSR) _val |= 0x1 ; }
-		// services
-		constexpr bool operator==(Ddate const& other) const { return _val==other._val ; } // C++ requires a direct compare to support <=>
-		constexpr bool operator< (Ddate const& other) const { return _date()< other._date() ; }
-		constexpr bool operator> (Ddate const& other) const { return _date()> other._date() ; }
-		//
-		using Base::operator+ ;
-		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~0x1 ; return *this                      ; }
-		constexpr Ddate& operator-=(Delay other)       { _val -= other._val&~0x1 ; return *this                      ; }
-		constexpr Ddate  operator+ (Delay other) const { Ddate res{*this} ; res += other ; return res ;                }
-		constexpr Ddate  operator- (Delay other) const { Ddate res{*this} ; res -= other ; return res ;                }
-		constexpr Delay  operator- (Ddate      ) const ;
-		//
-		bool/*slept*/ sleep_until(::stop_token) const ;
-		void          sleep_until(            ) const ;
+		Ddate(struct ::stat st) : Date{st.st_mtim} { if (st.st_mode&S_IXUSR) _val |= 0x1 ; else _val &= ~0x1 ; }
+		// accesses
 	private :
 		constexpr Tick _date() const { return _val&~0x1 ; }
-		constexpr bool _exe () const { return _val&~0x1 ; }
+		constexpr bool _exe () const { return _val& 0x1 ; }
+		// services
+	public :
+		constexpr bool operator==(Ddate const& other) const { return _val==other._val            ; } // if only differ by exe bit, all comparisons return false
+		constexpr bool operator< (Ddate const& other) const { return _date()<other._date()       ; } // .
+		constexpr bool operator> (Ddate const& other) const { return _date()>other._date()       ; } // .
+		constexpr bool operator<=(Ddate const& other) const { return *this<other || *this==other ; } // .
+		constexpr bool operator>=(Ddate const& other) const { return *this>other || *this==other ; } // .
+		//
+		using Base::operator+ ;
+		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~0x1 ;         return *this ; } // do not modify exe bit
+		constexpr Ddate& operator-=(Delay other)       { _val -= other._val&~0x1 ;         return *this ; } // .
+		constexpr Ddate  operator+ (Delay other) const { Ddate res{*this} ; res += other ; return res   ; }
+		constexpr Ddate  operator- (Delay other) const { Ddate res{*this} ; res -= other ; return res   ; }
+		constexpr Delay  operator- (Ddate      ) const ;
+		//
+		::string str( uint8_t prec=0 , bool in_day=false ) const { return Date(New,_date()).str(prec,in_day) ; }
 	} ;
 
 	//
@@ -285,14 +290,14 @@ namespace Time {
 	//
 	// Date
 	//
-	constexpr Date Date::None { New , uint64_t(0) } ;
+	constexpr Date Date::None { New , 0 } ;
 	inline Pdate Pdate::s_now() {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;
 		return Pdate(now) ;
 	}
-	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,int64_t(_val   -other._val   )) ; }
-	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,int64_t(_date()-other._date())) ; }
+	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
+	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
 	//
 	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
 	inline void          Pdate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }

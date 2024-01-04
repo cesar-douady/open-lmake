@@ -110,16 +110,17 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback    stop_cb        { stop , [](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
-	::umap<Fd,IMsgBuf> in_tab         ;
-	Epoll              epoll          { New }                                ;
-	Fd                 server_stop_fd = ::inotify_init1(O_CLOEXEC)           ;
-	//
-	inotify_add_watch( server_stop_fd , _g_server_mrkr.c_str() , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY ) ;
+	::stop_callback    stop_cb { stop , [](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
+	::umap<Fd,IMsgBuf> in_tab  ;
+	Epoll              epoll   { New }                                ;
 	//
 	epoll.add_read( _g_server_fd   , EventKind::Master ) ;
 	epoll.add_read( int_fd         , EventKind::Int    ) ;
-	epoll.add_read( server_stop_fd , EventKind::Int    ) ;                     // if server marker is touched by user, we do as we received a ^C
+	//
+	if ( Fd server_stop_fd=::inotify_init1(O_CLOEXEC) ; +server_stop_fd )
+		if (inotify_add_watch( server_stop_fd , _g_server_mrkr.c_str() , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 )
+			epoll.add_read( server_stop_fd , EventKind::Int ) ;                                                           // if server marker is touched by user, we do as we received a ^C
+	//
 	if (!_g_is_daemon) {
 		in_tab[Fd::Stdin] ;
 		epoll.add_read(Fd::Stdin,EventKind::Std) ;
@@ -367,9 +368,9 @@ int main( int argc , char** argv ) {
 	else                 g_startup_dir_s = new ::string ;
 	//
 	Fd int_fd = open_sig_fd(SIGINT) ;                                          // must be done before app_init so that all threads block the signal
-	//vvvvvvvvvvvvvvvvvvvvv
-	g_store.writable = true ;
-	//^^^^^^^^^^^^^^^^^^^^^
+	//          vvvvvvvvvvvvvvv
+	Persistent::writable = true ;
+	//          ^^^^^^^^^^^^^^^
 	Trace::s_backup_trace = true ;
 	app_init(false/*search_root*/,false/*cd_root*/) ;                          // server is always launched at root
 	Py::init(true/*multi-thread*/) ;

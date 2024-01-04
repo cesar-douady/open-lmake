@@ -91,8 +91,8 @@ namespace Engine {
 			}
 			if (+nodes) {
 				Node::s_frozens(add,nodes) ;
-				for( Node n : nodes ) if (add) n->mk_src(Buildable::Src) ; else n->mk_no_src() ;
-				EngineStore::s_invalidate_match() ; // seen from the engine, we have modified sources, we must rematch everything
+				for( Node n : nodes ) if (add) n->mk_src() ; else n->mk_no_src() ;
+				Persistent::invalidate_match() ;                                   // seen from the engine, we have modified sources, we must rematch everything
 			}
 			return true ;
 		}
@@ -236,20 +236,25 @@ namespace Engine {
 
 	static ::string _mk_script( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ReqFlags flags , bool with_cmd ) {
 		JobRpcReply const& start   = report_start.start ;
-		AutodepEnv const&  ade     = start.autodep_env  ;
+		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
 		if (+start.cwd_s) {
 			append_to_string(abs_cwd,'/',start.cwd_s) ;
 			abs_cwd.pop_back() ;
 		}
-		Rule::SimpleMatch                                                 match       = j->simple_match()                               ;
-		::string                                                          script      = "#!/bin/bash\n"                                 ;
-		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions = j->pre_actions(match)                           ;
-		bool                                                              is_python   = j->rule->is_python                              ;
-		bool                                                              dbg         = flags[ReqFlag::Debug]                           ;
-		bool                                                              redirected  = +start.stdin || +start.stdout                   ;
-		::uset<Node>                                                      warn        ; for( auto [n,_] : pre_actions.second )                                  warn     .insert(n) ;
-		::uset<Node>                                                      to_mkdirs   ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
+		Rule::SimpleMatch match = j->simple_match() ;
+		//
+		for( ::string const& tn : match.static_targets() ) Node(tn)->set_buildable() ; // necessary for pre_actions()
+		for( Node            t  : j->star_targets        )      t  ->set_buildable() ; // .
+		//
+		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions = j->pre_actions(match)         ;
+		::string                                                          script      = "#!/bin/bash\n"               ;
+		bool                                                              is_python   = j->rule->is_python            ;
+		bool                                                              dbg         = flags[ReqFlag::Debug]         ;
+		bool                                                              redirected  = +start.stdin || +start.stdout ;
+		//
+		::uset<Node> warn        ; for( auto [n,_] : pre_actions.second )                                  warn     .insert(n) ;
+		::uset<Node> to_mkdirs   ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
 		//
 		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
 		//
@@ -261,6 +266,7 @@ namespace Engine {
 		for( auto [t,a] : pre_actions.first ) {
 			::string tn = mk_shell_str(t->name()) ;
 			switch (a.tag) {
+				case FileActionTag::Keep     :                                                                                                                                                  break ;
 				case FileActionTag::Unlink   : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Mkdir    : { ::string c = "mkdir -p "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
@@ -376,7 +382,7 @@ namespace Engine {
 		for( Node t             : job->star_targets      ) jts.push_back(     t  ) ;
 		Node::s_manual_oks(true/*add*/,jts) ;
 		//
-		audit( fd , ro , Color::None , script_file ) ;
+		audit( fd , ro , script_file ) ;
 		return true ;
 	}
 
@@ -394,7 +400,7 @@ namespace Engine {
 				}
 			break ;
 			case ReqKey::Error :
-				g_store.invalidate_exec(true/*cmd_ok*/) ;
+				Persistent::invalidate_exec(true/*cmd_ok*/) ;
 			break ;
 			case ReqKey::Resources :
 				for( Rule r : Rule::s_lst() ) {
@@ -440,8 +446,8 @@ namespace Engine {
 					switch (ro.key) {
 						case ReqKey::Info :
 						case ReqKey::Stderr : {
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							audit    ( fd , ro , Color::None , job->special_stderr() , lvl+1 ) ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
+							audit    ( fd , ro , job->special_stderr()                 , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd        :
 						case ReqKey::ExecScript :
@@ -463,51 +469,65 @@ namespace Engine {
 							size_t w = 0 ;
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
 							for( auto const& [k,v] : start.env ) w = max(w,k.size()) ;
-							for( auto const& [k,v] : start.env ) audit( fd , ro , Color::None , to_string(::setw(w),k," : ",env_decode(::string(v))) , lvl ) ;
+							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::string(v))) , lvl ) ;
 						} break ;
 						case ReqKey::ExecScript :
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
-							audit( fd , ro , Color::None , _mk_script(job,report_start,ro.flag_args[+ReqFlag::Debug],ro.flags,false/*with_cmd*/) , lvl ) ;
+							audit( fd , ro , _mk_script(job,report_start,ro.flag_args[+ReqFlag::Debug],ro.flags,false/*with_cmd*/) , lvl ) ;
 						break ;
 						case ReqKey::Cmd : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
-							audit( fd , ro , Color::None , _mk_cmd(job,ro.flags,start,{},redirected) , lvl ) ;
+							audit( fd , ro , _mk_cmd(job,ro.flags,start,{},redirected) , lvl ) ;
 						} break ;
 						case ReqKey::Stdout :
 							if (!has_end ) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							audit    ( fd , ro , Color::None , digest.stdout , lvl+1 )         ;
+							audit    ( fd , ro , digest.stdout , lvl+1 )         ;
 						break ;
 						case ReqKey::Stderr :
 							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
-								if (verbose) audit( fd , ro , Color::Note , localize(pre_start.backend_msg     ,ro.startup_dir_s) , lvl+1 ) ;
+								if (verbose) audit( fd , ro , Color::Note , localize(pre_start.msg     ,ro.startup_dir_s) , lvl+1 ) ;
 							}
 							if (has_end) {
-								if (verbose) audit( fd , ro , Color::Note , localize(report_end.end.backend_msg,ro.startup_dir_s) , lvl+1 ) ;
-								/**/         audit( fd , ro , Color::None , digest.stderr                                         , lvl+1 ) ;
+								if (verbose) audit( fd , ro , Color::Note , localize(report_end.end.msg,ro.startup_dir_s) , lvl+1 ) ;
+								/**/         audit( fd , ro ,               digest.stderr                                 , lvl+1 ) ;
 							}
 						break ;
 						case ReqKey::Info : {
-							size_t   w   = "required by"s.size() ;
-							::string ids = to_string("job=",+job) ;
-							if (has_start) {
-								w = ::max( w , "ignore_stat"s.size() ) ;
-								if (start    .small_id) append_to_string(ids," , small=",start    .small_id) ;
-								if (pre_start.seq_id  ) append_to_string(ids," , seq="  ,pre_start.seq_id  ) ;
-							}
-							if (has_end) {
-								w = ::max( w , "elapsed in job"s.size() ) ;
+							struct Entry {
+								::string txt   ;
+								Color    color = Color::None ;
+								bool     as_is = false       ;
+							} ;
+							bool            porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+							::vmap_s<Entry> tab        ;
+							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool as_is=false )->void {
+								tab.emplace_back( k , Entry(v,c,as_is) ) ;
+							} ;
+							//
+							::string ids ;
+							if (porcelaine) {
+								ids = to_string("{ 'job':",+job) ;
+								if (has_start) {
+									if (start    .small_id) append_to_string(ids," , 'small':",start    .small_id) ;
+									if (pre_start.seq_id  ) append_to_string(ids," , 'seq':"  ,pre_start.seq_id  ) ;
+								}
+								ids += " }" ;
+							} else {
+								ids = to_string("job=",+job) ;
+								if (has_start) {
+									if (start    .small_id) append_to_string(ids," , small=",start    .small_id) ;
+									if (pre_start.seq_id  ) append_to_string(ids," , seq="  ,pre_start.seq_id  ) ;
+								}
 							}
 							//
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							//
-							audit( fd , ro , Color::None , to_string(::setw(w),"id's"," : ",ids) , lvl+1 ) ;
+							push_entry("ids",ids,Color::None,true/*as_is*/) ;
 							if ( Node n=job->asking ; +n ) {
 								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-								if (+n->asking) audit( fd , ro , Color::None , to_string(::setw(w),"required by"," : ",mk_file(Job(n->asking)->name())) , lvl+1 ) ;
-								else            audit( fd , ro , Color::None , to_string(::setw(w),"required by"," : ",mk_file(    n         ->name())) , lvl+1 ) ;
+								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),ro.startup_dir_s)) ;
+								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
 							}
 							if (has_start) {
 								JobInfoStart const& rs       = report_start                                     ;
@@ -516,20 +536,28 @@ namespace Engine {
 								::string            tmp_dir  = rs.start.autodep_env.tmp_dir                     ;
 								::string            pressure = sa.pressure.short_str()                          ;
 								//
-								for( auto const& [k,v] : rs.start.env ) if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
+								if (!rs.start.keep_tmp)
+									for( auto const& [k,v] : rs.start.env )
+										if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
-								if (+sa.reason                           ) audit( fd , ro , Color::None , to_string(::setw(w),"reason"     ," : ",reason_str(sa.reason)       ) , lvl+1 ) ;
-								if (rs.host!=NoSockAddr                  ) audit( fd , ro , Color::None , to_string(::setw(w),"host"       ," : ",SockFd::s_host(rs.host)     ) , lvl+1 ) ;
-								if (+tmp_dir                             ) audit( fd , ro , Color::None , to_string(::setw(w),"tmp dir"    ," : ",tmp_dir                     ) , lvl+1 ) ;
-								if (+rs.eta                              ) audit( fd , ro , Color::None , to_string(::setw(w),"scheduling" ," : ",rs.eta.str()," - ",pressure ) , lvl+1 ) ;
-								if ( sa.live_out                         ) audit( fd , ro , Color::None , to_string(::setw(w),"live_out"   ," : ","true"                      ) , lvl+1 ) ;
-								if (+rs.start.chroot                     ) audit( fd , ro , Color::None , to_string(::setw(w),"chroot"     ," : ",rs.start.chroot             ) , lvl+1 ) ;
-								if (+rs.start.cwd_s                      ) audit( fd , ro , Color::None , to_string(::setw(w),"cwd"        ," : ",cwd                         ) , lvl+1 ) ;
-								if ( rs.start.autodep_env.auto_mkdir     ) audit( fd , ro , Color::None , to_string(::setw(w),"auto_mkdir" ," : ","true"                      ) , lvl+1 ) ;
-								if ( rs.start.autodep_env.ignore_stat    ) audit( fd , ro , Color::None , to_string(::setw(w),"ignore_stat"," : ","true"                      ) , lvl+1 ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt) audit( fd , ro , Color::None , to_string(::setw(w),"autodep"    ," : ",mk_snake(rs.start.method)   ) , lvl+1 ) ;
-								if (+rs.start.timeout                    ) audit( fd , ro , Color::None , to_string(::setw(w),"timeout"    ," : ",rs.start.timeout.short_str()) , lvl+1 ) ;
-								if (sa.tag!=BackendTag::Unknown          ) audit( fd , ro , Color::None , to_string(::setw(w),"backend"    ," : ",mk_snake(sa.tag)            ) , lvl+1 ) ;
+								if (+sa.reason                           ) push_entry("reason"     ,localize(reason_str(sa.reason),ro.startup_dir_s)) ;
+								if (rs.host!=NoSockAddr                  ) push_entry("host"       ,SockFd::s_host(rs.host)                         ) ;
+								//
+								if (+rs.eta) {
+									if (porcelaine) push_entry("scheduling" ,to_string("( ",mk_py_str(rs.eta.str())," , ",double(sa.pressure)           ," )") , Color::None , true/*as_is*/ ) ;
+									else            push_entry("scheduling" ,to_string(               rs.eta.str() ," - ",       sa.pressure.short_str()     )                               ) ;
+								}
+								//
+								if (+tmp_dir                             ) push_entry("tmp dir"    ,localize(mk_file(tmp_dir),ro.startup_dir_s)     ) ;
+								if (+rs.start.autodep_env.tmp_view       ) push_entry("tmp view"   ,rs.start.autodep_env.tmp_view                   ) ;
+								if ( sa.live_out                         ) push_entry("live_out"   ,"true"                                          ) ;
+								if (+rs.start.chroot                     ) push_entry("chroot"     ,rs.start.chroot                                 ) ;
+								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                             ) ;
+								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                          ) ;
+								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                          ) ;
+								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,mk_snake(rs.start.method)                       ) ;
+								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()                    ) ;
+								if (sa.tag!=BackendTag::Unknown          ) push_entry("backend"    ,mk_snake(sa.tag)                                ) ;
 							}
 							//
 							::map_ss required_rsrcs  ;
@@ -540,60 +568,87 @@ namespace Engine {
 							} catch(::string const&) {}
 							//
 							if (has_end) {
-								::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : "" ;
-								size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0 ;
-								bool            overflow     = digest.stats.mem > mem_rsrc                                  ;
-								::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'          ; if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
-								bool            ok           = WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0  ;
-								//
-								audit( fd , ro ,                         Color::None , to_string(::setw(w),"end date"      ," : ",digest.end_date.str()         ) , lvl+1 ) ;
-								audit( fd , ro , !ok     ?Color::Err    :Color::None , to_string(::setw(w),"rc"            ," : ",wstatus_str(digest.wstatus)   ) , lvl+1 ) ;
-								audit( fd , ro ,                         Color::None , to_string(::setw(w),"cpu time"      ," : ",digest.stats.cpu  .short_str()) , lvl+1 ) ;
-								audit( fd , ro ,                         Color::None , to_string(::setw(w),"elapsed in job"," : ",digest.stats.job  .short_str()) , lvl+1 ) ;
-								audit( fd , ro ,                         Color::None , to_string(::setw(w),"elapsed total" ," : ",digest.stats.total.short_str()) , lvl+1 ) ;
-								audit( fd , ro , overflow?Color::Warning:Color::None , to_string(::setw(w),"used mem"      ," : ",mem_str                       ) , lvl+1 ) ;
+								push_entry( "end date" , digest.end_date.str()                                                                                                ) ;
+								push_entry( "rc"       , wstatus_str(digest.wstatus) , WIFEXITED(digest.wstatus) && WEXITSTATUS(digest.wstatus)==0 ? Color::None : Color::Err ) ;
+								if (porcelaine) {
+									push_entry("cpu time"      ,to_string(double(digest.stats.cpu  )),Color::None,true/*as_is*/) ;
+									push_entry("elapsed in job",to_string(double(digest.stats.job  )),Color::None,true/*as_is*/) ;
+									push_entry("elapsed total" ,to_string(double(digest.stats.total)),Color::None,true/*as_is*/) ;
+									push_entry("used mem"      ,to_string(       digest.stats.mem   ),Color::None,true/*as_is*/) ;
+								} else {
+									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : "" ;
+									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                 ;
+									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                  ;
+									::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                                                                          ;
+									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
+									push_entry("cpu time"      ,digest.stats.cpu  .short_str()                                    ) ;
+									push_entry("elapsed in job",digest.stats.job  .short_str()                                    ) ;
+									push_entry("elapsed total" ,digest.stats.total.short_str()                                    ) ;
+									push_entry("used mem"      ,mem_str                       ,overflow?Color::Warning:Color::None) ;
+								}
 							}
 							//
 							if (has_start) {
-								if (+report_start.pre_start.backend_msg) {
-									audit( fd , ro , Color::None    , "start backend message :"                                     , lvl+1 ) ;
-									audit( fd , ro , Color::None    , localize(report_start.pre_start.backend_msg,ro.startup_dir_s) , lvl+2 ) ;
-								}
-								if (+report_start.stderr) {
-									audit( fd , ro , Color::Warning , "start stderr :"                                              , lvl+1 ) ;
-									audit( fd , ro , Color::Warning , report_start.stderr                                           , lvl+2 ) ;
-								}
+								if (+report_start.pre_start.msg) push_entry("start message",localize(report_start.pre_start.msg,ro.startup_dir_s)               ) ;
+								if (+report_start.stderr       ) push_entry("start stderr" ,report_start.stderr                                  ,Color::Warning) ;
 							}
 							if (has_end) {
-								if (+report_end.end.backend_msg) {
-									audit( fd , ro , Color::None    , "backend message :"                                           , lvl+1 ) ;
-									audit( fd , ro , Color::None    , localize(report_end.end        .backend_msg,ro.startup_dir_s) , lvl+2 ) ;
-								}
+								if (+report_end.end.msg        ) push_entry("message"      ,localize(report_end.end        .msg,ro.startup_dir_s)               ) ;
 							}
 							//
-							bool   has_required  = +required_rsrcs  ;
-							bool   has_allocated = +allocated_rsrcs ;
-							size_t kw            = 0                        ;
-							for( auto const& [k,_] : required_rsrcs  ) kw = ::max(kw,k.size()) ;
-							for( auto const& [k,_] : allocated_rsrcs ) kw = ::max(kw,k.size()) ;
-							if ( has_required || has_allocated ) {
-								::string hdr = "resources :" ;
-								if      (!has_allocated) hdr = "required " +hdr ;
-								else if (!has_required ) hdr = "allocated "+hdr ;
-								audit( fd , ro , Color::None , hdr , lvl+1 ) ;
-								if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , Color::None , to_string(::setw(kw),k," : ",v) , lvl+2 ) ;
-								else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , Color::None , to_string(::setw(kw),k," : ",v) , lvl+2 ) ;
-								else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , Color::None , to_string(::setw(kw),k," : ",v) , lvl+2 ) ;
-								else {
-									for( auto const& [k,rv] : required_rsrcs ) {
-										if (!allocated_rsrcs.contains(k)) { audit( fd , ro , Color::None , to_string(::setw(kw),k,"(required )"," : ",rv) , lvl+2 ) ; continue ; }
-										::string const& av = allocated_rsrcs.at(k) ;
-										if (rv==av                      ) { audit( fd , ro , Color::None , to_string(::setw(kw),k,"           "," : ",rv) , lvl+2 ) ; continue ; }
-										/**/                                audit( fd , ro , Color::None , to_string(::setw(kw),k,"(required )"," : ",rv) , lvl+2 ) ;
-										/**/                                audit( fd , ro , Color::None , to_string(::setw(kw),k,"(allocated)"," : ",av) , lvl+2 ) ;
+							bool has_required  = +required_rsrcs  ;
+							bool has_allocated = +allocated_rsrcs ;
+							// generate output
+							if (porcelaine) {
+								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {
+									size_t w2  = 0   ; for( auto const& [k,_] : rsrcs  ) w2 = ::max(w2,mk_py_str(k).size()) ;
+									char   sep = ' ' ;
+									audit( fd , ro , mk_py_str(k)+" : {" , lvl+1 , ',' ) ;
+									for( auto const& [k,v] : required_rsrcs ) {
+										::string v_str ;
+										if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = to_string(from_string_with_units<size_t>(v)) ;
+										else                                               v_str = mk_py_str(v)                                 ;
+										audit( fd , ro , to_string(::setw(w2),mk_py_str(k)," : ",v_str) , lvl+2 , sep ) ;
+										sep = ',' ;
 									}
-									for( auto const& [k,av] : allocated_rsrcs )
-										if (!required_rsrcs.contains(k))    audit( fd , ro , Color::None , to_string(::setw(kw),k,"(allocated)"," : ",av) , lvl+2 ) ;
+									audit( fd , ro , "}" , lvl+1 ) ;
+								} ;
+								size_t   w  = mk_py_str("job").size()                         ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
+								::string jn = localize(mk_file(job->name()),ro.startup_dir_s) ;
+								audit( fd , ro , to_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , lvl+1 , '{' ) ;
+								for( auto const& [k,e] : tab )
+									audit( fd , ro , to_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , lvl+1 , ',' ) ;
+								if (has_required ) audit_rsrcs("required resources" ,required_rsrcs ,false/*allocated*/) ;
+								if (has_allocated) audit_rsrcs("allocated resources",allocated_rsrcs,true /*allocated*/) ;
+								audit( fd , ro , "}" , lvl ) ;
+							} else {
+								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
+								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
+								for( auto const& [k,e] : tab )
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , to_string(::setw(w),k," : ",e.txt) , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , lvl+1 ) ; audit(fd,ro,e.txt,lvl+2) ; }
+								if ( has_required || has_allocated ) {
+									size_t w2            = 0                ;
+									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
+									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
+									::string hdr = "resources :" ;
+									if      (!has_allocated) hdr = "required " +hdr ;
+									else if (!has_required ) hdr = "allocated "+hdr ;
+									audit( fd , ro , hdr , lvl+1 ) ;
+									if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
+									else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
+									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
+									else {
+										for( auto const& [k,rv] : required_rsrcs ) {
+											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , lvl+2 ) ; continue ; }
+											::string const& av = allocated_rsrcs.at(k) ;
+											if (rv==av                      ) { audit( fd , ro , to_string(::setw(w2),k,"           "," : ",rv) , lvl+2 ) ; continue ; }
+											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , lvl+2 ) ;
+											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , lvl+2 ) ;
+										}
+										for( auto const& [k,av] : allocated_rsrcs )
+											if (!required_rsrcs.contains(k))    audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , lvl+2 ) ;
+									}
 								}
 							}
 						} break ;
@@ -640,15 +695,18 @@ namespace Engine {
 			_show_job(fd,ro,ecr.job()) ;
 			return true ;
 		}
-		bool           ok      = true          ;
-		::vector<Node> targets = ecr.targets() ;
+		bool           ok         = true                          ;
+		::vector<Node> targets    = ecr.targets()                 ;
+		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		char           sep        = ' '                           ;
+		if (porcelaine) audit( fd , ro , "{" ) ;
 		for( Node target : targets ) {
 			trace("target",target) ;
-			DepDepth lvl = 0 ;
-			if (targets.size()>1) {
-				_send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target ) ;
-				lvl++ ;
-			}
+			DepDepth lvl = 1 ;
+			if      (porcelaine      ) audit     ( fd , ro , to_string(sep,' ',mk_py_str(localize(mk_file(target->name()),ro.startup_dir_s))," :") ) ;
+			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                          ) ;
+			else                       lvl-- ;
+			sep = ',' ;
 			bool for_job = false/*garbage*/ ;
 			switch (ro.key) {
 				case ReqKey::InvDeps : for_job = false ; break ;
@@ -684,7 +742,7 @@ namespace Engine {
 					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , jt ) ; // actual job is output last as this is what user views first
 				} break ;
 				case ReqKey::InvDeps :
-					for( Job job : g_store.job_lst() )
+					for( Job job : Persistent::job_lst() )
 						for( Dep const& dep : job->deps ) {
 							if (dep!=target) continue ;
 							_send_job( fd , ro , No , false/*hide*/ , job , lvl ) ;
@@ -694,6 +752,7 @@ namespace Engine {
 				default : FAIL(ro.key) ;
 			}
 		}
+		if (porcelaine) audit( fd , ro , "}" ) ;
 		trace(STR(ok)) ;
 		return ok ;
 	}

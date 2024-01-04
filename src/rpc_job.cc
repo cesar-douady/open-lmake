@@ -106,12 +106,26 @@ using namespace Hash ;
 ::ostream& operator<<( ::ostream& os , JobRpcReq const& jrr ) {
 	os << "JobRpcReq(" << jrr.proc <<','<< jrr.seq_id <<','<< jrr.job ;
 	switch (jrr.proc) {
-		case JobProc::LiveOut  : os <<','<< jrr.backend_msg ; break ;
+		case JobProc::LiveOut  : os <<','<< jrr.msg         ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.digest.deps ; break ;
 		case JobProc::End      : os <<','<< jrr.digest      ; break ;
 		default                :                              break ;
 	}
 	return os << ')' ;
+}
+
+JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j} {
+	switch (jerr.proc) {
+		case JobExecRpcProc::Decode : proc = P::Decode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ;                          break ;
+		case JobExecRpcProc::Encode : proc = P::Encode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ; min_len = jerr.min_len ; break ;
+		case JobExecRpcProc::DepInfos : {
+			::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
+			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
+			proc        = P::DepInfos ;
+			digest.deps = ::move(ds) ;
+		} break ;
+		default : FAIL(jerr.proc) ;
+	}
 }
 
 //
@@ -125,8 +139,8 @@ using namespace Hash ;
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
 	os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
-		case JobProc::ChkDeps  : os <<','<< jrr.ok    ; break ;
-		case JobProc::DepInfos : os <<','<< jrr.infos ; break ;
+		case JobProc::ChkDeps  : os <<','<< jrr.ok        ; break ;
+		case JobProc::DepInfos : os <<','<< jrr.dep_infos ; break ;
 		case JobProc::Start :
 			/**/                  os <<',' << hex<<jrr.addr<<dec               ;
 			/**/                  os <<',' << jrr.autodep_env                  ;
@@ -194,7 +208,7 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 	if (jerr.auto_date) os << ",auto_date"                                    ;
 	if (jerr.no_follow) os << ",no_follow"                                    ;
 	/**/                os <<',' << jerr.digest                               ;
-	if (+jerr.comment ) os <<',' << jerr.comment                              ;
+	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
 	if (jerr.proc>=JobExecRpcProc::HasFile) {
 		if ( +jerr.digest.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
@@ -214,11 +228,20 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
-		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok    ; break ;
-		case JobExecRpcProc::DepInfos : os <<','<< jerr.infos ; break ;
+		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok        ; break ;
+		case JobExecRpcProc::DepInfos : os <<','<< jerr.dep_infos ; break ;
 		default : ;
 	}
 	return os << ')' ;
+}
+
+JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
+	switch (jrr.proc) {
+		case JobProc::None     :                        proc = Proc::None     ;                             break ;
+		case JobProc::ChkDeps  : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok        = jrr.ok        ; break ;
+		case JobProc::DepInfos :                        proc = Proc::DepInfos ; dep_infos = jrr.dep_infos ; break ;
+		default : FAIL(jrr.proc) ;
+	}
 }
 
 //

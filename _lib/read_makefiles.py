@@ -72,7 +72,7 @@ StdExecAttrs = {
 ,	'tmp'               : ( str   , True    )
 ,	'use_script'        : ( bool  , True    )
 }
-Keywords     = {'dep','deps','resources','stems','target','targets'}
+Keywords     = {'dep','deps','resources','stems','target','targets','post_target','post_targets'}
 StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
 SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
@@ -114,13 +114,6 @@ def top(new) :
 	else                      : raise TypeError(f'cannot combine {new.__class__.__name__}')
 	return update(acc,new)
 
-def qualify_key(kind,key,seen) :
-	if not isinstance(key,str) : raise TypeError(f'{kind} key {key} is not a str'               )
-	if not key.isidentifier()  : raise TypeError(f'{kind} key {key} is not an identifier'       )
-	if key in Keywords         : raise TypeError(f'{kind} key {key} is a reserved keyword'      )
-	if key in seen             : raise TypeError(f'{kind} key {key} already seen as {seen[key]}')
-	seen[key] = kind
-
 def _no_match_flags(flags) :
 	if isinstance(flags, str            ) : return flags in ('-match','-Match')
 	if isinstance(flags,(tuple,list,set)) : return any(_no_match_flags(f) for f in flags)
@@ -130,16 +123,26 @@ def no_match(target) :
 	if isinstance(target,(tuple,list,set)) : return _no_match_flags(target[1:])
 	raise TypeError('unrecognized target : {target}')
 
-def qualify(attrs) :
+def _qualify_key(kind,key,strong,is_python,seen) :
+	if not isinstance(key,str) : raise TypeError (f'{kind} key {key} is not a str'               )
+	if key in seen             : raise ValueError(f'{kind} key {key} already seen as {seen[key]}')
+	seen[key] = kind
+	if strong :
+		if not key.isidentifier() : raise ValueError(f'{kind} key {key} is not an identifier')
+		if key in Keywords        : raise ValueError(f'{kind} key {key} is a lmake keyword'  )
+		if is_python :
+			try                : exec(f'{key}=None',{})
+			except SyntaxError : raise ValueError(f'{kind} key {key} is a python keyword')
+def qualify(attrs,is_python) :
 	seen = {}
-	for k in attrs.stems       .keys() : qualify_key('stem'       ,k,seen)
-	for k in attrs.targets     .keys() : qualify_key('target'     ,k,seen)
-	for k in attrs.post_targets.keys() : qualify_key('post_target',k,seen)
-	if not attrs.__special__ :
-		for key in ('dep','resource') :
-			dct = attrs[key+'s']
-			if callable(dct) : continue
-			for k in dct.keys() : qualify_key(key,k,seen)
+	for k in attrs.stems       .keys() : _qualify_key('stem'       ,k,True,is_python,seen)
+	for k in attrs.targets     .keys() : _qualify_key('target'     ,k,True,is_python,seen)
+	for k in attrs.post_targets.keys() : _qualify_key('post_target',k,True,is_python,seen)
+	if attrs.__special__ : return
+	for key in ('dep','resource') :
+		dct = attrs[key+'s']
+		if callable(dct) : continue
+		for k in dct.keys() : _qualify_key(key,k,key=='dep',is_python,seen)
 
 def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
@@ -192,7 +195,7 @@ def handle_inheritance(rule) :
 	attrs.name        = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__special__ = rule.__special__
 	attrs.is_python   = is_python
-	qualify(attrs)
+	qualify(attrs,is_python)
 	return attrs
 
 def find_static_stems(job_name) :

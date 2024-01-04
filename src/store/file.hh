@@ -65,7 +65,6 @@ namespace Store {
 				SWEAR(fi.is_reg()) ;
 				size = fi.sz ;
 			}
-			_resize_file(size) ;
 			_alloc() ;
 			_map(0) ;
 		}

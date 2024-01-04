@@ -257,8 +257,9 @@ int64_t/*res*/ exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 // unlink
 template<bool At,int FlagArg> bool/*skip_syscall*/ entry_unlink( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_REMOVEDIR) , comment ) ;
-		ctx = u ;
+		bool rmdir = flag<At,FlagArg>(args,AT_REMOVEDIR) ;
+		Record::Unlink* u = new Record::Unlink( r , _path<At>(pid,args+0) , rmdir , comment ) ;
+		if (!rmdir) ctx = u ;                                                                    // rmdir calls us without exit, and we must not set ctx in that case
 		_update<At>(args+0,*u) ;
 	} catch (int) {}
 	return false ;

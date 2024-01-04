@@ -37,7 +37,7 @@ void print_pre_start(JobRpcReq const& jrr) {
 	::cout << "seq_id : " << jrr.seq_id <<'\n' ;
 	::cout << "job    : " << jrr.job    <<'\n' ;
 	//
-	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(jrr.backend_msg)) ;
+	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(jrr.msg)) ;
 }
 
 void print_start(JobRpcReply const& jrr) {
@@ -88,7 +88,7 @@ void print_end(JobRpcReq const& jrr) {
 	::cout << "digest.stderr :\n"       ; ::cout << ensure_nl(indent(jd.stderr)) ;
 	::cout << "digest.stdout :\n"       ; ::cout << ensure_nl(indent(jd.stdout)) ;
 	//
-	::cout << "backend_msg :\n" ; ::cout << ensure_nl(indent(localize(jrr.backend_msg))) ;
+	::cout << "_msg :\n" ; ::cout << ensure_nl(indent(localize(jrr.msg))) ;
 }
 
 int main( int argc , char* argv[] ) {

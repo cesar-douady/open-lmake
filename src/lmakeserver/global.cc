@@ -11,24 +11,29 @@ using namespace Hash ;
 namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
+	ThreadQueue<CodecClosure > g_codec_queue  ;
 
-	static inline ::string _audit_indent( ::string&& t , DepDepth l ) {
-		if (l) return indent<' ',2>(t,l) ;
-		else   return ::move       (t  ) ;
+	static inline ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
+		if (!l) {
+			SWEAR(!sep) ;                                                      // cannot have a sep if we have no room to put it
+			return ::move(t) ;
+		}
+		::string res = indent<' ',2>(t,l) ;
+		if (sep) res[2*(l-1)] = sep ;
+		return res ;
 	}
 
-	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl ) {
+	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl , char sep ) {
 		if (!txt) return ;
 		//
-		::string                     report_txt  = color_pfx(ro,c)                ;
-		/**/                         report_txt += localize(txt,ro.startup_dir_s) ;
-		if (report_txt.back()=='\n') report_txt.pop_back()                        ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
-		/**/                         report_txt += color_sfx(ro,c)                ;
-		/**/                         report_txt += '\n'                           ;
+		::string report_txt  = color_pfx(ro,c)                              ;
+		/**/     report_txt += ensure_no_nl(localize(txt,ro.startup_dir_s)) ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
+		/**/     report_txt += color_sfx(ro,c)                              ;
+		/**/     report_txt += '\n'                                         ;
 		//
 		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace)
-		try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl)) ) ;         } catch (::string const& e) { Trace("audit","lost_client",e) ; }
-		try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
+		try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl,sep)) ) ;         } catch (::string const& e) { Trace("audit","lost_client",e) ; }
+		try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
 	}
 
 	//
@@ -436,9 +441,9 @@ namespace Engine {
 		::vector<Node> targets   ; targets.reserve(files.size()) ;                                 // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                    // we may refer to a symbolic link
-			if (rp.kind==Kind::Repo) { targets.emplace_back(rp.real) ;                                              }
-			else                     { err_str += _audit_indent(mk_rel(target,startup_dir_s),1) ; err_str += '\n' ; }
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                            // we may refer to a symbolic link
+			if (rp.kind==Kind::Repo) { targets.emplace_back(rp.real) ;                                                      }
+			else                     { append_to_string( err_str , _audit_indent(mk_rel(target,startup_dir_s),1) , '\n' ) ; }
 		}
 		//
 		if (+err_str) throw to_string("files are outside repo :\n",err_str) ;
@@ -465,11 +470,16 @@ namespace Engine {
 		if (!candidates         ) throw to_string("cannot find job ",mk_rel(files[0],startup_dir_s)) ;
 		//
 		::string err_str = "several rules match, consider :\n" ;
-		for( Job j : candidates ) {
-			err_str += _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) ;
-			err_str += '\n' ;
-		}
+		for( Job j : candidates ) append_to_string( err_str , _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) , '\n' ) ;
 		throw err_str ;
+	}
+
+	//
+	// CodecClosure
+	//
+
+	::ostream& operator<<( ::ostream& os , CodecClosure const& cc ) {
+		return os << "CodecClosure(" << (cc.encode?"encode":"decode") <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<')' ;
 	}
 
 }

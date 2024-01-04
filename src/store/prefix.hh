@@ -25,13 +25,13 @@ namespace Store {
 	namespace Prefix {
 
 		template<       class Char> using Vec      = ::vector           <       Char >         ;
-		template<       class Char> using VecView  = ::vector_view_c    <       Char >         ;
+		template<       class Char> using VecView  = ::c_vector_view    <       Char >         ;
 		template<       class Char> using Str      = ::basic_string     <AsChar<Char>>         ;
 		template<       class Char> using StrView  = ::basic_string_view<AsChar<Char>>         ;
 		template<bool S,class Char> using VecStr   = ::conditional_t<S,Str   <Char>,Vec<Char>> ;
 		template<bool S,class Char> using ItemChar = ::conditional_t<S,AsChar<Char>,    Char > ;
 		//
-		template<class Char> inline void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::vector_view_c<Char>(from,sz) ) res.push_back(c) ; }
+		template<class Char> inline void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::c_vector_view<Char>(from,sz) ) res.push_back(c) ; }
 		template<class Char> inline void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
 
 		template<bool Reverse,class Char> inline Char const& char_at( VecView<Char> const& name , size_t pos ) {

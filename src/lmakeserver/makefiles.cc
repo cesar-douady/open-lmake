@@ -283,7 +283,9 @@ namespace Engine::Makefiles {
 		Trace trace("_refresh",STR(chk),STR(refresh_),STR(dynamic),startup_dir_s) ;
 		if (!refresh_) {
 			SWEAR(!dynamic) ;
-			EngineStore::s_new_config( Config() , dynamic , chk ) ;
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( Config() , dynamic , chk ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return {} ;
 		}
 		NfsGuard               nfs_guard     { false/*reliable_dir*/ }                                                       ; // until we have config info, protect against NFS
@@ -303,9 +305,9 @@ namespace Engine::Makefiles {
 				if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 				if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
 			} ;
-			//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			EngineStore::s_new_config( ::move(config) , dynamic , chk , diff_config ) ;
-			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( ::move(config) , dynamic , chk , diff_config ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			nfs_guard.reliable_dirs = g_config.reliable_dirs ;                 // now that config is loaded, we can optimize protection against NFS
 			//
 			// /!\ sources must be processed first as source dirs influence rules
@@ -313,16 +315,16 @@ namespace Engine::Makefiles {
 			::vector_s             srcs        ;
 			::vector_s             src_dirs_s  ;
 			::pair_s<bool/*done*/> srcs_digest = _refresh_srcs( srcs , src_dirs_s , srcs_deps  , new_srcs  , dynamic , py_info , startup_dir_s , nfs_guard ) ;
-			//                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			bool invalidate_src = srcs_digest.second && EngineStore::s_new_srcs( ::move(srcs) , ::move(src_dirs_s) ) ;
-			//                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			bool invalidate_src = srcs_digest.second && Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) ) ;
+			//                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			//
 			::umap<Crc,RuleData> rules ;
 			::pair_s<bool/*done*/> rules_digest = _refresh_rules( rules , rules_deps , new_rules , dynamic , py_info , startup_dir_s , nfs_guard ) ;
-			//                                                         vvvvvvvvvvvvvvvvvvvvvvvvvv
-			bool invalidate_rule = rules_digest.second && EngineStore::s_new_rules(::move(rules)) ;
-			//                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if ( invalidate_src || invalidate_rule ) EngineStore::s_invalidate_match() ;
+			//                                                        vvvvvvvvvvvvvvvvvvvvvvvv
+			bool invalidate_rule = rules_digest.second && Persistent::new_rules(::move(rules)) ;
+			//                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+			if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
 			//
 			//
 			::uset_s src_set = mk_uset(srcs) ;

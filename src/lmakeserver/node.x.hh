@@ -34,6 +34,8 @@ namespace Engine {
 	,	Yes                            // >=Yes means node is buildable
 	,	DynSrc                         //                                   match dependent
 	,	Src                            //                                   match independent
+	,	Decode                         //                                   file name representing a code->val association
+	,	Encode                         //                                   file name representing a val->code association
 	,	SubSrc                         //                                   sub-file of a src listed in manifest
 	,	Loop                           //                                   node is being analyzed, deemed buildable so as to block further analysis
 	)
@@ -160,9 +162,11 @@ namespace Engine {
 		void update( RunAction , MakeAction , NodeData const& ) ;
 		// data
 	public :
-		RuleIdx prio_idx    = NoIdx ;  //    16 bits
-		bool    single      = false ;  // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		bool    overwritten = false ;  // 1<= 8 bits
+		RuleIdx prio_idx     = NoIdx         ;             //    16 bits
+		bool    single       = false         ;             // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		bool    overwritten  = false         ;             // 1<= 8 bits
+		bool    manual_valid = false         ;             // 1<= 8 bits
+		Bool3   manual       = No/*garbage*/ ;             // 2<= 8 bits, if manual_valid, result of Node::manual()
 	} ;
 	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
 
@@ -234,13 +238,21 @@ namespace Engine {
 				default                : return Maybe                             ;
 			}
 		}
-		Bool3 ok(ReqInfo const& cri) const { SWEAR(cri.done()) ; return cri.overwritten ? No : ok() ; }
+		Bool3 ok     (ReqInfo const& cri) const { SWEAR(cri.done()) ; return cri.overwritten ? No : ok() ; }
+		bool  running(ReqInfo const& cri) const {
+			for( Job j : conform_job_tgts(cri) )
+				for( Req r : j->running_reqs() )
+					if (j->c_req_info(r).lvl==JobLvl::Exec) return true ;
+			return false ;
+		}
 		//
 		bool is_src() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
 				case Buildable::DynSrc :
-				case Buildable::Src    : return true  ;
+				case Buildable::Src    :
+				case Buildable::Decode :
+				case Buildable::Encode : return true  ;
 				default                : return false ;
 			}
 		}
@@ -267,15 +279,28 @@ namespace Engine {
 			else                 return +a             ;                       // dont know if file is a link, any access may have perceived a difference
 		}
 		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
+		Bool3 lazy_manual(ReqInfo& ri) {
+			if (!ri.manual_valid) {
+				Req req = ri.req ;
+				ri.manual       = manual_refresh(req) ;
+				ri.manual_valid = true                ;
+				if (ri.manual==Yes) {
+					bool dangling = buildable<=Buildable::No ;
+					req->audit_node(Color::Err,                         dangling?"dangling":"manual" ,idx()  ) ;
+					req->audit_node(Color::Note,to_string("consider : ",dangling?"git add" :"rm"    ),idx(),1) ;
+				}
+			}
+			return ri.manual ;
+		}
 		//
-		::vector<RuleTgt> raw_rule_tgts(         ) const ;
-		void              mk_old       (         ) ;
-		void              mk_src       (Buildable) ;
-		void              mk_no_src    (         ) ;
+		::vector<RuleTgt> raw_rule_tgts(                        ) const ;
+		void              mk_old       (                        ) ;
+		void              mk_src       (Buildable=Buildable::Src) ;
+		void              mk_no_src    (                        ) ;
 		//
-		::vector_view_c<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
-		::vector_view_c<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
-		::vector_view_c<JobTgt> conform_job_tgts(                ) const ;
+		::c_vector_view<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
+		::c_vector_view<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
+		::c_vector_view<JobTgt> conform_job_tgts(                ) const ;
 		//
 		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
@@ -334,6 +359,7 @@ namespace Engine {
 	//
 
 	inline void NodeReqInfo::update( RunAction run_action , MakeAction make_action , NodeData const& node ) {
+		SWEAR(run_action!=RunAction::Run) ;                                                                   // Run is only for Job's
 		if (make_action>=MakeAction::Dec) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
@@ -389,8 +415,8 @@ namespace Engine {
 		return res ;
 	}
 
-	inline ::vector_view_c<JobTgt> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
-	inline ::vector_view_c<JobTgt> NodeData::conform_job_tgts(                  ) const {
+	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
+	inline ::c_vector_view<JobTgt> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
 		RuleIdx prio_idx = conform_idx() ;
@@ -493,12 +519,12 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if (!is_date             ) {                  return ; }               // no need
-		if (!date()              ) { crc(Crc::None) ; return ; }               // no date means access did not find a file, crc is None, easy
-		if (date()> (*this)->date) {                  return ; }               // file is manual, maybe too early and crc is not updated yet (also works if !(*this)->date)
-		if (date()!=(*this)->date) { crc({}       ) ; return ; }               // too late, file has changed
-		if (!(*this)->crc        ) {                  return ; }               // too early, no crc available yet
-		crc((*this)->crc) ;                                                    // got it !
+		if (!accesses            )                       return ;              // no access => no crc
+		if (!is_date             )                       return ;              // no need
+		if (!date()              ) { crc(Crc::None   ) ; return ; }            // no date means access did not find a file, crc is None, easy
+		if (date()!=(*this)->date)                       return ;              // cannot acquire crc as we do not have it
+		if (!(*this)->crc        )                       return ;              // too early, no crc available yet
+		else                         crc((*this)->crc) ;                       // got it !
 	}
 
 }

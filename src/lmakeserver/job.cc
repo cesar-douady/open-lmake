@@ -61,7 +61,7 @@ namespace Engine {
 			trace(t,at,STR(warn)) ;
 		} ;
 		// handle static targets
-		::vector_view_c_s sts = match.static_targets() ;
+		::c_vector_view_s sts = match.static_targets() ;
 		for( VarIdx ti=0 ; ti<sts.size() ; ti++ ) {
 			::string const& tn  = sts[ti]          ;
 			Tflags          tfs = jd.rule->tflags(ti) ;
@@ -528,15 +528,6 @@ namespace Engine {
 				//         vvvvvvvvvvvvvvvvvvvvvvvvv
 				modified = target->refresh(crc,date) ;
 				//         ^^^^^^^^^^^^^^^^^^^^^^^^^
-				if ( modified && crc!=Crc::None ) {
-					for( Req r : (*this)->reqs() ) {
-						Node::ReqInfo& tri = target->req_info(r) ;
-						if (tri.done()) {
-							trace("overwritten",target) ;
-							tri.overwritten = true ;                           // target was already done for a Req, this update overwrites target if it changes it
-						}
-					}
-				}
 			NoRefresh :
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				target->actual_job_tgt = { *this , RuleData::s_sure(tflags) } ;
@@ -546,7 +537,7 @@ namespace Engine {
 			}
 			if (seen_static_targets.size()<rule->n_static_targets) {           // some static targets have not been seen
 				Rule::SimpleMatch match          { *this }                ;    // match must stay alive as long as we use static_targets
-				::vector_view_c_s static_targets = match.static_targets() ;
+				::c_vector_view_s static_targets = match.static_targets() ;
 				for( VarIdx ti=0 ; ti<rule->n_static_targets ; ti++ ) {
 					::string const& tn = static_targets[ti] ;
 					Node            t  { tn }               ;
@@ -570,14 +561,11 @@ namespace Engine {
 		//
 		if (fresh_deps) {
 			::vector<Dep> dep_vector ; dep_vector.reserve(digest.deps.size()) ;
-			::uset<Node>  old_deps   = mk_uset<Node>((*this)->deps) ;
-			//
 			for( auto const& [dn,dd] : digest.deps ) {                         // static deps are guaranteed to appear first
-				Node d{dn} ;
-				Dep dep{ d , dd.accesses , dd.dflags , dd.parallel } ;
-				dep.known = old_deps.contains(d) ;
-				if (dd.garbage) { dep.crc     ({}) ; local_reason |= {JobReasonTag::DepNotReady,+dep} ; } // garbage : force unknown crc
-				else            { dep.crc_date(dd) ;                                                    } // date will be transformed into crc in make if possible
+				Node d   { dn     } ;
+				Dep  dep { d , dd } ;
+				dep.acquire_crc() ;
+				if ( +dep.accesses && !dep.is_date && !dep.crc() ) local_reason |= {JobReasonTag::DepNotReady,+dep} ;
 				dep_vector.emplace_back(dep) ;
 				trace("dep",dep,dd) ;
 			}
@@ -666,7 +654,7 @@ namespace Engine {
 						auto report_start = deserialize<JobInfoStart>(is) ;
 						auto report_end   = deserialize<JobInfoEnd  >(is) ;
 						//
-						report_end.end.backend_msg = bem ;
+						report_end.end.msg = bem ;
 						//
 						OFStream os{jaf} ;
 						serialize(os,report_start) ;
@@ -702,21 +690,17 @@ namespace Engine {
 		JobData const& jd    = **this                        ;
 		Color          color = Color    ::Unknown/*garbage*/ ;
 		JobReport      jr    = JobReport::Unknown            ;
-		::string       step  ;
+		::string       step  = pfx                           ;
 		//
-		if      (!cri.done()                       ) { jr = JobReport::Rerun  ;                                  color = Color::Note ; }
-		else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed ; step = mk_snake(jd.run_status) ; color = Color::Err  ; }
-		else if (jd.status==Status::Killed         ) {                          step = "killed"                ; color = Color::Note ; }
-		else if (req->zombie                       ) {                          step = "completed"             ; color = Color::Note ; } // we actually dont know the status
-		else if (jd.status==Status::Timeout        ) { jr = JobReport::Failed ; step = mk_snake(jd.status    ) ; color = Color::Err  ; }
-		else if (jd.err()                          ) { jr = JobReport::Failed ;                                  color = Color::Err  ; }
-		else if (modified                          ) { jr = JobReport::Done   ;                                  color = Color::Ok   ; }
-		else                                         { jr = JobReport::Steady ;                                  color = Color::Ok   ; }
-		//
-		if ( color==Color::Ok && +stderr )   color = Color::Warning ;
-		if ( is_lost(jd.status)          ) { step  = "lost"         ; req->losts.emplace(*this,req->losts.size()) ; } // req->losts for summary
-		if ( !step                       )   step  = mk_snake(jr)   ;
-		if ( +pfx                        )   step  = pfx+step       ;
+		if      (!cri.done()                       ) { jr = JobReport::Rerun                       ; step += mk_snake(jr           ) ; color = Color::Note                      ; }
+		else if (jd.run_status!=RunStatus::Complete) { jr = JobReport::Failed                      ; step += mk_snake(jd.run_status) ; color = Color::Err                       ; }
+		else if (jd.status==Status::Killed         ) {                                               step += "killed"                ; color = Color::Note                      ; }
+		else if (is_lost(jd.status)                ) { req->losts.emplace(*this,req->losts.size()) ; step += "lost"                  ; color = Color::Warning                   ; }
+		else if (req->zombie                       ) {                                               step += "completed"             ; color = Color::Note                      ; }
+		else if (jd.status==Status::Timeout        ) { jr = JobReport::Failed                      ; step += mk_snake(jd.status    ) ; color = Color::Err                       ; }
+		else if (jd.err()                          ) { jr = JobReport::Failed                      ; step += mk_snake(jr           ) ; color = Color::Err                       ; }
+		else if (modified                          ) { jr = JobReport::Done                        ; step += mk_snake(jr           ) ; color = +stderr?Color::Warning:Color::Ok ; }
+		else                                         { jr = JobReport::Steady                      ; step += mk_snake(jr           ) ; color = +stderr?Color::Warning:Color::Ok ; }
 		//
 		Trace trace("audit_end",color,step,*this,cri,STR(modified)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -871,7 +855,6 @@ namespace Engine {
 							//
 							SWEAR( care || sense_err || required ) ;           // else, what is this useless dep ?
 							if (!cdri->waiting()) {
-								dep.acquire_crc() ;                            // 1st chance : before calling make as it can be destroyed in case of flash execution
 								ReqInfo::WaitInc sav_n_wait{ri} ;              // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 								if (!dri) cdri = dri = &dep->req_info(*cdri) ; // refresh cdri in case dri allocated a new one
 								if (dep_live_out) dri->live_out = true ;       // ask live output for last level if user asked it
@@ -913,39 +896,35 @@ namespace Engine {
 										}
 									break ;
 									case No :
-										if (cdri->overwritten) reason |= {JobReasonTag::DepOverwritten,+dep} ; // overwritten dep is unacceptable, even with !sense_err
 										trace("dep_err",dep,STR(sense_err)) ;
-										if (sense_err) goto Err ;
+										if (cdri->overwritten) { reason |= {JobReasonTag::DepOverwritten,+dep} ; goto Err ; } // overwritten dep is unacceptable, even with !sense_err
+										if (sense_err        )                                                   goto Err ;
 									break ;
 									default : FAIL(dep_ok) ;
 								}
-								if (care) {
-									if (
-										( dep.is_date                                                              ) // if still waiting for a crc here, it will never come
-									||	( +dep.accesses && dep.known && make_action==MakeAction::End && !dep.crc() ) // when ending a job, known accessed deps should have a crc
-									) {
-										if (is_target(dep->name())) {          // file still exists, still manual
-											if (dep->is_src()) goto Unstable ;
-											for( Job j : dep->conform_job_tgts(*cdri) )
-												for( Req r : j->running_reqs() )
-													if (j->c_req_info(r).lvl==Lvl::Exec) goto Unstable ;
-											if (dep_ok!=Maybe) {
-												req->audit_node(Color::Err,"manual",dep) ;                          // maybe a job is writing to dep as an unexpected target, but we cant distinguish
-												req->manuals.emplace(dep,::pair(false/*ok*/,req->manuals.size())) ;
-												trace("manual",dep,STR(dep.is_date),dep.is_date?dep.date():Ddate(),dep->date) ;
-											} else {
-												req->audit_node(Color::Err ,"dangling"          ,dep  ) ; // maybe a job is writing to dep as an unexpected target, but we cant distinguish
-												req->audit_node(Color::Note,"consider : git add",dep,1) ;
-												trace("dangling",dep) ;
+								if ( care && dep.is_date && +dep.date() ) {    // if still waiting for a crc here, it will never come
+									if (dep->is_src()) {
+										if (dep.date()>dep->date) {            // try to reconcile dates in case dep has been touched with no modification
+											dep->manual_refresh(*this) ;
+											dep.acquire_crc() ;
+											if (dep.is_date) {
+												if (!dri) cdri = dri = &dep->req_info(*cdri) ;            // refresh cdri in case dri allocated a new one
+												dri->overwritten  = true                                ; // dep has been modified since it was done, it is now overwritten
+												reason           |= {JobReasonTag::DepOverwritten,+dep} ; // overwritten dep is unacceptable, even with !sense_err
+												trace("src_overwritten",dep) ;
+												goto Err ;
 											}
+										}
+									} else if (dep->running(*cdri)) {
+										trace("unstable",dep) ;
+										req->audit_node(Color::Warning,"unstable",dep) ;
+										is_modif  = true                             ;   // this dep was moving, retry job
+										reason   |= {JobReasonTag::DepUnstable,+dep} ;
+									} else {
+										if (!dri) cdri = dri = &dep->req_info(*cdri) ;        // refresh cdri in case dri allocated a new one
+										if (dep->lazy_manual(*dri)==Yes) {                    // else condition has been washed
+											trace("manual",dep,dep_ok,dep.date(),dep->date) ;
 											goto Err ;
-										Unstable :
-											trace("unstable",dep,STR(dep->is_src())) ;
-											req->audit_node(Color::Warning,"unstable",dep) ;
-											is_modif  = true                             ;   // this dep was moving, retry job
-											reason   |= {JobReasonTag::DepUnstable,+dep} ;
-										} else {
-											dep.crc({}) ;                      // file does not exist any more, no more manual
 										}
 									}
 								}
@@ -1060,7 +1039,7 @@ namespace Engine {
 				else       return           "frozen file does not exist while not phony\n"                     ;
 			case Special::Infinite : {
 				::string res ;
-				for( Dep const& d : ::vector_view_c(deps.items(),g_config.n_errs(deps.size())) ) append_to_string( res , d->name() , '\n' ) ;
+				for( Dep const& d : ::c_vector_view(deps.items(),g_config.n_errs(deps.size())) ) append_to_string( res , d->name() , '\n' ) ;
 				if ( g_config.errs_overflow(deps.size())                                       ) append_to_string( res , "..."     , '\n' ) ;
 				return res ;
 			}
@@ -1096,7 +1075,7 @@ namespace Engine {
 			case Special::Plain : {
 				SWEAR(frozen_) ;                                               // only case where we are here without special rule
 				Rule::SimpleMatch match          { idx() }                  ;  // match lifetime must be at least as long as static_targets lifetime
-				::vector_view_c_s static_targets = match.static_targets()   ;
+				::c_vector_view_s static_targets = match.static_targets()   ;
 				SpecialStep       special_step   = SpecialStep::Idle        ;
 				Node              worst_target   ;
 				Bool3             modified       = No                       ;

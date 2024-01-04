@@ -78,6 +78,8 @@ ENUM( JobProc
 ,	NotStarted     // req was killed before it actually started
 ,	ChkDeps
 ,	DepInfos
+,	Decode
+,	Encode
 ,	LiveOut
 ,	End
 )
@@ -339,9 +341,15 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p           ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
 	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Crc   c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
 	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Ddate d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	//
+	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , accesses{dd.accesses} , dflags(dd.dflags) , parallel{dd.parallel} {
+		if (!accesses ) return ;
+		if (dd.is_date) date(dd.date()) ;
+		else            crc (dd.crc ()) ;
+	}
 	// accesses
-	Crc   crc () const { SWEAR(!is_date) ; return _crc  ; }
-	Ddate date() const { SWEAR( is_date) ; return _date ; }
+	Crc   crc () const { SWEAR( +accesses && !is_date ) ; return _crc  ; }
+	Ddate date() const { SWEAR( +accesses &&  is_date ) ; return _date ; }
 	//
 	void crc (Crc   c) { _crc  = c ; is_date = false ; }
 	void date(Ddate d) { _date = d ; is_date = true  ; }
@@ -354,9 +362,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	Accesses accesses   ;              // 3<=8 bits
 	Dflags   dflags     ;              // 6<=8 bits
 	bool     parallel:1 = false ;      //    1 bit
-	bool     known   :1 = false ;      //    1 bit , dep was known (and thus done) before starting execution
-	bool     garbage :1 = false ;      //    1 bit , if true <= file was not the same between the first and last access
-	bool     is_date :1 = false ;      //    1 bit , if no access, is_date is false and _crc is Unknown
+	bool     is_date :1 = false ;      //    1 bit
 private :
 	union {
 		Crc   _crc  ;                  // ~46<64 bits
@@ -365,16 +371,14 @@ private :
 } ;
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
-	/**/                             os << "D("                           ;
-	if constexpr (!::is_void_v<B>) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
-	if           (+dd.accesses   ) { os <<sep<< dd.accesses               ; sep = "," ; }
-	if           (+dd.dflags     ) { os <<sep<< dd.dflags                 ; sep = "," ; }
-	if           (dd.parallel    ) { os <<sep<< "parallel"                ; sep = "," ; }
-	if           (dd.known       ) { os <<sep<< "known"                   ; sep = "," ; }
-	if           (dd.garbage     ) { os <<sep<< "garbage"                 ; sep = "," ; }
-	if           (dd.is_date     ) { os <<sep<< dd._date                  ; sep = "," ; }
-	else if      (+dd.crc()      ) { os <<sep<< dd._crc                   ; sep = "," ; }
-	return                           os <<')'                             ;
+	/**/                                          os << "D("                           ;
+	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
+	if           ( +dd.accesses               ) { os <<sep<< dd.accesses               ; sep = "," ; }
+	if           ( +dd.dflags                 ) { os <<sep<< dd.dflags                 ; sep = "," ; }
+	if           ( dd.parallel                ) { os <<sep<< "parallel"                ; sep = "," ; }
+	if           ( +dd.accesses && dd.is_date ) { os <<sep<< dd._date                  ; sep = "," ; }
+	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd._crc                   ; sep = "," ; }
+	return                                        os <<')'                             ;
 }
 
 using DepDigest = DepDigestBase<void> ;
@@ -395,15 +399,17 @@ struct TargetDigest {
 struct JobDigest {
 	friend ::ostream& operator<<( ::ostream& , JobDigest const& ) ;
 	// data
-	Status                 status       = Status::New ;
-	::vmap_s<TargetDigest> targets      = {}          ;
-	::vmap_s<DepDigest   > deps         = {}          ;    // INVARIANT : sorted in first access order
-	::string               stderr       = {}          ;
-	::string               stdout       = {}          ;
-	int                    wstatus      = 0           ;
-	Time::Pdate            end_date     = {}          ;
-	JobStats               stats        = {}          ;
+	Status                 status   = Status::New ;
+	::vmap_s<TargetDigest> targets  = {}          ;
+	::vmap_s<DepDigest   > deps     = {}          ;        // INVARIANT : sorted in first access order
+	::string               stderr   = {}          ;
+	::string               stdout   = {}          ;
+	int                    wstatus  = 0           ;
+	Time::Pdate            end_date = {}          ;
+	JobStats               stats    = {}          ;
 } ;
+
+struct JobExecRpcReq ;
 
 struct JobRpcReq {
 	using P   = JobProc             ;
@@ -411,13 +417,28 @@ struct JobRpcReq {
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
+	// statics
+	static ::string s_mk_decode_file( ::string const& code , ::string const& file , ::string const& ctx ) {
+		//
+		return to_string("LMAKE/decode",file,".ctx_dir/",ctx,".code_dir/",code) ; // XXX : make a more robust file name (e.g. compute crc on file and ctx, or use mk_printable or ...)
+	}
+	static ::string s_mk_encode_file( ::string const& val , ::string const& file , ::string const& ctx ) {
+		Hash::Xxh h ;
+		h.update(val) ;
+		return to_string("LMAKE/encode",file,".ctx_dir/",ctx,".val_dir/",::move(h).digest()) ; // XXX : make a more robust file name (e.g. compute crc on file and ctx, or use mk_printable or ...)
+	}
 	// cxtors & casts
 	JobRpcReq() = default ;
-	JobRpcReq( P p , SI si , JI j , in_port_t        pt , ::string&& bem={} ) : proc{p} , seq_id{si} , job{j} , port  {pt       } , backend_msg{bem} { SWEAR( p==P::Start                     ) ; }
-	JobRpcReq( P p , SI si , JI j , Status           s  , ::string&& bem={} ) : proc{p} , seq_id{si} , job{j} , digest{.status=s} , backend_msg{bem} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
-	JobRpcReq( P p , SI si , JI j , JobDigest const& d  , ::string&& bem={} ) : proc{p} , seq_id{si} , job{j} , digest{d        } , backend_msg{bem} { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI si , JI j ,                       ::string&& bem={} ) : proc{p} , seq_id{si} , job{j} ,                     backend_msg{bem} { SWEAR( p==P::LiveOut                   ) ; }
-	JobRpcReq( P p , SI si , JI j , MDD const&       ds                     ) : proc{p} , seq_id{si} , job{j} , digest{.deps=ds }                    { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
+	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt              } , msg{::move(m)} { SWEAR( p==P::Start                     ) ; }
+	JobRpcReq( P p , SI si , JI j , Status      s  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{.status=s       } , msg{::move(m)} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
+	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)       } , msg{::move(m)} { SWEAR( p==P::End                       ) ; }
+	JobRpcReq( P p , SI si , JI j ,                  ::string&& m={} ) : proc{p} , seq_id{si} , job{j} ,                            msg{::move(m)} { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI si , JI j , MDD&&       ds                   ) : proc{p} , seq_id{si} , job{j} , digest{.deps=::move(ds)}                  { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
+	//
+	JobRpcReq( P p , SI si , JI j , ::string&& code , ::string&& f , ::string&& c              ) : proc{p} , seq_id{si} , job{j} , msg{code} , file{f} , ctx{c}               { SWEAR(p==P::Decode) ; }
+	JobRpcReq( P p , SI si , JI j , ::string&& val  , ::string&& f , ::string&& c , uint8_t ml ) : proc{p} , seq_id{si} , job{j} , msg{val } , file{f} , ctx{c} , min_len{ml} { SWEAR(p==P::Encode) ; }
+	//
+	JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) ;
 	// services
 	template<IsStream T> void serdes(T& s) {
 		if (::is_base_of_v<::istream,T>) *this = JobRpcReq() ;
@@ -425,27 +446,38 @@ struct JobRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
-			case P::Start    :
-				::serdes(s,port       ) ;
-				::serdes(s,backend_msg) ;
+			case P::Start :
+				::serdes(s,port) ;
+				::serdes(s,msg ) ;
 			break ;
-			case P::LiveOut  : ::serdes(s,backend_msg) ; break ;
-			case P::ChkDeps  : ::serdes(s,digest     ) ; break ;
-			case P::DepInfos : ::serdes(s,digest     ) ; break ;
-			case P::End      :
-				::serdes(s,digest     ) ;
-				::serdes(s,backend_msg) ;
+			case P::LiveOut  : ::serdes(s,msg   ) ; break ;
+			case P::ChkDeps  : ::serdes(s,digest) ; break ;
+			case P::DepInfos : ::serdes(s,digest) ; break ;
+			case P::Encode :
+				::serdes(s,min_len) ;
+				[[fallthrough]] ;
+			case P::Decode :
+				::serdes(s,msg ) ;
+				::serdes(s,file) ;
+				::serdes(s,ctx ) ;
 			break ;
-			default          : ;
+			case P::End :
+				::serdes(s,digest) ;
+				::serdes(s,msg   ) ;
+			break ;
+			default : FAIL(proc) ;
 		}
 	}
 	// data
-	P         proc        = P::None ;
-	SI        seq_id      = 0       ;
-	JI        job         = 0       ;
-	in_port_t port        = 0       ;  // if proc == Start
-	JobDigest digest      ;            // if proc ==         ChkDeps | DepInfos |           End
-	::string  backend_msg ;            // if proc == Start           |            LiveOut | End
+	P         proc    = P::None ;
+	SI        seq_id  = 0       ;
+	JI        job     = 0       ;
+	in_port_t port    = 0       ;      // if proc == Start
+	JobDigest digest  ;                // if proc ==         ChkDeps | DepInfos |                              End
+	::string  msg     ;                // if proc == Start |                      LiveOut  | Decode | Encode | End
+	::string  file    ;                // if proc ==                                         Decode | Encode
+	::string  ctx     ;                // if proc ==                                         Decode | Encode
+	uint8_t   min_len ;                // if proc ==                                                  Encode
 } ;
 
 struct TargetSpec {
@@ -470,18 +502,24 @@ struct JobRpcReply {
 	using Proc     = JobProc        ;
 	// cxtors & casts
 	JobRpcReply(                                                    ) = default ;
-	JobRpcReply( Proc p                                             ) : proc{p}             {                               }
-	JobRpcReply( Proc p , Bool3 o                                   ) : proc{p} , ok{o}     { SWEAR(proc==Proc::ChkDeps ) ; }
-	JobRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , infos{is} { SWEAR(proc==Proc::DepInfos) ; }
+	JobRpcReply( Proc p                                             ) : proc{p}                 {                                                       }
+	JobRpcReply( Proc p , Bool3                                  o  ) : proc{p} , ok       {o } { SWEAR( proc==Proc::ChkDeps                        ) ; }
+	JobRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , dep_infos{is} { SWEAR( proc==Proc::DepInfos                       ) ; }
+	JobRpcReply( Proc p , ::string                        const& t  ) : proc{p} , txt      {t } { SWEAR( proc==Proc::Decode   || proc==Proc::Encode ) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (is_base_of_v<::istream,S>) *this = JobRpcReply() ;
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::None     :                     break ;
-			case Proc::End      :                     break ;
-			case Proc::DepInfos : ::serdes(s,infos) ; break ;
-			case Proc::ChkDeps  : ::serdes(s,ok   ) ; break ;
+			case Proc::None     :
+			case Proc::End      :                         break ;
+			case Proc::DepInfos : ::serdes(s,dep_infos) ; break ;
+			case Proc::ChkDeps  : ::serdes(s,ok       ) ; break ;
+			case Proc::Decode   :
+			case Proc::Encode   :
+				::serdes(s,ok ) ;
+				::serdes(s,txt) ;
+			break ;
 			case Proc::Start :
 				::serdes(s,addr            ) ;
 				::serdes(s,autodep_env     ) ;
@@ -511,14 +549,14 @@ struct JobRpcReply {
 	}
 	// data
 	Proc                      proc             = Proc::None          ;
-	in_addr_t                 addr             = 0                   ;         // proc == Start       , the address at which server can contact job, it is assumed that it can be used by subprocesses
+	in_addr_t                 addr             = 0                   ;         // proc == Start                 , the address at which server and subproccesses can contact job_exec
 	AutodepEnv                autodep_env      ;                               // proc == Start
 	::string                  chroot           ;                               // proc == Start
 	::pair_ss/*script,call*/  cmd              ;                               // proc == Start
 	::string                  cwd_s            ;                               // proc == Start
 	::vmap_ss                 env              ;                               // proc == Start
 	Hash::Algo                hash_algo        = Hash::Algo::Unknown ;         // proc == Start
-	::vector_s                interpreter      ;                               // proc == Start       , actual interpreter used to execute cmd
+	::vector_s                interpreter      ;                               // proc == Start                 , actual interpreter used to execute cmd
 	bool                      keep_tmp         = false               ;         // proc == Start
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
@@ -526,15 +564,16 @@ struct JobRpcReply {
 	::vmap_s<FileAction>      pre_actions      ;                               // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start
-	::vmap_s<DepDigest>       static_deps      ;                               // proc == Start       , deps that may clash with targets
+	::vmap_s<DepDigest>       static_deps      ;                               // proc == Start                 , deps that may clash with targets
 	::string                  stdin            ;                               // proc == Start
 	::string                  stdout           ;                               // proc == Start
 	::vmap_s<Tflags>          targets          ;                               // proc == Start
 	Time::Delay               timeout          ;                               // proc == Start
 	JobIdx                    trace_n_jobs     = 0                   ;         // proc == Start
 	bool                      use_script       = false               ;         // proc == Start
-	Bool3                     ok               = Maybe               ;         // proc == ChkDeps     , if No <=> deps in error, if Maybe <=> deps not ready
-	::vector<pair<Bool3,Crc>> infos            ;                               // proc == DepInfos
+	Bool3                     ok               = Maybe               ;         // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	::vector<pair<Bool3,Crc>> dep_infos        ;                               // proc == DepInfos
+	::string                  txt              ;                               // proc ==         Decode|Encode , value for Decode, code for Encode
 } ;
 
 ENUM_1( JobExecRpcProc
@@ -545,8 +584,10 @@ ENUM_1( JobExecRpcProc
 ,	Tmp                                // write activity in tmp has been detected (hence clean up is required)
 ,	Trace                              // no algorithmic info, just for tracing purpose
 ,	Access
-,	DepInfos
 ,	Confirm
+,	Decode
+,	DepInfos
+,	Encode
 ,	Guard
 )
 
@@ -600,35 +641,33 @@ struct JobExecRpcReq {
 	} ;
 	// statics
 private :
-	static ::vmap_s<DD> _s_mk_mdd(::vector_s const& fs) { ::vmap_s<DD> res ; for( ::string const& f : fs ) res.emplace_back(       f ,DD()) ; return res ; }
-	static ::vmap_s<DD> _s_mk_mdd(::vector_s     && fs) { ::vmap_s<DD> res ; for( ::string      & f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
+	static ::vmap_s<DD> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<DD> res ; for( ::string& f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
 	// cxtors & casts
 public :
-	JobExecRpcReq(                ::string const& c={} ) :                     comment{c} {                       }
-	JobExecRpcReq( P p , bool s , ::string const& c={} ) : proc{p} , sync{s} , comment{c} { SWEAR(p<P::HasFile) ; }
-	JobExecRpcReq( P p ,          ::string const& c={} ) : proc{p} ,           comment{c} { SWEAR(p<P::HasFile) ; }
+	JobExecRpcReq(                                )                                      {                                                                    }
+	JobExecRpcReq( P p , bool s , ::string&& t={} ) : proc{p} , sync{s} , txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFile) ; }
+	JobExecRpcReq( P p ,          ::string&& t={} ) : proc{p} ,           txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFile) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , Accesses a , Dflags dfs , bool nf , ::string const& c={} ) :
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , Accesses a , Dflags dfs , bool nf ) :
 		proc     {p                      }
 	,	sync     {true                   }
 	,	auto_date{ad                     }
 	,	no_follow{nf                     }
 	,	files    {::move(fs)             }
 	,	digest   {.accesses=a,.dflags=dfs}
-	,	comment  {c                      }
 	{ SWEAR(p==P::DepInfos) ; }
-	//                                                                                                                                          auto_date,      no_follow
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , Dflags dfs ,           ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false    ,a,dfs,false    ,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , Dflags dfs , bool nf , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true     ,a,dfs,nf       ,c} {}
+	//                                                                                                                   auto_date,      no_follow
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , Dflags dfs           ) : JobExecRpcReq{p,          ::move(fs) ,false    ,a,dfs,false    } {}
+	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , Dflags dfs , bool nf ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true     ,a,dfs,nf       } {}
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessDigest const& d , bool nf , bool s , ::string const& c={} ) :
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessDigest const& d , bool nf , bool s , ::string const& comment={} ) :
 		proc     {p         }
 	,	sync     {s         }
 	,	auto_date{ad        }
 	,	no_follow{nf        }
 	,	files    {::move(fs)}
 	,	digest   {d         }
-	,	comment  {c         }
+	,	txt      {comment   }
 	{ SWEAR(p==P::Access) ; }
 	//                                                                                                                                                  auto_date,   no_follow,sync
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,           bool s , ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false    ,ad,false    ,s    ,c} {}
@@ -636,41 +675,54 @@ public :
 	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf , bool s , ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true     ,ad,nf       ,s    ,c} {}
 	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf ,          ::string const& c={} ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true     ,ad,nf       ,false,c} {}
 	//
-	JobExecRpcReq( P p , ::vector_s&& fs , bool ok_ , ::string const& c={} ) : proc{p} , ok{ok_} , files{_s_mk_mdd(::move(fs))} , comment{c} { SWEAR(p==P::Confirm) ; }
-	JobExecRpcReq( P p , ::vector_s&& fs ,            ::string const& c={} ) : proc{p} ,           files{_s_mk_mdd(::move(fs))} , comment{c} { SWEAR(p==P::Guard  ) ; }
+	JobExecRpcReq( P p , ::vector_s&& fs , bool ok_        ) : proc{p} , ok{ok_} , files{_s_mk_mdd(::move(fs))}                  { SWEAR(p==P::Confirm) ; }
+	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} ,           files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard  ) ; }
+	//
+	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& ctx_              ) : proc{p} ,               files{{{::move(f),{}}}} , txt{code} , ctx{ctx_} { SWEAR(p==P::Decode) ; }
+	JobExecRpcReq( P p , ::string&& f , ::string&& val  , ::string&& ctx_ , uint8_t ml ) : proc{p} , min_len{ml} , files{{{::move(f),{}}}} , txt{val } , ctx{ctx_} { SWEAR(p==P::Encode) ; }
 	// services
 public :
 	template<IsStream T> void serdes(T& s) {
-		if (::is_base_of_v<::istream,T>) *this = JobExecRpcReq() ;
+		if (::is_base_of_v<::istream,T>) *this = {} ;
 		::serdes(s,proc) ;
 		::serdes(s,date) ;
 		::serdes(s,sync) ;
 		if (proc>=P::HasFile) ::serdes(s,files) ;
 		switch (proc) {
-			case P::DepInfos :
+			case P::Confirm : ::serdes(s,ok ) ; break ;
+			case P::Guard   :
+			case P::Tmp     :
+			case P::Trace   : ::serdes(s,txt) ; break ;
 			case P::Access   :
+				::serdes(s,txt) ;
+				[[fallthrough]] ;
+			case P::DepInfos :
 				::serdes(s,digest   ) ;
 				::serdes(s,auto_date) ;
 				::serdes(s,no_follow) ;
 			break ;
-			case P::Confirm :
-				::serdes(s,ok) ;
+			case P::Encode :
+				::serdes(s,min_len) ;
+				[[fallthrough]] ;
+			case P::Decode :
+				::serdes(s,ctx) ;
+				::serdes(s,txt) ;
 			break ;
 			default : ;
 		}
-		::serdes(s,comment) ;
 	}
 	// data
 	P            proc      = P::None     ;
-	SeqId        seq_id    = 0           ;                 // if Proc=Heartbeat|Kill (i.e. message comes from server)
-	PD           date      = PD::s_now() ;                 // access date to reorder accesses during analysis
 	bool         sync      = false       ;
 	bool         auto_date = false       ;                 // if proc>=HasFile, if true <=> files must be solved and dates added by probing disk (for autodep internal use, not to be sent to job_exec)
 	bool         no_follow = false       ;                 // if files have yet to be made real, whether links should not be followed
 	bool         ok        = false       ;                 // if proc==Confirm
+	uint8_t      min_len   = 0           ;                 // if proc==Encode
+	PD           date      = PD::s_now() ;                 // access date to reorder accesses during analysis
 	::vmap_s<DD> files     ;
 	AccessDigest digest    ;
-	::string     comment   ;
+	::string     txt       ;                               // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
+	::string     ctx       ;                               // if proc==Decode|Encode
 } ;
 
 struct JobExecRpcReply {
@@ -679,31 +731,27 @@ struct JobExecRpcReply {
 	using Crc  = Hash::Crc      ;
 	// cxtors & casts
 	JobExecRpcReply(                                                    ) = default ;
-	JobExecRpcReply( Proc p                                             ) : proc{p}             { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepInfos ) ; }
-	JobExecRpcReply( Proc p , Bool3 o                                   ) : proc{p} , ok{o}     { SWEAR( proc==Proc::ChkDeps                         ) ; }
-	JobExecRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , infos{is} { SWEAR( proc==Proc::DepInfos                        ) ; }
-	JobExecRpcReply( JobRpcReply const& jrr ) {
-		switch (jrr.proc) {
-			case JobProc::None     :                        proc = Proc::None     ;                     break ;
-			case JobProc::ChkDeps  : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok    = jrr.ok    ; break ;
-			case JobProc::DepInfos :                        proc = Proc::DepInfos ; infos = jrr.infos ; break ;
-			default : FAIL(jrr.proc) ;
-		}
-	}
+	JobExecRpcReply( Proc p                                             ) : proc{p}                 { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepInfos ) ; }
+	JobExecRpcReply( Proc p , Bool3 o                                   ) : proc{p} , ok       {o } { SWEAR( proc==Proc::ChkDeps                         ) ; }
+	JobExecRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , dep_infos{is} { SWEAR( proc==Proc::DepInfos                        ) ; }
+	JobExecRpcReply( Proc p , ::string const&                        t  ) : proc{p} , txt      {t } { SWEAR( proc==Proc::Decode  || proc==Proc::Encode   ) ; }
+	//
+	JobExecRpcReply( JobRpcReply const& jrr ) ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (::is_base_of_v<::istream,S>) *this = JobExecRpcReply() ;
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::ChkDeps  : ::serdes(s,ok   ) ; break ;
-			case Proc::DepInfos : ::serdes(s,infos) ; break ;
+			case Proc::ChkDeps  : ::serdes(s,ok       ) ; break ;
+			case Proc::DepInfos : ::serdes(s,dep_infos) ; break ;
 			default : ;
 		}
 	}
 	// data
-	Proc                            proc  = Proc::None ;
-	Bool3                           ok    = Maybe      ;   // if proc==ChkDeps
-	::vector<pair<Bool3/*ok*/,Crc>> infos ;                // if proc==DepInfos
+	Proc                            proc      = Proc::None ;
+	Bool3                           ok        = Maybe      ;                   // if proc==ChkDeps
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;                                // if proc==DepInfos
+	::string                        txt       ;                                // if proc==Decode|Encode (value for Decode, code for Encode)
 } ;
 
 //

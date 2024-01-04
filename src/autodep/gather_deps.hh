@@ -57,19 +57,33 @@ public :
 	}
 	// services
 private :
-	bool/*new*/ _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , ::string const& comment={} ) ; // fd for trace purpose only
+	void _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , ::string const& comment={} ) ; // fd for trace purpose only
 	//
 	void _new_accesses( Fd fd , JobExecRpcReq const& jerr ) {                  // fd for trace purpose only
 		parallel_id++ ;
-		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , jerr.comment ) ;
+		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , jerr.txt ) ;
 	}
 	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
-		Trace trace("_confirm",fd) ;
+		Trace trace("_confirm",fd,STR(jerr.ok)) ;
 		for( auto const& [f,_] : jerr.files ) { trace(f) ; accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ; }
 	}
 	void _new_guards( Fd fd , JobExecRpcReq const& jerr ) {                    // fd for trace purpose only
 		Trace trace("_new_guards",fd) ;
 		for( auto const& [f,_] : jerr.files ) { trace(f) ; guards.insert(f) ; }
+	}
+	void _decode( Fd fd , JobExecRpcReq const& jerr ) {                        // fd for trace purpose only
+		Trace trace("_decode",fd) ;
+		SWEAR(jerr.proc==Proc::Decode) ;
+		SWEAR(jerr.files.size()==1   ) ;
+		AccessDigest ad ; ad.accesses = Disk::Access::Reg ;
+		_new_access( fd , jerr.date , JobRpcReq::s_mk_decode_file( jerr.txt , jerr.files[0].first/*file*/ , jerr.ctx ) , {} , ad ) ;
+	}
+	void _encode( Fd fd , JobExecRpcReq const& jerr ) {                        // fd for trace purpose only
+		Trace trace("_encode",fd) ;
+		SWEAR(jerr.proc==Proc::Encode) ;
+		SWEAR(jerr.files.size()==1   ) ;
+		AccessDigest ad ; ad.accesses = Disk::Access::Reg ;
+		_new_access( fd , jerr.date , JobRpcReq::s_mk_encode_file( jerr.txt , jerr.files[0].first/*file*/ , jerr.ctx ) , {} , ad ) ;
 	}
 public :
 	void new_target( PD pd , ::string const& t , Tflags n , Tflags p , ::string const& c="static_target" ) { _new_access({},pd,t,{},{.neg_tflags=n,.pos_tflags=p,.write=true},c) ; }

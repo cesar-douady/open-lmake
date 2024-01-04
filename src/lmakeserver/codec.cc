@@ -3,15 +3,20 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included 5 times : with STRUCT_DECL defined, then with STRUCT_DEF defined, then with INFO_DEF defined, then with DATA_DEF defined, then with IMPL defined
+#include "core.hh"
 
-#include "store.x.hh"
-#include "global.x.hh"
-#include "backend.x.hh"
-#include "cache.x.hh"
-#include "cmd.x.hh"
-#include "codec.x.hh"
-#include "rule.x.hh"
-#include "req.x.hh"
-#include "job.x.hh"
-#include "node.x.hh"
+using namespace Time ;
+
+namespace Engine {
+
+	void codec_thread_func(CodecClosure&& cc) ;
+
+	static QueueThread<CodecClosure> codec_thread{'D',codec_thread_func} ;
+
+	static ::vmap_s<Ddate> file_dates ;
+
+	void codec_thread_func(CodecClosure&& cc) {
+		(void)cc ;
+	}
+
+}

@@ -54,9 +54,10 @@ Channels          Trace::s_channels     = DfltChannels ;   // by default, trace 
 			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                                       if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
-		_s_fd = open_write(*g_trace_file) ;
-		_s_fd.no_std() ;
+		Fd fd = open_write(*g_trace_file) ;
+		fd.no_std() ;
 		_s_pos = 0 ;
+		_s_fd = fd ;                                                           // ensure _s_fd is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 #endif

@@ -63,6 +63,9 @@ static constexpr SeqId JobHistorySz = 1000 ;
 // backlog of incoming connections from remote jobs (i.e. number of pending connect calls before connections are refused)
 static constexpr int JobExecBacklog = 1000 ;
 
+// max number of bits a code may have for lencode/ldecode
+static constexpr uint8_t MaxCodecBits = 32 ;               // if more than 32 bits, then we need a stronger Crc as we are subject to the anniversary paradox here
+
 //
 // derived info
 //

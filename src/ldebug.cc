@@ -29,7 +29,7 @@ int main( int argc , char* argv[] ) {
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( script_file_stream , ReqProc::Debug , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	::string script_file = script_file_stream.str() ; script_file.pop_back() ;                         // remove \n at end
+	::string script_file = ensure_no_nl(script_file_stream.str()) ;
 	if ( int rc=mk_rc(ok) ) exit(rc,script_file) ;
 
 	char* exec_args[] = { script_file.data() , nullptr } ;

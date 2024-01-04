@@ -574,7 +574,7 @@ Once the build process is complete, a summary is generated with :
 @section @code{lshow}
 
 Usage : @code{lshow [ [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
-[[-d|--debug] debug_dir] [-t|--targets] [-v|--verbose] targets...}
+[[-d|--debug] debug_dir] [-t|--targets] [-v|--verbose] [-p|--porcelaine] targets...}
 
 @code{lshow} provides various information about jobs.
 The jobs are those officially generating the targets (i.e. the jobs that would be selected by @lmake if needing to generate it) if any,
@@ -607,6 +607,7 @@ Each line is composed of 5 fields  separated by spaces :
 If a dep does not exist, it is deemed secondary information and is shown in gray.
 @item @code{-D}|@code{--inv-deps} : show jobs that depend on targets.
 @item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
+If porcelaine mode (using the @code{--porcelaine} or @code{-p} option), the same information is reported as as an easy to parse Python @code{dict}.
 @item @code{-s}|@code{--script} : show the scripts used to execute the jobs.
 If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
 Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
@@ -1256,6 +1257,25 @@ This is both more performant (when there are a lot of sources) and allows dynami
 It must be a @code{dict} mapping @code{str} keys to @code{int}.
 This @code{dict} is automatically augmented with resources provided by backends.
 Such automatic entries are keyed <backend>.<resource>, for example @code{local.cpu}.
+
+@item @code{reliable_dirs}
+@tab @code{False} unless only local backend is used
+@tab Static
+@tab Specify whether directory coherence is enforced when a file is created/modified/unlinked.
+
+It is the case for the following file systems : ceph.
+
+It is not the case for the followin file systems : NFS.
+
+When false, enclosing directories are recursively open before any file is accessed to ensure the right file is open,
+and enclosing directory is closed after any file creation, modification or delettion.
+This is due to the fact that some file systems, such as NFS.
+In other words, on such file systems, the "close to open coherence" must be understood as "the data are there, but it does not mean you are guaranteed access to them".
+In order to access the data, you need a reliable directory, which mean you must open the directory before such access, hoping that the directory has been closed by the writer after the last update.
+And this applies recursively.
+
+This has a performance cost but no more performant method is known to the autor.
+And because of the performance cost, this option has been designed to avoid paying it for file systems that do not require such going through such a headache.
 
 @item @code{console.date_precision}
 @tab @code{None}

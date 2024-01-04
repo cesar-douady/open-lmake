@@ -214,9 +214,9 @@ namespace Backends {
 			trace("entry",entry) ;
 			submit_attrs = entry.submit_attrs ;
 			rsrcs        = entry.rsrcs        ;
-			//                                              vvvvvvvvvvvvvvvvvvvvvvv
-			ensure_nl(jrr.backend_msg) ; jrr.backend_msg += s_start(entry.tag,+job) ;
-			//                                              ^^^^^^^^^^^^^^^^^^^^^^^
+			//                              vvvvvvvvvvvvvvvvvvvvvvv
+			ensure_nl(jrr.msg) ; jrr.msg += s_start(entry.tag,+job) ;
+			//                              ^^^^^^^^^^^^^^^^^^^^^^^
 			for( Req r : entry.reqs ) if (!r->zombie) goto Start ;
 			trace("no_req") ;
 			return false ;                                                     // no Req found, job has been cancelled but start message still arrives, give up
@@ -226,9 +226,9 @@ namespace Backends {
 			try {
 				start_none_attrs = rule->start_none_attrs.eval(match,rsrcs) ;
 			} catch (::string const& e) {
-				/**/                         start_none_attrs  = rule->start_none_attrs.spec                            ;
-				ensure_nl(jrr.backend_msg) ; jrr.backend_msg  += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
-				/**/                         start_stderr      = e                                                      ;
+				/**/                 start_none_attrs  = rule->start_none_attrs.spec                            ;
+				ensure_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
+				/**/                 start_stderr      = e                                                      ;
 			}
 			int  step     = 0                ;
 			bool keep_tmp = false/*garbage*/ ;
@@ -270,11 +270,11 @@ namespace Backends {
 					,	.start        = reply
 					,	.stderr       = start_stderr
 					}) ) ;
-					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,digest) ) ) ;
+					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,JobDigest(digest)) ) ) ;
 				}
 				if (step>0) job_exec->end_exec() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.backend_msg) ) ;
+				g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg        ) ) ;
 				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                                          , ::move(end_backend_msg) ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				return false ;
@@ -349,10 +349,10 @@ namespace Backends {
 			,	.stderr       = start_stderr
 			})
 		) ;
-		bool report_now = Delay(job->exec_time)>=start_none_attrs.start_delay ;                                                                           // dont defer long jobs
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( jrr.proc , JobExec(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.backend_msg) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		bool report_now = Delay(job->exec_time)>=start_none_attrs.start_delay ;                                                                   // dont defer long jobs
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( jrr.proc , JobExec(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) _s_deferred_report_thread->emplace_at( job_exec.start_+start_none_attrs.start_delay , jrr.seq_id , ::move(job_exec) ) ;
 		return false/*keep_fd*/ ;
 	}
@@ -375,14 +375,14 @@ namespace Backends {
 			job_exec = JobExec( job , entry.conn.host , entry.start , New ) ;
 			trace("entry",job_exec,entry) ;
 		}
-		bool keep_fd = false ;
 		switch (jrr.proc) {
-			case JobProc::ChkDeps  : //                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobProc::DepInfos : trace("deps",jrr.proc,jrr.digest.deps.size()) ; g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest.deps) , fd ) ; keep_fd = true ; break ;
-			case JobProc::LiveOut  :                                                 g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.backend_msg)      ) ;                  break ;
-			default : FAIL(jrr.proc) ; //                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			case JobProc::ChkDeps  : //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case JobProc::DepInfos : g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest.deps) ,                                fd ) ; return true /*keep_fd*/ ;
+			case JobProc::LiveOut  : g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.msg)                                             ) ; return false/*keep_fd*/ ;
+			case JobProc::Decode   : g_codec_queue .emplace( false/*encode*/ , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx)               , fd ) ; return true /*keep_fd*/ ;
+			case JobProc::Encode   : g_codec_queue .emplace( true /*encode*/ , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) , jrr.min_len , fd ) ; return true /*keep_fd*/ ;
+			default : FAIL(jrr.proc) ; //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		return keep_fd ;
 	}
 
 	bool/*keep_fd*/ Backend::_s_handle_job_end( JobRpcReq&& jrr , Fd ) {
@@ -410,17 +410,17 @@ namespace Backends {
 			//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			::tie(backend_msg,backend_ok) = s_end( entry.tag , +job , jrr.digest.status ) ;
 			//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			ensure_nl(jrr.backend_msg) ; jrr.backend_msg += backend_msg ;
-			if ( jrr.digest.status==Status::LateLost && !backend_msg ) { ensure_nl(jrr.backend_msg) ; jrr.backend_msg   += "vanished after start\n"                     ; }
-			if ( is_lost(jrr.digest.status) && !backend_ok           )                                jrr.digest.status  = Status::Err                                  ;
-			/**/                                                                                      jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
+			ensure_nl(jrr.msg) ; jrr.msg += backend_msg ;
+			if ( jrr.digest.status==Status::LateLost && !backend_msg ) { ensure_nl(jrr.msg) ; jrr.msg           += "vanished after start\n"                     ; }
+			if ( is_lost(jrr.digest.status) && !backend_ok           )                        jrr.digest.status  = Status::Err                                  ;
+			/**/                                                                              jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;
 		serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr) ) ;
 		job->end_exec() ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(rsrcs) , ::move(jrr.digest) , ::move(jrr.backend_msg) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(rsrcs) , ::move(jrr.digest) , ::move(jrr.msg) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		return false/*keep_fd*/ ;
 	}
 
@@ -503,10 +503,10 @@ namespace Backends {
 			}
 			{	JobExec   je { job , New , New } ;                             // job starts and ends, no host
 				JobDigest jd { .status=status  } ;
-				if (status==Status::EarlyLostErr) {                                                               // if we do not retry, record run info
-					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .host=conn.host } ;
-					JobInfoEnd   jie { .end=JobRpcReq(JobProc::End,0,job,jd,::string(lost_report.first))      } ;
-					OFStream     os  { dir_guard(je->ancillary_file())                                        } ;
+				if (status==Status::EarlyLostErr) {                                                                     // if we do not retry, record run info
+					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .host=conn.host       } ;
+					JobInfoEnd   jie { .end=JobRpcReq(JobProc::End,0,job,JobDigest(jd),::string(lost_report.first)) } ;
+					OFStream     os  { dir_guard(je->ancillary_file())                                              } ;
 					serialize( os , jis ) ;
 					serialize( os , jie ) ;
 				}

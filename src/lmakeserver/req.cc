@@ -261,7 +261,7 @@ namespace Engine {
 				auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
 				auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
 				EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
-				seen_stderr = (*this)->audit_stderr( report_end.end.backend_msg , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
+				seen_stderr = (*this)->audit_stderr( report_end.end.msg , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 			} catch(...) {
 				(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 			}
@@ -351,7 +351,7 @@ namespace Engine {
 	}
 
 	Job ReqInfo::asking() const {
-		::vector_view_c<Watcher> watchers{
+		::c_vector_view<Watcher> watchers{
 			_n_watchers==VectorMrkr ? _watchers_v->data() : _watchers_a.data()
 		,	_n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers
 		} ;
@@ -407,7 +407,7 @@ namespace Engine {
 			size_t w = 0     ;
 			bool   e = false ;
 			for( auto [j,_] :                 losts_                                   ) { w = ::max( w , j->rule->name.size() ) ; e |= j->err() ; }
-			for( auto [j,_] : ::vector_view_c(losts_,0,g_config.n_errs(losts_.size())) ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
+			for( auto [j,_] : ::c_vector_view(losts_,0,g_config.n_errs(losts_.size())) ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
 			if ( g_config.errs_overflow(losts_.size()) )                                 audit_info( e       ?Color::Err:Color::Warning , "..."                                                  ) ;
 		}
 		if (+long_names) {
@@ -415,7 +415,7 @@ namespace Engine {
 			size_t               pm          = 0                   ;
 			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
-			for( auto [n,_] : ::vector_view_c(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
+			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
 			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
 			SWEAR(pm>g_config.path_max) ;
 			audit_info( Color::Note , to_string("consider adding in Lmakefile.py : lmake.config.path_max = ",pm) ) ;

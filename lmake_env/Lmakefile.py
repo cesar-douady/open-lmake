@@ -63,6 +63,7 @@ class BaseRule(Rule) :
 	,	'Base' : r'[^/]+'
 	,	'Ext'  : r'[^/]+'
 	}
+	autodep     = 'ptrace'
 	backend     = backend
 	resources   = { 'mem' : '100M' }
 	n_retries   = 1
@@ -305,7 +306,9 @@ class TarLmake(BaseRule) :
 	,	'LIB7'               : 'lib/lmake_runtime.py'
 	,	'CLMAKE'             : 'lib/clmake.so'
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
+	,	'LDECODE'            : 'bin/ldecode'
 	,	'LDEPEND'            : 'bin/ldepend'
+	,	'LENCODE'            : 'bin/lencode'
 	,	'LTARGET'            : 'bin/ltarget'
 	,	'LMARK'              : 'bin/lmark'
 	,	'LFORGET'            : 'bin/lforget'
@@ -426,6 +429,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
 	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
+	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'MAKEFILES'  : 'src/lmakeserver/makefiles.o'
@@ -461,21 +465,15 @@ class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	,	'MAIN'    : 'src/ldump_job.o'
 	}
 
-class LinkLmake(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lmake'   }
-	deps    = { 'MAIN'   : 'src/lmake.o' }
+for client in ('ldebug','lforget','lmake','lmark','lshow') :
+	class LinkLmake(LinkClientAppExe) :
+		name    = f'link {client}'
+		targets = { 'TARGET' : f'bin/{client}'   }
+		deps    = { 'MAIN'   : f'src/{client}.o' }
 
-class LinkLdebug(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/ldebug'   }
-	deps    = { 'MAIN'   : 'src/ldebug.o' }
-
-class LinkLshow(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lshow'   }
-	deps    = { 'MAIN'   : 'src/lshow.o' }
-
-class LinkLforget(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lforget'   }
-	deps    = { 'MAIN'   : 'src/lforget.o' }
+class LinkXxhsum(LinkAppExe) :
+	targets = { 'TARGET' : 'bin/xxhsum'   }
+	deps    = { 'MAIN'   : 'src/xxhsum.o' }
 
 class LinkJobSupport(LinkClientAppExe) :
 	deps = {
@@ -484,22 +482,8 @@ class LinkJobSupport(LinkClientAppExe) :
 	,	'RPC_JOB' : 'src/rpc_job.o'
 	}
 
-class LinkLdepend(LinkJobSupport,LinkAutodepEnv) :
-	targets = { 'TARGET' : 'bin/ldepend'           }
-	deps    = { 'MAIN'   : 'src/autodep/ldepend.o' }
-
-class LinkLtarget(LinkJobSupport,LinkAutodepEnv) :
-	targets = { 'TARGET' : 'bin/ltarget'           }
-	deps    = { 'MAIN'   : 'src/autodep/ltarget.o' }
-
-class LinkLChkDeps(LinkJobSupport,LinkAutodepEnv) :
-	targets = { 'TARGET' : 'bin/lcheck_deps'           }
-	deps    = { 'MAIN'   : 'src/autodep/lcheck_deps.o' }
-
-class LinkLmark(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/lmark'   }
-	deps    = { 'MAIN'   : 'src/lmark.o' }
-
-class LinkXxhsum(LinkClientAppExe) :
-	targets = { 'TARGET' : 'bin/xxhsum'   }
-	deps    = { 'MAIN'   : 'src/xxhsum.o' }
+for remote in ('lcheck_deps','ldecode','ldepend','lencode','ltarget') :
+	class LinkRemote(LinkJobSupport,LinkAutodepEnv) :
+		name    = f'link {remote}'
+		targets = { 'TARGET' : f'bin/{remote}'           }
+		deps    = { 'MAIN'   : f'src/autodep/{remote}.o' }

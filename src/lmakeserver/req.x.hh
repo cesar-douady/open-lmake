@@ -173,6 +173,7 @@ namespace Engine {
 			return *this ;
 		}
 		// acesses
+		void       reset       (                              )       { done_ = RunAction::None                                        ; }
 		bool       done        (RunAction ra=RunAction::Status) const { return done_>=ra                                               ; }
 		bool       waiting     (                              ) const { return n_wait>0                                                ; }
 		bool       has_watchers(                              ) const { return _n_watchers                                             ; }
@@ -283,7 +284,6 @@ namespace Engine {
 		// summary
 		::vector<Node>                        up_to_dates  ;                   // asked nodes already done when starting
 		::umap<Job ,                JobIdx  > losts        ;                   // lost       jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,pair<bool/*ok*/,NodeIdx>> manuals      ;                   // manual files encountered                          (value.second is just for summary ordering purpose)
 		::umap<Job ,                JobIdx  > frozen_jobs  ;                   // frozen     jobs                                   (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > long_names   ;                   // nodes with name too long                          (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > no_triggers  ;                   // no-trigger nodes                                  (value        is just for summary ordering purpose)

@@ -34,8 +34,8 @@ int main( int argc , char* argv[]) {
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (!cmd_line.args) return 0 ;                                                           // fast path : depends on nothing
-	for( ::string const& f : cmd_line.args ) if (!f) exit(2,"cannot depend on empty file") ;
+	if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
+	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 	//
 	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
 	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
@@ -46,20 +46,20 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoRequired ]) dflags &= ~Dflag::Required    ;
 	//
 	if (verbose) {
-		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , Accesses::All , dflags , no_follow , "ldepend" ) ;
-		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                                     ;
+		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , Accesses::All , dflags , no_follow ) ;
+		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                          ;
 		//
-		SWEAR( reply.infos.size()==jerr.files.size() , reply.infos.size() , jerr.files.size() ) ;
+		SWEAR( reply.dep_infos.size()==jerr.files.size() , reply.dep_infos.size() , jerr.files.size() ) ;
 		//
 		bool err = false ;
-		for( size_t i=0 ; i<reply.infos.size() ; i++ ) {
-			switch (reply.infos[i].first) {
+		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
+			switch (reply.dep_infos[i].first) {
 				case Yes   : ::cout << "ok  " ;              break ;
 				case Maybe : ::cout << "??? " ; err = true ; break ;
 				case No    : ::cout << "err " ; err = true ; break ;
-				default : FAIL(reply.infos[i].first) ;
+				default : FAIL(reply.dep_infos[i].first) ;
 			}
-			::cout << ::string(reply.infos[i].second) <<' '<< jerr.files[i].first <<'\n' ;
+			::cout << ::string(reply.dep_infos[i].second) <<' '<< jerr.files[i].first <<'\n' ;
 		}
 		//
 		return err ? 1 : 0 ;
