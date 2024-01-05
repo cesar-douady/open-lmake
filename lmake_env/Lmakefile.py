@@ -449,6 +449,7 @@ class LinkLdumpExe(LinkPythonAppExe,LinkAutodepEnv) :
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
 	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
+	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'

@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <linux/binfmts.h>
+
 #include "core.hh"
 
 using namespace Disk ;
@@ -72,7 +74,7 @@ namespace Engine {
 				bool force = ro.flags[ReqFlag::Force] ;
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
-					Job j = t->actual_job_tgt ;
+					Job j = t->actual_job_tgt() ;
 					if      ( add && !j.active()                                        ) handle_node(t) ;
 					else if ( t->is_src() || t->is_anti()                               ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
@@ -203,7 +205,8 @@ namespace Engine {
 			res += c ;
 		}
 		res+='\n' ;
-		if (start.interpreter.size()>2) res += "# the sheebang line above is informative only, interpreter is called explicitly" ;
+		if ( start.interpreter.size()>2 || res.size()>BINPRM_BUF_SIZE )                                  // inform user we do not use the sheebang line if it actually does not work ...
+			res += "# the sheebang line above is informative only, interpreter is called explicitly\n" ; // ... just so that it gets no headache wondering why it works with a apparently buggy line
 		//
 		res += start.cmd.first ;
 		//
@@ -213,9 +216,6 @@ namespace Engine {
 			size_t   open_pos  = start.cmd.second.find ('(')            ;
 			size_t   close_pos = start.cmd.second.rfind(')')            ;
 			::string run_call  = start.cmd.second.substr(0,open_pos)    ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
-			//
-			append_to_string( res , "lmake_runtime = {}\n"                                                                       ) ;
-			append_to_string( res , "exec(open(" , mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py") , ").read(),lmake_runtime)\n" ) ;
 			//
 			res += "lmake_runtime['deps'] = (\n" ;                             // generate deps that debugger can use to pre-populate browser
 			bool first = true ;
@@ -272,8 +272,8 @@ namespace Engine {
 				case FileActionTag::Mkdir    : { ::string c = "mkdir -p "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Rmdir : {
 					const char* sep = "" ;
-					for( Node d=t ; +d && !to_mkdirs.contains(d) ; d=d->dir ) {
-						append_to_string( script , sep , "rmdir " , mk_shell_str(d->name()) , "2>/dev/null" ) ;
+					for( Node d=t ; +d && !to_mkdirs.contains(d) ; d=d->dir() ) {
+						append_to_string( script , sep , "rmdir " , mk_shell_str(d->name()) , " 2>/dev/null" ) ;
 						sep = " && " ;
 					}
 					script += '\n' ;
@@ -288,7 +288,7 @@ namespace Engine {
 			if (!start.keep_tmp)
 				for( auto&& [k,v] : start.env )
 					if ( k=="TMPDIR" && v!=EnvPassMrkr )
-						tmp_dir = env_decode(::string(v)) ;
+						tmp_dir = env_decode(::copy(v)) ;
 		} else {
 			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
 		}
@@ -303,8 +303,8 @@ namespace Engine {
 		append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
 		for( auto&& [k,v] : start.env ) {
 			if (k=="TMPDIR"   ) continue ;
-			if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                             ," \\\n") ;
-			else                append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::string(v)))," \\\n") ;
+			if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                           ," \\\n") ;
+			else                append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::copy(v)))," \\\n") ;
 		}
 		if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                // in addition of dbg, autodep may be needed for functional reasons
 			/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
@@ -330,7 +330,7 @@ namespace Engine {
 	}
 
 	static JobTgt _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
-		JobTgt jt = target->actual_job_tgt ;
+		JobTgt jt = target->actual_job_tgt() ;
 		if (!jt.active()) {
 			/**/                             if (target->status()>NodeStatus::Makable) goto NoJob ;
 			jt = target->conform_job_tgt() ; if (!jt.active()                        ) goto NoJob ;
@@ -469,7 +469,7 @@ namespace Engine {
 							size_t w = 0 ;
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
 							for( auto const& [k,v] : start.env ) w = max(w,k.size()) ;
-							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::string(v))) , lvl ) ;
+							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::copy(v))) , lvl ) ;
 						} break ;
 						case ReqKey::ExecScript :
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
@@ -732,7 +732,7 @@ namespace Engine {
 					::string uphill_name = dir_name(target->name())   ;
 					double   prio        = -Infinity                  ;
 					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
-					for( JobTgt job_tgt : target->job_tgts ) {
+					for( JobTgt job_tgt : target->job_tgts() ) {
 						if (job_tgt->rule->prio<prio)                                break    ;
 						if (job_tgt==jt             ) { prio = job_tgt->rule->prio ; continue ; }   // actual job is output last as this is what user views first
 						bool hide = !job_tgt.produces(target) ;

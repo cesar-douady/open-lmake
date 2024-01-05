@@ -373,7 +373,7 @@ namespace Engine {
 			}
 			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , df ) ) ;
 		}
-		if (_qualify_dep( {} , rd.interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell )) deps.emplace_back( "<interpreter>" , DepSpec(::string(rd.interpreter[0]),StaticDflags) ) ;
+		if (_qualify_dep( {} , rd.interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell )) deps.emplace_back( "<interpreter>" , DepSpec(::copy(rd.interpreter[0]),StaticDflags) ) ;
 		if (deps.size()>=Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 		return need ;
 	}
@@ -1092,10 +1092,10 @@ namespace Engine {
 		for( auto const& [k,v] : m ) wk = ::max(wk,k.size()) ;
 		for( auto const& [k,v] : m ) {
 			res << ::setw(wk)<<k ;
-			if      (v==EnvPassMrkr) res<<"   ..."                       ;
-			else if (v==EnvDynMrkr ) res<<"   <dynamic>"                 ;
-			else if (+v            ) res<<" : "<<env_decode(::string(v)) ;
-			else                     res<<" :"                           ;
+			if      (v==EnvPassMrkr) res<<"   ..."                     ;
+			else if (v==EnvDynMrkr ) res<<"   <dynamic>"               ;
+			else if (+v            ) res<<" : "<<env_decode(::copy(v)) ;
+			else                     res<<" :"                         ;
 			res << '\n' ;
 		}
 		//

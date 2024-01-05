@@ -10,7 +10,6 @@
 #include "backend.x.hh"
 #include "cache.x.hh"
 #include "cmd.x.hh"
-#include "codec.x.hh"
 #include "rule.x.hh"
 #include "req.x.hh"
 #include "job.x.hh"

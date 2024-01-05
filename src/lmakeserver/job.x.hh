@@ -223,9 +223,9 @@ namespace Engine {
 			SWEAR(!rule.is_shared()) ;
 		}
 		//
-		JobData           (JobData&& jd) : JobData(jd) {                                              jd.star_targets.forget() ; jd.deps.forget() ;                }
-		~JobData          (            ) {                                                               star_targets.pop   () ;    deps.pop   () ;                }
-		JobData& operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = mk_const(jd) ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
+		JobData           (JobData&& jd) : JobData(jd) {                                    jd.star_targets.forget() ; jd.deps.forget() ;                }
+		~JobData          (            ) {                                                     star_targets.pop   () ;    deps.pop   () ;                }
+		JobData& operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = jd ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
 	private :
 		JobData           (JobData const&) = default ;
 		JobData& operator=(JobData const&) = default ;

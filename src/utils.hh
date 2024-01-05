@@ -73,7 +73,7 @@ template<class T        > concept IsNotVoid = !::is_void_v<T>                   
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
-template<class T> T const& mk_const(T const& x) { return x ; }
+template<class T> T copy(T const& x) { return x ; }
 
 //
 // std lib name simplification
@@ -323,8 +323,8 @@ template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , s
 
 static inline ::string ensure_nl   (::string     && txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; return txt ; }
 static inline ::string ensure_no_nl(::string     && txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; return txt ; }
-static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::string(txt)) ;                          }
-static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::string(txt)) ;                          }
+static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;                            }
+static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;                            }
 
 template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path

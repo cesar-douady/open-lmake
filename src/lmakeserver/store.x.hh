@@ -56,10 +56,10 @@ namespace Engine::Persistent {
 
 	template<class V> struct GenericVector ;
 
-	template<class Idx_,class Item_,uint8_t NGuardBits=0> struct SimpleVectorBase ;
-	template<class Idx_,class Item_,uint8_t NGuardBits=1> struct CrunchVectorBase ;
-	template<class Idx_,class Item_                     > using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_>> ;
-	template<class Idx_,class Item_                     > using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_>> ;
+	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=0> struct SimpleVectorBase ;
+	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=1> struct CrunchVectorBase ;
+	template<class Idx_,class Item_,class Mrkr_=void    > using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_,Mrkr_>> ;
+	template<class Idx_,class Item_,class Mrkr_=void    > using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_,Mrkr_>> ;
 
 	using DepsBase    = SimpleVector<NodeIdx,Dep   > ;
 	using TargetsBase = SimpleVector<NodeIdx,Target> ;
@@ -81,11 +81,12 @@ namespace Engine::Persistent {
 	// Vector's
 	//
 
-	template<class Idx_,class Item_,uint8_t NGuardBits> struct SimpleVectorBase
+	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct SimpleVectorBase
 	:	             Idxed<Idx_,NGuardBits>
 	{	using Base = Idxed<Idx_,NGuardBits> ;
 		using Idx  = Idx_  ;
 		using Item = Item_ ;
+		using Mrkr = Mrkr_ ;
 		using Sz   = Idx   ;
 		static const Idx EmptyIdx ;
 		// cxtors & casts
@@ -110,13 +111,14 @@ namespace Engine::Persistent {
 
 	// CrunchVector's are like SimpleVector's except that a vector of 0 element is simply 0 and a vector of 1 element is stored in place
 	// This is particular efficient for situations where the vector size is 1 most of the time
-	template<class Idx_,class Item_,uint8_t NGuardBits> struct CrunchVectorBase
+	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct CrunchVectorBase
 	:	               Idxed2< Item_ , Idxed<Idx_,NGuardBits> >
 	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
 		using Vector =                 Idxed<Idx_,NGuardBits>   ;
-		using Idx    =                       Idx_               ;
-		using Item   =         Item_                            ;
-		using Sz     =                       Idx                ;
+		using Idx    = Idx_  ;
+		using Item   = Item_ ;
+		using Mrkr   = Mrkr_ ;
+		using Sz     = Idx   ;
 		static_assert(sizeof(Item_)>=sizeof(Idx_)) ;                           // else it is difficult to implement the items() method with a cast in case of single element
 		// cxtors & casts
 		using Base::Base ;
@@ -474,13 +476,13 @@ namespace Engine::Persistent {
 	extern ::uset<Node>       _no_triggers  ;
 	extern ::vector<RuleData> _rule_datas   ;
 
-	template<class Idx_,class Item_> struct VectorHelper ;
+	template<class T> struct VectorHelper {} ;
 	//
 	#define SC static constexpr
-	template<> struct VectorHelper<NodeIdx   ,Dep   > { SC DepsFile   & g_file() { return _deps_file         ; } SC DepsFile    const& gc_file() { return _deps_file         ; } } ;
-	template<> struct VectorHelper<NodeIdx   ,Target> { SC TargetsFile& g_file() { return _star_targets_file ; } SC TargetsFile const& gc_file() { return _star_targets_file ; } } ;
-	template<> struct VectorHelper<JobIdx    ,JobTgt> { SC JobTgtsFile& g_file() { return _job_tgts_file     ; } SC JobTgtsFile const& gc_file() { return _job_tgts_file     ; } } ;
-	template<> struct VectorHelper<RuleStrIdx,char  > { SC RuleStrFile& g_file() { return _rule_str_file     ; } SC RuleStrFile const& gc_file() { return _rule_str_file     ; } } ;
+	template<> struct VectorHelper<DepsBase   ::Base> { SC DepsFile   & g_file() { return _deps_file         ; } SC DepsFile    const& gc_file() { return _deps_file         ; } } ;
+	template<> struct VectorHelper<TargetsBase::Base> { SC TargetsFile& g_file() { return _star_targets_file ; } SC TargetsFile const& gc_file() { return _star_targets_file ; } } ;
+	template<> struct VectorHelper<JobTgtsBase::Base> { SC JobTgtsFile& g_file() { return _job_tgts_file     ; } SC JobTgtsFile const& gc_file() { return _job_tgts_file     ; } } ;
+	template<> struct VectorHelper<RuleStr    ::Base> { SC RuleStrFile& g_file() { return _rule_str_file     ; } SC RuleStrFile const& gc_file() { return _rule_str_file     ; } } ;
 	#undef SC
 
 	//
@@ -639,95 +641,97 @@ namespace Engine::Persistent {
 	//
 	// SimpleVectorBase
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> constexpr Idx SimpleVectorBase<Idx,Item,NGuardBits>::EmptyIdx = VectorHelper<Idx,Item>::gc_file().EmptyIdx ;
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = VectorHelper<SimpleVectorBase>::gc_file().EmptyIdx ;
 	// cxtors & casts
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline SimpleVectorBase<Idx,Item,NGuardBits>::SimpleVectorBase(::vector_view<I> const& v) : Base(VectorHelper<Idx,Item>::g_file().emplace(v)) {}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::SimpleVectorBase(::vector_view<I> const& v) :
+		Base{VectorHelper<SimpleVectorBase>::g_file().emplace(v)}
+	{}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline void SimpleVectorBase<Idx,Item,NGuardBits>::assign(::vector_view<I> const& v) {
-			*this = VectorHelper<Idx,Item>::g_file().assign(+*this,v) ;
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::assign(::vector_view<I> const& v) {
+		*this = VectorHelper<SimpleVectorBase>::g_file().assign(+*this,v) ;
+	}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,NGuardBits>::pop  () { VectorHelper<Idx,Item>::g_file().pop(+*this) ; forget() ; }
-	template<class Idx,class Item,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,NGuardBits>::clear() { pop() ;                                                   }
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::pop  () {
+		VectorHelper<SimpleVectorBase>::g_file().pop(+*this) ;
+		forget() ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::clear() {
+		pop() ;
+	}
 	// accesses
-	template<class Idx,class Item,uint8_t NGuardBits> inline Item const* SimpleVectorBase<Idx,Item,NGuardBits>::items() const      { return VectorHelper<Idx,Item>::gc_file().items(+*this) ; }
-	template<class Idx,class Item,uint8_t NGuardBits> inline Item      * SimpleVectorBase<Idx,Item,NGuardBits>::items()            { return VectorHelper<Idx,Item>::g_file ().items(+*this) ; }
-	template<class Idx,class Item,uint8_t NGuardBits> inline auto        SimpleVectorBase<Idx,Item,NGuardBits>::size () const ->Sz { return VectorHelper<Idx,Item>::gc_file().size (+*this) ; }
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item const* SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::items() const {
+		return VectorHelper<SimpleVectorBase>::gc_file().items(+*this) ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item* SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::items() {
+		return VectorHelper<SimpleVectorBase>::g_file ().items(+*this) ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline auto SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::size () const ->Sz {
+		return VectorHelper<SimpleVectorBase>::gc_file().size (+*this) ;
+	}
 	// services
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline void SimpleVectorBase<Idx,Item,NGuardBits>::shorten_by(Sz by) {
-			*this = VectorHelper<Idx,Item>::g_file().shorten_by(+*this,by) ;
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::shorten_by(Sz by) {
+		*this = VectorHelper<SimpleVectorBase>::g_file().shorten_by(+*this,by) ;
+	}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline void SimpleVectorBase<Idx,Item,NGuardBits>::append(::vector_view<I> const& v ) {
-			*this = VectorHelper<Idx,Item>::g_file().append(+*this,v) ;
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::append(::vector_view<I> const& v ) {
+		*this = VectorHelper<SimpleVectorBase>::g_file().append(+*this,v) ;
+	}
 
 	//
 	// CrunchVectorBase
 	//
 	// cxtors & casts
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline CrunchVectorBase<Idx,Item,NGuardBits>::CrunchVectorBase(::vector_view<I> const& v) {
-			if (v.size()!=1) { static_cast<Base&>(*this) = VectorHelper<Idx,Item>::g_file().emplace(v) ; }
-			else             { static_cast<Base&>(*this) = v[0]                                        ; }
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::CrunchVectorBase(::vector_view<I> const& v) {
+		if (v.size()!=1) { static_cast<Base&>(*this) = VectorHelper<CrunchVectorBase>::g_file().emplace(v) ; }
+		else             { static_cast<Base&>(*this) = v[0]                                        ; }
+	}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline void CrunchVectorBase<Idx,Item,NGuardBits>::assign(::vector_view<I> const& v) {
-			if (_multi()) {
-				if (v.size()!=1) { *this = VectorHelper<Idx,Item>::g_file().assign(*this,v) ;                                  }
-				else             {         VectorHelper<Idx,Item>::g_file().pop   (*this  ) ; *this = CrunchVectorBase(v[0]) ; }
-			} else {
-				*this = CrunchVectorBase(v) ;
-			}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::assign(::vector_view<I> const& v) {
+		if (_multi()) {
+			if (v.size()!=1) { *this = VectorHelper<CrunchVectorBase>::g_file().assign(*this,v) ;                                  }
+			else             {         VectorHelper<CrunchVectorBase>::g_file().pop   (*this  ) ; *this = CrunchVectorBase(v[0]) ; }
+		} else {
+			*this = CrunchVectorBase(v) ;
 		}
+	}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline void CrunchVectorBase<Idx,Item,NGuardBits>::pop() {
-			if (_multi()) VectorHelper<Idx,Item>::g_file().pop(*this) ;
-			forget() ;
-		}
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline void CrunchVectorBase<Idx,Item,NGuardBits>::clear() { pop() ; }
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::pop() {
+		if (_multi()) VectorHelper<CrunchVectorBase>::g_file().pop(*this) ;
+		forget() ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::clear() {
+		pop() ;
+	}
 	// accesses
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline Item const* CrunchVectorBase<Idx,Item,NGuardBits>::items() const {
-			if (_single()) return &static_cast<Item const&>(*this)              ;
-			/**/           return VectorHelper<Idx,Item>::gc_file().items(*this) ;
-		}
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline Item* CrunchVectorBase<Idx,Item,NGuardBits>::items() {
-			if (_single()) return &static_cast<Item&>(*this)                    ;
-			/**/           return VectorHelper<Idx,Item>::g_file().items(*this) ;
-		}
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline auto CrunchVectorBase<Idx,Item,NGuardBits>::size() const -> Sz {
-			if (_single()) return 1 ;
-			/**/           return VectorHelper<Idx,Item>::gc_file().size(*this) ;
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item const* CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::items() const {
+		if (_single()) return &static_cast<Item const&>(*this)              ;
+		/**/           return VectorHelper<CrunchVectorBase>::gc_file().items(*this) ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item* CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::items() {
+		if (_single()) return &static_cast<Item&>(*this)                    ;
+		/**/           return VectorHelper<CrunchVectorBase>::g_file().items(*this) ;
+	}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline auto CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::size() const -> Sz {
+		if (_single()) return 1 ;
+		/**/           return VectorHelper<CrunchVectorBase>::gc_file().size(*this) ;
+	}
 	// services
-	template<class Idx,class Item,uint8_t NGuardBits>
-		inline void CrunchVectorBase<Idx,Item,NGuardBits>::shorten_by(Sz by) {
-			Sz sz = size() ;
-			SWEAR( by<=sz , by , sz ) ;
-			if (_multi()) {
-				if (by!=sz-1) { *this = VectorHelper<Idx,Item>::g_file().shorten_by( *this , by ) ;                           }
-				else          { Item save = (*this)[0] ; VectorHelper<Idx,Item>::g_file().pop(Vector(*this)) ; *this = save ; }
-			} else {
-				if (by==sz) forget() ;
-			}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::shorten_by(Sz by) {
+		Sz sz = size() ;
+		SWEAR( by<=sz , by , sz ) ;
+		if (_multi()) {
+			if (by!=sz-1) { *this = VectorHelper<CrunchVectorBase>::g_file().shorten_by( *this , by ) ;                           }
+			else          { Item save = (*this)[0] ; VectorHelper<CrunchVectorBase>::g_file().pop(Vector(*this)) ; *this = save ; }
+		} else {
+			if (by==sz) forget() ;
 		}
+	}
 	//
-	template<class Idx,class Item,uint8_t NGuardBits> template<IsA<Item> I>
-		inline void CrunchVectorBase<Idx,Item,NGuardBits>::append(::vector_view<I> const& v ) {
-			if      (!*this  ) assign(v) ;
-			else if (_multi()) *this = VectorHelper<Idx,Item>::g_file().append (     *this ,v) ;
-			else if (+v      ) *this = VectorHelper<Idx,Item>::g_file().emplace(Item(*this),v) ;
-		}
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::append(::vector_view<I> const& v ) {
+		if      (!*this  ) assign(v) ;
+		else if (_multi()) *this = VectorHelper<CrunchVectorBase>::g_file().append (     *this ,v) ;
+		else if (+v      ) *this = VectorHelper<CrunchVectorBase>::g_file().emplace(Item(*this),v) ;
+	}
 
 	//
 	// Persistent

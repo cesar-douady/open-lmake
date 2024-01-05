@@ -79,7 +79,7 @@ src/lmakeserver/caches/dir_cache.hh
 src/lmakeserver/cmd.cc
 src/lmakeserver/cmd.x.hh
 src/lmakeserver/codec.cc
-src/lmakeserver/codec.x.hh
+src/lmakeserver/codec.hh
 src/lmakeserver/core.hh
 src/lmakeserver/core.x.hh
 src/lmakeserver/global.cc

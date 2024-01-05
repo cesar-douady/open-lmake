@@ -511,7 +511,7 @@ namespace Engine {
 		}
 		//
 		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transcient ) {
-			Node dir ; for( dir=node->dir ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir ) ;
+			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir() ) ;
 			swear_prod(+dir                              ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
 			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;

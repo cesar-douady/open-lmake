@@ -7,6 +7,8 @@
 
 #include "rpc_job.hh"
 
+#include "codec.hh"
+
 #ifdef STRUCT_DECL
 namespace Engine {
 
@@ -186,15 +188,22 @@ namespace Engine {
 		// cxtors & casts
 		NodeData() = default ;
 		NodeData( Name n , bool no_dir ) : DataBase{n} {
-			if (!no_dir) dir = _dir_name() ;
+			if (!no_dir) dir() = _dir_name() ;
 		}
 		~NodeData() {
-			job_tgts.pop() ;
+			job_tgts().pop() ;
 		}
 		// accesses
 		Node     idx    () const { return Node::s_idx(*this) ; }
 		::string name   () const { return full_name()        ; }
 		size_t   name_sz() const { return full_name_sz()     ; }
+		//
+		bool is_codec() const { return buildable==Buildable::Decode || buildable==Buildable::Encode ; }
+		//
+		Node    & dir           () { SWEAR(!is_codec()) ; return _if_plain.dir            ; } ; Node     const& dir           () const { SWEAR(!is_codec()) ; return _if_plain.dir            ; } ;
+		JobTgts & job_tgts      () { SWEAR(!is_codec()) ; return _if_plain.job_tgts       ; } ; JobTgts  const& job_tgts      () const { SWEAR(!is_codec()) ; return _if_plain.job_tgts       ; } ;
+		RuleTgts& rule_tgts     () { SWEAR(!is_codec()) ; return _if_plain.rule_tgts      ; } ; RuleTgts const& rule_tgts     () const { SWEAR(!is_codec()) ; return _if_plain.rule_tgts      ; } ;
+		JobTgt  & actual_job_tgt() { SWEAR(!is_codec()) ; return _if_plain.actual_job_tgt ; } ; JobTgt   const& actual_job_tgt() const { SWEAR(!is_codec()) ; return _if_plain.actual_job_tgt ; } ;
 		//
 		bool           has_req   (Req           ) const ;
 		ReqInfo const& c_req_info(Req           ) const ;
@@ -205,10 +214,10 @@ namespace Engine {
 		bool           done      (ReqInfo const&) const ;
 		bool           done      (Req           ) const ;
 		//
-		bool     match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                   ; }
-		bool     has_actual_job    (         ) const {                          return +actual_job_tgt && !actual_job_tgt->rule.old() ; }
-		bool     has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return actual_job_tgt==j                              ; }
-		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return actual_job_tgt==jt                             ; }
+		bool     match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                       ; }
+		bool     has_actual_job    (         ) const {                          return +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
+		bool     has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return actual_job_tgt()==j                                ; }
+		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return actual_job_tgt()==jt                               ; }
 		//
 		Bool3 manual        ( Ddate                  ) const ;
 		Bool3 manual_refresh( Req            , Ddate ) ;                                                            // refresh date if file was updated but steady
@@ -223,8 +232,8 @@ namespace Engine {
 		void       status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
 		JobTgt conform_job_tgt() const {
-			if (status()==NodeStatus::Plain) return job_tgts[conform_idx()] ;
-			else                             return {}                      ;
+			if (status()==NodeStatus::Plain) return job_tgts()[conform_idx()] ;
+			else                             return {}                        ;
 		}
 		bool conform() const {
 			JobTgt cjt = conform_job_tgt() ;
@@ -326,21 +335,36 @@ namespace Engine {
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts) return Buildable::No                             ;                 // fast path : avoid computing name()
-			else            return _gather_prio_job_tgts( name() , r , lvl ) ;
+			if (!rule_tgts()) return Buildable::No                             ;               // fast path : avoid computing name()
+			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
 		void _set_match_gen(bool ok  ) ;
 		void _set_buildable(Buildable) ;
 		// data
 	public :
-		Watcher   asking                  ;                      //      32 bits,         last watcher needing this node
-		Ddate     date                    ;                      // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
-		Crc       crc                     = Crc::None          ; // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
-		Node      dir                     ;                      //      31 bits, shared
-		JobTgts   job_tgts                ;                      //      32 bits, owned , ordered by prio, valid if match_ok
-		RuleTgts  rule_tgts               ;                      // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-		JobTgt    actual_job_tgt          ;                      //  31<=32 bits, shared, job that generated node
+		struct IfPlain {
+			Node     dir            ;                            //  31<=32 bits, shared
+			JobTgts  job_tgts       ;                            //      32 bits, owned , ordered by prio, valid if match_ok
+			RuleTgts rule_tgts      ;                            // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			JobTgt   actual_job_tgt ;                            //  31<=32 bits, shared, job that generated node
+		} ;
+		struct IfEncode {
+			Codec::Code code ;                                   //      32 bits, owned, code associated with value we represent
+		} ;
+		struct IfDecode {
+			Codec::Val val ;                                     //      32 bits, owned, value associated with code we represent
+		} ;
+		Watcher asking ;                                         //      32 bits,         last watcher needing this node
+		Ddate   date   ;                                         // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		Crc     crc    = Crc::None ;                             // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+	private :
+		union {
+			IfPlain  _if_plain  ;                                //     128 bits
+			IfDecode _if_decode ;                                //       0 bits
+			IfEncode _if_encode ;                                //      32 bits
+		} ;
+	public :
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Unknown => not yet computed
 		bool      unlinked :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
@@ -420,8 +444,8 @@ namespace Engine {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
 		RuleIdx prio_idx = conform_idx() ;
-		Prio prio = job_tgts[prio_idx]->rule->prio ;
-		while ( prio_idx && job_tgts[prio_idx-1]->rule->prio==prio ) prio_idx-- ; // rewind to first job within prio level
+		Prio prio = job_tgts()[prio_idx]->rule->prio ;
+		while ( prio_idx && job_tgts()[prio_idx-1]->rule->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}
 

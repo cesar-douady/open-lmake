@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "time.hh"
+#include "trace.hh"
 #include "serialize.hh"
 
 template<class T> struct ThreadQueue : private ::deque<T> {

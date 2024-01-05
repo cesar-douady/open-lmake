@@ -24,6 +24,7 @@ using NodeDataIdx = NodeIdx     ;      // used to index Node data associated wit
 using RuleTgtsIdx = uint32_t    ;
 using PsfxIdx     = RuleTgtsIdx ;
 using FileNameIdx = uint16_t    ;      // 64k for a file name is already ridiculously long
+using CodecIdx    = uint32_t    ;      // used to store code <-> value associations in lencode/ldecode
 
 // ids
 using SmallId = uint32_t ;             // used to identify running jobs, could be uint16_t if we are sure that there cannot be more than 64k jobs running at once

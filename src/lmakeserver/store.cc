@@ -435,8 +435,8 @@ namespace Engine::Persistent {
 		for( ::string const& sn : src_names       )                   srcs.emplace( Node(sn                      ) , false/*dir*/ ) ;
 		for( ::string      & sn : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , true /*dir*/ ) ; } // external src dirs need no uphill dir
 		//
-		for( auto [n,d] : srcs     ) for( Node d=n->dir ; +d ; d = d->dir ) if (!src_dirs    .insert(d).second) break ; // non-local nodes have no dir
-		for( auto [n,d] : old_srcs ) for( Node d=n->dir ; +d ; d = d->dir ) if (!old_src_dirs.insert(d).second) break ; // .
+		for( auto [n,d] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ; // non-local nodes have no dir
+		for( auto [n,d] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ; // .
 		// check
 		for( auto [n,d] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;

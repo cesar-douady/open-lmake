@@ -11,7 +11,6 @@ using namespace Hash ;
 namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
-	ThreadQueue<CodecClosure > g_codec_queue  ;
 
 	static inline ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
@@ -472,14 +471,6 @@ namespace Engine {
 		::string err_str = "several rules match, consider :\n" ;
 		for( Job j : candidates ) append_to_string( err_str , _audit_indent(to_string( "lmake -R " , mk_shell_str(j->rule->name) , " -J " , files[0] ),1) , '\n' ) ;
 		throw err_str ;
-	}
-
-	//
-	// CodecClosure
-	//
-
-	::ostream& operator<<( ::ostream& os , CodecClosure const& cc ) {
-		return os << "CodecClosure(" << (cc.encode?"encode":"decode") <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<')' ;
 	}
 
 }

@@ -339,26 +339,6 @@ namespace Engine {
 
 	extern ThreadQueue<EngineClosure> g_engine_queue ;
 
-	struct CodecClosure {
-		friend ::ostream& operator<<( ::ostream& , CodecClosure const& ) ;
-		// cxtors & casts
-		#define S ::string
-		CodecClosure() = default ;
-		CodecClosure( bool e , S&& code , S&& f , S&& c              , Fd fd_ ) : encode{e} ,               fd{fd_} , txt{::move(code)} , file{::move(f)} , ctx{::move(c)} { SWEAR(!encode) ; }
-		CodecClosure( bool e , S&& code , S&& f , S&& c , uint8_t ml , Fd fd_ ) : encode{e} , min_len{ml} , fd{fd_} , txt{::move(code)} , file{::move(f)} , ctx{::move(c)} { SWEAR( encode) ; }
-		#undef S
-		// data
-		bool     encode  = false/*garbage*/ ;
-		uint8_t  min_len = 0    /*garbage*/ ;
-		Fd       fd      ;                                 // fd to which replies must be sent
-		::string txt     ;
-		::string file    ;
-		::string ctx     ;
-
-	} ;
-
-	extern ThreadQueue<CodecClosure> g_codec_queue ;
-
 }
 #endif
 #ifdef IMPL

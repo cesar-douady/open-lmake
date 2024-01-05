@@ -429,10 +429,11 @@ struct JobRpcReq {
 	}
 	// cxtors & casts
 	JobRpcReq() = default ;
+	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                             { SWEAR( p==P::None                      ) ; }
 	JobRpcReq( P p , SI si , JI j , in_port_t   pt , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , port  {pt              } , msg{::move(m)} { SWEAR( p==P::Start                     ) ; }
 	JobRpcReq( P p , SI si , JI j , Status      s  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{.status=s       } , msg{::move(m)} { SWEAR( p==P::End && s<=Status::Garbage ) ; }
 	JobRpcReq( P p , SI si , JI j , JobDigest&& d  , ::string&& m={} ) : proc{p} , seq_id{si} , job{j} , digest{::move(d)       } , msg{::move(m)} { SWEAR( p==P::End                       ) ; }
-	JobRpcReq( P p , SI si , JI j ,                  ::string&& m={} ) : proc{p} , seq_id{si} , job{j} ,                            msg{::move(m)} { SWEAR( p==P::LiveOut                   ) ; }
+	JobRpcReq( P p , SI si , JI j ,                  ::string&& m    ) : proc{p} , seq_id{si} , job{j} ,                            msg{::move(m)} { SWEAR( p==P::LiveOut                   ) ; }
 	JobRpcReq( P p , SI si , JI j , MDD&&       ds                   ) : proc{p} , seq_id{si} , job{j} , digest{.deps=::move(ds)}                  { SWEAR( p==P::ChkDeps || p==P::DepInfos ) ; }
 	//
 	JobRpcReq( P p , SI si , JI j , ::string&& code , ::string&& f , ::string&& c              ) : proc{p} , seq_id{si} , job{j} , msg{code} , file{f} , ctx{c}               { SWEAR(p==P::Decode) ; }
@@ -446,6 +447,7 @@ struct JobRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
+			case P::None  : break ;
 			case P::Start :
 				::serdes(s,port) ;
 				::serdes(s,msg ) ;

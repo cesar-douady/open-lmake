@@ -5,6 +5,7 @@
 
 #include "config.hh"
 
+#include "codec.hh"
 #include "core.hh"
 
 using namespace Disk   ;
@@ -503,17 +504,26 @@ namespace Backends {
 			}
 			{	JobExec   je { job , New , New } ;                             // job starts and ends, no host
 				JobDigest jd { .status=status  } ;
-				if (status==Status::EarlyLostErr) {                                                                     // if we do not retry, record run info
-					JobInfoStart jis { .eta=eta , .submit_attrs=submit_attrs , .rsrcs=rsrcs , .host=conn.host       } ;
-					JobInfoEnd   jie { .end=JobRpcReq(JobProc::End,0,job,JobDigest(jd),::string(lost_report.first)) } ;
-					OFStream     os  { dir_guard(je->ancillary_file())                                              } ;
+				if (status==Status::EarlyLostErr) {                            // if we do not retry, record run info
+					JobInfoStart jis {
+						.eta          = eta
+					,	.submit_attrs = submit_attrs
+					,	.rsrcs        = rsrcs
+					,	.host         = conn.host
+					,	.pre_start    { JobProc::None , conn.seq_id , job }
+					,	.start        { JobProc::None                     }
+					} ;
+					JobInfoEnd jie {
+						.end { JobProc::End , conn.seq_id , job , ::copy(jd) , ::copy(lost_report.first) }
+					} ;
+					OFStream os { dir_guard(je->ancillary_file()) } ;
 					serialize( os , jis ) ;
 					serialize( os , jie ) ;
 				}
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report_now*/                                    ) ;
-				g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(rsrcs) , ::move(jd) , ::move(lost_report.first) ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report_now*/                                    ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(rsrcs) , ::move(jd) , ::move(lost_report.first) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				goto Next ;
 			}
 		Wakeup :
