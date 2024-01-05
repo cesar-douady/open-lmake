@@ -6,7 +6,7 @@
 #pragma once
 
 #include <netinet/ip.h>                // in_addr_t, in_port_t
-#include <signal.h>                    // SIG*, kill, killpg
+#include <signal.h>                    // SIG*, kill
 #include <sys/file.h>                  // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
 
 #include <cstring>                     // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
@@ -68,12 +68,13 @@ template<class T,class T0,class... Ts> struct IsOneOfHelper<T,T0,Ts...> { static
 template<class T> concept IsChar = ::is_trivial_v<T> && ::is_standard_layout_v<T> ; // necessary property to make a ::basic_string
 template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;                // provide default value if not a Char so as to make ::basic_string before knowing if it is possible
 
-template<class D,class B> concept IsA       = ::is_same_v<B,D> || ::is_base_of_v<B,D> ;
-template<class T        > concept IsNotVoid = !::is_void_v<T>                         ;
+template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
+template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
-template<class T> T copy(T const& x) { return x ; }
+template<class T> static inline constexpr T        copy    (T const& x) { return x ; }
+template<class T> static inline constexpr T const& constify(T const& x) { return x ; }
 
 //
 // std lib name simplification
@@ -97,8 +98,8 @@ template<        class V         > using map_s    = ::map          <string,V    
 /**/                               using set_s    = ::set          <       string  > ;
 
 // umap
-template<class K,class  V         > using umap     = ::unordered_map<K     ,V       > ;
-template<        class  V         > using umap_s   = ::umap         <string,V       > ;
+template<class K,class  V         > using umap    = ::unordered_map<K     ,V       > ;
+template<        class  V         > using umap_s  = ::umap         <string,V       > ;
 /**/                               using umap_ss  = ::umap_s       <       string  > ;
 
 // uset
@@ -310,14 +311,14 @@ static inline constexpr bool is_space(char c) {
 }
 
 // ::isprint is too high level as it accesses environment, which may not be available during static initialization
-static inline constexpr bool is_print(char c) {
+static inline constexpr bool is_printable(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
 
 template<char Delimiter=0>               ::string mk_printable(::string const&    ) ;
 template<char Delimiter=0> static inline ::string mk_printable(::string     && txt) {
-	for( char c : txt ) if ( !is_print(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
-	return ::move(txt) ;                                                                            // fast path : avoid analysis & copy
+	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
+	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
@@ -335,7 +336,7 @@ template<class... A> void append_to_string( ::string& dst , A const&... args ) {
 }
 
 template<char C='\t',size_t N=1> static inline ::string indent( ::string const& s , size_t i=1 ) {
-	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                     // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
+	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                                         // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
 	bool     sol = true ;
 	for( char c : s ) {
 		if (sol) for( size_t k=0 ; k<i*N ; k++ ) res += C ;
@@ -452,7 +453,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		busy = true ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<" :"<<t_thread_key<<':' ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<':'<<t_thread_key<<" :" ;
 		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
@@ -477,7 +478,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 
 template<class... A> [[noreturn]] static inline void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		crash( 1 , SIGABRT , "fail : " , args... ) ;
+		crash( 1 , SIGABRT , "fail @" , args... ) ;
 	#else
 		unreachable() ;
 	#endif
@@ -485,18 +486,18 @@ template<class... A> [[noreturn]] static inline void fail( A const&... args [[ma
 
 template<class... A> static inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation : " , args... ) ;
+		if (!cond) crash( 1 , SIGABRT , "assertion violation @ " , args... ) ;
 	#else
 		if (!cond) unreachable() ;
 	#endif
 }
 
 template<class... A> [[noreturn]] static inline void fail_prod( A const&... args ) {
-	crash( 1 , SIGABRT , "fail : " , args... ) ;
+	crash( 1 , SIGABRT , "fail @ " , args... ) ;
 }
 
 template<class... A> static inline constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation : " , args... ) ;
+	if (!cond) crash( 1 , SIGABRT , "assertion violation @ " , args... ) ;
 }
 
 #define _FAIL_STR2(x) #x
@@ -506,10 +507,13 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 
-static inline bool/*done*/ kill_process(              pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid) ; return ::kill  (pid,sig)==0 ; } // ensure no system wide catastrophe !
-static inline bool/*done*/ kill_group  (              pid_t pid,int sig) { swear_prod(pid>1,"killing process ",pid) ; return ::killpg(pid,sig)==0 ; } // .
-static inline bool/*done*/ kill_process(bool as_group,pid_t pid,int sig) { return as_group ? kill_group(pid,sig) : kill_process(pid,sig) ;          }
-static inline bool/*done*/ kill_self   (                        int sig) { return kill_process(::getpid(),sig)                           ;          } // raise kills the thread, not the process
+static inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
+	swear_prod(pid>1,"killing process ",pid) ;                                         // ensure no system wide catastrophe !
+	bool proc_killed  =             ::kill( pid,sig)==0 ;                              // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
+	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                              // kill group if asked so, whether proc was killed or not
+	return proc_killed || group_killed ;
+}
+static inline bool/*done*/ kill_self(int sig) { return kill_process(::getpid(),sig) ; } // raise kills the thread, not the process
 
 //
 // vector_view
@@ -907,9 +911,16 @@ private :
 // string
 //
 
-template<char Delimiter> ::string mk_printable(::string const& s) {
-	static_assert( (Delimiter<'a'||Delimiter>'z') && Delimiter!='\\' && (!Delimiter||is_print(Delimiter)) ) ; // ensure delimiter does not clash with encoding
-	::string res ; res.reserve(s.size()) ;                                                                    // typically, all characters are printable and nothing to add
+static constexpr bool _can_be_delimiter(char c) {                              // ensure delimiter does not clash with encoding
+	if ( c=='\\'          ) return false ;
+	if ( 'a'<=c && c<='z' ) return false ;
+	if ( '0'<=c && c<='9' ) return false ;
+	/**/                    return true  ;
+}
+// guarantees that result contains only printable characters and no Delimiter
+template<char Delimiter> ::string mk_printable(::string const& s) {            // encode s so that it is printable and contains no delimiter
+	static_assert(_can_be_delimiter(Delimiter)) ;
+	::string res ; res.reserve(s.size()) ;                                     // typically, all characters are printable and nothing to add
 	for( char c : s ) {
 		switch (c) {
 			case '\a' : res += "\\a"  ; break ;
@@ -921,48 +932,41 @@ template<char Delimiter> ::string mk_printable(::string const& s) {
 			case '\t' : res += "\\t"  ; break ;
 			case '\v' : res += "\\v"  ; break ;
 			case '\\' : res += "\\\\" ; break ;
-			case Delimiter :
-				if (Delimiter) { res += '\\'    ; res += Delimiter ; }         // protect delimiter
-				else           { res += "\\x00" ;                    }         // no delimiter, use default encoding
-			break ;
 			default   :
-				if (is_print(c)) res +=                                                            c   ;
-				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+				if ( is_printable(c) && c!=Delimiter ) res +=                                                            c   ;
+				else                                   res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	return res ;
 }
-
-template<char Delimiter> ::pair_s<size_t> parse_printable( ::string const& s , size_t pos ) {
-	static_assert( (Delimiter<'a'||Delimiter>'z') && Delimiter!='\\' && (!Delimiter||is_print(Delimiter)) ) ; // ensure delimiter does not clash with encoding
+// stop at Delimiter or any non printable char
+template<char Delimiter> ::pair_s<size_t/*end_pos*/> parse_printable( ::string const& s , size_t pos ) {
+	static_assert(_can_be_delimiter(Delimiter)) ;
 	SWEAR(pos<=s.size(),s,pos) ;
-	::string res ; res.reserve(s.size()) ;                                     // string can only shrink and typically does not
-	const char* start = s.c_str()+pos ;
-	for( const char* p=start ; *p ; p++ )
-		if      (*p==Delimiter) return {res,p-start} ;
-		else if (*p!='\\'     ) res += *p ;
-		else {
-			p++ ;
-			switch (*p) {
-				case 'a'  : res += '\a' ; break ;
-				case 'b'  : res += '\b' ; break ;
-				case 'e'  : res += 0x1b ; break ;
-				case 'f'  : res += '\f' ; break ;
-				case 'n'  : res += '\n' ; break ;
-				case 'r'  : res += '\r' ; break ;
-				case 't'  : res += '\t' ; break ;
-				case 'v'  : res += '\v' ; break ;
-				case '\\' : res += '\\' ; break ;
-				case 'x' :
-					p++ ;
-					res += char(from_chars<uint8_t>(::string_view(p,2),false/*empty_ok*/,true/*hex*/)) ;
-					p += 2 ;
-				break ;
+	::string res ;
+	const char* start = s.c_str() ;
+	const char* p     = nullptr/*garbage*/ ;
+	for( p=start+pos ; *p ; p++ )
+		if      (*p==Delimiter    ) break/*for*/ ;
+		else if (!is_printable(*p)) break/*for*/ ;
+		else if (*p!='\\'         ) res += *p ;
+		else
+			switch (*++p) {
+				case 'a'  : res += '\a' ; break/*switch*/ ;
+				case 'b'  : res += '\b' ; break/*switch*/ ;
+				case 'e'  : res += 0x1b ; break/*switch*/ ;
+				case 'f'  : res += '\f' ; break/*switch*/ ;
+				case 'n'  : res += '\n' ; break/*switch*/ ;
+				case 'r'  : res += '\r' ; break/*switch*/ ;
+				case 't'  : res += '\t' ; break/*switch*/ ;
+				case 'v'  : res += '\v' ; break/*switch*/ ;
+				case '\\' : res += '\\' ; break/*switch*/ ;
+				//
+				case 'x'  : res += char(from_chars<uint8_t>(::string_view(p+1,2),false/*empty_ok*/,true/*hex*/)) ; p += 2 ; break/*switch*/ ;
+				//
 				default : throw "illegal \\ code"s ;
 			}
-		}
-	if (Delimiter) throw "cannot find delimiter"s ;
-	else           return {res,s.size()-pos}      ;
+	return {res,p-start} ;
 }
 
 static constexpr inline int _unit_val(char u) {

@@ -169,7 +169,7 @@ namespace Engine::Persistent {
 		if (              d>ConfigDiff::Static  && g_config.booted ) throw "repo must be clean"s  ;
 		if (  dynamic &&  d>ConfigDiff::Dynamic                    ) throw "repo must be steady"s ;
 		//
-		if (  dynamic && !d                                        ) return ;  // fast path, nothing to update
+		if (  dynamic && !d                                        ) return ;                           // fast path, nothing to update
 		//
 		/**/                                                         Config old_config = g_config ;
 		if (             +d                                        ) g_config = ::move(config) ;
@@ -179,13 +179,13 @@ namespace Engine::Persistent {
 		if (             +d                                        ) _diff_config(old_config,dynamic) ;
 		if (  dynamic                                              ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
 		trace("done",Pdate::s_now()) ;
-		SWEAR(g_config.booted,g_config) ;                                      // we'd better have a config at the end
+		if (!g_config.booted) throw "no config available"s ;                                            // we'd better have a config at the end
 	}
 
 	void _compile_rule_datas() {
 		::vector<Rule> rules = rule_lst() ;
-		RuleData::s_name_sz = "no_rule"s.size() ;                              // account for internal names
-		_rule_datas.clear() ;                                                  // clearing before resize ensure all unused entries are clean
+		RuleData::s_name_sz = "no_rule"s.size() ;                       // account for internal names
+		_rule_datas.clear() ;                                           // clearing before resize ensure all unused entries are clean
 		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) {
 			grow(_rule_datas,+s) = RuleData(s)                                               ;
 			RuleData::s_name_sz = ::max( RuleData::s_name_sz , _rule_datas[+s].name.size() ) ;
@@ -204,13 +204,13 @@ namespace Engine::Persistent {
 			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
-		if (pos==0) return StartMrkr+str ;                                     // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos)            ;                        // suppress stem marker & stem idx
+		if (pos==0) return StartMrkr+str   ; // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos) ; // suppress stem marker & stem idx
 	}
 	// return prefix before first stem (empty if no stem)
 	static ::string _parse_pfx(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ;                              // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ; // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
 	struct Rt : RuleTgt {
@@ -421,35 +421,36 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( ::vector_s&& src_names , ::vector_s&& src_dir_names_s ) {
-		::map<Node,bool/*dir*/> srcs         ;                                                            // use ordered map/set to ensure stable execution
-		::map<Node,bool/*dir*/> old_srcs     ;                                                            // .
-		::map<Node,bool/*dir*/> new_srcs_    ;                                                            // .
-		::set<Node            > src_dirs     ;                                                            // .
-		::set<Node            > old_src_dirs ;                                                            // .
-		::set<Node            > new_src_dirs ;                                                            // .
+	bool/*invalidate*/ new_srcs( ::vmap_s<FileTag>&& src_names , ::vector_s&& src_dir_names_s ) {
+		::map<Node,FileTag    > srcs         ;                                                    // use ordered map/set to ensure stable execution
+		::map<Node,FileTag    > old_srcs     ;                                                    // .
+		::map<Node,FileTag    > new_srcs_    ;                                                    // .
+		::set<Node            > src_dirs     ;                                                    // .
+		::set<Node            > old_src_dirs ;                                                    // .
+		::set<Node            > new_src_dirs ;                                                    // .
 		Trace trace("new_srcs") ;
 		// format inputs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs) ;
+		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;               // dont care whether we delete a regular file or a link
 		//
-		for( ::string const& sn : src_names       )                   srcs.emplace( Node(sn                      ) , false/*dir*/ ) ;
-		for( ::string      & sn : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , true /*dir*/ ) ; } // external src dirs need no uphill dir
+		for( auto const& [sn,t] : src_names       )                   srcs.emplace( Node(sn                      ) , t                   ) ;
+		for( ::string&    sn    : src_dir_names_s ) { sn.pop_back() ; srcs.emplace( Node(sn,!is_lcl(sn)/*no_dir*/) , FileTag::Dir/*dir*/ ) ; } // external src dirs need no uphill dir
 		//
-		for( auto [n,d] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ; // non-local nodes have no dir
-		for( auto [n,d] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ; // .
+		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                    // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                    // .
 		// check
-		for( auto [n,d] : srcs ) {
+		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
-			::string nn_s = n->name()+'/' ;
-			for( ::string const& sn : src_names )
-				if ( sn.starts_with(nn_s) ) throw to_string("source ",(d?"dir ":""),n->name()," is a dir of ",sn) ;
-			FAIL(n->name(),"is a source dir of no source") ;
+			::string nn   = n->name() ;
+			::string nn_s = nn+'/'    ;
+			for( auto const& [sn,_] : src_names )
+				if ( sn.starts_with(nn_s) ) throw to_string("source ",(t==FileTag::Dir?"dir ":""),nn," is a dir of ",sn) ;
+			FAIL(nn,"is a source dir of no source") ;
 		}
 		// compute diff
-		for( auto nd : srcs ) {
-			auto it = old_srcs.find(nd.first) ;
-			if (it==old_srcs.end()) new_srcs_.insert(nd) ;
-			else                    old_srcs.erase (it)  ;
+		for( auto nt : srcs ) {
+			auto it = old_srcs.find(nt.first) ;
+			if (it==old_srcs.end()) new_srcs_.insert(nt) ;
+			else                    old_srcs .erase (it) ;
 		}
 		//
 		for( Node d : src_dirs ) { if (old_src_dirs.contains(d)) old_src_dirs.erase(d) ; else new_src_dirs.insert(d) ; }
@@ -457,28 +458,28 @@ namespace Engine::Persistent {
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs_.size()) ;
 		// commit
 		for( bool add : {false,true} ) {
-			::map<Node,bool/*dir*/> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>                 ss   ; ss.reserve(srcs.size()) ;           // typically, there are very few src dirs
-			::vector<Node>                 sds  ;                                     // .
-			for( auto [n,d] : srcs ) if (d) sds.push_back(n) ; else ss.push_back(n) ;
+			::map<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
+			::vector<Node>             ss   ; ss.reserve(srcs.size()) ;                             // typically, there are very few src dirs
+			::vector<Node>             sds  ;                                                       // .
+			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;
 			Node::s_srcs(true /*dirs*/,add,sds) ;
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		{	Trace trace2 ;
-			for( auto [n,d] : old_srcs     ) { Node(n)->mk_no_src()                                ; trace2('-',d?"dir":"",n) ; }
-			for( Node  d    : old_src_dirs )        d ->mk_no_src()                                ;
-			for( auto [n,d] : new_srcs_    ) { Node(n)->mk_src(d?Buildable::SrcDir:Buildable::Src) ; trace2('+',d?"dir":"",n) ; }
-			for( Node  d    : new_src_dirs )        d ->mk_src(Buildable::Anti                   ) ;
+			for( auto [n,t] : old_srcs     ) { Node(n)->mk_no_src()           ; trace2('-',t==FileTag::Dir?"dir":"",n) ; }
+			for( Node  d    : old_src_dirs )        d ->mk_no_src()           ;
+			for( auto [n,t] : new_srcs_    ) { Node(n)->mk_src(t            ) ; trace2('+',t==FileTag::Dir?"dir":"",n) ; }
+			for( Node  d    : new_src_dirs )        d ->mk_src(FileTag::None) ;
 		}
 		_compile_srcs() ;
 		// user report
 		{	OFStream srcs_stream{AdminDir+"/manifest"s} ;
-			for( auto [n,d] : srcs ) srcs_stream << n->name() << (d?"/":"") <<'\n' ;
+			for( auto [n,t] : srcs ) srcs_stream << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
-		return+!old_srcs || +new_srcs_ ;
+		return +!old_srcs || +new_srcs_ ;
 	}
 
 	void _set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) {

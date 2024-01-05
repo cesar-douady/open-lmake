@@ -476,6 +476,10 @@ Job names are the names that appear, for example, on start and done lines when @
 This is necessary when the job name is ambiguous as several rules may lead to the same job name.
 @item @code{-q}|@code{--quiet} : Do not generate user oriented messages.Strictly generate what is asked.
 This is practical if output is meant for automatic processing such as executing the output of @code{lshow -s}.
+@item @code{-V}|@code{--video} : Explicitly ask for a video mode instead of interrogating connected terminal.
+If argument start with @code{n} or @code{N}, output is assumed to be normal video (black on white).
+If it starts with @code{r} or @code{R}, reverse video is assumed.
+Else output is not colorized.
 @end itemize
 
 @section @lmake
@@ -917,6 +921,33 @@ The following options are supported :
 @item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
 @end itemize
 
+@section @code{ldecode}
+
+Usage : @code{ldecode association_file context code}
+
+@code{ldecode} may be used to ask for a value (typically rather large) associated with a short code.
+This must have been generated using the command @code{lencode} with the same association_file and context.
+The value corresponding to the code is output on @code{stdout}.
+It is an error if
+@itemize @minus
+@item association_file is not a source (symbolic links are followed, though).
+@item code cannot be found with the accompanying context
+@end itemize
+Usage and use cases are more extensively documented in @xref{codec}.
+
+@section @code{lencode}
+
+Usage : @code{lencode association_file context [min_length]}
+
+@code{lencode} may be used to create or retrieve an association between a value (typically rather large) and a short code.
+This association must be done before @code{ldecode} is called with the code to retrieve the corresponding value.
+
+The value must be passed to @code{stdin}.
+The generated or retrieved code corresponding to the value is output on @code{stdout}.
+If generated, the code is generated after a checksum computed on the passed value in hexadecimal, with a length at least min_length, but may be longer in case of conflict.
+It is an error if association_file is not a source (symbolic links are followed, though).
+Usage and use cases are more extensively documented in @xref{codec}.
+
 
 @chapter The Python @lmake module
 
@@ -1017,10 +1048,16 @@ The correspondance is :
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
 @item @code{def target(*files,unlink=False,follow_symlinks=True,crc,dep,essential,phony,source_ok,stat,write)}
-@code{ltarget}.
+@code{ltarget}
 When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
+@item @code{def decode(file,context,code)}
+@code{ldecode}
+The return value is the value associated with code.
+@item @code{def encode(file,context,value,min_len=1)}
+@code{lencode}
+The return value is the generated of retrieved code.
 @end table
 
 @section The @code{lmake.rules} module
@@ -3017,6 +3054,93 @@ This way, the flow shown above works as expected.
 
 This seems like an awkward situation, but is common practice in the CAD tools domain.
 
+@anchor{codec}
+@section Encoding and decoding
+
+In some situations with heavily parameterized generated files, file names can become very long.
+Think of the mere compilation of a C++ file @file{foo.c}. You may want to specify :
+@itemize
+@item the optimization level through a -@code{-O} argument
+@item Whether debug checks are enable through the definition of @code{NDEBUG}
+@item a trace level through the definition of a macro such as @code{TRACE_LEVEL}
+@item whether and how to instrument with @code{-fsanitize}
+@item whether some internal data are 32 or 64 bits
+@item whether to use a reference algorithm or an agressively optimized one used in production.
+@item ...
+@end itemize
+You may want to be able to generate any combination so as, for example, compare the output of any 2 of them for validation purpose.
+You easily end up with an object file with a name such as @file{foo.O3.NDEBUG.TRACE_LEVEL=1.sanitize=address.32.o}.
+Already 50 characters or so.
+In a real projects, file names can easily be 200, 300, 400 characters long.
+
+As long as the file name, with adequate shorthands such as using @code{TL} instead of @code{TRACE_LEVEL} fits within a few hundreds of characters, the situation is heavy but manageable.
+But if you need, say 3000 characters to specify a file, then it becomes completely impractical.
+
+When the configuration can be devised in advance, in a stable way, an efficient alternative is to create a file to contain it, which becomes a configuration name,
+and just specify the configuration name in the generated file.
+
+In the example above, you may have a file @file{test.opts} that contains options for testing and @file{prod.opts} that contains options for production.
+then, your object file is simply named @file{foo.test.o} or @file{foo.prod.o}.
+
+When it is not, the situation is more complex and you need to automatically generate these configuration files with reasonably short names.
+A practical and stable way to generate short names is to compute a checksum on the parameters.
+You then need a way to retrieve the original parameters from the checksum to generate the generated file (the @file{.o} file in our example).
+In doing so, you must account for :
+@itemize @minus
+@item robustness    : because such checksums are subject to the birthday paradox, you need either to deal with collisions are provide enough margin (roughly doubling the size) to avoid them.
+@item repeatability : your system must not prevent you from being able to repeat a scenario that was generated some days, weeks, months earlier.
+@item merging       : when you invent a name, think that some colleagues working on the same project may also invent names, and they may collide.
+Tools such as @code{git} are there to help you in this process, but your scheme must be git friendly.
+@item performance   : you must have a scheme that support as many code/value associations as necessary for your case, without spending most of its time searching for value when given a code.
+@item communication : ideally, you may want to signal a bug to a colleague by just telling him "build that target, and you see the bug".
+If the target refers to a code, he may need some further steps to create the code/value association, which goes against communication.
+@end itemize
+
+One way to deal with this case is to create a central database, with the following pros and cons :
+@itemize @minus
+@item robustness    : collisions can easily be dealt with.
+@item repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repository because the database is not itself versioned. This is a serious problem.
+@item merging       : no merging.
+@item perfomance    : accessing the data in a performant way is easy. Detecting modifications so that @lmake can take sound decisions may be more challenging.
+@item communication : excellent, the database is shared
+@item installation  : you need a server, configure clients to connect to it, etc. it is some work
+@item maintainance  : as any central services, you may inadvertently enter wrong data, you need a way to administer it as it has the potential to block the whole team.
+@end itemize
+
+The @code{lencode}/@code{ldecode} commands (or the @code{lmake.encode}/@code{lmake.decode} fonctions) are there to address this question.
+
+The principle of opeartion is the following :
+@itemize @minus
+@item There are a certain number of files storing code/value associations. These are sources seen from @lmake, i.e. they are normally managed by @code{git}.
+@item To keep the number of such files to a reasonably low level (say low compared to the overal number of sources), there are contexts, mostly used as a subdivision of files
+@item So, a file provides a certain number of tables (the contexts), each table associating some codes with some values
+@item These tables are stored in files as lines containing triplet : context, code, value
+@item When reading, @code{lencode}/@code{ldecode} are very flexible. The files may contain garbage lines, duplicates, collisions, they are all ignored.
+When 2 values are associated with the same code by 2 different lines, a new code is generated by lenghtening one of them with further digites of the checksum computed on the value.
+When 2 codes are associated with the same value by 2 different lines, only one code is retained, the shorter of the 2 (or any if of equal length).
+@item When writing, @code{lencode}/@code{ldecode} are very rigid. File is generated sorted, with no garbage lines, nor duplicates, or collisions.
+@item When @lmake starts and read a file, it write it back in its canonical form.
+@item When @lmake runs, that @code{lencode} is used and generate new codes on the fly, additional lines are merely appended to the file.
+@end itemize
+
+This has the following properties :
+@itemize @minus
+@item Information is under git. No further server, central database, management, configuration etc.
+@item repeatability is excellent. As long as you do not merge, your are insensitive to external activities.
+When merging, the probability of collision depends on the length of the used codes, which is under user control.
+Moreover, the length increasing automatically with collisions maintain the number of such collision to a reasonably low level, even in fully automatic mode.
+@item Merging is very easy : actually one need not even merge. The simple collision file generated by @code{git} can be used as is. This makes this tool very @code{git} friendly.
+@item Robustness is perfect : collisions are detected and dealt with.
+@item Coherence is perfect : seen from @lmake, each association is managed as a source.
+If anything changes (i.e. a new value is associated with an old code or a new code is associated with an old value), the adequate jobs are rerun.
+@item Performance is very good as the content of the file is cached in a performance friendly format by @lmake. And update to the file is done by a simple append.
+However, the file is sorted at every @lmake command, making the content more rigid and the merge process easier.
+@item Associations files can be editing by hand, so that human friendly codes may be associated to some heavily used values.
+@code{lencode} will only generate codes from checksums, but will handle any code generated externally (manually or otherwise).
+In case of collision and when @lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
+If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.
+@end itemize
+
 @chapter FAQ
 
 @section How do I prevent @lmake to set dependencies to a given directory
@@ -3060,6 +3184,8 @@ class Gcc(lmake.Rule) :
 @chapter Glossary
 
 @table @asis
+@item Birthday paradox
+This is a wellknown counter intuitive problem linked to checksum collision. It is extensively described there : https://en.wikipedia.org/wiki/Birthday_problem
 @item CAD
 Computer Aided Design.
 A domain used to produce various objects, in partiulcar integrated ciruits, characterized by heavy processing and complex flows.

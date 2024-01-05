@@ -73,6 +73,7 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	SourceOk                           // if proc==                  Make               , allow lmake to overwrite source files
 ,	Targets                            // if proc==         Forget                      , forget targets
 ,	Verbose                            // if proc==                  Make        | Show , generate generous output
+,	Video                              //                                               , assume output video : n(ormal), r(everse) or f(ile)
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -81,9 +82,10 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs    ) : ReqSyntax{{},fs} {}
 	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs={} ) : Syntax   {ks,fs} {
 		// add standard options
-		flags[+ReqFlag::Quiet] = { .short_name='q' , .has_arg=false , .doc="do not generate user oriented messages"  } ;
-		flags[+ReqFlag::Job  ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"    } ;
-		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job" } ;
+		flags[+ReqFlag::Quiet] = { .short_name='q' , .has_arg=false , .doc="do not generate user oriented messages"              } ;
+		flags[+ReqFlag::Job  ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"                } ;
+		flags[+ReqFlag::Rule ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"             } ;
+		flags[+ReqFlag::Video] = { .short_name='V' , .has_arg=true  , .doc="assume output video : n(ormal), r(everse) or f(ile)" } ;
 	}
 
 } ;

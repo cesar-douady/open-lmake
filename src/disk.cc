@@ -228,7 +228,7 @@ namespace Disk {
 		const char* msg   = nullptr ;
 		int         res   = 0       ;
 		while (+to_mk) {
-			::string const& d = to_mk.back() ;                                     // parents are after children in to_mk
+			::string const& d = to_mk.back() ;                                 // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d) ; }
 			if (::mkdirat(at,d.c_str(),0777)==0) {
 				res++ ;
@@ -338,7 +338,7 @@ namespace Disk {
 		return os << "SolveReport(" << sr.real <<','<< sr.kind <<','<< sr.lnks <<')' ;
 	}
 
-	void RealPath::init( RealPathEnv const& rpe , pid_t p ) {
+	void RealPath::init( RealPathEnv const& rpe , ::string&& cwd , pid_t p ) {
 		/**/           SWEAR( is_abs(rpe.root_dir) , rpe.root_dir ) ;
 		/**/           SWEAR( is_abs(rpe.tmp_dir ) , rpe.tmp_dir  ) ;
 		if (+tmp_view) SWEAR( is_abs(rpe.tmp_view) , rpe.tmp_view ) ;
@@ -346,11 +346,11 @@ namespace Disk {
 		static_cast<RealPathEnv&>(*this) = rpe ;
 		pid                              = p   ;
 		//
-		/**/               cwd_         = pid ? read_lnk(to_string("/proc/",pid,"/cwd")) : cwd() ;
-		/**/               _admin_dir   = to_string(root_dir,'/',AdminDir)                       ;
-		/**/               has_tmp_view = +tmp_view                                              ;
-		if (!tmp_dir     ) tmp_dir      = get_env("TMPDIR",P_tmpdir)                             ;
-		if (!has_tmp_view) tmp_view     = tmp_dir                                                ;
+		/**/               cwd_         = cwd                              ;
+		/**/               _admin_dir   = to_string(root_dir,'/',AdminDir) ;
+		/**/               has_tmp_view = +tmp_view                        ;
+		if (!tmp_dir     ) tmp_dir      = get_env("TMPDIR",P_tmpdir)       ;
+		if (!has_tmp_view) tmp_view     = tmp_dir                          ;
 		//
 		for ( ::string const& sd_s : src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,root_dir)) ;
 	}
@@ -365,7 +365,6 @@ namespace Disk {
 	// strong performance efforts have been made :
 	// - avoid ::string copying as much as possible
 	// - do not support links outside repo & tmp, except from /proc (which is meaningful)
-	// - cache links to avoid superfluous syscalls (unfortunately, this cache cannot be shared betweewn processes)
 	// - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
 	static inline int _get_symloop_max() {                                     // max number of links to follow before decreting it is a loop
 		int res = ::sysconf(_SC_SYMLOOP_MAX) ;

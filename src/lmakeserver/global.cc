@@ -14,7 +14,7 @@ namespace Engine {
 
 	static inline ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
-			SWEAR(!sep) ;                                                      // cannot have a sep if we have no room to put it
+			SWEAR(!sep) ;      // cannot have a sep if we have no room to put it
 			return ::move(t) ;
 		}
 		::string res = indent<' ',2>(t,l) ;
@@ -22,17 +22,19 @@ namespace Engine {
 		return res ;
 	}
 
-	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , DepDepth lvl , char sep ) {
+	void audit( Fd out_fd, ::ostream& log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep ) {
 		if (!txt) return ;
 		//
-		::string report_txt  = color_pfx(ro,c)                              ;
-		/**/     report_txt += ensure_no_nl(localize(txt,ro.startup_dir_s)) ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
-		/**/     report_txt += color_sfx(ro,c)                              ;
-		/**/     report_txt += '\n'                                         ;
+		::string   report_txt  = color_pfx(ro,c)                              ;
+		if (as_is) report_txt += ensure_no_nl(         txt                  ) ;
+		else       report_txt += ensure_no_nl(localize(txt,ro.startup_dir_s)) ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
+		/**/       report_txt += color_sfx(ro,c)                              ;
+		/**/       report_txt += '\n'                                         ;
 		//
 		// if we lose connection, there is nothing much we can do about it (hoping that we can still trace)
-		try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl,sep)) ) ;         } catch (::string const& e) { Trace("audit","lost_client",e) ; }
-		try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
+		/**/       try { OMsgBuf().send( out_fd , ReqRpcReply(_audit_indent(::move(report_txt)         ,lvl,sep)) )         ; } catch (::string const& e) { Trace("audit","lost_client",e) ; }
+		if (as_is) try { log <<                               _audit_indent(ensure_nl(         txt    ),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
+		else       try { log <<                               _audit_indent(ensure_nl(localize(txt,{})),lvl,sep) << ::flush ; } catch (::string const& e) { Trace("audit","lost_log"   ,e) ; }
 	}
 
 	//
@@ -91,7 +93,7 @@ namespace Engine {
 					try {
 						addr = ServerSockFd::s_addr(v) ;
 						continue ;
-					} catch (::string const&) {}                               // if we cannot interpret interface, leave decision to backend what to do
+					} catch (::string const&) {} // if we cannot interpret interface, leave decision to backend what to do
 				}
 				dct.emplace_back(field,v) ;
 			}
@@ -102,11 +104,11 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Py::Mapping const& py_map) : booted{true} {                 // if config is read from makefiles, it is booted
-		db_version = Version::Db ;                                             // record current version
+	Config::Config(Py::Mapping const& py_map) : booted{true} { // if config is read from makefiles, it is booted
+		db_version = Version::Db ;                             // record current version
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "hash_algo"        ; if (py_map.hasKey(fields[0])) hash_algo             = mk_enum<Hash::Algo>                   (Py::String(py_map[fields[0]]))               ;
+			fields[0] = "hash_algo"        ; if (py_map.hasKey(fields[0])) hash_algo             = mk_enum<Algo>                         (Py::String(py_map[fields[0]]))               ;
 			fields[0] = "local_admin_dir"  ; if (py_map.hasKey(fields[0])) user_local_admin_dir  =                                        Py::String(py_map[fields[0]])                ;
 			fields[0] = "heartbeat"        ; if (py_map.hasKey(fields[0])) heartbeat             = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
 			fields[0] = "heartbeat_tick"   ; if (py_map.hasKey(fields[0])) heartbeat_tick        = py_map[fields[0]].isTrue()?Time::Delay(Py::Float (py_map[fields[0]])):Time::Delay() ;
@@ -154,7 +156,7 @@ namespace Engine {
 				for( auto const& [py_key,py_val] : py_n_tokens_tab ) {
 					fields[1] = Py::String(py_key) ;
 					size_t v = Py::Long(py_val) ;
-					if (v) static_n_tokenss[fields[1]] = v ;                   // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+					if (v) static_n_tokenss[fields[1]] = v ; // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 				}
 			}
 			//
@@ -243,8 +245,8 @@ namespace Engine {
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
 			}
-			reliable_dirs    = true ;                                          // all backends are local, dirs are necessarily reliable
-			console.host_len = 0    ;                                          // host has no interest if all jobs are local
+			reliable_dirs    = true ; // all backends are local, dirs are necessarily reliable
+			console.host_len = 0    ; // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
@@ -282,7 +284,7 @@ namespace Engine {
 		if (+caches) {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,cache] : caches ) {
-				size_t w = 3 ;                                                 // room for tag
+				size_t w = 3 ;                                               // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<"\t\t"<< key <<" :\n" ;
 				/**/                                 res <<"\t\t\t"<< ::setw(w)<<"tag" <<" : "<< cache.tag <<'\n' ;
@@ -325,15 +327,15 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (!bbe                          ) continue ;                     // not implemented
-			if (!be.configured                ) continue ;                     // not configured
+			if (!bbe                          ) continue ;                // not implemented
+			if (!be.configured                ) continue ;                // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< mk_snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
 				continue ;
 			}
 			res <<"\t\t"<< mk_snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
-			size_t w = 9 ;                                                     // room for interface
+			size_t w = 9 ;                                                // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
 			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
@@ -356,9 +358,7 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		static ::string repo_key ;
 		if (!repo_key) {
-			Hash::Xxh key_hash ;
-			key_hash.update(*g_root_dir) ;
-			repo_key = '/' + ::string(::move(key_hash).digest()) ;
+			repo_key = '/' + ::string(Xxh(*g_root_dir).digest()) ;
 		}
 		//
 		local_admin_dir  = +user_local_admin_dir  ? user_local_admin_dir  + repo_key : PrivateAdminDir+"/local_admin"s  ;
@@ -370,14 +370,14 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N )
 			if (Backends::Backend::s_ready(t))
 				for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
-					if (v) dyn_n_tokenss[to_string(mk_snake(k),'.',k)] = v ;   // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+					if (v) dyn_n_tokenss[to_string(mk_snake(k),'.',k)] = v ;                                 // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//
 		Caches::Cache::s_config(caches) ;
 		// check non-local backends have non-local addresses
 		for( BackendTag t : BackendTag::N ) {
-			if (!Backends::Backend::s_ready(t)) continue ;                     // backend is not supposed to be used
+			if (!Backends::Backend::s_ready(t)) continue ;                                                   // backend is not supposed to be used
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 			if (bbe->is_local()    ) continue ;
@@ -396,7 +396,7 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , EngineClosureReq const& ecr ) {
 		os << "Req(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
-			case ReqProc::Debug  :                                             // PER_CMD : format for tracing
+			case ReqProc::Debug  : // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Make   :
@@ -437,7 +437,7 @@ namespace Engine {
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
 		RealPath       real_path {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                 // typically, there is no bads
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                            // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
 			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                            // we may refer to a symbolic link

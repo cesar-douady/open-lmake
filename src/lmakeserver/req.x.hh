@@ -69,12 +69,12 @@ namespace Engine {
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
 		static SmallIds<ReqIdx > s_small_ids     ;
-		static ::vector<Req>     s_reqs_by_start ;         // INVARIANT : ordered by item->start
+		static ::vector<Req>     s_reqs_by_start ; // INVARIANT : ordered by item->start
 		//
-		static ::mutex           s_reqs_mutex ;            // protects s_store, _s_reqs_by_eta as a whole
+		static ::mutex           s_reqs_mutex ;    // protects s_store, _s_reqs_by_eta as a whole
 		static ::vector<ReqData> s_store      ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;              // INVARIANT : ordered by item->stats.eta
+		static ::vector<Req> _s_reqs_by_eta ;      // INVARIANT : ordered by item->stats.eta
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -118,7 +118,6 @@ namespace Engine {
 		JobIdx cur   () const { JobIdx res = 0 ; for( JobLvl    i : JobLvl::N    ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
 		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
-		Time::Pdate start                  ;
 		Time::Delay jobs_time[2/*useful*/] ;
 	private :
 		JobIdx _cur  [+JobLvl::Done+1-(+JobLvl::None+1)] = {} ;
@@ -240,26 +239,25 @@ namespace Engine {
 		// services
 		void audit_summary(bool err) const ;
 		//
-		void audit_info( Color c , ::string const& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , to_string(t,' ',Disk::mk_file(lt)) , l ) ; }
-		void audit_info( Color c , ::string const& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , t                                  , l ) ; }
-		void audit_node( Color c , ::string const& p , Node n             , DepDepth l=0 ) const ;
+		#define SC ::string const
+		//                                                                                                                                                                     as_is
+		void audit_info      ( Color c , SC& t , ::string const& lt , DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c , to_string(t,' ',Disk::mk_file(lt)) , false , l ) ; }
+		void audit_info      ( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c ,           t                        , false , l ) ; }
+		void audit_info_as_is( Color c , SC& t ,                      DepDepth l=0 ) const { audit( audit_fd , log_stream , options , c ,           t                        , true  , l ) ; }
+		void audit_node      ( Color c , SC& p , Node n             , DepDepth l=0 ) const ;
 		//
-		#define S ::string
-		void audit_job( Color , Pdate , S const& step , S const& rule_name , S const& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , S const& step , Job                                    , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
-		void audit_job( Color , Pdate , S const& step , JobExec const&                                                     , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
+		void audit_job( Color , Pdate , SC& step , JobExec const&                                           , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , S const& s , S const& rn , S const& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , S const& s , Job j                     , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,j    ,h,et) ; }
-		void audit_job( Color c , S const& s , JobExec const& je , bool at_end=false              , Delay et={} ) const { audit_job(c,at_end?je.end_:je.start_,s,je     ,et) ; }
-		#undef S
+		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,j    ,h,et) ; }
+		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_:je.start_,s,je     ,et) ; }
+		#undef SC
 		//
-		void         audit_status( bool ok                                                                                                                              ) const ;
-		void         audit_stats (                                                                                                                                      ) const ;
-		bool/*seen*/ audit_stderr( ::string const& backend_msg , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
-		bool/*seen*/ audit_stderr(                               ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const {
-			return audit_stderr( {}/*backend_msg*/ , stderr , max_stderr_lines , lvl ) ;
-		}
+		void         audit_status( bool ok                                                                                    ) const ;
+		void         audit_stats (                                                                                            ) const ;
+		bool/*seen*/ audit_stderr( ::string const& msg , ::string const& stderr , size_t max_stderr_lines=-1 , DepDepth lvl=0 ) const ;
 	private :
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
 		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
@@ -277,7 +275,8 @@ namespace Engine {
 		OFStream mutable     log_stream     ;                                  // saved output
 		Job      mutable     last_info      ;                                  // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
-		Ddate                start          ;
+		Ddate                start_ddate    ;
+		Pdate                start_pdate    ;
 		Delay                ete            ;                                  // Estimated Time Enroute
 		Pdate                eta            ;                                  // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;                                  // number of jobs participating to stats.ete with exec_time from rule

@@ -28,12 +28,13 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
+	JobExecRpcReq jerr {
 		JobExecRpcProc::Decode
 	,	::move(cmd_line.flag_args[+Flag::File   ])
 	,	::move(cmd_line.flag_args[+Flag::Code   ])
 	,	::move(cmd_line.flag_args[+Flag::Context])
-	) ) ;
+	} ;
+	JobExecRpcReply reply = AutodepSupport(New).req(jerr) ;
 	if (reply.ok==Yes) { ::cout<<reply.txt ; return 0 ; }
 	else               { ::cerr<<reply.txt ; return 1 ; }
 }

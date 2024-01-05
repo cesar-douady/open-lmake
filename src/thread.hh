@@ -34,7 +34,6 @@ public :
 	T pop() {
 		::unique_lock lock{_mutex} ;
 		_cond.wait( lock , [&](){ return !Base::empty() ; } ) ;
-		Time::Ddate::s_refresh_now() ;                                         // we have waited, refresh Ddate::s_now()
 		return _pop() ;
 	}
 	::pair<bool/*popped*/,T> try_pop() {
@@ -71,7 +70,6 @@ private :
 			auto [popped,info] = self->_queue.pop(stop) ;
 			if ( !popped                       ) break ;
 			if ( !info.first.sleep_until(stop) ) break ;
-			Ddate::s_refresh_now() ;                                           // we have waited, refresh now
 			func(::move(info.second)) ;
 		}
 		trace("done") ;

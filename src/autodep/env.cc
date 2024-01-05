@@ -17,12 +17,11 @@ using namespace Disk ;
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) return ;
-	size_t sz  = 0/*garbage*/        ;
-	size_t pos = env.find(':'      ) ; if (pos==Npos) goto Fail ;
-	/**/   pos = env.find(':',pos+1) ; if (pos==Npos) goto Fail ;
+	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;
+	/**/   pos = env.find(':',pos+1/*:*/) ; if (pos==Npos) goto Fail ;
 	// service
 	service = env.substr(0,pos) ;
-	pos++ ;
+	pos++/*:*/ ;
 	// options
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
@@ -35,23 +34,23 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			default  : goto Fail ;
 		}
 	//source dirs
-	pos++ ;
+	pos++/*:*/ ;
 	for ( bool first=true ; env[pos]!=':' ; first=false ) {
-		if ( !first && env[pos++]!=',' ) goto Fail ;
+		if ( !first && env[pos++/*,*/]!=',' ) goto Fail ;
 		::string src_dir_s ;
 		SWEAR(env[pos]=='"',env) ;
-		tie(src_dir_s,sz) = parse_printable<'"'>(env,pos+1) ;
+		tie(src_dir_s,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ;
 		SWEAR( src_dir_s.back()=='/' , src_dir_s ) ;
 		src_dirs_s.push_back(::move(src_dir_s)) ;
-		pos += sz+2 ;                                                          // account for quotes
+		pos ++/*final"*/ ;
 	}
 	pos++ ;
-	{ SWEAR(env[pos]=='"',env) ; tie(tmp_dir ,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos++]!=':') goto Fail ; } // account for quotes
-	{ SWEAR(env[pos]=='"',env) ; tie(tmp_view,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos++]!=':') goto Fail ; } // .
-	{ SWEAR(env[pos]=='"',env) ; tie(root_dir,sz) = parse_printable<'"'>(env,pos+1) ; pos += sz+2 ; if (env[pos  ]!=0  ) goto Fail ; } // .
+	{ SWEAR(env[pos]=='"',env) ; tie(tmp_dir ,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
+	{ SWEAR(env[pos]=='"',env) ; tie(tmp_view,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
+	{ SWEAR(env[pos]=='"',env) ; tie(root_dir,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=0  ) goto Fail ; pos++/*:*/ ; }
 	return ;
 Fail :
-	fail_prod( "bad autodep env format at pos ",pos," : " , env ) ;
+	fail_prod("bad autodep env format at pos",pos,":",env) ;
 }
 
 AutodepEnv::operator ::string() const {

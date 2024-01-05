@@ -71,30 +71,6 @@ template<class T> static T get( pid_t pid , uint64_t val ) {
 	return res ;
 }
 
-static void put_str( pid_t pid , uint64_t val , ::string const& str ) {
-	if (!pid) {
-		::memcpy( reinterpret_cast<void*>(val) , str.data() , str.size() ) ;
-		return ;
-	}
-	errno = 0 ;
-	for( size_t i=0 ; i<str.size() ;) {
-		uint64_t offset = val%sizeof(long)                            ;
-		size_t   len    = ::min( str.size()-i , sizeof(long)-offset ) ;
-		char     buf[sizeof(long)] ;
-		if ( offset || len<sizeof(long) ) {
-			long word = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-			if (errno) throw 0 ;
-			::memcpy( buf , &word , sizeof(long) ) ;
-		}
-		::memcpy( buf+offset , str.data()+i , len ) ;
-		long word ;  ::memcpy( &word , buf , sizeof(long) ) ;
-		ptrace( PTRACE_POKEDATA , pid , val-offset , reinterpret_cast<void*>(word) ) ;
-		if (errno) throw 0 ;
-		i   += len ;
-		val += len ;
-	}
-}
-
 #define PTRACE
 #include "syscall.cc"
 

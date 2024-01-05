@@ -64,16 +64,14 @@ namespace Backends::Local {
 namespace std {
 	template<> struct hash<Backends::Local::RsrcsData> {
 		size_t operator()(Backends::Local::RsrcsData const& rs) const {
-			Hash::Xxh h ;
-			h.update(rs.size()) ;
+			Hash::Xxh h{rs.size()} ;
 			for( auto r : rs ) h.update(r) ;
 			return +::move(h).digest() ;
 		}
 	} ;
 	template<> struct hash<Backends::Local::RsrcsDataAsk> {
 		size_t operator()(Backends::Local::RsrcsDataAsk const& rsa) const {
-			Hash::Xxh h ;
-			h.update(rsa.size()) ;
+			Hash::Xxh h{rsa.size()} ;
 			for( auto ra : rsa ) {
 				h.update(ra.min) ;
 				h.update(ra.max) ;

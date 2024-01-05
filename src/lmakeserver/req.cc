@@ -45,6 +45,8 @@ namespace Engine {
 			data.log_stream.open(log_file) ;
 			try         { unlink(last) ; lnk(last,lcl_log_file) ;                     }
 			catch (...) { exit(2,"cannot create symlink ",last," to ",lcl_log_file) ; }
+			data.start_ddate = file_date(log_file) ;                                    // use log_file as a date marker
+			data.start_pdate = Pdate::s_now()      ;
 			break ;
 		}
 		//
@@ -52,10 +54,8 @@ namespace Engine {
 		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
-		data.start        = Ddate::s_now()       ;
 		data.options      = ecr.options          ;
 		data.audit_fd     = ecr.out_fd           ;
-		data.stats.start  = Pdate::s_now()       ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -71,7 +71,7 @@ namespace Engine {
 			close(close_backend) ;
 			throw ;
 		}
-		Trace trace("Req",*this,s_n_reqs(),data.start) ;
+		Trace trace("Req",*this,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 	}
 
 	void Req::make() {
@@ -226,7 +226,7 @@ namespace Engine {
 			case NodeStatus::SrcDir     : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
 			case NodeStatus::Plain :
 				if      (dep->manual()==Yes         ) err = "manual"      ;
-				else if (cri.overwritten            ) err = "overwritten" ;
+				else if (+cri.overwritten           ) err = "overwritten" ;
 				else if (!dep->conform_job_tgts(cri)) err = "not built"   ;    // if no better explanation found
 				else
 					for( Job job : dep->conform_job_tgts(cri) )
@@ -387,7 +387,7 @@ namespace Engine {
 		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )                                ) ) ;
 		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-stats.start)    .short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
 		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
@@ -460,18 +460,18 @@ namespace Engine {
 		log_stream << "status : " << (ok?"ok":"failed") << '\n' ;
 	}
 
-	bool/*seen*/ ReqData::audit_stderr( ::string const& backend_msg , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
-		if (+backend_msg                ) audit_info( Color::Note , backend_msg , lvl ) ;
-		if (!stderr                     ) return +backend_msg ;
+	bool/*seen*/ ReqData::audit_stderr( ::string const& msg , ::string const& stderr , size_t max_stderr_lines , DepDepth lvl ) const {
+		if (+msg                        ) audit_info( Color::Note , msg , lvl ) ;
+		if (!stderr                     ) return +msg ;
 		if (max_stderr_lines!=size_t(-1)) {
 			::string_view shorten = first_lines(stderr,max_stderr_lines) ;
 			if (shorten.size()<stderr.size()) {
-				audit_info( Color::None , ::string(shorten) , lvl ) ;
-				audit_info( Color::Note , "..."             , lvl ) ;
+				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
+				audit_info_as_is( Color::Note , "..."             , lvl ) ;
 				return true ;
 			}
 		}
-		audit_info( Color::None , stderr , lvl ) ;
+		audit_info_as_is( Color::None , stderr , lvl ) ;
 		return true ;
 	}
 
@@ -479,13 +479,13 @@ namespace Engine {
 		try {
 			OMsgBuf().send( audit_fd , ReqRpcReply( title(
 				options
-			,	stats.ended(JobReport::Failed)==0 ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
-			,	                                                     "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
-			,	!g_config.caches                  ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
-			,	stats.ended(JobReport::Rerun )==0 ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
-			,	                                                    " running:" , stats.cur  (JobLvl   ::Exec  )
-			,	stats.cur  (JobLvl   ::Queued)==0 ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
-			,	stats.cur  (JobLvl   ::Dep   )==0 ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
+			,	stats.ended(JobReport::Failed)==0                ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
+			,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
+			,	!g_config.caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
+			,	stats.ended(JobReport::Rerun )==0                ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
+			,	                                                                   " running:" , stats.cur  (JobLvl   ::Exec  )
+			,	stats.cur  (JobLvl   ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
+			,	stats.cur  (JobLvl   ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
 			) ) ) ;
 		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 	}
@@ -501,9 +501,9 @@ namespace Engine {
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
 		::string                        name      = node->name()          ;
 		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
-		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                            // matching rules
-		RuleTgt                         art       ;                            // set if an anti-rule matches
-		RuleIdx                         n_missing = 0                     ;    // number of rules missing deps
+		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                                                        // matching rules
+		RuleTgt                         art       ;                                                        // set if an anti-rule matches
+		RuleIdx                         n_missing = 0                     ;                                // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
 			audit_node( Color::Warning , "name is too long :" , node  , lvl ) ;
@@ -512,34 +512,34 @@ namespace Engine {
 		//
 		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transcient ) {
 			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transcient) ; dir=dir->dir() ) ;
-			swear_prod(+dir                              ,"dir is buildable for ",node->name()," but cannot find buildable dir"                  ) ;
-			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",node->name()," but cannot find buildable dir until",dir->name()) ;
-			/**/                                audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
-			if (dir->status()!=NodeStatus::Src) audit_node( Color::Note , "dir is a source :"  , dir  , lvl+1 ) ;
+			swear_prod(+dir                              ,"dir is buildable for ",name," but cannot find buildable dir"                  ) ;
+			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for ",name," but cannot find buildable dir until",dir->name()) ;
+			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
+			if (dir->status()==NodeStatus::Src) audit_node( Color::Note , "dir is a source :"  , dir  , lvl+1 ) ;
 			else                                audit_node( Color::Note , "dir is buildable :" , dir  , lvl+1 ) ;
 			return ;
 		}
 		//
-		for( RuleTgt rt : rrts ) {                                             // first pass to gather info : matching rules in mrts and number of them missing deps in n_missing
+		for( RuleTgt rt : rrts ) {                                                                         // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
 			Rule::FullMatch match{rt,name} ;
 			if (!match       ) {            continue ; }
 			if (rt->is_anti()) { art = rt ; break    ; }
 			mrts.emplace_back(rt,match) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {                                                                      // do not pass *this as req to avoid generating error message at cxtor time
-				swear_prod(!jt.produces(node),"no rule for ",node->name()," but ",jt->rule->name," produces it") ;
+			if ( JobTgt jt{rt,name} ; +jt ) {                                                              // do not pass *this as req to avoid generating error message at cxtor time
+//				swear_prod(!jt.produces(node),"no rule for ",name," but ",jt->rule->name," produces it") ;
 				if (jt->run_status!=RunStatus::NoDep) continue ;
 			}
 			try                     { rt->deps_attrs.eval(match) ; }
-			catch (::string const&) { continue ;                   }           // do not consider rule if deps cannot be computed
+			catch (::string const&) { continue ;                   }                                       // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
-		if ( !art && !mrts                             ) audit_node( Color::Err  , "no rule match"      , name , lvl   ) ;
-		else                                             audit_node( Color::Err  , "no rule for"        , name , lvl   ) ;
-		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , name , lvl+1 ) ;
+		if ( !art && !mrts                             ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
+		else                                             audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
+		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                     // second pass to do report
-			JobTgt                      jt          { rt , name } ;            // do not pass *this as req to avoid generating error message at cxtor time
+		for( auto const& [rt,m] : mrts ) {                                                                 // second pass to do report
+			JobTgt                      jt          { rt , name } ;                                        // do not pass *this as req to avoid generating error message at cxtor time
 			::string                    reason      ;
 			Node                        missing_dep ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
@@ -547,7 +547,7 @@ namespace Engine {
 			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
-				for( bool search_non_buildable : {true,false} )                // first search a non-buildable, if not found, deps have been made and we search for non makable
+				for( bool search_non_buildable : {true,false} )                                            // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,daf] : static_deps ) {
 						Node d{daf.first} ;
 						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
@@ -556,7 +556,7 @@ namespace Engine {
 						goto Found ;
 					}
 			Found :
-				SWEAR(+missing_dep) ;                                          // else why wouldn't it apply ?!?
+				SWEAR(+missing_dep) ;                                                                      // else why wouldn't it apply ?!?
 				::string mdn = missing_dep->name()     ;
 				FileInfo fi  { nfs_guard.access(mdn) } ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;

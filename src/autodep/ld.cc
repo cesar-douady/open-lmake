@@ -128,17 +128,12 @@ struct Fopen : AuditAction<Record::Open> {
 // SyscallDescr
 //
 
-static ::string get_str( pid_t , uint64_t val              ) { return {reinterpret_cast<const char*>(val)    } ; }
-static ::string get_str( pid_t , uint64_t val , size_t len ) { return {reinterpret_cast<const char*>(val),len} ; }
+static ::string get_str( pid_t , uint64_t val ) { return reinterpret_cast<const char*>(val) ; }
 
 template<class T> static T get( pid_t , uint64_t val ) {
 	T res ;
 	::memcpy( &res , reinterpret_cast<void const*>(val) , sizeof(T) ) ;
 	return res ;
-}
-
-static void put_str( pid_t , uint64_t val , ::string const& str ) {
-	::memcpy( reinterpret_cast<void*>(val) , str.data() , str.size() ) ;
 }
 
 #include "syscall.cc"
@@ -347,8 +342,8 @@ static void put_str( pid_t , uint64_t val , ::string const& str ) {
 	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; ReadLnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
 	ssize_t readlinkat(int d,CC* p,char* b,size_t sz) NE {
 		HEADER1(readlinkat,p,(d,p,b,sz)) ;
-		if (d==Backdoor.fd) {                         return auditer().backdoor(p,b,sz) ; }
-		else                { ReadLnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz))         ; }
+		ReadLnk r{{d,p},b,sz} ;
+		return r(orig(P(r),b,sz)) ;
 	}
 
 	// rename                                                                                                                  exchange

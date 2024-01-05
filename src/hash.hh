@@ -42,9 +42,12 @@ namespace Hash {
 	//
 
 	ENUM_1( CrcSpecial
-	,	Valid = None                                                           // >=Valid means value represent file content
-	,	Unknown_
-	,	None
+	,	Valid = None                   // >=Valid means value represent file content, >Val means that in addition, file exists
+	,	Unknown_                       // file is completely unknown
+	,	Lnk                            // file is a link pointing to an unknown location
+	,	Reg                            // file is regular with unknown content
+	,	None                           // file does not exist or is a dir
+	,	Plain
 	)
 
 	struct Crc {
@@ -53,58 +56,56 @@ namespace Hash {
 		//
 		static constexpr uint64_t ChkMsk = ~lsb_msk<uint64_t>(NChkBits) ;
 
-		static const Crc Unknown ;                                             // crc has not been computed
-		static const Crc None    ;                                             // file does not exist
+		static const Crc Unknown ;
+		static const Crc Lnk     ;
+		static const Crc Reg     ;
+		static const Crc None    ;
+		// statics
+		static bool s_sense( Accesses a , FileTag t ) { // return whether accesses a can see the difference between files with tag t
+			Crc crc{t} ;
+			return !crc.match(crc,a) ;
+		}
 		// cxtors & casts
-		constexpr          Crc(                                                           ) = default ;
-		constexpr explicit Crc( uint64_t v                                                ) : _val{v} {}
-		/**/               Crc(                         ::string const& filename , Algo a ) : Crc{ Disk::FileInfo(filename) , filename , a } {}
-		/**/               Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
+		constexpr Crc(                                                           ) = default ;
+		constexpr Crc( uint64_t v , bool is_lnk                                  ) : _val{v}                                        { if (is_lnk) _val |= 0x1 ; else _val &= ~0x1 ; }
+		/**/      Crc(                         ::string const& filename , Algo a ) : Crc{ Disk::FileInfo(filename) , filename , a } {}
+		/**/      Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
 			Disk::FileInfo fi{filename} ;
 			d     = fi.date            ;
 			*this = Crc(fi,filename,a) ;
 		}
-	private :
-		/**/ Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;
-		// accesses
-	public :
-		constexpr bool              operator== (Crc const& other) const { return +*this== +other            ; }
-		constexpr ::strong_ordering operator<=>(Crc const& other) const { return +*this<=>+other            ; }
-		constexpr uint64_t          operator+  (                ) const { return  _val                      ; }
-		constexpr bool              operator!  (                ) const { return !+*this                    ; }
-		constexpr bool              valid      (                ) const { return +*this>=+CrcSpecial::Valid ; }
-		/**/      void              clear      (                )       { *this = Crc()                     ; }
-		constexpr bool              is_lnk     (                ) const { return _val & uint64_t(1)         ; }
-		// services
-		bool match( Crc other , Accesses a=Accesses::All ) const {
-			if ( !a                         ) return true  ;                   // dont even care about validity if there was no access at all
-			if ( !valid() || !other.valid() ) return false ;                   // Unknown & Err never match as they cannot be guaranteed
-			uint64_t t = +*this ;
-			uint64_t o = +other ;
-			if (!a[Access::Stat]) {
-				if      (!a[Access::Lnk]) { if (*this==None) t = ~uint64_t(0) ; if (other==None) o = ~uint64_t(0) ; } // if no stat & no lnk accesses, then no file is like a lnk
-				else if (!a[Access::Reg]) { if (*this==None) t = ~uint64_t(1) ; if (other==None) o = ~uint64_t(1) ; } // if no stat & no reg accesses, then no file is like a reg
+		Crc(FileTag tag) {
+			switch (tag) {
+				case FileTag::Reg  :
+				case FileTag::Exe  : *this = Crc::Reg     ; break ;
+				case FileTag::Lnk  : *this = Crc::Lnk     ; break ;
+				case FileTag::None :
+				case FileTag::Dir  : *this = Crc::None    ; break ;
+				default            : *this = Crc::Unknown ; break ;
 			}
-			// XXX : suppress this test when there is a working paradigm with pyc files (python stats the py and accesses the pyc, but needs the py semantic, because deps on pyc are suppressed)
-			if (!a[Access::Stat]) {
-				if (!a[Access::Lnk]) { if (  is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if (  other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no lnk access, ignore lnk value
-				if (!a[Access::Reg]) { if ( !is_lnk() && *this!=None ) t |= ~uint64_t(1) ; if ( !other.is_lnk() && other!=None ) o |= ~uint64_t(1) ; } // if no reg access, ignore reg value
-			}
-			uint64_t diff = t ^ o ;
-			if (!diff          ) return true  ;                                           // crc are identical
-			if ( diff & ChkMsk ) return false ;                                           // crc are different
-			fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;
-		} ;
-		explicit operator ::string() const {
-			::string res ; res.reserve(sizeof(_val)*2) ;
-			for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
-				uint8_t b = _val>>(i*8) ;
-				for( uint8_t d : {b>>4,b&0xf} ) res.push_back( d<10 ? '0'+d : 'a'+d-10 ) ;
-			}
-			return res ;
 		}
 	private :
-		uint64_t _val = 0 ;
+		constexpr Crc( CrcSpecial special                                      ) : _val{+special} {}
+		/**/      Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;
+		//
+		operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
+	public :
+		explicit operator ::string() const ;
+		// accesses
+		constexpr bool              operator== (Crc const& other) const = default ;
+		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
+		constexpr uint64_t          operator+  (                ) const { return  _val                              ; }
+		constexpr bool              operator!  (                ) const { return !+*this                            ; }
+		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid           ; }
+		constexpr bool              plain      (                ) const { return _val> +CrcSpecial::Valid           ; }
+		/**/      void              clear      (                )       { *this = {}                                ; }
+		constexpr bool              is_lnk     (                ) const { return plain() ?   _val&0x1  : *this==Lnk ; }
+		constexpr bool              is_reg     (                ) const { return plain() ? !(_val&0x1) : *this==Reg ; }
+		// services
+		bool     match        ( Crc other , Accesses a=Accesses::All ) const { return !( diff_accesses(other) & a ) ; } ;
+		Accesses diff_accesses( Crc other                            ) const ;
+	private :
+		uint64_t _val = +CrcSpecial::Unknown_ ;
 	} ;
 
 	//
@@ -128,12 +129,12 @@ namespace Hash {
 	template<class T> concept IsUnstableIterable = IsUnstableIterableHelper<T>::value ;
 
 	struct _Md5 {
-	protected :
 		static constexpr size_t HashSz =  4 ;
 		static constexpr size_t BlkSz  = 16 ;
 		// cxtors & cast
+	protected :
 		_Md5(           ) ;
-		_Md5(FileTag tag) { if (tag!=FileTag::Reg) _salt = to_string(tag) ; }
+		_Md5(FileTag tag) : is_lnk{tag==FileTag::Lnk} { if (tag!=FileTag::Reg) _salt = to_string(tag) ; }
 		// services
 		void _update( const void* p , size_t sz ) ;
 		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
@@ -142,7 +143,10 @@ namespace Hash {
 		void     _update64(                           ) { _update64(_blk) ;                         }
 		uint8_t* _bblk    (                           ) { return reinterpret_cast<uint8_t*>(_blk) ; }
 		// data
-		alignas(uint64_t) uint32_t _hash[HashSz] ;                             // alignment to allow direct appending of _cnt<<3 (message length in bits)
+	public :
+		bool is_lnk = false ;
+	private :
+		alignas(uint64_t) uint32_t _hash[HashSz] ;         // alignment to allow direct appending of _cnt<<3 (message length in bits)
 		uint32_t                   _blk [BlkSz ] ;
 		uint64_t                   _cnt          ;
 		::string                   _salt         ;
@@ -150,10 +154,10 @@ namespace Hash {
 	} ;
 
 	struct _Xxh {
+	private :
 		static void _s_init_lnk() { ::unique_lock lock{_s_inited_mutex} ; if (_s_lnk_inited) return ; XXH3_generateSecret(_s_lnk_secret,sizeof(_s_lnk_secret),"lnk",3) ; _s_lnk_inited = true ; }
 		static void _s_init_exe() { ::unique_lock lock{_s_inited_mutex} ; if (_s_exe_inited) return ; XXH3_generateSecret(_s_exe_secret,sizeof(_s_exe_secret),"exe",3) ; _s_exe_inited = true ; }
 		// static data
-	private :
 		static char    _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
 		static char    _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
 		static ::mutex _s_inited_mutex                     ;
@@ -167,38 +171,46 @@ namespace Hash {
 		void _update( const void* p , size_t sz ) ;
 		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
 		// data
+	public :
+		bool is_lnk = false ;
 	private :
 		XXH3_state_t _state ;
 	} ;
 
+	template<class T> concept _AutoCooked = sizeof(T)==1 || ::is_integral_v<T> ;
 	template<class H> struct _Cooked : H {
 		//cxtors & casts
-		_Cooked(         ) : H{ } {}
+		_Cooked(         ) = default ;
 		_Cooked(FileTag t) : H{t} {}
+		template<class... As> _Cooked( As&&... args) { update(::forward<As>(args)...) ; }
 		// services
 		using H::digest ;
-		Crc c_digest() const { return _Cooked(*this).digest() ; }
 		//
-		template<class T> requires(::is_trivially_copyable_v<T>) void update( T const* p , size_t sz ) { H::_update( p , sizeof(*p)*sz ) ; }
-		template<class T> requires(::is_trivially_copyable_v<T>) void update( T const& x             ) {
+		template<_AutoCooked T> _Cooked& update( T const* p , size_t sz ) {
+			H::_update( p , sizeof(*p)*sz ) ;
+			return *this ;
+		}
+		template<_AutoCooked T> _Cooked& update(T const& x) {
 			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;
 			H::_update( &buf , sizeof(x) ) ;
+			return *this ;
 		}
-		//
-		/**/                                                                                  void update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; }
-		template<class T> requires( !::is_trivially_copyable_v<T> && !IsUnstableIterable<T> ) void update( T       const& x ) { update(serialize(x)) ;                         }
-		template<class T> requires(                                   IsUnstableIterable<T> ) void update( T       const& x ) = delete ;
+		/**/                                                                    _Cooked& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return *this ; }
+		template<class T> requires( !_AutoCooked<T> && !IsUnstableIterable<T> ) _Cooked& update( T       const& x ) { update(serialize(x)) ;                         return *this ; }
+		template<class T> requires(                     IsUnstableIterable<T> ) _Cooked& update( T       const& x ) = delete ;
 	} ;
 
 	//
 	// implementation
 	//
 
-	constexpr Crc Crc::Unknown{+CrcSpecial::Unknown_<<1} ; static_assert(!Crc::Unknown.is_lnk()) ; // crc has not been computed
-	constexpr Crc Crc::None   {+CrcSpecial::None    <<1} ; static_assert(!Crc::None   .is_lnk()) ; // file does not exist
+	constexpr Crc Crc::Unknown{CrcSpecial::Unknown_} ;
+	constexpr Crc Crc::Lnk    {CrcSpecial::Lnk     } ;
+	constexpr Crc Crc::Reg    {CrcSpecial::Reg     } ;
+	constexpr Crc Crc::None   {CrcSpecial::None    } ;
 
 }
 // must be outside Engine namespace as it specializes std::hash
 namespace std {
-	template<> struct hash<Hash::Crc> { size_t operator()(Hash::Crc c) const { return +c; } } ;
+	template<> struct hash<Hash::Crc> { size_t operator()(Hash::Crc c) const { return +c ; } } ;
 }

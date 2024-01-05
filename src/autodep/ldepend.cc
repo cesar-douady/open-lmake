@@ -64,7 +64,7 @@ int main( int argc , char* argv[]) {
 		//
 		return err ? 1 : 0 ;
 	} else {
-		AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {.accesses=Accesses::All,.dflags=dflags} , no_follow , "ldepend" ) ) ;
+		AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {Accesses::All,dflags} , no_follow , "ldepend" ) ) ;
 		return 0 ;
 	}
 }

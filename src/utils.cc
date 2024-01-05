@@ -33,8 +33,8 @@
 			case '\\' :                                  // must be escaped
 			case '\'' : res += '\\'  ; [[fallthrough]] ; // .
 			default :
-				if (is_print(c)) res +=                                                            c   ;
-				else             res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+				if (is_printable(c)) res +=                                                            c   ;
+				else                 res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	res += '\'' ;

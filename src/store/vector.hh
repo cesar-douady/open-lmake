@@ -156,11 +156,14 @@ namespace Store {
 			Item* items   = chunk.items()     ;
 			bool  shorten = v.size()<chunk.sz ;
 			chunk.sz = v.size() ;
+			#pragma GCC diagnostic push
+			#pragma GCC diagnostic ignored "-Wstringop-overflow"               // chunk manipulations are too fancy for gcc to understand, sorry we'll have to live without this warning
 			//                                                           vvvvvvvvvvvvvvv                                               vvvvvvvvvvvvvvvvvvvvvvv
 			if      (new_n<old_n) { for( size_t i=0 ; i<v.size() ; i++ ) items[i] = v[i] ; for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ; Base::shorten(idx,new_n) ; }
 			else if (shorten    ) { for( size_t i=0 ; i<v.size() ; i++ ) items[i] = v[i] ; for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ;                            }
 			else                  { for( size_t i=0 ; i<chunk.sz ; i++ ) items[i] = v[i] ; for( size_t i=chunk.sz ; i<v.size() ; i++ ) new(items+i) Item{v[i]} ;                            }
 			//                                                           ^^^^^^^^^^^^^^^                                               ^^^^^^^^^^^^^^^^^^^^^^^
+			#pragma GCC diagnostic pop
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx append( Idx idx , ::vector_view<I> const& v ) {
@@ -190,18 +193,20 @@ namespace Store {
 			return idx ;
 		}
 		//
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::vector           <I> const& v)                 { return emplace(     ::c_vector_view<I>(v)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& x0,::vector           <I> const& v)                 { return emplace(  x0,::c_vector_view<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::vector           <I> const& v)                 { return assign (i,   ::c_vector_view<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::vector           <I> const& v)                 { return append (i,   ::c_vector_view<I>(v)) ; }
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string_view<I> const& s) requires(IsStr) { return emplace(     ::c_vector_view<I>(s)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string_view<I> const& s) requires(IsStr) { return emplace(  c0,::c_vector_view<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return assign (i,   ::c_vector_view<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string_view<I> const& s) requires(IsStr) { return append (i,   ::c_vector_view<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx emplace(                   ::basic_string     <I> const& s) requires(IsStr) { return emplace(     ::c_vector_view<I>(s)) ; }
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace(      I0 const& c0,::basic_string     <I> const& s) requires(IsStr) { return emplace(  c0,::c_vector_view<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx assign (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return assign (i,   ::c_vector_view<I>(s)) ; }
-		template<                          ::convertible_to<Item> I> Idx append (Idx i,             ::basic_string     <I> const& s) requires(IsStr) { return append (i,   ::c_vector_view<I>(s)) ; }
+		#define CTI ::convertible_to<Item>
+		template<       CTI I> Idx emplace(                   ::vector           <I> const& v) requires( !::is_const_v<I>          ) { return emplace(     ::c_vector_view<I>(v)) ; }
+		template<CTI I0,CTI I> Idx emplace(      I0 const& x0,::vector           <I> const& v) requires( !::is_const_v<I>          ) { return emplace(  x0,::c_vector_view<I>(v)) ; }
+		template<       CTI I> Idx assign (Idx i,             ::vector           <I> const& v) requires( !::is_const_v<I>          ) { return assign (i,   ::c_vector_view<I>(v)) ; }
+		template<       CTI I> Idx append (Idx i,             ::vector           <I> const& v) requires( !::is_const_v<I>          ) { return append (i,   ::c_vector_view<I>(v)) ; }
+		template<       CTI I> Idx emplace(                   ::basic_string_view<I> const& s) requires( !::is_const_v<I> && IsStr ) { return emplace(     ::c_vector_view<I>(s)) ; }
+		template<CTI I0,CTI I> Idx emplace(      I0 const& c0,::basic_string_view<I> const& s) requires( !::is_const_v<I> && IsStr ) { return emplace(  c0,::c_vector_view<I>(s)) ; }
+		template<       CTI I> Idx assign (Idx i,             ::basic_string_view<I> const& s) requires( !::is_const_v<I> && IsStr ) { return assign (i,   ::c_vector_view<I>(s)) ; }
+		template<       CTI I> Idx append (Idx i,             ::basic_string_view<I> const& s) requires( !::is_const_v<I> && IsStr ) { return append (i,   ::c_vector_view<I>(s)) ; }
+		template<       CTI I> Idx emplace(                   ::basic_string     <I> const& s) requires( !::is_const_v<I> && IsStr ) { return emplace(     ::c_vector_view<I>(s)) ; }
+		template<CTI I0,CTI I> Idx emplace(      I0 const& c0,::basic_string     <I> const& s) requires( !::is_const_v<I> && IsStr ) { return emplace(  c0,::c_vector_view<I>(s)) ; }
+		template<       CTI I> Idx assign (Idx i,             ::basic_string     <I> const& s) requires( !::is_const_v<I> && IsStr ) { return assign (i,   ::c_vector_view<I>(s)) ; }
+		template<       CTI I> Idx append (Idx i,             ::basic_string     <I> const& s) requires( !::is_const_v<I> && IsStr ) { return append (i,   ::c_vector_view<I>(s)) ; }
+		#undef CTI
 	} ;
 
 }

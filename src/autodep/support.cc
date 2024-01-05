@@ -12,24 +12,10 @@
 using namespace Hash ;
 
 JobExecRpcReply AutodepSupport::req(JobExecRpcReq const& jerr) {
-
-	// try backdoor
-	// worst data dependent reply size is a CRC per file, rest is a (small) constant size overhead
-	::string reply               ( (1+sizeof(Crc))*jerr.files.size() + 20 , char(0) ) ;                                    // status+crc for each file + provide some margin for overhead
-	int      rc [[maybe_unused]] = ::readlinkat( Backdoor , OMsgBuf::s_send(jerr).data() , reply.data() , reply.size() ) ; // no rc from backdoor
-	//
-	size_t reply_sz = MsgBuf::s_sz(reply.data()) ;
-	if (reply_sz) {
-		SWEAR( reply_sz<=reply.size() , reply_sz , reply.size() ) ;            // check there was no overflow
-		return IMsgBuf::s_receive<JobExecRpcReply>(reply.data()) ;
-	}
-
-	// backdoor did not work, try direct connection to server
-	if (+get_env("LMAKE_AUTODEP_ENV",""))
-		return Record().backdoor(JobExecRpcReq(jerr)) ;
-
-	// nothing worked, try to mimic server as much as possible, but of course no crc is available
-	if ( jerr.sync && jerr.proc==JobExecRpcProc::DepInfos ) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;
-	else                                                    return {                                                                         } ;
-
+	if (+get_env("LMAKE_AUTODEP_ENV","")   ) return Record().direct(::copy(jerr)) ;
+	// not under lmake, try to mimic server as much as possible, but of course no real info available
+	if (!jerr.sync                         ) return {                                                                         } ;
+	if (jerr.proc==JobExecRpcProc::DepInfos) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Crc>>(jerr.files.size(),{Yes,{}}) } ;
+	// XXX : for Encode/Decode, we should interrogate the server or explore association file directly
+	else                                     return {                                                                         } ;
 }

@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 
 #include "disk.hh"
+#include "hash.hh"
 #include "process.hh"
 #include "rpc_job.hh"
 #include "time.hh"
@@ -23,30 +24,39 @@
 
 struct GatherDeps {
 	friend ::ostream& operator<<( ::ostream& os , GatherDeps const& ad ) ;
-	using Accesses     = Disk::Accesses              ;
-	using AccessDigest = JobExecRpcReq::AccessDigest ;
-	using Proc         = JobExecRpcProc              ;
-	using DD           = Time::Ddate                 ;
-	using PD           = Time::Pdate                 ;
+	using Accesses = Disk::Accesses ;
+	using Proc     = JobExecRpcProc ;
+	using Crc      = Hash::Crc      ;
+	using DD       = Time::Ddate    ;
+	using PD       = Time::Pdate    ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		AccessInfo( PD pd , Tflags tfs_ ) : access_date{pd} , tflags{tfs_} {}
 		//
-		bool operator==(AccessInfo const&) const = default ;                   // XXX : why is this necessary ?!?
+		bool operator==(AccessInfo const&) const = default ;                                                // XXX : why is this necessary ?!?
 		// accesses
 		bool is_dep() const { return digest.idle() && tflags[Tflag::Dep] ; }
 		// services
-		void update( PD pd , DD dd , AccessDigest const& ad , NodeIdx parallel_id_ ) ;
+		void update( PD pd , AccessDigest const& ad , NodeIdx parallel_id_ ) ;
+		void chk() const {
+			if      (seen            ) SWEAR( +digest.accesses                                          ) ; // cannot see a file as existing without accessing it
+			else if (+digest.accesses) SWEAR( digest.is_date ? !digest.date() : digest.crc()==Crc::None ) ; // cannot have a date or a crc without seeing the file
+		}
 		// data
-		PD           access_date      ;                    // first access date
-		PD           first_write_date ;                    // if !digest.idle(), first write/unlink date
-		PD           last_write_date  ;                    // if !digest.idle(), last  write/unlink date
+		PD           access_date      ;              // first access date
+		PD           first_write_date ;              // if !digest.idle(), first write/unlink date
+		PD           last_write_date  ;              // if !digest.idle(), last  write/unlink date
 		AccessDigest digest           ;
-		DD           file_date        ;                    // if +digest.accesses , date of file when read as first access
 		NodeIdx      parallel_id      = 0          ;
-		Tflags       tflags           = DfltTflags ;       // resulting flags after appliation of info flags modifiers
+		Tflags       tflags           = DfltTflags ; // resulting flags after appliation of info flags modifiers
+		bool         seen             = false      ; // if true <=  file has been seen existing
+	} ;
+	struct ServerReply {
+		IMsgBuf  buf        ; // buf to assemble the reply
+		Fd       fd         ; // fd to forward reply to
+		::string codec_file ;
 	} ;
 	// cxtors & casts
 public :
@@ -57,41 +67,52 @@ public :
 	}
 	// services
 private :
-	void _new_access( Fd , PD , ::string const& , DD , AccessDigest const& , ::string const& comment={} ) ; // fd for trace purpose only
+	void _fix_auto_date( Fd , JobExecRpcReq& jerr) ;                                                                                                                      // Fd for trace purpose only
 	//
-	void _new_accesses( Fd fd , JobExecRpcReq const& jerr ) {                  // fd for trace purpose only
+	void _new_access( Fd    , PD    , ::string&&   , AccessDigest const&    , bool confirm , ::string const& comment={} ) ;                                               // .
+	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad , bool confirm , ::string const& c      ={} ) { _new_access({},pd,::move(f),ad,confirm,c) ; }
+	void _new_access( Fd fd , PD pd , ::string&& f , AccessDigest const& ad ,                ::string const& c      ={} ) { _new_access(fd,pd,::move(f),ad,false  ,c) ; } // .
+	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad ,                ::string const& c      ={} ) { _new_access({},pd,::move(f),ad,false  ,c) ; }
+	//
+	void _new_accesses( Fd fd , JobExecRpcReq&& jerr ) {                       // fd for trace purpose only
 		parallel_id++ ;
-		for( auto const& [f,dd] : jerr.files ) _new_access( fd , jerr.date , f , dd , jerr.digest , jerr.txt ) ;
+		for( auto& [f,dd] : jerr.files ) {
+			jerr.digest.date(dd) ;
+			_new_access( fd , jerr.date , ::move(f) , jerr.digest , jerr.txt ) ;
+		}
 	}
 	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
 		Trace trace("_confirm",fd,STR(jerr.ok)) ;
 		for( auto const& [f,_] : jerr.files ) { trace(f) ; accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ; }
 	}
-	void _new_guards( Fd fd , JobExecRpcReq const& jerr ) {                    // fd for trace purpose only
+	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                         // fd for trace purpose only
 		Trace trace("_new_guards",fd) ;
-		for( auto const& [f,_] : jerr.files ) { trace(f) ; guards.insert(f) ; }
+		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
-	void _decode( Fd fd , JobExecRpcReq const& jerr ) {                        // fd for trace purpose only
-		Trace trace("_decode",fd) ;
-		SWEAR(jerr.proc==Proc::Decode) ;
-		SWEAR(jerr.files.size()==1   ) ;
-		AccessDigest ad ; ad.accesses = Disk::Access::Reg ;
-		_new_access( fd , jerr.date , JobRpcReq::s_mk_decode_file( jerr.txt , jerr.files[0].first/*file*/ , jerr.ctx ) , {} , ad ) ;
-	}
-	void _encode( Fd fd , JobExecRpcReq const& jerr ) {                        // fd for trace purpose only
-		Trace trace("_encode",fd) ;
-		SWEAR(jerr.proc==Proc::Encode) ;
-		SWEAR(jerr.files.size()==1   ) ;
-		AccessDigest ad ; ad.accesses = Disk::Access::Reg ;
-		_new_access( fd , jerr.date , JobRpcReq::s_mk_encode_file( jerr.txt , jerr.files[0].first/*file*/ , jerr.ctx ) , {} , ad ) ;
+	void _codec( ServerReply&& sr , JobRpcReply const& jrr ) {
+		AccessDigest ad { Disk::Access::Reg , jrr.crc } ;
+		ad.crc(jrr.crc) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , ad ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 public :
-	void new_target( PD pd , ::string const& t , Tflags n , Tflags p , ::string const& c="static_target" ) { _new_access({},pd,t,{},{.neg_tflags=n,.pos_tflags=p,.write=true},c) ; }
-	void new_unlink( PD pd , ::string const& t ,                       ::string const& c="static_unlink" ) { _new_access({},pd,t,{},{.unlink=true                           },c) ; }
-	void new_guard (         ::string const& f                                                           ) { guards.insert(f) ;                                                    }
+	void new_target( PD pd , ::string const& t , Tflags n , Tflags p , ::string const& c="s_target" ) {
+		AccessDigest ad ;
+		ad.neg_tflags = n    ;
+		ad.pos_tflags = p    ;
+		ad.write      = true ;
+		_new_access(pd,::copy(t),ad,true/*confirm*/,c) ;
+	}
+	void new_unlink( PD pd , ::string const& t , ::string const& c="s_unlink" ) {
+		AccessDigest ad ;
+		ad.unlink = true ;
+		_new_access(pd,::copy(t),ad,true/*confirm*/,c) ;
+	}
+	void new_guard (::string const& f) { guards.insert(f) ; }
 	//
-	void new_static_deps( PD , ::vmap_s<DepDigest> const& static_deps , ::string const& stdin={}                                  ) ;
-	void new_exec       ( PD , ::string const& exe                                               , ::string const& ="static_exec" ) ;
+	void new_static_deps( PD , ::vmap_s<DepDigest>&& static_deps , ::string const& stdin={}       ) ;
+	void new_exec       ( PD , ::string const& exe               , ::string const&      ="s_exec" ) ;
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {

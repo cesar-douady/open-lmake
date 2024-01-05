@@ -22,7 +22,24 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	for( const Rule r : Persistent::rule_lst() ) _out( {}           , to_string(r                  ) , r->name   ) ;
 	for( const Job  j : Persistent::job_lst () ) _out( to_string(j) , to_string(j->rule            ) , j->name() ) ;
-	for( const Node n : Persistent::node_lst() ) _out( to_string(n) , to_string(n->actual_job_tgt()) , n->name() ) ;
+	for( const Node n : Persistent::node_lst() )
+		switch (n->buildable) {
+			case Buildable::LongName  :
+			case Buildable::DynAnti   :
+			case Buildable::Anti      :
+			case Buildable::SrcDir    :
+			case Buildable::No        :
+			case Buildable::SubSrcDir :
+			case Buildable::Src       :
+			case Buildable::Decode    :
+			case Buildable::Encode    :
+			case Buildable::SubSrc    :
+			case Buildable::Loop      : _out( to_string(n) , mk_snake(n->buildable)         , n->name() ) ; break ;
+			case Buildable::Maybe     :
+			case Buildable::Yes       :
+			case Buildable::DynSrc    :
+			case Buildable::Unknown   : _out( to_string(n) , to_string(n->actual_job_tgt()) , n->name() ) ; break ;
+		}
 	//
 	Persistent::chk() ;
 	//

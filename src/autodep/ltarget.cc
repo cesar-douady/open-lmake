@@ -80,13 +80,12 @@ int main( int argc , char* argv[]) {
 	if      ( !unlink                    ) pos_tflags |= Tflags(Tflag::Crc,Tflag::Write) & ~neg_tflags ;                                   // we say we write, allow it and compute crc by default
 	else if ( +neg_tflags || +pos_tflags ) syntax.usage("cannot unlink and set/reset flags"s) ;
 	//
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq(
-		JobExecRpcProc::Access
-	,	::move(cmd_line.args)
-	,	{ .neg_tflags=neg_tflags , .pos_tflags=pos_tflags , .write=!unlink , .unlink=unlink }
-	,	no_follow
-	,	"ltarget"
-	) ) ;
+	AccessDigest ad ;
+	ad.neg_tflags = neg_tflags ;
+	ad.pos_tflags = pos_tflags ;
+	ad.write      = !unlink    ;
+	ad.unlink     =  unlink    ;
+	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , ad , no_follow , "ltarget" ) ) ;
 	//
 	return 0 ;
 }

@@ -57,9 +57,9 @@ namespace Engine {
 	)
 
 	ENUM( NodeEvent
-	,	Done                           // node was modified
-	,	Steady                         // node was remade w/o modification
-	,	Uphill                         // uphill dir was makable
+	,	Done        // node was modified
+	,	Steady      // node was remade w/o modification
+	,	Uphill      // uphill dir was makable
 	)
 
 	ENUM( ReportBool
@@ -92,7 +92,7 @@ namespace Engine {
 		// services
 		bool operator==(ConfigClean const&) const = default ;
 		// data
-		Version    db_version           ;                                      // must always stay first so it is always understood, by default, db version does not match
+		Version    db_version           ;                    // must always stay first so it is always understood, by default, db version does not match
 		Hash::Algo hash_algo            = Hash::Algo::Xxh  ;
 		LnkSupport lnk_support          = LnkSupport::Full ;
 		::string   user_local_admin_dir ;
@@ -132,7 +132,7 @@ namespace Engine {
 		Time::Delay    heartbeat_tick ;
 		DepDepth       max_dep_depth  = 1000 ; static_assert(DepDepth(1000)==1000) ; // ensure default value can be represented
 		Time::Delay    network_delay  ;
-		size_t         path_max       = -1   ;             // if -1 <=> unlimited
+		size_t         path_max       = -1   ;                                       // if -1 <=> unlimited
 		::string       rules_module   ;
 		::string       srcs_module    ;
 		TraceConfig    trace          ;
@@ -186,23 +186,23 @@ namespace Engine {
 	} ;
 
 	ENUM( ConfigDiff
-	,	None                           // configs are identical
-	,	Dynamic                        // config can be updated while engine runs
-	,	Static                         // config can be updated when engine is steady
-	,	Clean                          // config cannot be updated (requires clean repo)
+	,	None         // configs are identical
+	,	Dynamic      // config can be updated while engine runs
+	,	Static       // config can be updated when engine is steady
+	,	Clean        // config cannot be updated (requires clean repo)
 	)
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 		// cxtors & casts
-		Config(                         ) : booted{false} {}                   // if config comes from nowhere, it is not booted
+		Config(                         ) : booted{false} {} // if config comes from nowhere, it is not booted
 		Config(Py::Mapping const& py_map) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,static_cast<ConfigClean  &>(*this)) ;                   // must always stay first field to ensure db_version is always understood
+			::serdes(s,static_cast<ConfigClean  &>(*this)) ; // must always stay first field to ensure db_version is always understood
 			::serdes(s,static_cast<ConfigStatic &>(*this)) ;
 			::serdes(s,static_cast<ConfigDynamic&>(*this)) ;
-			if (::is_base_of_v<::istream,S>) booted = true ;                   // is config comes from disk, it is booted
+			if (::is_base_of_v<::istream,S>) booted = true ; // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
 		void open(bool dynamic) ;
@@ -213,16 +213,21 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted           = false ;                // a marker to distinguish clean repository
+		bool     booted           = false ; // a marker to distinguish clean repository
 		::string local_admin_dir  ;
 		::string remote_admin_dir ;
 		::string remote_tmp_dir   ;
 	} ;
 
-	/**/          void audit( Fd out , ::ostream& log , ReqOptions const&    , Color   , ::string const&   , DepDepth  =0 , char sep=0 ) ;
-	static inline void audit( Fd out ,                  ReqOptions const& ro , Color c , ::string const& t , DepDepth l=0 , char sep=0 ) { OFakeStream fs ; audit(out,fs ,ro,c          ,t,l,sep) ; }
-	static inline void audit( Fd out , ::ostream& log , ReqOptions const& ro ,           ::string const& t , DepDepth l=0 , char sep=0 ) {                  audit(out,log,ro,Color::None,t,l,sep) ; }
-	static inline void audit( Fd out ,                  ReqOptions const& ro ,           ::string const& t , DepDepth l=0 , char sep=0 ) { OFakeStream fs ; audit(out,fs ,ro,Color::None,t,l,sep) ; }
+	// sep is put before the last indent level, useful for porcelaine output
+	#define ROC ReqOptions const
+	#define SC  ::string   const
+	/**/          void audit( Fd out , ::ostream& log , ROC&    , Color   , SC&   , bool as_is=false , DepDepth  =0 , char sep=0 ) ;
+	static inline void audit( Fd out ,                  ROC& ro , Color c , SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) { static OFakeStream fs ; audit(out,fs ,ro,c          ,t,a,l,sep) ; }
+	static inline void audit( Fd out , ::ostream& log , ROC& ro ,           SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) {                         audit(out,log,ro,Color::None,t,a,l,sep) ; }
+	static inline void audit( Fd out ,                  ROC& ro ,           SC& t , bool a    =false , DepDepth l=0 , char sep=0 ) { static OFakeStream fs ; audit(out,fs ,ro,Color::None,t,a,l,sep) ; }
+	#undef SC
+	#undef ROC
 
 	template<class... A> static inline ::string title    ( ReqOptions const& , A&&... ) ;
 	/**/                 static inline ::string color_pfx( ReqOptions const& , Color  ) ;
@@ -241,11 +246,11 @@ namespace Engine {
 			else                             {                                return false ; }
 		}
 		// services
-		::vector<Node> targets(::string const& startup_dir_s={}) const ;       // startup_dir_s for error reporting only
-		Job            job    (::string const& startup_dir_s={}) const ;       // .
+		::vector<Node> targets(::string const& startup_dir_s={}) const ; // startup_dir_s for error reporting only
+		Job            job    (::string const& startup_dir_s={}) const ; // .
 		// data
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ;               // if proc==Close
+		Req        req     = {}            ; // if proc==Close
 		Fd         in_fd   = {}            ;
 		Fd         out_fd  = {}            ;
 		::vector_s files   = {}            ;
@@ -256,14 +261,14 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
 		JobProc                       proc          = JobProc::None ;
 		JobExec                       exec          = {}            ;
-		bool                          report        = false         ;          // if proc == Start
-		::vmap<Node,bool/*uniquify*/> report_unlink = {}            ;          // if proc == Start
-		::string                      txt           = {}            ;          // if proc == Start | LiveOut
-		Req                           req           = {}            ;          // if proc == Continue
-		::vmap_ss                     rsrcs         = {}            ;          // if proc == End
-		JobDigest                     digest        = {}            ;          // if proc == End
-		::string                      backend_msg   = {}            ;          // if proc == End
-		Fd                            reply_fd      = {}            ;          // if proc == ChkDeps
+		bool                          report        = false         ; // if proc == Start
+		::vmap<Node,bool/*uniquify*/> report_unlink = {}            ; // if proc == Start
+		::string                      txt           = {}            ; // if proc == Start | LiveOut
+		Req                           req           = {}            ; // if proc == Continue
+		::vmap_ss                     rsrcs         = {}            ; // if proc == End
+		JobDigest                     digest        = {}            ; // if proc == End
+		::string                      backend_msg   = {}            ; // if proc == End
+		Fd                            reply_fd      = {}            ; // if proc == ChkDeps
 	} ;
 
 	struct EngineClosure {

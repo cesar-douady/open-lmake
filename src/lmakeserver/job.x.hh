@@ -126,7 +126,7 @@ namespace Engine {
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobRpcReply      job_info   ( JobProc , ::vector<Node> const& deps                                    ) const ; // answer to requests from job execution
+		JobRpcReply      job_info   ( JobProc , ::vector<Dep> const& deps                                     ) const ; // answer to requests from job execution
 		bool/*modified*/ end        ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg ) ;       // hit indicates that result is from a cache hit
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
 		void             not_started(                                                                         ) ;       // Req was killed before it started
@@ -223,9 +223,9 @@ namespace Engine {
 			SWEAR(!rule.is_shared()) ;
 		}
 		//
-		JobData           (JobData&& jd) : JobData(jd) {                                    jd.star_targets.forget() ; jd.deps.forget() ;                }
-		~JobData          (            ) {                                                     star_targets.pop   () ;    deps.pop   () ;                }
-		JobData& operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = jd ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
+		JobData           (JobData&& jd) ;
+		~JobData          (            ) ;
+		JobData& operator=(JobData&& jd) ;
 	private :
 		JobData           (JobData const&) = default ;
 		JobData& operator=(JobData const&) = default ;
@@ -301,6 +301,7 @@ namespace Engine {
 		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
 	public :
+		//Name           name                     ;                                                         //     32 bits, inherited
 		Node             asking                   ;                                                         //     32 bits,        last target needing this job
 		Targets          star_targets             ;                                                         //     32 bits, owned, for plain jobs
 		Deps             deps                     ;                                                         // 31<=32 bits, owned
@@ -359,6 +360,10 @@ namespace Engine {
 	//
 	// JobData
 	//
+
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                    jd.star_targets.forget() ; jd.deps.forget() ;                }
+	inline JobData::~JobData          (            ) {                                                     star_targets.pop   () ;    deps.pop   () ;                }
+	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule==jd.rule,rule,jd.rule) ; *this = jd ; jd.star_targets.forget() ; jd.deps.forget() ; return *this ; }
 
 	inline ::string JobData::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
 	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }

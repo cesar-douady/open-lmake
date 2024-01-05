@@ -113,7 +113,7 @@ namespace Store {
 		static Sz      _s_sz    (uint8_t bucket) requires(!Multi) { SWEAR(bucket==0,bucket) ; return 1 ;                                              } // .
 		// cxtors
 	public :
-		using StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,LinearSz,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >::StructFile ;
+		using Base::Base ;
 		// accesses
 		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr  ; }
 		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr  ; }
@@ -124,8 +124,8 @@ namespace Store {
 		//
 		Idx idx(DataNv const& at) const requires(HasData) {
 			// the fancy following expr does a very simple thing : it transforms at into the corresponding ref for our Base
-			uintptr_t DataOffset = reinterpret_cast<uintptr_t>(&reinterpret_cast<Base::Data*>(4096)->data) - 4096 ;                      // cannot use 0 as gcc refuses to "dereference" null
-			typename Base::Data const& base_at = *reinterpret_cast<Base::Data const*>( reinterpret_cast<uintptr_t>(&at) - DataOffset ) ;
+			uintptr_t DataOffset = reinterpret_cast<uintptr_t>(&reinterpret_cast<typename Base::Data*>(4096)->data) - 4096 ;                      // cannot use 0 as gcc refuses to "dereference" null
+			typename Base::Data const& base_at = *reinterpret_cast<typename Base::Data const*>( reinterpret_cast<uintptr_t>(&at) - DataOffset ) ;
 			return Base::idx(base_at) ;
 		}
 	private :

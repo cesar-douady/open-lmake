@@ -16,7 +16,7 @@ ENUM( Channel
 ,	Backend
 )
 using Channels = BitMap<Channel> ;
-static constexpr Channels DfltChannels = Channels::All ;
+static constexpr Channels DfltChannels = ~Channels() ;
 
 #ifdef NO_TRACE
 

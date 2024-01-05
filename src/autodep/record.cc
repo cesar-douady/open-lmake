@@ -65,12 +65,21 @@ void Record::_report_access( JobExecRpcReq const& jerr ) const {
 		bool idle = jerr.digest.idle() ;
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR( +f , jerr.txt ) ;
-			auto [it,inserted] = access_cache.emplace(f,Accesses::None) ;
-			if ( idle && !( jerr.digest.accesses & ~it->second ) ) continue ;  // no new accesses
-			it->second |= idle ? jerr.digest.accesses : Accesses::All ;
+			auto                                           [it,inserted] = access_cache.emplace(f,pair(Accesses::None,Accesses::None)) ;
+			::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                  ;
+			if ( !inserted && idle ) {
+				if (+dd) { if (!( jerr.digest.accesses & ~entry.second )) continue ; } // no new seen accesses
+				else     { if (!( jerr.digest.accesses & ~entry.first  )) continue ; } // no new      accesses
+			}
+			if (!idle) {
+				entry = {Accesses::All,Accesses::All} ;                                // from now on, read accesses need not be reported as file has been written
+			} else {
+				/**/     entry.first /*accessed*/ |= jerr.digest.accesses ;
+				if (+dd) entry.second/*seen    */ |= jerr.digest.accesses ;
+			}
 			miss = true ;
 		}
-		if (!miss) return ;                                                    // modifying accesses cannot be cached as we do not know what other processes may have done in between
+		if (!miss) return ;                                                            // modifying accesses cannot be cached as we do not know what other processes may have done in between
 	}
 	_s_report(jerr) ;
 }
@@ -78,10 +87,10 @@ void Record::_report_access( JobExecRpcReq const& jerr ) const {
 Record::SolveReport Record::_solve( Path& path , bool no_follow , bool read , ::string const& comment ) {
 	if (!path.file) return {} ;
 	SolveReport sr = real_path.solve(path.at,path.file,no_follow) ;
-	for( ::string& lnk : sr.lnks ) _report_dep( ::move(lnk        ) , file_date(s_root_fd(),lnk        ) , Access::Lnk , comment+".lnk" ) ;
-	if ( !read && +sr.last_lnk   ) _report_dep( ::move(sr.last_lnk) , file_date(s_root_fd(),sr.last_lnk) , Access::Lnk , comment+".dir" ) ; // if read, we indirectly depend on last_lnk as uphill
-	sr.lnks.clear() ;
-	if ( sr.mapped && path.file && path.file[0] ) {                                                                // else path is ok as it is
+	for( ::string& lnk : sr.lnks ) _report_dep( ::move(lnk        ) , file_date(s_root_fd(),lnk) , Access::Lnk , comment+".lnk" ) ; // lnk exists
+	if ( !read && +sr.last_lnk   ) _report_dep( ::move(sr.last_lnk) , Ddate()                    , Access::Lnk , comment+".lst" ) ; // sr.lastlnk does not exist and we have not looked at errno ...
+	sr.lnks.clear() ;                                                                                                               // ... so we can report an unseen dep
+	if ( sr.mapped && path.file && path.file[0] ) {                                                                                 // else path is ok as it is
 		if      (is_abs(sr.real)) path.share   (               +sr.real?sr.real.c_str():"/"                    ) ;
 		else if (path.has_at    ) path.share   ( s_root_fd() ,          sr.real.c_str()                        ) ;
 		else                      path.allocate(               to_string(s_autodep_env().root_dir,'/',sr.real) ) ;
@@ -90,40 +99,10 @@ Record::SolveReport Record::_solve( Path& path , bool no_follow , bool read , ::
 	return sr ;
 }
 
-JobExecRpcReply Record::backdoor(JobExecRpcReq&& jerr) {
-	if (jerr.proc>=JobExecRpcProc::HasFile) {
-		SWEAR(jerr.auto_date) ;
-		bool            some_in_tmp = false           ;
-		::string        c           = jerr.txt+".lnk" ;
-		::vmap_s<Ddate> files       ;
-		for( auto const& [f,dd] : jerr.files ) {
-			SWEAR(+f) ;
-			Path        p  = {Fd::Cwd,f.c_str()}                                      ; // we can play with the at field at will
-			SolveReport sr = _solve( p , jerr.no_follow , +jerr.digest.accesses , c ) ;
-			if ( jerr.digest.write ? sr.kind==Kind::Repo : sr.kind<=Kind::Dep ) files.emplace_back( sr.real , file_date(s_root_fd(),sr.real) ) ;
-			some_in_tmp |= sr.kind==Kind::Tmp ;
-		}
-		jerr.files     = ::move(files) ;
-		jerr.auto_date = false         ;                                       // files are now real and dated
-		if ( some_in_tmp && jerr.digest.write ) _report_tmp() ;
-	}
-	jerr.date = Pdate::s_now() ;                                               // ensure date is posterior to links encountered while solving
-	if (jerr.proc==JobExecRpcProc::Access) _report_access(jerr) ;
-	else                                   _s_report     (jerr) ;
+JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
+	_s_report(jerr) ;
 	if (jerr.sync) return _s_get_reply() ;
 	else           return {}             ;
-}
-
-ssize_t Record::backdoor( const char* msg , char* buf , size_t sz ) {
-	JobExecRpcReq   jerr  = IMsgBuf::s_receive<JobExecRpcReq>(msg) ;
-	JobExecRpcReply reply = backdoor(::move(jerr))                 ;
-	//
-	if (sz<sizeof(MsgBuf::Len)) return 0 ;                                     // we cant report anything if we dont even have the necessary size to report the needed size
-	//
-	::string reply_str = OMsgBuf::s_send(reply)                                        ;
-	ssize_t  len       = reply_str.size()<=sz ? reply_str.size() : sizeof(MsgBuf::Len) ; // if not enough room for data, just report the size we needed
-	::memcpy( buf , reply_str.data() , len ) ;
-	return len ;
 }
 
 ::ostream& operator<<( ::ostream& os , Record::Path const& p ) {
@@ -191,18 +170,18 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	bool do_read = _do_read(flags) ;
 	bool do_stat = _do_stat(flags) ;
 	//
-	if ( flags&(O_DIRECTORY|O_TMPFILE)          ) { kind=Kind::Ext ; return ; } // we already solved, this is enough
+	if ( flags&(O_DIRECTORY|O_TMPFILE)          ) { kind=Kind::Ext ; return ; }                  // we already solved, this is enough
 	if ( do_stat && s_autodep_env().ignore_stat ) { kind=Kind::Ext ; return ; }
 	if ( kind>Kind::Dep                         )                    return ;
 	//
 	if (!do_write) {
-		if      (do_read) r._report_dep   ( ::copy(real) , file_date(s_root_fd(),real) , accesses|Access::Reg  , c+".rd"   ) ;
-		else if (do_stat) r._report_dep   ( ::copy(real) , file_date(s_root_fd(),real) , accesses|Access::Stat , c+".path" ) ;
+		if      (do_read) r._report_dep   ( ::copy(real) , accesses|Access::Reg  , c+".rd"   ) ;
+		else if (do_stat) r._report_dep   ( ::copy(real) , accesses|Access::Stat , c+".path" ) ;
 	} else if (kind==Kind::Repo) {
-		if      (do_read) r._report_update( ::copy(real) , file_date(s_root_fd(),real) , accesses|Access::Reg  , c+".upd"  ) ; // file date is updated if created, use original date
-		else              r._report_target( ::copy(real) ,                                                       c+".wr"   ) ; // .
+		if      (do_read) r._report_update( ::copy(real) , accesses|Access::Reg  , c+".upd"  ) ; // file date is updated if created, use original date
+		else              r._report_target( ::copy(real) ,                         c+".wr"   ) ; // .
 	} else {
-		if      (do_read) r._report_dep   ( ::copy(real) , file_date(s_root_fd(),real) , accesses|Access::Reg  , c+".upd"  ) ; // in src dirs, only the read side is reported
+		if      (do_read) r._report_dep   ( ::copy(real) , accesses|Access::Reg  , c+".upd"  ) ; // in src dirs, only the read side is reported
 	}
 }
 int Record::Open::operator()( Record& r , int rc ) {
@@ -222,7 +201,6 @@ Record::Read::Read( Record& r , Path&& path , bool no_follow , ::string&& c ) : 
 }
 
 Record::ReadLnk::ReadLnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,c} , buf{buf_} , sz{sz_} {
-	SWEAR(at!=Backdoor) ;
 	if (kind<=Kind::Dep) r._report_dep( ::copy(real) , accesses|Access::Lnk , ::move(c) ) ;
 }
 

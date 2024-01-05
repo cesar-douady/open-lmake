@@ -54,19 +54,19 @@ constexpr Dflags StaticDflags { Dflag::Essential , Dflag::Required , Dflag::Stat
 constexpr Dflags DfltDflags   {                    Dflag::Required                 } ; // used with ldepend
 
 ENUM_1( FileActionTag
-,	HasFile                            // <=HasFile means action acts on file
+,	HasFile = Uniquify                 // <=HasFile means action acts on file
 ,	Keep                               // no action, just check integrity
 ,	Unlink
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
 )
-struct FileAction {                                                            // XXX : add Crc so as to recognize when a file has been touched without modif
+struct FileAction {
 	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
 	FileActionTag tag       = FileActionTag::Unknown ;
 	bool          manual_ok = false                  ;
-	Hash::Crc     crc       ;
-	Disk::Ddate   date      ;                              // expected date, mandatory if !manual_ok
+	Hash::Crc     crc       ;                              // expected info, mandatory if !manual_ok
+	Disk::Ddate   date      ;                              // .
 } ;
 ::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction> const& pre_actions , Disk::NfsGuard& nfs_guard , Hash::Algo ) ;
 
@@ -331,69 +331,90 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	static constexpr bool HasBase = !::is_same_v<B,void> ;
 	//
 	using Accesses = Disk::Accesses ;
+	using Tag      = Disk::FileTag  ;
 	using Crc      = Hash::Crc      ;
 	using Ddate    = Time::Ddate    ;
 	//cxtors & casts
-	DepDigestBase(                                                     ) :                                                                      _crc { } {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p           ) :           accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p , Crc   c ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase(          Accesses a , Dflags dfs , bool p , Ddate d ) :           accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p           ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} ,                  _crc { } {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Crc   c ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{false} , _crc {c} {}
-	DepDigestBase( Base b , Accesses a , Dflags dfs , bool p , Ddate d ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} , is_date{true } , _date{d} {}
+	DepDigestBase(                                                              ) :                                                     _crc{} {           }
+	DepDigestBase(          Accesses a ,           Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
+	DepDigestBase(          Accesses a , Crc   c , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
+	DepDigestBase(          Accesses a , Ddate d , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
+	DepDigestBase( Base b , Accesses a ,           Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
+	DepDigestBase( Base b , Accesses a , Crc   c , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
+	DepDigestBase( Base b , Accesses a , Ddate d , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
 	//
-	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , accesses{dd.accesses} , dflags(dd.dflags) , parallel{dd.parallel} {
-		if (!accesses ) return ;
-		if (dd.is_date) date(dd.date()) ;
-		else            crc (dd.crc ()) ;
+	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} { crc_date(dd) ; }
+	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} { crc_date(dd) ; }
+	//
+	bool operator==(DepDigestBase const& other) const {
+		if (dflags  !=other.dflags  ) return false              ;
+		if (accesses!=other.accesses) return false              ;
+		if (parallel!=other.parallel) return false              ;
+		if (is_date !=other.is_date ) return false              ;
+		if (is_date                 ) return _date==other._date ;
+		else                          return _crc ==other._crc  ;
 	}
 	// accesses
-	Crc   crc () const { SWEAR( +accesses && !is_date ) ; return _crc  ; }
-	Ddate date() const { SWEAR( +accesses &&  is_date ) ; return _date ; }
+	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
+	Ddate date() const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date ; }
 	//
-	void crc (Crc   c) { _crc  = c ; is_date = false ; }
-	void date(Ddate d) { _date = d ; is_date = true  ; }
-	//
-	template<class X> void crc_date(DepDigestBase<X> const& dd) {
-		if (dd.is_date) date(dd.date()) ;
-		else            crc (dd.crc ()) ;
+	void crc (Crc   c) { is_date = false ; _crc  = c  ; }
+	void date(Ddate d) { is_date = true  ; _date = d  ; }
+	template<class B2> void crc_date(DepDigestBase<B2> const& dd) {
+		if (!dd.accesses) return ;
+		if ( dd.is_date ) date(dd.date()) ;
+		else              crc (dd.crc ()) ;
+	}
+	// services
+	void tag(Tag tag) {
+		SWEAR(is_date) ;
+		if (!_date) { crc(Crc::None) ; return ; }                                   // even if file appears, the whole job has been executed seeing the file as absent
+		switch (tag) {
+			case Tag::Reg     :
+			case Tag::Exe     :
+			case Tag::Lnk     : if (!Crc::s_sense(accesses,tag)) crc(tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			case Tag::None    :
+			case Tag::Dir     : if (+_date                     ) crc({} ) ; break ;
+			case Tag::Err     :
+			case Tag::Unknown :                                  crc({} ) ; break ; // if we dont know what we access, we cannot know the crc
+		}
 	}
 	// data
-	Accesses accesses   ;              // 3<=8 bits
-	Dflags   dflags     ;              // 6<=8 bits
-	bool     parallel:1 = false ;      //    1 bit
-	bool     is_date :1 = false ;      //    1 bit
+	Dflags   dflags     ;         //   6< 8 bits
+	Accesses accesses   ;         //   3< 8 bits
+	bool     parallel:1 = false ; //      1 bit
+	bool     is_date :1 = false ; //      1 bit
 private :
 	union {
-		Crc   _crc  ;                  // ~46<64 bits
-		Ddate _date ;                  // ~45<64 bits
+		Crc   _crc  ;             // ~46<64 bits
+		Ddate _date ;             // ~45<64 bits
 	} ;
 } ;
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
-	/**/                                          os << "D("                           ;
-	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
-	if           ( +dd.accesses               ) { os <<sep<< dd.accesses               ; sep = "," ; }
-	if           ( +dd.dflags                 ) { os <<sep<< dd.dflags                 ; sep = "," ; }
-	if           ( dd.parallel                ) { os <<sep<< "parallel"                ; sep = "," ; }
-	if           ( +dd.accesses && dd.is_date ) { os <<sep<< dd._date                  ; sep = "," ; }
-	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd._crc                   ; sep = "," ; }
-	return                                        os <<')'                             ;
+	/**/                                                os << "D("                           ;
+	if constexpr ( !::is_void_v<B>                  ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
+	if           ( +dd.accesses                     ) { os <<sep<< dd.accesses               ; sep = "," ; }
+	if           ( +dd.dflags                       ) { os <<sep<< dd.dflags                 ; sep = "," ; }
+	if           (  dd.parallel                     ) { os <<sep<< "parallel"                ; sep = "," ; }
+	if           ( +dd.accesses && dd.is_date       ) { os <<sep<< dd.date()                 ; sep = "," ; }
+	else if      ( +dd.accesses && +dd.crc()        ) { os <<sep<< dd.crc()                  ; sep = "," ; }
+	return                                              os <<')'                             ;
 }
 
 using DepDigest = DepDigestBase<void> ;
-static_assert(::is_trivially_copyable_v<DepDigest>) ;                          // as long as this holds, we do not have to bother about union member cxtor/dxtor
+static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
 
 struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
 	using Accesses = Disk::Accesses ;
 	using Crc      = Hash::Crc      ;
 	// data
-	Accesses    accesses ;                                 // how target was accessed before it was written
+	Accesses    accesses ;                           // how target was accessed before it was written
 	Tflags      tflags   ;
-	bool        write    = false        ;                  // if true <=> file was written (and possibly further unlinked)
-	Crc         crc      = Crc::Unknown ;                  // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
-	Time::Ddate date     = {}           ;
+	bool        write    = false       /*garbage*/ ; // if true <=> file was written (and possibly further unlinked)
+	Crc         crc      = Crc::Unknown/*garbage*/ ; // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Time::Ddate date     ;
 } ;
 
 struct JobDigest {
@@ -418,15 +439,6 @@ struct JobRpcReq {
 	using MDD = ::vmap_s<DepDigest> ;
 	friend ::ostream& operator<<( ::ostream& , JobRpcReq const& ) ;
 	// statics
-	static ::string s_mk_decode_file( ::string const& code , ::string const& file , ::string const& ctx ) {
-		//
-		return to_string("LMAKE/decode",file,".ctx_dir/",ctx,".code_dir/",code) ; // XXX : make a more robust file name (e.g. compute crc on file and ctx, or use mk_printable or ...)
-	}
-	static ::string s_mk_encode_file( ::string const& val , ::string const& file , ::string const& ctx ) {
-		Hash::Xxh h ;
-		h.update(val) ;
-		return to_string("LMAKE/encode",file,".ctx_dir/",ctx,".val_dir/",::move(h).digest()) ; // XXX : make a more robust file name (e.g. compute crc on file and ctx, or use mk_printable or ...)
-	}
 	// cxtors & casts
 	JobRpcReq() = default ;
 	JobRpcReq( P p , SI si , JI j                                    ) : proc{p} , seq_id{si} , job{j}                                             { SWEAR( p==P::None                      ) ; }
@@ -503,11 +515,11 @@ struct JobRpcReply {
 	using Crc      = Hash::Crc      ;
 	using Proc     = JobProc        ;
 	// cxtors & casts
-	JobRpcReply(                                                    ) = default ;
-	JobRpcReply( Proc p                                             ) : proc{p}                 {                                                       }
-	JobRpcReply( Proc p , Bool3                                  o  ) : proc{p} , ok       {o } { SWEAR( proc==Proc::ChkDeps                        ) ; }
-	JobRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p} , dep_infos{is} { SWEAR( proc==Proc::DepInfos                       ) ; }
-	JobRpcReply( Proc p , ::string                        const& t  ) : proc{p} , txt      {t } { SWEAR( proc==Proc::Decode   || proc==Proc::Encode ) ; }
+	JobRpcReply(                                                                      ) = default ;
+	JobRpcReply( Proc p                                                               ) : proc{p}                                           {                                                       }
+	JobRpcReply( Proc p , Bool3                                  o                    ) : proc{p} , ok{o}                                   { SWEAR( proc==Proc::ChkDeps                        ) ; }
+	JobRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>> const& is                   ) : proc{p} ,         dep_infos{is}                   { SWEAR( proc==Proc::DepInfos                       ) ; }
+	JobRpcReply( Proc p , ::string                        const& t  , Crc c , Bool3 o ) : proc{p} , ok{o} ,                 txt{t} , crc{c} { SWEAR( proc==Proc::Decode   || proc==Proc::Encode ) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		if (is_base_of_v<::istream,S>) *this = JobRpcReply() ;
@@ -517,10 +529,11 @@ struct JobRpcReply {
 			case Proc::End      :                         break ;
 			case Proc::DepInfos : ::serdes(s,dep_infos) ; break ;
 			case Proc::ChkDeps  : ::serdes(s,ok       ) ; break ;
-			case Proc::Decode   :
-			case Proc::Encode   :
+			case Proc::Decode :
+			case Proc::Encode :
 				::serdes(s,ok ) ;
 				::serdes(s,txt) ;
+				::serdes(s,crc) ;
 			break ;
 			case Proc::Start :
 				::serdes(s,addr            ) ;
@@ -573,13 +586,14 @@ struct JobRpcReply {
 	Time::Delay               timeout          ;                               // proc == Start
 	JobIdx                    trace_n_jobs     = 0                   ;         // proc == Start
 	bool                      use_script       = false               ;         // proc == Start
-	Bool3                     ok               = Maybe               ;         // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
 	::vector<pair<Bool3,Crc>> dep_infos        ;                               // proc == DepInfos
+	Bool3                     ok               = Maybe               ;         // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
 	::string                  txt              ;                               // proc ==         Decode|Encode , value for Decode, code for Encode
+	Crc                       crc              ;                               // proc ==         Decode|Encode , crc of txt
 } ;
 
 ENUM_1( JobExecRpcProc
-,	HasFile = Access                   // >=HasFile means files field is significative
+,	HasFiles = Access                  // >=HasFiles means files field is significative
 ,	None
 ,	ChkDeps
 ,	CriticalBarrier
@@ -593,6 +607,7 @@ ENUM_1( JobExecRpcProc
 ,	Guard
 )
 
+// model is : first read , first write , last write
 ENUM_1( AccessOrder
 ,	Write = InbetweenWrites            // >=Write means access comes after first write
 ,	Before
@@ -601,75 +616,80 @@ ENUM_1( AccessOrder
 ,	After
 )
 
+struct AccessDigest : DepDigest {                                      // order is first read, first write, last write, unlink
+	friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
+	// cxtors & casts
+	AccessDigest() = default ;
+	using DepDigest::DepDigest ;
+	template<class B2> AccessDigest(DepDigestBase<B2> const& dd) : DepDigest{dd} {}
+	// accesses
+	bool idle     () const { return !write && !unlink    ; }
+	bool operator+() const { return +accesses || !idle() ; }  // true if some access of some sort is done
+	bool operator!() const { return +!+*this             ; }
+	// services
+	bool operator==(AccessDigest const& ad) const = default ; // XXX : why is this necessary at all ?!?
+	AccessDigest operator|(AccessDigest const& ad) const {    // *this, then other
+		AccessDigest res = *this ;
+		res |= ad ;
+		return res ;
+	}
+	AccessDigest& operator|=(AccessDigest const& ad) {
+		update(ad,AccessOrder::After) ;
+		return *this ;
+	}
+	// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
+	void update( AccessDigest const& , AccessOrder ) ;
+	//
+	void confirm(bool ok) {
+		if (ok) { prev_write = write      ; prev_unlink = unlink      ; }
+		else    { write      = prev_write ; unlink      = prev_unlink ; }
+	}
+	// data
+	Tflags neg_tflags  = {}    ; // if write, removed Tflags
+	Tflags pos_tflags  = {}    ; // if write, added   Tflags
+	bool   prev_write  = false ;
+	bool   write       = false ; // if true <=> files are written, possibly unlinked later
+	bool   prev_unlink = false ; // if true <=> files are unlinked at the end, possibly written before
+	bool   unlink      = false ; // if true <=> files are unlinked at the end, possibly written before
+} ;
+
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
+	using Access   = Disk::Access   ;
 	using Accesses = Disk::Accesses ;
 	using P        = JobExecRpcProc ;
 	using PD       = Time::Pdate    ;
 	using DD       = Time::Ddate    ;
-	//
-	struct AccessDigest {                                                      // order is read, then write, then unlink
-		friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
-		// accesses
-		bool idle() const { return !write && !unlink ; }                       // for state management, handle Maybe as Yes
-		// services
-		bool operator==(AccessDigest const& ad) const = default ;              // XXX : why is this necessary at all ?!?
-		AccessDigest operator|(AccessDigest const& ad) const {                 // *this, then other
-			AccessDigest res = *this ;
-			res |= ad ;
-			return res ;
-		}
-		AccessDigest& operator|=(AccessDigest const& ad) {
-			update(ad,AccessOrder::After) ;
-			return *this ;
-		}
-		// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
-		void update( AccessDigest const& , AccessOrder ) ;
-		//
-		void confirm(bool ok) {
-			if (ok) { prev_write = write      ; prev_unlink = unlink      ; }
-			else    { write      = prev_write ; unlink      = prev_unlink ; }
-		}
-		// data
-		Accesses accesses    = {}    ; // if +accesses <=> files are read
-		Dflags   dflags      = {}    ;
-		Tflags   neg_tflags  = {}    ; // if write, removed Tflags
-		Tflags   pos_tflags  = {}    ; // if write, added   Tflags
-		bool     prev_write  = false ;
-		bool     write       = false ; // if true <=> files are written, possibly unlinked later
-		bool     prev_unlink = false ; // if true <=> files are unlinked at the end, possibly written before
-		bool     unlink      = false ; // if true <=> files are unlinked at the end, possibly written before
-	} ;
 	// statics
 private :
 	static ::vmap_s<DD> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<DD> res ; for( ::string& f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
 	// cxtors & casts
 public :
-	JobExecRpcReq(                                )                                      {                                                                    }
-	JobExecRpcReq( P p , bool s , ::string&& t={} ) : proc{p} , sync{s} , txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFile) ; }
-	JobExecRpcReq( P p ,          ::string&& t={} ) : proc{p} ,           txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFile) ; }
+	JobExecRpcReq(                                )                                      {                                                                     }
+	JobExecRpcReq( P p , bool s , ::string&& t={} ) : proc{p} , sync{s} , txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFiles) ; }
+	JobExecRpcReq( P p ,          ::string&& t={} ) : proc{p} ,           txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFiles) ; }
 	//
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , Accesses a , Dflags dfs , bool nf ) :
-		proc     {p                      }
-	,	sync     {true                   }
-	,	auto_date{ad                     }
-	,	no_follow{nf                     }
-	,	files    {::move(fs)             }
-	,	digest   {.accesses=a,.dflags=dfs}
+		proc     { p          }
+	,	sync     { true       }
+	,	auto_date{ ad         }
+	,	no_follow{ nf         }
+	,	files    { ::move(fs) }
+	,	digest   { a , dfs    }
 	{ SWEAR(p==P::DepInfos) ; }
 	//                                                                                                                   auto_date,      no_follow
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , Accesses a , Dflags dfs           ) : JobExecRpcReq{p,          ::move(fs) ,false    ,a,dfs,false    } {}
 	JobExecRpcReq( P p , ::vector_s  && fs , Accesses a , Dflags dfs , bool nf ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true     ,a,dfs,nf       } {}
 	//
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessDigest const& d , bool nf , bool s , ::string const& comment={} ) :
-		proc     {p         }
-	,	sync     {s         }
-	,	auto_date{ad        }
-	,	no_follow{nf        }
-	,	files    {::move(fs)}
-	,	digest   {d         }
-	,	txt      {comment   }
+		proc     { p          }
+	,	sync     { s          }
+	,	auto_date{ ad         }
+	,	no_follow{ nf         }
+	,	files    { ::move(fs) }
+	,	digest   { d          }
+	,	txt      { comment    }
 	{ SWEAR(p==P::Access) ; }
 	//                                                                                                                                                  auto_date,   no_follow,sync
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,           bool s , ::string const& c={} ) : JobExecRpcReq{p,          ::move(fs) ,false    ,ad,false    ,s    ,c} {}
@@ -680,8 +700,25 @@ public :
 	JobExecRpcReq( P p , ::vector_s&& fs , bool ok_        ) : proc{p} , ok{ok_} , files{_s_mk_mdd(::move(fs))}                  { SWEAR(p==P::Confirm) ; }
 	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} ,           files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard  ) ; }
 	//
-	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& ctx_              ) : proc{p} ,               files{{{::move(f),{}}}} , txt{code} , ctx{ctx_} { SWEAR(p==P::Decode) ; }
-	JobExecRpcReq( P p , ::string&& f , ::string&& val  , ::string&& ctx_ , uint8_t ml ) : proc{p} , min_len{ml} , files{{{::move(f),{}}}} , txt{val } , ctx{ctx_} { SWEAR(p==P::Encode) ; }
+	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& c ) :
+		proc      { p                }
+	,	sync      { true             }
+	,	auto_date { true             }
+	,	files     { {{::move(f),{}}} } // no need for date for codec
+	,	digest    { Access::Reg      }
+	,	txt       { code             }
+	,	ctx       { c                }
+	{ SWEAR(p==P::Decode) ; }
+	JobExecRpcReq( P p , ::string&& f , ::string&& val , ::string&& c , uint8_t ml ) :
+		proc      { p                }
+	,	sync      { true             }
+	,	auto_date { true             }
+	,	min_len   { ml               }
+	,	files     { {{::move(f),{}}} } // no need for date for codec
+	,	digest    { Access::Reg ,    }
+	,	txt       { val              }
+	,	ctx       { c                }
+	{ SWEAR(p==P::Encode) ; }
 	// services
 public :
 	template<IsStream T> void serdes(T& s) {
@@ -689,42 +726,39 @@ public :
 		::serdes(s,proc) ;
 		::serdes(s,date) ;
 		::serdes(s,sync) ;
-		if (proc>=P::HasFile) ::serdes(s,files) ;
-		switch (proc) {
-			case P::Confirm : ::serdes(s,ok ) ; break ;
-			case P::Guard   :
-			case P::Tmp     :
-			case P::Trace   : ::serdes(s,txt) ; break ;
-			case P::Access   :
-				::serdes(s,txt) ;
-				[[fallthrough]] ;
-			case P::DepInfos :
-				::serdes(s,digest   ) ;
-				::serdes(s,auto_date) ;
+		if (proc>=P::HasFiles) {
+			::serdes(s,auto_date) ;
+			::serdes(s,files    ) ;
+			if (auto_date) {
+				::serdes(s,cwd      ) ;
 				::serdes(s,no_follow) ;
-			break ;
-			case P::Encode :
-				::serdes(s,min_len) ;
-				[[fallthrough]] ;
-			case P::Decode :
-				::serdes(s,ctx) ;
-				::serdes(s,txt) ;
-			break ;
+			}
+		}
+		switch (proc) {
+			case P::Confirm  : ::serdes(s,ok     ) ;                   break           ;
+			case P::Guard    :
+			case P::Tmp      :
+			case P::Trace    : ::serdes(s,txt    ) ;                   break           ;
+			case P::Access   : ::serdes(s,txt    ) ;                   [[fallthrough]] ;
+			case P::DepInfos : ::serdes(s,digest ) ;                   break           ;
+			case P::Encode   : ::serdes(s,min_len) ;                   [[fallthrough]] ;
+			case P::Decode   : ::serdes(s,ctx    ) ; ::serdes(s,txt) ; break           ;
 			default : ;
 		}
 	}
 	// data
-	P            proc      = P::None     ;
-	bool         sync      = false       ;
-	bool         auto_date = false       ;                 // if proc>=HasFile, if true <=> files must be solved and dates added by probing disk (for autodep internal use, not to be sent to job_exec)
-	bool         no_follow = false       ;                 // if files have yet to be made real, whether links should not be followed
-	bool         ok        = false       ;                 // if proc==Confirm
-	uint8_t      min_len   = 0           ;                 // if proc==Encode
-	PD           date      = PD::s_now() ;                 // access date to reorder accesses during analysis
+	P            proc      = P::None                   ;
+	bool         sync      = false                     ;
+	bool         auto_date = false                     ; // if proc>=HasFiles, if true <=> files must be solved and dates added by probing disk
+	bool         no_follow = false                     ; // if auto_date, whether links should not be followed
+	bool         ok        = false                     ; // if proc==Confirm
+	uint8_t      min_len   = 0                         ; // if proc==Encode
+	PD           date      = PD::s_now()               ; // access date to reorder accesses during analysis
+	::string     cwd       = auto_date?Disk::cwd():""s ; // if auto_date, cwd to use to solve files
 	::vmap_s<DD> files     ;
 	AccessDigest digest    ;
-	::string     txt       ;                               // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
-	::string     ctx       ;                               // if proc==Decode|Encode
+	::string     txt       ;                             // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)
+	::string     ctx       ;                             // if proc==Decode|Encode
 } ;
 
 struct JobExecRpcReply {
@@ -744,9 +778,15 @@ struct JobExecRpcReply {
 		if (::is_base_of_v<::istream,S>) *this = JobExecRpcReply() ;
 		::serdes(s,proc) ;
 		switch (proc) {
+			case Proc::Access   :                         break ;
 			case Proc::ChkDeps  : ::serdes(s,ok       ) ; break ;
 			case Proc::DepInfos : ::serdes(s,dep_infos) ; break ;
-			default : ;
+			case Proc::Decode :
+			case Proc::Encode :
+				::serdes(s,ok ) ;
+				::serdes(s,txt) ;
+			break ;
+			default : FAIL(proc) ;
 		}
 	}
 	// data
@@ -805,3 +845,18 @@ struct JobInfoEnd {
 	// data
 	JobRpcReq end = {} ;
 } ;
+
+//
+// codec
+//
+
+namespace Codec {
+
+	static constexpr char CodecPfx[] = "LMAKE/codec/" ;
+
+	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) ;
+	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val  ) ;
+
+	::string mk_file(::string const& node) ; // node may have been obtained from mk_decode_node or mk_encode_node
+
+}

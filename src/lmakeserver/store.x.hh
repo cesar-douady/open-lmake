@@ -45,6 +45,8 @@
 
 namespace Engine {
 
+	struct StoreMrkr {} ;              // just a marker to disambiguate file association
+
 	struct Dep    ;
 	struct Target ;
 
@@ -52,23 +54,10 @@ namespace Engine {
 
 }
 
-namespace Engine::Persistent {
-
-	template<class V> struct GenericVector ;
-
-	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=0> struct SimpleVectorBase ;
-	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=1> struct CrunchVectorBase ;
-	template<class Idx_,class Item_,class Mrkr_=void    > using SimpleVector = GenericVector<SimpleVectorBase<Idx_,Item_,Mrkr_>> ;
-	template<class Idx_,class Item_,class Mrkr_=void    > using CrunchVector = GenericVector<CrunchVectorBase<Idx_,Item_,Mrkr_>> ;
-
-	using DepsBase    = SimpleVector<NodeIdx,Dep   > ;
-	using TargetsBase = SimpleVector<NodeIdx,Target> ;
-
-}
-
 namespace Engine {
-	using DepsBase    = Persistent::DepsBase    ;
-	using TargetsBase = Persistent::TargetsBase ;
+	namespace Persistent { using RuleStr     = Vector::Simple<RuleStrIdx,char  ,StoreMrkr> ; }
+	/**/                   using DepsBase    = Vector::Simple<NodeIdx   ,Dep   ,StoreMrkr> ;
+	/**/                   using TargetsBase = Vector::Simple<NodeIdx   ,Target,StoreMrkr> ;
 }
 
 #endif
@@ -76,138 +65,6 @@ namespace Engine {
 #ifdef STRUCT_DEF
 
 namespace Engine::Persistent {
-
-	//
-	// Vector's
-	//
-
-	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct SimpleVectorBase
-	:	             Idxed<Idx_,NGuardBits>
-	{	using Base = Idxed<Idx_,NGuardBits> ;
-		using Idx  = Idx_  ;
-		using Item = Item_ ;
-		using Mrkr = Mrkr_ ;
-		using Sz   = Idx   ;
-		static const Idx EmptyIdx ;
-		// cxtors & casts
-		using Base::Base ;
-		//
-		template<IsA<Item> I> SimpleVectorBase(I                const& x) : SimpleVectorBase(::vector_view<I>(&x,1)) {}
-		template<IsA<Item> I> SimpleVectorBase(::vector_view<I> const&  ) ;
-		template<IsA<Item> I> void assign     (::vector_view<I> const&  ) ;
-		//
-		void pop   () ;
-		void clear () ;
-		void forget() { Base::clear() ; }
-		// accesses
-		auto        size () const -> Sz ;
-		Item const* items() const ;
-		Item      * items()       ;
-		// services
-		void shorten_by(Sz by) ;
-		//
-		template<IsA<Item> I> void append(::vector_view<I> const&) ;
-	} ;
-
-	// CrunchVector's are like SimpleVector's except that a vector of 0 element is simply 0 and a vector of 1 element is stored in place
-	// This is particular efficient for situations where the vector size is 1 most of the time
-	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct CrunchVectorBase
-	:	               Idxed2< Item_ , Idxed<Idx_,NGuardBits> >
-	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
-		using Vector =                 Idxed<Idx_,NGuardBits>   ;
-		using Idx    = Idx_  ;
-		using Item   = Item_ ;
-		using Mrkr   = Mrkr_ ;
-		using Sz     = Idx   ;
-		static_assert(sizeof(Item_)>=sizeof(Idx_)) ;                           // else it is difficult to implement the items() method with a cast in case of single element
-		// cxtors & casts
-		using Base::Base ;
-		//
-		template<IsA<Item> I> CrunchVectorBase(I                const& x) : Base(x) {}
-		template<IsA<Item> I> CrunchVectorBase(::vector_view<I> const&  ) ;
-		template<IsA<Item> I> void assign     (::vector_view<I> const&  ) ;
-		//
-		void pop   () ;
-		void clear () ;
-		void forget() { Base::clear() ; }
-		// accesses
-		auto        size () const -> Sz ;
-		Item const* items() const ;
-		Item      * items()       ;
-	private :
-		bool _multi () const { return !this->template is_a<Item  >() ; }       // 0 is both a Vector and an Item, so this way 0 is !_multi ()
-		bool _single() const { return !this->template is_a<Vector>() ; }       // 0 is both a Vector and an Item, so this way 0 is !_single()
-		// services
-	public :
-		void shorten_by(Sz by) ;
-		//
-		template<IsA<Item> I> void append(::vector_view<I> const&) ;
-	} ;
-
-	template<class V> ::ostream& operator<<( ::ostream& , GenericVector<V> const& ) ;
-	template<class V> struct GenericVector : V {
-		friend ::ostream& operator<< <>( ::ostream& , GenericVector const& ) ;
-		using Base       = V                   ;
-		using Idx        = typename Base::Idx  ;
-		using Item       = typename Base::Item ;
-		using value_type = Item                ;                               // mimic vector
-		static constexpr bool   IsStr = IsChar<Item> ;
-		//
-		using Base::items ;
-		using Base::size  ;
-		// cxtors & casts
-		using Base::Base  ;
-		//
-		template<IsA<Item> I> requires( ::is_const_v<I>) GenericVector(::vector           <::remove_const_t<I>> const& v) : Base{c_vector_view<I>(v)} {}
-		template<IsA<Item> I> requires(!::is_const_v<I>) GenericVector(::vector           <                 I > const& v) : Base{c_vector_view<I>(v)} {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string_view<                 I > const& s) : Base{c_vector_view<I>(s)} {}
-		template<IsA<Item> I> requires(IsStr           ) GenericVector(::basic_string     <                 I > const& s) : Base{c_vector_view<I>(s)} {}
-		//
-		template<IsA<Item> I>                            void assign(::vector_view      <                 I > const& v) { Base::assign(                 v ) ; }
-		template<IsA<Item> I> requires( ::is_const_v<I>) void assign(::vector           <::remove_const_t<I>> const& v) {       assign(c_vector_view<I>(v)) ; }
-		template<IsA<Item> I> requires(!::is_const_v<I>) void assign(::vector           <                 I > const& v) {       assign(c_vector_view<I>(v)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string_view<                 I > const& s) {       assign(c_vector_view<I>(s)) ; }
-		template<IsA<Item> I> requires(IsStr           ) void assign(::basic_string     <                 I > const& s) {       assign(c_vector_view<I>(s)) ; }
-		//
-		operator ::c_vector_view    <Item>() const                 { return view    () ; }
-		operator ::vector_view      <Item>()                       { return view    () ; }
-		operator ::basic_string_view<Item>() const requires(IsStr) { return str_view() ; }
-		// accesses
-		::c_vector_view    <Item> view    () const                 { return { items() , size() } ; }
-		::vector_view      <Item> view    ()                       { return { items() , size() } ; }
-		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
-		//
-		Item const* begin     (        ) const { return items()           ; }  // mimic vector
-		Item      * begin     (        )       { return items()           ; }  // .
-		Item const* cbegin    (        ) const { return items()           ; }  // .
-		Item const* end       (        ) const { return items()+size()    ; }  // .
-		Item      * end       (        )       { return items()+size()    ; }  // .
-		Item const* cend      (        ) const { return items()+size()    ; }  // .
-		Item const& front     (        ) const { return items()[0       ] ; }  // .
-		Item      & front     (        )       { return items()[0       ] ; }  // .
-		Item const& back      (        ) const { return items()[size()-1] ; }  // .
-		Item      & back      (        )       { return items()[size()-1] ; }  // .
-		Item const& operator[](size_t i) const { return items()[i       ] ; }  // .
-		Item      & operator[](size_t i)       { return items()[i       ] ; }  // .
-		//
-		::c_vector_view    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::c_vector_view    ( begin()+start , ::min(sz,size()-start) ) ; }
-		::vector_view      <Item>       subvec( size_t start , size_t sz=Npos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item> const substr( size_t start , size_t sz=Npos ) const { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
-		::basic_string_view<Item>       substr( size_t start , size_t sz=Npos )       { return ::basic_string_view( begin()+start , ::min(sz,size()-start) ) ; }
-		// services
-		template<IsA<Item> I> void append(::vector_view      <I> const& v) { return Base::append(                v ) ; }
-		template<IsA<Item> I> void append(::vector           <I> const& v) { return       append(::c_vector_view(v)) ; }
-		template<IsA<Item> I> void append(::basic_string_view<I> const& s) { return       append(::c_vector_view(s)) ; }
-		template<IsA<Item> I> void append(::basic_string     <I> const& s) { return       append(::c_vector_view(s)) ; }
-	} ;
-	template<class V> ::ostream& operator<<( ::ostream& os , GenericVector<V> const& gv ) {
-		bool first = true ;
-		/**/                                                                  os <<'[' ;
-		for( typename V::Item const& x : gv ) { if (first) first=false ; else os <<',' ; os << x ; }
-		return                                                                os <<']' ;
-	}
-
-	using RuleStr = SimpleVector<RuleStrIdx,char> ;
 
 	struct RuleTgts
 	:	             Idxed<RuleTgtsIdx>
@@ -305,13 +162,13 @@ namespace Engine::Persistent {
 		static void           s_clear_srcs       (                                  ) ;
 		//
 		static Targets const s_srcs( bool dirs                                    ) ;
-		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
+		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;   // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		NodeBase( ::string const& name , bool no_dir=false ) ;
-		NodeBase( Name                 , bool no_dir=false ) ;                 // no lock as it is managed in public cxtor & dir method
+		/**/     NodeBase( ::string const& name , bool no_dir=false ) ;
+		explicit NodeBase( Name                 , bool no_dir=false ) ;                 // no lock as it is managed in public cxtor & dir method
 		// accesses
 	public :
 		NodeData const& operator* () const ;
@@ -345,7 +202,7 @@ namespace Engine::Persistent {
 		//
 		::string_view str() const ;
 		// services
-		void stamp() const ;
+		void save() const ;
 	private :
 		Persistent::RuleStr _str() const ;
 	} ;
@@ -358,7 +215,7 @@ namespace Engine::Persistent {
 	} ;
 
 	struct JobNode
-	:	             Idxed<WatcherIdx>                                         // can index Node or Job (no need to distinguish as Job names are suffixed with rule)
+	:	             Idxed<WatcherIdx>   // can index Node or Job (no need to distinguish as Job names are suffixed with rule)
 	{	using Base = Idxed<WatcherIdx> ;
 		// cxtors & casts
 		using Base::Base ;
@@ -373,7 +230,7 @@ namespace Engine::Persistent {
 namespace Engine {
 	using Name        = Persistent::Name                        ;
 	using JobBase     = Persistent::JobBase                     ;
-	using JobTgtsBase = Persistent::CrunchVector<JobIdx,JobTgt> ;
+	using JobTgtsBase = Vector::Crunch<JobIdx,JobTgt,StoreMrkr> ;
 	using NodeBase    = Persistent::NodeBase                    ;
 	using RuleBase    = Persistent::RuleBase                    ;
 	using RuleTgts    = Persistent::RuleTgts                    ;
@@ -423,36 +280,7 @@ namespace Engine::Persistent {
 	// commons
 	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
-	static constexpr char StartMrkr = 0x0 ;                                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
-
-	// statics
-	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
-	//
-	bool/*invalidate*/ new_srcs        ( ::vector_s          && srcs , ::vector_s&& src_dirs_s ) ;
-	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                ) ;
-	void               invalidate_match(                                                       ) ;
-	void               invalidate_exec ( bool cmd_ok                                           ) ;
-	//
-	NodeFile::Lst  node_lst() ;
-	JobFile ::Lst  job_lst () ;
-	::vector<Rule> rule_lst() ;
-	//
-	void chk() ;
-	//
-	void _init_config       (                                                                              ) ;
-	void _diff_config       ( Config const& old_config , bool dynamic                                      ) ;
-	void _save_config       (                                                                              ) ;
-	void _init_srcs_rules   ( bool rescue=false                                                            ) ;
-	void _new_max_dep_depth ( DepDepth                                                                     ) ;
-	void _save_rules        (                                                                              ) ;
-	void _compile_rule_datas(                                                                              ) ;
-	void _compile_psfxs     (                                                                              ) ;
-	void _compile_srcs      (                                                                              ) ;
-	void _compile_rules     (                                                                              ) ;
-	void _compile_n_tokenss (                                                                              ) ;
-	void _invalidate_exec   ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
-	void _collect_old_rules (                                                                              ) ;
-	void _set_exec_gen      ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
+	static constexpr char StartMrkr = 0x0 ;                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 
 	// visible data
 	extern bool writable ;
@@ -476,14 +304,44 @@ namespace Engine::Persistent {
 	extern ::uset<Node>       _no_triggers  ;
 	extern ::vector<RuleData> _rule_datas   ;
 
-	template<class T> struct VectorHelper {} ;
+}
+
+namespace Vector {
+	template<> struct File<Engine            ::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_deps_file         ; } ;
+	template<> struct File<Engine            ::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_star_targets_file ; } ;
+	template<> struct File<Engine            ::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_job_tgts_file     ; } ;
+	template<> struct File<Engine::Persistent::RuleStr    > { static constexpr Engine::Persistent::RuleStrFile& file = Engine::Persistent::_rule_str_file     ; } ;
+}
+
+namespace Engine::Persistent {
+
+	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	#define SC static constexpr
-	template<> struct VectorHelper<DepsBase   ::Base> { SC DepsFile   & g_file() { return _deps_file         ; } SC DepsFile    const& gc_file() { return _deps_file         ; } } ;
-	template<> struct VectorHelper<TargetsBase::Base> { SC TargetsFile& g_file() { return _star_targets_file ; } SC TargetsFile const& gc_file() { return _star_targets_file ; } } ;
-	template<> struct VectorHelper<JobTgtsBase::Base> { SC JobTgtsFile& g_file() { return _job_tgts_file     ; } SC JobTgtsFile const& gc_file() { return _job_tgts_file     ; } } ;
-	template<> struct VectorHelper<RuleStr    ::Base> { SC RuleStrFile& g_file() { return _rule_str_file     ; } SC RuleStrFile const& gc_file() { return _rule_str_file     ; } } ;
-	#undef SC
+	bool/*invalidate*/ new_srcs        ( ::vmap_s<Disk::FileTag>&& srcs , ::vector_s&& src_dirs_s ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                   ) ;
+	void               invalidate_match(                                                          ) ;
+	void               invalidate_exec ( bool cmd_ok                                              ) ;
+	//
+	NodeFile::Lst  node_lst() ;
+	JobFile ::Lst  job_lst () ;
+	::vector<Rule> rule_lst() ;
+	//
+	void chk() ;
+	//
+	void _init_config       (                                                                              ) ;
+	void _diff_config       ( Config const& old_config , bool dynamic                                      ) ;
+	void _save_config       (                                                                              ) ;
+	void _init_srcs_rules   ( bool rescue=false                                                            ) ;
+	void _new_max_dep_depth ( DepDepth                                                                     ) ;
+	void _save_rules        (                                                                              ) ;
+	void _compile_rule_datas(                                                                              ) ;
+	void _compile_psfxs     (                                                                              ) ;
+	void _compile_srcs      (                                                                              ) ;
+	void _compile_rules     (                                                                              ) ;
+	void _compile_n_tokenss (                                                                              ) ;
+	void _invalidate_exec   ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
+	void _collect_old_rules (                                                                              ) ;
+	void _set_exec_gen      ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
 
 	//
 	// JobNode
@@ -597,8 +455,8 @@ namespace Engine::Persistent {
 	inline void           NodeBase::s_clear_no_triggers(                                        ) { _node_file.hdr().no_triggers .clear() ; _no_triggers .clear() ;    }
 	inline void           NodeBase::s_clear_srcs       (                                        ) { _node_file.hdr().srcs        .clear() ;                       ;    }
 	//
-	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _node_file.c_hdr() ; return dirs ? nh.src_dirs : nh.srcs ;            }
-	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update(dirs?nh.src_dirs:nh.srcs ,add,items) ; }
+	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _node_file.c_hdr() ; return     dirs?nh.src_dirs:nh.srcs ;                 }
+	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
 
 	// cxtors & casts
 	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
@@ -608,7 +466,7 @@ namespace Engine::Persistent {
 			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
 		} else {
 			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir) ;
-			(*this)->_full_name = name_                                    ;
+			(*this)->_full_name  =         name_                            ;
 		}
 	}
 	inline NodeBase::NodeBase( ::string const& n , bool no_dir ) {
@@ -636,101 +494,8 @@ namespace Engine::Persistent {
 	inline ::string_view   RuleBase::str      () const {                       return _rule_str_file.str_view(+_str()) ; }
 	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(Rule(*this))     ; }
 	// services
-	inline void RuleBase::stamp() const { _rule_file.at(*this) = _rule_str_file.assign(_str(),::string(**this)) ; }
-
-	//
-	// SimpleVectorBase
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = VectorHelper<SimpleVectorBase>::gc_file().EmptyIdx ;
-	// cxtors & casts
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::SimpleVectorBase(::vector_view<I> const& v) :
-		Base{VectorHelper<SimpleVectorBase>::g_file().emplace(v)}
-	{}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::assign(::vector_view<I> const& v) {
-		*this = VectorHelper<SimpleVectorBase>::g_file().assign(+*this,v) ;
-	}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::pop  () {
-		VectorHelper<SimpleVectorBase>::g_file().pop(+*this) ;
-		forget() ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::clear() {
-		pop() ;
-	}
-	// accesses
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item const* SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::items() const {
-		return VectorHelper<SimpleVectorBase>::gc_file().items(+*this) ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item* SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::items() {
-		return VectorHelper<SimpleVectorBase>::g_file ().items(+*this) ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline auto SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::size () const ->Sz {
-		return VectorHelper<SimpleVectorBase>::gc_file().size (+*this) ;
-	}
-	// services
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::shorten_by(Sz by) {
-		*this = VectorHelper<SimpleVectorBase>::g_file().shorten_by(+*this,by) ;
-	}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void SimpleVectorBase<Idx,Item,Mrkr,NGuardBits>::append(::vector_view<I> const& v ) {
-		*this = VectorHelper<SimpleVectorBase>::g_file().append(+*this,v) ;
-	}
-
-	//
-	// CrunchVectorBase
-	//
-	// cxtors & casts
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::CrunchVectorBase(::vector_view<I> const& v) {
-		if (v.size()!=1) { static_cast<Base&>(*this) = VectorHelper<CrunchVectorBase>::g_file().emplace(v) ; }
-		else             { static_cast<Base&>(*this) = v[0]                                        ; }
-	}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::assign(::vector_view<I> const& v) {
-		if (_multi()) {
-			if (v.size()!=1) { *this = VectorHelper<CrunchVectorBase>::g_file().assign(*this,v) ;                                  }
-			else             {         VectorHelper<CrunchVectorBase>::g_file().pop   (*this  ) ; *this = CrunchVectorBase(v[0]) ; }
-		} else {
-			*this = CrunchVectorBase(v) ;
-		}
-	}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::pop() {
-		if (_multi()) VectorHelper<CrunchVectorBase>::g_file().pop(*this) ;
-		forget() ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::clear() {
-		pop() ;
-	}
-	// accesses
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item const* CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::items() const {
-		if (_single()) return &static_cast<Item const&>(*this)              ;
-		/**/           return VectorHelper<CrunchVectorBase>::gc_file().items(*this) ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline Item* CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::items() {
-		if (_single()) return &static_cast<Item&>(*this)                    ;
-		/**/           return VectorHelper<CrunchVectorBase>::g_file().items(*this) ;
-	}
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline auto CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::size() const -> Sz {
-		if (_single()) return 1 ;
-		/**/           return VectorHelper<CrunchVectorBase>::gc_file().size(*this) ;
-	}
-	// services
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::shorten_by(Sz by) {
-		Sz sz = size() ;
-		SWEAR( by<=sz , by , sz ) ;
-		if (_multi()) {
-			if (by!=sz-1) { *this = VectorHelper<CrunchVectorBase>::g_file().shorten_by( *this , by ) ;                           }
-			else          { Item save = (*this)[0] ; VectorHelper<CrunchVectorBase>::g_file().pop(Vector(*this)) ; *this = save ; }
-		} else {
-			if (by==sz) forget() ;
-		}
-	}
-	//
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> template<IsA<Item> I> inline void CrunchVectorBase<Idx,Item,Mrkr,NGuardBits>::append(::vector_view<I> const& v ) {
-		if      (!*this  ) assign(v) ;
-		else if (_multi()) *this = VectorHelper<CrunchVectorBase>::g_file().append (     *this ,v) ;
-		else if (+v      ) *this = VectorHelper<CrunchVectorBase>::g_file().emplace(Item(*this),v) ;
+	inline void RuleBase::save() const {
+		_rule_file.at(*this) = _rule_str_file.assign(_str(),::string(**this)) ;
 	}
 
 	//

@@ -1323,7 +1323,7 @@ namespace Engine {
 			,	rule->n_static_stems/*stop_above*/
 			) ;
 			size_t sep = target.rfind('/') ;
-			if (sep!=Npos) dirs.insert(target.substr(0,sep)) ;
+			if (sep!=Npos) dirs.insert(Node(target.substr(0,sep))) ;
 		}
 		return mk_vector(dirs) ;
 	}

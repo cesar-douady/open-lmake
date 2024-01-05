@@ -102,7 +102,7 @@ COMMA := ,
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 ASSEMBLE            := $(CC)             -S                     -ftabstop=4
-COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
+COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4 -ftemplate-backtrace-limit=0
 LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                      # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
 LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                      # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
 LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                                                                 # e.g. : /usr/lib/x /a/b /c /a/b/c/..
@@ -671,7 +671,7 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	echo '300M' > $(LMAKE_ENV)-cache/LMAKE/size
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
 
 #
 # archive

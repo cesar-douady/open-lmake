@@ -14,15 +14,15 @@ namespace Store {
 	//
 
 	template<bool AutoLock,class Hdr_,IsIdx Idx_,class Data_,bool Multi=false> struct StructFile : File<false/*AutoLock*/> { // we manage the mutex
-		using Base   = File                 ;
-		using Hdr    = Hdr_                 ;
-		using Idx    = Idx_                 ;
-		using Data   = Data_                ;
-		using HdrNv  = NoVoid<Hdr >         ;
-		using DataNv = NoVoid<Data>         ;
-		using Sz     = IntIdx<Idx>          ;
-		using ULock  = UniqueLock<AutoLock> ;
-		using SLock  = SharedLock<AutoLock> ;
+		using Base   = File<false/*AutoLock*/> ;
+		using Hdr    = Hdr_                    ;
+		using Idx    = Idx_                    ;
+		using Data   = Data_                   ;
+		using HdrNv  = NoVoid<Hdr >            ;
+		using DataNv = NoVoid<Data>            ;
+		using Sz     = IntIdx<Idx>             ;
+		using ULock  = UniqueLock<AutoLock>    ;
+		using SLock  = SharedLock<AutoLock>    ;
 		//
 		static constexpr bool HasHdr    = !::is_void_v<Hdr >       ;
 		static constexpr bool HasData   = !::is_void_v<Data>       ;

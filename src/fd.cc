@@ -46,7 +46,6 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 			wait_ms = timeout_ns ? -1 : 0 ;
 		}
 		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
-		Ddate::s_refresh_now() ;                                               // we have waited, refresh Ddate::s_now
 		switch (cnt_) {
 			case  0 : if (!wait_overflow)             return {}     ; break ;  // timeout
 			case -1 : SWEAR( errno==EINTR , errno ) ;                 break ;

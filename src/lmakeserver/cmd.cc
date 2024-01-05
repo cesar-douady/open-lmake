@@ -161,7 +161,7 @@ namespace Engine {
 		else if ( !node->has_actual_job() && !FileInfo(node->name()) ) color = hide==No ? Color::Err : Color::HiddenNote ;
 		else if ( node->ok()==No                                     ) color =            Color::Err                     ;
 		//
-		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , to_string(pfx,' ',mk_file(node->name())) , lvl ) ;
+		if ( always || color!=Color::HiddenNote ) audit( fd , ro , color , to_string(pfx,' ',mk_file(node->name())) , false/*as_is*/ , lvl ) ;
 	}
 
 	static void _send_job( Fd fd , ReqOptions const& ro , Bool3 show_deps , bool hide , Job job , DepDepth lvl=0 ) {
@@ -171,7 +171,7 @@ namespace Engine {
 		else if (job->status==Status::Ok) color = Color::Ok         ;
 		else if (job.frozen()           ) color = Color::Warning    ;
 		else                              color = Color::Err        ;
-		audit( fd , ro , color , to_string(rule->name,' ',mk_file(job->name())) , lvl ) ;
+		audit( fd , ro , color , to_string(rule->name,' ',mk_file(job->name())) , false/*as_is*/ , lvl ) ;
 		if (show_deps==No) return ;
 		size_t    w       = 0 ;
 		::umap_ss rev_map ;
@@ -434,8 +434,8 @@ R"({
 		Trace("target",target,jt) ;
 		return jt ;
 	NoJob :
-		audit( fd , ro , Color::Err  , "target not built"                              ) ;
-		audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name()) , 1 ) ;
+		audit( fd , ro , Color::Err  , "target not built"                                               ) ;
+		audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name()) , false/*as_is*/ , 1 ) ;
 		return {} ;
 	}
 
@@ -472,25 +472,23 @@ R"({
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		::string vscode_dir  = dbg_dir+"/vscode"                                                                 ;
+		::string vscode_dir  = dbg_dir   +"/vscode"                                                              ;
 		::string vscode_file = vscode_dir+"/ldebug.code-workspace"                                               ;
 		::string script      = _mk_script( job , ro.flags , report_start , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
 		::string cmd         = _mk_cmd   ( job , ro.flags , start        , dbg_dir , redirected                ) ;
 		::string vscode      = _mk_vscode( job ,            report_start , dbg_dir ,                    vs_ext ) ;
 		//
-		mkdir(dbg_dir) ;
-		OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ;  // make executable
-		OFStream(cmd_file   ) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ;  // .
-		mkdir(vscode_dir) ;
-		OFStream(vscode_file) << vscode    ; ::chmod(cmd_file   .c_str(),0755) ;  // .
+		dir_guard(script_file) ; OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
+		dir_guard(cmd_file   ) ; OFStream(cmd_file   ) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
+		dir_guard(vscode_file) ; OFStream(vscode_file) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
 		//
 		::vector<Node>    jts   ;
-		Rule::SimpleMatch match = job->simple_match() ;                              // match holds static target names
+		Rule::SimpleMatch match = job->simple_match() ;                                                // match holds static target names
 		for( ::string const& tn : match.static_targets() ) jts.push_back(Node(tn)) ;
 		for( Node t             : job->star_targets      ) jts.push_back(     t  ) ;
 		Node::s_manual_oks(true/*add*/,jts) ;
 		//
-		audit( fd , ro , script_file ) ;
+		audit( fd , ro , script_file , true/*as_is*/ ) ;
 		return true ;
 	}
 
@@ -514,8 +512,8 @@ R"({
 				for( Rule r : Rule::s_lst() ) {
 					if (r->cmd_gen==r->rsrcs_gen) continue ;
 					r.data().cmd_gen = r->rsrcs_gen ;
-					r.stamp() ;                                                              // we have modified rule, we must record it to make modif persistent
-					audit( ecr.out_fd , ro , Color::Note , to_string("refresh ",r->name) ) ;
+					r.save() ;                                                                               // we have modified rule, we must record it to make modif persistent
+					audit( ecr.out_fd , ro , Color::Note , to_string("refresh ",r->name) , true/*as_is*/ ) ;
 				}
 			break ;
 			default : FAIL(ro.key) ;
@@ -554,14 +552,14 @@ R"({
 					switch (ro.key) {
 						case ReqKey::Info :
 						case ReqKey::Stderr : {
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
-							audit    ( fd , ro , job->special_stderr()                 , lvl+1 ) ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job  , lvl   ) ;
+							audit    ( fd , ro , job->special_stderr() , false/*as_is*/ , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd        :
 						case ReqKey::ExecScript :
 						case ReqKey::Stdout     :
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl              ) ;
-							audit    ( fd , ro , Color::Err , "no "+mk_snake(ro.key)+" available" , lvl+1 ) ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                            , lvl   ) ;
+							audit    ( fd , ro , Color::Err , "no "+mk_snake(ro.key)+" available" , true/*as_is*/ , lvl+1 ) ;
 						break ;
 						default : FAIL(ro.key) ;
 					}
@@ -575,32 +573,32 @@ R"({
 					switch (ro.key) {
 						case ReqKey::Env : {
 							size_t w = 0 ;
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
+							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							for( auto const& [k,v] : start.env ) w = max(w,k.size()) ;
 							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::copy(v))) , lvl ) ;
 						} break ;
 						case ReqKey::ExecScript :
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
-							audit( fd , ro , _mk_script(job,ro.flags,report_start,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , lvl ) ;
+							if (!has_start) { audit( fd , ro , Color::Err , "no info available"                                                                   , true/*as_is*/ , lvl ) ; break ; }
+							/**/              audit( fd , ro ,              _mk_script(job,ro.flags,report_start,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) ,                 lvl ) ;
 						break ;
 						case ReqKey::Cmd : {
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
-							audit( fd , ro , _mk_cmd(job,ro.flags,start,{},redirected) , lvl ) ;
+							if (!has_start) { audit( fd , ro , Color::Err , "no info available"                       , true/*as_is*/ , lvl ) ; break ; }
+							/**/              audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{},redirected) ,                 lvl ) ;
 						} break ;
 						case ReqKey::Stdout :
-							if (!has_end ) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
+							if (!has_end ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							audit    ( fd , ro , digest.stdout , lvl+1 )         ;
 						break ;
 						case ReqKey::Stderr :
-							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
+							if (!has_end && !(has_start&&verbose) ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 							if (has_start) {
-								if (verbose) audit( fd , ro , Color::Note , localize(pre_start.msg     ,ro.startup_dir_s) , lvl+1 ) ;
+								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
 							}
 							if (has_end) {
-								if (verbose) audit( fd , ro , Color::Note , localize(report_end.end.msg,ro.startup_dir_s) , lvl+1 ) ;
-								/**/         audit( fd , ro ,               digest.stderr                                 , lvl+1 ) ;
+								if (verbose) audit( fd , ro , Color::Note , report_end.end.msg , false/*as_is*/ , lvl+1 ) ;
+								/**/         audit( fd , ro ,               digest.stderr      , true /*as_is*/ , lvl+1 ) ;
 							}
 						break ;
 						case ReqKey::Info : {
@@ -711,21 +709,21 @@ R"({
 								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {
 									size_t w2  = 0   ; for( auto const& [k,_] : rsrcs  ) w2 = ::max(w2,mk_py_str(k).size()) ;
 									char   sep = ' ' ;
-									audit( fd , ro , mk_py_str(k)+" : {" , lvl+1 , ',' ) ;
+									audit( fd , ro , mk_py_str(k)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
 									for( auto const& [k,v] : required_rsrcs ) {
 										::string v_str ;
 										if ( allocated && (k=="cpu"||k=="mem"||k=="tmp") ) v_str = to_string(from_string_with_units<size_t>(v)) ;
 										else                                               v_str = mk_py_str(v)                                 ;
-										audit( fd , ro , to_string(::setw(w2),mk_py_str(k)," : ",v_str) , lvl+2 , sep ) ;
+										audit( fd , ro , to_string(::setw(w2),mk_py_str(k)," : ",v_str) , false/*as_is*/ , lvl+2 , sep ) ;
 										sep = ',' ;
 									}
-									audit( fd , ro , "}" , lvl+1 ) ;
+									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
 								} ;
 								size_t   w  = mk_py_str("job").size()                         ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
 								::string jn = localize(mk_file(job->name()),ro.startup_dir_s) ;
-								audit( fd , ro , to_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , lvl+1 , '{' ) ;
+								audit( fd , ro , to_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , false/*as_is*/ , lvl+1 , '{' ) ;
 								for( auto const& [k,e] : tab )
-									audit( fd , ro , to_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , lvl+1 , ',' ) ;
+									audit( fd , ro , to_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , false/*as_is*/ , lvl+1 , ',' ) ;
 								if (has_required ) audit_rsrcs("required resources" ,required_rsrcs ,false/*allocated*/) ;
 								if (has_allocated) audit_rsrcs("allocated resources",allocated_rsrcs,true /*allocated*/) ;
 								audit( fd , ro , "}" , lvl ) ;
@@ -733,8 +731,8 @@ R"({
 								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 								for( auto const& [k,e] : tab )
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , to_string(::setw(w),k," : ",e.txt) , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , lvl+1 ) ; audit(fd,ro,e.txt,lvl+2) ; }
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , to_string(::setw(w),k," : ",e.txt) , false/*as_is*/ , lvl+1 ) ;
+									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , false/*as_is*/ , lvl+1 ) ; audit(fd,ro,e.txt,lvl+2) ; }
 								if ( has_required || has_allocated ) {
 									size_t w2            = 0                ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
@@ -743,19 +741,19 @@ R"({
 									if      (!has_allocated) hdr = "required " +hdr ;
 									else if (!has_required ) hdr = "allocated "+hdr ;
 									audit( fd , ro , hdr , lvl+1 ) ;
-									if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
-									else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
-									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , lvl+2 ) ;
+									if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
+									else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
+									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 									else {
 										for( auto const& [k,rv] : required_rsrcs ) {
-											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , lvl+2 ) ; continue ; }
+											if (!allocated_rsrcs.contains(k)) { audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , true/*as_is*/ , lvl+2 ) ; continue ; }
 											::string const& av = allocated_rsrcs.at(k) ;
-											if (rv==av                      ) { audit( fd , ro , to_string(::setw(w2),k,"           "," : ",rv) , lvl+2 ) ; continue ; }
-											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , lvl+2 ) ;
-											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , lvl+2 ) ;
+											if (rv==av                      ) { audit( fd , ro , to_string(::setw(w2),k,"           "," : ",rv) , true/*as_is*/ , lvl+2 ) ; continue ; }
+											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(required )"," : ",rv) , true/*as_is*/ , lvl+2 ) ;
+											/**/                                audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , true/*as_is*/ , lvl+2 ) ;
 										}
 										for( auto const& [k,av] : allocated_rsrcs )
-											if (!required_rsrcs.contains(k))    audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , lvl+2 ) ;
+											if (!required_rsrcs.contains(k))    audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , true/*as_is*/ , lvl+2 ) ;
 									}
 								}
 							}
@@ -787,7 +785,7 @@ R"({
 					flags_str += stfs[Tflag::Star] ? '*'                : '-'                ;
 					flags_str += ' ' ;
 					for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-' ;
-					_send_node( fd , ro , verbose , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , tn , lvl ) ;
+					_send_node( fd , ro , verbose , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , Node(tn) , lvl ) ;
 				}
 			} break ;
 			default :
@@ -807,12 +805,12 @@ R"({
 		::vector<Node> targets    = ecr.targets()                 ;
 		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		char           sep        = ' '                           ;
-		if (porcelaine) audit( fd , ro , "{" ) ;
+		if (porcelaine) audit( fd , ro , "{" , true/*as_is*/ ) ;
 		for( Node target : targets ) {
 			trace("target",target) ;
 			DepDepth lvl = 1 ;
-			if      (porcelaine      ) audit     ( fd , ro , to_string(sep,' ',mk_py_str(localize(mk_file(target->name()),ro.startup_dir_s))," :") ) ;
-			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                          ) ;
+			if      (porcelaine      ) audit     ( fd , ro , to_string(sep,' ',mk_py_str(localize(mk_file(target->name()),ro.startup_dir_s))," :") , true/*as_is*/ ) ;
+			else if (targets.size()>1) _send_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target                                                          ) ;
 			else                       lvl-- ;
 			sep = ',' ;
 			bool for_job = false/*garbage*/ ;
@@ -839,10 +837,10 @@ R"({
 					bool     always      = ro.flags[ReqFlag::Verbose] ;
 					::string uphill_name = dir_name(target->name())   ;
 					double   prio        = -Infinity                  ;
-					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , Node(uphill_name) , lvl ) ;
+					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
 					for( JobTgt job_tgt : target->job_tgts() ) {
 						if (job_tgt->rule->prio<prio)                                break    ;
-						if (job_tgt==jt             ) { prio = job_tgt->rule->prio ; continue ; }   // actual job is output last as this is what user views first
+						if (job_tgt==jt             ) { prio = job_tgt->rule->prio ; continue ; }       // actual job is output last as this is what user views first
 						bool hide = !job_tgt.produces(target) ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;
@@ -860,13 +858,13 @@ R"({
 				default : FAIL(ro.key) ;
 			}
 		}
-		if (porcelaine) audit( fd , ro , "}" ) ;
+		if (porcelaine) audit( fd , ro , "}" , true/*as_is*/ ) ;
 		trace(STR(ok)) ;
 		return ok ;
 	}
 
 	CmdFunc g_cmd_tab[+ReqProc::N] ;
-	static bool _inited = (                                                    // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
+	static bool _inited = (                  // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
 		g_cmd_tab[+ReqProc::Debug ] = _debug
 	,	g_cmd_tab[+ReqProc::Forget] = _forget
 	,	g_cmd_tab[+ReqProc::Mark  ] = _mark

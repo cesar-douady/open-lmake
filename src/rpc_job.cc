@@ -31,16 +31,17 @@ using namespace Hash ;
 	auto keep = [&](::string const& dir)->void {
 		for( ::string d=dir ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ;
 	} ;
-	//
-	for( auto const& [f,a] : pre_actions ) {                                                             // pre_actions are adequately sorted
-		{ if ( a.tag>FileActionTag::HasFile     ) continue ; } FileInfo fi = FileInfo(nfs_guard.access(f)) ;
-		{ if ( !fi || fi.date==a.date           ) continue ; } append_to_string( msg , "manual " , mk_file(f) ) ;
-		{ if ( a.manual_ok                      ) continue ; }
-		{ if ( +a.crc && a.crc.match(Crc(f,ha)) ) continue ; } ok = false ;
+	// check manual
+	for( auto const& [f,a] : pre_actions ) {                                                                       // pre_actions are adequately sorted
+		{ if ( a.tag>FileActionTag::HasFile            ) continue ; } FileInfo fi { nfs_guard.access(f) } ;        // no file to check
+		{ if ( !fi                                     ) continue ; }                                              // file does not exist, it cannot be manual
+		{ if ( a.crc!=Crc::None && fi.date==a.date     ) continue ; } append_to_string(msg,"manual ",mk_file(f)) ; // if dates match, we are ok, else we are manual, but maybe it is not an error
+		{ if ( a.manual_ok                             ) continue ; }                                              // if manual_ok, it is not an error
+		{ if ( a.crc.valid() && a.crc.match(Crc(f,ha)) ) continue ; } ok = false ;                                 // if no expected crc or recomputed crc matches, it is not an error, else it is
 	}
 	if (ok)
-		for( auto const& [f,a] : pre_actions ) {                                   // pre_actions are adequately sorted
-			SWEAR(+f) ;                                                            // acting on root dir is non-sense
+		for( auto const& [f,a] : pre_actions ) {                               // pre_actions are adequately sorted
+			SWEAR(+f) ;                                                        // acting on root dir is non-sense
 			switch (a.tag) {
 				case FileActionTag::Keep     :                                                               break ;
 				case FileActionTag::Unlink   : nfs_guard.change(f) ; if (unlink  (f)) unlinks.push_back(f) ; break ;
@@ -120,7 +121,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		case JobExecRpcProc::Encode : proc = P::Encode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ; min_len = jerr.min_len ; break ;
 		case JobExecRpcProc::DepInfos : {
 			::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,jerr.digest.dflags,true/*parallel*/,date) ) ;
+			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,jerr.digest.dflags,true/*parallel*/) ) ;
 			proc        = P::DepInfos ;
 			digest.deps = ::move(ds) ;
 		} break ;
@@ -139,8 +140,10 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
 	os << "JobRpcReply(" << jrr.proc ;
 	switch (jrr.proc) {
-		case JobProc::ChkDeps  : os <<','<< jrr.ok        ; break ;
-		case JobProc::DepInfos : os <<','<< jrr.dep_infos ; break ;
+		case JobProc::ChkDeps  : os <<','<<                                 jrr.ok ; break ;
+		case JobProc::Decode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
+		case JobProc::Encode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
+		case JobProc::DepInfos : os <<','<< jrr.dep_infos                          ; break ;
 		case JobProc::Start :
 			/**/                  os <<',' << hex<<jrr.addr<<dec               ;
 			/**/                  os <<',' << jrr.autodep_env                  ;
@@ -171,35 +174,13 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 // JobExecRpcReq
 //
 
-::ostream& operator<<( ::ostream& os , JobExecRpcReq::AccessDigest const& ad ) {
-	const char* sep = "" ;
-	/**/                                 os << "AccessDigest("                                      ;
-	if (+ad.accesses                 ) { os <<sep     << ad.accesses                                ; sep = "," ; }
-	if (+ad.dflags                   ) { os <<sep     << ad.dflags                                  ; sep = "," ; }
-	if ( ad.prev_write  || ad.write  ) { os <<sep     << "write:"<<ad.prev_write<<"->"<<ad.write    ; sep = "," ; }
-	if (+ad.neg_tflags               ) { os <<sep<<'-'<< ad.neg_tflags                              ; sep = "," ; }
-	if (+ad.pos_tflags               ) { os <<sep<<'+'<< ad.pos_tflags                              ; sep = "," ; }
-	if ( ad.prev_unlink || ad.unlink ) { os <<sep     << "unlink:"<<ad.prev_unlink<<"->"<<ad.unlink ; sep = "," ; }
-	return                               os <<')'                                                   ;
-}
-
-void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
-	dflags |= ad.dflags ;                                                      // in all cases, dflags are always accumulated
-	if ( order<AccessOrder::Write || idle() ) {
-		if ( order==AccessOrder::Before && !ad.idle() ) accesses  = Accesses::None ;
-		/**/                                            accesses |= ad.accesses    ;
-	}
-	if (order>=AccessOrder::Write) {
-		neg_tflags &= ~ad.pos_tflags ; neg_tflags |= ad.neg_tflags ;           // ad flags have priority over this flags
-		pos_tflags &= ~ad.neg_tflags ; pos_tflags |= ad.pos_tflags ;           // .
-	} else {
-		neg_tflags |= ad.neg_tflags & ~pos_tflags ;                            // this flags have priority over ad flags
-		pos_tflags |= ad.pos_tflags & ~neg_tflags ;                            // .
-	}
-	if (!ad.idle()) {
-		if ( idle() || order==AccessOrder::After ) { prev_unlink = unlink ; unlink &= !ad.write ; unlink |= ad.unlink ; }
-		/**/                                       { prev_write  = write  ;                       write  |=  ad.write ; }
-	}
+::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
+	/**/                               os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
+	if ( ad.prev_write  || ad.write  ) os <<',' << "write:"<<ad.prev_write<<"->"<<ad.write        ;
+	if (+ad.neg_tflags               ) os <<",-"<< ad.neg_tflags                                  ;
+	if (+ad.pos_tflags               ) os <<",+"<< ad.pos_tflags                                  ;
+	if ( ad.prev_unlink || ad.unlink ) os <<",unlink:"<< ad.prev_unlink<<"->"<<ad.unlink          ;
+	return                             os <<')'                                                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -209,7 +190,7 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 	if (jerr.no_follow) os << ",no_follow"                                    ;
 	/**/                os <<',' << jerr.digest                               ;
 	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
-	if (jerr.proc>=JobExecRpcProc::HasFile) {
+	if (jerr.proc>=JobExecRpcProc::HasFiles) {
 		if ( +jerr.digest.accesses && !jerr.auto_date ) {
 			os <<','<< jerr.files ;
 		} else {
@@ -221,6 +202,35 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 	return os <<')' ;
 }
 
+void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
+	dflags |= ad.dflags ;                                                  // in all cases, dflags are always accumulated
+	switch (order) {
+		case AccessOrder::Before :
+			crc_date(ad) ;                                                 // read info is sampled at first read
+			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
+		break ;
+		case AccessOrder::BetweenReadAndWrite :
+			if (!accesses) crc_date(ad) ;                                  // read info is sampled at first read
+			/**/           accesses |= ad.accesses ;
+		break ;
+		default : SWEAR(order>=AccessOrder::Write) ;                       // ensure we have not forgotten a case
+	}
+	//
+	Tflags ntfs1 = order>=AccessOrder::Write ?    neg_tflags : ad.neg_tflags ;
+	Tflags ptfs1 = order>=AccessOrder::Write ?    pos_tflags : ad.pos_tflags ;
+	Tflags ntfs2 = order>=AccessOrder::Write ? ad.neg_tflags :    neg_tflags ;
+	Tflags ptfs2 = order>=AccessOrder::Write ? ad.pos_tflags :    pos_tflags ;
+	neg_tflags = ( ntfs1 & ~ptfs2 ) | ntfs2 ;
+	pos_tflags = ( ptfs1 & ~ntfs2 ) | ptfs2 ;
+	//
+	if (!ad.idle()) {
+		prev_unlink = unlink ;
+		prev_write  = write  ;
+		if ( idle() || order==AccessOrder::After ) unlink = ( unlink && !ad.write ) || ad.unlink ;
+		/**/                                       write  =   write                 || ad.write  ;
+	}
+}
+
 //
 // JobExecRpcReply
 //
@@ -228,18 +238,23 @@ void JobExecRpcReq::AccessDigest::update( AccessDigest const& ad , AccessOrder o
 ::ostream& operator<<( ::ostream& os , JobExecRpcReply const& jerr ) {
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
-		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok        ; break ;
-		case JobExecRpcProc::DepInfos : os <<','<< jerr.dep_infos ; break ;
-		default : ;
+		case JobExecRpcProc::None     :                                     ; break ;
+		case JobExecRpcProc::ChkDeps  : os <<','<< jerr.ok                  ; break ;
+		case JobExecRpcProc::DepInfos : os <<','<< jerr.dep_infos           ; break ;
+		case JobExecRpcProc::Decode   :
+		case JobExecRpcProc::Encode   : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
+		default : FAIL(jerr.proc) ;
 	}
 	return os << ')' ;
 }
 
 JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
 	switch (jrr.proc) {
-		case JobProc::None     :                        proc = Proc::None     ;                             break ;
-		case JobProc::ChkDeps  : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok        = jrr.ok        ; break ;
-		case JobProc::DepInfos :                        proc = Proc::DepInfos ; dep_infos = jrr.dep_infos ; break ;
+		case JobProc::None     :                        proc = Proc::None     ;                                             break ;
+		case JobProc::ChkDeps  : SWEAR(jrr.ok!=Maybe) ; proc = Proc::ChkDeps  ; ok        = jrr.ok        ;                 break ;
+		case JobProc::DepInfos :                        proc = Proc::DepInfos ; dep_infos = jrr.dep_infos ;                 break ;
+		case JobProc::Decode   :                        proc = Proc::Decode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
+		case JobProc::Encode   :                        proc = Proc::Encode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
 		default : FAIL(jrr.proc) ;
 	}
 }
@@ -268,4 +283,25 @@ JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
 
 ::ostream& operator<<( ::ostream& os , JobInfoEnd const& jie ) {
 	return os << "JobInfoEnd(" << jie.end <<')' ;
+}
+
+//
+// codec
+//
+
+
+namespace Codec {
+
+	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
+		return to_string(CodecPfx,mk_printable<'.'>(file),".cdir/",mk_printable<'.'>(ctx),".ddir/",mk_printable(code)) ;
+	}
+
+	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
+		return to_string(CodecPfx,mk_printable<'.'>(file),".cdir/",mk_printable<'.'>(ctx),".edir/",::string(Xxh(val).digest())) ;
+	}
+
+	::string mk_file(::string const& node) {
+		return parse_printable<'.'>(node).first.substr(sizeof(CodecPfx)-1) ; // account for terminating nul which is included in CodecPfx
+	}
+
 }

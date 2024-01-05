@@ -74,8 +74,6 @@ namespace Disk {
 		}
 		bool operator!() const { return !+*this                                ; } // i.e. sz & date are not present
 		bool is_reg   () const { return tag==FileTag::Reg || tag==FileTag::Exe ; }
-		// services
-		Ddate date_or_now() const { return +*this ? date : Time::Ddate::s_now() ; }
 		// data
 		DiskSz  sz   = 0             ;
 		Ddate   date ;
@@ -192,7 +190,7 @@ namespace Disk {
 		::string res{buf} ;
 		::free(buf) ;
 		SWEAR( res[0]=='/' , res[0] ) ;
-		if (res.size()==1) return {}  ;                                        // cwd_ contains components prefixed by /, if at root, it is logical for it to be empty
+		if (res.size()==1) return {}  ;                                        // cwd contains components prefixed by /, if at root, it is logical for it to be empty
 		else               return res ;
 	}
 
@@ -271,7 +269,7 @@ namespace Disk {
 			// data
 			::string   real          = {}        ;         // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
 			::vector_s lnks          = {}        ;         // links followed to get to real
-			::string   last_lnk      = {}        ;         // last followed link that is not uphill of another link
+			::string   last_lnk      = {}        ;         // last tried (and failed) link
 			Accesses   last_accesses = {}        ;         // Access::Lnk if file does not exist and !no_follow
 			Kind       kind          = Kind::Ext ;         // do not process awkard files
 			bool       mapped        = false     ;         // if true <=> tmp mapping has been used
@@ -313,8 +311,10 @@ namespace Disk {
 		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir and tmp_view must be absolute and canonic
-		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) { init(rpe,p) ; }
-		void init( RealPathEnv const&     , pid_t  =0 ) ;
+		RealPath ( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe ,                                                  p ) ; }
+		RealPath ( RealPathEnv const& rpe , ::string&& cwd , pid_t p=0 ) { init( rpe , ::move(cwd)                                    , p ) ; }
+		void init( RealPathEnv const& rpe ,                  pid_t p=0 ) { init( rpe , p?read_lnk(to_string("/proc/",p,"/cwd")):cwd() , p ) ; }
+		void init( RealPathEnv const&     , ::string&& cwd , pid_t  =0 ) ;
 		// services
 		SolveReport solve( Fd at , ::string const&      , bool no_follow=false ) ;
 		SolveReport solve( Fd at , const char*     file , bool no_follow=false ) { return solve(at     ,::string(file),no_follow) ; } // ensure proper types

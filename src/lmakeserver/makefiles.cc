@@ -17,36 +17,36 @@ using namespace Time ;
 
 namespace Engine::Makefiles {
 
-	static ::pair<vector_s/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Py::Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
-		RealPath   real_path {{ .lnk_support=lnk_support , .root_dir=*g_root_dir }} ;
-		::vector_s srcs       ;
-		::vector_s src_dirs_s ;
+	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Py::Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
+		RealPath          real_path  {{ .lnk_support=lnk_support , .root_dir=*g_root_dir }} ;
+		::vmap_s<FileTag> srcs       ;
+		::vector_s        src_dirs_s ;
 		for( Py::Object py_obj : py_srcs ) {
-			::string src     ;
+			::string src ;
 			try                       { src = Py::String(py_obj) ;       }
 			catch(::Py::Exception& e) { throw e.errorValue() ;           }
 			if (!src)                   throw "found an empty source"s ;
 			//
 			bool is_dir_ = src.back()=='/' ;
 			if (is_dir_) src.pop_back() ;
-			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
-			//
-			::string reason ;
+			RealPath::SolveReport sr     = real_path.solve(src,true/*no_follow*/) ;
+			::string              reason ;
+			FileInfo              fi     { nfs_guard.access(src) }                ;
 			if (+sr.lnks) {
-				/**/                                                                           reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
+				/**/                                                      reason = to_string(" has symbolic link ",sr.lnks[0]," in its path") ;
 			} else if (is_dir_) {
-				if      ( !is_canon(src)                                                     ) reason =           " is not canonical"                              ;
-				else if ( src==".." || src.ends_with("/..")                                  ) reason =           " is a directory of the repo"                    ;
-				else if ( !is_dir  (nfs_guard.access(src))                                   ) reason =           " is not a directory"                            ;
+				if      ( !is_canon(src)                                ) reason =           " is not canonical"                              ;
+				else if ( src==".." || src.ends_with("/..")             ) reason =           " is a directory of the repo"                    ;
+				else if ( fi.tag!=FileTag::Dir                          ) reason =           " is not a directory"                            ;
 			} else {
-				if      ( sr.kind!=Kind::Repo                                                ) reason =           " is not in repository"                          ;
-				else if ( sr.real!=src                                                       ) reason = to_string(" canonical form is ",sr.real)                   ;
-				else if ( lnk_support==LnkSupport::None && !is_reg   (nfs_guard.access(src)) ) reason =           " is not a regular file"                         ;
-				else if ( lnk_support!=LnkSupport::None && !is_target(nfs_guard.access(src)) ) reason =           " is not a regular file nor a symbolic link"     ;
+				if      ( sr.kind!=Kind::Repo                           ) reason =           " is not in repository"                          ;
+				else if ( sr.real!=src                                  ) reason = to_string(" canonical form is ",sr.real)                   ;
+				else if ( lnk_support==LnkSupport::None && !fi.is_reg() ) reason =           " is not a regular file"                         ;
+				else if ( lnk_support!=LnkSupport::None && !fi          ) reason =           " is not a regular file nor a symbolic link"     ;
 			}
 			if (+reason) throw to_string( is_dir_?"source dir ":"source " , src , reason ) ;
-			if (is_dir_) src_dirs_s.push_back(src+'/') ;
-			else         srcs      .push_back(src    ) ;
+			if (is_dir_) src_dirs_s.push_back   (src+'/') ;
+			else         srcs      .emplace_back(src    ,fi.tag) ;
 		}
 		return {srcs ,src_dirs_s} ;
 	}
@@ -104,7 +104,7 @@ namespace Engine::Makefiles {
 		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {                    // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::ifstream deps_stream { _deps_file(action,new_) } ;
@@ -115,9 +115,9 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                          // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                                                    // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
-			n->set_buildable() ;                                                                                  // this is mandatory before is_src() or is_anti() can be called
+			n->set_buildable() ;                                                                                         // this is mandatory before is_src() or is_anti() can be called
 			if ( !n->is_src() && !n->is_anti()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
@@ -131,7 +131,7 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_root_dir),is_abs_s(sd_s)) ;
 		//
-		{	OFStream os { ::dir_guard(new_deps_file) } ;                       // ensure os is closed, or at least it must be flushed before calling _chk_dangling
+		{	OFStream os { ::dir_guard(new_deps_file) } ;  // ensure os is closed, or at least it must be flushed before calling _chk_dangling
 			for( ::string d : deps ) {
 				SWEAR(+d) ;
 				FileInfo fi{d} ;
@@ -145,7 +145,7 @@ namespace Engine::Makefiles {
 				os << (+fi?'+':'!') << d <<'\n' ;
 			}
 		}
-		_chk_dangling(action,true/*new*/,startup_dir_s) ;                      // ensure deps have been pushed to disk (stream closed or flushed)
+		_chk_dangling(action,true/*new*/,startup_dir_s) ; // ensure deps have been pushed to disk (stream closed or flushed)
 	}
 
 	static void _stamp_deps(::string const& action) {
@@ -169,7 +169,7 @@ namespace Engine::Makefiles {
 			else                      set_env( "LD_LIBRARY_PATH" ,                                   PYTHON_LD_LIBRARY_PATH  ) ;
 		}
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used communicate with client
+		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used to communicate with client
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (PYTHON_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
@@ -218,14 +218,14 @@ namespace Engine::Makefiles {
 	// /!\ the 2 following functions are mostly identical, one for rules, the other for sources, but are difficult to share, modifications must be done in both simultaneously
 
 	static ::pair_s<bool/*done*/> _refresh_srcs(
-		::vector_s&     srcs
-	,	::vector_s&     src_dirs_s
-	,	::vector_s&     deps
-	,	Reason          new_
-	,	bool            dynamic
-	,	PyObject*       py_info
-	,	::string const& startup_dir_s
-	,	NfsGuard&       nfs_guard
+		::vmap_s<FileTag>& srcs
+	,	::vector_s       & src_dirs_s
+	,	::vector_s       & deps
+	,	Reason             new_
+	,	bool               dynamic
+	,	PyObject*          py_info
+	,	::string const&    startup_dir_s
+	,	NfsGuard&          nfs_guard
 	) {
 		Trace trace("_refresh_srcs") ;
 		::string reason ;
@@ -288,31 +288,33 @@ namespace Engine::Makefiles {
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return {} ;
 		}
-		NfsGuard               nfs_guard     { false/*reliable_dir*/ }                                                       ; // until we have config info, protect against NFS
-		Py::Gil                gil           ;
-		::vector_s             config_deps   ;
-		::vector_s             rules_deps    ;
-		::vector_s             srcs_deps     ;
-		Config                 config        ;
-		PyObject*              py_info       = nullptr                                                                       ;
+		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                             // until we have config info, protect against NFS
+		Py::Gil    gil         ;
+		::vector_s config_deps ;
+		::vector_s rules_deps  ;
+		::vector_s srcs_deps   ;
+		Config     config      ;
+		PyObject*  py_info     = nullptr                 ;
+		//
 		::pair_s<bool/*done*/> config_digest = _refresh_config( config , py_info , config_deps , startup_dir_s , nfs_guard ) ;
 		//
 		try {
 			Reason new_srcs  = Reason::None ;
 			Reason new_rules = Reason::None ;
 			auto diff_config      = [&]( Config const& old , Config const& new_ )->void {
-				if ( !old.booted || !new_.booted         ) return ;                       // only record diffs, i.e. when both exist
+				if ( !old.booted || !new_.booted         ) return ;                                    // only record diffs, i.e. when both exist
+				//
 				if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 				if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
 			} ;
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dynamic , chk , diff_config ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			nfs_guard.reliable_dirs = g_config.reliable_dirs ;                 // now that config is loaded, we can optimize protection against NFS
+			nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                         // now that config is loaded, we can optimize protection against NFS
 			//
 			// /!\ sources must be processed first as source dirs influence rules
 			//
-			::vector_s             srcs        ;
+			::vmap_s<FileTag>      srcs        ;
 			::vector_s             src_dirs_s  ;
 			::pair_s<bool/*done*/> srcs_digest = _refresh_srcs( srcs , src_dirs_s , srcs_deps  , new_srcs  , dynamic , py_info , startup_dir_s , nfs_guard ) ;
 			//                                                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -326,8 +328,6 @@ namespace Engine::Makefiles {
 			//                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
 			//
-			//
-			::uset_s src_set = mk_uset(srcs) ;
 			if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
 			else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have becom dangling
 			if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
@@ -339,9 +339,9 @@ namespace Engine::Makefiles {
 			if (+srcs_digest  .first) append_to_string(msg,srcs_digest  .first,'\n') ;
 			if (+rules_digest .first) append_to_string(msg,rules_digest .first,'\n') ;
 			//
-			if (config_digest.second) _stamp_deps("config" ) ;                 // stamp deps once all error cases have been cleared
-			if (srcs_digest  .second) _stamp_deps("sources") ;                 // .
-			if (rules_digest .second) _stamp_deps("rules"  ) ;                 // .
+			if (config_digest.second) _stamp_deps("config" ) ;                                         // stamp deps once all error cases have been cleared
+			if (srcs_digest  .second) _stamp_deps("sources") ;                                         // .
+			if (rules_digest .second) _stamp_deps("rules"  ) ;                                         // .
 			//
 			Py_DecRef(py_info) ;
 			return msg ;

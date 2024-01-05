@@ -76,9 +76,9 @@ bool/*crashed*/ start_server() {
 		<< _g_server_fd.service() << '\n'
 		<< getpid()               << '\n'
 	;
-	//vvvvvvvvvvvvvvvvvvvv
-	atexit(server_cleanup) ;
-	//^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvv
+	::atexit(server_cleanup) ;
+	//^^^^^^^^^^^^^^^^^^^^^^
 	_g_server_running = true ;                                                 // while we link, pretend we run so cleanup can be done if necessary
 	fence() ;
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -241,7 +241,7 @@ bool/*interrupted*/ engine_loop() {
 						trace(req) ;
 						bool ok = true/*garbage*/ ;
 						if ( !req.options.flags[ReqFlag::Quiet] && +startup_dir_s )
-							audit( req.out_fd , req.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) ) ;
+							audit( req.out_fd , req.options , Color::Note , "startup dir : "+startup_dir_s.substr(0,startup_dir_s.size()-1) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+req.proc](req) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(req.out_fd,req.options,Color::Err,e) ; }
 						OMsgBuf().send( req.out_fd , ReqRpcReply(ok) ) ;
@@ -332,8 +332,8 @@ bool/*interrupted*/ engine_loop() {
 					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
-						::vector<Node> deps ; deps.reserve(job.digest.deps.size()) ;
-						for( auto [dn,_] : job.digest.deps ) deps.emplace_back(dn) ;
+						::vector<Dep> deps ; deps.reserve(job.digest.deps.size()) ;
+						for( auto [dn,dd] : job.digest.deps ) deps.emplace_back(Node(dn),dd) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						OMsgBuf().send( job.reply_fd , je.job_info(job.proc,deps) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -367,16 +367,18 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	Fd int_fd = open_sig_fd(SIGINT) ;                                          // must be done before app_init so that all threads block the signal
+	Fd int_fd = open_sig_fd(SIGINT) ;                                                       // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
+	Codec     ::writable = true ;
 	//          ^^^^^^^^^^^^^^^
 	Trace::s_backup_trace = true ;
-	app_init(false/*search_root*/,false/*cd_root*/) ;                          // server is always launched at root
+	app_init(false/*search_root*/,false/*cd_root*/) ;                                       // server is always launched at root
 	Py::init(true/*multi-thread*/) ;
 	_g_real_path.init({ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }) ;
 	_g_server_mrkr = to_string(AdminDir,'/',ServerMrkr) ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
+	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
 	//             vvvvvvvvvvvvvv
 	bool crashed = start_server() ;
 	//             ^^^^^^^^^^^^^^
@@ -388,20 +390,21 @@ int main( int argc , char** argv ) {
 	//                     ^^^^^^^^^^^^^^^^^^^^^^^^^
 	catch (::string const& e) { exit(2,e) ; }
 	if (+msg         ) ::cerr << ensure_nl(msg) ;
-	if (!_g_is_daemon) ::setpgid(0,0)           ;                              // once we have reported we have started, lmake will send us a message to kill us
+	if (!_g_is_daemon) ::setpgid(0,0)           ;                                           // once we have reported we have started, lmake will send us a message to kill us
 	//
 	{	::string v ;
 		Trace::s_channels = g_config.trace.channels ;
 		Trace::s_sz       = g_config.trace.sz       ;
 		Trace::s_new_trace_file(to_string( g_config.local_admin_dir , "/trace/" , base_name(read_lnk("/proc/self/exe")) )) ;
 	}
+	Codec::Closure::s_init() ;
 	//
 	static ::jthread reqs_thread{ reqs_thread_func , int_fd } ;
 	//
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ;                           // cleanup
+	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ; // cleanup
 	//
 	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;

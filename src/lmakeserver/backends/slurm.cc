@@ -67,8 +67,7 @@ namespace Backends::Slurm {
 namespace std {
 	template<> struct hash<Backends::Slurm::RsrcsData> {
 		size_t operator()(Backends::Slurm::RsrcsData const& rs) const {
-			Hash::Xxh h ;
-			h.update(rs.size()) ;
+			Hash::Xxh h{rs.size()} ;
 			for( auto r : rs ) {
 				h.update(r.cpu     ) ;
 				h.update(r.mem     ) ;

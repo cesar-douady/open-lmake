@@ -58,8 +58,8 @@ namespace Caches {
 		::map_ss dct = mk_map(config.dct) ;
 		//
 		Hash::Xxh repo_hash ;
-		if (dct.contains("repo")) repo_hash.update(dct.at("repo"))    ; else throw "repo not found"s ;
-		if (dct.contains("dir" )) dir =                dct.at("dir" ) ; else throw "dir not found"s  ;
+		if (dct.contains("repo")) repo_hash.update(dct.at("repo")) ; else throw "repo not found"s ;
+		if (dct.contains("dir" )) dir =            dct.at("dir" )  ; else throw "dir not found"s  ;
 		repo   = "repo-"+::string(::move(repo_hash).digest()) ;
 		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
@@ -324,8 +324,8 @@ namespace Caches {
 			// transform date into crc
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {
 				Node d{dn} ;
-				if (dd.is_date) { SWEAR( dd.date()==d->date , dd.date() , d->date ) ; dd.crc(d->crc) ; }
-				else            { SWEAR( d->up_to_date(dd)                        ) ;                  }
+				if (dd.is_date) { SWEAR( dd.date()==(d->crc==Crc::None?Ddate():d->date()) , dd.date() , d->crc==Crc::None?Ddate():d->date() ) ; dd.crc(d->crc) ; }
+				else            { SWEAR( d->up_to_date(dd)                                                                                  ) ;                  }
 			}
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;

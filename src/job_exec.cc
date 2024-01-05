@@ -85,6 +85,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 ::pair_s<bool/*ok*/> wash(Pdate start) {
 	Trace trace("wash",start,g_start_info.pre_actions) ;
 	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> actions = do_file_actions( g_start_info.pre_actions , g_nfs_guard , g_start_info.hash_algo ) ;
+	trace("unlinks",actions) ;
 	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlink(start,f) ;
 	else                             trace(actions.second) ;
 	return actions.second ;
@@ -102,19 +103,19 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 	res["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
 	for( auto&& [k,v] : g_start_info.env ) {
 		if      (v!=EnvPassMrkr) res[k] = env_decode(::move(v)) ;
-		else if (has_env(k)    ) res[k] = get_env(k)            ;              // if value is special illegal value, use value from environement (typically from slurm)
+		else if (has_env(k)    ) res[k] = get_env(k)            ;                                            // if value is special illegal value, use value from environement (typically from slurm)
 	}
 	if ( g_start_info.keep_tmp || !res.contains("TMPDIR") )
 		res["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
 	g_start_info.autodep_env.tmp_dir = res["TMPDIR"] ;
-	if (+g_start_info.autodep_env.tmp_view) res["TMPDIR"] = g_start_info.autodep_env.tmp_view ; // job must use the job view
+	if (+g_start_info.autodep_env.tmp_view) res["TMPDIR"] = g_start_info.autodep_env.tmp_view ;              // job must use the job view
 	//
 	Trace trace("prepare_env",res) ;
 	//
 	try {
-		unlink_inside(g_start_info.autodep_env.tmp_dir) ;                      // ensure tmp dir is clean
+		unlink_inside(g_start_info.autodep_env.tmp_dir) ;                                                    // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; } // ensure tmp dir exists
+		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; }                              // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;      }
 	}
 	return res ;
@@ -125,49 +126,58 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 	::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > res              ;     res.second.reserve(g_gather_deps.accesses.size()) ; // typically most of accesses are deps
 	NodeIdx                                            prev_parallel_id = 0 ;
 	//
-	if (at_end) Ddate::s_refresh_now() ;
-	//
-trace("step1") ; // XXX : temporary until long ^C bug is fixed
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
-trace("step2",file) ; // XXX : temporary until long ^C bug is fixed
-		JobExecRpcReq::AccessDigest const& ad = info.digest ;
-		Accesses                           a  = ad.accesses ; if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
+		AccessDigest const& ad = info.digest ;
+		Accesses            a  = ad.accesses ; if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
+		info.chk() ;
 		if (info.is_dep()) {
-trace("step3") ; // XXX : temporary until long ^C bug is fixed
-			bool      parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
-			DepDigest dd       { a , ad.dflags , parallel }                             ;
-			prev_parallel_id = info.parallel_id ;
-			if (+a) {
-				if (file_date(file)==info.file_date) dd.date(info.file_date) ;
-				else                                 dd.crc ({}            ) ; // file date is not coherent from first access to end of job, we do not know what we have read
+			DepDigest dd = ad ;
+			dd.parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
+			dd.accesses = a                                                      ;
+			if ( +dd.accesses && dd.is_date ) {                                                               // try to transform date into crc as far as possible
+				if      ( !info.seen                               ) dd.crc(Crc::None) ;                      // the whole job has been executed without seeing the file
+				else if ( !dd.date()                               ) dd.crc({}       ) ;                      // file was not always present, this is a case of incoherence
+				else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                      // file dates are incoherent from first access to end of job ...
+				else                                                                                          // ... we do not know what we have read, not even the tag
+					switch (dfi.tag) {
+						case FileTag::Reg :
+						case FileTag::Exe :
+						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+						default           :                                         dd.crc({}     ) ; break ; // file is either awkward or has disappeared after having seen
+					}
 			}
+			prev_parallel_id = info.parallel_id ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.second.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,file) ;
-		} else if (at_end) {                                                   // else we are handling chk_deps and we only care about deps
-trace("step4") ; // XXX : temporary until long ^C bug is fixed
-			if (!info.file_date) a = Accesses::None ;
+		} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
+			if (+a) {
+				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; } // we are only interested in read accesses that found a file
+				else            { if (ad.crc()==Crc::None) a = Accesses::None ; } // .
+			}
 			try {
 				chk(info.tflags) ;
-			} catch (::string const& e) {                                      // dont know what to do with such an access
+			} catch (::string const& e) {                                         // dont know what to do with such an access
+				trace("bad_flags",info.tflags) ;
 				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
-				trace("bad_flags",info.tflags,file) ;
 				continue ;
 			}
+			bool     has_crc = info.tflags[Tflag::Crc]     ;
+			bool     unlink  = ad.prev_unlink && ad.unlink ;
+			FileInfo fi      ; if ( !unlink && !has_crc ) fi = {file} ;
 			TargetDigest td{
 				a
 			,	info.tflags
 			,	ad.write
-			,	ad.prev_unlink && ad.unlink ? Crc::None      : Crc::Unknown                                        // prepare crc in case it is not computed
-			,	ad.prev_unlink && ad.unlink ? Ddate::s_now() : info.tflags[Tflag::Crc] ? Ddate() : file_date(file) // if !date, compute crc and associated date
+			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )        // prepare crc in case it is not computed
+			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date         // if !date && !crc , compute crc and associated date
 			} ;
+			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.first.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",td,STR(ad.unlink),info.tflags,info.file_date,file) ;
 		}
-trace("step5") ; // XXX : temporary until long ^C bug is fixed
 	}
 	trace("done",res.first.size(),res.second.size()) ;
 	return res ;
@@ -183,7 +193,7 @@ Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 	//    vvvvvvvvvvvvvvvvvvvvvv
 	try { OMsgBuf().send(fd,jrr) ; }
 	//    ^^^^^^^^^^^^^^^^^^^^^^
-	catch (...) { return {} ; }                                                // server is dead, do as if there is no server
+	catch (...) { return {} ; } // server is dead, do as if there is no server
 	return fd ;
 }
 
@@ -227,8 +237,8 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* targets ) {
 	;
 	Trace trace("crc") ;
 	NodeIdx cnt = 0 ;
-	for( NodeIdx ti ; (ti=target_idx++)<targets->size() ; cnt++ ) {            // cnt is for trace only
-		auto& [tn,td] = (*targets)[ti] ; if (+td.date) continue ;              // crc is already computed or not supposed to be computed
+	for( NodeIdx ti ; (ti=target_idx++)<targets->size() ; cnt++ ) {    // cnt is for trace only
+		auto& [tn,td] = (*targets)[ti] ; if ( +td.crc ) continue ;     // crc is already computed
 		td.crc = Crc( td.date/*out*/ , tn , g_start_info.hash_algo ) ;
 		trace("crc_date",ti,td.crc,td.date,tn) ;
 	}
@@ -239,9 +249,9 @@ void compute_crcs(::vmap_s<TargetDigest>& targets) {
 	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , targets.size() ) ;
 	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 	for( size_t i=0 ; i<n_threads ; i++       ) crc_threads.emplace_back(crc_thread_func,i,&targets) ; // just constructing a destructing the threads will execute & join them
-	if (!g_start_info.autodep_env.reliable_dirs) {                              // fast path : avoid listing targets & guards if reliable_dirs
-		for( auto const& [t,_] : targets              ) g_nfs_guard.change(t) ; // protect against NFS strange notion of coherence while computing crcs
-		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ; // .
+	if (!g_start_info.autodep_env.reliable_dirs) {                                                     // fast path : avoid listing targets & guards if reliable_dirs
+		for( auto const& [t,_] : targets              ) g_nfs_guard.change(t) ;                        // protect against NFS strange notion of coherence while computing crcs
+		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                        // .
 		g_nfs_guard.close() ;
 	}
 }
@@ -289,7 +299,7 @@ int main( int argc , char* argv[] ) {
 		app_init() ;
 		Py::init() ;
 		//
-		Trace trace("main",g_service_start,g_service_mngt,g_service_end,g_seq_id,g_job) ;
+		Trace trace("main",Pdate::s_now(),g_service_start,g_service_mngt,g_service_end,g_seq_id,g_job) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
@@ -321,7 +331,7 @@ int main( int argc , char* argv[] ) {
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
 		end_report.msg = wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::Manual ; goto End ; }
-		g_gather_deps.new_static_deps( start_overhead , g_start_info.static_deps , g_start_info.stdin ) ; // ensure static deps are generated first
+		g_gather_deps.new_static_deps( start_overhead , ::move(g_start_info.static_deps) , g_start_info.stdin ) ; // ensure static deps are generated first
 		//
 		Fd child_stdin ;
 		if (+g_start_info.stdin) child_stdin = open_read(g_start_info.stdin) ;

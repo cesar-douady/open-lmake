@@ -22,6 +22,8 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* manage frozen & manual_ok at both job & node level
+	- mark jobs manual_ok when late_lost
 *2 introduce a new color orange for speculative errors
 	- that become red when job turns out to be certain
 *5 reimplement hierarchical repositories
@@ -60,8 +62,11 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* report Source/Anti name when appropriate
+* generate target/dep key everywhere it is pertinent
+* report Source/Anti rule name when appropriate
 * implement lshow -i for nodes
+* implement lshow -i for rules
+	- in particular, we want to see the exact regexpr associated to each target
 * generate performance metrics
 	- useful/useless created jobs
 	- number of non buildable nodes

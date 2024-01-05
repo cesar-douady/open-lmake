@@ -8,19 +8,15 @@
 namespace Hash {
 	using namespace Disk ;
 
-	template Crc Md5::c_digest() const ;                                       // explicit instantiation for debug
-	template Crc Xxh::c_digest() const ;                                       // .
-
 	//
 	// Crc
 	//
 
 	::ostream& operator<<( ::ostream& os , Crc const crc ) {
-		switch (+crc) {
-			case +Crc::Unknown : return os << "Crc(Unknown)"             ;
-			case +Crc::None    : return os << "Crc(None)"                ;
-			default            : return os << "Crc("<<::string(crc)<<')' ;
-		}
+		CrcSpecial special{crc} ;
+		if      (special==CrcSpecial::Plain   ) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
+		else if (special==CrcSpecial::Unknown_) return os << "Crc(Unknown)"             ;
+		else                                    return os << "Crc("<<special      <<')' ;
 	}
 
 	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
@@ -36,7 +32,6 @@ namespace Hash {
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
-				_val &= ~uint64_t(1) ;
 			} break ;
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(filename) ;
@@ -47,12 +42,34 @@ namespace Hash {
 					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 					default : FAIL(algo) ;
 				}
-				_val |= uint64_t(1) ;
 			} break ;
 			case FileTag::None :
 			case FileTag::Dir  : *this = Crc::None ; break ;                   // directories are deemed not to exist
 			default : ;
 		}
+	}
+
+	Crc::operator ::string() const {
+		::string res ; res.reserve(sizeof(_val)*2) ;
+		for( size_t i=0 ; i<sizeof(_val) ; i++ ) {
+			uint8_t b = _val>>(i*8) ;
+			for( uint8_t d : {b>>4,b&0xf} ) res.push_back( d<10 ? '0'+d : 'a'+d-10 ) ;
+		}
+		return res ;
+	}
+
+	Accesses Crc::diff_accesses( Crc other ) const {
+		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
+			uint64_t diff = _val ^ other._val ;
+			if (!  diff           ) return Accesses::None ;                                                       // crc's are identical, cannot perceive difference
+			if (!( diff & ChkMsk )) fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;
+		}
+		// qualify the accesses that can perceive the difference
+		Accesses res = Accesses::All ;
+		if      ( !is_reg() && !other.is_reg() ) res = Access::Lnk ; // it is assumed errno has no semantic impact, so we can assume None & Reg are identical for Lnk accesses ...
+		else if ( !is_lnk() && !other.is_lnk() ) res = Access::Reg ; // ... and vice versa for Reg accesses
+		res |= Access::Stat ;                                        // XXX : suppress when there is a working paradigm with pyc files ...
+		return res ;                                                 // ... (python stats the py and accesses the pyc, but needs the py semantic, because deps on pyc are suppressed)
 	}
 
 	//
@@ -63,10 +80,10 @@ namespace Hash {
 	_Md5::_Md5() : _hash{0x67452301,0xefcdab89,0x98badcfe,0x10325476} , _cnt{0} {}
 
 	void _Md5::_update( const void* p , size_t sz ) {
-		FAIL() ;                                                               // XXX : suppress md5 code altogether
+		FAIL() ;                                                                    // XXX : suppress md5 code altogether
 		const uint8_t* pi = static_cast<const uint8_t*>(p) ;
 		SWEAR(!_closed) ;
-		if (!sz) return ;                                                      // memcpy is declared with non-null pointers and p may be nullptr if sz==0, otherwise fast path
+		if (!sz) return ;                                                           // memcpy is declared with non-null pointers and p may be nullptr if sz==0, otherwise fast path
 		// if first block is already partially filled, it must be handled specially
 		uint32_t offset = _cnt & (sizeof(_blk)-1) ;
 		_cnt += sz ;
@@ -94,15 +111,14 @@ namespace Hash {
 		if (sz) memcpy( _bblk() , pi , sz ) ;
 	}
 
-	Crc _Md5::digest() && {
-		FAIL() ;                                                               // XXX : suppress md5 code altogether
-		if (!_closed) {                                                        // this way, operator() can be called several times (but then no update possible)
+	Crc _Md5::digest() && {                                        // XXX : suppress md5 code altogether
+		if (!_closed) {                                            // this way, operator() can be called several times (but then no update possible)
 			if (+_salt) _update( _salt.c_str() , _salt.size() ) ;
 			uint32_t offset = _cnt & (sizeof(_blk)-1)   ;
 			uint8_t* bp     = _bblk() + offset          ;
-			uint32_t avail  = sizeof(_blk) - (offset+1) ;                      // _blk is never full, so this is always >=0
+			uint32_t avail  = sizeof(_blk) - (offset+1) ;          // _blk is never full, so this is always >=0
 			SWEAR( _salt.size()<0x80 , _salt.size() ) ;
-			*bp++ = 0x80 + _salt.size() ;                                      // if _salt is empty, it is plain md5, else it is guaranteed different than plain md5
+			*bp++ = 0x80 + _salt.size() ;                          // if _salt is empty, it is plain md5, else it is guaranteed different than plain md5
 			if (avail<sizeof(uint64_t)) {
 				memset( bp , 0 , avail ) ;
 				//vvvvvvvvv
@@ -112,13 +128,13 @@ namespace Hash {
 				avail = sizeof(_blk) ;
 			}
 			memset( bp , 0 , avail-sizeof(uint64_t) ) ;
-			reinterpret_cast<uint64_t&>(_blk[BlkSz-2]) = _cnt<<3 ;             // append message length in bits
+			reinterpret_cast<uint64_t&>(_blk[BlkSz-2]) = _cnt<<3 ; // append message length in bits
 			//vvvvvvvvv
 			_update64() ;
 			//^^^^^^^^^
 			_closed = true ;
 		}
-		return *reinterpret_cast<Crc const*>(_hash) ;
+		return { *reinterpret_cast<uint64_t const*>(_hash) , is_lnk } ;
 	}
 
 	static inline void _round1( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( ((b&c)|((~b)&d)) + a + m , s ) ; }
@@ -220,7 +236,7 @@ namespace Hash {
 		XXH3_INITSTATE   (&_state) ;
 		XXH3_64bits_reset(&_state) ;
 	}
-	_Xxh::_Xxh(FileTag tag) {
+	_Xxh::_Xxh(FileTag tag) : is_lnk{tag==FileTag::Lnk} {
 		XXH3_INITSTATE(&_state) ;
 		switch (tag) {
 			case FileTag::Reg :                 XXH3_64bits_reset           ( &_state                                         ) ; break ;
@@ -230,7 +246,7 @@ namespace Hash {
 		}
 	}
 
-	void _Xxh::_update ( const void* p , size_t sz )    { XXH3_64bits_update( &_state , p , sz ) ;  }
-	Crc  _Xxh::digest  (                           ) && { return Crc(XXH3_64bits_digest(&_state)) ; }
+	void _Xxh::_update ( const void* p , size_t sz )    { XXH3_64bits_update( &_state , p , sz ) ;          }
+	Crc  _Xxh::digest  (                           ) && { return { XXH3_64bits_digest(&_state) , is_lnk } ; }
 
 }

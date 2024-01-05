@@ -122,7 +122,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 			trace("sent",STR(fg),mk_printable(reqs[fg])) ;
 			for(;;) {
 				char                   c      = 0/*garbage*/                  ;
-				::vector<Epoll::Event> events = epoll.wait(100'000'000/*ns*/) ; // 100ms, should be plenty and keep a decent reaction time if not an ansi terminal
+				::vector<Epoll::Event> events = epoll.wait(500'000'000/*ns*/) ; // 500ms, normal reaction time is 20-50ms
 				SWEAR( events.size()<=1 , events.size() ) ;
 				if (!events.size()       ) throw "timeout"s ;                  // there is a single fd, there may not be more than 1 event
 				SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;
@@ -144,7 +144,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		}
 		res = lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
 		trace("found",lum[0],lum[1],res) ;
-	} catch (...) {}
+	} catch (::string const& e) { trace("catch",e) ; }
 	if (blocked) set_sig(SIGINT,false/*block*/) ;
 	trace("restore") ;
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
@@ -157,7 +157,17 @@ Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax co
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
 	//
-	ReqRpcReq rrr{ proc , cmd_line.files() , { is_reverse_video(Fd::Stdin,Fd::Stdout) , cmd_line } } ;
+	Bool3 rv = Maybe ;
+	if (!cmd_line.flags[ReqFlag::Video]) rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
+	else
+		switch (cmd_line.flag_args[+ReqFlag::Video][0]) {
+			case 'n' :
+			case 'N' : rv = No    ; break ;
+			case 'r' :
+			case 'R' : rv = Yes   ; break ;
+			default  : rv = Maybe ;
+		}
+	ReqRpcReq rrr { proc , cmd_line.files() , { rv , cmd_line } } ;
 	connect_to_server(refresh) ;
 	started_cb() ;
 	OMsgBuf().send(g_server_fds.out,rrr) ;

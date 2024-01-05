@@ -125,14 +125,8 @@ struct Child {
 		int wstatus = wait() ;
 		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
 	}
-	bool/*done*/ kill(int sig) {
-		if (!sig    ) return true                  ;
-		if (as_group) return kill_group  (pid,sig) ;
-		else          return kill_process(pid,sig) ;
-	}
-	bool is_alive() const {
-		return kill_process(pid,0) ;
-	}
+	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_group) ; }
+	bool         is_alive(       ) const { return kill_process(pid,0           ) ; }
 	//data
 	pid_t       pid      = -1    ;
 	AutoCloseFd stdin    ;

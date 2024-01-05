@@ -47,8 +47,8 @@ static ::string _mk_str( PyObject* o , ::string const& arg_name={} ) {
 	return res ;
 }
 
-static uint8_t _mk_uint8( PyObject* o , ::string const& arg_name={} ) {
-	if (!o) throw to_string("missing argument",+arg_name?" ":"",arg_name) ;
+static uint8_t _mk_uint8( PyObject* o , uint8_t dflt , ::string const& arg_name={} ) {
+	if (!o) return dflt ;
 	int  overflow = 0/*garbage*/                          ;
 	long val      = PyLong_AsLongAndOverflow(o,&overflow) ;
 	if ( overflow || val<0 || val>::numeric_limits<uint8_t>::max() ) throw to_string("overflow for argument",+arg_name?" ":"",arg_name) ;
@@ -75,15 +75,23 @@ static ::vector_s _get_files(PyObject* args) {
 	return res ;
 }
 
-static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_args    =      PyTuple_GET_SIZE(args)     ;
-	ssize_t n_kw_args = kw ? PyDict_Size     (kw  ) : 0 ;
+static PyObject* _gather_arg( PyObject* args , ssize_t idx , PyObject* kwds , const char* kw , ssize_t& n_kwds ) {
+	if (idx<PyTuple_GET_SIZE(args)) return PyTuple_GET_ITEM(args,idx) ;
+	if (!kwds                     ) return nullptr                    ;
+	PyObject* item = PyDict_GetItemString(kwds,kw) ;
+	if (!item                     ) return nullptr                    ;
+	n_kwds-- ;
+	return item ;
+}
+
+static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	ssize_t n_kwds = kwds ? PyDict_Size(kwds) : 0 ;
 	try {
-		::string code = _mk_str( n_args>0 ? PyTuple_GET_ITEM(args,0) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"code")) : nullptr , "code" ) ;
-		::string file = _mk_str( n_args>1 ? PyTuple_GET_ITEM(args,1) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"file")) : nullptr , "file" ) ;
-		::string ctx  = _mk_str( n_args>2 ? PyTuple_GET_ITEM(args,2) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"ctx" )) : nullptr , "ctx"  ) ;
+		::string file = _mk_str( _gather_arg( args , 0 , kwds , "file" , n_kwds ) , "file" ) ;
+		::string ctx  = _mk_str( _gather_arg( args , 1 , kwds , "ctx"  , n_kwds ) , "ctx"  ) ;
+		::string code = _mk_str( _gather_arg( args , 2 , kwds , "code" , n_kwds ) , "code" ) ;
 		//
-		if (n_kw_args) throw "unexpected keyword arg"s ;
+		if (n_kwds) throw "unexpected keyword arg"s ;
 		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                              ;
@@ -95,17 +103,16 @@ static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	}
 }
 
-static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_args    =      PyTuple_GET_SIZE(args)     ;
-	ssize_t n_kw_args = kw ? PyDict_Size     (kw  ) : 0 ;
+static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	ssize_t n_kwds = kwds ? PyDict_Size(kwds) : 0 ;
 	try {
-		::string val     = _mk_str  ( n_args>0 ? PyTuple_GET_ITEM(args,0) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"value"  )) : nullptr , "code"    ) ;
-		::string file    = _mk_str  ( n_args>1 ? PyTuple_GET_ITEM(args,1) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"file"   )) : nullptr , "file"    ) ;
-		::string ctx     = _mk_str  ( n_args>2 ? PyTuple_GET_ITEM(args,2) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"ctx"    )) : nullptr , "ctx"     ) ;
-		uint8_t  min_len = _mk_uint8( n_args>3 ? PyTuple_GET_ITEM(args,3) : kw ? (n_kw_args--,PyDict_GetItemString(kw,"min_len")) : nullptr , "min_len" ) ;
+		::string file    = _mk_str  ( _gather_arg( args , 0 , kwds , "file"    , n_kwds ) ,     "file"    ) ;
+		::string ctx     = _mk_str  ( _gather_arg( args , 1 , kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
+		::string val     = _mk_str  ( _gather_arg( args , 2 , kwds , "val"     , n_kwds ) ,     "code"    ) ;
+		uint8_t  min_len = _mk_uint8( _gather_arg( args , 3 , kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
 		//
-		if (n_kw_args) throw "unexpected keyword arg"s ;
-		if (min_len>MaxCodecBits) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits,')') ;
+		if (n_kwds                ) throw "unexpected keyword arg"s                                                                      ;
+		if (min_len>MaxCodecBits/4) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits/4,')') ; // codes are output in hex, 4 bits/digit
 		//
 		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
 		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                       ;
@@ -166,7 +173,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 		}
 		return res ;
 	} else {
-		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {.accesses=accesses,.dflags=dflags} , no_follow , "depend" ) ) ;
+		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {accesses,dflags} , no_follow , "depend" ) ) ;
 		Py_RETURN_NONE ;
 	}
 }
@@ -258,7 +265,12 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
-	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , {.neg_tflags=neg_tflags,.pos_tflags=pos_tflags,.write=!unlink,.unlink=unlink} , no_follow , "target" ) ;
+	AccessDigest ad ;
+	ad.neg_tflags = neg_tflags ;
+	ad.pos_tflags = pos_tflags ;
+	ad.write      = !unlink    ;
+	ad.unlink     = unlink     ;
+	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , ad , no_follow , "target" ) ;
 	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
 	//
 	Py_RETURN_NONE ;
@@ -334,6 +346,8 @@ PyMODINIT_FUNC PyInit_clmake() {
 	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True              ) ;
 	PyObject_SetAttrString    ( mod , "has_ptrace"     ,                Py_True              ) ;
 	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)      ) ;
+	PyObject_SetAttrString    ( mod , "crc_a_link"     , PyLong_FromLong(+Crc::Lnk    )      ) ;
+	PyObject_SetAttrString    ( mod , "crc_a_reg"      , PyLong_FromLong(+Crc::Reg    )      ) ;
 	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )      ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mod ;

@@ -188,25 +188,15 @@ int64_t/*res*/ exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) 
 
 // read_lnk
 template<bool At> bool/*skip_syscall*/ entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
-	using Len = MsgBuf::Len ;
 	try {
-		if ( At && Fd(args[0])==Backdoor ) {
-			::string data = get_str( pid , args[1] , sizeof(Len)+get<size_t>(pid,args[1]) ) ; // for backdoor accesses, file name starts with its length
-			::string buf  ( args[3] , char(0) )                                             ;
-			ssize_t  len  = r.backdoor( data.data(), buf.data() , buf.size() )              ;
-			buf.resize(len) ;
-			put_str( pid , args[1+At] , buf ) ;
-			return true/*skip_syscall*/ ;                                      // we just executed the syscall, do not do the real one
-		} else {
-			Record::ReadLnk* rl = new Record::ReadLnk( r , _path<At>(pid,args+0) , comment ) ;
-			ctx = rl ;
-			_update<At>(args+0,*rl) ;
-		}
+		Record::ReadLnk* rl = new Record::ReadLnk( r , _path<At>(pid,args+0) , comment ) ;
+		ctx = rl ;
+		_update<At>(args+0,*rl) ;
 	} catch (int) {}
 	return false ;
 }
 int64_t/*res*/ exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
-	if (!ctx) return res ;                                                        // backdoor case
+	if (!ctx) return res ;
 	Record::ReadLnk* rl = static_cast<Record::ReadLnk*>(ctx) ;
 	SWEAR( pid==0 || !Record::s_has_tmp_view() , pid ) ;                       // tmp mapping is not supported with ptrace (need to report new value to caller)
 	(*rl)(r,res) ;

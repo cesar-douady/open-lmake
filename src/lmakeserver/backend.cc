@@ -64,8 +64,9 @@ namespace Backends {
 		::vmap_s<DepDigest> res       ; res.reserve(deps_attrs.size()) ;
 		for( auto const& [k,daf] : deps_attrs ) {
 			auto const& [d,af] = daf ;
-			if (+af.accesses) res.emplace_back( d , DepDigest( af.accesses , af.dflags , true/*parallel*/ , file_date(nfs_guard.access(d)) ) ) ; // if dep is accessed, pretend it is now
-			else              res.emplace_back( d , DepDigest( af.accesses , af.dflags , true/*parallel*/                                  ) ) ;
+			// if dep is accessed, pretend it is now
+			if (+af.accesses) { res.emplace_back( d , DepDigest( af.accesses , file_date(nfs_guard.access(d)) , af.dflags , true/*parallel*/ ) ) ; }
+			else                res.emplace_back( d , DepDigest( af.accesses ,                                  af.dflags , true/*parallel*/ ) ) ;
 		}
 		return res ;
 	}
@@ -362,27 +363,27 @@ namespace Backends {
 		switch (jrr.proc) {
 			case JobProc::None     : return false ;                            // if connection is lost, ignore it
 			case JobProc::ChkDeps  :
-			case JobProc::DepInfos : SWEAR(+fd,jrr.proc) ; break ;             // fd is needed to reply
+			case JobProc::DepInfos :
+			case JobProc::Decode   :
+			case JobProc::Encode   : SWEAR(+fd,jrr.proc) ; break ;             // fd is needed to reply
 			case JobProc::LiveOut  :                       break ;             // no reply
 			default : FAIL(jrr.proc) ;
 		}
-		Job     job      { jrr.job } ;
-		JobExec job_exec ;
+		Job job { jrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jrr) ;
 		{	::unique_lock lock { _s_mutex } ;                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
-			job_exec = JobExec( job , entry.conn.host , entry.start , New ) ;
-			trace("entry",job_exec,entry) ;
-		}
-		switch (jrr.proc) {
-			case JobProc::ChkDeps  : //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobProc::DepInfos : g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.digest.deps) ,                                fd ) ; return true /*keep_fd*/ ;
-			case JobProc::LiveOut  : g_engine_queue.emplace( jrr.proc , ::move(job_exec) , ::move(jrr.msg)                                             ) ; return false/*keep_fd*/ ;
-			case JobProc::Decode   : g_codec_queue .emplace( false/*encode*/ , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx)               , fd ) ; return true /*keep_fd*/ ;
-			case JobProc::Encode   : g_codec_queue .emplace( true /*encode*/ , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) , jrr.min_len , fd ) ; return true /*keep_fd*/ ;
-			default : FAIL(jrr.proc) ; //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                                                                                                                           keep_fd
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false  ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false  ; }
+			trace("entry",job,entry) ;
+			switch (jrr.proc) {
+				case JobProc::ChkDeps  : //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv          keep_fd
+				case JobProc::DepInfos : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.digest.deps)          , fd ) ; return true   ;
+				case JobProc::LiveOut  : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.msg)                       ) ; return false  ;
+				case JobProc::Decode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) ,               entry.reqs , fd ) ; return true   ;
+				case JobProc::Encode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) , jrr.min_len , entry.reqs , fd ) ; return true   ;
+				default : FAIL(jrr.proc) ; //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			}
 		}
 	}
 
@@ -413,7 +414,7 @@ namespace Backends {
 			//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			ensure_nl(jrr.msg) ; jrr.msg += backend_msg ;
 			if ( jrr.digest.status==Status::LateLost && !backend_msg ) { ensure_nl(jrr.msg) ; jrr.msg           += "vanished after start\n"                     ; }
-			if ( is_lost(jrr.digest.status) && !backend_ok           )                        jrr.digest.status  = Status::Err                                  ;
+			if ( is_lost(jrr.digest.status) && !backend_ok           )                        jrr.digest.status  = Status::LateLostErr                          ;
 			/**/                                                                              jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;

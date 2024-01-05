@@ -221,16 +221,6 @@ namespace Time {
 	struct Ddate : Date {
 		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
 		friend Delay ;
-		// statics
-		// s_now is rarely but unpredictably used
-		// so the idea is that s_refresh_now is called after each wait (i.e. once per loop in each thread)
-		// but this is cheap, you only pay if you actually call s_now, and this is the rare event
-		static void  s_refresh_now() { _t_now = {} ;                        }  // refresh s_now (actual clear cached value)
-		static Ddate s_now        () { return +_t_now ? _t_now : _s_now() ; }  // provide a disk view of now
-	private :
-		static Ddate _s_now() ;                                                // update cached value and return it
-		// static data
-		static thread_local Ddate _t_now ;                                     // per thread lazy evaluated cached value
 		// cxtors & casts
 	public :
 		Ddate(                ) = default ;

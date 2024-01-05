@@ -22,7 +22,7 @@ if 'slurm' in lmake.backends :
 	backend = 'slurm'
 	config.backends.slurm = {
 		'use_nice'          : True
-	,	'n_max_queued_jobs' : 3
+	,	'n_max_queued_jobs' : 10
 	}
 else :
 	backend = 'local'
@@ -201,6 +201,7 @@ class GenOpts(BaseRule) :
 
 # a rule to ensure dir exists
 class Marker(BaseRule) :
+	prio = 1                            # avoid untar when in a tar dir
 	targets = { 'MRKR' : '{DirS}mrkr' }
 	def cmd() :
 		open(MRKR,'w')
