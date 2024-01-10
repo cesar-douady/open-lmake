@@ -51,6 +51,26 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 		traceback.print_exception(e)
 		debugger.interaction(None,e.__traceback__)
 
+def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
+	import json
+	import os
+	import psutil
+	try :
+		# Write python process information to vscode debug workspace to allow gdb to attache to it
+		workspace = dbg_dir + '/vscode/ldebug.code-workspace'
+		if os.path.exists(workspace):
+			data = json.load(open(workspace))
+			for elm in data['launch']['configurations']:
+				if "type" in elm and elm["type"] == "by-gdb" : 
+					if 'processId' in elm : elm['processId'] = os.getpid()
+					if 'program' in elm : elm['program'] = ' '.join(psutil.Process(os.getpid()).cmdline())
+			print(json.dumps(data,indent='\t'),file=open(workspace,'w'))
+		# call cmd
+		func(*args,**kwds)
+	except BaseException as e :
+		import traceback
+		traceback.print_exception(e)
+
 def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 	import os
 	import pudb.debugger

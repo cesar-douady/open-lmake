@@ -637,7 +637,7 @@ If a target does not exist, it is deemed secondary information and is shown in g
 
 @section @code{ldebug}
 
-Usage : @code{ldebug [-g|--graphic] target}
+Usage : @code{ldebug [-g|--graphic] [-c|--vscode] target}
 
 @code{ldebug} runs a job in a debug environment.
 
@@ -646,6 +646,7 @@ For now, this command is rudimentary :
 @itemize @minus
 @item it runs the script under @code{pdb} or (@code{pudb} with the graphic option) for python rules
 @item it runs the script with @code{-x} flag set for shell rules
+@item it runs the script under vscode to allow debugging python and C++ code by attaching it to the python process.
 @end itemize
 
 Special care has been taken so that :
