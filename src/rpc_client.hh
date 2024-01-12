@@ -59,6 +59,7 @@ ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you 
 ,	ForgetOldErrors                    // if proc==                  Make               , assume old errors are transcient
 ,	Freeze                             // if proc==                         Mark        , prevent job rebuild
 ,	Graphic                            // if proc== Debug                          Show , use GUI to show debug script
+,	Vscode                             // if proc== Debug                          Show , use Vscode GUI to show debug script
 ,	Job                                //                                                 interpret (unique) arg as job name
 ,	Jobs                               // if proc==                  Make               , max number of jobs
 ,	KeepTmp                            // if proc==                  Make               , keep tmp dir after job execution
