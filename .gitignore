@@ -50,3 +50,9 @@ tok
 # tarball
 /lmake.tar.gz
 /open-lmake-*/
+
+# debian
+/debian/*debhelper*
+/debian/*substvars
+/debian/files
+/debian/*/

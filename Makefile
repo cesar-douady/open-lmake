@@ -3,20 +3,31 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+ifeq ($(origin CC),default)
+undefine CC
+endif
+
 #
 # build configuration
 #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
 MAKEFLAGS := -j$(shell nproc||echo 1) -k
 
-BASH     := $(shell        bash    -c 'type -p bash'   )
-PYTHON   := $(shell        $(BASH) -c 'type -p python3')
-GIT      := $(shell        $(BASH) -c 'type -p git'    )
-STD_PATH := $(shell env -i $(BASH) -c 'echo $$PATH'    )
-CC       := $(shell        $(BASH) -c 'type -p gcc-12 || type -p gcc-11 || type -p gcc || type -p clang')
+BASH   ?= bash
+CC     ?= gcc
+GIT    ?= git
+PYTHON ?= python3
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
+
+# ensure we are insitive to path from now on /!\ putting comment on var def lines put spaces in var
+override BASH   := $(shell $(BASH) -c 'type -p $(BASH)  ')
+override CC     := $(shell $(BASH) -c 'type -p $(CC)    ')
+override GIT    := $(shell $(BASH) -c 'type -p $(GIT)   ')
+override PYTHON := $(shell $(BASH) -c 'type -p $(PYTHON)')
+
+STD_PATH := $(shell env -i $(BASH) -c 'echo $$PATH')
 
 MAKEFLAGS += -r -R
 
@@ -38,14 +49,14 @@ endif
 
 COVERAGE :=
 ifneq ($(LMAKE_COVERAGE),)
-COVERAGE := --coverage                                                         # XXX : not operational yet
+COVERAGE := --coverage                                                  # XXX : not operational yet
 endif
 
 WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits
 
 LANG := c++20
 
-include sys_config.h.inc_stamp                                                 # sys_config.h is used in this makefile
+include sys_config.h.inc_stamp                                          # sys_config.h is used in this makefile
 
 # python configuration
 ifeq ($(PYTHON),)
@@ -84,20 +95,30 @@ endif
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
-COMMA         := ,
+COMMA := ,
+
 .DEFAULT_GOAL := DFLT
 
 SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 ASSEMBLE            := $(CC)             -S                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4
+LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                      # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                      # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                                                                 # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                                                                  # e.g. : /usr/lib/x /a/b /c /a/b
+LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                                                      # e.g. : /a/b /c /usr/lib/x
+LINK_LIB_PATH       := $(filter-out /usr/lib /usr/lib/%,$(LINK_LIB_PATH))                                            # suppress standard dirs as required in case of installed package
+LINK_OPTIONS        := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                   # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O              := $(CC) $(COVERAGE) -r
-LINK_SO             := $(CC) $(COVERAGE) -pthread -shared-libgcc -shared
-LINK_BIN            := $(CC) $(COVERAGE) -pthread
+LINK_SO             := $(CC) $(COVERAGE) $(LINK_OPTIONS) -shared-libgcc -shared
+LINK_BIN            := $(CC) $(COVERAGE) $(LINK_OPTIONS)
 LINK_LIB            := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
 PYTHON_LIB_BASE     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
-PYTHON_LINK_OPTIONS := -l$(PYTHON_LIB_BASE)
+PYTHON_LIB_DIR      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
+PYTHON_LIB_DIR      := $(filter-out /usr/lib /usr/lib/%,$(PYTHON_LIB_DIR))                                           # suppress standard dirs as required in case of installed package
+PYTHON_LINK_OPTIONS := $(patsubst %,-L% -Wl$(COMMA)-rpath=%,$(PYTHON_LIB_DIR)) -l$(PYTHON_LIB_BASE)
 PYTHON_VERSION      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
 CFLAGS              := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
 CXXFLAGS            := $(CFLAGS) -std=$(LANG)
@@ -155,7 +176,7 @@ LMAKE_SERVER_BIN_FILES = \
 	$(BIN)/xxhsum
 
 LMAKE_SERVER_FILES = \
-	$(LMAKE_SERVER_PY_FILES)         \
+	$(LMAKE_SERVER_PY_FILES)  \
 	$(LMAKE_SERVER_BIN_FILES)
 
 LMAKE_REMOTE_FILES = \
@@ -650,7 +671,7 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	echo '300M' > $(LMAKE_ENV)-cache/LMAKE/size
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	set -e ; cd $(LMAKE_ENV) ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; CC=$(CC) $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
 
 #
 # archive
@@ -667,7 +688,7 @@ lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
 #
 # For debian packaging
 #
-install: $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html
+install : $(LMAKE_BINS) $(LMAKE_REMOTE_FILES) $(LMAKE_SERVER_PY_FILES) $(DOC)/lmake.html
 	for f in $(LMAKE_SERVER_BIN_FILES); do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
 	for f in $(LMAKE_REMOTE_FILES)    ; do install -D        $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done
 	for f in $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/$(prefix)/lib/open-lmake/$$f ; done

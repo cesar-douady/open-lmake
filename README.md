@@ -278,6 +278,9 @@ Names are suffixed with \_ if needed to suppress ambiguities
 
 # modification
 
+* before pushing any modification :
+	- run make without argument to check nothing unrelated to your modifications is broken
+
 * to add a backend :
 	- make a file `src/lmakeserver/backends/<your_backend>.cc`
 		- and `git add` it

@@ -54,17 +54,18 @@ def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
 	import json
 	import os
-	import psutil
 	try :
 		# Write python process information to vscode debug workspace to allow gdb to attache to it
 		workspace = dbg_dir + '/vscode/ldebug.code-workspace'
-		if os.path.exists(workspace):
+		if os.path.exists(workspace) :
 			data = json.load(open(workspace))
-			for elm in data['launch']['configurations']:
-				if "type" in elm and elm["type"] == "by-gdb" : 
-					if 'processId' in elm : elm['processId'] = os.getpid()
-					if 'program' in elm : elm['program'] = ' '.join(psutil.Process(os.getpid()).cmdline())
-			print(json.dumps(data,indent='\t'),file=open(workspace,'w'))
+			for elmt in data['launch']['configurations'] :
+				if elmt.get('type') == 'by-gdb' :
+					if 'processId' in elmt : elmt['processId'] = os.getpid()
+					if 'program'   in elmt : elmt['program'  ] = open('/proc/self/cmdline').read().split('\x00')[:-1]
+			with open(workspace,'w') as out :
+				json.dump(data,out,indent='\t')
+				out.write('\n')
 		# call cmd
 		func(*args,**kwds)
 	except BaseException as e :

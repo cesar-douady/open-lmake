@@ -7,7 +7,6 @@
 
 #include "core.hh"
 #include <regex>
-#include <list>
 
 using namespace Disk ;
 
@@ -213,122 +212,112 @@ namespace Engine {
 		res += start.cmd.first ;
 		//
 		if ( flags[ReqFlag::Debug] && j->rule->is_python ) {
-			::string pdb       = flags[ReqFlag::Graphic]?"pudb":"pdb"   ;
-			::string r         = redirected             ?"True":"False" ;
-			size_t   open_pos  = start.cmd.second.find ('(')            ;
-			size_t   close_pos = start.cmd.second.rfind(')')            ;
-			::string run_call  = start.cmd.second.substr(0,open_pos)    ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
+			::string runner = flags[ReqFlag::Vscode] ? "vscode" : flags[ReqFlag::Graphic] ? "pudb" : "pdb" ;
 			//
-			res += "lmake_runtime['deps'] = (\n" ;                             // generate deps that debugger can use to pre-populate browser
+			size_t   open_pos  = start.cmd.second.find ('(')         ;
+			size_t   close_pos = start.cmd.second.rfind(')')         ;
+			::string run_call  = start.cmd.second.substr(0,open_pos) ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
+			//
+			res += "lmake_runtime['deps'] = (\n" ;                                                       // generate deps that debugger can use to pre-populate browser
 			bool first = true ;
 			for( Dep const& d : j->deps ) {
-				if (d->crc==Crc::None) continue ;                              // we are only interested in existing deps as other ones are of marginal interest
+				if (d->crc==Crc::None) continue ;                                                        // we are only interested in existing deps as other ones are of marginal interest
 				if (first) first  = false ;
 				else       res   += ','   ;
 				append_to_string( res , '\t',mk_py_str(d->name()),'\n')  ;
 			}
 			res += ")\n" ;
 			//
-			::string runner = flags[ReqFlag::Vscode] ? "vscode" : pdb ;
-			append_to_string( res , "lmake_runtime[",mk_py_str("run_"+runner),"](",mk_py_str(dbg_dir),',',r,',',run_call,")\n" ) ;
+			append_to_string( res , "lmake_runtime[" , mk_py_str("run_"+runner) , "](" , mk_py_str(dbg_dir) , ',' , redirected?"True":"False" , ',' ,run_call ,")\n" ) ;
 		} else {
 			res += start.cmd.second ;
 		}
 		return res ;
 	}
 
-	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::list<::string> vsExtensions) {
+	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::vector_s const& vsExtensions ) {
 		JobRpcReply const& start   = report_start.start ;
 		::string           abs_cwd = *g_root_dir        ;
 
 		Rule::SimpleMatch match = j->simple_match() ;
 		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions = j->pre_actions(match) ;
-		::string codeWorkspace = R"({
+		::string res =
+R"({
 	"folders": [
-		{
-			"path": "$g_root_dir"
+		{	"path" : "$g_root_dir"
 		}
 	],
 	"settings": {
-		"files.associations": {
-			"**/script": "python",
-			"cmd": "python",
-			"script": "python",
-			"*.py*": "python",
-			"**.py*": "python"
-		},
-		"files.exclude": {
-			".vscode/**": true,
-			".git*/**": true
-		},
-		"telemetry.enableTelemetry": false,
-		"telemetry.telemetryLevel": "off"
-	},
-	"launch": {
-		"configurations": [
-			{
-				"name": "$name",
-				"type": "python",
-				"request": "launch",
-				"program": "$g_root_dir/$dbg_dir/cmd",
-				"console": "integratedTerminal",
-				"cwd": "$g_root_dir",
-				"subProcess": true,
-				"env": {
+		"files.associations" : {
+			"**/script" : "python"
+		,	"cmd"       : "python"
+		,	"script"    : "python"
+		,	"*.py*"     : "python"
+		,	"**.py*"    : "python"
+		}
+	,	"files.exclude" : {
+			".vscode/**" : true
+		,	".git*/**"   : true
+		}
+	,	"telemetry.enableTelemetry" : false
+	,	"telemetry.telemetryLevel"  : "off"
+	}
+,	"launch" : {
+		"configurations" : [
+			{	"name"       : "$name"
+			,	"type"       : "python"
+			,	"request"    : "launch"
+			,	"program"    : "$g_root_dir/$dbg_dir/cmd"
+			,	"console"    : "integratedTerminal"
+			,	"cwd"        : "$g_root_dir"
+			,	"subProcess" : true
+			,	"env" : {
 					$env
 				}
 
-			},
-			{
-				"type": "by-gdb",
-				"request": "attach",
-				"name": "Attach C/C++",
-				"program": "",
-				"cwd": "$g_root_dir",
-				"processId": 0
+			}
+		,	{
+				"type"      : "by-gdb"
+			,	"request"   : "attach"
+			,	"name"      : "Attach C/C++"
+			,	"program"   : ""
+			,	"cwd"       : "$g_root_dir"
+			,	"processId" : 0
 			}
 		]
-	},
-	"extensions": {
-		"recommendations": [
+	}
+,	"extensions" : {
+		"recommendations" : [
 			$extensions
 		]
 	}
-})" ;
-		for( auto [t,a] : pre_actions.first ) {
-			codeWorkspace = ::regex_replace( codeWorkspace , ::regex("\\$name"), t->name() );
-		}
-		codeWorkspace = ::regex_replace( codeWorkspace , ::regex("\\$g_root_dir") , *g_root_dir );
-		codeWorkspace = ::regex_replace( codeWorkspace , ::regex("\\$dbg_dir") , dbg_dir );
+})" "\n" ; // avoid vim syntax coloring bug if inserting newline inside the string
 
-		::string extensions = "" ;
-		for ( auto& ext : vsExtensions) {
-			append_to_string( extensions , "\"" , ext );
-			if( ext == vsExtensions.back() ) {
-				append_to_string( extensions , "\"" );
-			} else {
-				append_to_string( extensions , "\",\n\t\t\t" );
-			}
+		::string extensions ;
+		bool     first      = true ;
+		for ( auto& ext : vsExtensions ) {
+			if (!first) append_to_string( extensions , "\n\t\t,\t" ) ;
+			/**/        append_to_string( extensions , '"',ext,'"' ) ;
+			first = false ;
 		}
-		codeWorkspace = ::regex_replace( codeWorkspace , ::regex( "\\$extensions") , extensions );
-		
-		::string env = "" ;
-		append_to_string( env , "\"ROOT_DIR\": \""              , *g_root_dir                               , "\",\n" ) ;
-		append_to_string( env , "\t\t\t\t\t\"SEQUENCE_ID\": \"" , report_start.pre_start.seq_id             , "\",\n" ) ;
-		append_to_string( env , "\t\t\t\t\t\"SMALL_ID\": \""    , start.small_id                            , "\",\n" ) ;
-		append_to_string( env , "\t\t\t\t\t\"TMPDIR\": \""      , to_string(*g_root_dir,'/',dbg_dir,"/tmp") , "\""    ) ;
-		for( auto&& [k,v] : start.env ) {
-			if (k=="TMPDIR"   ) continue ;
-			if (v!=EnvPassMrkr) {
-				append_to_string (env , ",\n\t\t\t\t\t\"" , k , "\": \"" , env_decode(::copy(v)) , "\"" );
-			}
-		}
-		codeWorkspace = ::regex_replace( codeWorkspace , ::regex("\\$env") , env );
-		append_to_string( codeWorkspace , "\n" );
-		return codeWorkspace ;
+		res = ::regex_replace( res , ::regex("\\$extensions") , extensions  ) ;
+		res = ::regex_replace( res , ::regex("\\$name"      ) , j->name()   ) ;
+		res = ::regex_replace( res , ::regex("\\$g_root_dir") , *g_root_dir ) ;
+		res = ::regex_replace( res , ::regex("\\$dbg_dir"   ) , dbg_dir     ) ;
+
+		size_t   kw  = 11/*SEQUENCE_ID*/ ; for( auto&& [k,v] : start.env ) if ( k!="TMPDIR" && v!=EnvPassMrkr ) kw = ::max(kw,k.size()) ;
+		::string env ;
+		append_to_string( env ,                 to_string(::setw(kw+2),'"'+"ROOT_DIR"s   +'"')," : ",'"',*g_root_dir                              ,'"' ) ;
+		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"SEQUENCE_ID"s+'"')," : ",'"',report_start.pre_start.seq_id            ,'"' ) ;
+		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"SMALL_ID"s   +'"')," : ",'"',start.small_id                           ,'"' ) ;
+		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"TMPDIR"s     +'"')," : ",'"',to_string(*g_root_dir,'/',dbg_dir,"/tmp"),'"' ) ;
+		for( auto&& [k,v] : start.env )
+			if ( k!="TMPDIR" && v!=EnvPassMrkr ) append_to_string ( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+k+'"')," : ",'"',env_decode(::copy(v)),'"' ) ;
+		res = ::regex_replace( res , ::regex("\\$env") , env );
+		return res ;
 	}
 
-	static ::string _mk_script( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ReqFlags flags , bool with_cmd, ::list<::string> vsExtensions = {}) {
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , ::string const& dbg_dir , bool with_cmd, ::vector_s const& vsExtensions = {}) {
 		JobRpcReply const& start   = report_start.start ;
 		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
@@ -387,30 +376,20 @@ namespace Engine {
 			tmp_dir = to_string(*g_root_dir,'/',dbg_dir,"/tmp") ;
 		}
 		//
-		append_to_string( script , "export     TMPDIR="   , mk_shell_str(tmp_dir)   , '\n'    ) ;
-		append_to_string( script , "rm -rf   \"$TMPDIR\""                           , '\n'    ) ;
-		append_to_string( script , "mkdir -p \"$TMPDIR\""                           , '\n'    ) ;
+		append_to_string( script , "export      TMPDIR="  , mk_shell_str(tmp_dir) , '\n' ) ;
+		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
+		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
-			for (auto extension : vsExtensions ) {
-				append_to_string( script , "if [[ -z $(code --list-extensions | grep -E '^", extension, "') ]]; then code --install-extension ", extension , "; fi\n" );
-			}
-			append_to_string( script , "DEBUG_DIR=\'", *g_root_dir , "/", dbg_dir, "\'\n");
-			append_to_string( script , "args=()\nif [[ -z $(type code | grep .vscode-server) ]]; then args+=( \" --user-data-dir ${DEBUG_DIR}/vscode/user" , "\" );fi\n" ) ;
-			// list dependences file to open in vscode
-			Rule      rule    = j->rule ;
-			::umap_ss rev_map           ;
-			for( auto const& [k,d] : rule->deps_attrs.eval(j->simple_match()) ) {
-				rev_map[d.first] = k ;
-			}
-			for( NodeIdx d=0 ; d<j->deps.size() ; d++ ) {
-				Dep const& dep = j->deps[d] ;
-				if ( dep.dflags[Dflag::Static] ){
-					append_to_string( script , "args+=(\"-g ", dep->name() , " \");\n" ) ;
-				}
-			}
-			append_to_string( script , "args+=(\"-g ${DEBUG_DIR}/cmd \");\n" ) ;
-			append_to_string( script , "args+=(\" ${DEBUG_DIR}/vscode/ldebug.code-workspace \");\n" ) ;
-			append_to_string( script , "code -n -w ${args[@]} &" ) ;
+			for (auto const& extension : vsExtensions )
+				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
+			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                          ) ;
+			append_to_string( script , "args=()\n"                                                                                      ) ;
+			append_to_string( script , "type code | grep -q .vscode-server || args+=( \"--user-data-dir ${DEBUG_DIR}/vscode/user\" )\n" ) ;
+			for( Dep const& dep : j->deps )
+				if (dep.dflags[Dflag::Static]) append_to_string( script , "args+=( ",mk_shell_str("-g "+dep->name()),")\n" ) ; // list dependences file to open in vscode
+			append_to_string( script , "args+=(\"-g ${DEBUG_DIR}/cmd\")\n"                       ) ;
+			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
+			append_to_string( script , "code -n -w ${args[@]} &"                                 ) ;
 		} else {
 			append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
 			append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
@@ -481,21 +460,23 @@ namespace Engine {
 		try         { ::ifstream job_stream{job->ancillary_file() } ; deserialize(job_stream,report_start) ; }
 		catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ;                   }
 		//
-		JobRpcReply const& start       = report_start.start                                                       ;
-		bool               redirected  = +start.stdin || +start.stdout                                            ;
-		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)                                   ;
-		::string           script_file = dbg_dir+"/script"                                                        ;
-		::string           cmd_file    = dbg_dir+"/cmd"                                                           ;
-		::list<::string>   vsext       = {
-			"ms-python.python", 
-			"ms-vscode.cpptools",
-			"coolchyni.beyond-debug"
-		};
-		::string           vscode_dir  = dbg_dir+"/vscode"                                                        ;
-		::string           vscode_file = vscode_dir+"/ldebug.code-workspace"                                      ;
-		::string           script      = _mk_script( job , report_start , dbg_dir , ro.flags , true/*with_cmd*/, vsext ) ;
-		::string           cmd         = _mk_cmd( job , ro.flags , start , dbg_dir , redirected )                 ;
-		::string           vscode      = _mk_vscode( job , report_start , dbg_dir , vsext ) ;
+		JobRpcReply const& start       = report_start.start                     ;
+		bool               redirected  = +start.stdin || +start.stdout          ;
+		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
+		::string           script_file = dbg_dir+"/script"                      ;
+		::string           cmd_file    = dbg_dir+"/cmd"                         ;
+		//
+		::vector_s vs_ext {
+			"ms-python.python"
+		,	"ms-vscode.cpptools"
+		,	"coolchyni.beyond-debug"
+		} ;
+		//
+		::string vscode_dir  = dbg_dir+"/vscode"                                                                 ;
+		::string vscode_file = vscode_dir+"/ldebug.code-workspace"                                               ;
+		::string script      = _mk_script( job , ro.flags , report_start , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
+		::string cmd         = _mk_cmd   ( job , ro.flags , start        , dbg_dir , redirected                ) ;
+		::string vscode      = _mk_vscode( job ,            report_start , dbg_dir ,                    vs_ext ) ;
 		//
 		mkdir(dbg_dir) ;
 		OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ;  // make executable
@@ -600,7 +581,7 @@ namespace Engine {
 						} break ;
 						case ReqKey::ExecScript :
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }
-							audit( fd , ro , _mk_script(job,report_start,ro.flag_args[+ReqFlag::Debug],ro.flags,false/*with_cmd*/) , lvl ) ;
+							audit( fd , ro , _mk_script(job,ro.flags,report_start,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , lvl ) ;
 						break ;
 						case ReqKey::Cmd : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , lvl ) ; break ; }

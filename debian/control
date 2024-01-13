@@ -20,5 +20,6 @@ Recommends: libslurm37 | libslurm38 | libslurm39 | libslurm40
 Description: pythonic workflow management system
  Build systems like GNU Make are frequently used to create complicated
  workflows. This project aims to reduce the complexity of creating workflows
- by leveraging Python language, together with a fast and
+ by automatically handling dependencies, together with a fast and
  comfortable execution environment.
+ It leverages Python for the user interface and is scalable to millions of jobs.
