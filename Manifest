@@ -15,6 +15,14 @@ _lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py
 _lib/ut.py
+debian/changelog
+debian/control
+debian/copyright
+debian/open-lmake.links
+debian/open-lmake.lintian-overrides
+debian/open-lmake.postinst
+debian/open-lmake.prerm
+debian/rules
 doc/lmake.texi
 doc/lmake_doc.pptx
 docker/centos7.docker
