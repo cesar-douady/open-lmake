@@ -79,13 +79,19 @@ namespace Engine {
 					if      ( add && !j.active()                                        ) handle_node(t) ;
 					else if ( t->is_src() || t->is_anti()                               ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
-					else                                                                  throw to_string("target was produced by unofficial ",j->rule->name,' ',mk_file(t->name())) ;
+					else {
+						Job cj = t->conform_job_tgt() ;
+						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
+						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -f to override) : ",mk_file(t->name())) ;
+						else     throw to_string("target was produced by ",j->rule->name,                              " (use -f to override) : ",mk_file(t->name())) ;
+					}
 				}
 			}
 			bool mod_nodes = +nodes ;
 			if ( mod_nodes && Req::s_n_reqs() ) throw to_string("cannot ",add?"add":"remove"," frozen files while running") ;
 			// do what is asked
 			if (+jobs) {
+				trace("jobs",jobs) ;
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
 					if (!add) j->status = Status::Garbage ;
@@ -93,16 +99,18 @@ namespace Engine {
 				}
 			}
 			if (+nodes) {
+				trace("nodes",nodes) ;
 				Node::s_frozens(add,nodes) ;
 				for( Node n : nodes ) if (add) n->mk_src() ; else n->mk_no_src() ;
 				Persistent::invalidate_match() ;                                   // seen from the engine, we have modified sources, we must rematch everything
 			}
+			trace("done") ;
 			return true ;
 		}
 	}
 
 	static bool/*ok*/ _manual_ok(EngineClosureReq const& ecr) {
-		Trace trace("manual_ok",ecr) ;
+		Trace trace("_manual_ok",ecr) ;
 		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
 		//
@@ -111,46 +119,46 @@ namespace Engine {
 			if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
 			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name()) ) ;
 		} else {
-			bool           add     = ro.key==ReqKey::Add ;
-			::vector<Node> targets ;
-			if (ecr.as_job()) targets = ecr.job()->targets() ;
-			else              targets = ecr.targets()        ;
+			bool           add   = ro.key==ReqKey::Add ;
+			Job            job   ;
+			::vector<Node> nodes ;
+			if (ecr.as_job()) job   = ecr.job()     ;
+			else              nodes = ecr.targets() ;
 			//check
-			for( Node t : targets )
-				if (t.manual_ok()==add) {
-					audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," manual-ok : ",mk_file(t->name())) ) ;
-					return false ;
-				}
+			if ( +job && job.manual_ok()==add )           { audit( fd , ro , Color::Err , to_string("job is " ,add?"already":"not"," manual-ok : ",mk_file(job->name())) ) ; return false ; }
+			for( Node n : nodes ) if (n.manual_ok()==add) { audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," manual-ok : ",mk_file(n  ->name())) ) ; return false ; }
 			// do what is asked
-			Node::s_manual_oks(add,targets) ;
-			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(t->name()) ) ;
+			Job ::s_manual_oks(add,{job}) ;
+			Node::s_manual_oks(add,nodes) ;
+			if (+job)             audit( fd , ro , add?Color::Warning:Color::Note , to_string(job->rule->name,' ',mk_file(job->name())) ) ;
+			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note ,                               mk_file(n  ->name())  ) ;
 		}
 		return true ;
 	}
 
 	static bool/*ok*/ _no_trigger(EngineClosureReq const& ecr) {
-		Trace trace("manual_ok",ecr) ;
+		Trace trace("_no_trigger",ecr) ;
 		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
 		//
 		if (_is_mark_glb(ro.key)) {
 			::vector<Node> markeds = Node::s_no_triggers() ;
-			if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
+			if (ro.key==ReqKey::Clear) Node::s_clear_no_triggers() ;
 			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name()) ) ;
 		} else {
-			bool           add     = ro.key==ReqKey::Add ;
-			::vector<Node> targets ;
-			if (ecr.as_job()) targets = ecr.job()->targets() ;
-			else              targets = ecr.targets()        ;
+			bool           add   = ro.key==ReqKey::Add ;
+			::vector<Node> nodes ;
+			if (ecr.as_job()) nodes = ecr.job()->targets() ;
+			else              nodes = ecr.targets()        ;
 			//check
-			for( Node t : targets )
-				if (t.no_trigger()==add) {
-					audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," manual-ok : ",mk_file(t->name())) ) ;
+			for( Node n : nodes )
+				if (n.no_trigger()==add) {
+					audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name())) ) ;
 					return false ;
 				}
 			// do what is asked
-			Node::s_no_triggers(add,targets) ;
-			for( Node t : targets ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(t->name()) ) ;
+			Node::s_no_triggers(add,nodes) ;
+			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(n->name()) ) ;
 		}
 		return true ;
 	}
@@ -244,15 +252,13 @@ namespace Engine {
 		::string res =
 R"({
 	"folders": [
-		{	"path" : "$g_root_dir"
-		}
-	],
-	"settings": {
+		{ "path" : "$g_root_dir" }
+	]
+,	"settings": {
 		"files.associations" : {
 			"**/script" : "python"
 		,	"cmd"       : "python"
 		,	"script"    : "python"
-		,	"*.py*"     : "python"
 		,	"**.py*"    : "python"
 		}
 	,	"files.exclude" : {
@@ -291,7 +297,8 @@ R"({
 			$extensions
 		]
 	}
-})" "\n" ; // avoid vim syntax coloring bug if inserting newline inside the string
+}
+)" ;
 
 		::string extensions ;
 		bool     first      = true ;
@@ -482,11 +489,7 @@ R"({
 		dir_guard(cmd_file   ) ; OFStream(cmd_file   ) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
 		dir_guard(vscode_file) ; OFStream(vscode_file) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
 		//
-		::vector<Node>    jts   ;
-		Rule::SimpleMatch match = job->simple_match() ;                                                // match holds static target names
-		for( ::string const& tn : match.static_targets() ) jts.push_back(Node(tn)) ;
-		for( Node t             : job->star_targets      ) jts.push_back(     t  ) ;
-		Node::s_manual_oks(true/*add*/,jts) ;
+		Job::s_manual_oks(true/*add*/,{job}) ;
 		//
 		audit( fd , ro , script_file , true/*as_is*/ ) ;
 		return true ;

@@ -54,8 +54,8 @@ constexpr Dflags StaticDflags { Dflag::Essential , Dflag::Required , Dflag::Stat
 constexpr Dflags DfltDflags   {                    Dflag::Required                 } ; // used with ldepend
 
 ENUM_1( FileActionTag
-,	HasFile = Uniquify                 // <=HasFile means action acts on file
-,	Keep                               // no action, just check integrity
+,	HasFile = Uniquify // <=HasFile means action acts on file
+,	Keep               // no action, just check integrity
 ,	Unlink
 ,	Uniquify
 ,	Mkdir
@@ -65,8 +65,8 @@ struct FileAction {
 	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
 	FileActionTag tag       = FileActionTag::Unknown ;
 	bool          manual_ok = false                  ;
-	Hash::Crc     crc       ;                              // expected info, mandatory if !manual_ok
-	Disk::Ddate   date      ;                              // .
+	Hash::Crc     crc       ;                          // expected info, mandatory if !manual_ok
+	Disk::Ddate   date      ;                          // .
 } ;
 ::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction> const& pre_actions , Disk::NfsGuard& nfs_guard , Hash::Algo ) ;
 
@@ -74,8 +74,8 @@ ENUM( JobProc
 ,	None
 ,	Start
 ,	ReportStart
-,	Continue       // req is killed but job is necessary for some other req
-,	NotStarted     // req was killed before it actually started
+,	Continue    // req is killed but job is necessary for some other req
+,	NotStarted  // req was killed before it actually started
 ,	ChkDeps
 ,	DepInfos
 ,	Decode
@@ -84,9 +84,9 @@ ENUM( JobProc
 ,	End
 )
 
-ENUM_2( JobReasonTag                   // see explanations in table below
-,	HasNode = ClashTarget              // if >=HasNode, a node is associated
-,	Err     = DepErr                   // if >=Err, job did not complete because of a dep
+ENUM_2( JobReasonTag      // see explanations in table below
+,	HasNode = ClashTarget // if >=HasNode, a node is associated
+,	Err     = DepErr      // if >=Err, job did not complete because of a dep
 //
 ,	None
 // with reason
@@ -335,7 +335,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Crc      = Hash::Crc      ;
 	using Ddate    = Time::Ddate    ;
 	//cxtors & casts
-	DepDigestBase(                                                              ) :                                                     _crc{} {           }
+	DepDigestBase(                                                 bool p=false ) :                                       parallel{p} , _crc{} {           }
 	DepDigestBase(          Accesses a ,           Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
 	DepDigestBase(          Accesses a , Crc   c , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
 	DepDigestBase(          Accesses a , Ddate d , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }

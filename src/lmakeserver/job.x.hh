@@ -131,9 +131,9 @@ namespace Engine {
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
 		void             not_started(                                                                         ) ;       // Req was killed before it started
 		//
-		void audit_end( ::string const& pfx , ReqInfo const&     , ::string const& backend_msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time={} ) const ;
-		void audit_end( ::string const& pfx , ReqInfo const& cri ,                               ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time={} ) const {
-			audit_end(pfx,cri,{}/*backend_msg*/,stderr,max_stderr_len,modified,exec_time) ;
+		void audit_end( ::string const& pfx , ReqInfo const&     , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
+		void audit_end( ::string const& pfx , ReqInfo const& cri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
+			audit_end(pfx,cri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// start/end date book keeping
 	private :
@@ -179,12 +179,13 @@ namespace Engine {
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		NodeIdx      dep_lvl          = 0                     ; // 31<=32 bits
-		Lvl          lvl           :3 = Lvl         ::None    ; //      3 bits
-		JobReasonTag force         :5 = JobReasonTag::None    ; //      5 bits
-		BackendTag   backend       :2 = BackendTag  ::Unknown ; //      2 bits
-		bool         start_reported:1 = false                 ; //      1 bit , if true <=> start message has been reported to user
-		bool         speculative   :1 = false                 ; //      1 bit , if true <=> job is waiting for speculative deps only
+		NodeIdx      dep_lvl            = 0                     ; // ~20<=32 bits
+		Lvl          lvl             :3 = Lvl         ::None    ; //       3 bits
+		JobReasonTag force           :5 = JobReasonTag::None    ; //       5 bits
+		BackendTag   backend         :2 = BackendTag  ::Unknown ; //       2 bits
+		bool         start_reported  :1 = false                 ; //       1 bit , if true <=> start message has been reported to user
+		bool         speculative_deps:1 = false                 ; //       1 bit , if true <=> job is waiting for speculative deps only
+		Bool3        speculate       :2 = Yes                   ; //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error
 	} ;
 	static_assert(sizeof(JobReqInfo)==24) ;                                    // check expected size
 
@@ -279,9 +280,26 @@ namespace Engine {
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
-		JobReason make( ReqInfo& , RunAction , JobReason={} , Node asking_={} , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		void propag_speculate( Req req , Bool3 speculate ) const {
+			/**/                          if (speculate==Yes         ) return ; // fast path : nothing to propagate
+			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
+			ri.speculate = speculate ;
+			if ( speculate==No && ri.done() && err() ) audit_end("was_",ri) ;
+			_propag_speculate(ri) ;
+		}
 		//
-		void      make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,ma) ; } // for wakeup
+		JobReason make(
+			ReqInfo&
+		,	RunAction
+		,	JobReason                          = {}
+		,	Node               asking_         = {}
+		,	Bool3              speculate       = Yes
+		,	MakeAction                         = MakeAction::None
+		,	CoarseDelay const* old_exec_time   = nullptr
+		,	bool               wakeup_watchers = true
+		) ;
+		//
+		void make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,Yes/*speculate*/,ma) ; } // for wakeup
 		//
 		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
 		//
@@ -294,6 +312,8 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
+		void _propag_speculate(ReqInfo const&) const ;
+		//
 		::pair<SpecialStep,Bool3/*modified*/> _update_target( Node target , ::string const& target_name , bool star , Disk::NfsGuard& ) ;
 		//
 		bool/*maybe_new_deps*/ _submit_special  ( ReqInfo&                                    ) ;

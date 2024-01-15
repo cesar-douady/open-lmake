@@ -194,7 +194,7 @@ namespace Caches {
 	}
 
 	Cache::Match DirCache::match( Job job , Req req ) {
-		Trace trace("match",job,req) ;
+		Trace trace("DirCache::match",job,req) ;
 		::string     jn       = _unique_name(job)             ;
 		::uset<Node> new_deps ;
 		AutoCloseFd  dfd      =  open_read(dir_fd,jn)         ;
@@ -210,10 +210,12 @@ namespace Caches {
 				for( auto const& [dn,dd] : deps ) {
 					if ( critical && !dd.parallel ) break ;                    // if a critical dep needs reconstruction, do not proceed past parallel deps
 					Node d{dn} ;
-					if (!d->done(req)) {
+					if (!d->done(req,RunAction::Status)) {
 						nds.insert(d) ;
 						critical |= dd.dflags[Dflag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
+						if (!nds) trace("not_done",dn) ;
 					} else if (!d->up_to_date(dd)) {
+						trace("diff",dn) ;
 						goto Miss ;
 					}
 				}
@@ -250,7 +252,7 @@ namespace Caches {
 		::string    jn     = _unique_name(job,id) ;
 		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
 		::vector_s  copied ;
-		Trace trace("download",job,id,jn) ;
+		Trace trace("DirCache::download",job,id,jn) ;
 		try {
 			JobInfoStart report_start ;
 			JobInfoEnd   report_end   ;

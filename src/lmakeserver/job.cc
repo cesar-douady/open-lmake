@@ -68,15 +68,15 @@ namespace Engine {
 			handle_target( Node(tn) , [&](Tflag tf)->bool { return tfs[tf] ; } ) ;
 		}
 		// handle star targets
-		Rule::FullMatch fm ;                                                   // lazy evaluated
+		Rule::FullMatch fm ;                                                                                                   // lazy evaluated
 		for( Target t : jd.star_targets ) {
-			::string tn ;                                                                        // lazy evaluated
-			handle_target( t , [&](Tflag tf)->bool { return t.lazy_tflag(tf,match,fm,tn) ; } ) ; // may lazy solve fm & tn
+			::string tn ;                                                                                                      // lazy evaluated
+			handle_target( t , [&](Tflag tf)->bool { return t.lazy_tflag(tf,match,fm,tn) ; } ) ;                               // may lazy solve fm & tn
 		}
 		return res ;
 	}
 	::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> JobData::pre_actions( Rule::SimpleMatch const& match , bool manual_ok , bool mark_target_dirs ) const { // thread-safe
-		Trace trace("pre_actions",idx()) ;
+		Trace trace("pre_actions",idx(),STR(manual_ok),STR(mark_target_dirs)) ;
 		::vmap<Node,FileAction> actions ;
 		// compute targets to wash
 		::vmap  <Node,pair<FileAction,bool/*warn*/>> to_wash   = _targets_to_wash(*this,match,manual_ok) ;
@@ -96,18 +96,18 @@ namespace Engine {
 		for( Node d : to_mkdirs ) {
 			for( Node hd=d->dir() ; +hd ; hd = hd->dir() ) if (!hier_dirs.insert(hd).second) break ;
 			actions.emplace_back( d , FileActionTag::Mkdir ) ;
-			to_rmdirs.erase(d) ;                                               // do not rm dirs that we need to create
+			to_rmdirs.erase(d) ;                                        // do not rm dirs that we need to create
 		}
 		// protect against deletion of other on-going jobs target dirs
-		for( auto it=to_rmdirs.begin() ; it!=to_rmdirs.end() ;) {              // /!\ we may erase elements while iterating
+		for( auto it=to_rmdirs.begin() ; it!=to_rmdirs.end() ;) {       // /!\ we may erase elements while iterating
 			for( Node hd=*it ; +hd ; hd=hd->dir() ) {
 				if (_s_target_dirs.contains(hd)) {
-					to_rmdirs.erase(it++) ;                                    // d is within a protected dir, dont rm it
+					to_rmdirs.erase(it++) ;                             // d is within a protected dir, dont rm it
 					goto Next ;
 				}
 				if (_s_hier_target_dirs.contains(hd)) {
-					actions.emplace_back( hd , FileActionTag::Mkdir ) ;        // hd is above a protected dir, only rm from d to hd ...
-					break ;                                                    // ... hd may be actually created after it is inserted in _s_hier_target_dirs, so we may need to create it to be sure
+					actions.emplace_back( hd , FileActionTag::Mkdir ) ; // hd is above a protected dir, only rm from d to hd ...
+					break ;                                             // ... hd may be actually created after it is inserted in _s_hier_target_dirs, so we may need to create it to be sure
 				}
 			}
 			it++ ;
@@ -265,7 +265,7 @@ namespace Engine {
 	void JobExec::continue_( Req req , bool report ) {
 		Trace trace("continue_",*this,req,STR(report)) ;
 		ReqInfo& ri = (*this)->req_info(req) ;
-		(*this)->make( ri , RunAction::None , {}/*reason*/ , {}/*asking*/ , MakeAction::GiveUp ) ;
+		(*this)->make( ri , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
 		if (report) req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;
 		req.chk_end() ;
 	}
@@ -384,23 +384,24 @@ namespace Engine {
 
 	// XXX generate consider line if status==Manual
 	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string const& backend_msg ) {
-		Status            status           = digest.status           ;                                             // status will be modified, need to make a copy
-		Bool3             ok               = is_ok(status)           ;
+		Status            status           = digest.status           ;                                                // status will be modified, need to make a copy
+		Bool3             ok               = is_ok  (status)         ;
+		bool              lost             = is_lost(status)         ;
 		JobReason         local_reason     = JobReasonTag::None      ;
 		bool              local_err        = false                   ;
 		bool              any_modified     = false                   ;
-		bool              fresh_deps       = status>Status::Async    ;         // if job did not go through, old deps are better than new ones
+		bool              fresh_deps       = status>Status::Async    ; // if job did not go through, old deps are better than new ones
 		Rule              rule             = (*this)->rule           ;
 		::vector<Req>     running_reqs_    = (*this)->running_reqs() ;
-		::string          msg              ;                                   // to be reported if job was otherwise ok
-		::string          severe_msg       ;                                   // to be reported always
+		::string          msg              ;                           // to be reported if job was otherwise ok
+		::string          severe_msg       ;                           // to be reported always
 		CacheNoneAttrs    cache_none_attrs ;
 		EndCmdAttrs       end_cmd_attrs    ;
 		Rule::SimpleMatch match            ;
 		//
-		SWEAR(status!=Status::New) ;                                           // we just executed the job, it can be neither new, frozen or special
-		SWEAR(!frozen()          ) ;                                           // .
-		SWEAR(!rule->is_special()) ;                                           // .
+		SWEAR(status!=Status::New) ;                                   // we just executed the job, it can be neither new, frozen or special
+		SWEAR(!frozen()          ) ;                                   // .
+		SWEAR(!rule->is_special()) ;                                   // .
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			cache_none_attrs = rule->cache_none_attrs.eval(*this,match) ;
@@ -425,14 +426,16 @@ namespace Engine {
 				default : FAIL(status) ;
 			}
 		//
-		(*this)->status = ::min(status,Status::Garbage) ;                      // ensure we cannot appear up to date while working on data
+		(*this)->status = ::min(status,Status::Garbage) ;                          // ensure we cannot appear up to date while working on data
 		fence() ;
 		//
 		Trace trace("end",*this,status) ;
 		//
 		// handle targets
 		//
-		if (status>Status::Early) {                                                // if early, we have not touched the targets, not even washed them
+		s_manual_oks( lost && status>Status::Early /*add*/ , {*this} ) ;           // if late lost, we have not reported written targets, else wash manual_ok state
+		//
+		if ( !lost && status>Status::Early ) {                                     // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			auto report_if_missing = [&]( ::string const& tn , Tflags tf )->void {
 				if (+(tf&Tflags(Tflag::Star,Tflag::Phony))) return ;               // these are not required targets
 				if (status!=Status::Ok                    ) return ;               // it is quite normal to have missing targets when job is in error
@@ -440,8 +443,7 @@ namespace Engine {
 				to_string( msg , "missing target", (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") , " : " , mk_file(tn) , '\n' ) ;
 				local_err = true ;
 			} ;
-			::uset<Node> seen_static_targets ;
-			::vector<Node> to_wash_manual_ok  ;
+			::uset  <Node> seen_static_targets ;
 			//
 			for( Node t : (*this)->star_targets ) if (t->has_actual_job(*this)) t->actual_job_tgt().clear() ; // ensure targets we no more generate do not keep pointing to us
 			//
@@ -456,8 +458,6 @@ namespace Engine {
 				bool   target_err = false                                                         ;
 				//
 				target->set_buildable() ;
-				//
-				if (touched) to_wash_manual_ok.push_back(target) ;
 				//
 				if ( td.write && target->is_src() ) {
 					if (!crc.valid()) crc = Crc(tn,g_config.hash_algo) ;       // force crc computation if updating a source
@@ -484,9 +484,9 @@ namespace Engine {
 						for( Req r : target->reqs() ) {
 							Node::ReqInfo& tri = target->req_info(r) ;
 							if (!tri.done(RunAction::Dsk)) continue ;
-							tri.done_ = RunAction::Status ;                    // target must be re-analyzed if we need the actual files
+							tri.done_ = RunAction::Status ;                           // target must be re-analyzed if we need the actual files
 							trace("critical_clash") ;
-							r->clash_nodes.emplace(target,r->clash_nodes.size()) ; // but req r may not be aware of it
+							r->clash_nodes.emplace(target,r->clash_nodes.size()) ;    // but req r may not be aware of it
 						}
 					}
 				}
@@ -496,15 +496,15 @@ namespace Engine {
 					// we must consider this is a real target with full clash detection.
 					// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
 					if ( !RuleData::s_sure(tflags) && !td.write ) {
-						target->unlinked = target->crc!=Crc::None ;            // if target was actually unlinked, note it as it is not considered a target of the job
+						target->unlinked = target->crc!=Crc::None ;    // if target was actually unlinked, note it as it is not considered a target of the job
 						trace("unlink",target,STR(target->unlinked)) ;
-						continue ;                                             // if we are not sure, a target is not generated if it does not exist
+						continue ;                                     // if we are not sure, a target is not generated if it does not exist
 					}
 					report_if_missing(tn,tflags) ;
 				}
 				if ( !td.write && !tflags[Tflag::Match] ) {
 					trace("no_target",target) ;
-					continue ;                                                 // not written, no match => not a target
+					continue ;                                         // not written, no match => not a target
 				}
 				if ( !target_err && td.write && !unlink && !tflags[Tflag::Write] ) {
 					local_err = true ;
@@ -535,8 +535,8 @@ namespace Engine {
 				any_modified |= modified && tflags[Tflag::Match] ;
 				trace("target",target,td,STR(modified),status) ;
 			}
-			if (seen_static_targets.size()<rule->n_static_targets) {           // some static targets have not been seen
-				Rule::SimpleMatch match          { *this }                ;    // match must stay alive as long as we use static_targets
+			if (seen_static_targets.size()<rule->n_static_targets) {                     // some static targets have not been seen
+				Rule::SimpleMatch match          { *this }                ;              // match must stay alive as long as we use static_targets
 				::c_vector_view_s static_targets = match.static_targets() ;
 				for( VarIdx ti=0 ; ti<rule->n_static_targets ; ti++ ) {
 					::string const& tn = static_targets[ti] ;
@@ -550,11 +550,14 @@ namespace Engine {
 					report_if_missing(tn,tflags) ;
 				}
 			}
-			::sort(star_targets) ;                                             // ease search in targets
+			::sort(star_targets) ;                                                       // ease search in targets
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			(*this)->star_targets.assign(star_targets) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (status>Status::Garbage) Node::s_manual_oks(false/*add*/,to_wash_manual_ok) ; // manual_ok is one shot, suppress marks when targets are generated
+			if (Node::s_has_manual_oks()) {
+				for( Node t : seen_static_targets ) star_targets.push_back(t) ;
+				Node::s_manual_oks( false/*add*/ , mk_vector<Node>(star_targets) ) ;     // actually all targets
+			}
 		}
 		//
 		// handle deps
@@ -597,13 +600,13 @@ namespace Engine {
 		//
 		(*this)->exec_ok(true) ;                                               // effect of old cmd has gone away with job execution
 		fence() ;                                                              // only update status once every other info is set in case of crash and avoid transforming garbage into Err
-		//                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if      ( +local_reason                   ) (*this)->status = ::min(status,Status::Garbage)  ;
-		else if ( local_err && status==Status::Ok ) (*this)->status =              Status::Err       ;
-		else if ( !is_lost(status)                ) (*this)->status =       status                   ;
-		else if ( status<=Status::Early           ) (*this)->status =              Status::EarlyLost ;
-		else                                        (*this)->status =              Status::LateLost  ;
-		//                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if      ( +local_reason                   ) (*this)->status = ::min(status,Status::Garbage  ) ;
+		else if ( local_err && status==Status::Ok ) (*this)->status =              Status::Err        ;
+		else if ( !lost                           ) (*this)->status =       status                    ;
+		else if ( status<=Status::Early           ) (*this)->status =              Status::EarlyLost  ;
+		else                                        (*this)->status =              Status::LateLost   ;
+		//                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		bool        report_stats     = status==Status::Ok                                           ;
 		CoarseDelay old_exec_time    = (*this)->best_exec_time().first                              ;
 		bool        cached           = false                                                        ;
@@ -633,9 +636,9 @@ namespace Engine {
 			trace("req_before",local_reason,status,ri) ;
 			req->missing_audits.erase(*this) ;                                 // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason ,  {}/*asking*/ , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
-			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason ,  {}/*asking*/ , Yes/*speculate*/ , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
+			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			::string bem = ensure_nl(backend_msg) ;
 			//
 			if (reason.tag>=JobReasonTag::Err) {
@@ -705,6 +708,7 @@ namespace Engine {
 		else if (modified                          ) {                                               jr = JR::Done   ; step += mk_snake(jr           ) ; color = +stderr?Color::Warning:Color::Ok ; }
 		else                                         {                                               jr = JR::Steady ; step += mk_snake(jr           ) ; color = +stderr?Color::Warning:Color::Ok ; }
 		//
+		if ( color==Color::Err && cri.speculate!=No ) color = Color::SpeculateErr ;
 		Trace trace("audit_end",color,step,*this,cri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		req->audit_job(color,step,*this,true/*at_end*/,exec_time) ;
@@ -746,10 +750,8 @@ namespace Engine {
 		}
 	}
 
-	ENUM(State
+	ENUM(DepErr
 	,	Ok
-	,	ProtoModif                     // modified dep has been seen but still processing parallel deps
-	,	Modif
 	,	Err                            // >=Err means error
 	,	MissingStatic
 	)
@@ -761,15 +763,25 @@ namespace Engine {
 		stat += inc ;
 		return jl!=JobLvl::Done ;
 	}
-	// run_action==Dsk means asking must be checked on disk
-	JobReason JobData::make( ReqInfo& ri , RunAction run_action , JobReason reason , Node asking_ , MakeAction make_action , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
+	JobReason JobData::make(
+		ReqInfo&           ri
+	,	RunAction          run_action
+	,	JobReason          reason
+	,	Node               asking_
+	,	Bool3              speculate
+	,	MakeAction         make_action
+	,	CoarseDelay const* old_exec_time
+	,	bool               wakeup_watchers
+	) {
 		using Lvl = ReqInfo::Lvl ;
 		SWEAR( reason.tag<JobReasonTag::Err , reason ) ;
-		Lvl before_lvl = ri.lvl ;                                              // capture previous state before any update
-		Req req        = ri.req ;
+		Lvl  prev_lvl       = ri.lvl                               ;           // capture previous level before any update
+		Req  req            = ri.req                               ;
+		bool stop_speculate = speculate<ri.speculate && +ri.action ;
 		if (+reason ) run_action = RunAction::Run ;                            // we already have a reason to run
 		if (+asking_) asking     = asking_        ;
-		reason = reason | JobReason(ri.force) ;                                // ri.force was anterior to incoming reason
+		ri.speculate = ri.speculate & speculate           ;
+		reason       = reason       | JobReason(ri.force) ;                    // ri.force was anterior to incoming reason
 		ri.update( run_action , make_action , *this ) ;
 		if (!ri.waiting()) {                                                   // we may have looped in which case stats update is meaningless and may fail()
 			//
@@ -777,18 +789,19 @@ namespace Engine {
 			bool    dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
 			bool    frozen_      = idx().frozen()                                                ;
 			//
-			Trace trace("Jmake",idx(),ri,before_lvl,run_action,reason,asking_,make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
+			Trace trace("Jmake",idx(),ri,prev_lvl,run_action,reason,asking_,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 			if (ri.done(ri.action)) goto Wakeup ;
-			for (;;) {                                                                    // loop in case analysis must be restarted (only in case of flash execution)
-				State       state        = State::Ok                                    ;
-				bool        sure         = true                                         ;
-				CoarseDelay dep_pressure = ri.pressure + best_exec_time().first         ;
-				Idx         n_deps       = special==Special::Infinite ? 0 : deps.size() ; // special case : Infinite actually has no dep, just a list of node showing infinity
+			for (;;) {                                                                     // loop in case analysis must be restarted (only in case of flash execution)
+				DepErr      err_          = DepErr::Ok /*garbage*/                       ;
+				bool        modif         = false      /*garbage*/                       ;
+				bool        sure          = true                                         ;
+				CoarseDelay dep_pressure  = ri.pressure + best_exec_time().first         ;
+				Idx         n_deps        = special==Special::Infinite ? 0 : deps.size() ; // special case : Infinite actually has no dep, just a list of node showing infinity
 				//
 				RunAction dep_action = req->options.flags[ReqFlag::Archive] ? RunAction::Dsk : RunAction::Status ;
 				//
 				if (make_action==MakeAction::End) { dep_action = RunAction::Dsk ; ri.dep_lvl = 0 ; } // if analysing end of job, we need to be certain of presence of all deps on disk
-				if (ri.action  ==RunAction::Run ) { dep_action = RunAction::Dsk ;                  } // if we must run the job , .
+				if (ri.action  ==RunAction::Run )   dep_action = RunAction::Dsk ;                    // if we must run the job , .
 				//
 				switch (ri.lvl) {
 					case Lvl::None :
@@ -805,35 +818,50 @@ namespace Engine {
 					[[fallthrough]] ;
 					case Lvl::Dep : {
 					RestartAnalysis :                                          // restart analysis here when it is discovered we need deps to run the job
+						/**/   err_               = DepErr::Ok ;
+						/**/   modif              = false      ;
+						bool   seen_waiting       = false      ;
+						DepErr proto_err          = DepErr::Ok ;
+						bool   proto_modif        = false      ;
+						bool   proto_seen_waiting = false      ;
 						if ( ri.dep_lvl==0 && +ri.force ) {                    // process command like a dep in parallel with static_deps
 							trace("force",ri.force) ;
-							SWEAR( state<=State::ProtoModif , state ) ;        // ensure we dot mask anything important
-							state       = State::ProtoModif ;
-							reason     |= ri.force          ;
-							ri.action   = RunAction::Run    ;
-							dep_action  = RunAction::Dsk    ;
+							SWEAR( !err_ && !proto_err && !modif ) ;           // ensure we dot mask anything important
+							proto_modif = true           ;
+							reason     |= ri.force       ;
+							ri.action   = RunAction::Run ;
+							dep_action  = RunAction::Dsk ;
 							if (frozen_) break ;                               // no dep analysis for frozen jobs
 						}
-						ri.speculative = false ;                               // initiallly, we are not speculatively waiting
-						bool  critical_modif   = false ;
-						bool  critical_waiting = false ;
-						Bool3 seen_waiting     = No    ;                       // Maybe means that waiting has been seen in the same parallel deps (much like ProtoModif for modifs)
-						Dep   sentinel         ;
+						ri.speculative_deps = false ;                          // initially, we are not speculatively waiting
+						bool  critical_modif   = false               ;
+						bool  critical_waiting = false               ;
+						Dep   sentinel         { false/*parallel*/ } ;
 						for ( NodeIdx i_dep = ri.dep_lvl ; SWEAR(i_dep<=n_deps,i_dep,n_deps),true ; i_dep++ ) {
-							State dep_state   = State::Ok                         ;
-							bool  seen_all    = i_dep==n_deps                     ;
-							Dep&  dep         = seen_all ? sentinel : deps[i_dep] ; // use empty dep as sentinel
-							bool  is_static   =  dep.dflags[Dflag::Static     ]   ;
-							bool  is_critical =  dep.dflags[Dflag::Critical   ]   ;
-							bool  sense_err   = !dep.dflags[Dflag::IgnoreError]   ;
-							bool  required    =  dep.dflags[Dflag::Required   ]   ;
-							bool  care        = +dep.accesses                     ; // we care about this dep if we access it somehow
-							bool is_modif     = false/*garbage*/                  ;
+							DepErr dep_err     = DepErr::Ok                              ;
+							bool   dep_modif   = false                                   ;
+							bool   seen_all    = i_dep==n_deps                           ;
+							Dep&   dep         = seen_all ? sentinel : deps[i_dep]       ; // use empty dep as sentinel
+							bool   care        = +dep.accesses                           ; // we care about this dep if we access it somehow
+							bool   is_static   =  dep.dflags[Dflag::Static     ]         ;
+							bool   is_critical =  dep.dflags[Dflag::Critical   ] && care ;
+							bool   sense_err   = !dep.dflags[Dflag::IgnoreError]         ;
+							bool   required    =  dep.dflags[Dflag::Required   ]         ;
 							//
 							if (!dep.parallel) {
-								if ( state       ==State::ProtoModif ) state        = State::Modif ; // proto-modifs become modifs when stamped by a sequential dep
-								if ( seen_waiting==Maybe             ) seen_waiting = Yes          ; // seen_waiting becomes Yes when stamped by a sequential dep
-								if ( critical_modif && !seen_all     ) {
+								err_         = proto_err          ;                   // proto-modifs become modifs when stamped by a sequential dep
+								modif        = proto_modif        ;                   // .
+								seen_waiting = proto_seen_waiting ;                   // .
+								if ( modif && !err_ ) {                               // this modif is not preceded by an error, we will definitely run the job, prepare for it
+									ri.action = RunAction::Run ;
+									if (dep_action<RunAction::Dsk) {
+										ri.dep_lvl = 0              ;
+										dep_action = RunAction::Dsk ;
+										trace("restart_analysis") ;
+										goto RestartAnalysis ;
+									}
+								}
+								if ( critical_modif && !seen_all ) {
 									NodeIdx j = i_dep ;
 									for( NodeIdx i=i_dep ; i<n_deps ; i++ )    // suppress deps following modified critical one, except keep static deps as no-access
 										if (deps[i].dflags[Dflag::Static]) {
@@ -847,53 +875,60 @@ namespace Engine {
 										seen_all = i_dep==n_deps ;
 									}
 								}
-								if ( state==State::Ok && !ri.waiting() ) ri.dep_lvl = i_dep ; // fast path : all is ok till now, next time, restart analysis after this
-								if ( critical_waiting                  ) goto Wait ;          // stop analysis as critical dep may be modified
-								if ( seen_all                          ) break     ;          // we are done
+								if ( !err_ && !modif && !ri.waiting() ) ri.dep_lvl = i_dep ; // fast path : all is ok till now, next time, restart analysis after this
+								if ( critical_waiting                 ) goto Wait ;          // stop analysis as critical dep may be modified
+								if ( seen_all                         ) break     ;          // we are done
 							}
-							SWEAR(is_static<=required) ;                                                  // static deps are necessarily required
-							Node::ReqInfo const* cdri        = &dep->c_req_info(req)                    ; // avoid allocating req_info as long as not necessary
-							Node::ReqInfo      * dri         = nullptr                                  ; // .
-							bool                 speculative = state==State::Modif || seen_waiting==Yes ; // this dep may disappear
+							SWEAR(is_static<=required) ;                        // static deps are necessarily required
+							Node::ReqInfo const* cdri = &dep->c_req_info(req) ; // avoid allocating req_info as long as not necessary
+							Node::ReqInfo      * dri  = nullptr               ; // .
 							//
-							SWEAR( care || sense_err || required ) ;           // else, what is this useless dep ?
+							//
+							SWEAR( care || sense_err || required ) ;            // else, what is this useless dep ?
 							if (!cdri->waiting()) {
-								ReqInfo::WaitInc sav_n_wait{ri} ;              // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-								if (!dri) cdri = dri = &dep->req_info(*cdri) ; // refresh cdri in case dri allocated a new one
-								if (dep_live_out) dri->live_out = true ;       // ask live output for last level if user asked it
-								//
-								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-								if      (care     ) dep->make( *dri , dep_action         , special==Special::Req?Job():idx() ) ; // Req jobs are fugitive, dont record it
-								else if (sense_err) dep->make( *dri , RunAction::Status  , special==Special::Req?Job():idx() ) ; // .
-								else if (required ) dep->make( *dri , RunAction::Makable , special==Special::Req?Job():idx() ) ; // .
-								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								ReqInfo::WaitInc sav_n_wait{ri} ;                         // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+								if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ; // refresh cdri in case dri allocated a new one
+								if (dep_live_out) dri->live_out = true                  ; // ask live output for last level if user asked it
+								Bool3 speculate_dep =
+									is_static             ? ri.speculate          // static deps do not disappear
+								:	seen_waiting || modif ?              Yes      // this dep may disappear
+								:	+err_                 ? ri.speculate|Maybe    // this dep is not the origin of the error
+								:	                        ri.speculate          // this dep will not disappear from us (but we may disappear from asking deps)
+								;
+								//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								if      (care     ) dep->make( *dri , dep_action         , special==Special::Req?Job():idx() , speculate_dep ) ; // Req jobs are fugitive, dont record it
+								else if (sense_err) dep->make( *dri , RunAction::Status  , special==Special::Req?Job():idx() , speculate_dep ) ; // .
+								else if (required ) dep->make( *dri , RunAction::Makable , special==Special::Req?Job():idx() , speculate_dep ) ; // .
+								//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							}
-							if ( is_static && dep->buildable<Buildable::Yes ) sure = false ; // buildable is better after make()
+							if ( is_static && dep->buildable<Buildable::Yes ) sure = false ;              // buildable is better after make()
 							if (cdri->waiting()) {
-								ri.speculative |= speculative && !is_static        ; // we are speculatively waiting
-								reason         |= {JobReasonTag::DepNotReady,+dep} ;
-								if (!dri) cdri = dri = &dep->req_info(*cdri) ;       // refresh cdri in case dri allocated a new one
+								if      ( is_static                       ) ri.speculative_deps = false ; // we are non-speculatively waiting, even if after a speculative wait
+								else if ( !seen_waiting && (+err_||modif) ) ri.speculative_deps = true  ;
+								proto_seen_waiting  = true                             ;
+								reason             |= {JobReasonTag::DepNotReady,+dep} ;
+								if (!dri) cdri = dri = &dep->req_info(*cdri) ;           // refresh cdri in case dri allocated a new one
 								dep->add_watcher(*dri,idx(),ri,dep_pressure) ;
-								critical_waiting |= care && is_critical ;
-								seen_waiting     |= Maybe               ;      // transformed into Yes upon sequential dep
+								critical_waiting |= is_critical ;
 								goto Continue ;
 							}
-							{	SWEAR(dep->done(*cdri)) ;                      // after having called make, dep must be either waiting or done
-								dep.acquire_crc() ;                            // 2nd chance : after make is called as if dep is steady (typically a source), crc may have been computed
-								is_modif = care && !dep.up_to_date() ;
-								if ( is_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
-									req->no_triggers.emplace(dep,req->no_triggers.size()) ; // record to repeat in summary, value is just to order summary in discovery order
-									is_modif = false ;
-								}
-								if ( !is_static && state>=State::Modif ) goto Continue ; // if not static, maybe all the following errors will be washed by previous modif
-								//
-								Bool3 dep_ok = dep->ok(*cdri,dep.accesses) ;
+							SWEAR(dep->done(*cdri)) ;                                    // after having called make, dep must be either waiting or done
+							dep.acquire_crc() ;                                          // 2nd chance : after make is called as if dep is steady (typically a source), crc may have been computed
+							dep_modif = care && !dep.up_to_date() ;
+							if ( dep_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
+								req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
+								dep_modif = false ;
+							}
+							if ( +err_               ) goto Continue ;                   // we are already in error, no need to analyze errors any further
+							if ( !is_static && modif ) goto Continue ;                   // if not static, errors may be washed by previous modifs, dont record them
+							//
+							{	Bool3 dep_ok = dep->ok(*cdri,dep.accesses) ;
 								switch (dep_ok) {
 									case Yes   : break ;
 									case Maybe :
 										if (required) {
-											if (is_static) { dep_state = State::MissingStatic ; reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; }
-											else           { dep_state = State::Err           ; reason |= {JobReasonTag::DepMissingRequired,+dep} ; }
+											if (is_static) { dep_err = DepErr::MissingStatic ; reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; }
+											else           { dep_err = DepErr::Err           ; reason |= {JobReasonTag::DepMissingRequired,+dep} ; }
 											trace("missing",STR(is_static),dep) ;
 											goto Continue ;
 										}
@@ -905,7 +940,7 @@ namespace Engine {
 									break ;
 									default : FAIL(dep_ok) ;
 								}
-								if ( care && dep.is_date && +dep.date() ) {    // if still waiting for a crc here, it will never come
+								if ( care && dep.is_date && +dep.date() ) {                    // if still waiting for a crc here, it will never come
 									if (dep->is_src()) {
 										if ( dep->crc!=Crc::None && dep.date()>dep->date() ) { // try to reconcile dates in case dep has been touched with no modification
 											dep->manual_refresh(*this) ;
@@ -921,8 +956,8 @@ namespace Engine {
 									} else if (dep->running(*cdri)) {
 										trace("unstable",dep) ;
 										req->audit_node(Color::Warning,"unstable",dep) ;
-										is_modif  = true                             ;   // this dep was moving, retry job
-										reason   |= {JobReasonTag::DepUnstable,+dep} ;
+										dep_modif  = true                             ;                                      // this dep was moving, retry job
+										reason    |= {JobReasonTag::DepUnstable,+dep} ;
 									} else {
 										if (!dri) cdri = dri = &dep->req_info(*cdri) ;                                       // refresh cdri in case dri allocated a new one
 										if (dep->lazy_manual(*dri)==Yes) {                                                   // else condition has been washed
@@ -931,46 +966,32 @@ namespace Engine {
 										}
 									}
 								}
-								if ( is_modif && state<State::Modif ) {            // this modif is not preceded by an error, we will really run the job
-									reason    |= {JobReasonTag::DepChanged,+dep} ;
-									ri.action  = RunAction::Run                  ;
-									if (dep_action<RunAction::Dsk) {
-										ri.dep_lvl = 0              ;
-										dep_action = RunAction::Dsk ;
-										state      = State::Ok      ;
-										trace("restart_analysis") ;
-										goto RestartAnalysis ;
-									}
-								}
+								if (dep_modif) reason |= {JobReasonTag::DepChanged,+dep} ;
 								goto Continue ;
 							}
 						Err :
-							dep_state  = State::Err                      ;
-							reason    |= { JobReasonTag::DepErr , +dep } ;
+							dep_err  = DepErr::Err                     ;
+							reason  |= { JobReasonTag::DepErr , +dep } ;
 						Continue :
-							trace("dep",ri,dep,*cdri,STR(dep->done(*cdri)),STR(dep->ok()),dep->crc,dep_state,STR(is_modif),state,STR(critical_modif),STR(critical_waiting),reason) ;
+							trace("dep",ri,dep,*cdri,STR(dep->done(*cdri)),STR(dep->ok()),dep->crc,dep_err,STR(dep_modif),err_,STR(modif),STR(critical_modif),STR(critical_waiting),reason) ;
 							//
-							if ( is_modif && dep_state==State::Ok ) {
-								if ( is_critical && care ) critical_modif = true              ;
-								if ( state==State::Ok    ) state          = State::ProtoModif ; // Modif blocks errors, unless dep is static
-							} else {
-								if ( dep_state>state && (is_static||state!=State::Modif) ) state = dep_state ; // Modif blocks errors, unless dep is static
-							}
+							SWEAR( !dep_err || !modif || is_static ) ;         // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
+							proto_err   |= dep_err   ;
+							proto_modif |= dep_modif ;
+							if ( dep_modif && is_critical ) critical_modif = true ;
 						}
 						if (ri.waiting()) goto Wait ;
 					} break ;
 					default : FAIL(ri.lvl) ;
 				}
 				if (sure) mk_sure() ;                                          // improve sure (sure is pessimistic)
-				switch (state) {
-					case State::Ok            :
-					case State::ProtoModif    :                                                // in case last analyzed dep is parallel
-					case State::Modif         : run_status = RunStatus::Complete ; break     ;
-					case State::Err           : run_status = RunStatus::DepErr   ; goto Done ; // we cant run the job, error is set and we're done
-					case State::MissingStatic : run_status = RunStatus::NoDep    ; goto Done ; // .
-					default : fail(state) ;
+				switch (err_) {
+					case DepErr::Ok            : run_status = RunStatus::Complete ; break     ;
+					case DepErr::Err           : run_status = RunStatus::DepErr   ; goto Done ; // we cant run the job, error is set and we're done
+					case DepErr::MissingStatic : run_status = RunStatus::NoDep    ; goto Done ; // .
+					default : FAIL(err_) ;
 				}
-				trace("run",ri,run_status,state) ;
+				trace("run",ri,run_status,err_,STR(modif)) ;
 				if (ri.action!=RunAction::Run) goto Done ;                     // we are done with the analysis and we do not need to run : we're done
 				//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				bool maybe_new_deps = submit(ri,reason,dep_pressure) ;
@@ -1025,12 +1046,34 @@ namespace Engine {
 			//                                           ^^^^^^^^^^^^^^^^^^^^
 		}
 	Wait :
-		if ( !rule->is_special() && ri.lvl!=before_lvl ) {
-			bool remove_old = _inc_cur(req,before_lvl,-1) ;
-			bool add_new    = _inc_cur(req,ri.lvl    ,+1) ;
+		if (stop_speculate) _propag_speculate(ri) ;
+		if ( !rule->is_special() && ri.lvl!=prev_lvl ) {
+			bool remove_old = _inc_cur(req,prev_lvl,-1) ;
+			bool add_new    = _inc_cur(req,ri.lvl  ,+1) ;
 			req.new_exec_time( *this , remove_old , add_new , old_exec_time?*old_exec_time:exec_time ) ;
 		}
 		return reason ;
+	}
+
+	void JobData::_propag_speculate(ReqInfo const& cri) const {
+		Bool3 proto_speculate = No ;
+		Bool3 speculate       = No ;
+		for ( Dep const& dep : deps ) {
+			if (!dep.parallel) speculate |= proto_speculate ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ; // static deps are never speculative
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			Node::ReqInfo const& cdri = dep->c_req_info(cri.req) ;
+			if ( dep.is_date || cdri.waiting() ) { proto_speculate = Yes ; continue ; }
+			Bool3 dep_ok = dep->ok(cdri,dep.accesses) ;
+			switch (dep_ok) {
+				case Yes   :                                                                                                       break ;
+				case Maybe : if (  dep.dflags[Dflag::Required   ]                      ) { proto_speculate |= Maybe ; continue ; } break ;
+				case No    : if ( !dep.dflags[Dflag::IgnoreError] || +cdri.overwritten ) { proto_speculate |= Maybe ; continue ; } break ;
+				default : FAIL(dep_ok) ;
+			}
+			if ( +dep.accesses && !dep.up_to_date() ) proto_speculate = Yes ;
+		}
 	}
 
 	::string JobData::special_stderr(Node node) const {
@@ -1214,7 +1257,7 @@ namespace Engine {
 		try {
 			SubmitAttrs sa = {
 				.live_out  = ri.live_out
-			,	.manual_ok = req->options.flags[ReqFlag::ManualOk]
+			,	.manual_ok = req->options.flags[ReqFlag::ManualOk] || idx().manual_ok()
 			,	.n_retries = submit_none_attrs.n_retries
 			,	.pressure  = pressure
 			,	.reason    = reason

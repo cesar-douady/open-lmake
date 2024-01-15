@@ -22,11 +22,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* manage frozen & manual_ok at both job & node level
-	- mark jobs manual_ok when late_lost
-*2 introduce a new color orange for speculative errors
-	- that become red when job turns out to be certain
-*5 reimplement hierarchical repositories
+*6 reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
 	- ensure total prio of sub-rules
@@ -64,9 +60,6 @@ items :
 
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
-* implement lshow -i for nodes
-* implement lshow -i for rules
-	- in particular, we want to see the exact regexpr associated to each target
 * generate performance metrics
 	- useful/useless created jobs
 	- number of non buildable nodes
@@ -122,10 +115,13 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* replace targets -match by file_info attribute
+*1 replace targets -match by file_info attribute
 	- provide file_info and post_file_info
 	- process in order targets, file_info, post_file_info,post_targets
 	? consider fusion between Tflags and Dflags as file_info may have both
+*2 implement lshow -i for nodes
+*3 implement lshow -i for rules
+	- in particular, we want to see the exact regexpr associated to each target
 *4 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
@@ -197,17 +193,17 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*3 avoid ack at job start
+*5 handle dir hierarchy in store
+	- provide a primitive to insert all dirs of a node at once
+	- much more efficient
+	- not difficult to code
+	- return a vector of idxs
+* avoid ack at job start
 	- pass all infos in command line
 		- or pass a tmp file that contains all info if too large
 		- specially if it becomes necessary to pass targets & deps
 	- find a way to be certain that seq_id is not necessary to qualify job start
 	- either wash targets at acquire_cmd_line time or wash in job_exec
-*6 handle dir hierarchy in store
-	- provide a primitive to insert all dirs of a node at once
-	- much more efficient
-	- not difficult to code
-	- return a vector of idxs
 * record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless
@@ -285,6 +281,20 @@ items :
 * TOOLS
 ****************************************************************************************************
 
+* make a align_comment tool
+	- identify comment in each line
+		- handle //* as start of block
+		- handle //! as dont touch comment (process as code)
+		- check no " after comment sign (else dont touch), in case comment sign is part of a string
+	- propagate minimum comment pos to neighboring lines
+	- split source in blocks separated by \n
+	- in each block, identify comment pos based on min pos for the block
+		- if comments do not fit within 200 chars, split block on lines that are longer than min pos and call recursively
+	- keep contiguous comments at same pos
+	- violate rules if this makes comment fit within 200 chars
+		- allow comments to be close to code (overlap neigbors)
+		- then allow contiguous comments at different pos
+	- generate ouput once all comment pos are computed
 * consider gdb guis :
 	- apt install nemiver
 	- insight

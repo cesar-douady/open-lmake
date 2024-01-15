@@ -55,8 +55,8 @@ namespace Engine {
 	,	Src            // node is a src     or a file within a src dir
 	,	SrcDir         // node is a src dir or a dir  within a src dir
 	,	None           // no job
-	,	Transcient     // node has a link         as uphill dir (and such a dep will certainly disappear when job is remade unless it is a static dep)
-	,	Uphill         // node has a regular file as uphill dir
+	,	Uphill         // >=Uphill means node has a buildable uphill dir, node has a regular file as uphill dir
+	,	Transcient     //                                                 node has a link         as uphill dir (and such a dep will certainly disappear when job is remade unless it is a static dep)
 	)
 
 }
@@ -169,6 +169,7 @@ namespace Engine {
 		Disk::Accesses overwritten  = Disk::Accesses::None ;                   // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
 		bool           manual_valid = false                ;                   // 1<= 8 bits
 		Bool3          manual       = No/*garbage*/        ;                   // 2<= 8 bits, if manual_valid, result of Node::manual()
+		Bool3          speculate    = Yes                  ;                   // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 	} ;
 	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
 
@@ -217,14 +218,16 @@ namespace Engine {
 		Codec::Code      & codec_code    ()       { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
 		Codec::Code const& codec_code    () const { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
 		//
-		bool           has_req   (Req           ) const ;
-		ReqInfo const& c_req_info(Req           ) const ;
-		ReqInfo      & req_info  (Req           ) const ;
-		ReqInfo      & req_info  (ReqInfo const&) const ; // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs      (              ) const ;
-		bool           waiting   (              ) const ;
-		bool           done      (ReqInfo const&) const ;
-		bool           done      (Req           ) const ;
+		bool           has_req   ( Req                               ) const ;
+		ReqInfo const& c_req_info( Req                               ) const ;
+		ReqInfo      & req_info  ( Req                               ) const ;
+		ReqInfo      & req_info  ( ReqInfo const&                    ) const ; // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs      (                                   ) const ;
+		bool           waiting   (                                   ) const ;
+		bool           done      ( ReqInfo const&     , RunAction    ) const ;
+		bool           done      ( ReqInfo const& cri                ) const ;
+		bool           done      ( Req            r   , RunAction ra ) const ;
+		bool           done      ( Req            r                  ) const ;
 		//
 		bool     match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                     ; }
 		bool     has_actual_job    (         ) const {                          return is_plain() && +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
@@ -251,7 +254,7 @@ namespace Engine {
 			JobTgt cjt = conform_job_tgt() ;
 			return +cjt && ( cjt->is_special() || has_actual_job_tgt(cjt) ) ;
 		}
-		Bool3 ok() const {      // Maybe means not built
+		Bool3 ok() const {      // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No    | !conform_job_tgt()->err() ;
 				case NodeStatus::Multi : return No                                ;
@@ -316,21 +319,28 @@ namespace Engine {
 		//
 		::vector<RuleTgt> raw_rule_tgts(                                ) const ;
 		void              mk_old       (                                ) ;
-		void              mk_src       (Disk::FileTag=Disk::FileTag::Err) ;    // Err means no crc update
+		void              mk_src       (Disk::FileTag=Disk::FileTag::Err) ; // Err means no crc update
 		void              mk_no_src    (                                ) ;
 		//
 		::c_vector_view<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
 		::c_vector_view<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
 		::c_vector_view<JobTgt> conform_job_tgts(                ) const ;
 		//
-		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
+		void set_buildable( Req={}   , DepDepth lvl=0       ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
+		//
+		void propag_speculate( Req req , Bool3 speculate ) const {
+			/**/                          if (speculate==Yes         ) return ; // fast path : nothing to propagate
+			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
+			ri.speculate = speculate ;
+			_propag_speculate(ri) ;
+		}
 		//
 		void set_infinite(::vector<Node> const& deps) ;
 		//
-		void make( ReqInfo& , RunAction=RunAction::Status , Watcher asking={} , MakeAction=MakeAction::None ) ;
+		void make( ReqInfo& , RunAction=RunAction::Status , Watcher asking={} , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
 		//
-		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,{}/*asking*/,ma) ; } // for wakeup
+		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,{}/*asking*/,Yes/*speculate*/,ma) ; } // for wakeup
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -339,10 +349,11 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , Ddate ) ;
 		void             refresh(             ) ;
 	private :
-		void         _set_buildable_raw( Req      , DepDepth                                                     ) ; // req is for error reporting only
-		bool/*done*/ _make_pre         ( ReqInfo&                                                                ) ;
-		void         _make_raw         ( ReqInfo& , RunAction , Watcher asking_={} , MakeAction=MakeAction::None ) ;
-		void         _set_pressure_raw ( ReqInfo&                                                                ) const ;
+		void         _set_buildable_raw( Req      , DepDepth                                                                           ) ; // req is for error reporting only
+		bool/*done*/ _make_pre         ( ReqInfo&                                                                                      ) ;
+		void         _make_raw         ( ReqInfo& , RunAction , Watcher asking_={} , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
+		void         _set_pressure_raw ( ReqInfo&                                                                                      ) const ;
+		void         _propag_speculate ( ReqInfo const&                                                                                ) const ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
@@ -400,10 +411,7 @@ namespace Engine {
 			SWEAR(n_wait) ;
 			n_wait-- ;
 		}
-		if (run_action>action) {                                               // normally, increasing action requires to reset checks
-			action = run_action ;
-			if (action!=RunAction::Dsk) prio_idx = NoIdx ;                     // except transition Dsk->Run which is no-op for Node
-		}
+		if (run_action>action) action = run_action ;                                                          // increasing action requires to reset checks
 		if (n_wait) return ;
 		if      ( req->zombie                                                  ) done_ = RunAction::Dsk     ;
 		else if ( node.buildable>=Buildable::Yes && action==RunAction::Makable ) done_ = RunAction::Makable ;
@@ -436,8 +444,10 @@ namespace Engine {
 		return false ;
 	}
 
-	inline bool NodeData::done( ReqInfo const& cri ) const { return cri.done(cri.action) || buildable<=Buildable::No ; }
-	inline bool NodeData::done( Req            r   ) const { return done(c_req_info(r))                              ; }
+	inline bool NodeData::done( ReqInfo const& cri , RunAction ra ) const { return cri.done(ra) || buildable<=Buildable::No ; }
+	inline bool NodeData::done( ReqInfo const& cri                ) const { return done(cri          ,cri.action)           ; }
+	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        )           ; }
+	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           )           ; }
 
 	inline Bool3 NodeData::manual(Ddate d) const {
 		const char* res_str ;
@@ -476,13 +486,13 @@ namespace Engine {
 	}
 
 	inline void NodeData::_set_match_gen(bool ok) {
-		if      (!ok                        ) { SWEAR(is_plain()                   ) ; buildable = Buildable::Unknown ; match_gen = 0                 ; }
-		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ;                                  match_gen = Rule::s_match_gen ; }
+		if      (!ok                        ) { SWEAR(is_plain()                   ) ; match_gen = 0                 ; buildable = Buildable::Unknown ; }
+		else if (match_gen<Rule::s_match_gen) { SWEAR(buildable!=Buildable::Unknown) ; match_gen = Rule::s_match_gen ;                                  }
 	}
 
-	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {            // req is for error reporting only
-		if (match_ok()) return ;                                               // already set
-		_set_buildable_raw(req,lvl) ;
+	inline void NodeData::set_buildable( Req req , DepDepth lvl ) { // req is for error reporting only
+		if (!match_ok()) _set_buildable_raw(req,lvl) ;              // if not already set
+		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
 	inline void NodeData::set_pressure( ReqInfo& ri , CoarseDelay pressure ) const {
@@ -491,10 +501,10 @@ namespace Engine {
 		_set_pressure_raw(ri) ;
 	}
 
-	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Watcher asking , MakeAction make_action ) {
+	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Watcher asking , Bool3 speculate , MakeAction make_action ) {
 		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
-		if ( ri.done(run_action) && !(run_action>=RunAction::Dsk&&unlinked) && make_action<MakeAction::Dec ) return ;
-		_make_raw(ri,run_action,asking,make_action) ;
+		if ( !(run_action>=RunAction::Dsk&&unlinked) && make_action<MakeAction::Dec && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
+		_make_raw(ri,run_action,asking,speculate,make_action) ;
 	}
 
 	inline void NodeData::refresh() {

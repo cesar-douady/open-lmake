@@ -25,7 +25,7 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 
-	MatchGen         RuleBase::s_match_gen ;
+	MatchGen         RuleBase::s_match_gen = 1 ; // 0 is forbidden as it is reserved to mean !match
 	umap_s<RuleBase> RuleBase::s_by_name   ;
 
 	//
@@ -63,11 +63,12 @@ namespace Engine::Persistent {
 	PfxFile      _pfxs_file         ;  // .
 	NameFile     _name_file         ;  // commons
 	// in memory
-	::uset<Job >       _frozen_jobs  ;
-	::uset<Node>       _frozen_nodes ;
-	::uset<Node>       _manual_oks   ;
-	::uset<Node>       _no_triggers  ;
-	::vector<RuleData> _rule_datas   ;
+	::uset<Job >       _frozen_jobs     ;
+	::uset<Job >       _manual_ok_jobs  ;
+	::uset<Node>       _frozen_nodes    ;
+	::uset<Node>       _manual_ok_nodes ;
+	::uset<Node>       _no_triggers     ;
+	::vector<RuleData> _rule_datas      ;
 
 	void _init_config() {
 		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
@@ -88,7 +89,7 @@ namespace Engine::Persistent {
 		_job_tgts_file    .init( dir+"/job_tgts"     , writable ) ;
 		// rules
 		_rule_str_file    .init( dir+"/rule_str"     , writable ) ;
-		_rule_file        .init( dir+"/rule"         , writable ) ;
+		_rule_file        .init( dir+"/rule"         , writable ) ; if ( writable && !_rule_file.c_hdr() ) _rule_file.hdr() = 1 ; // 0 is reserved to mean no match
 		_rule_tgts_file   .init( dir+"/rule_tgts"    , writable ) ;
 		_sfxs_file        .init( dir+"/sfxs"         , writable ) ;
 		_pfxs_file        .init( dir+"/pfxs"         , writable ) ;
@@ -103,14 +104,16 @@ namespace Engine::Persistent {
 		// Rule
 		if (!_rule_file) for( [[maybe_unused]] Special s : Special::Shared ) _rule_file.emplace() ;
 		RuleBase::s_match_gen = _rule_file.c_hdr() ;
+		SWEAR(RuleBase::s_match_gen>0) ;
 		_compile_srcs () ;
 		_compile_rules() ;
 		// jobs
-		for( Job  j : _job_file .c_hdr().frozen_jobs  ) _frozen_jobs .insert(j) ;
+		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs    .insert(j) ;
+		for( Job  j : _job_file .c_hdr().manual_oks ) _manual_ok_jobs .insert(j) ;
 		// nodes
-		for( Node n : _node_file.c_hdr().frozen_nodes ) _frozen_nodes.insert(n) ;
-		for( Node n : _node_file.c_hdr().manual_oks   ) _manual_oks  .insert(n) ;
-		for( Node n : _node_file.c_hdr().no_triggers  ) _no_triggers .insert(n) ;
+		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes   .insert(n) ;
+		for( Node n : _node_file.c_hdr().manual_oks ) _manual_ok_nodes.insert(n) ;
+		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers    .insert(n) ;
 		//
 		trace("done",Pdate::s_now()) ;
 		//
@@ -232,7 +235,7 @@ namespace std {
 
 namespace Engine::Persistent {
 
-	template<bool IsSfx> static void _propagate_to_longer(::umap_s<uset<Rt>>& psfx_map) {
+	template<bool IsSfx> static void _propag_to_longer(::umap_s<uset<Rt>>& psfx_map) {
 		::vector_s psfxs = ::mk_key_vector(psfx_map) ;
 		::sort( psfxs , [](::string const& a,::string const& b){ return a.size()<b.size() ; } ) ;
 		for( ::string const& long_psfx : psfxs ) {
@@ -257,7 +260,7 @@ namespace Engine::Persistent {
 				if (!rt.tflags()[Tflag::Match]) continue ;
 				sfx_map[rt.sfx].insert(rt) ;
 			}
-		_propagate_to_longer<true/*IsSfx*/>(sfx_map) ;                         // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
+		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                            // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
@@ -269,7 +272,7 @@ namespace Engine::Persistent {
 			} else {
 				for( Rt const& rt : sfx_rule_tgts )
 					pfx_map[rt.pfx].insert(rt) ;
-				_propagate_to_longer<false/*IsSfx*/>(pfx_map) ;                // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
+				_propag_to_longer<false/*IsSfx*/>(pfx_map) ;                   // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix

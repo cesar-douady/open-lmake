@@ -188,28 +188,28 @@ namespace Engine {
 		void wakeup_watchers() ;
 		Job  asking         () const ;
 		//
-		bool/*propagate*/ set_pressure(CoarseDelay pressure_) {
+		bool/*propag*/ set_pressure(CoarseDelay pressure_) {
 			if (pressure_<=pressure) return false ;
 			// pressure precision is about 10%, a reasonable compromise with perf (to avoid too many pressure updates)
 			// because as soon as a new pressure is discovered for a Node/Job, it is propagated down the path while it may not be the definitive value
 			// imposing an exponential progression guarantees a logarithmic number of updates
 			// also, in case of loop, this limits the number of loops to 10
-			bool propagate = pressure_>pressure.scale_up(10/*percent*/) ;
+			bool propag = pressure_>pressure.scale_up(10/*percent*/) ;
 			pressure = pressure_ ;
-			return propagate ;
+			return propag ;
 		}
 		// data
-		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0                 ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
-		bool        live_out:1                   = false             ;                                  //       1 bit  , if true <=> generate live output
-		CoarseDelay pressure                     ;                                                      //      16 bits, critical delay from end of job to end of req
-		Req         req                          ;                                                      //       8 bits
-		RunAction   action  :3                   = RunAction::Status ; static_assert(+RunAction::N<8) ; //       3 bits
-		RunAction   done_   :3                   = RunAction::None   ;                                  //       3 bits , if >=action => done for this action (non-buildable Node's are always done)
+		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0               ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		bool        live_out:1                   = false           ;                                  //       1 bit , if true <=> generate live output
+		CoarseDelay pressure                     ;                                                    //      16 bits, critical delay from end of job to end of req
+		Req         req                          ;                                                    //       8 bits
+		RunAction   action     :3                = RunAction::None ; static_assert(+RunAction::N<8) ; //       3 bits
+		RunAction   done_      :3                = RunAction::None ;                                  //       3 bits, if >=action => done for this action (non-buildable Node's are always done)
 	private :
-		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ;              //  2   bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:2                    = 0               ; static_assert(VectorMrkr   <4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::vector<Watcher          >* _watchers_v ;     // 64 bits, if _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>  _watchers_a ;     // 64 bits, if _n_watchers< VectorMrkr
+			::vector<Watcher          >* _watchers_v ;                                                //      64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>  _watchers_a ;                                                //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
 	static_assert(sizeof(ReqInfo)==16) ;                                       // check expected size

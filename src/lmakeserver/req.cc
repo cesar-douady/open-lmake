@@ -80,9 +80,9 @@ namespace Engine {
 		//
 		Job::ReqInfo& jri = job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		job->make(jri,RunAction::Status) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		job->make(jri,RunAction::Status,{}/*JobReason*/,{}/*asking*/,No/*speculate*/) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		for( Node d : job->deps ) {
 			/**/                           if (!d->done(*this)                   ) continue ;
 			Job j = d->conform_job_tgt() ; if (!j                                ) continue ;
@@ -179,8 +179,8 @@ namespace Engine {
 				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {         // 2nd pass to find the loop
 				Job::ReqInfo const& cjri = j->c_req_info(*this) ;
-				if (cjri.done()     ) continue ;
-				if (cjri.speculative) to_forget.push_back(d) ;
+				if (cjri.done()          ) continue ;
+				if (cjri.speculative_deps) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
 					if (dd->done(*this)) continue ;
 					d = dd ;
@@ -347,7 +347,7 @@ namespace Engine {
 		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
 			if      (waiting()      ) _add_watcher(*it) ;                                                      // if waiting again, add back watchers we have got and that we no more want to call
 			else if (it->is_a<Job>()) Job (*it)->make( Job (*it)->req_info(req) , Job ::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
-			else                      Node(*it)->make( Node(*it)->req_info(req) , Node::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
+			else                      Node(*it)->make( Node(*it)->req_info(req) , Node::MakeAction::Wakeup ) ; // .
 	}
 
 	Job ReqInfo::asking() const {

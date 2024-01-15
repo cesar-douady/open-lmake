@@ -88,13 +88,14 @@ config = pdict(
 #		)
 	)
 ,	colors = pdict(
-		#               normal video    reverse video
-		hidden_note = [ [192,192,192] , [ 96, 96, 96] ] # gray
-	,	hidden_ok   = [ [176,208,176] , [ 80,112, 80] ] # greenish gray
-	,	note        = [ [  0,  0,255] , [ 64,160,255] ] # blue
-	,	ok          = [ [  0,128,  0] , [128,255,128] ] # green
-	,	warning     = [ [155,  0,255] , [255,  0,255] ] # magenta
-	,	err         = [ [155,  0,  0] , [255,  0,  0] ] # red
+		#                 normal video    reverse video
+		hidden_note   = [ [192,192,192] , [ 96, 96, 96] ] # gray
+	,	hidden_ok     = [ [176,208,176] , [ 80,112, 80] ] # greenish gray
+	,	note          = [ [  0,  0,255] , [ 64,160,255] ] # blue
+	,	ok            = [ [  0,128,  0] , [128,255,128] ] # green
+	,	warning       = [ [155,  0,255] , [255,  0,255] ] # magenta
+	,	err           = [ [180,  0,  0] , [255, 60, 60] ] # red
+	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ] # red
 	)
 ,	trace = pdict(
 #		size = 100<20                    # overall size of lmakeserver trace

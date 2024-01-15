@@ -242,7 +242,7 @@ namespace Engine {
 		return ;
 	}
 
-	bool/*done*/ NodeData::_make_pre( ReqInfo& ri ) {
+	bool/*done*/ NodeData::_make_pre(ReqInfo& ri) {
 		Trace trace("Nmake_pre",idx(),ri) ;
 		Req      req   = ri.req ;
 		::string name_ ;                                                                                 // lazy evaluated
@@ -267,6 +267,7 @@ namespace Engine {
 			case Buildable::Src       : status(NodeStatus::Src ) ; goto Src   ;
 			case Buildable::Decode    :
 			case Buildable::Encode    : status(NodeStatus::Src ) ; goto Codec ;
+			case Buildable::Unknown   :                            FAIL()     ;
 			default                   :                            break      ;
 		}
 		if (!dir()) goto NotDone ;
@@ -278,14 +279,14 @@ namespace Engine {
 			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ;                          // status is overwritten Src if node actually exists
 			default                 :                            break        ;
 		}
-		if ( Node::ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri)) {                            // fast path : no need to call make if dir is done
+		if ( Node::ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,RunAction::Status) ) {         // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                                        // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir()->make( dri , RunAction::Status , idx() ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				dir()->make( dri , RunAction::Status , idx() , ri.speculate ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
-			trace("dir",dir(),STR(dir()->done(dri)),ri) ;
+			trace("dir",dir(),STR(dir()->done(dri,RunAction::Status)),ri) ;
 			//
 			if (dri.waiting()) {
 				dir()->add_watcher(dri,idx(),ri,ri.pressure) ;
@@ -379,14 +380,16 @@ namespace Engine {
 		return ri.done_>=ri.action ;
 	}
 
-	void NodeData::_make_raw( ReqInfo& ri , RunAction run_action , Watcher asking_ , MakeAction make_action ) {
-		RuleIdx prod_idx   = NoIdx  ;
-		Req     req        = ri.req ;
-		Bool3   clean      = Maybe  ;                                                                             // lazy evaluate manual()==No
-		bool    multi      = false  ;
+	void NodeData::_make_raw( ReqInfo& ri , RunAction run_action , Watcher asking_ , Bool3 speculate , MakeAction make_action ) {
+		RuleIdx prod_idx       = NoIdx                                ;
+		Req     req            = ri.req                               ;
+		Bool3   clean          = Maybe                                ;                                           // lazy evaluate manual()==No
+		bool    multi          = false                                ;
+		bool    stop_speculate = speculate<ri.speculate && +ri.action ;
 		Trace trace("Nmake",idx(),ri,run_action,make_action) ;
 		SWEAR(run_action<=RunAction::Dsk) ;
 		if (+asking_) asking = asking_ ;
+		ri.speculate &= speculate ;
 		//                                vvvvvvvvvvvvvvvvvv
 		try                             { set_buildable(req) ; }
 		//                                ^^^^^^^^^^^^^^^^^^
@@ -481,9 +484,9 @@ namespace Engine {
 					}
 					Job::ReqInfo& jri = jt->req_info(req) ;
 					if (ri.live_out) jri.live_out = ri.live_out ;                                                 // transmit user request to job for last level live output
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					jt->make( jri , action , reason , idx() ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					jt->make( jri , action , reason , idx() , ri.speculate ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("job",ri,clean,action,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;
 					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
@@ -511,7 +514,19 @@ namespace Engine {
 		trace("wakeup",ri,conform_idx(),is_plain()?actual_job_tgt():JobTgt()) ;
 		ri.wakeup_watchers() ;
 	Done :
+		if (stop_speculate) _propag_speculate(ri) ;
 		trace("done",ri) ;
+	}
+
+	void NodeData::_propag_speculate(ReqInfo const& cri) const {
+		switch (status()) {
+			case NodeStatus::Uphill     :
+			case NodeStatus::Transcient :                                     dir()            ->propag_speculate( cri.req , cri.speculate ) ;   break ;
+			case NodeStatus::Plain      :                                     conform_job_tgt()->propag_speculate( cri.req , cri.speculate ) ;   break ;
+			case NodeStatus::Multi      : { for( Job j : conform_job_tgts() ) j                ->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			default :
+				SWEAR(status()<NodeStatus::Uphill,status()) ; // ensure we have not forgotten a case
+		}
 	}
 
 	bool/*ok*/ NodeData::forget( bool targets , bool deps ) {

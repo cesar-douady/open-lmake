@@ -29,6 +29,7 @@ namespace Engine {
 	,	Note
 	,	Ok
 	,	Warning
+	,	SpeculateErr
 	,	Err
 	)
 

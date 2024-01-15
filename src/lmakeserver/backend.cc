@@ -190,8 +190,8 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_start( JobRpcReq&& jrr , Fd fd ) {
 		switch (jrr.proc) {
-			case JobProc::None  : return false ;                               // if connection is lost, ignore it
-			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ;                // fd is needed to reply
+			case JobProc::None  : return false ;                // if connection is lost, ignore it
+			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ; // fd is needed to reply
 			default : FAIL(jrr.proc) ;
 		}
 		Job                                                       job               { jrr.job        } ;
@@ -209,7 +209,7 @@ namespace Backends {
 		SubmitAttrs                                               submit_attrs      ;
 		::vmap_ss                                                 rsrcs             ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
-		{	::unique_lock lock { _s_mutex } ;                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	::unique_lock lock { _s_mutex } ;           // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
@@ -221,7 +221,7 @@ namespace Backends {
 			//                              ^^^^^^^^^^^^^^^^^^^^^^^
 			for( Req r : entry.reqs ) if (!r->zombie) goto Start ;
 			trace("no_req") ;
-			return false ;                                                     // no Req found, job has been cancelled but start message still arrives, give up
+			return false ;    // no Req found, job has been cancelled but start message still arrives, give up
 		Start :
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			Rule::SimpleMatch match = job->simple_match() ;
@@ -244,8 +244,8 @@ namespace Backends {
 				pre_actions       = job->pre_actions( match , submit_attrs.manual_ok , true/*mark_target_dirs*/ ) ; step = 5 ;
 			} catch (::string const& e) {
 				_s_small_ids.release(entry.conn.small_id) ;
-				job_exec = { job , New , New } ;                               //  job starts and ends, no host
-				Tag      tag             = entry.tag ;                         // record tag before releasing entry
+				job_exec = { job , New , New } ;            // job starts and ends, no host
+				Tag      tag             = entry.tag ;      // record tag before releasing entry
 				::string end_backend_msg ;
 				trace("release_start_tab",job_exec,entry,step,e) ;
 				_s_release_start_entry(it) ;
@@ -258,7 +258,7 @@ namespace Backends {
 					default : FAIL(step) ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( tag , +job , Status::EarlyErr ) ;                       // dont care about backend, job is dead for other reasons
+				s_end( tag , +job , Status::EarlyErr ) ; // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				JobDigest digest { .status=Status::EarlyErr , .deps=_mk_digest_deps(deps_attrs) , .stderr=e } ;
 				trace("early_err",digest) ;
@@ -290,7 +290,7 @@ namespace Backends {
 			:	to_string(g_config.remote_tmp_dir,'/',small_id)
 			;
 			//
-			job_exec = { job , fd.peer_addr() , New } ;                        // job starts
+			job_exec = { job , fd.peer_addr() , New } ;                            // job starts
 			// simple attrs
 			reply.addr                      = job_exec.host                      ;
 			reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir         ;
