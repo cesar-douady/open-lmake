@@ -389,8 +389,8 @@ namespace Engine {
 		T eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                                                                   // SimpleMatch is lazy evaluated from Job
 		T eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; } // cannot lazy evaluate w/o a job
 		//
-		using EvalCtxFuncStr = ::function<void( string const& key , string val  )> ;
-		using EvalCtxFuncDct = ::function<void( string const& key , vmap_ss val )> ;
+		using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , string const& key , string  const& val )> ;
+		using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , string const& key , vmap_ss const& val )> ;
 		void eval_ctx( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ; // SimpleMatch is lazy evaluated from Job
 		void eval_ctx(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
 			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                        // cannot lazy evaluate w/o a job
@@ -860,15 +860,15 @@ namespace Engine {
 		for( auto [k,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (k) {
-				case VarCmd::Stem   :                                                                              cb_str(r->stems  [i].first,stems[i]             ) ;   break ;
-				case VarCmd::Target :                                                   if (+tgts[i]             ) cb_str(r->targets[i].first,tgts [i]             ) ;   break ;
-				case VarCmd::Dep    :                                                   if (+deps[i].second.first) cb_str(deps      [i].first,deps [i].second.first) ;   break ;
-				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()  ) cb_str(it->first          ,it->second           ) ; } break ;
+				case VarCmd::Stem   :                                                                              cb_str(k,i,r->stems  [i].first,stems[i]             ) ;   break ;
+				case VarCmd::Target :                                                   if (+tgts[i]             ) cb_str(k,i,r->targets[i].first,tgts [i]             ) ;   break ;
+				case VarCmd::Dep    :                                                   if (+deps[i].second.first) cb_str(k,i,deps      [i].first,deps [i].second.first) ;   break ;
+				case VarCmd::Rsrc   : { auto it = rsrcs_map.find(rsrcs_spec[i].first) ; if (it!=rsrcs_map.end()  ) cb_str(k,i,it->first          ,it->second           ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                 dct.emplace_back(r->stems  [j].first,stems[j] ) ; cb_dct("stems"    ,dct  ) ; break ;
-				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (+tgts[j]  ) dct.emplace_back(r->targets[j].first,tgts [j] ) ; cb_dct("targets"  ,dct  ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,daf] : deps             ) if (+daf.first) dct.emplace_back(k                  ,daf.first) ; cb_dct("deps"     ,dct  ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                                 cb_dct("resources",rsrcs) ; break ;
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems ; j++ )                 dct.emplace_back(r->stems  [j].first,stems[j] ) ; cb_dct(k,i,"stems"    ,dct  ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->targets.size() ; j++ ) if (+tgts[j]  ) dct.emplace_back(r->targets[j].first,tgts [j] ) ; cb_dct(k,i,"targets"  ,dct  ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,daf] : deps             ) if (+daf.first) dct.emplace_back(k                  ,daf.first) ; cb_dct(k,i,"deps"     ,dct  ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                                 cb_dct(k,i,"resources",rsrcs) ; break ;
 				default : FAIL(k) ;
 			}
 		}
@@ -908,14 +908,14 @@ namespace Engine {
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::vector_s to_del ;
 		eval_ctx( job , match , rsrcs
-		,	[&]( ::string const& key , ::string const& val ) -> void {
+		,	[&]( VarCmd , VarIdx , ::string const& key , ::string const& val ) -> void {
 				PyObject* py_str = PyUnicode_FromString(val.c_str()) ;
 				SWEAR(py_str) ;                                                 // else, we are in trouble
 				swear(PyDict_SetItemString( glbs , key.c_str() , py_str )==0) ; // else, we are in trouble
 				Py_DECREF(py_str) ;                                             // py_v is not stolen by PyDict_SetItemString
 				to_del.push_back(key) ;
 			}
-		,	[&]( ::string const& key , ::vmap_ss const& val ) -> void {
+		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
 				PyObject* py_dct = PyDict_New() ; SWEAR(py_dct) ;
 				for( auto const& [k,v] : val ) {
 					PyObject* py_v = PyUnicode_FromString(v.c_str()) ;

@@ -5,9 +5,12 @@
 
 if __name__!='__main__' :
 
+	import sys
+	import os
+
 	import lmake
 	from lmake       import multi_strip
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -20,15 +23,23 @@ if __name__!='__main__' :
 			echo yes >{file}
 			tar cf $ROOT_DIR/hello.tar {file}
 		''')
-	class Untar(Rule) :
-		targets = { 'TARGET' : '{File:.*}.tardir/{*:.*}' }
-		deps    = { 'TAR'    : '{File}.tar'              }
+	class Untar(PyRule) :
+		targets = {
+			'TARGET' : '{File:.*}.tardir/{*:.*}'
+		,	'PROTO'  : '{File:.*}.proto'
+		}
+		deps    = { 'TAR' : '{File}.tar' }
 		cmd     = 'tar mxaf {TAR} -C {File}.tardir'
+		def cmd() :
+			print(TARGET('<proto>'),file=open(PROTO,'w'))
+			os.system(f'tar mxaf {TAR} -C {File}.tardir')
 
-	class Cpy(Rule) :
+	class Cpy(PyRule) :
 		target = 'cpy'
 		dep    = f'hello.tardir/{file}'
-		cmd    = 'cat'
+		def cmd() :
+			assert open('hello.proto').read()=='hello.tardir/<proto>\n'
+			print(sys.stdin.read())
 
 else :
 

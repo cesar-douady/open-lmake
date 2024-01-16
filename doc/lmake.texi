@@ -289,7 +289,7 @@ However, this works the other way around, compared to f-strings. With an f-strin
 But here, we start from a file @file{foo.o} and we find that this rule applies if we define @code{File} as @code{'foo'}.
 More precisely, @lmake matches the file name @code{'foo.o'} against the regular expression @code{r'(?P<File>.*)\.o'} and Python provides the group @code{'File'} as @code{'foo'}.
 
-The reason why the Python 3.6+ f-strings syntax has been leverage is by symmetry with the @code{deps} attribute described below.
+The reason why the Python 3.6+ f-strings syntax has been leveraged is by symmetry with the @code{deps} attribute described below.
 
 There may be more than a single target (and this is why this attribute is a @code{dict}).
 In that case, the rule is supposed to generate all of them when it is executed and any of them will trigger its execution.
@@ -334,7 +334,8 @@ The @code{cmd} attribute can be either a @code{str} or a function.
 If it is a @code{str}, it contains a shell script that will be executed when the rule is triggered
 (the shell can be customized and defaults to the default system shell, usually @file{/bin/bash}).
 Before execution, its environment will be augmented with the definitions of stems, targets and dependencies (and a few others that will be described later).
-This way, scripts are easy to read and write.
+Static targets are defined as their associated file name, star targets are defined as regular expressions (following the Python 3.6+ syntax).
+This way, scripts are easy to write and read.
 
 It can also be a function and our example rule could have been written as :
 @example
@@ -353,7 +354,16 @@ class Compile(Rule) :
 In that case, this function is executed in a Python interpreter when the rule is triggered
 (the Python used to run this function can be customized and defaults to the Python used to read @Lmakefile).
 Before execution, the definitions of stems, targets and dependencies are put in the global @code{dict} (and a few others that will be described later).
-This way, functions are easy to read and write.
+
+Static targets are defined as their associated file name.
+Star targets are defined as functions taking the star stems as arguments and returning the corresponding file.
+The @code{regexpr} attribute of this function is defined as the regular expression that matches the star targets.
+
+For example if target @code{STAR} is @code{'@{Dir:.*@}.tardir/@{File*:.*@}}, @code{STAR} will be defined as a function
+and @code{STAR('foo')} will return @code{'my_dir.tardir/foo'} if executed from a job with @code{Dir} defined as @code{my_dir},
+and @code{STAR.regexpr} will be @code{r'my_dir\.tardir/(.*)'}.
+
+This way, functions are easy to write and read.
 
 @section A simple @Lmakefile
 
@@ -530,7 +540,7 @@ Note that backend only impacts resources and scheduling, not the content of the 
 Contrarily to the @code{lforget -e} command, this only concerns this execution, not subsequent ones.
 @item @code{-j}|@code{--jobs} max_jobs : When this option is used, @lmake will limit the overall number of simultaneous jobs to max_jobs per backend.
 If several @lmake commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated max_jobs.
-@item @code{-m}|@code{--manual-ok} : normally, @lmake refuses to launch a job that may overwrite a modification done by the user
+@item @code{-m}|@code{--manual-ok} : normally, @lmake refuses to launch a job that may overwrite a modification done by the user (unless the file is empty)
 as @lmake fears to jettison important information from the user.
 With this option, the user instructs @lmake that this fear is not pertinent.
 @item @code{-o}|@code{--live-out} : normally, @lmake does not output the stdout of jobs (such stdout is accessible with the @code{lshow} command).
@@ -679,7 +689,7 @@ These marks are transcient : they are suppressed as soon as files are rebuilt.
 However, this applies only if job was last run with success.
 @end itemize
 
-Jobs marked with freeze and files marked with manual ok are repeated in the summary.
+Jobs and files marked with freeze or no-trigger and that have been used are repeated in the summary.
 This precaution is taken because such presence goes against repeatability and should be suppressed before commiting the repository.
 
 Frozen jobs are useful to run a flow from A to B. To do that you type @code{lmark -f -a A} followed by @code{lmake B}.

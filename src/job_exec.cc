@@ -121,10 +121,16 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 	return res ;
 }
 
-::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > analyze( ::string& msg , bool at_end ) {
+struct Digest {
+	::vmap_s<TargetDigest> targets ;
+	::vmap_s<DepDigest   > deps    ;
+	::vector<NodeIdx     > crcs    ; // index in targets of entry for which we need to compute a crc
+} ;
+
+Digest analyze( ::string& msg , bool at_end ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	::pair< vmap_s<TargetDigest> , vmap_s<DepDigest> > res              ;     res.second.reserve(g_gather_deps.accesses.size()) ; // typically most of accesses are deps
-	NodeIdx                                            prev_parallel_id = 0 ;
+	Digest  res              ;     res.deps.reserve(g_gather_deps.accesses.size()) ;                          // typically most of accesses are deps
+	NodeIdx prev_parallel_id = 0 ;
 	//
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
 		AccessDigest const& ad = info.digest ;
@@ -147,9 +153,9 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 					}
 			}
 			prev_parallel_id = info.parallel_id ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.second.emplace_back(file,dd) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.deps.emplace_back(file,dd) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,file) ;
 		} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
 			if (+a) {
@@ -163,31 +169,34 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
 				continue ;
 			}
-			bool     has_crc = info.tflags[Tflag::Crc]     ;
-			bool     unlink  = ad.prev_unlink && ad.unlink ;
-			FileInfo fi      ; if ( !unlink && !has_crc ) fi = {file} ;
-			TargetDigest td{
+			bool     has_crc   = info.tflags[Tflag::Crc]                              ;
+			bool     unlink    = ad.prev_unlink && ad.unlink                          ;
+			bool     confirmed = ad.unlink==ad.prev_unlink && ad.write==ad.prev_write ;
+			Tflags   tf        = info.tflags                                          ; if ( !confirmed          ) tf |= Tflag::ManualOk ; // report is unreliable
+			FileInfo fi        ;                                                        if ( !unlink && !has_crc ) fi = {file} ;
+			TargetDigest td {
 				a
 			,	info.tflags
 			,	ad.write
 			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )        // prepare crc in case it is not computed
 			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date         // if !date && !crc , compute crc and associated date
 			} ;
+			if (!td.crc) res.crcs.push_back(res.targets.size()) ;
 			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.first.emplace_back(file,td) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.targets.emplace_back(file,td) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}
-	trace("done",res.first.size(),res.second.size()) ;
+	trace("done",res.targets.size(),res.targets.size()) ;
 	return res ;
 }
 
 Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 	JobRpcReq jrr ;
 	::string  _   ;
-	if (jerr.proc==JobExecRpcProc::ChkDeps) jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(_,false/*at_end*/).second/*deps*/ ) ;
-	else                                    jrr = JobRpcReq(                    g_seq_id , g_job , ::move(jerr)                              ) ;
+	if (jerr.proc==JobExecRpcProc::ChkDeps) jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(_,false/*at_end*/).deps ) ;
+	else                                    jrr = JobRpcReq(                    g_seq_id , g_job , ::move(jerr)                    ) ;
 	Trace trace("server_cb",jerr.proc,jrr.digest.deps.size()) ;
 	ClientSockFd fd{g_service_mngt} ;
 	//    vvvvvvvvvvvvvvvvvvvvvv
@@ -227,30 +236,34 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* targets ) {
+void crc_thread_func( size_t id , Digest* digest ) {
 	static ::atomic<NodeIdx> target_idx = 0 ;
 	t_thread_key =
-		id<10 ? '0'+id    :
-		id<36 ? 'a'+id-10 :
-		id<62 ? 'A'+id-36 :
-		/**/    '>'
+		id<10 ? '0'+id
+	:	id<36 ? 'a'+id-10
+	:	        '>'
 	;
 	Trace trace("crc") ;
 	NodeIdx cnt = 0 ;
-	for( NodeIdx ti ; (ti=target_idx++)<targets->size() ; cnt++ ) {    // cnt is for trace only
-		auto& [tn,td] = (*targets)[ti] ; if ( +td.crc ) continue ;     // crc is already computed
-		td.crc = Crc( td.date/*out*/ , tn , g_start_info.hash_algo ) ;
-		trace("crc_date",ti,td.crc,td.date,tn) ;
+	for( NodeIdx ti=0 ; (ti=target_idx++)<digest->crcs.size() ; cnt++ ) {    // cnt is for trace only
+		::pair_s<TargetDigest>& e      = digest->targets[digest->crcs[ti]] ;
+		Pdate                   before = Pdate::s_now()                    ;
+		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
+		trace("crc_date",ti,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
 	}
 	trace("done",cnt) ;
 }
 
-void compute_crcs(::vmap_s<TargetDigest>& targets) {
-	size_t            n_threads   = ::min( size_t(::max(1u,thread::hardware_concurrency())) , targets.size() ) ;
+void compute_crcs(Digest& digest) {
+	size_t                            n_threads = thread::hardware_concurrency() ;
+	if (n_threads<1                 ) n_threads = 1                              ;
+	if (n_threads>8                 ) n_threads = 8                              ;
+	if (n_threads>digest.crcs.size()) n_threads = digest.crcs.size()             ;
+	//
 	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-	for( size_t i=0 ; i<n_threads ; i++       ) crc_threads.emplace_back(crc_thread_func,i,&targets) ; // just constructing a destructing the threads will execute & join them
+	for( size_t i=0 ; i<n_threads ; i++        ) crc_threads.emplace_back(crc_thread_func,i,&digest) ; // just constructing a destructing the threads will execute & join them
 	if (!g_start_info.autodep_env.reliable_dirs) {                                                     // fast path : avoid listing targets & guards if reliable_dirs
-		for( auto const& [t,_] : targets              ) g_nfs_guard.change(t) ;                        // protect against NFS strange notion of coherence while computing crcs
+		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                        // protect against NFS strange notion of coherence while computing crcs
 		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                        // .
 		g_nfs_guard.close() ;
 	}
@@ -353,9 +366,9 @@ int main( int argc , char* argv[] ) {
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
 		::string msg ;
-		auto [targets,deps] = analyze(msg,true/*at_end*/) ;
+		Digest digest = analyze(msg,true/*at_end*/) ;
 		//
-		compute_crcs(targets) ;
+		compute_crcs(digest) ;
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {} // cleaning is done at job start any way, so no harm
@@ -365,8 +378,8 @@ int main( int argc , char* argv[] ) {
 		end_report.msg = msg ;
 		end_report.digest = {
 			.status       = status
-		,	.targets      { ::move(targets             ) }
-		,	.deps         { ::move(deps                ) }
+		,	.targets      { ::move(digest.targets      ) }
+		,	.deps         { ::move(digest.deps         ) }
 		,	.stderr       { ::move(g_gather_deps.stderr) }
 		,	.stdout       { ::move(g_gather_deps.stdout) }
 		,	.wstatus      = g_gather_deps.wstatus

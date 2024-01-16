@@ -284,6 +284,7 @@ namespace Engine {
 		::vector<Node>                        up_to_dates  ;                   // asked nodes already done when starting
 		::umap<Job ,                JobIdx  > losts        ;                   // lost       jobs                                   (value        is just for summary ordering purpose)
 		::umap<Job ,                JobIdx  > frozen_jobs  ;                   // frozen     jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > frozen_nodes ;                   // frozen     nodes                                  (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > long_names   ;                   // nodes with name too long                          (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > no_triggers  ;                   // no-trigger nodes                                  (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > clash_nodes  ;                   // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)

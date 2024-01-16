@@ -37,8 +37,8 @@ lmake.version = (0,1)
 
 config.console.date_precision = 2
 
-config.local_admin_dir  = '/mnt/data/cdy/LMAKE_LOCAL'
-config.remote_admin_dir = '/mnt/data/cdy/LMAKE_REMOTE'
+config.local_admin_dir  = lmake.root_dir+'/LMAKE_LOCAL'
+config.remote_admin_dir = lmake.root_dir+'/LMAKE_REMOTE'
 
 config.link_support = 'full'
 

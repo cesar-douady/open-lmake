@@ -50,6 +50,33 @@ namespace Engine {
 		return                   os << ")"                       ;
 	}
 
+	Manual NodeData::manual_wash( ReqInfo& ri , bool lazy ) {
+		if ( !lazy || ri.manual==Manual::Unknown ) {
+			Req  req      = ri.req                   ;
+			bool dangling = buildable<=Buildable::No ;
+			ri.manual = manual_refresh(req) ;
+			switch (ri.manual) {
+				case Manual::Ok       :
+				case Manual::Unlinked : break ;
+				case Manual::Empty :
+					if (!dangling) {
+						unlink(name()) ;
+						req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
+						ri.manual = Manual::Unlinked ;
+						break ;
+					}
+				[[fallthrough]] ;
+				case Manual::Modif :
+					req->audit_node( Color::Err  ,                         dangling?"dangling":"manual"  , idx()     ) ;
+					req->audit_node( Color::Note , to_string("consider : ",dangling?"git add" :"rm"    ) , idx() , 1 ) ;
+				break ;
+				default : FAIL(ri.manual) ;
+			}
+			SWEAR(ri.manual!=Manual::Unknown) ;
+		}
+		return ri.manual ;
+	}
+
 	void NodeData::_set_pressure_raw( ReqInfo& ri ) const {
 		for( Job job : conform_job_tgts(ri) ) job->set_pressure(job->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
@@ -337,43 +364,44 @@ namespace Engine {
 				refresh( Crc::None , Ddate() ) ;
 			} else {
 				status(NodeStatus::Src) ;                                                                // overwrite status if it was pre-set to None
-				if ( crc.plain() && fi.date==date() ) goto Done ;
+				bool exists = crc.exists() ;
+				bool valid  = crc.valid () ;                                                             // crc is always valid, unless it is just discovered
+				if ( valid && exists && fi.date==date() ) goto Done ;
 				Crc crc_ { lazy_name() , g_config.hash_algo } ;
-				SWEAR(crc_.plain(),crc) ;
-				bool new_    = !crc.plain()    ;                                                         // crc is always valid, unless it is just discovered
-				bool steady  = crc_.match(crc) ;
+				SWEAR(crc_.valid(),crc_) ;
+				bool steady = crc_.match(crc) ;
 				if ( !steady && fi.date>req->start_ddate ) ri.overwritten = crc.diff_accesses(crc_) ;
 				//vvvvvvvvvvvvvvvvvvvvvvv
 				refresh( crc_ , fi.date ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^
-				::string step  = new_? "new" : steady ? "steady" : "changed" ;
-				if (idx().frozen()) req->audit_job( Color::Warning  , step , "frozen" , lazy_name() ) ;
-				else                req->audit_job( Color::HiddenOk , step , "src"    , lazy_name() ) ;
+				::string step = !valid || !exists ? "new" : steady ? "steady" : "changed" ;
+				if (idx().frozen()) { req->audit_job( Color::Warning  , step , "frozen" , lazy_name() ) ; req->frozen_nodes.emplace(idx(),req->frozen_nodes.size()) ; }
+				else                  req->audit_job( Color::HiddenOk , step , "src"    , lazy_name() ) ;
 			}
 			goto ActuallyDone ;
 		}
 	Codec :
-		{	SWEAR(crc.plain()) ;
+		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (date()>req->start_ddate) ri.overwritten = Access::Reg ;                                  // date is only updated when actual content is modified and codec cannot be links
+			if (date()>req->start_ddate) ri.overwritten = Access::Reg ;                                       // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto Done ;
 		}
 	NoSrc :
 		{	Crc crc_ = status()==NodeStatus::Transcient ? Crc::Unknown : Crc::None ;
 			trace("no_src",crc,crc_) ;
-			if (crc==crc_) goto Done ;                                                                   // node is not polluted
-			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && lazy_manual(ri)==No ) {
-				unlink(lazy_name(),true/*dir_ok*/) ;                                                     // wash pollution if not manual
+			if (crc==crc_) goto Done ;                                                                        // node is not polluted
+			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && manual_wash(ri,true/*lazy*/)==Manual::Ok ) { // if already unlinked, no need to unlink it again
+				unlink(lazy_name(),true/*dir_ok*/) ;                                                          // wash pollution if not manual
 				req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 			}
-			refresh( crc_ , Ddate() ) ;                                                                  // if not physically unlinked, node will be manual
+			refresh( crc_ , Ddate() ) ;                                                                       // if not physically unlinked, node will be manual
 			goto ActuallyDone ;
 		}
 	ActuallyDone :
 		actual_job_tgt().clear() ;
 	Done :
-		SWEAR(ri.done_<ri.action,ri.done_,ri.action) ;                                                   // else we should not be here
+		SWEAR(ri.done_<ri.action,ri.done_,ri.action) ;                                                        // else we should not be here
 		ri.done_ = ri.action ;
 	NotDone :
 		trace("done",idx(),status(),crc,ri) ;
@@ -472,13 +500,14 @@ namespace Engine {
 								else if (!has_actual_job(jt)) reason = {JobReasonTag::PolutedTarget,+idx()} ;
 								else if (unlinked           ) reason = {JobReasonTag::NoTarget     ,+idx()} ;
 								else
-									switch (lazy_manual(ri)) {
-										case Yes   : reason = {JobReasonTag::PolutedTarget,+idx()} ; break ;
-										case Maybe : reason = {JobReasonTag::NoTarget     ,+idx()} ; break ;
-										case No    :                                                 break ;
-										default : FAIL(lazy_manual(ri)) ;
+									switch (manual_wash(ri,true/*lazy*/)) {
+										case Manual::Ok       :                                                 break ;
+										case Manual::Unlinked : reason = {JobReasonTag::NoTarget     ,+idx()} ; break ;
+										case Manual::Empty    :
+										case Manual::Modif    : reason = {JobReasonTag::PolutedTarget,+idx()} ; break ;
+										default : FAIL(manual_wash(ri,true/*lazy*/)) ;
 									}
-								}
+							}
 						break ;
 						default : FAIL(ri.action) ;
 					}
@@ -601,26 +630,31 @@ namespace Engine {
 		return modified ;
 	}
 
-	static inline ::pair<Bool3,bool/*refreshed*/> _manual_refresh( NodeData& nd , Ddate d ) {
-		Bool3 m = nd.manual(d) ;
-		if (m!=Yes           ) return {m,false/*refreshed*/} ;    // file was not modified
-		if (nd.crc==Crc::None) return {m,false/*refreshed*/} ;    // file appeared, it cannot be steady
+	static inline ::pair<Manual,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileInfo const& fi ) {
+		Manual m = nd.manual(fi) ;
+		if ( m<Manual::Changed) return {m,false/*refreshed*/} ;     // file was not modified
+		if ( nd.crc==Crc::None) return {m,false/*refreshed*/} ;     // file appeared, it cannot be steady
 		//
 		::string nm = nd.name() ;
-		Ddate ndd ;
-		Crc   crc { ndd , nm , g_config.hash_algo } ;
-		if (!nd.crc.match(crc)) return {Yes,false/*refreshed*/} ; // real modif
-		//
-		nd.date() = ndd ;
-		return {No,true/*refreshed*/} ;                           // file is steady
+		if ( m==Manual::Empty && nd.crc==Crc::Empty ) {             // fast path : no need to open file
+			nd.date() = file_date(nm) ;
+		} else {
+			//
+			Ddate ndd ;
+			Crc   crc { ndd , nm , g_config.hash_algo } ;
+			if (!nd.crc.match(crc)) return {m,false/*refreshed*/} ; // real modif
+			//
+			nd.date() = ndd ;
+		}
+		return {Manual::Ok,true/*refreshed*/} ;                     // file is steady
 	}
-	Bool3 NodeData::manual_refresh( Req req , Ddate d ) {
-		auto [m,refreshed] = _manual_refresh(*this,d) ;
+	Manual NodeData::manual_refresh( Req req , FileInfo const& fi ) {
+		auto [m,refreshed] = _manual_refresh(*this,fi) ;
 		if ( refreshed && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
-	Bool3 NodeData::manual_refresh( JobData const& j , Ddate d ) {
-		auto [m,refreshed] = _manual_refresh(*this,d) ;
+	Manual NodeData::manual_refresh( JobData const& j , FileInfo const& fi ) {
+		auto [m,refreshed] = _manual_refresh(*this,fi) ;
 		if (refreshed) for( Req r : j.reqs() ) r->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}

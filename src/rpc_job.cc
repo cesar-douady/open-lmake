@@ -36,7 +36,7 @@ using namespace Hash ;
 		{ if ( a.tag>FileActionTag::HasFile             ) continue ; } FileInfo fi { nfs_guard.access(f) } ;   // no file to check
 		{ if ( !fi                                      ) continue ; }                                         // file does not exist, it cannot be manual
 		{ if ( a.crc!=Crc::None && fi.date==a.date      ) continue ; }                                         // if dates match, we are ok, else we are manual, but maybe not an error
-		append_to_string(msg,"manual expected : ",a.crc,' ',a.date," found : ",fi.date," : ",mk_file(f)) ;
+		append_to_string(msg,"manual ",mk_file(f),'\n') ;
 		{ if ( a.manual_ok                              ) continue ; }                                         // if manual_ok, it is not an error
 		{ if ( !a.crc.valid() || a.crc.match(Crc(f,ha)) ) continue ; } ok = false ;                            // if no expected crc or recomputed crc matches, it is not an error
 	}

@@ -345,9 +345,13 @@ namespace Engine {
 		//
 		if (trace!=TraceConfig()) {
 			res << "\ttrace :\n" ;
-			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     ;
-			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs ;
-			if (trace.channels!=TraceConfig().channels) { res << "\t\tchannels :" ; for( Channel c : Channel::N ) if (trace.channels[c]) res <<' '<< mk_snake(c) ; }
+			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     << '\n' ;
+			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
+			if (trace.channels!=TraceConfig().channels) {
+				/**/                                                 res << "\t\tchannels :" ;
+				for( Channel c : Channel::N ) if (trace.channels[c]) res <<' '<< mk_snake(c) ;
+				/**/                                                 res << '\n'             ;
+			}
 		}
 		//
 		return res.str() ;

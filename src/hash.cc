@@ -15,24 +15,28 @@ namespace Hash {
 	::ostream& operator<<( ::ostream& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
 		if      (special==CrcSpecial::Plain   ) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
-		else if (special==CrcSpecial::Unknown_) return os << "Crc(Unknown)"             ;
-		else                                    return os << "Crc("<<special      <<')' ;
+		else if (special==CrcSpecial::Unknown_) return os << "Crc(Unknown)"                                          ;
+		else                                    return os << "Crc("<<special<<')'                                    ;
 	}
 
 	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
 		switch (fi.tag) {
 			case FileTag::Reg :
-			case FileTag::Exe : {
-				FileMap map{filename} ;
-				if (!map) return ;
-				switch (algo) {
-					//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
-					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
-					default : FAIL(algo) ;
+			case FileTag::Exe :
+				if (!fi.sz) {
+					*this = Empty ;
+				} else {
+					FileMap map{filename} ;
+					if (!map) return ;
+					switch (algo) {
+						//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+						//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
+						default : FAIL(algo) ;
+					}
 				}
-			} break ;
+			break ;
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(filename) ;
 				switch (algo) {
@@ -44,7 +48,7 @@ namespace Hash {
 				}
 			} break ;
 			case FileTag::None :
-			case FileTag::Dir  : *this = Crc::None ; break ;                   // directories are deemed not to exist
+			case FileTag::Dir  : *this = None ; break ;                   // directories are deemed not to exist
 			default : ;
 		}
 	}
@@ -61,8 +65,8 @@ namespace Hash {
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (!  diff           ) return Accesses::None ;                                                       // crc's are identical, cannot perceive difference
-			if (!( diff & ChkMsk )) fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;
+			if (! diff                                       ) return Accesses::None ;                                                       // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = Accesses::All ;

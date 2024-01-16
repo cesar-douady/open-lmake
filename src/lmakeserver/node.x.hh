@@ -42,6 +42,14 @@ namespace Engine {
 	,	Loop        //                                   node is being analyzed, deemed buildable so as to block further analysis
 	)
 
+	ENUM_1( Manual
+	,	Changed = Empty // >=Changed means that job is sensitive to new content
+	,	Ok              // file is as recorded
+	,	Unlinked        // file has been unlinked
+	,	Empty           // file is modified but is empty
+	,	Modif           // file is modified and may contain user sensitive info
+	)
+
 	ENUM_1( NodeMakeAction
 	,	Dec = Wakeup       // >=Dec means n_wait must be decremented
 	,	None
@@ -167,8 +175,7 @@ namespace Engine {
 		RuleIdx        prio_idx     = NoIdx                ;                   //    16 bits
 		bool           single       = false                ;                   // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
 		Disk::Accesses overwritten  = Disk::Accesses::None ;                   // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		bool           manual_valid = false                ;                   // 1<= 8 bits
-		Bool3          manual       = No/*garbage*/        ;                   // 2<= 8 bits, if manual_valid, result of Node::manual()
+		Manual         manual       = Manual::Unknown      ;                   // 3<= 8 bits
 		Bool3          speculate    = Yes                  ;                   // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 	} ;
 	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
@@ -234,12 +241,13 @@ namespace Engine {
 		bool     has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job_tgt()==j                                ; }
 		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return is_plain() && actual_job_tgt()==jt                               ; }
 		//
-		Bool3 manual        ( Ddate                  ) const ;
-		Bool3 manual_refresh( Req            , Ddate ) ;                                                            // refresh date if file was updated but steady
-		Bool3 manual_refresh( JobData const& , Ddate ) ;                                                            // .
-		Bool3 manual        (                        ) const { return manual        (  Disk::file_date(name())) ; }
-		Bool3 manual_refresh( Req            r       )       { return manual_refresh(r,Disk::file_date(name())) ; }
-		Bool3 manual_refresh( JobData const& j       )       { return manual_refresh(j,Disk::file_date(name())) ; }
+		Manual manual        ( Ddate , bool empty                        ) const ;
+		Manual manual        (                  Disk::FileInfo const& fi ) const {                             return manual(fi.date,!fi.sz) ; }
+		Manual manual        (                                           ) const { Disk::FileInfo fi{name()} ; return manual(fi            ) ; }
+		Manual manual_refresh( Req            , Disk::FileInfo const& fi ) ;                                                                     // refresh date if file was updated but steady
+		Manual manual_refresh( JobData const& , Disk::FileInfo const& fi ) ;                                                                     // .
+		Manual manual_refresh( Req            r                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(r,fi)   ; }
+		Manual manual_refresh( JobData const& j                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(j,fi)   ; }
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -303,19 +311,8 @@ namespace Engine {
 			else                 return +a             ;                       // dont know if file is a link, any access may have perceived a difference
 		}
 		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
-		Bool3 lazy_manual(ReqInfo& ri) {
-			if (!ri.manual_valid) {
-				Req req = ri.req ;
-				ri.manual       = manual_refresh(req) ;
-				ri.manual_valid = true                ;
-				if (ri.manual==Yes) {
-					bool dangling = buildable<=Buildable::No ;
-					req->audit_node(Color::Err ,                        dangling?"dangling":"manual" ,idx()  ) ;
-					req->audit_node(Color::Note,to_string("consider : ",dangling?"git add" :"rm"    ),idx(),1) ;
-				}
-			}
-			return ri.manual ;
-		}
+		//
+		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
 		//
 		::vector<RuleTgt> raw_rule_tgts(                                ) const ;
 		void              mk_old       (                                ) ;
@@ -449,15 +446,21 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        )           ; }
 	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           )           ; }
 
-	inline Bool3 NodeData::manual(Ddate d) const {
-		const char* res_str ;
-		Bool3       res     ;
-		if      (crc==Crc::None) { if (!d) return No ; res_str = "created"     ; res = Yes   ; }
-		else if (!d            ) {                     res_str = "disappeared" ; res = Maybe ; }
-		else if (d==date()     ) {         return No ;                                         }
-		else                     {                     res_str = "newer"       ; res = Yes   ; }
+	inline Manual NodeData::manual(Ddate d,bool empty) const {
+		const char* res_str = nullptr         ;
+		Manual      res     = Manual::Unknown ;
+		if (crc==Crc::None) {
+			if      (!d       )   return Manual::Ok       ;
+			else if (empty    ) { res =  Manual::Empty    ; res_str = "new"      ; }
+			else                { res =  Manual::Modif    ; res_str = "new"      ; }
+		} else {
+			if      (!d       ) { res =  Manual::Unlinked ; res_str = "unlinked" ; }
+			else if (d==date())   return Manual::Ok       ;
+			else if (empty    ) { res =  Manual::Empty    ; res_str = "modif"    ; }
+			else                { res =  Manual::Modif    ; res_str = "modif"    ; }
+		}
 		//
-		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res_str) ;
+		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res_str,STR(empty)) ;
 		return res ;
 	}
 
@@ -508,12 +511,13 @@ namespace Engine {
 	}
 
 	inline void NodeData::refresh() {
-		Ddate d = Disk::file_date(name()) ;
-		switch (manual(d)) {
-			case Yes   : refresh( {}        , d       ) ; break ;
-			case Maybe : refresh( Crc::None , Ddate() ) ; break ;
-			case No    :                                  break ;
-			default : FAIL(d) ;
+		FileInfo fi = Disk::FileInfo{name()} ;
+		switch (manual(fi)) {
+			case Manual::Ok       :                                  break ;
+			case Manual::Unlinked : refresh( Crc::None , Ddate() ) ; break ;
+			case Manual::Empty    :
+			case Manual::Modif    : refresh( {}        , fi.date ) ; break ;
+			default : FAIL(fi.date,fi.sz) ;
 		}
 	}
 
@@ -560,7 +564,7 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( is_date && (*this)->crc.plain() && date()==(*this)->date() ) crc((*this)->crc) ;
+		if ( is_date && (*this)->crc.valid() && (*this)->crc.exists() && date()==(*this)->date() ) crc((*this)->crc) ;
 	}
 
 }

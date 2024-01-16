@@ -225,16 +225,16 @@ namespace Engine {
 			case NodeStatus::Src        : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
 			case NodeStatus::SrcDir     : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
 			case NodeStatus::Plain :
-				if      (dep->manual()==Yes         ) err = "manual"      ;
-				else if (+cri.overwritten           ) err = "overwritten" ;
-				else if (!dep->conform_job_tgts(cri)) err = "not built"   ;    // if no better explanation found
+				if      (dep->manual()>=Manual::Changed) err = "manual"      ;
+				else if (+cri.overwritten              ) err = "overwritten" ;
+				else if (!dep->conform_job_tgts(cri)   ) err = "not built"   ;    // if no better explanation found
 				else
 					for( Job job : dep->conform_job_tgts(cri) )
 						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
 			break ;
 			case NodeStatus::None :
-				if      (dep->manual()==Yes         ) err = "dangling" ;
-				else if (dep.dflags[Dflag::Required]) err = "missing"  ;
+				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
+				else if (dep.dflags[Dflag::Required]   ) err = "missing"  ;
 			break ;
 			default : FAIL(dep->status()) ;
 		}
@@ -425,7 +425,12 @@ namespace Engine {
 			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
-			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
+			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , mk_file(j->name()) ) ;
+		}
+		if (+frozen_nodes) {
+			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
+			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;

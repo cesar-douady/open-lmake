@@ -22,7 +22,7 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*6 reimplement hierarchical repositories
+* reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
 	- ensure total prio of sub-rules
@@ -119,14 +119,14 @@ items :
 	- provide file_info and post_file_info
 	- process in order targets, file_info, post_file_info,post_targets
 	? consider fusion between Tflags and Dflags as file_info may have both
-*2 implement lshow -i for nodes
-*3 implement lshow -i for rules
+*3 implement lshow -i for nodes
+*4 implement lshow -i for rules
 	- in particular, we want to see the exact regexpr associated to each target
-*4 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*5 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * support formulas in n_tokens
-* add post_cmd as there is post_targets
+	- to automatically depend on config update
 * result cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
@@ -139,10 +139,6 @@ items :
 * allow dynamic attribute functions to have inherited values (passing inherited value as argument)
 	- maybe not strictly necessary, but this is what is done for cmd
 ! support direct rebuild of deps
-	- switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
-		- difficulty is that there is no named group
-		- this means () from user regexprs must be counted to compute group indices
-		- which in turn means to do a expr analysis (lexical or syntaxic ?) to recognize true ()'s from escaped ones
 	- specify a target flag 'direct' for use by pattern
 	- specify a dep    flag 'direct' for dynamic use (through ldepend)
 	- pass known hidden deps to job_exec to avoid connection to server when known
@@ -158,6 +154,7 @@ items :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr
 	- operate as for star in star_targets
+? add post_cmd as there is post_targets
 ? implement a compilation rule py->pyc
 	- and use python -B
 	- what about the numerous retries this approach implies ?
@@ -193,7 +190,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*5 handle dir hierarchy in store
+* switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
+	- difficulty is that there is no named group
+	- this means () from user regexprs must be counted to compute group indices
+	- which in turn means to do a expr analysis (lexical or syntaxic ?) to recognize true ()'s from escaped ones
+* handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
 	- not difficult to code
@@ -281,6 +282,10 @@ items :
 * TOOLS
 ****************************************************************************************************
 
+*2 lrepair
+	- ensure ancillary file contains all necessary info to rebuild DB
+		- rule crc
+		- deps crc
 * make a align_comment tool
 	- identify comment in each line
 		- handle //* as start of block
@@ -301,10 +306,6 @@ items :
 * consider serialization libs :
 	- https://github.com/alibaba/yalantinglibs
 		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf
-* lrepair
-	- ensure ancillary file contains all necessary info to rebuild DB
-		- rule crc
-		- deps crc
 * implement a file dump
 	- put a header in files so that format can be automatically recognized
 	- suitable for use in vim

@@ -47,6 +47,7 @@ namespace Hash {
 	,	Lnk                            // file is a link pointing to an unknown location
 	,	Reg                            // file is regular with unknown content
 	,	None                           // file does not exist or is a dir
+	,	Empty                          // file is the regular empty file
 	,	Plain
 	)
 
@@ -60,6 +61,7 @@ namespace Hash {
 		static const Crc Lnk     ;
 		static const Crc Reg     ;
 		static const Crc None    ;
+		static const Crc Empty   ;
 		// statics
 		static bool s_sense( Accesses a , FileTag t ) { // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
@@ -94,14 +96,17 @@ namespace Hash {
 		// accesses
 		constexpr bool              operator== (Crc const& other) const = default ;
 		constexpr ::strong_ordering operator<=>(Crc const& other) const = default ;
-		constexpr uint64_t          operator+  (                ) const { return  _val                              ; }
-		constexpr bool              operator!  (                ) const { return !+*this                            ; }
-		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid           ; }
-		constexpr bool              plain      (                ) const { return _val> +CrcSpecial::Valid           ; }
-		/**/      void              clear      (                )       { *this = {}                                ; }
-		constexpr bool              is_lnk     (                ) const { return plain() ?   _val&0x1  : *this==Lnk ; }
-		constexpr bool              is_reg     (                ) const { return plain() ? !(_val&0x1) : *this==Reg ; }
+		constexpr uint64_t          operator+  (                ) const { return  _val                                             ; }
+		constexpr bool              operator!  (                ) const { return !+*this                                           ; }
+		constexpr bool              valid      (                ) const { return _val>=+CrcSpecial::Valid                          ; }
+		constexpr bool              exists     (                ) const { return +*this && *this!=None                             ; }
+		/**/      void              clear      (                )       { *this = {}                                               ; }
+		constexpr bool              is_lnk     (                ) const { return _plain() ?   _val&0x1  : *this==Lnk               ; }
+		constexpr bool              is_reg     (                ) const { return _plain() ? !(_val&0x1) : *this==Reg||*this==Empty ; }
+	private :
+		constexpr bool _plain() const { return _val>=+CrcSpecial::N ; }
 		// services
+	public :
 		bool     match        ( Crc other , Accesses a=Accesses::All ) const { return !( diff_accesses(other) & a ) ; } ;
 		Accesses diff_accesses( Crc other                            ) const ;
 	private :
@@ -208,6 +213,7 @@ namespace Hash {
 	constexpr Crc Crc::Lnk    {CrcSpecial::Lnk     } ;
 	constexpr Crc Crc::Reg    {CrcSpecial::Reg     } ;
 	constexpr Crc Crc::None   {CrcSpecial::None    } ;
+	constexpr Crc Crc::Empty  {CrcSpecial::Empty   } ;
 
 }
 // must be outside Engine namespace as it specializes std::hash

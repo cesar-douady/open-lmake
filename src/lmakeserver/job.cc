@@ -521,9 +521,9 @@ namespace Engine {
 				bool  modified = false   ;
 				Ddate date     = td.date ;
 				if (!touched) {
-					if      ( target->unlinked                                    ) date = Ddate()                      ; // ideally, should be start date
-					else if ( tflags[Tflag::ManualOk] && target->manual(date)!=No ) crc  = {date,tn,g_config.hash_algo} ; // updating date is not mandatory ...
-					else                                                            goto NoRefresh ;                      // ... but it is safer to update crc with corresponding date
+					if      ( target->unlinked                                           ) date = Ddate()                         ; // ideally, should be start date
+					else if ( tflags[Tflag::ManualOk] && file_date(target->name())!=date ) crc  = Crc(date,tn,g_config.hash_algo) ; // updating date is not mandatory ...
+					else                                                                   goto NoRefresh ;                         // ... but it is safer to update crc with corresponding date
 				}
 				//         vvvvvvvvvvvvvvvvvvvvvvvvv
 				modified = target->refresh(crc,date) ;
@@ -960,9 +960,14 @@ namespace Engine {
 										reason    |= {JobReasonTag::DepUnstable,+dep} ;
 									} else {
 										if (!dri) cdri = dri = &dep->req_info(*cdri) ;                                       // refresh cdri in case dri allocated a new one
-										if (dep->lazy_manual(*dri)==Yes) {                                                   // else condition has been washed
+										Manual manual = dep->manual_wash(*dri) ;
+										if (manual>=Manual::Changed) {                                                       // else condition has been washed
 											trace("manual",dep,dep_ok,dep.date(),dep->crc==Crc::None?Ddate():dep->date()) ;
 											goto Err ;
+										} else if (manual==Manual::Unlinked) {
+											trace("washed",dep) ;
+											dep_modif  = true                             ;                                  // this dep was moving, retry job
+											reason    |= {JobReasonTag::DepNotReady,+dep} ;
 										}
 									}
 								}
@@ -1095,8 +1100,8 @@ namespace Engine {
 	}
 
 	::pair<SpecialStep,Bool3/*modified*/> JobData::_update_target( Node t , ::string const& tn , bool star , NfsGuard& nfs_guard ) {
-		FileInfo fi    { nfs_guard.access(tn) } ;
-		bool     plain = t->crc.plain()         ;
+		FileInfo fi    { nfs_guard.access(tn) }            ;
+		bool     plain = t->crc.valid() && t->crc.exists() ;
 		if ( plain && +fi && fi.date==t->date() ) return {SpecialStep::Idle,No/*modified*/} ;
 		Trace trace("src",fi.date,t->crc==Crc::None?Ddate():t->date()) ;
 		Crc   crc      { tn , g_config.hash_algo }                               ;

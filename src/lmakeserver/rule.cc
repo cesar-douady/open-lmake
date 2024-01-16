@@ -461,36 +461,57 @@ namespace Engine {
 	::pair_ss/*script,call*/ DynamicCmd::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		Rule r = +job ? job->rule : match.rule ;                                                                     // if we have no job, we must have a match as job ...
 		if (r->is_python) {                                                                                          // ... is there to lazy evaluate match if necessary
-			OStringStream res ;
-			res << "lmake_runtime = {}\n"                                                                     ;
-			res << "exec(open("<<mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py")<<").read(),lmake_runtime)\n" ;
-			res << spec.decorator<<" = lmake_runtime['lmake_func']\n"                                         ;
-			res << spec.decorator<<".dbg = {\n"                                                               ;
+			::string res ;
+			append_to_string( res , "lmake_runtime = {}\n"                                                                   ) ;
+			append_to_string( res , "exec(open(",mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py"),").read(),lmake_runtime)\n" ) ;
+			append_to_string( res , spec.decorator," = lmake_runtime['lmake_func']\n"                                        ) ;
+			append_to_string( res , spec.decorator,".dbg = {\n"                                                              ) ;
 			bool first = true ;
 			SWEAR(+r) ;
 			for( auto const& [k,v] : r->dbg_info ) {
-				if (!first) res<<',' ;
+				if (!first) res += ',' ;
 				first = false ;
-				res<<'\t'<<mk_py_str(k)<<" : ("<<mk_py_str(v.module)<<','<<mk_py_str(v.qual_name)<<','<<mk_py_str(v.filename)<<','<<v.first_line_no1<<")\n" ;
+				append_to_string(res,'\t',mk_py_str(k)," : (",mk_py_str(v.module),',',mk_py_str(v.qual_name),',',mk_py_str(v.filename),',',v.first_line_no1,")\n") ;
 			}
-			res<<"}\n" ;
+			res += "}\n" ;
 			eval_ctx( job , match , rsrcs
-			,	[&]( ::string const& key , ::string const& val ) -> void {
-					res<<key<<" = "<<mk_py_str(val)<<'\n' ;
-				}
-			,	[&]( ::string const& key , ::vmap_ss const& val ) -> void {
-					res<<key<<" = {\n" ;
-					bool first = true ;
-					for( auto const& [k,v] : val ) {
-						if (!first) res<<',' ;
-						res<<'\t'<<mk_py_str(k)<<" : "<<mk_py_str(v)<<'\n' ;
-						first = false ;
+			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
+					Rule r = match.rule ;
+					if ( vc!=VarCmd::Target || !r->tflags(i)[Tflag::Star] ) {
+						append_to_string(res,key," = ",mk_py_str(val),'\n') ;
+					} else {
+						::vector_s args ;
+						::string expr = _subst_target(
+							r->targets[i].second.pattern
+						,	[&](VarIdx s)->::string {
+								::string k = r->stems[s].first ;
+								if ( k.front()=='<' and k.back()=='>' ) k = k.substr(1,k.size()-2) ;
+								if ( s>=r->n_static_stems             ) { args.push_back(k) ; return to_string('{',k,'}') ; }
+								else                                                          return match.stems[s]       ;
+							}
+						) ;
+						append_to_string(res,"def ",key,'(') ;
+						bool f = true ;
+						for( ::string const& a : args )
+							if (f) { append_to_string(res,' ' ,a,' ') ; f = false ; }
+							else     append_to_string(res,", ",a,' ') ;
+						append_to_string(res,") : return f"   ,mk_py_str(expr),'\n') ;
+						append_to_string(res,key,".regexpr = ",mk_py_str(val ),'\n') ;
 					}
-					res<<"}\n" ;
+				}
+			,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
+					append_to_string(res,key," = {\n") ;
+					bool f = true ;
+					for( auto const& [k,v] : val ) {
+						if (!f) res += ',' ;
+						append_to_string(res,'\t',mk_py_str(k)," : ",mk_py_str(v),'\n') ;
+						f = false ;
+					}
+					res += "}\n" ;
 				}
 			) ;
-			res<<ensure_nl(spec.cmd) ;
-			return {res.str(),"cmd()\n"} ;
+			res += ensure_nl(spec.cmd) ;
+			return {res,"cmd()\n"} ;
 		} else {
 			if (!is_dynamic) return {parse_fstr(spec.cmd,job,match,rsrcs),{}} ;
 			Py::Gil   gil    ;
