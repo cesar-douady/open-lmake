@@ -102,7 +102,7 @@ namespace Engine {
 	void Req::close(bool close_backend) {
 		Trace trace("close",*this,STR(close_backend)) ;
 		SWEAR((*this)->is_open()) ;
-		kill() ;                                                               // in case req is closed before being done
+		if (!(*this)->zombie) kill() ;                                               // in case req is closed before being done
 		if (close_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;

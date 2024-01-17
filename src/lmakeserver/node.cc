@@ -550,9 +550,10 @@ namespace Engine {
 	void NodeData::_propag_speculate(ReqInfo const& cri) const {
 		switch (status()) {
 			case NodeStatus::Uphill     :
-			case NodeStatus::Transcient :                                     dir()            ->propag_speculate( cri.req , cri.speculate ) ;   break ;
-			case NodeStatus::Plain      :                                     conform_job_tgt()->propag_speculate( cri.req , cri.speculate ) ;   break ;
-			case NodeStatus::Multi      : { for( Job j : conform_job_tgts() ) j                ->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Transcient : { Node n = dir()             ;            n->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Plain      : { Job  j = conform_job_tgt() ;            j->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Multi      : { for( JobTgt j : conform_job_tgts(cri) ) j->propag_speculate( cri.req , cri.speculate ) ; } break ;
+			case NodeStatus::Unknown    :                                                                                              break ; // node is not built, nowhere to propagate
 			default :
 				SWEAR(status()<NodeStatus::Uphill,status()) ; // ensure we have not forgotten a case
 		}

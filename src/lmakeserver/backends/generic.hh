@@ -268,6 +268,7 @@ namespace Backends {
 			::uset<JobIdx> res ;
 			Trace trace("kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
+				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first ) ;    // ensure the last req is the right one
 				// kill waiting jobs
 				for( auto const& [j,_] : waiting_jobs ) res.insert(j) ;
 				waiting_jobs.clear() ;
@@ -283,9 +284,9 @@ namespace Backends {
 						trace("killed_all",j,se.id) ;
 						spawned_jobs.erase(sjit++) ;
 					}
-				reqs.clear() ;
+				for( auto& [_,re] : reqs ) re.clear() ;
 			} else {
-				auto      rit = reqs.find(req) ; if (rit==reqs.end()) return {} ;
+				auto      rit = reqs.find(req) ; SWEAR(rit!=reqs.end()) ;     // we should not kill a non-existent req
 				ReqEntry& re  = rit->second    ;
 				// kill waiting jobs
 				for( auto const& [j,_] : re.waiting_jobs ) {
@@ -303,7 +304,7 @@ namespace Backends {
 					trace("killed",j,se.id) ;
 					spawned_jobs.erase(j) ;
 				}
-				reqs.erase(rit) ;
+				re.clear() ;
 			}
 			return res ;
 		}

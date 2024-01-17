@@ -145,7 +145,7 @@ namespace Backends {
 		//
 		virtual void           open_req   ( ReqIdx   , JobIdx /*n_jobs*/ ) {}    // called before any operation on req , n_jobs is the maximum number of jobs that can be launched (lmake -j option)
 		virtual void           new_req_eta( ReqIdx                       ) {}    // inform backend that req has a new eta, which may change job priorities
-		virtual void           close_req  ( ReqIdx                       ) {}    // called after any operation on req
+		virtual void           close_req  ( ReqIdx                       ) {}    // called after all operations on req (only open is legal after that)
 		virtual ::uset<JobIdx> kill_req   ( ReqIdx=0                     ) = 0 ; // kill all if req==0, kill all non-spawned jobs for this req (and no other ones), return killed jobs
 		//
 		virtual void submit      ( JobIdx , ReqIdx , SubmitAttrs const& , ::vmap_ss&& /*rsrcs*/ ) = 0 ; // submit a new job
