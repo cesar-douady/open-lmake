@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <dlfcn.h>  // dlsym
+#include <dlfcn.h>  // dlsym, dlopen, dlinfo
 #include <stdarg.h>
 
 #include <errno.h>
@@ -67,37 +67,113 @@ static Record& auditer() {
 	return *s_res ;
 }
 
-template<class Action,bool DP=false> struct AuditAction : Ctx,Action {
-	using Path = Record::Path ;
+template<class Action,int NP> struct AuditAction : Ctx,Action {
 	// cxtors & casts
 	// errno must be protected from our auditing actions in cxtor and operator()
 	// more specifically, errno must be the original one before the actual call to libc
 	// and must be the one after the actual call to libc when auditing code finally leave
 	// Ctx contains save_errno in its cxtor and restore_errno in its dxtor
 	// so here, errno must be restored at the end of cxtor and saved at the beginning of operator()
-	template<class... A> AuditAction (Path&& p ,          A&&... args) requires(!DP) : Action{auditer(),::move(p ),           ::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction (Path&& p1,Path&& p2,A&&... args) requires( DP) : Action{auditer(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(                                    A&&... args) requires(NP==0) : Action{auditer(),                      ::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NP==1) : Action{auditer(),::move(p ),           ::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NP==2) : Action{auditer(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
 	// services
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditer(),res) ; }
 } ;
-//                                          double_path
-using ChDir   = AuditAction<Record::ChDir              > ;
-using Chmod   = AuditAction<Record::Chmod              > ;
-using Exec    = AuditAction<Record::Exec               > ;
-using Mkdir   = AuditAction<Record::Mkdir              > ;
-using Lnk     = AuditAction<Record::Lnk    ,true       > ;
-using Open    = AuditAction<Record::Open               > ;
-using Read    = AuditAction<Record::Read               > ;
-using ReadLnk = AuditAction<Record::ReadLnk            > ;
-using Rename  = AuditAction<Record::Rename ,true       > ;
-using Search  = AuditAction<Record::Search             > ;
-using Solve   = AuditAction<Record::Solve              > ;
-using Stat    = AuditAction<Record::Stat               > ;
-using Symlnk  = AuditAction<Record::Symlnk             > ;
-using Unlink  = AuditAction<Record::Unlink             > ;
+//                                          n paths
+using ChDir   = AuditAction<Record::ChDir  ,1      > ;
+using Chmod   = AuditAction<Record::Chmod  ,1      > ;
+using Mkdir   = AuditAction<Record::Mkdir  ,1      > ;
+using Lnk     = AuditAction<Record::Lnk    ,2      > ;
+using Open    = AuditAction<Record::Open   ,1      > ;
+using Read    = AuditAction<Record::Read   ,1      > ;
+using ReadLnk = AuditAction<Record::ReadLnk,1      > ;
+using Rename  = AuditAction<Record::Rename ,2      > ;
+using Solve   = AuditAction<Record::Solve  ,1      > ;
+using Stat    = AuditAction<Record::Stat   ,1      > ;
+using Symlnk  = AuditAction<Record::Symlnk ,1      > ;
+using Unlink  = AuditAction<Record::Unlink ,1      > ;
 
-struct Fopen : AuditAction<Record::Open> {
-	using Base = AuditAction<Record::Open> ;
+//
+// Exec
+//
+
+struct _Exec : Record::Exec {
+	using Base = Record::Exec ;
+	//
+	_Exec() = default ;
+	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , ::string&& c="exec" ) : Base{r,::move(path),no_follow,::copy(c)} {
+		static constexpr char Llpe[] = "LD_LIBRARY_PATH=" ;
+		static constexpr size_t LlpeSz = sizeof(Llpe)-1 ;                              // -1 to account of terminating null
+		const char* const* llp = nullptr/*garbage*/ ;
+		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
+		if (*llp) elf_deps( r , real , *llp+LlpeSz , c+".dep" ) ;                      // pass value after the LD_LIBRARY_PATH= prefix
+		else      elf_deps( r , real , nullptr     , c+".dep" ) ;                      // /!\ dont add LlpeSz to nullptr
+	}
+} ;
+using Exec = AuditAction<_Exec,1/*NP*/> ;
+
+struct _Execp : _Exec {
+	using Base = _Exec ;
+	// search executable file in PATH
+	_Execp() = default ;
+	_Execp( Record& r , const char* file , const char* const envp[] , ::string&& c="execp" ) {
+		if (!file) return ;
+		//
+		if (::strchr(file,'/')) {                                                        // if file contains a /, no search is performed
+			static_cast<Base&>(*this) = Base(r,file,false/*no_follow*/,envp,::move(c)) ;
+			return ;
+		}
+		//
+		::string p = get_env("PATH") ;
+		if (!p) {                                                                        // gather standard path if path not provided
+			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
+			p.resize(n) ;
+			::confstr(_CS_PATH,p.data(),n) ;
+			SWEAR(p.back()==0) ;
+			p.pop_back() ;
+		}
+		//
+		for( size_t pos=0 ;;) {
+			size_t   end       = p.find(':',pos)                                                                                     ;
+			size_t   len       = (end==Npos?p.size():end)-pos                                                                        ;
+			::string full_file = len ? to_string(::string_view(p).substr(pos,len),'/',file) : file                                   ;
+			::string real_     = Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,true/*allow_tmp_map*/,::move(c)).real ;
+			if (is_exe(Record::s_root_fd(),real_,false/*no_follow*/)) {
+				static_cast<Base&>(*this) = Base(r,{Record::s_root_fd(),real_},false/*no_follow*/,envp,::move(c)) ;
+				allocate(full_file) ;
+				return ;
+			}
+			if (end==Npos) return ;
+			pos = end+1 ;
+		}
+	}
+} ;
+using Execp = AuditAction<_Execp,0/*NP*/> ;
+
+#ifdef LD_PRELOAD
+
+	//
+	// Dlopen
+	//
+
+		struct _Dlopen : Record::Read {
+			using Base = Record::Read ;
+			// cxtors & casts
+			_Dlopen() = default ;
+			_Dlopen( Record& r , const char* file , ::string&& c="dlopen" ) : Base{search_elf(r,file,::move(c))} {}
+			// services
+		} ;
+		using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
+
+#endif
+
+//
+// Fopen
+//
+
+struct Fopen : AuditAction<Record::Open,1/*NP*/> {
+	using Base = AuditAction<Record::Open,1/*NP*/> ;
 	static int mk_flags(const char* mode) {
 		bool a = false ;
 		bool c = false ;
@@ -117,7 +193,7 @@ struct Fopen : AuditAction<Record::Open> {
 		if (c       ) return O_PATH ;                                                         // gnu extension, no access
 		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
 	}
-	Fopen( Path&& pth , const char* mode , ::string const& comment="fopen" ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
+	Fopen( Record::Path&& pth , const char* mode , ::string const& comment="fopen" ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
 	FILE* operator()(FILE* fp) {
 		Base::operator()(fp?::fileno(fp):-1) ;
 		return fp ;
@@ -168,14 +244,15 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
-	#define HEADER(syscall,args,cond) \
+static inline const char* nn(const char* p) { return p?p:"<>";}
+	#define HEADER(syscall,cond,args) \
 		ORIG(syscall) ;                                    \
 		if ( Lock::t_busy() || (cond) ) return orig args ; \
 		Lock lock
 	// do a first check to see if it is obvious that nothing needs to be done
-	#define HEADER0(syscall,            args) HEADER( syscall , args , false                                                    )
-	#define HEADER1(syscall,path,       args) HEADER( syscall , args , Record::s_is_simple(path )                               )
-	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , args , Record::s_is_simple(path1) && Record::s_is_simple(path2) )
+	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
+	#define HEADER1(syscall,path,       args) HEADER( syscall , Record::s_is_simple(path )                               , args )
+	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
 
 	#define CC   const char
 	#define P(r)                                  r.at,r.file
@@ -208,14 +285,13 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) Record::s_hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
 	void closefrom  (int  fd1                  ) NE { HEADER0(closefrom  ,(fd1         )) ;                                  Record::s_hide_range(fd1    ) ; return orig(fd1         ) ; }
 
-	// dlopen
-	// dlopen cannot be simple as we do not know which file will be accessed
-	// not recursively called by auditing code
-	// for dlopen, we cannot transform access into real access as for other system calls as a lot of other directories may be searched (that we should do by the way)
-	// When we do the correct interpretation, we can replace pth below by r.real to have a secure mecanism
-	// XXX : do the full library search for dlopen/dlmopen (requires DT_RPATH & DT_RUNPATH interpretation)
-	void* dlopen (          CC* pth,int fs) NE { HEADER0(dlopen ,(   pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlopen" } ; return r(orig(   pth,fs)) ; }
-	void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER0(dlmopen,(lm,pth,fs)) ; Search r{pth,false/*exec*/,"LD_LIBRARY_PATH","dlmopen"} ; return r(orig(lm,pth,fs)) ; }
+	#ifdef LD_PRELOAD
+		// dlopen
+		// dlopen cannot be simple as we do not know which file will be accessed
+		// not recursively called by auditing code
+		void* dlopen (          CC* pth,int fs) NE { HEADER(dlopen ,!pth||!*pth,(   pth,fs)) ; Dlopen r{pth,"dlopen" } ; return r(orig(   F(r),fs)) ; }
+		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,F(r),fs)) ; }
+	#endif
 
 	// dup2
 	// /!\ : dup2/3 can be recursively called by auditing code
@@ -225,17 +301,26 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	int dup3  (int oldfd,int newfd,int flgs) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Record::s_hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
 	int __dup2(int oldfd,int newfd         ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Record::s_hide(newfd) ; return orig(oldfd,newfd     ) ; }
 
+	#ifdef LD_PRELOAD
+		// env
+		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
+		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
+		int setenv  (const char *name , const char *value , int overwrite) { HEADER0(setenv  ,(name,value,overwrite)) ; get_ld_library_path() ; return orig(name,value,overwrite) ; }
+		int unsetenv(const char *name                                    ) { HEADER0(unsetenv,(name                )) ; get_ld_library_path() ; return orig(name                ) ; }
+		int putenv  (char *string                                        ) { HEADER0(putenv  ,(string              )) ; get_ld_library_path() ; return orig(string              ) ; }
+	#endif
+
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
-	// exec does not support tmp mapping as this could require modifying file content along the interpreter path
-	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER1(execv  ,pth,(pth,argv     )) ; Exec   r{pth,false/*no_follow*/ ,"execv"  } ; return r(orig(pth,argv     )) ; }
-	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER1(execve ,pth,(pth,argv,envp)) ; Exec   r{pth,false/*no_follow*/ ,"execve" } ; return r(orig(pth,argv,envp)) ; }
-	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,    (pth,argv     )) ; Search r{pth,true/*exec*/,"PATH","execvp" } ; return r(orig(pth,argv     )) ; }
-	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,    (pth,argv,envp)) ; Search r{pth,true/*exec*/,"PATH","execvpe"} ; return r(orig(pth,argv,envp)) ; }
+	// exec may not support tmp mapping if it is involved along the interpreter path                               no_follow
+	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0(execv  ,(pth,argv     )) ; Exec  r{pth,false    ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
+	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execve ,(pth,argv,envp)) ; Exec  r{pth,false    ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
+	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,(pth,argv     )) ; Execp r{pth,          environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
+	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,(pth,argv,envp)) ; Execp r{pth,          envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
 	//
 	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
 		HEADER1(execveat,pth,(dfd,pth,argv,envp,flgs)) ;
-		Exec r { {dfd,pth} , ASLNF(flgs) , "execveat" } ;
+		Exec r { {dfd,pth} , ASLNF(flgs) , envp , "execveat" } ;
 		return r(orig(dfd,pth,argv,envp,flgs)) ;
 	}
 	// execl
@@ -296,7 +381,7 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	// in case of success, tmpl is modified to contain the file that was actually opened
 	#define MKSTEMP(syscall,tmpl,sfx_len,args) \
 		HEADER0(syscall,args) ;                                                                     \
-		Solve r  { tmpl , true/*no_follow*/ , false/*read*/ } ;                                     \
+		Solve r  { tmpl , true/*no_follow*/ , false/*read*/ , true/*allow_tmp_map*/ } ;             \
 		int   fd = r(orig args)               ;                                                     \
 		if (F(r)!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , F(r)+strlen(F(r))-sfx_len-6 , 6 ) ; \
 		if (fd>=0     ) Record::Open(auditer(),F(r),O_CWT|O_NOFOLLOW,"mkstemp")(auditer(),fd) ;     \
@@ -367,10 +452,10 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlink r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	//                                                                                          no_follow read
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,      "access"   } ; return r(orig(F(r),m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,      "faccessat"} ; return r(orig(P(r),m,f)) ; }
-	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true     ,false            } ; return r(orig(F(r)    )) ; }
+	//                                                                                          no_follow read  allow_tmp_map
+	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false    ,                    "access"   } ; return r(orig(F(r),m  )) ; }
+	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f) ,                    "faccessat"} ; return r(orig(P(r),m,f)) ; }
+	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true     ,false,true                     } ; return r(orig(F(r)    )) ; }
 	//                                                                                                                 no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false    ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
@@ -402,11 +487,11 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	using Fltr64  = int (*)(const struct dirent64*                         ) ;
 	using Cmp     = int (*)(const struct dirent**  ,const struct dirent  **) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-	//                                                                                                             no_follow read
-	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),nl,f,c)) ; }
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false} ; return r(orig(F(r),nl,f,c)) ; }
-	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false} ; return r(orig(P(r),nl,f,c)) ; }
+	//                                                                                                             no_follow read ,allow_tmp_map
+	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false,true         } ; return r(orig(F(r),nl,f,c)) ; }
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true     ,false,true         } ; return r(orig(F(r),nl,f,c)) ; }
+	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false,true         } ; return r(orig(P(r),nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true     ,false,true         } ; return r(orig(P(r),nl,f,c)) ; }
 
 	#undef P
 	#undef CC
@@ -430,7 +515,7 @@ template<class T> static T get( pid_t , uint64_t val ) {
 		}
 		SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
 		SyscallDescr const&      descr = s_tab[n]              ;
-		HEADER( syscall , (n,args[0],args[1],args[2],args[3],args[4],args[5]) , !descr ) ;
+		HEADER( syscall , !descr , (n,args[0],args[1],args[2],args[3],args[4],args[5]) ) ;
 		void*               descr_ctx = nullptr    ;
 		{
 			[[maybe_unused]] Ctx audit_ctx ;                                                   // save user errno when required

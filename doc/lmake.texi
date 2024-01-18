@@ -2582,6 +2582,24 @@ Similarly, values inserted in a set prefixed with a @code{'-'} remove the corres
 
 Because this mechanism walks through the MRO, the diamond rule is enforced.
 
+@anchor{regexpr}
+@section Regular expressions
+Internally, @lmake uses a regular expression library, that may change with versions, but which are always very close to the Python @code{re} module.
+
+As of today, the standard @code{std::regex} package is used with the @code{ECMASript} grammar.
+The following differences with Python @code{re} are known :
+@itemize
+@item named groups are not supported.
+There are hardly any reason to use named groups in stems.
+This would allow back references as number based back references cannot be used as one cannot know what number to use.
+However, the same stem can be used several time and all but the first one will be back references to the first one.
+
+For example if you want to match files such as @file{image/image_small.jpg} and @file{image/image_big.jpg}, you can use @code{'@{Image:\w+@}/@{Image@}_@{Size:\w+@}.jpg'}.
+A file such as @file{image1/image2_big.jpg} will not match.
+@item braces (@code{@{@}}) are sometimes recognized as literal braces by Python, even when not escaped with @code{\}.
+This is not the case with @code{std::regex}, they always must be escaped.
+@end itemize
+
 @anchor{backends}
 @section Backends
 
@@ -2839,7 +2857,7 @@ Groups are ordered with higher @code{prio} first.
 The following steps is executed for each group in order, until a rule is found. If none is found, the file declared not buildable.
 
 @subsection Match a target
-For a given rule, the file is matched against each target in turn.
+For a given rule, the file is matched against each target in turn (cf @pxref{regexpr}).
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
 Target order is made of @code{targets} and @code{target} entries in reversed MRO order (i.e. higher classes in the Python class hierarchy are considered first),
 then @code{post_targets} and @code{post_target} entries in MRO order (i.e. lower classes in the Python class hierarchy are considered first.

@@ -26,26 +26,26 @@ ENUM_4( Dflag                          // flags for deps
 ,	RuleMax1   = Required              // .
 ,	HiddenMin  = Critical              // ldepend may report flags HiddenMin<=flag<HiddenMax1
 ,	HiddenMax1 = Static                // .
-//
+	//
 ,	Top                                // dep is relative to repo top, not rule's cwd
-//
+	//
 ,	Critical                           // if modified, ignore following deps
 ,	Essential                          // show when generating user oriented graphs
 ,	IgnoreError                        // propagate error if dep is in error (Error instead of Err because name is visible from user)
-//
+	//
 ,	Required                           // dep must be buildable or job is in error
-//
-,	Static                             // dep is static
+	//
+,	Static                             // dep is static, for internal use only
 )
 static constexpr char DflagChars[] = {
 	't'                                // Top
-//
+	//
 ,	'c'                                // Critical
 ,	's'                                // Essential
 ,	'e'                                // IgnoreError
-//
+	//
 ,	'r'                                // Required
-//
+	//
 ,	'S'                                // Static
 } ;
 static_assert(::size(DflagChars)==+Dflag::N) ;
@@ -68,7 +68,7 @@ struct FileAction {
 	Hash::Crc     crc       ;                          // expected info, mandatory if !manual_ok
 	Disk::Ddate   date      ;                          // .
 } ;
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction> const& pre_actions , Disk::NfsGuard& nfs_guard , Hash::Algo ) ;
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Hash::Algo ) ;
 
 ENUM( JobProc
 ,	None
@@ -87,9 +87,9 @@ ENUM( JobProc
 ENUM_2( JobReasonTag      // see explanations in table below
 ,	HasNode = ClashTarget // if >=HasNode, a node is associated
 ,	Err     = DepErr      // if >=Err, job did not complete because of a dep
-//
+	//
 ,	None
-// with reason
+//	with reason
 ,	ChkDeps
 ,	Cmd
 ,	Force
@@ -99,7 +99,7 @@ ENUM_2( JobReasonTag      // see explanations in table below
 ,	New
 ,	OldErr
 ,	Rsrcs
-// with node
+//	with node
 ,	ClashTarget
 ,	DepChanged
 ,	DepUnstable
@@ -108,7 +108,7 @@ ENUM_2( JobReasonTag      // see explanations in table below
 ,	NoTarget
 ,	PolutedTarget
 ,	PrevTarget
-// with error
+//	with error
 ,	DepErr
 ,	DepMissingStatic
 ,	DepMissingRequired
@@ -116,7 +116,7 @@ ENUM_2( JobReasonTag      // see explanations in table below
 )
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                            // None
-// with reason
+//	with reason
 ,	"dep check requires rerun"                             // ChkDeps
 ,	"command changed"                                      // Cmd
 ,	"job forced"                                           // Force
@@ -126,7 +126,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was never run"                                    // New
 ,	"job was in error"                                     // OldErr
 ,	"resources changed and job was in error"               // Rsrcs
-// with node
+//	with node
 ,	"multiple simultaneous writes"                         // ClashTarget
 ,	"dep changed"                                          // DepChanged
 ,	"dep unstable"                                         // DepUnstable
@@ -135,7 +135,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"missing target"                                       // NoTarget
 ,	"poluted target"                                       // PolutedTarget
 ,	"target previously existed"                            // PrevTarget
-// with error
+//	with error
 ,	"dep in error"                                         // DepErr
 ,	"static dep missing"                                   // DepMissingStatic
 ,	"required dep missing"                                 // DepMissingRequired
@@ -158,7 +158,6 @@ ENUM_2( Status                         // result of job execution
 ,	Garbage                            // <=Garbage means job has not run reliably
 ,	Ok                                 // job execution ended successfully
 ,	Err                                // job execution ended in error
-,	Timeout                            // job timed out
 )
 static inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
 static inline Bool3 is_ok  (Status s) {
@@ -174,18 +173,16 @@ static inline Bool3 is_ok  (Status s) {
 		case Status::ChkDeps      :
 		case Status::Garbage      : return Maybe ;
 		case Status::Ok           : return Yes   ;
-		case Status::Err          :
-		case Status::Timeout      : return No    ;
+		case Status::Err          : return No    ;
 		default : FAIL(s) ;
 	}
 }
 static inline Status mk_err(Status s) {
 	switch (s) {
-		case Status::New          : return Status::EarlyErr     ;
-		case Status::EarlyLost    : return Status::EarlyLostErr ;
-		case Status::LateLost     : return Status::LateLostErr  ;
-		case Status::Ok           : return Status::Err          ;
-		case Status::Err          :
+		case Status::New       : return Status::EarlyErr     ;
+		case Status::EarlyLost : return Status::EarlyLostErr ;
+		case Status::LateLost  : return Status::LateLostErr  ;
+		case Status::Ok        : return Status::Err          ;
 		default : FAIL(s) ;
 	}
 }
@@ -203,7 +200,7 @@ ENUM_4( Tflag                          // flags for targets
 ,	Stat                               // inode accesses (stat-like) are not ignored if accessed as a dep
 ,	Top                                // target is defined with reference to repo top rather than cwd
 ,	Uniquify                           // target is uniquified if it has several links and is incremental
-,	Warning                            // warn if target is unlinked and was generated by another rule
+,	Warning                            // warn if target is unlinked or uniquified and was generated by another rule
 //
 ,	Crc                                // generate a crc for this target (compulsery if Match)
 ,	Dep                                // reads not followed by writes trigger dependencies
@@ -212,7 +209,7 @@ ENUM_4( Tflag                          // flags for targets
 ,	SourceOk                           // ok to overwrite source files
 ,	Write                              // writes are allowed (possibly followed by reads which are ignored)
 //
-,	Unexpected                         // target is not declared   , for internal use only
+,	Unexpected                         // target is not declared, for internal use only
 )
 static constexpr char TflagChars[] = {
 	'I'                                // Incremental
@@ -599,6 +596,7 @@ ENUM_1( JobExecRpcProc
 ,	CriticalBarrier
 ,	Tmp                                // write activity in tmp has been detected (hence clean up is required)
 ,	Trace                              // no algorithmic info, just for tracing purpose
+,	Panic                              // ensure job is in error
 ,	Access
 ,	Confirm
 ,	Decode
@@ -666,9 +664,11 @@ private :
 	static ::vmap_s<DD> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<DD> res ; for( ::string& f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
 	// cxtors & casts
 public :
-	JobExecRpcReq(                                )                                      {                                                                     }
-	JobExecRpcReq( P p , bool s , ::string&& t={} ) : proc{p} , sync{s} , txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFiles) ; }
-	JobExecRpcReq( P p ,          ::string&& t={} ) : proc{p} ,           txt{::move(t)} { if (+t) SWEAR(p==P::Tmp||p==P::Trace) ; else SWEAR(p<P::HasFiles) ; }
+	JobExecRpcReq(                             )                                      {                                              }
+	JobExecRpcReq( P p , bool s                ) : proc{p} , sync{s}                  { SWEAR(p<P::HasFiles) ;                       }
+	JobExecRpcReq( P p                         ) : proc{p}                            { SWEAR(p<P::HasFiles) ;                       }
+	JobExecRpcReq( P p , bool s , ::string&& t ) : proc{p} , sync{s} , txt{::move(t)} { SWEAR(p==P::Tmp||p==P::Trace||p==P::Panic) ; }
+	JobExecRpcReq( P p ,          ::string&& t ) : proc{p} ,           txt{::move(t)} { SWEAR(p==P::Tmp||p==P::Trace||p==P::Panic) ; }
 	//
 	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , Accesses a , Dflags dfs , bool nf ) :
 		proc     { p          }

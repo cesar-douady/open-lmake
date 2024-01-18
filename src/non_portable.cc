@@ -5,10 +5,8 @@
 
 #include "sys_config.h"
 
+#include <elf.h>            // NT_PRSTATUS definition on ARM
 #include <sys/ptrace.h>
-#if __aarch64__ || __arm__
-#include <elf.h> // to have NT_PRSTATUS definition
-#endif
 
 #include "non_portable.hh"
 #include "utils.hh"

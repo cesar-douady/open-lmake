@@ -59,10 +59,10 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		FileInfo(                              ) = default ;
-		FileInfo( Fd at                        ) : FileInfo{at     ,{}  } {}
-		FileInfo(         ::string const& name ) : FileInfo{Fd::Cwd,name} {}
-		FileInfo( Fd at , ::string const& name ) ;
+		FileInfo(                                                    ) = default ;
+		FileInfo( Fd at                                              ) : FileInfo{at     ,{}            } {}
+		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
+		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
 		// accesses
 		bool operator+() const {
 			switch (tag) {
@@ -95,11 +95,13 @@ namespace Disk {
 			if ( !reliable_dirs && +file ) _access_dir(dir_name(file)) ;
 			return file ;
 		}
-		void change(::string const& file) {                                    // must be called before any modif to file or its inode if not sure it was produced locally
-			if ( reliable_dirs || !file ) return ;
-			::string dir = dir_name(file) ;
-			_access_dir(dir) ;
-			to_stamp_dirs.insert(::move(dir)) ;
+		::string const& change(::string const& file) {                         // must be called before any modif to file or its inode if not sure it was produced locally
+			if ( !reliable_dirs && +file ) {
+				::string dir = dir_name(file) ;
+				_access_dir(dir) ;
+				to_stamp_dirs.insert(::move(dir)) ;
+			}
+			return file ;
 		}
 		void close() {
 			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                        // cannot record dirs to stamp if reliable_dirs
@@ -159,11 +161,11 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	static inline bool  is_reg   ( Fd at , ::string const& file={} ) { return  FileInfo(at,file).is_reg()          ; }
-	static inline bool  is_dir   ( Fd at , ::string const& file={} ) { return  FileInfo(at,file).tag==FileTag::Dir ; }
-	static inline bool  is_target( Fd at , ::string const& file={} ) { return +FileInfo(at,file)                   ; }
-	static inline bool  is_exe   ( Fd at , ::string const& file={} ) { return  FileInfo(at,file).tag==FileTag::Exe ; }
-	static inline Ddate file_date( Fd at , ::string const& file={} ) { return  FileInfo(at,file).date              ; }
+	static inline bool  is_reg   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).is_reg()          ; }
+	static inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag==FileTag::Dir ; }
+	static inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return +FileInfo(at,file,no_follow)                   ; }
+	static inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag==FileTag::Exe ; }
+	static inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date              ; }
 
 	static inline ::vector_s      lst_dir      ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir      (Fd::Cwd,dir ,prefix              ) ; }
 	static inline ::vector_s      walk         ( ::string const& file , ::string const& prefix={}                                 ) { return walk         (Fd::Cwd,file,prefix              ) ; }
@@ -178,11 +180,11 @@ namespace Disk {
 	static inline Fd              open_read    ( ::string const& file                                                             ) { return open_read    (Fd::Cwd,file                     ) ; }
 	static inline Fd              open_write   ( ::string const& file , bool append=false , bool exe=false , bool read_only=false ) { return open_write   (Fd::Cwd,file,append,exe,read_only) ; }
 	static inline ::string        read_lnk     ( ::string const& file                                                             ) { return read_lnk     (Fd::Cwd,file                     ) ; }
-	static inline bool            is_reg       ( ::string const& file                                                             ) { return is_reg       (Fd::Cwd,file                     ) ; }
-	static inline bool            is_dir       ( ::string const& file                                                             ) { return is_dir       (Fd::Cwd,file                     ) ; }
-	static inline bool            is_target    ( ::string const& file                                                             ) { return is_target    (Fd::Cwd,file                     ) ; }
-	static inline bool            is_exe       ( ::string const& file                                                             ) { return is_exe       (Fd::Cwd,file                     ) ; }
-	static inline Ddate           file_date    ( ::string const& file                                                             ) { return file_date    (Fd::Cwd,file                     ) ; }
+	static inline bool            is_reg       ( ::string const& file , bool no_follow=true                                       ) { return is_reg       (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_dir       ( ::string const& file , bool no_follow=true                                       ) { return is_dir       (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_target    ( ::string const& file , bool no_follow=true                                       ) { return is_target    (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_exe       ( ::string const& file , bool no_follow=true                                       ) { return is_exe       (Fd::Cwd,file,no_follow           ) ; }
+	static inline Ddate           file_date    ( ::string const& file , bool no_follow=true                                       ) { return file_date    (Fd::Cwd,file,no_follow           ) ; }
 
 	static inline ::string cwd() {
 		char* buf = ::getcwd(nullptr,0) ;
@@ -230,9 +232,15 @@ namespace Disk {
 	}
 
 	struct FileMap {
+		// cxtors & casts
+		FileMap(                        ) = default ;
 		FileMap( Fd , ::string const&   ) ;
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
-		operator bool() const { return _ok ; }
+		bool operator+() const { return _ok     ; }
+		bool operator!() const { return !+*this ; }
+		// accesses
+		template<class T> T const& get(size_t offset=0) const { if (offset+sizeof(T)>sz) FAIL("object out of file");/*throw "object out of file"s*/ ; return *reinterpret_cast<T const*>(data+offset) ; }
+		template<class T> T      & get(size_t offset=0)       { if (offset+sizeof(T)>sz) FAIL("object out of file");/*throw "object out of file"s*/ ; return *reinterpret_cast<T      *>(data+offset) ; }
 		// data
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;

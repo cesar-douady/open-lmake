@@ -111,7 +111,7 @@ namespace Engine {
 		bool is_unexpected(        ) const { return Node::side<1>(   ) ; }
 		void is_unexpected(bool val)       {        Node::side<1>(val) ; }
 		// services
-		bool lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) ; // fm & tn are lazy evaluated
+		bool lazy_star_tflag( Tflag tf , Rule::SimpleMatch const& sm , ::string& tn ) ; // fm & tn are lazy evaluated
 	} ;
 
 	//
@@ -314,10 +314,9 @@ namespace Engine {
 		//
 		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
 		//
-		::vector<RuleTgt> raw_rule_tgts(                                ) const ;
-		void              mk_old       (                                ) ;
-		void              mk_src       (Disk::FileTag=Disk::FileTag::Err) ; // Err means no crc update
-		void              mk_no_src    (                                ) ;
+		void mk_old   (                                ) ;
+		void mk_src   (Disk::FileTag=Disk::FileTag::Err) ; // Err means no crc update
+		void mk_no_src(                                ) ;
 		//
 		::c_vector_view<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
 		::c_vector_view<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
@@ -474,15 +473,6 @@ namespace Engine {
 		return prio_job_tgts(prio_idx) ;
 	}
 
-	inline ::vector<RuleTgt> NodeData::raw_rule_tgts() const {
-		::vector<RuleTgt> rts = Node::s_rule_tgts(name()).view() ;
-		::vector<RuleTgt> res ; res.reserve(rts.size())    ;                   // pessimistic reserve ensures no realloc
-		Py::Gil           gil ;
-		for( RuleTgt const& rt : rts )
-			if (+rt.pattern().match(name())) res.push_back(rt) ;
-		return res ;
-	}
-
 	template<class RI> inline void NodeData::add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) {
 		ri.add_watcher(watcher,wri) ;
 		set_pressure(ri,pressure) ;
@@ -525,12 +515,11 @@ namespace Engine {
 	// Target
 	//
 
-	inline bool Target::lazy_tflag( Tflag tf , Rule::SimpleMatch const& sm , Rule::FullMatch& fm , ::string& tn ) { // fm & tn are lazy evaluated
+	inline bool Target::lazy_star_tflag( Tflag tf , Rule::SimpleMatch const& sm , ::string& tn ) { // fm & tn are lazy evaluated
 		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
 		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
-		if (!fm       ) fm = sm              ;                                 // solve lazy evaluation
 		if (!tn       ) tn = (*this)->name() ;                                 // .
-		/**/            return sm.rule->tflags(fm.idx(tn))[tf] ;
+		/**/            return sm.rule->tflags(sm.star_idx(tn))[tf] ;
 	}
 
 	//

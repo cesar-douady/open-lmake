@@ -56,7 +56,7 @@ namespace Engine {
 		static ::umap<Job        ,Time::Pdate> _s_job_to_end_dates   ;         // end_dates of all jobs that have ended after the earliest start date mentioned above
 		static ::map <Time::Pdate,Job        > _s_end_date_to_jobs   ;         // .
 		// cxtors & casts
-		Job( Rule::FullMatch&& , Req={} , DepDepth lvl=0 ) ;                   // plain Job, req is only for error reporting
+		Job( Rule::SimpleMatch&& , Req={} , DepDepth lvl=0 ) ;                 // plain Job, req is only for error reporting
 	public :
 		using JobBase::JobBase ;
 		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ;        // plain Job, match on target
@@ -119,9 +119,9 @@ namespace Engine {
 		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {} // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
-		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void             report_start(                                                                                                                                  ) const ;
-		void             started     ( bool report , ::vmap<Node,bool/*uniquify*/> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void             report_start(                                                                                                                   ) const ;
+		void             started     ( bool report , ::vector<Node> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
@@ -266,7 +266,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		// services
-		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions( Rule::SimpleMatch const& , bool manual_ok=false , bool mark_target_dirs=false ) const ; // thread-safe
+		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> pre_actions( Rule::SimpleMatch const& , bool manual_ok=false , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		void     end_exec      (                               ) const ;       // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
@@ -275,7 +275,6 @@ namespace Engine {
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                             // thread-safe
-		Rule::FullMatch   full_match    () const ;
 		::vector<Node>    targets       () const ;
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
@@ -352,8 +351,8 @@ namespace Engine {
 	// Job
 	//
 
-	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::FullMatch(rt,t ),req,lvl} {}
-	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::FullMatch(r ,jn),req,lvl} {}
+	inline Job::Job( RuleTgt rt , ::string const& t  , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(rt,t ),req,lvl} {}
+	inline Job::Job( Rule    r  , ::string const& jn , Req req , DepDepth lvl ) : Job{Rule::SimpleMatch(r ,jn),req,lvl} {}
 	//
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                                New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
@@ -389,7 +388,6 @@ namespace Engine {
 	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
 
 	inline Rule::SimpleMatch JobData::simple_match() const { return Rule::SimpleMatch(idx()) ; }
-	inline Rule::FullMatch   JobData::full_match  () const { return Rule::FullMatch  (idx()) ; }
 
 	inline void JobData::invalidate_old() {
 		if ( +rule && rule.old() ) idx().pop() ;

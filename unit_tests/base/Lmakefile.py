@@ -14,9 +14,9 @@ from lmake.rules import Rule,PyRule,DynamicPyRule
 version = 1
 
 def balanced(n) :
-	if not n : return '[^{}]*'
+	if not n : return r'[^{}]*'
 	p = balanced(n-1)
-	return f'{p}({{{p}}}{p})*'
+	return fr'{p}(\{{{p}\}}{p})*'
 class BaseRule(Rule) :
 	stems = {
 		'File'    : r'.*'

@@ -194,20 +194,20 @@ namespace Backends {
 			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ; // fd is needed to reply
 			default : FAIL(jrr.proc) ;
 		}
-		Job                                                       job               { jrr.job        } ;
-		JobExec                                                   job_exec          ;
-		Rule                                                      rule              = job->rule        ;
-		JobRpcReply                                               reply             { JobProc::Start } ;
-		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>> pre_actions       ;
-		StartCmdAttrs                                             start_cmd_attrs   ;
-		::pair_ss/*script,call*/                                  cmd               ;
-		::vmap_s<pair_s<AccDflags>>                               deps_attrs        ;
-		StartRsrcsAttrs                                           start_rsrcs_attrs ;
-		StartNoneAttrs                                            start_none_attrs  ;
-		::string                                                  start_stderr      ;
-		Pdate                                                     eta               ;
-		SubmitAttrs                                               submit_attrs      ;
-		::vmap_ss                                                 rsrcs             ;
+		Job                                        job               { jrr.job        } ;
+		JobExec                                    job_exec          ;
+		Rule                                       rule              = job->rule        ;
+		JobRpcReply                                reply             { JobProc::Start } ;
+		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
+		StartCmdAttrs                              start_cmd_attrs   ;
+		::pair_ss/*script,call*/                   cmd               ;
+		::vmap_s<pair_s<AccDflags>>                deps_attrs        ;
+		StartRsrcsAttrs                            start_rsrcs_attrs ;
+		StartNoneAttrs                             start_none_attrs  ;
+		::string                                   start_stderr      ;
+		Pdate                                      eta               ;
+		SubmitAttrs                                submit_attrs      ;
+		::vmap_ss                                  rsrcs             ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		{	::unique_lock lock { _s_mutex } ;           // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
@@ -282,7 +282,7 @@ namespace Backends {
 				return false ;
 			}
 			//
-			::vector_s targets  = match.targets()        ;
+			::vector_s targets  = match.static_targets() ; for( ::string const& t : match.star_patterns() ) targets.push_back(t) ;
 			SmallId    small_id = _s_small_ids.acquire() ;
 			//
 			::string tmp_dir = keep_tmp ?
@@ -393,9 +393,9 @@ namespace Backends {
 			case JobProc::End  : break ;                                       // no reply
 			default : FAIL(jrr.proc) ;
 		}
-		Job       job         { jrr.job } ;
-		JobExec   job_exec    ;
-		::vmap_ss rsrcs       ;
+		Job       job      { jrr.job } ;
+		JobExec   job_exec ;
+		::vmap_ss rsrcs    ;
 		Trace trace(BeChnl,"_s_handle_job_end",jrr) ;
 		{	::unique_lock lock { _s_mutex } ;                                  // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//

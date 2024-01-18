@@ -106,6 +106,11 @@ namespace Engine {
 
 	Config::Config(Py::Mapping const& py_map) : booted{true} { // if config is read from makefiles, it is booted
 		db_version = Version::Db ;                             // record current version
+		// generate a random key
+		char     buf_char[8] ; IFStream("/dev/urandom").read(buf_char,sizeof(buf_char)) ;
+		uint64_t buf_int     ; ::memcpy( &buf_int , buf_char , sizeof(buf_int) )        ;
+		key = to_string( ::hex , ::setfill('0') , ::setw(sizeof(buf_int)*2) , buf_int ) ;
+		//
 		::vector_s fields = {{}} ;
 		try {
 			fields[0] = "hash_algo"        ; if (py_map.hasKey(fields[0])) hash_algo             = mk_enum<Algo>                         (Py::String(py_map[fields[0]]))               ;
@@ -267,6 +272,7 @@ namespace Engine {
 		/**/                       res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
 		if (hash_algo!=Algo::Xxh ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
 		/**/                       res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
+		/**/                       res << "\tkey             : " << key                                     <<'\n' ;
 		if (+user_local_admin_dir) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
 		//
 		// static
@@ -360,14 +366,11 @@ namespace Engine {
 	void Config::open(bool dynamic) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
-		static ::string repo_key ;
-		if (!repo_key) {
-			repo_key = '/' + ::string(Xxh(*g_root_dir).digest()) ;
-		}
 		//
-		local_admin_dir  = +user_local_admin_dir  ? user_local_admin_dir  + repo_key + "-la"  : PrivateAdminDir+"/local_admin"s  ;
-		remote_admin_dir = +user_remote_admin_dir ? user_remote_admin_dir + repo_key + "-ra"  : PrivateAdminDir+"/remote_admin"s ;
-		remote_tmp_dir   = +user_remote_tmp_dir   ? user_remote_tmp_dir   + repo_key + "-tmp" : PrivateAdminDir+"/remote_tmp"s   ;
+		SWEAR(+key) ;                                                                                                                    // ensure no init problem
+		local_admin_dir  = +user_local_admin_dir  ? to_string(user_local_admin_dir ,'/',key,"-la" ) : PrivateAdminDir+"/local_admin"s  ; // add key and suffix to ensure different dirs
+		remote_admin_dir = +user_remote_admin_dir ? to_string(user_remote_admin_dir,'/',key,"-ra" ) : PrivateAdminDir+"/remote_admin"s ; // .
+		remote_tmp_dir   = +user_remote_tmp_dir   ? to_string(user_remote_tmp_dir  ,'/',key,"-tmp") : PrivateAdminDir+"/remote_tmp"s   ; // .
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;

@@ -125,9 +125,8 @@ private :
 		_s_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
 	}
 public :
-	template<class... A> void report_trace(A const&... args) {
-		_s_report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;
-	}
+	template<class... A> [[noreturn]] void report_panic(A const&... args) { _s_report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(2) ; } // continuing is meaningless
+	template<class... A>              void report_trace(A const&... args) { _s_report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;           }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	struct Path {
@@ -185,24 +184,19 @@ public :
 		Fd          at        = Fd::Cwd       ;            // at & file may be modified, but together, they always refer to the same file
 		const char* file      = ""            ;            // .
 	} ;
-	struct Real : Path {
-		// cxtors & casts
-		Real() = default ;
-		Real(Path&& path) : Path{::move(path)} {}
-		// services
-		template<class T> T operator()( Record& , T rc ) { return rc ; }
-		// data
-		::string real = {} ;
-	} ;
-	struct Solve : Real {
+	struct Solve : Path {
 		// search (executable if asked so) file in path_var
 		Solve()= default ;
-		Solve( Record& r , Path&& path , bool no_follow , bool read , ::string const& c={} ) : Real{::move(path)} {
+		Solve( Record& r , Path&& path , bool no_follow , bool read , bool allow_tmp_map , ::string const& c={} ) : Path{::move(path)} {
 			SolveReport sr = r._solve( *this , no_follow , read , c ) ;
+			if ( sr.mapped && !allow_tmp_map ) r.report_panic("cannot use tmp mapping to map ",file," to ",sr.real) ;
 			real     = ::move(sr.real)  ;
 			accesses = sr.last_accesses ;
 		}
+		// services
+		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		// data
+		::string real     ;
 		Accesses accesses ;
 	} ;
 	struct ChDir : Solve {
@@ -249,7 +243,7 @@ public :
 	} ;
 	struct Read : Solve {
 		Read() = default ;
-		Read( Record& , Path&& , bool no_follow , ::string&& comment="read" ) ;
+		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment="read" ) ;
 	} ;
 	struct ReadLnk : Solve {
 		// cxtors & casts
@@ -274,11 +268,6 @@ public :
 		Solve      dst     ;
 		::vector_s unlinks ;
 		::vector_s writes  ;
-	} ;
-	struct Search : Real {
-		// search (executable if asked so) file in path_var
-		Search() = default ;
-		Search( Record& , Path const& , bool exec , const char* path_var , ::string&& comment="search" ) ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
@@ -312,6 +301,7 @@ protected :
 	// data
 protected :
 	Disk::RealPath                                                real_path    ;
+	bool                                                          tmp_mapped   = false ; // set when tmp_map is actually used to solve a file
 	mutable bool                                                  tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
 	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> access_cache ;         // map file to read accesses
 } ;

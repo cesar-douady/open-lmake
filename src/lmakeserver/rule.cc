@@ -12,6 +12,7 @@
 namespace Engine {
 
 	using namespace Disk ;
+	using namespace Re   ;
 
 	ENUM( StarAction
 	,	None
@@ -550,14 +551,15 @@ namespace Engine {
 			case Special::Req      : force = true      ; break ;
 			case Special::Infinite : prio  = -Infinity ; break ;               // -inf : it can appear after other rules
 			case Special::GenericSrc :
-				name             = "source dir" ;
-				job_name         = src_dir_s    ; _append_stem(job_name,0) ;
-				force            = true         ;
-				n_static_stems   = 1            ;
-				n_static_targets = 1            ;
-				allow_ext        = true         ;                              // sources may lie outside repo
-				stems  .emplace_back("",".*"                 ) ;
-				targets.emplace_back("",TargetEntry(job_name)) ;
+				name             = "source dir"  ;
+				job_name         = src_dir_s     ; _append_stem(job_name,0) ;
+				force            = true          ;
+				n_static_stems   = 1             ;
+				n_static_targets = 1             ;
+				allow_ext        = true          ;                              // sources may lie outside repo
+				stems           .emplace_back("",".*"                 ) ;
+				stem_mark_counts.push_back   (0                       ) ;
+				targets         .emplace_back("",TargetEntry(job_name)) ;
 				_compile() ;
 			break ;
 			default : FAIL(s) ;
@@ -781,7 +783,7 @@ namespace Engine {
 				}
 				if (!job_name_key) add_cwd( job_name , seen_top ) ;
 				n_static_targets = targets.size() ;
-				if (!is_special()) for( auto& ts : star_targets ) targets.push_back(::move(ts)) ; // star-targets are meaningless for an source & anti-rule
+				if (!is_special()) for( auto& st : star_targets ) targets.push_back(::move(st)) ; // star-targets are meaningless for source & anti-rule
 			}
 			SWEAR(found_matching) ;                                            // we should not have come until here without a clean target
 			field = "" ;
@@ -890,7 +892,7 @@ namespace Engine {
 		catch(Py::Exception & e) { throw to_string("while processing ",name,'.',field," :\n\t",e.errorValue()) ; }
 	}
 
-	Py::Pattern RuleData::_mk_pattern( ::string const& target , bool for_name ) const {
+	TargetPattern RuleData::_mk_pattern( ::string const& target , bool for_name ) const {
 		// Generate and compile Python pattern
 		// target has the same syntax as Python f-strings except expressions must be named as found in stems
 		// we transform that into a pattern by :
@@ -898,35 +900,35 @@ namespace Engine {
 		// - transform f-string syntax into Python regexpr syntax
 		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(?P<_0>.*)c\.d"
 		// remember that what is stored in targets is actually a stem idx, not a stem key
-		::uset<VarIdx> seen       ;
-		::uset<VarIdx> seen_twice ;
-		_parse_target( target ,
-			[&](VarIdx s)->void {
-				if (seen.contains(s)) seen_twice.insert(s) ;
-				else                  seen      .insert(s) ;
-			}
-		) ;
-		seen.clear() ;
-		Py::Pattern res = _subst_target(
+		//
+		TargetPattern res       ;
+		VarIdx        cur_group = 1 ;
+		//
+		::string pattern = _subst_target(
 			target
 		,	[&](VarIdx s)->::string {
-				if      ( seen.contains(s)                           ) {                  return to_string("(?P=",'_',s,                    ')') ; }
-				else if ( s<n_static_stems || seen_twice.contains(s) ) { seen.insert(s) ; return to_string("(?P<",'_',s,'>',stems[s].second,')') ; }
-				else if ( !for_name                                  ) {                  return to_string('('   ,          stems[s].second,')') ; }
-				else {
+				if ( s>=n_static_stems && for_name ) {
 					::string const& k = stems[s].first ;
-					if ( k.front()=='<' && k.back()=='>' ) return escape(to_string('{',  "*}")) ; // anonymous star-stem, the whole purpose of matching on job name is to match star-stems as is
-					else                                   return escape(to_string('{',k,"*}")) ; // named     star-stem, .
+					if (k.front()=='<'&&k.back()=='>' ) return escape(to_string('{',""s,"*}")) ; // when matching on job name, star stems are matched as they are reported to user
+					else                                return escape(to_string('{',k  ,"*}")) ; // .
 				}
+				if ( grow(res.groups,s) )
+					return to_string("(?:\\",res.groups[s],')') ; // already seen, we must protect against following text potentially containing numbers
+				grow(res.groups,s)  = cur_group             ;
+				cur_group          += 1+stem_mark_counts[s] ;
+				return to_string('(',stems[s].second,')') ;
 			}
 		,	true/*escape*/
 		) ;
-		Py::boost(res) ;                                                       // prevent deallocation at end of execution that generates crashes
+		res.re = RegExpr( pattern , true/*fast*/ ) ; // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
+
 	void RuleData::_compile() {
-		Py::Gil gil ;
 		try {
+			for( auto const& [k,s] : stems )
+				try         { stem_mark_counts.push_back(RegExpr(s).mark_count()) ; }
+				catch (...) { throw to_string("bad regexpr for stem ",k," : ",s) ;  }
 			// job_name & targets
 			/**/                                job_name_pattern =        _mk_pattern(job_name  ,true /*for_name*/)  ;
 			for( auto const& [k,te] : targets ) target_patterns.push_back(_mk_pattern(te.pattern,false/*for_name*/)) ;
@@ -943,8 +945,9 @@ namespace Engine {
 			end_cmd_attrs     .compile() ;
 			end_none_attrs    .compile() ;
 		}
-		catch(::string const& e) { throw to_string("while processing ",name," :\n"  ,indent(e)     ) ; }
-		catch(Py::Exception & e) { throw to_string("while processing ",name," :\n\t",e.errorValue()) ; }
+		catch (::string const& e) {
+			throw to_string("while processing ",name," :\n",indent(e)) ;
+		}
 	}
 
 	template<class T> static ::string _pretty_vmap( size_t i , ::vmap_s<T> const& m , bool uniq=false ) {
@@ -1315,23 +1318,29 @@ namespace Engine {
 		}
 	}
 
+	Rule::SimpleMatch::SimpleMatch( Rule r , TargetPattern const& pattern , ::string const& name ) {
+		Trace trace("SimpleMatch",r,name) ;
+		Match m = pattern.match(name) ;
+		if (!m) { trace("no_match") ; return ; }
+		rule = r ;
+		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(::string(m[pattern.groups[s]])) ;
+		trace("stems",stems) ;
+	}
+
+	Rule::SimpleMatch::SimpleMatch( RuleTgt rt , ::string const& target ) : SimpleMatch{rt,rt.pattern(),target} {
+		if (!*this) return ;
+		for( VarIdx t : rt->targets[rt.tgt_idx].second.conflicts ) {
+			if (!rt->target_patterns[t].match(target)) continue ;
+			rule .clear() ;
+			stems.clear() ;
+			Trace("SimpleMatch","conflict",rt.tgt_idx,t) ;
+			return ;
+		}
+	}
+
 	::ostream& operator<<( ::ostream& os , Rule::SimpleMatch const& m ) {
 		os << "RSM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
-	}
-
-	void Rule::SimpleMatch::_compute_targets() const {
-		for( VarIdx t=0 ; t<rule->targets.size() ; t++ ) {
-			bool is_star = rule->tflags(t)[Tflag::Star] ;
-			_targets.push_back(_subst_target(
-				rule->targets[t].second.pattern
-			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) {                  return is_star ? escape(stems[s]) : stems[s] ; }
-					else                        { SWEAR(is_star) ; return '('+rule->stems[s].second+')'         ; }
-				}
-			,	is_star/*escape*/
-			)) ;
-		}
 	}
 
 	::vector<Node> Rule::SimpleMatch::target_dirs() const {
@@ -1347,6 +1356,57 @@ namespace Engine {
 			if (sep!=Npos) dirs.insert(Node(target.substr(0,sep))) ;
 		}
 		return mk_vector(dirs) ;
+	}
+
+	::vector_s Rule::SimpleMatch::star_patterns() const {
+		::vector_s res ;
+		for( VarIdx t=rule->n_static_targets ; t<rule->targets.size() ; t++ ) {
+			SWEAR(rule->tflags(t)[Tflag::Star]) ;
+			::uset<VarIdx> seen ;
+			res.push_back(_subst_target(
+				rule->targets[t].second.pattern
+			,	[&](VarIdx s)->::string {
+					if (s<rule->n_static_stems) return escape(stems[s]) ;
+					if (seen.insert(s).second ) return to_string('('    ,rule->stems[s].second             ,')') ;
+					else                        return to_string("(?:\\",rule->target_patterns[t].groups[s],')') ; // we must protect against following text potentially containing numbers
+				}
+			,	true/*escape*/
+			)) ;
+		}
+		return res ;
+	}
+
+	::vector_s Rule::SimpleMatch::py_targets() const {
+		::vector_s res = static_targets() ;
+		for( VarIdx t=rule->n_static_targets ; t<rule->targets.size() ; t++ ) {
+			SWEAR(rule->tflags(t)[Tflag::Star]) ;
+			::uset<VarIdx> seen ;
+			res.push_back(_subst_target(
+				rule->targets[t].second.pattern
+			,	[&](VarIdx s)->::string {
+					if (s<rule->n_static_stems) return escape(stems[s]) ;
+					if (seen.insert(s).second ) return to_string("(?P<",rule->stems[s].first,'>',rule->stems[s].second,')') ;
+					else                        return to_string("(?P=",rule->stems[s].first,                          ')') ;
+				}
+			,	true/*escape*/
+			)) ;
+		}
+		return res ;
+	}
+
+	::vector_s Rule::SimpleMatch::static_targets() const {
+		::vector_s res ;
+		for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) {
+			SWEAR(!rule->tflags(t)[Tflag::Star]) ;
+			res.push_back(_subst_target(
+				rule->targets[t].second.pattern
+			,	[&](VarIdx s)->::string {
+					SWEAR(s<rule->n_static_stems) ;
+					return stems[s] ;
+				}
+			)) ;
+		}
+		return res ;
 	}
 
 	::pair_ss Rule::SimpleMatch::full_name() const {
@@ -1371,51 +1431,25 @@ namespace Engine {
 		return {name,sfx} ;
 	}
 
-	//
-	// Rule::FullMatch
-	//
-
-	Rule::FullMatch::FullMatch( Rule r , Py::Pattern const& pattern , ::string const& name ) {
-		Trace trace("FullMatch",r,name) ;
-		Py::Gil   gil ;
-		Py::Match m   = pattern.match(name) ;
-		if (!m) { trace("no_match") ; return ; }
-		rule = r ;
-		for( VarIdx s=0 ; s<r->n_static_stems ; s++ ) stems.push_back(m[to_string('_',s)]) ;
-		trace("stems",stems) ;
+	VarIdx Rule::SimpleMatch::idx(::string const& target) const {
+		if (!_has_static_targets) {
+			::vector_s sts = static_targets() ;
+			for( VarIdx t=0 ; t<rule->n_static_targets ; t++ ) _static_targets.emplace(sts[t],t) ;
+			_has_static_targets = true ;
+		}
+		auto it = _static_targets.find(target) ;
+		if (it==_static_targets.end()) return star_idx(target) ;
+		else                           return it->second       ;
 	}
-
-	Rule::FullMatch::FullMatch( RuleTgt rt , ::string const& target ) : FullMatch{rt,rt.pattern(),target} {
-		if (!*this) return ;
-		::vector<VarIdx> const& conflicts = rt->targets[rt.tgt_idx].second.conflicts ;
-		if (!conflicts) return ;                                                       // fast path : avoid computing targets()
-		targets() ;                                                                    // _match needs targets but do not compute them as targets computing needs _match
-		for( VarIdx t : rt->targets[rt.tgt_idx].second.conflicts )
-			if (_match(t,target)) {                                            // if target matches an earlier target, it is not a match for this one
-				rule .clear() ;
-				stems.clear() ;
-				Trace("FullMatch","conflict",rt.tgt_idx,t) ;
-				return ;
-			}
-	}
-
-	::ostream& operator<<( ::ostream& os , Rule::FullMatch const& m ) {
-		os << "RM(" << m.rule << ',' << m.stems << ')' ;
-		return os ;
-	}
-
-	Py::Pattern const& Rule::FullMatch::_target_pattern(VarIdx t) const {
-		if (!_target_patterns) _target_patterns.resize(rule->targets.size()) ;
-		SWEAR( _targets.size()>t , _targets.size() , t ) ;                            // _targets must have been computed up to t at least
-		if (!*_target_patterns[t]) _target_patterns[t] = _targets[t] ;
-		return _target_patterns[t] ;
-	}
-
-	bool Rule::FullMatch::_match( VarIdx t , ::string const& target ) const {
-		Py::Gil gil ;
-		SWEAR( _targets.size()>t , _targets.size() , t ) ;                           // _targets must have been computed up to t at least
-		if (rule->tflags(t)[Tflag::Star]) return +_target_pattern(t).match(target) ;
-		else                              return target==_targets[t]               ;
+	VarIdx Rule::SimpleMatch::star_idx(::string const& target) const {
+		for( VarIdx t=rule->n_static_targets ; t<rule->targets.size() ; t++ ) {
+			Match m = rule->target_patterns[t].match(target) ;
+			if (!m) continue ;
+			for( VarIdx i=0 ; i<rule->n_static_stems ; i++ ) if (m[rule->target_patterns[t].groups[i]]!=stems[i]) goto Continue ;
+			return t ;
+		Continue : ;
+		}
+		return NoVar ;
 	}
 
 }

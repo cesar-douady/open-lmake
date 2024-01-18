@@ -7,6 +7,8 @@
 
 #include "lib.hh"
 
+#include "record.hh"
+
 bool        g_force_orig = false   ;
 const char* g_libc_name  = nullptr ;
 
@@ -43,6 +45,12 @@ void* get_orig(const char* syscall) {
 	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ;             // may be not initialized if syscall was routed to another syscall // XXX : why get_libc_handle() does not work ?
 	return entry.orig ;
 }
+
+void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us about indirectly loaded libraries
+
+// elf dependencies are capture by auditing code, no need to interpret elf content
+void         elf_deps  ( Record& /*r*/ , ::string const& /*real*/ , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
+Record::Read search_elf( Record& /*r*/ , const char*     /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
 #define LD_AUDIT 1
 #include "ld.cc"
@@ -190,12 +198,18 @@ Ignore :
 #pragma GCC visibility push(default)
 extern "C" {
 
-	unsigned int la_version(unsigned int /*version*/) { return LAV_CURRENT ; }
+	unsigned int la_version(unsigned int /*version*/) {
+		return LAV_CURRENT ;
+	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		auditer() ;                                                                     // force Audit static init
-		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                   // linux-vdso.so is listed, but is not a real file
-			Read(map->l_name,false/*no_follow*/,"la_objopen") ;
+		auditer() ;                                                                                       // force Audit static init
+		if ( !map->l_name || !*map->l_name ) {
+			*cookie = true/*not_std*/ ;
+			return LA_FLG_BINDFROM ;
+		}
+		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                     // linux-vdso.so is listed, but is not a real file
+			Read(map->l_name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
@@ -207,9 +221,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , unsigned int flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,"la_objsearch") ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Read(name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objsearch") ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,"la_objsearch") ; break ;
+			case LA_SER_RUNPATH :                        Read(name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objsearch") ; break ;
 			default : ;
 		}
 		return const_cast<char*>(name) ;

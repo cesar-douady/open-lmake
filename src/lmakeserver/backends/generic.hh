@@ -163,12 +163,14 @@ namespace Backends {
 			return IsLocal ;
 		}
 		virtual void open_req( ReqIdx req , JobIdx n_jobs ) {
+			Trace trace("open_req",req,n_jobs) ;
 			::unique_lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool          inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
 			SWEAR(inserted) ;
 		}
 		virtual void close_req(ReqIdx req) {
 			auto it = reqs.find(req) ;
+			Trace trace("close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                       // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR(!re.waiting_jobs) ;

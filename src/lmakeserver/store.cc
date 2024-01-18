@@ -164,7 +164,8 @@ namespace Engine::Persistent {
 		Trace trace("new_config",Pdate::s_now(),STR(dynamic),STR(rescue)) ;
 		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlink_ok*/ ) ;
 		if ( !dynamic                                              ) _init_config() ;
-		if (  dynamic                                              ) SWEAR(g_config.booted,g_config) ; // we must update something
+		else                                                         SWEAR(g_config.booted,g_config) ; // we must update something
+		if (                                       g_config.booted ) config.key = g_config.key ;
 		//
 		diff(g_config,config) ;
 		//
@@ -176,11 +177,11 @@ namespace Engine::Persistent {
 		//
 		/**/                                                         Config old_config = g_config ;
 		if (             +d                                        ) g_config = ::move(config) ;
-		/**/                                                         g_config.open(dynamic)           ;
-		if (             +d                                        ) _save_config()                   ;
+		if (                                       g_config.booted ) g_config.open(dynamic)           ;
+		if (             +d                     && g_config.booted ) _save_config()                   ;
 		if ( !dynamic                                              ) _init_srcs_rules(rescue)         ;
-		if (             +d                                        ) _diff_config(old_config,dynamic) ;
-		if (  dynamic                                              ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
+		if (             +d                     && g_config.booted ) _diff_config(old_config,dynamic) ;
+		if (  dynamic &&                           g_config.booted ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
 		trace("done",Pdate::s_now()) ;
 		if (!g_config.booted) throw "no config available"s ;                                            // we'd better have a config at the end
 	}

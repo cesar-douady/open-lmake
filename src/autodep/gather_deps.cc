@@ -111,10 +111,6 @@ void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 
 ENUM( GatherDepsKind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
 
-static inline void _set_status( Status& status , Status new_status ) {
-	if (status==Status::New) status = new_status ;                             // else there is already another reason
-}
-
 void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 	static constexpr uint64_t One = 1 ;
 	do { ::waitpid(pid,wstatus,0) ; } while (WIFSTOPPED(*wstatus)) ;
@@ -126,10 +122,10 @@ bool/*done*/ GatherDeps::kill(int sig) {
 	::unique_lock lock{_pid_mutex} ;
 	killed = true ;                                                                                                     // prevent child from starting if killed before
 	int  kill_sig = sig>=0 ? sig : SIGKILL ;
-	bool killed   = false                  ;
-	//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	if (pid>1) killed = kill_process(pid,kill_sig,create_group) ;
-	//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	bool killed_  = false                  ;
+	//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if (pid>1) killed_ = kill_process(pid,kill_sig,create_group) ;
+	//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( sig<0 && (+child_stdout||+child_stderr) ) {                                                                    // kill all processes (or process groups) connected to a stream we wait for
 		pid_t        ctl_pid   = getpid() ;
 		::string     stdout_fn ; if (+child_stdout) stdout_fn = read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ;
@@ -153,12 +149,12 @@ bool/*done*/ GatherDeps::kill(int sig) {
 		NextProc : ;
 		}
 		trace("to_kill",to_kill) ;
-		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		for( pid_t p : to_kill ) killed |= kill_process(p,kill_sig,create_group) ;
-		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( pid_t p : to_kill ) killed_ |= kill_process(p,kill_sig,create_group) ;
+		//                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
-	trace("done",STR(killed)) ;
-	return killed ;
+	trace("done",STR(killed_)) ;
+	return killed_ ;
 }
 
 void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
@@ -297,18 +293,25 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		}
 		return false ;
 	} ;
+	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
+		if (status==Status::New) status = status_             ;                   // else there is already another reason
+		if (+msg_              ) msg    = ensure_nl(msg)+msg_ ;
+	} ;
 	//
 	if (+timeout            ) end = PD::s_now() + timeout ;
 	if (cstdout==Child::Pipe) epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ;
 	if (cstderr==Child::Pipe) epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ;
-	/**/                      epoll.add_read(child_fd            ,Kind::ChildEnd) ;
-	/**/                      epoll.add_read(master_fd           ,Kind::Master  ) ;
+	/**/                      epoll.add_read(child_fd                 ,Kind::ChildEnd) ;
+	/**/                      epoll.add_read(master_fd                ,Kind::Master  ) ;
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
 		if (+end) {
 			PD now = PD::s_now() ;
 			if (now>=end) {
-				_set_status(status,Status::Timeout) ;
+				if (!killed) {
+					killed = true ;
+					set_status(Status::Err,to_string("timout after ",timeout.short_str())) ;
+				}
 				kill_job_cb() ;
 			}
 			wait_ns = (end-now).nsec() ;
@@ -340,15 +343,15 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					uint64_t one = 0/*garbage*/            ;
 					int      cnt = ::read( fd , &one , 8 ) ; SWEAR( cnt==8 && one==1 , cnt , one ) ;
 					{	::unique_lock lock{_pid_mutex} ;
-						child.pid = -1 ;                                                                                                 // too late to kill job
+						child.pid = -1 ;                                                                                        // too late to kill job
 					}
-					if      (WIFEXITED  (wstatus)) _set_status( status , WEXITSTATUS(wstatus)!=0       ?Status::Err:Status::Ok       ) ;
-					else if (WIFSIGNALED(wstatus)) _set_status( status , is_sig_sync(WTERMSIG(wstatus))?Status::Err:Status::LateLost ) ; // synchronous signals are actually errors
+					if      (WIFEXITED  (wstatus)) set_status( WEXITSTATUS(wstatus)!=0       ?Status::Err:Status::Ok       ) ;
+					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus))?Status::Err:Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
 					trace(status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
-					epoll.cnt-- ;                                                                                                        // do not wait for new connections, but if one arrives ...
-				} break ;                                                                                                                // ... before all flows are closed, process it
+					epoll.cnt-- ;                                                         // do not wait for new connections, but if one arrives before all flows are closed, process it
+				} break ;
 				case Kind::Master : {
 					SWEAR(fd==master_fd) ;
 					Fd slave = master_fd.accept() ;
@@ -365,18 +368,12 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					trace(jrr) ;
 					Fd rfd = it->second.fd ;                                              // capture before move
 					switch (jrr.proc) {
-						case JobProc::ChkDeps  :
-							if (jrr.ok==Maybe ) {
-								_set_status(status,Status::ChkDeps) ;
-								//vvvvvvvvvvv
-								kill_job_cb() ;
-								//^^^^^^^^^^^
-							}
-						break ;
-						case JobProc::DepInfos :                                  break ;
+						case JobProc::ChkDeps  : if (jrr.ok==Maybe) { set_status(Status::ChkDeps) ; kill_job_cb() ; } break ;
+						case JobProc::DepInfos :                                                                      break ;
 						case JobProc::Decode   :
-						case JobProc::Encode   : _codec(::move(it->second),jrr) ; break ;
-						default : FAIL(jrr.proc) ;                                        // XXX : properly kill job if server dies
+						case JobProc::Encode   : _codec(::move(it->second),jrr) ;                                     break ;
+						case JobProc::None     : kill_job_cb() ;                                                      break ; // server died
+						default : FAIL(jrr.proc) ;
 					}
 					//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (+rfd) sync( rfd , JobExecRpcReply(jrr) ) ;
@@ -393,18 +390,19 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					if ( proc!=Proc::Access                     ) trace(kind,fd,epoll.cnt,proc) ;     // there may be too many Access'es, only trace within _new_accesses
 					if ( proc>=Proc::HasFiles && jerr.auto_date ) _fix_auto_date(fd,jerr)       ;
 					switch (proc) {
-						case Proc::None      : epoll.close(fd) ; slaves.erase(fd) ;    break        ;
-						case Proc::Tmp       : seen_tmp = true ;                       break        ;
-						//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access    : _new_accesses(fd,::move(jerr)) ;        break        ;
-						case Proc::Guard     : _new_guards  (fd,::move(jerr)) ;        break        ;
-						case Proc::Confirm   : _confirm     (fd,::move(jerr)) ;        break        ;
-						//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						case Proc::DepInfos  :
-						case Proc::Decode    :
-						case Proc::Encode    : handle_req_to_server(fd,::move(jerr)) ; goto NoReply ;
-						case Proc::ChkDeps   : delayed_check_deps[fd] = ::move(jerr) ; goto NoReply ; // if sync, reply is delayed as well
-						case Proc::Trace     : trace(jerr.txt) ;                       break        ;
+						case Proc::None     : epoll.close(fd) ; slaves.erase(fd) ;               break        ;
+						case Proc::Tmp      : seen_tmp = true ;                                  break        ;
+						//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case Proc::Access   : _new_accesses(fd,::move(jerr)) ;                   break        ;
+						case Proc::Guard    : _new_guards  (fd,::move(jerr)) ;                   break        ;
+						case Proc::Confirm  : _confirm     (fd,::move(jerr)) ;                   break        ;
+						//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						case Proc::DepInfos :
+						case Proc::Decode   :
+						case Proc::Encode   : handle_req_to_server(fd,::move(jerr)) ;            goto NoReply ;
+						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;            goto NoReply ; // if sync, reply is delayed as well
+						case Proc::Trace    : trace(jerr.txt) ;                                  break        ;
+						case Proc::Panic    : set_status(Status::Err,jerr.txt) ; kill_job_cb() ; break        ;
 						default : FAIL(proc) ;
 					}
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;

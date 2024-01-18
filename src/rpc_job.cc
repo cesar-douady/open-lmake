@@ -22,7 +22,7 @@ using namespace Hash ;
 	return                                                os <<')'                      ;
 }
 
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction> const& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
 	::uset_s   keep_dirs ;
 	::vector_s unlinks   ;
 	::string   msg       ;
@@ -32,21 +32,22 @@ using namespace Hash ;
 		for( ::string d=dir ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ;
 	} ;
 	// check manual
-	for( auto const& [f,a] : pre_actions ) {                                                                   // pre_actions are adequately sorted
-		{ if ( a.tag>FileActionTag::HasFile             ) continue ; } FileInfo fi { nfs_guard.access(f) } ;   // no file to check
-		{ if ( !fi                                      ) continue ; }                                         // file does not exist, it cannot be manual
-		{ if ( a.crc!=Crc::None && fi.date==a.date      ) continue ; }                                         // if dates match, we are ok, else we are manual, but maybe not an error
-		append_to_string(msg,"manual ",mk_file(f),'\n') ;
-		{ if ( a.manual_ok                              ) continue ; }                                         // if manual_ok, it is not an error
-		{ if ( !a.crc.valid() || a.crc.match(Crc(f,ha)) ) continue ; } ok = false ;                            // if no expected crc or recomputed crc matches, it is not an error
+	for( auto& [f,a] : pre_actions ) {                                                                                             // pre_actions are adequately sorted
+		{ if ( a.tag>FileActionTag::HasFile             )                     continue ;   } FileInfo fi { nfs_guard.access(f) } ; // no file to check
+		{ if ( !fi                                      ) { a.crc=Crc::None ; continue ; } }                                       // file does not exist, it cannot be manual
+		{ if ( a.crc!=Crc::None && fi.date==a.date      )                     continue ;   }                                       // if dates match, we are ok, else we are manual
+		append_to_string(msg,"manual ",mk_file(f),'\n') ;                                                                          // manual is not an error
+		{ if ( a.manual_ok                              )                     continue ;   }                                       // if manual_ok, it is not an error
+		{ if ( !a.crc.valid() || a.crc.match(Crc(f,ha)) )                     continue ;   } ok = false ;                          // if no expected crc or recomputed crc matches, it is not an error
 	}
 	if (ok)
-		for( auto const& [f,a] : pre_actions ) {                                                               // pre_actions are adequately sorted
-			SWEAR(+f) ;                                                                                        // acting on root dir is non-sense
+		for( auto const& [f,a] : pre_actions ) {                                                                                   // pre_actions are adequately sorted
+			SWEAR(+f) ;                                                                                                            // acting on root dir is non-sense
+			if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                    // no file to act on
 			switch (a.tag) {
-				case FileActionTag::Keep     :                                                               break ;
-				case FileActionTag::Unlink   : nfs_guard.change(f) ; if (unlink  (f)) unlinks.push_back(f) ; break ;
-				case FileActionTag::Uniquify : nfs_guard.change(f) ; if (uniquify(f)) keep(dir_name(f))    ; break ;
+				case FileActionTag::Keep     : keep(dir_name(f)) ;                                                                                     break ;
+				case FileActionTag::Unlink   :                     if (unlink  (nfs_guard.change(f))) unlinks.push_back(f)                           ; break ;
+				case FileActionTag::Uniquify : keep(dir_name(f)) ; if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
 				case FileActionTag::Mkdir :
 					if (!keep_dirs.contains(f)) {
 						mkdir(f,nfs_guard) ;

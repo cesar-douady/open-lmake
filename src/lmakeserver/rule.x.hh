@@ -6,6 +6,7 @@
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
 #include "pycxx.hh"
+#include "re.hh"
 
 #include "store/prefix.hh"
 #include "store/vector.hh"
@@ -75,7 +76,6 @@ namespace Engine {
 		static constexpr VarIdx NoVar    = -1 ;
 		//
 		struct SimpleMatch ;
-		struct FullMatch   ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb     ) : RuleBase{ rb                                                      } {                                                     }
@@ -440,6 +440,13 @@ namespace Engine {
 		}
 	} ;
 
+	struct TargetPattern {
+		Re::Match match(::string const& t) const { return re.match(t) ; }
+		// data
+		Re::RegExpr      re     ;
+		::vector<VarIdx> groups ; // indexed by stem index, provide the corresponding group number in pattern
+	} ;
+
 	struct RuleData {
 		friend ::ostream& operator<<( ::ostream& , RuleData const& ) ;
 		friend Rule ;
@@ -449,7 +456,7 @@ namespace Engine {
 			// data
 			::string         pattern   = {}         ;
 			Tflags           tflags    = DfltTflags ;
-			::vector<VarIdx> conflicts = {}         ;      // the idx of the previous targets that may conflict with this one
+			::vector<VarIdx> conflicts = {}         ; // the idx of the previous targets that may conflict with this one
 		} ;
 
 		// statics
@@ -516,9 +523,9 @@ namespace Engine {
 			||	end_cmd_attrs     .is_dynamic
 			;
 		}
-		::vector_s  _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
-		void        _set_crcs  (                                 ) ;
-		Py::Pattern _mk_pattern( ::string const& , bool for_name ) const ;
+		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
+		void          _set_crcs  (                                 ) ;
+		TargetPattern _mk_pattern( ::string const& , bool for_name ) const ;
 
 		// user data
 	public :
@@ -527,35 +534,35 @@ namespace Engine {
 		::string              name       ;                                     // the short message associated with the rule
 		::vmap_ss             stems      ;                                     // stems are ordered : statics then stars, stems used as both static and star appear twice
 		::string              cwd_s      ;                                     // cwd in which to interpret targets & deps and execute cmd (with ending /)
-		::string              job_name   ;                                     // used to show in user messages, same format as a target
+		::string              job_name   ;                                     // used to show in user messages (not all fields are actually used)
 		::vmap_s<TargetEntry> targets    ;                                     // keep user order, except static targets before star targets
 		VarIdx                stdout_idx = NoVar         ;                     // index of target used as stdout
 		VarIdx                stdin_idx  = NoVar         ;                     // index of dep used as stdin
 		bool                  allow_ext  = false         ;                     // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicDepsAttrs          deps_attrs         ;                         // in match         crc, evaluated at job creation time
-		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no            crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no            crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs         crc, evaluated at submit time
-		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                         // in no            crc, evaluated at submit time
-		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd           crc, evaluated before execution
-		DynamicCmd                cmd                ;                         // in cmd           crc, evaluated before execution
-		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs         crc, evaluated before execution
-		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no            crc, evaluated before execution
-		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd           crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no            crc, evaluated after  execution
-		::vmap_s<DbgEntry>        dbg_info           ;                         // in no            crc, contains info to debug cmd that must not appear in cmd crc
-		::string                  n_tokens_key       ;                         // in no            crc, contains the key in config.n_tokenss to determine n_tokens
+		DynamicDepsAttrs          deps_attrs         ;                         // in match crc, evaluated at job creation time
+		Dynamic<CreateNoneAttrs > create_none_attrs  ;                         // in no    crc, evaluated at job creation time
+		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;                         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                         // in rsrcs crc, evaluated at submit time
+		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                         // in no    crc, evaluated at submit time
+		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;                         // in cmd   crc, evaluated before execution
+		DynamicCmd                cmd                ;                         // in cmd   crc, evaluated before execution
+		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                         // in rsrcs crc, evaluated before execution
+		Dynamic<StartNoneAttrs  > start_none_attrs   ;                         // in no    crc, evaluated before execution
+		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;                         // in cmd   crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    > end_none_attrs     ;                         // in no    crc, evaluated after  execution
+		::vmap_s<DbgEntry>        dbg_info           ;                         // in no    crc, contains info to debug cmd that must not appear in cmd crc
+		::string                  n_tokens_key       ;                         // in no    crc, contains the key in config.n_tokenss to determine n_tokens
 		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
 		bool                      force              = false ;
 		// derived data
-		bool   cmd_needs_deps   = false        ;
-		Tflags max_tflags       = Tflags::All  ;
-		Tflags min_tflags       = Tflags::None ;
-		VarIdx n_static_stems   = 0            ;
-		VarIdx n_static_targets = 0            ;
-		size_t n_tokens         = 1            ;
+		bool             cmd_needs_deps   = false        ;
+		Tflags           max_tflags       = Tflags::All  ;
+		Tflags           min_tflags       = Tflags::None ;
+		VarIdx           n_static_stems   = 0            ;
+		VarIdx           n_static_targets = 0            ;
+		size_t           n_tokens         = 1            ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                                                // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                                                // for a given cmd, resources generation, must be >=cmd_gen
@@ -563,11 +570,12 @@ namespace Engine {
 		mutable Delay  exec_time    = {} ;                                     // average exec_time
 		mutable JobIdx stats_weight = 0  ;                                     // number of jobs used to compute average
 		// not stored on disk
-		::vector<Py::Pattern> target_patterns  ;
-		Py::Pattern           job_name_pattern ;
-		Crc                   match_crc        = Crc::None ;
-		Crc                   cmd_crc          = Crc::None ;
-		Crc                   rsrcs_crc        = Crc::None ;
+		::vector<VarIdx>        stem_mark_counts ;
+		/**/     TargetPattern  job_name_pattern ;
+		::vector<TargetPattern> target_patterns  ;
+		Crc                     match_crc        = Crc::None ;
+		Crc                     cmd_crc          = Crc::None ;
+		Crc                     rsrcs_crc        = Crc::None ;
 	} ;
 
 	// SimpleMatch does not call Python and only provides services that can be served with this constraint
@@ -575,58 +583,45 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , SimpleMatch const& ) ;
 		// cxtors & casts
 	public :
-		SimpleMatch(                               ) = default ;
-		SimpleMatch( Rule r , ::vector_s const& ss ) : rule{r} , stems{ss} {}
-		SimpleMatch( Job                           ) ;
+		SimpleMatch(                                        ) = default ;
+		SimpleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
+		SimpleMatch( Job                                    ) ;
+		SimpleMatch( Rule    r , ::string   const& job_name ) : SimpleMatch{r,r->job_name_pattern,job_name} {}
+		SimpleMatch( RuleTgt   , ::string   const& target   ) ;
+	private :
+		SimpleMatch( Rule , TargetPattern const& , ::string const& ) ;
+	public :
 		bool operator==(SimpleMatch const&) const = default ;
 		bool operator+ (                  ) const { return +rule ; }
 		bool operator! (                  ) const { return !rule ; }
 		// accesses
-		::vector_s                  const& targets       () const { if (!_has_targets) { _compute_targets()                   ; _has_targets = true ; } return _targets ; }
-		::vmap_s<pair_s<AccDflags>> const& deps          () const { if (!_has_deps   ) { _deps = rule->deps_attrs.eval(*this) ; _has_deps    = true ; } return _deps    ; }
-		::c_vector_view_s                  static_targets() const { return {targets(),0,rule->n_static_targets} ;                                                         }
+		::vector_s star_patterns () const ;
+		::vector_s py_targets    () const ;
+		::vector_s static_targets() const ;
+		//
+		::vmap_s<pair_s<AccDflags>> const& deps() const {
+			if (!_has_deps) {
+				_deps = rule->deps_attrs.eval(*this) ;
+				_has_deps = true ;
+			}
+			return _deps ;
+		}
 	protected :
-		void _compute_targets() const ;
+		void _solve_static_targets() const ;
 		// services
 	public :
-		::pair_ss      full_name  () const ;
-		::string       name       () const { return full_name().first ; }
-		::vector<Node> target_dirs() const ;
+		::pair_ss      full_name  (               ) const ;
+		::string       name       (               ) const { return full_name().first ; }
+		::vector<Node> target_dirs(               ) const ;
+		VarIdx         idx        (::string const&) const ;
+		VarIdx         star_idx   (::string const&) const ;
 		// data
 		Rule       rule  ;
 		::vector_s stems ;             // static stems only of course
 		// cache
 	protected :
-		mutable bool _has_targets = false ; mutable ::vector_s                  _targets ;
-		mutable bool _has_deps    = false ; mutable ::vmap_s<pair_s<AccDflags>> _deps    ;
-	} ;
-
-	struct Rule::FullMatch : SimpleMatch {
-		friend ::ostream& operator<<( ::ostream& , FullMatch const& ) ;
-		// statics
-	private :
-		static ::string _group( Py::Object match_object , ::string const& key ) {
-			return Py::String(_s_py_group.apply(Py::TupleN(match_object,Py::String(key)))) ;
-		}
-		// static data
-		static Py::Callable _s_py_group ;                                      // access named groups in a match object
-		// cxtors & casts
-	public :
-		using SimpleMatch::SimpleMatch ;
-		FullMatch( SimpleMatch const& sm                ) : SimpleMatch{sm} {}
-		FullMatch( Rule    r , ::string const& job_name ) : FullMatch{r,r->job_name_pattern,job_name} {}
-		FullMatch( RuleTgt   , ::string const& target   ) ;
-	private :
-		FullMatch( Rule , Py::Pattern const& , ::string const& ) ;
-		// accesses
-		Py::Pattern const& _target_pattern(VarIdx) const ;                     // solve lazy evaluation
-		// services
-	public :
-		VarIdx idx(::string const&) const ;
-	private :
-		bool _match( VarIdx , ::string const& ) const ;
-		// cache
-		mutable ::vector<Py::Pattern> _target_patterns ;                       // lazy evaluated
+		mutable bool _has_static_targets = false ; mutable ::umap_s<VarIdx>            _static_targets ;
+		mutable bool _has_deps           = false ; mutable ::vmap_s<pair_s<AccDflags>> _deps           ;
 	} ;
 
 	struct RuleTgt : Rule {
@@ -645,7 +640,7 @@ namespace Engine {
 		Tflags tflags() const { return (*this)->tflags(tgt_idx) ; }
 		bool   sure  () const { return (*this)->sure  (tgt_idx) ; }
 		// services
-		Py::Pattern pattern() const { return (*this)->target_patterns[tgt_idx] ; }
+		TargetPattern const& pattern() const { return (*this)->target_patterns[tgt_idx] ; }
 		// data
 		VarIdx tgt_idx = 0 ;
 	} ;
@@ -756,10 +751,6 @@ namespace Engine {
 			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
 				if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
 				const char* key = PyUnicode_AsUTF8(py_key) ;
-//				if (py_val==Py_None) {
-//					updated |= map.emplace(key,T()).second ;
-//					continue ;
-//				}
 				if constexpr (Env)
 					if (py_val==Py::g_ellipsis) {
 						updated  = true        ;
@@ -851,11 +842,11 @@ namespace Engine {
 		::string                           res        ;
 		::vector_s                         empty1     ;
 		::vmap_s<pair_s<AccDflags>>        empty2     ;
-		Rule                               r          = solve_lazy(job,match)                          ;
-		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
-		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
-		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
-		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		Rule                               r          = solve_lazy(job,match)                             ;
+		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs                  ;
+		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems        : empty1 ; // fast path : when no need to compute match
+		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
+		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps      () : empty2 ; // fast path : when no need to compute deps
 		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( auto [k,i] : ctx ) {
 			::vmap_ss dct ;
@@ -878,11 +869,11 @@ namespace Engine {
 		::string                           res        ;
 		::vector_s                         empty1     ;
 		::vmap_s<pair_s<AccDflags>>        empty2     ;
-		Rule                               r          = solve_lazy(job,match)                          ;
-		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs               ;
-		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems     : empty1 ;    // fast path : when no need to compute match
-		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.targets() : empty1 ;    // fast path : when no need to compute targets
-		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps   () : empty2 ;    // fast path : when no need to compute deps
+		Rule                               r          = solve_lazy(job,match)                             ;
+		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs                  ;
+		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems        : empty1 ; // fast path : when no need to compute match
+		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
+		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps      () : empty2 ; // fast path : when no need to compute deps
 		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
 			char c = fstr[ci] ;
@@ -991,16 +982,6 @@ namespace Engine {
 			::serdes(s,stats_weight      ) ;
 		}
 		if (is_base_of_v<::istream,S>) _compile() ;
-	}
-
-	//
-	// Rule::FullMatch
-	//
-
-	inline VarIdx Rule::FullMatch::idx(::string const& target) const {
-		targets() ;                                                                       // ensure _targets is populated
-		for( VarIdx t=0 ; t<rule->targets.size() ; t++ ) if (_match(t,target)) return t ;
-		return NoVar ;
 	}
 
 }

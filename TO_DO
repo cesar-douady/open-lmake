@@ -12,16 +12,23 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? crash has been seen upon ^C
-	- a job is ended while not started
-		- implies a crash because of s_target_dirs decremented in end_exec while not incremented in wash
-	- waiting for reproduction
-	- was in an unstable version though, maybe it does not exist anymore
+* use same algo as in SimpleMatch::idx() to determine flags in job_exec
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* fix dlopen
+	- get correct search path with dlinfo
+	- interpret elf structure to find indirect loads
+* improve rule set recognition
+	- to avoid incrementing generation if nothing changed
+	- as of today, a simple touch of a makefile and lmark refuses to trust job for a target
+	- to reproduce : lmake target, touch Lmakefile.py, lmark target
+* improve hard link management
+	- when ln a b
+	- followed by write to b
+	- consider it is a write to a
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -190,10 +197,11 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* switch from Python regexprs to C++/ECMAscript regexprs (almost identical for user)
-	- difficulty is that there is no named group
-	- this means () from user regexprs must be counted to compute group indices
-	- which in turn means to do a expr analysis (lexical or syntaxic ?) to recognize true ()'s from escaped ones
+* regexprs
+	- consider using PCRE2 instead of std::regex
+	- consider handling prefix/suffix apart
+		- most importantly sufixes
+		- maybe a pre-pass searching for infix is advisable
 * handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient

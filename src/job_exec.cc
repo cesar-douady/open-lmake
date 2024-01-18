@@ -84,7 +84,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 
 ::pair_s<bool/*ok*/> wash(Pdate start) {
 	Trace trace("wash",start,g_start_info.pre_actions) ;
-	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> actions = do_file_actions( g_start_info.pre_actions , g_nfs_guard , g_start_info.hash_algo ) ;
+	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 	trace("unlinks",actions) ;
 	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlink(start,f) ;
 	else                             trace(actions.second) ;
@@ -375,7 +375,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if      (+msg    ) status = Status::Err    ;
 		else if (g_killed) status = Status::Killed ;
-		end_report.msg = msg ;
+		end_report.msg = +g_gather_deps.msg ? ensure_nl(msg)+g_gather_deps.msg : msg ;
 		end_report.digest = {
 			.status       = status
 		,	.targets      { ::move(digest.targets      ) }

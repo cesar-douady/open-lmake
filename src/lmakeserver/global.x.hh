@@ -97,6 +97,7 @@ namespace Engine {
 		Hash::Algo hash_algo            = Hash::Algo::Xxh  ;
 		LnkSupport lnk_support          = LnkSupport::Full ;
 		::string   user_local_admin_dir ;
+		::string   key                  ;                    // random key to differentiate repo from other repos
 	} ;
 
 	// changing these can only be done when lmake is not running
@@ -260,16 +261,16 @@ namespace Engine {
 
 	struct EngineClosureJob {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
-		JobProc                       proc          = JobProc::None ;
-		JobExec                       exec          = {}            ;
-		bool                          report        = false         ; // if proc == Start
-		::vmap<Node,bool/*uniquify*/> report_unlink = {}            ; // if proc == Start
-		::string                      txt           = {}            ; // if proc == Start | LiveOut
-		Req                           req           = {}            ; // if proc == Continue
-		::vmap_ss                     rsrcs         = {}            ; // if proc == End
-		JobDigest                     digest        = {}            ; // if proc == End
-		::string                      backend_msg   = {}            ; // if proc == End
-		Fd                            reply_fd      = {}            ; // if proc == ChkDeps
+		JobProc        proc          = JobProc::None ;
+		JobExec        exec          = {}            ;
+		bool           report        = false         ; // if proc == Start
+		::vector<Node> report_unlink = {}            ; // if proc == Start
+		::string       txt           = {}            ; // if proc == Start | LiveOut
+		Req            req           = {}            ; // if proc == Continue
+		::vmap_ss      rsrcs         = {}            ; // if proc == End
+		JobDigest      digest        = {}            ; // if proc == End
+		::string       backend_msg   = {}            ; // if proc == End
+		Fd             reply_fd      = {}            ; // if proc == ChkDeps
 	} ;
 
 	struct EngineClosure {
@@ -279,17 +280,16 @@ namespace Engine {
 		using Req_ = EngineClosureReq  ;
 		using Job_ = EngineClosureJob  ;
 		//
-		using GP  = GlobalProc                    ;
-		using RP  = ReqProc                       ;
-		using J   = Engine::Job                   ;
-		using JP  = JobProc                       ;
-		using JD  = JobDigest                     ;
-		using JE  = JobExec                       ;
-		using K   = Kind                          ;
-		using R   = Engine::Req                   ;
-		using RO  = ReqOptions                    ;
-		using VNU = ::vmap<Node,bool/*uniquify*/> ;
-		using VS  = ::vector_s                    ;
+		using GP  = GlobalProc  ;
+		using RP  = ReqProc     ;
+		using J   = Engine::Job ;
+		using JP  = JobProc     ;
+		using JD  = JobDigest   ;
+		using JE  = JobExec     ;
+		using K   = Kind        ;
+		using R   = Engine::Req ;
+		using RO  = ReqOptions  ;
+		using VS  = ::vector_s  ;
 		//
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
@@ -298,7 +298,7 @@ namespace Engine {
 		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill   ) ; }
 		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close  ) ; }
 		//
-		EngineClosure( JP p , JE&& je , bool r , VNU&& ru={} , ::string&& t={} , ::string&& bem={} ) :
+		EngineClosure( JP p , JE&& je , bool r , ::vector<Node>&& ru={} , ::string&& t={} , ::string&& bem={} ) :
 			kind { K::Job                                                                                                         }
 		,	job  { .proc=p , .exec=::move(je) , .report=r , .report_unlink=::move(ru) , .txt=::move(t) , .backend_msg=::move(bem) }
 		{ SWEAR(p==JP::Start) ; }

@@ -108,17 +108,17 @@ LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                 
 LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                                                                 # e.g. : /usr/lib/x /a/b /c /a/b/c/..
 LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                                                                  # e.g. : /usr/lib/x /a/b /c /a/b
 LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                                                      # e.g. : /a/b /c /usr/lib/x
-LINK_LIB_PATH       := $(filter-out /usr/lib /usr/lib/%,$(LINK_LIB_PATH))                                            # suppress standard dirs as required in case of installed package
+LINK_LIB_PATH       := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))                    # suppress standard dirs as required in case of installed package
 LINK_OPTIONS        := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                   # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O              := $(CC) $(COVERAGE) -r
 LINK_SO             := $(CC) $(COVERAGE) $(LINK_OPTIONS) -shared-libgcc -shared
 LINK_BIN            := $(CC) $(COVERAGE) $(LINK_OPTIONS)
 LINK_LIB            := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')
-PYTHON_LIB_BASE     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])') # [3:-3] : transform lib<foo>.so -> <foo>
+PYTHON_LIB_BASE     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY")[3:-3])')                # [3:-3] : transform lib<foo>.so -> <foo>
 PYTHON_LIB_DIR      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   )      )')
-PYTHON_LIB_DIR      := $(filter-out /usr/lib /usr/lib/%,$(PYTHON_LIB_DIR))                                           # suppress standard dirs as required in case of installed package
-PYTHON_LINK_OPTIONS := $(patsubst %,-L% -Wl$(COMMA)-rpath=%,$(PYTHON_LIB_DIR)) -l$(PYTHON_LIB_BASE)
+PYTHON_LIB_DIR      := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PYTHON_LIB_DIR))                                  # suppress standard dirs as required in case of installed package
+PYTHON_LINK_OPTIONS := $(patsubst %,-L%,$(PYTHON_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PYTHON_LIB_DIR)) -l$(PYTHON_LIB_BASE)
 PYTHON_VERSION      := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"  )      )')
 CFLAGS              := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
 CXXFLAGS            := $(CFLAGS) -std=$(LANG)
@@ -326,7 +326,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx rpc_client rpc_job serialize thread time trace utils    )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx re rpc_client rpc_job serialize thread time trace utils )
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                                 )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                    )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x )
@@ -447,6 +447,14 @@ $(SBIN)/job_exec : \
 	$(SRC)/job_exec$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+
+$(SBIN)/read_dyn : \
+	$(LMAKE_BASIC_SAN_OBJS) \
+	$(SRC)/app$(SAN).o      \
+	$(SRC)/trace$(SAN).o    \
+	$(SRC)/read_dyn$(SAN).o
+	mkdir -p $(@D)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lmake : \
 	$(LMAKE_BASIC_SAN_OBJS)   \

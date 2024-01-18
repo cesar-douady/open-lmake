@@ -151,6 +151,7 @@ public :
 	Fd                                            child_stderr ;                                                                  // fd used to gather stderr
 	::string                                      stdout       ;                                                                  // contains child stdout if child_stdout==Pipe
 	::string                                      stderr       ;                                                                  // contains child stderr if child_stderr==Pipe
+	::string                                      msg          ;                                                                  // contains error messages not from job
 private :
 	mutable ::mutex _pid_mutex ;
 } ;

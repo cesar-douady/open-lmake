@@ -75,8 +75,8 @@ namespace Engine::Persistent {
 		RuleTgts& operator=(::c_vector_view<RuleTgt> const& v) ;
 		void pop() ;
 		// accesses
-		::vector<RuleTgt> view () const ;
-		size_t            size () const ;
+		::vector<RuleTgt> view() const ;
+		size_t            size() const ;
 		// services
 		void shorten_by    (RuleIdx by) ;
 		void invalidate_old(          ) ;

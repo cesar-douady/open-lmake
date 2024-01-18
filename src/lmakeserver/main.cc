@@ -303,9 +303,9 @@ bool/*interrupted*/ engine_loop() {
 						SWEAR(+rit->second      ) ;                                        // we need to keep Req to do book-keeping
 						Req  r      = rit->second ;
 						bool zombie = r->zombie   ;                            // fetch before r is closed
+						trace("close_req",req,r,STR(zombie)) ;
 						if (zombie) req_tab.erase(rit) ;                       // entry was killed
 						else        rit->second = {} ;                         // entry is yet to be killed
-						trace("close_req",req,r,STR(zombie)) ;
 						//vvvvvvv
 						r.close() ;
 						//^^^^^^^

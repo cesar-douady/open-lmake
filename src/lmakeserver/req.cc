@@ -504,11 +504,10 @@ namespace Engine {
 	}
 
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
-		::string                        name      = node->name()          ;
-		::vector<RuleTgt>               rrts      = node->raw_rule_tgts() ;
-		::vmap<RuleTgt,Rule::FullMatch> mrts      ;                                                        // matching rules
-		RuleTgt                         art       ;                                                        // set if an anti-rule matches
-		RuleIdx                         n_missing = 0                     ;                                // number of rules missing deps
+		::string                          name      = node->name() ;
+		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                                        // matching rules
+		RuleTgt                           art       ;                                                        // set if an anti-rule matches
+		RuleIdx                           n_missing = 0            ;                                         // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
 			audit_node( Color::Warning , "name is too long :" , node  , lvl ) ;
@@ -525,17 +524,14 @@ namespace Engine {
 			return ;
 		}
 		//
-		for( RuleTgt rt : rrts ) {                                                                         // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
-			Rule::FullMatch match{rt,name} ;
-			if (!match       ) {            continue ; }
-			if (rt->is_anti()) { art = rt ; break    ; }
-			mrts.emplace_back(rt,match) ;
-			if ( JobTgt jt{rt,name} ; +jt ) {                                                              // do not pass *this as req to avoid generating error message at cxtor time
-//				swear_prod(!jt.produces(node),"no rule for ",name," but ",jt->rule->name," produces it") ;
-				if (jt->run_status!=RunStatus::NoDep) continue ;
-			}
-			try                     { rt->deps_attrs.eval(match) ; }
-			catch (::string const&) { continue ;                   }                                       // do not consider rule if deps cannot be computed
+		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
+			if (!rt.pattern().match(name)) {            continue ; }
+			if (rt->is_anti()            ) { art = rt ; break    ; }
+			Rule::SimpleMatch m{rt,name} ;
+			mrts.emplace_back(rt,m) ;
+			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ;                 // do not pass *this as req to avoid generating error message at cxtor time
+			try                     { rt->deps_attrs.eval(m) ; }
+			catch (::string const&) { continue ;               }                                           // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//

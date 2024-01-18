@@ -146,21 +146,18 @@ namespace Engine {
 
 	// check rule_tgts special rules and set rule_tgts accordingly
 	Buildable NodeData::_gather_special_rule_tgts(::string const& name_) {
-		RuleIdx           n          = 0               ;
-		::vector<RuleTgt> rule_tgts_ = raw_rule_tgts() ;
 		job_tgts().clear() ;
-		for( RuleTgt const& rt : rule_tgts_ ) {
-			if (!rt->is_special()) {
-				rule_tgts() = ::c_vector_view<RuleTgt>(rule_tgts_,n) ;
-				return Buildable::Maybe ;
+		rule_tgts() = Node::s_rule_tgts(name_) ;
+		//
+		RuleIdx  n_skip = 0 ;
+		for( RuleTgt const& rt : rule_tgts().view() ) {
+			if (!rt.pattern().match(name_)) { n_skip++ ; continue ; }
+			switch (rt->special) {
+				case Special::GenericSrc : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynSrc  ;
+				case Special::Anti       : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynAnti ;
+				case Special::Plain      : rule_tgts().shorten_by(n_skip) ;        return Buildable::Maybe   ; // no special rule applies
+				default : FAIL(rt->special) ;
 			}
-			if (+Rule::FullMatch(rt,name_))
-				switch (rt->special) {
-					case Special::GenericSrc : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynSrc  ;
-					case Special::Anti       : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynAnti ;
-					default : FAIL(rt->special) ;
-				}
-			n++ ;
 		}
 		rule_tgts().clear() ;
 		return Buildable::Maybe ; // node may be buildable from dir

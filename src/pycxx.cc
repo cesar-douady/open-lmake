@@ -34,6 +34,7 @@ namespace Py {
 		,	eval_env
 		) ;
 		Py_DECREF(eval_env) ;
+		PyImport_ImportModule("sys") ;                                         // XXX : why is this necessary with Python 3.6 ?
 		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
 	}
 

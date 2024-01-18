@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
+#include "re.hh"
 #include "time.hh"
 
 #include "autodep/gather_deps.hh"
@@ -13,6 +14,7 @@
 #include "makefiles.hh"
 
 using namespace Disk ;
+using namespace Re   ;
 using namespace Time ;
 
 namespace Engine::Makefiles {
@@ -153,13 +155,12 @@ namespace Engine::Makefiles {
 	}
 
 	static ::pair<PyObject*,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
-		/**/             static Py::Pattern pyc_re1 { "(?P<dir>(.*/)?)(?P<module>\\w+)\\.pyc"                         } ;
-		/**/             static Py::Pattern pyc_re2 { "(?P<dir>(.*/)?)__pycache__/(?P<module>\\w+)\\.\\w+-\\d+\\.pyc" } ;
-		[[maybe_unused]] static bool        boosted = (Py::boost(pyc_re1),Py::boost(pyc_re2),true)                      ; // avoid deallocation problems at exit
 		//
-		GatherDeps  gather_deps { New }                                                                        ; gather_deps.autodep_env.src_dirs_s = {"/"} ;
-		::string    data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
-		::vector_s  cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
+		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
+		//
+		GatherDeps gather_deps { New }                                                                        ; gather_deps.autodep_env.src_dirs_s = {"/"} ;
+		::string   data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
+		::vector_s cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
 		Trace trace("_read_makefiles",action,module,Pdate::s_now()) ;
 		//
 		::string sav_ld_library_path ;
@@ -177,11 +178,13 @@ namespace Engine::Makefiles {
 		//
 		::string   content = read_content(data) ;
 		::vector_s deps    ; deps.reserve(gather_deps.accesses.size()) ;
+		::uset_s   dep_set ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
 			if (!ai.digest.idle()) continue ;
-			Py::Match m = pyc_re1.match(d) ; if (!m) m = pyc_re2.match(d) ;
-			if (+m) { ::string py = to_string(m["dir"],m["module"],".py") ; trace("dep",d,"->",py) ; deps.push_back(py) ; } // special case to manage pyc
-			else    {                                                       trace("dep",d        ) ; deps.push_back(d ) ; }
+			::string py ;
+			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[3/*module*/])+".py" ;
+			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
+			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
 		PyObject* eval_env = PyDict_New() ;
 		PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;

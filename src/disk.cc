@@ -11,12 +11,6 @@ using namespace filesystem ;
 
 namespace Disk {
 
-	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
-		/**/     os<< "FileInfo("<<fi.tag       ;
-		if (+fi) os<<','<<fi.sz <<','<< fi.date ;
-		return   os<<')'                        ;
-	}
-
 	ENUM( CanonState
 	,	First
 	,	Empty
@@ -63,43 +57,6 @@ namespace Disk {
 			default : FAIL(state) ;
 		}
 		return true ;
-	}
-
-	FileInfo::FileInfo( Fd at , ::string const& name ) {
-		Stat st ;
-		errno = 0 ;
-		::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW ) ;
-		switch (errno) {
-			case 0       :                       break  ;
-			case ENOENT  :
-			case ENOTDIR : tag = FileTag::None ; return ;                      // no available info
-			default      : tag = FileTag::Err  ; return ;                      // .
-		}
-		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;          }
-		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;          }
-		else if (S_ISDIR(st.st_mode)) { tag =                      FileTag::Dir                ; return ; } // no reliable info
-		else                          { tag =                      FileTag::Err                ; return ; } // .
-		sz   = st.st_size ;
-		date = Ddate(st)  ;
-	}
-
-	FileMap::FileMap( Fd at , ::string const& filename ) {
-		FileInfo fi{at,filename} ;
-		if (!fi.is_reg()) return ;
-		sz = fi.sz ;
-		if (!sz) {
-			_ok = true ;
-			return ;
-		}
-		_fd = open_read(at,filename) ;
-		if (!_fd) return ;
-		data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
-		if (data==MAP_FAILED) {
-			_fd.detach() ;                                                     // report error
-			data = nullptr ;                                                   // avoid garbage info
-			return ;
-		}
-		_ok = true ;
 	}
 
 	vector_s lst_dir( Fd at , ::string const& dir , ::string const& prefix ) {
@@ -322,6 +279,57 @@ namespace Disk {
 	}
 
 	//
+	// FileInfo
+	//
+
+	::ostream& operator<<( ::ostream& os , FileInfo const& fi ) {
+		/**/     os<< "FileInfo("<<fi.tag       ;
+		if (+fi) os<<','<<fi.sz <<','<< fi.date ;
+		return   os<<')'                        ;
+	}
+
+	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
+		Stat st ;
+		errno = 0 ;
+		::fstatat( at , name.c_str() , &st , AT_EMPTY_PATH|(no_follow?AT_SYMLINK_NOFOLLOW:0) ) ;
+		switch (errno) {
+			case 0       :                       break  ;
+			case ENOENT  :
+			case ENOTDIR : tag = FileTag::None ; return ;                      // no available info
+			default      : tag = FileTag::Err  ; return ;                      // .
+		}
+		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;          }
+		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;          }
+		else if (S_ISDIR(st.st_mode)) { tag =                      FileTag::Dir                ; return ; } // no reliable info
+		else                          { tag =                      FileTag::Err                ; return ; } // .
+		sz   = st.st_size ;
+		date = Ddate(st)  ;
+	}
+
+	//
+	// FileMap
+	//
+
+	FileMap::FileMap( Fd at , ::string const& filename ) {
+		FileInfo fi{at,filename,false/*no_follow*/} ;
+		if (!fi.is_reg()) return ;
+		sz = fi.sz ;
+		if (!sz) {
+			_ok = true ;
+			return ;
+		}
+		_fd = open_read(at,filename) ;
+		if (!_fd) return ;
+		data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
+		if (data==MAP_FAILED) {
+			_fd.detach() ;                                                     // report error
+			data = nullptr ;                                                   // avoid garbage info
+			return ;
+		}
+		_ok = true ;
+	}
+
+	//
 	// RealPath
 	//
 
@@ -509,7 +517,7 @@ namespace Disk {
 			//
 			if (sr.kind>Kind::Dep && sr.kind!=Kind::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
 			//
-			if (sr.mapped) throw to_string("executing ",sr.real," with mapped files along its interpreter path from ",tmp_view," to ",tmp_dir," would require to modify the file content") ;
+			if (sr.mapped) throw to_string("executing ",mk_file(sr.real)," with mapped files along its interpreter path from ",tmp_view," to ",tmp_dir," would require to modify the file content") ;
 			//
 			::ifstream real_stream { mk_abs(sr.real,root_dir) } ;
 			Accesses   a           = Access::Reg                ;

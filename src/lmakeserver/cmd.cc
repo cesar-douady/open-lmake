@@ -82,8 +82,8 @@ namespace Engine {
 					else {
 						Job cj = t->conform_job_tgt() ;
 						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
-						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -f to override) : ",mk_file(t->name())) ;
-						else     throw to_string("target was produced by ",j->rule->name,                              " (use -f to override) : ",mk_file(t->name())) ;
+						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -F to override) : ",mk_file(t->name())) ;
+						else     throw to_string("target was produced by ",j->rule->name,                              " (use -F to override) : ",mk_file(t->name())) ;
 					}
 				}
 			}
@@ -244,11 +244,7 @@ namespace Engine {
 	}
 
 	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::vector_s const& vsExtensions ) {
-		JobRpcReply const& start   = report_start.start ;
-		::string           abs_cwd = *g_root_dir        ;
-
-		Rule::SimpleMatch match = j->simple_match() ;
-		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions = j->pre_actions(match) ;
+		JobRpcReply const& start = report_start.start ;
 		::string res =
 R"({
 	"folders": [
@@ -337,14 +333,14 @@ R"({
 		for( ::string const& tn : match.static_targets() ) Node(tn)->set_buildable() ; // necessary for pre_actions()
 		for( Node            t  : j->star_targets        )      t  ->set_buildable() ; // .
 		//
-		::pair<vmap<Node,FileAction>,vmap<Node,bool/*uniquify*/>/*warn*/> pre_actions = j->pre_actions(match)         ;
-		::string                                                          script      = "#!/bin/bash\n"               ;
-		bool                                                              is_python   = j->rule->is_python            ;
-		bool                                                              dbg         = flags[ReqFlag::Debug]         ;
-		bool                                                              redirected  = +start.stdin || +start.stdout ;
+		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
+		::string                                           script      = "#!/bin/bash\n"               ;
+		bool                                               is_python   = j->rule->is_python            ;
+		bool                                               dbg         = flags[ReqFlag::Debug]         ;
+		bool                                               redirected  = +start.stdin || +start.stdout ;
 		//
-		::uset<Node> warn        ; for( auto [n,_] : pre_actions.second )                                  warn     .insert(n) ;
-		::uset<Node> to_mkdirs   ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
+		::uset<Node> warn      ; for( auto n     : pre_actions.second )                                  warn     .insert(n) ;
+		::uset<Node> to_mkdirs ; for( auto [d,a] : pre_actions.first  ) if (a.tag==FileActionTag::Mkdir) to_mkdirs.insert(d) ;
 		//
 		append_to_string( script , "cd ",mk_shell_str(*g_root_dir),'\n') ;
 		//
@@ -769,19 +765,14 @@ R"({
 				_send_job( fd , ro , Maybe|verbose , false/*hide*/ , job , lvl ) ;
 			break ;
 			case ReqKey::Targets : {
-				Rule::FullMatch match      = job->full_match() ;
-				::string        unexpected = "<unexpected>"    ;
-				size_t          wk         = 0                 ;
-				for( auto const& [tn,td] : digest.targets ) {
-					VarIdx ti = match.idx(tn) ;
-					wk = ::max( wk , ti==Rule::NoVar?unexpected.size():rule->targets[ti].first.size() ) ;
-				}
+				Rule::SimpleMatch match = job->simple_match() ;
+				size_t            wk    = 0                   ; for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
 				for( auto const& [tn,td] : digest.targets ) {
 					VarIdx   ti         = match.idx(tn)      ;
 					Tflags   stfs       = rule->tflags(ti)   ;
 					bool     m          = stfs[Tflag::Match] ;
 					::string flags_str  ;
-					::string target_key = ti==Rule::NoVar ? unexpected : rule->targets[ti].first ;
+					::string target_key = ti==Rule::NoVar ? ""s : rule->targets[ti].first ;
 					flags_str += m                 ? '-'                : '#'                ;
 					flags_str += td.crc==Crc::None ? '!'                : '-'                ;
 					flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
