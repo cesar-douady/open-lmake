@@ -365,9 +365,9 @@ namespace Engine {
 			repo_key = '/' + ::string(Xxh(*g_root_dir).digest()) ;
 		}
 		//
-		local_admin_dir  = +user_local_admin_dir  ? user_local_admin_dir  + repo_key : PrivateAdminDir+"/local_admin"s  ;
-		remote_admin_dir = +user_remote_admin_dir ? user_remote_admin_dir + repo_key : PrivateAdminDir+"/remote_admin"s ;
-		remote_tmp_dir   = +user_remote_tmp_dir   ? user_remote_tmp_dir   + repo_key : PrivateAdminDir+"/remote_tmp"s   ;
+		local_admin_dir  = +user_local_admin_dir  ? user_local_admin_dir  + repo_key + "-la"  : PrivateAdminDir+"/local_admin"s  ;
+		remote_admin_dir = +user_remote_admin_dir ? user_remote_admin_dir + repo_key + "-ra"  : PrivateAdminDir+"/remote_admin"s ;
+		remote_tmp_dir   = +user_remote_tmp_dir   ? user_remote_tmp_dir   + repo_key + "-tmp" : PrivateAdminDir+"/remote_tmp"s   ;
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;
