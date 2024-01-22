@@ -39,10 +39,10 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 
 int main( int argc , char* argv[] ) {
 	struct Exit {
-		Exit() : int_fd{open_sig_fd(SIGINT)} {}
+		Exit() : int_fd{open_sig_fd({SIGINT})} {}
 		~Exit() {                                                              // this must be executed after _int_thread_func has completed
 			if (!g_seen_int) return ;
-			close_sig_fd(int_fd,SIGINT) ;
+			close_sig_fd(int_fd,{SIGINT}) ;
 			kill_self(SIGINT) ;                                                // appear as being interrupted : important for shell scripts to actually stop
 			kill_self(SIGHUP) ;                                                // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
 			fail_prod("lmake does not want to die") ;

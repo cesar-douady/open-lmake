@@ -129,6 +129,10 @@ struct SockFd : AutoCloseFd {
 	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           from_chars<in_port_t>(service.c_str()+col+1)   ; }
 	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_chars<in_port_t>(service.c_str()+col+1) } ; }
 	static in_addr_t           s_addr     (::string const& server ) ;
+	//
+	static ::string s_service( ::string const& host , in_port_t port ) { return to_string(host,':',port)         ; }
+	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
+	static ::string s_service(                        in_port_t port ) { return s_service(host()          ,port) ; }
 private :
 	static size_t _s_col(::string const& service) {
 		size_t col = service.rfind(':') ;
@@ -172,8 +176,8 @@ struct ServerSockFd : SockFd {
 		int rc = ::listen(fd,backlog) ;
 		swear_prod(rc==0,"cannot listen on ",*this," with backlog ",backlog," (",rc,')') ;
 	}
-	::string service(in_addr_t addr) const { return to_string(s_addr_str(addr),':',port()) ; }
-	::string service(              ) const { return to_string(host()          ,':',port()) ; }
+	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
+	::string service(              ) const { return s_service(     port()) ; }
 	SlaveSockFd accept() ;
 } ;
 

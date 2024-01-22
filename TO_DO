@@ -18,17 +18,10 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* fix dlopen
-	- get correct search path with dlinfo
-	- interpret elf structure to find indirect loads
 * improve rule set recognition
 	- to avoid incrementing generation if nothing changed
 	- as of today, a simple touch of a makefile and lmark refuses to trust job for a target
 	- to reproduce : lmake target, touch Lmakefile.py, lmark target
-* improve hard link management
-	- when ln a b
-	- followed by write to b
-	- consider it is a write to a
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -60,6 +53,10 @@ items :
 	- handle DT_RPATH & DT_RUNPATH tags
 	- handle indirect loads
 ! before erasing a dir, check for phony targets, not only files on disk
+? improve hard link management
+	- when ln a b
+	- followed by write to b
+	- consider it is a write to a
 
 ****************************************************************************************************
 * COSMETIC (ugly as long as not implemented)

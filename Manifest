@@ -115,7 +115,6 @@ src/process.hh
 src/pycxx.cc
 src/pycxx.hh
 src/re.hh
-src/read_dyn.cc
 src/rpc_client.cc
 src/rpc_client.hh
 src/rpc_job.cc

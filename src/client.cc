@@ -7,47 +7,55 @@
 #include "disk.hh"
 #include "process.hh"
 #include "rpc_client.hh"
+#include "time.hh"
 #include "trace.hh"
 
 #include "client.hh"
 
 using namespace Disk ;
+using namespace Time ;
 
 AutoCloseFdPair g_server_fds ;
 
 static bool server_ok( Fd fd , ::string const& tag ) {
-	bool ok  = false                                 ;
+	Trace trace("server_ok",tag,fd) ;
+	bool ok  = false                             ;
 	int  cnt = ::read( fd , &ok , sizeof(bool) ) ;
-	if (cnt!=sizeof(bool)) return false ;
-	Trace trace("server_ok",tag,STR(ok),fd) ;
+	if (cnt!=sizeof(bool)) { trace("bad_answer",cnt) ; return false ; }
+	trace("answer",STR(ok)) ;
 	return ok ;
 }
 
 static void connect_to_server(bool refresh) {
 	Trace trace("connect_to_server",STR(refresh)) ;
-	::string server_service ;
-	pid_t    server_pid     = 0 ;
+	::string server_service  ;
+	bool     server_is_local = false          ;
+	pid_t    server_pid      = 0              ;
+	Pdate    now             = Pdate::s_now() ;
 	for ( int i=0 ; i<10 ; i++ ) {
 		trace("try_old",i) ;
 		// try to connect to an existing server
 		{	::ifstream server_mrkr_stream { to_string(AdminDir,'/',ServerMrkr) } ;
 			::string   pid_str            ;
-			if (!server_mrkr_stream                          ) goto LaunchServer ;
-			if (!::getline(server_mrkr_stream,server_service)) goto LaunchServer ;
-			if (!::getline(server_mrkr_stream,pid_str       )) goto LaunchServer ;
+			if (!server_mrkr_stream                          ) { trace("no_marker"  ) ; goto LaunchServer ; }
+			if (!::getline(server_mrkr_stream,server_service)) { trace("bad_marker1") ; goto LaunchServer ; }
+			if (!::getline(server_mrkr_stream,pid_str       )) { trace("bad_marker2") ; goto LaunchServer ; }
 			server_pid = from_chars<pid_t>(pid_str) ;
-			ClientSockFd req_fd ;
+			trace("server",server_pid) ;
 			try {
+				if (host()==SockFd::s_host(server_service)) {
+					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
+					server_is_local = true                                                                                           ;
+				}
 				ClientSockFd req_fd{server_service} ;
 				if (server_ok(req_fd,"old")) {
 					g_server_fds = ::move(req_fd) ;
 					return ;
 				}
-			} catch(::string const&) {}
+			} catch(::string const&) { trace("cannot_connect",server_service) ; }
 			//
 		}
 	LaunchServer :
-		trace("try_new",i) ;
 		// try to launch a new server
 		// server calls ::setpgid(0,0) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
 		::vector_s cmd_line = {
@@ -57,6 +65,7 @@ static void connect_to_server(bool refresh) {
 		} ;
 		if (!refresh) cmd_line.push_back("-r"/*no_refresh*/) ;
 		/**/          cmd_line.push_back("--"              ) ;                     // ensure no further option processing in case a file starts with a -
+		trace("try_new",i,cmd_line) ;
 		Child server{ false/*as_group*/ , cmd_line , Child::Pipe , Child::Pipe } ;
 		//
 		if (server_ok(server.stdout,"new")) {
@@ -66,14 +75,17 @@ static void connect_to_server(bool refresh) {
 		}
 		server.wait() ;                                                        // dont care about return code, we are going to relauch/reconnect anyway
 		// retry if not successful, may be a race between several clients trying to connect to/launch servers
+		now += Delay(0.1) ;
+		now.sleep_until() ;
 	}
 	::string kill_server_msg ;
 	if (+server_service) {
 		::string server_host = SockFd::s_host(server_service) ;
-		if (server_host!=host()) kill_server_msg = to_string("ssh ",SockFd::s_host(server_service),' ') ;
+		if ( server_is_local) kill_server_msg = to_string("ssh ",SockFd::s_host(server_service),' ') ;
 	}
 	if (server_pid      ) kill_server_msg += to_string("kill ",server_pid       ) ;
-	if (!kill_server_msg) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
+	if (+kill_server_msg) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
+	trace("cannot_connect",server_service,kill_server_msg) ;
 	exit(2
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
@@ -96,7 +108,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	Bool3          res       = Maybe                         ;
 	struct termios old_attrs ;
 	struct termios new_attrs ;
-	bool           blocked   = set_sig(SIGINT,true/*block*/) ;
+	bool           blocked   = set_sig({SIGINT},true/*block*/) ;
 	//
 	::tcgetattr( in_fd , &old_attrs ) ;
 	//
@@ -145,7 +157,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		res = lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
 		trace("found",lum[0],lum[1],res) ;
 	} catch (::string const& e) { trace("catch",e) ; }
-	if (blocked) set_sig(SIGINT,false/*block*/) ;
+	if (blocked) set_sig({SIGINT},false/*block*/) ;
 	trace("restore") ;
 	::tcsetattr( in_fd , TCSANOW , &old_attrs ) ;
 	return res ;

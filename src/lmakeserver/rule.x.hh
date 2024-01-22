@@ -368,15 +368,15 @@ namespace Engine {
 		static bool s_is_dynamic(PyObject*) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{Py::boost(src.glbs)} , code{Py::boost(src.code)} {                                           } // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{          src.glbs } , code{          src.code } { src.glbs = nullptr ; src.code = nullptr ; } // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                                         // .
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{src.glbs} , code{src.code} { Py_XINCREF(glbs)   ; Py_XINCREF(code)   ; } // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{src.glbs} , code{src.code} { src.glbs = nullptr ; src.code = nullptr ; } // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                   // .
 			Base::operator=(src) ;
 			Py_XDECREF(glbs) ; glbs = src.glbs ; Py_XINCREF(glbs) ;
 			Py_XDECREF(code) ; code = src.code ; Py_XINCREF(code) ;
 			return *this ;
 		}
-		Dynamic& operator=(Dynamic&& src) {                                                                                                                              // .
+		Dynamic& operator=(Dynamic&& src) {                                                                                                        // .
 			Base::operator=(::move(src)) ;
 			Py_XDECREF(glbs) ; glbs = src.glbs ; src.glbs = nullptr ;
 			Py_XDECREF(code) ; code = src.code ; src.code = nullptr ;
@@ -817,13 +817,12 @@ namespace Engine {
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		code = Py::boost(Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input )) ; // avoid problems at finalization
+		code = Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input ) ;
 		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
-		glbs = Py::boost(PyDict_New())                                       ; // avoid problems at finalization
+		Py_INCREF(code) ;                                                                // avoid problems at finalization
+		glbs = Py::eval_dict(true/*printed_expr*/) ;
+		Py_INCREF(glbs) ;                                                                // .
 		if (+glbs_str) {
-			PyDict_SetItemString( glbs , "inf"          , *Py::Float(Infinity) ) ;
-			PyDict_SetItemString( glbs , "nan"          , *Py::Float(nan("") ) ) ;
-			PyDict_SetItemString( glbs , "__builtins__" , PyEval_GetBuiltins() ) ; // Python3.6 does not provide it for us
 			//
 			PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
 			if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;

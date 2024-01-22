@@ -141,7 +141,7 @@ PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
 PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
 
 sys_config.h : sys_config
-	CC=$(CC) PYTHON=$(PYTHON) ./$< > $@
+	CC=$(CC) PYTHON=$(PYTHON) ./$< >$@ 2>$@.err
 
 HAS_SECCOMP            := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h && echo 1)
 HAS_SLURM              := $(shell grep -q 'HAS_SLURM *1'  sys_config.h && echo 1)

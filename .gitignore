@@ -16,7 +16,7 @@ __pycache__
 
 #auto-configuration
 /trial/
-/sys_config.h
+/sys_config.h*
 
 # compiled files
 *.i

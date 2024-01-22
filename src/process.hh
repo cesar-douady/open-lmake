@@ -32,28 +32,29 @@ struct Pipe {
 	Fd write ;     // write side of the pipe
 } ;
 
-static inline bool/*done*/ set_sig( int sig , bool block ) {
+static inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
 	sigset_t new_mask ;
 	sigset_t old_mask ;
-	sigemptyset(&new_mask    ) ;
-	sigaddset  (&new_mask,sig) ;
+	::sigemptyset(&new_mask) ;
+	for( int s : sigs) ::sigaddset(&new_mask,s) ;
 	//
-	swear( ::pthread_sigmask( block?SIG_BLOCK:SIG_UNBLOCK , &new_mask , &old_mask )==0 , "cannot ",block?"block":"unblock"," sig ",sig ) ;
+	swear( ::pthread_sigmask( block?SIG_BLOCK:SIG_UNBLOCK , &new_mask , &old_mask )==0 , "cannot ",block?"block":"unblock"," sigs ",sigs ) ;
 	//
-	return sigismember(&old_mask,sig)!=block ;
+	for( int s : sigs ) if (::sigismember(&old_mask,s)==block) return false ;
+	return true ;
 }
-static inline Fd open_sig_fd(int sig) {
-	swear_prod(set_sig(sig,true/*block*/),"signal ",::strsignal(sig)," is already blocked") ;
+static inline Fd open_sig_fd(::vector<int> const& sigs) {
+	swear_prod(set_sig(sigs,true/*block*/),"some of signals",sigs,"are already blocked") ;
 	//
 	sigset_t mask ;
-	sigemptyset(&mask    ) ;
-	sigaddset  (&mask,sig) ;
+	::sigemptyset(&mask) ;
+	for( int s : sigs) ::sigaddset(&mask,s) ;
 	//
 	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
 }
-static inline void close_sig_fd( Fd fd , int sig ) {
+static inline void close_sig_fd( Fd fd , ::vector<int> const& sigs ) {
 	fd.close() ;
-	set_sig(sig,false/*block*/) ;
+	set_sig(sigs,false/*block*/) ;
 }
 
 static inline bool is_sig_sync(int sig) {

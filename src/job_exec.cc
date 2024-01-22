@@ -10,7 +10,7 @@
 #include "disk.hh"
 #include "fd.hh"
 #include "hash.hh"
-#include "pycxx.hh"
+#include "re.hh"
 #include "rpc_job.hh"
 #include "thread.hh"
 #include "time.hh"
@@ -20,6 +20,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Re   ;
 using namespace Time ;
 
 static constexpr int NConnectionTrials = 3 ;               // number of times to try connect when connecting to server
@@ -34,7 +35,7 @@ SeqId                      g_seq_id          = 0/*garbage*/ ;
 JobIdx                     g_job             = 0/*garbage*/ ;
 ::atomic<bool>             g_killed          = false        ;                  // written by thread S and read by main thread
 ::umap_s<          Tflags> g_known_targets   ;
-::vmap<Py::Pattern,Tflags> g_target_patterns ;
+::vmap<RegExpr,Tflags>     g_target_patterns ;
 NfsGuard                   g_nfs_guard       ;
 
 Tflags tflags(::string const& target) {
@@ -310,7 +311,6 @@ int main( int argc , char* argv[] ) {
 			::unlink(g_trace_file->c_str()) ;                                  // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 		}
 		app_init() ;
-		Py::init() ;
 		//
 		Trace trace("main",Pdate::s_now(),g_service_start,g_service_mngt,g_service_end,g_seq_id,g_job) ;
 		trace("pid",::getpid(),::getpgrp()) ;

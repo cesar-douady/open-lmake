@@ -301,6 +301,7 @@ namespace Engine {
 		}
 	Done :
 		(*this)->audit_status(!job_err) ;
+		(*this)->audit_fd.detach() ;                  // ensure we send nothing anymore
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,*this) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -482,7 +483,7 @@ namespace Engine {
 
 	void ReqData::audit_stats() const {
 		try {
-			OMsgBuf().send( audit_fd , ReqRpcReply( title(
+			ReqRpcReply rrr{ title(
 				options
 			,	stats.ended(JobReport::Failed)==0                ? ""s : to_string( "failed:"  , stats.ended(JobReport::Failed),' ')
 			,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
@@ -491,7 +492,8 @@ namespace Engine {
 			,	                                                                   " running:" , stats.cur  (JobLvl   ::Exec  )
 			,	stats.cur  (JobLvl   ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
 			,	stats.cur  (JobLvl   ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
-			) ) ) ;
+			) } ;
+			OMsgBuf().send( audit_fd , rrr ) ;
 		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
 	}
 

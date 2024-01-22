@@ -20,8 +20,8 @@ namespace Py {
 		Py_IgnoreEnvironmentFlag = true ;                                      // favor repeatability
 		Py_NoUserSiteDirectory   = true ;                                      // .
 		Py_DontWriteBytecodeFlag = true ;                                      // be as non-intrusive as possible
-		Py_Initialize() ;
-		PyObject* eval_env = PyDict_New() ;
+		Py_InitializeEx(0) ;                                                   // skip initialization of signal handlers
+		PyObject* eval_env = eval_dict() ;
 		g_ellipsis = PyRun_String("...",Py_eval_input,eval_env,eval_env) ;
 		//
 		PyRun_String(
@@ -34,12 +34,7 @@ namespace Py {
 		,	eval_env
 		) ;
 		Py_DECREF(eval_env) ;
-		PyImport_ImportModule("sys") ;                                         // XXX : why is this necessary with Python 3.6 ?
 		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
-	}
-
-	::ostream& operator<<( ::ostream& os , Pattern const& pat ) {
-		return os << "Pattern(" << pat.pattern() << ")" ;
 	}
 
 	// Divert stderr to a pipe, call PyErr_Print and restore stderr

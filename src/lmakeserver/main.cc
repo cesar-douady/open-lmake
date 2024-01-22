@@ -81,9 +81,9 @@ bool/*crashed*/ start_server() {
 	//^^^^^^^^^^^^^^^^^^^^^^
 	_g_server_running = true ;                                                 // while we link, pretend we run so cleanup can be done if necessary
 	fence() ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	_g_server_running = ::link(tmp.c_str(),_g_server_mrkr.c_str())==0 ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	_g_server_running = ::link( tmp.c_str() , _g_server_mrkr.c_str() )==0 ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	unlink(tmp) ;
 	trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
 	return crashed ;
@@ -110,9 +110,9 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback    stop_cb { stop , [](){ kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
+	::stop_callback    stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
 	::umap<Fd,IMsgBuf> in_tab  ;
-	Epoll              epoll   { New }                                ;
+	Epoll              epoll   { New }                                                 ;
 	//
 	epoll.add_read( _g_server_fd   , EventKind::Master ) ;
 	epoll.add_read( int_fd         , EventKind::Int    ) ;
@@ -209,8 +209,8 @@ bool/*interrupted*/ engine_loop() {
 			Backend::s_launch() ;                                              // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
 			//^^^^^^^^^^^^^^^^^
 		}
-		if ( Pdate now ; empty || (now=Pdate::s_now())>next_stats_date ) {
-			for( auto const& [fd,r] : req_tab ) r->audit_stats() ;             // refresh title
+		if ( Pdate now=Pdate::s_now() ; empty || now>next_stats_date ) {
+			for( auto const& [fd,r] : req_tab ) if (+r->audit_fd) r->audit_stats() ; // refresh title
 			next_stats_date = now+Delay(1.) ;
 		}
 		if ( empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
@@ -367,7 +367,7 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	Fd int_fd = open_sig_fd(SIGINT) ;                                                       // must be done before app_init so that all threads block the signal
+	Fd int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                              // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;

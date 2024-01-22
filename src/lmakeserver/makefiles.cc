@@ -186,10 +186,7 @@ namespace Engine::Makefiles {
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
-		PyObject* eval_env = PyDict_New() ;
-		PyDict_SetItemString( eval_env , "inf"          , *Py::Float(Infinity) ) ;
-		PyDict_SetItemString( eval_env , "nan"          , *Py::Float(nan("") ) ) ;
-		PyDict_SetItemString( eval_env , "__builtins__" , PyEval_GetBuiltins() ) ;          // Python3.6 does not provide it for us
+		PyObject* eval_env = Py::eval_dict(true/*printed_expr*/) ;
 		PyObject* py_info = PyRun_String(content.c_str(),Py_eval_input,eval_env,eval_env) ;
 		Py_DECREF(eval_env) ;
 		SWEAR( py_info , "error while reading makefile digest :\n" , Py::err_str() ) ;
