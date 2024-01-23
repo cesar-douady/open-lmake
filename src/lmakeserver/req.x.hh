@@ -39,6 +39,10 @@ namespace Engine {
 	,	Steady
 	,	Done
 	,	Failed
+	,	Completed
+	,	Killed
+	,	Lost
+	,	LostErr
 	,	Rerun
 	,	Hit
 	)
@@ -127,9 +131,9 @@ namespace Engine {
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		bool     hit         = false/*garbage*/ ;          // else it is a rerun
-		bool     modified    = false/*garbage*/ ;
-		::string backend_msg ;
+		JobReport report      = JobReport::Unknown/*garbage*/ ;          // if not Hit, it is a rerun and this is the report to do if finally not a rerun
+		bool      modified    = false             /*garbage*/ ;
+		::string  backend_msg ;
 	} ;
 
 }
@@ -282,7 +286,6 @@ namespace Engine {
 		::umap<Rule,JobIdx > ete_n_rules    ;                                  // number of jobs participating to stats.ete with exec_time from rule
 		// summary
 		::vector<Node>                        up_to_dates  ;                   // asked nodes already done when starting
-		::umap<Job ,                JobIdx  > losts        ;                   // lost       jobs                                   (value        is just for summary ordering purpose)
 		::umap<Job ,                JobIdx  > frozen_jobs  ;                   // frozen     jobs                                   (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > frozen_nodes ;                   // frozen     nodes                                  (value        is just for summary ordering purpose)
 		::umap<Node,                NodeIdx > long_names   ;                   // nodes with name too long                          (value        is just for summary ordering purpose)

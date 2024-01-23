@@ -17,7 +17,7 @@ if __name__!='__main__' :
 
 	class A(Rule) :
 		target = 'a'
-		if step==1 : cmd = 'cat b'
+		if step==1 : cmd = 'cat b/c'
 		else       : cmd = ''
 
 	class B(Rule) :

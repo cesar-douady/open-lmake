@@ -173,8 +173,12 @@ namespace Engine {
 		::vector<Node> cycle     ;
 		::uset  <Rule> to_raise  ;
 		::vector<Node> to_forget ;
-		for( Node d=node ; !seen.contains(d) ;) {
-			seen.insert(d) ;
+		for( Node d=node ; seen.insert(d).second ;) {
+			NodeStatus dns = d->status() ;
+			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
+				d = d->dir() ;
+				goto Next ;
+			}
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )           // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {         // 2nd pass to find the loop
@@ -381,15 +385,23 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		if (stats.ended(JobReport::Failed)   ) audit_info( Color::Err  , to_string( "failed  jobs : " , stats.ended(JobReport::Failed)                                ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "done    jobs : " , stats.ended(JobReport::Done  )                                ) ) ;
-		if (stats.ended(JobReport::Steady)   ) audit_info( Color::Note , to_string( "steady  jobs : " , stats.ended(JobReport::Steady)                                ) ) ;
-		if (stats.ended(JobReport::Hit   )   ) audit_info( Color::Note , to_string( "hit     jobs : " , stats.ended(JobReport::Hit   )                                ) ) ;
-		if (stats.ended(JobReport::Rerun )   ) audit_info( Color::Note , to_string( "rerun   jobs : " , stats.ended(JobReport::Rerun )                                ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "useful  time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun   time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		for( JobReport jr : JobReport::N )
+			if ( stats.ended(jr) || jr==JobReport::Done ) {
+				Color c = Color::Note ;
+				switch (jr) {
+					case JobReport::Failed  :
+					case JobReport::LostErr : c = Color::Err     ; break ;
+					case JobReport::Lost    : c = Color::Warning ; break ;
+					case JobReport::Steady  :
+					case JobReport::Done    : c = Color::Ok      ; break ;
+					default : ;
+				}
+				audit_info( c , to_string(::setw(9),mk_snake(jr)," jobs : ",stats.ended(jr)) ) ; // 9 is for "completed"
+			}
+		/**/                                   audit_info( Color::Note , to_string( "useful   time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun    time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed  time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup  dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;
@@ -401,15 +413,6 @@ namespace Engine {
 			for( Node n : up_to_dates )
 				if      (n->is_src()                     ) audit_node( Color::Warning                     , to_string(::setw(w),src_msg  ," :") , n ) ;
 				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg," :") , n ) ;
-		}
-		if (+losts) {
-			::vmap<Job,JobIdx> losts_ = mk_vmap(losts) ;
-			::sort( losts_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			size_t w = 0     ;
-			bool   e = false ;
-			for( auto [j,_] :                 losts_                                   ) { w = ::max( w , j->rule->name.size() ) ; e |= j->err() ; }
-			for( auto [j,_] : ::c_vector_view(losts_,0,g_config.n_errs(losts_.size())) ) audit_info( j->err()?Color::Err:Color::Warning , to_string("lost ",::setw(w),j->rule->name) , j->name() ) ;
-			if ( g_config.errs_overflow(losts_.size()) )                                 audit_info( e       ?Color::Err:Color::Warning , "..."                                                  ) ;
 		}
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
@@ -512,7 +515,7 @@ namespace Engine {
 		RuleIdx                           n_missing = 0            ;                                         // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
-			audit_node( Color::Warning , "name is too long :" , node  , lvl ) ;
+			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
 			return ;
 		}
 		//
@@ -579,10 +582,10 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , JobAudit const& ja ) {
-		/**/                 os << "JobAudit(" << (ja.hit?"hit":"rerun") ;
-		if (ja.modified    ) os << ",modified"                           ;
-		if (+ja.backend_msg) os <<','<< ja.backend_msg                   ;
-		return               os <<')'                                    ;
+		/**/                 os << "JobAudit(" << ja.report ;
+		if (ja.modified    ) os << ",modified"              ;
+		if (+ja.backend_msg) os <<','<< ja.backend_msg      ;
+		return               os <<')'                       ;
 
 	}
 

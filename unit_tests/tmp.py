@@ -31,6 +31,7 @@ if __name__!='__main__' :
 			cat {LNK}
 			cat /tmp/b
 		''')
+
 	class Ref(Base) :
 		target = 'ref{N}'
 		cmd = multi_strip('''
@@ -40,6 +41,7 @@ if __name__!='__main__' :
 			echo {N}                   # cat LNK
 			echo {N}                   # cat /tmp/b
 		''')
+
 	class Cmp(Base) :
 		target = 'ok{N}'
 		deps = {
@@ -48,8 +50,40 @@ if __name__!='__main__' :
 		}
 		cmd = 'diff {REF} {DUT}'
 
+	class GenDir(Base) :
+		targets = { 'DST' : '{File:.*}.dir/{*:.*}' }
+		tmp = '/tmp'
+		cmd = '''
+			cd $TMPDIR
+			mkdir d
+			echo a >d/a
+			echo b >d/b
+			mkdir d/c
+			cp -a d $ROOT_DIR/{File}.dir/d
+		'''
+
+	class UpdateDir(Base) :
+		targets = { 'DST' : '{File:.*}.dir2/{*:.*}' }
+		deps    = { 'SRC' : '{File}.dir/d/a'        }
+		tmp = '/tmp'
+		cmd = '''
+			cd $TMPDIR
+			cp -a $ROOT_DIR/{File}.dir/d d
+			a=$(cat d/a)
+			echo $a:aa >d/a
+			cp -a d $ROOT_DIR/{File}.dir2/d
+		'''
+
+	class ChkDir(Base) :
+		target = '{File:.*}.chk'
+		deps   = { 'DUT' : '{File}.dir2/d/a' }
+		cmd = '''
+			[ $(cat {DUT}) = a:aa ]
+		'''
+
 else :
 
 	import ut
 
 	ut.lmake( 'ok1','ok2' , done=6 )   # check target is out of date
+	ut.lmake( 'test.chk'  , done=3 )

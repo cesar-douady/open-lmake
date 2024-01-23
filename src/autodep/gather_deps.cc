@@ -327,7 +327,6 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		for( Epoll::Event const& event : events ) {
 			Kind kind = event.data<Kind>() ;
 			Fd   fd   = event.fd()         ;
-			SWEAR(!delayed_check_deps.contains(fd)) ;         // while we are waiting for an answer, we should not be receiving any more requests
 			if (kind!=Kind::Slave) trace(kind,fd,epoll.cnt) ;
 			switch (kind) {
 				case Kind::Stdout :
@@ -390,19 +389,19 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					if ( proc!=Proc::Access                     ) trace(kind,fd,epoll.cnt,proc) ;     // there may be too many Access'es, only trace within _new_accesses
 					if ( proc>=Proc::HasFiles && jerr.auto_date ) _fix_auto_date(fd,jerr)       ;
 					switch (proc) {
-						case Proc::None     : epoll.close(fd) ; slaves.erase(fd) ;               break        ;
-						case Proc::Tmp      : seen_tmp = true ;                                  break        ;
+						case Proc::None     : epoll.close(fd) ; slaves.erase(fd) ;               break           ;
+						case Proc::Tmp      : seen_tmp = true ;                                  break           ;
 						//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						case Proc::Access   : _new_accesses(fd,::move(jerr)) ;                   break        ;
-						case Proc::Guard    : _new_guards  (fd,::move(jerr)) ;                   break        ;
-						case Proc::Confirm  : _confirm     (fd,::move(jerr)) ;                   break        ;
+						case Proc::Access   : _new_accesses(fd,::move(jerr)) ;                   break           ;
+						case Proc::Guard    : _new_guards  (fd,::move(jerr)) ;                   break           ;
+						case Proc::Confirm  : _confirm     (fd,::move(jerr)) ;                   break           ;
 						//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						case Proc::DepInfos :
 						case Proc::Decode   :
-						case Proc::Encode   : handle_req_to_server(fd,::move(jerr)) ;            goto NoReply ;
-						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;            goto NoReply ; // if sync, reply is delayed as well
-						case Proc::Trace    : trace(jerr.txt) ;                                  break        ;
-						case Proc::Panic    : set_status(Status::Err,jerr.txt) ; kill_job_cb() ; break        ;
+						case Proc::Encode   : handle_req_to_server(fd,::move(jerr)) ;            goto NoReply    ;
+						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;            goto NoReply    ; // if sync, reply is delayed as well
+						case Proc::Panic    : set_status(Status::Err,jerr.txt) ; kill_job_cb() ; [[fallthrough]] ;
+						case Proc::Trace    : trace(jerr.txt) ;                                  break           ;
 						default : FAIL(proc) ;
 					}
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;

@@ -610,11 +610,11 @@ namespace Engine {
 		void _solve_static_targets() const ;
 		// services
 	public :
-		::pair_ss      full_name  (               ) const ;
-		::string       name       (               ) const { return full_name().first ; }
-		::vector<Node> target_dirs(               ) const ;
-		VarIdx         idx        (::string const&) const ;
-		VarIdx         star_idx   (::string const&) const ;
+		::pair_ss    full_name  (               ) const ;
+		::string     name       (               ) const { return full_name().first ; }
+		::uset<Node> target_dirs(               ) const ;
+		VarIdx       idx        (::string const&) const ;
+		VarIdx       star_idx   (::string const&) const ;
 		// data
 		Rule       rule  ;
 		::vector_s stems ;             // static stems only of course

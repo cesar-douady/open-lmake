@@ -183,13 +183,13 @@ Digest analyze( ::string& msg , bool at_end ) {
 			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date         // if !date && !crc , compute crc and associated date
 			} ;
 			if (!td.crc) res.crcs.push_back(res.targets.size()) ;
-			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
 		}
 	}
-	trace("done",res.targets.size(),res.targets.size()) ;
+	trace("done",res.deps.size(),res.targets.size(),res.crcs.size()) ;
 	return res ;
 }
 
@@ -237,17 +237,15 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , Digest* digest ) {
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs ) {
 	static ::atomic<NodeIdx> target_idx = 0 ;
-	t_thread_key =
-		id<10 ? '0'+id
-	:	id<36 ? 'a'+id-10
-	:	        '>'
-	;
-	Trace trace("crc") ;
-	NodeIdx cnt = 0 ;
-	for( NodeIdx ti=0 ; (ti=target_idx++)<digest->crcs.size() ; cnt++ ) {    // cnt is for trace only
-		::pair_s<TargetDigest>& e      = digest->targets[digest->crcs[ti]] ;
+	t_thread_key = '0'+id ;
+	Trace trace("crc",targets->size(),crcs->size()) ;
+	NodeIdx cnt = 0 ;                                                      // cnt is for trace only
+	for( NodeIdx ti=0 ; (ti=target_idx++)<crcs->size() ; cnt++ ) {
+trace(ti);
+trace((*crcs)[ti]);
+		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ti]] ;
 		Pdate                   before = Pdate::s_now()                    ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
 		trace("crc_date",ti,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
@@ -261,11 +259,13 @@ void compute_crcs(Digest& digest) {
 	if (n_threads>8                 ) n_threads = 8                              ;
 	if (n_threads>digest.crcs.size()) n_threads = digest.crcs.size()             ;
 	//
-	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-	for( size_t i=0 ; i<n_threads ; i++        ) crc_threads.emplace_back(crc_thread_func,i,&digest) ; // just constructing a destructing the threads will execute & join them
-	if (!g_start_info.autodep_env.reliable_dirs) {                                                     // fast path : avoid listing targets & guards if reliable_dirs
-		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                        // protect against NFS strange notion of coherence while computing crcs
-		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                        // .
+	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
+	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
+		for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i,&digest.targets,&digest.crcs) ; // just constructing a destructing the threads will execute & join them
+	}
+	if (!g_start_info.autodep_env.reliable_dirs) {                                                  // fast path : avoid listing targets & guards if reliable_dirs
+		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                     // protect against NFS strange notion of coherence while computing crcs
+		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                     // .
 		g_nfs_guard.close() ;
 	}
 }

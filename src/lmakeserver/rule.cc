@@ -1343,8 +1343,8 @@ namespace Engine {
 		return os ;
 	}
 
-	::vector<Node> Rule::SimpleMatch::target_dirs() const {
-		::set<Node> dirs ;
+	::uset<Node> Rule::SimpleMatch::target_dirs() const {
+		::uset<Node> dirs ;
 		for( auto const& [k,te] : rule->targets ) {
 			::string target = _subst_target(
 				te.pattern
@@ -1355,7 +1355,7 @@ namespace Engine {
 			size_t sep = target.rfind('/') ;
 			if (sep!=Npos) dirs.insert(Node(target.substr(0,sep))) ;
 		}
-		return mk_vector(dirs) ;
+		return dirs ;
 	}
 
 	::vector_s Rule::SimpleMatch::star_patterns() const {

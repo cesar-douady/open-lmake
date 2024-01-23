@@ -174,7 +174,7 @@ namespace Engine::Makefiles {
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (PYTHON_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
-		if (status!=Status::Ok) throw "cannot read "+action ;
+		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather_deps.msg?" : ":"" , localize(gather_deps.msg) ) ;
 		//
 		::string   content = read_content(data) ;
 		::vector_s deps    ; deps.reserve(gather_deps.accesses.size()) ;

@@ -134,15 +134,24 @@ else
 	done
 fi
 
+#
+# addr2line
+#
+if [ -x $(dirname $CC)/addr2line ]
+then ADDR2LINE=$(dirname $CC)/addr2line
+else ADDR2LINE=/bin/addr2line
+fi
+
 cat <<EOF
+	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
-	#define HAS_SECCOMP                 $HAS_SECCOMP
-	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
-	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
-	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
+	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
+	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SLURM                   $HAS_SLURM
+	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
+	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PYTHON                      "$PYTHON"
 	#define PYTHON_LD_LIBRARY_PATH      "$PYTHON_LD_LIBRARY_PATH"
 EOF

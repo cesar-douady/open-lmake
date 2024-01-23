@@ -41,7 +41,8 @@ items :
 		- JobInfoStart
 		- JobInfoEnd
 		- find a way to identify LRU structure
-* mimic slurm killing procedure
+! before erasing a dir, check for phony targets, not only files on disk
+? mimic slurm killing procedure
 	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
 	- follow process hierarchy
 	- recognize stdin, stdout, stderr
@@ -49,10 +50,6 @@ items :
 		- as process hierarchy moves while we walk through it
 		- stop during discovery pass
 		- kill when everything is steady
-! in autodep dlopen/ld_preload (cf man 3 dlopen)
-	- handle DT_RPATH & DT_RUNPATH tags
-	- handle indirect loads
-! before erasing a dir, check for phony targets, not only files on disk
 ? improve hard link management
 	- when ln a b
 	- followed by write to b

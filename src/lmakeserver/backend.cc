@@ -407,15 +407,14 @@ namespace Backends {
 			trace("release_start_tab",job_exec,entry) ;
 			// if we have no fd, job end was invented by heartbeat, no acknowledge
 			// acknowledge job end before telling backend as backend may wait the end of the job
-			::string backend_msg ;
-			bool     backend_ok  = true/*garbage*/ ;
-			//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			::tie(backend_msg,backend_ok) = s_end( entry.tag , +job , jrr.digest.status ) ;
-			//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			ensure_nl(jrr.msg) ; jrr.msg += backend_msg ;
-			if ( jrr.digest.status==Status::LateLost && !backend_msg ) { ensure_nl(jrr.msg) ; jrr.msg           += "vanished after start\n"                     ; }
-			if ( is_lost(jrr.digest.status) && !backend_ok           )                        jrr.digest.status  = Status::LateLostErr                          ;
-			/**/                                                                              jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
+			//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			auto [msg,ok] = s_end( entry.tag , +job , jrr.digest.status ) ;
+			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			ensure_nl(jrr.msg) ;
+			jrr.msg += msg ;
+			if ( jrr.digest.status==Status::LateLost && !msg ) jrr.msg           += "vanished after start\n"                     ;
+			if ( is_lost(jrr.digest.status) && !ok           ) jrr.digest.status  = Status::LateLostErr                          ;
+			/**/                                               jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;
 		serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr) ) ;

@@ -103,15 +103,15 @@ SAN                 := $(if $(SAN_FLAGS),.san,)
 PREPROCESS          := $(CC)             -E                     -ftabstop=4
 ASSEMBLE            := $(CC)             -S                     -ftabstop=4
 COMPILE             := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4 -ftemplate-backtrace-limit=0
-LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                      # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                      # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                                                                 # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                                                                  # e.g. : /usr/lib/x /a/b /c /a/b
-LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                                                      # e.g. : /a/b /c /usr/lib/x
-LINK_LIB_PATH       := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))                    # suppress standard dirs as required in case of installed package
-LINK_OPTIONS        := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                   # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_LIB_PATH       := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                           # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                           # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH       := $(subst :, ,$(LINK_LIB_PATH))                                                      # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+LINK_LIB_PATH       := $(realpath $(LINK_LIB_PATH))                                                       # e.g. : /usr/lib/x /a/b /c /a/b
+LINK_LIB_PATH       := $(sort $(LINK_LIB_PATH))                                                           # e.g. : /a/b /c /usr/lib/x
+LINK_LIB_PATH       := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))         # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
+LINK_OPTIONS        := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                        # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O              := $(CC) $(COVERAGE) -r
-LINK_SO             := $(CC) $(COVERAGE) $(LINK_OPTIONS) -shared-libgcc -shared
+LINK_SO             := $(CC) $(COVERAGE) $(LINK_OPTIONS) -shared                                          # some usage may have specific libs, avoid dependencies
 LINK_BIN            := $(CC) $(COVERAGE) $(LINK_OPTIONS)
 LINK_LIB            := -ldl -lstdc++ -lm
 PYTHON_INCLUDE_DIR  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_path      ("include"  )      )')

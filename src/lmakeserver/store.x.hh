@@ -172,8 +172,8 @@ namespace Engine::Persistent {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		/**/     NodeBase( ::string const& name , bool no_dir=false ) ;
-		explicit NodeBase( Name                 , bool no_dir=false ) ;                 // no lock as it is managed in public cxtor & dir method
+		/**/     NodeBase( ::string const& name , bool no_dir=false , bool locked=false ) ; // if locked, lock is already taken
+		explicit NodeBase( Name                 , bool no_dir=false , bool locked=false ) ; // .
 		// accesses
 	public :
 		NodeData const& operator* () const ;
@@ -471,18 +471,26 @@ namespace Engine::Persistent {
 	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
 
 	// cxtors & casts
-	inline NodeBase::NodeBase( Name name_ , bool no_dir ) {
+	inline NodeBase::NodeBase( Name name_ , bool no_dir , bool locked ) {
 		if (!name_) return ;
 		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {
-			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
+		if (+*this) {                                                                   // fast path : avoid taking lock
+			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name ) ;
+			return ;
+		}
+		// restart with lock
+		static ::mutex s_m ;                                                                                // nodes can be created from several threads, ensure coherence between names and nodes
+		::unique_lock lock = locked? (SWEAR(!s_m.try_lock()),::unique_lock<mutex>()) : ::unique_lock(s_m) ;
+		*this = _name_file.c_at(name_).node() ;
+		if (+*this) {                                                                   // fast path : avoid taking lock
+			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name ) ;
 		} else {
-			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir) ;
-			(*this)->_full_name  =         name_                            ;
+			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ; // if dir must be created, we already hold the lock
+			(*this)->_full_name  =         name_                                           ;
 		}
 	}
-	inline NodeBase::NodeBase( ::string const& n , bool no_dir ) {
-		*this = Node( _name_file.insert(n) , no_dir ) ;
+	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {
+		*this = Node( _name_file.insert(n) , no_dir , locked ) ;
 	}
 	// accesses
 	inline bool NodeBase::frozen    () const { return _frozen_nodes   .contains(Node(+*this)) ; }

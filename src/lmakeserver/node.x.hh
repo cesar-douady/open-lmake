@@ -194,9 +194,9 @@ namespace Engine {
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData(                      ) = default ;
-		NodeData( Name n , bool no_dir ) : DataBase{n} {
-			if (!no_dir) dir() = Node(_dir_name()) ;
+		NodeData(                                          ) = default ;
+		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
+			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
 		}
 		~NodeData() {
 			job_tgts().pop() ;

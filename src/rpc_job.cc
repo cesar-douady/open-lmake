@@ -28,9 +28,6 @@ using namespace Hash ;
 	::string   msg       ;
 	bool       ok        = true ;
 	//
-	auto keep = [&](::string const& dir)->void {
-		for( ::string d=dir ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ;
-	} ;
 	// check manual
 	for( auto& [f,a] : pre_actions ) {                                                                                             // pre_actions are adequately sorted
 		{ if ( a.tag>FileActionTag::HasFile             )                     continue ;   } FileInfo fi { nfs_guard.access(f) } ; // no file to check
@@ -45,21 +42,14 @@ using namespace Hash ;
 			SWEAR(+f) ;                                                                                                            // acting on root dir is non-sense
 			if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                    // no file to act on
 			switch (a.tag) {
-				case FileActionTag::Keep     : keep(dir_name(f)) ;                                                                                     break ;
-				case FileActionTag::Unlink   :                     if (unlink  (nfs_guard.change(f))) unlinks.push_back(f)                           ; break ;
-				case FileActionTag::Uniquify : keep(dir_name(f)) ; if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
-				case FileActionTag::Mkdir :
-					if (!keep_dirs.contains(f)) {
-						mkdir(f,nfs_guard) ;
-						keep(f) ;
-					}
-				break ;
+				case FileActionTag::None     :                                                                                     break ;
+				case FileActionTag::Unlink   : if (unlink  (nfs_guard.change(f))) unlinks.push_back(f)                           ; break ;
+				case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
+				case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                break ;
 				case FileActionTag::Rmdir :
-					for( ::string d=f ; +d && !keep_dirs.contains(d) ; d=dir_name(d) ) {
-						nfs_guard.change(f) ;
-						try                     { rmdir(f) ; }
-						catch (::string const&) { keep (f) ; }
-					}
+					if (!keep_dirs.contains(f))
+						try                     { rmdir(nfs_guard.change(f)) ;                                                        }
+						catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
 				break ;
 				default : FAIL(a) ;
 			}

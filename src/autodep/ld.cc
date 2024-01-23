@@ -289,8 +289,9 @@ static inline const char* nn(const char* p) { return p?p:"<>";}
 		// dlopen
 		// dlopen cannot be simple as we do not know which file will be accessed
 		// not recursively called by auditing code
-		void* dlopen (          CC* pth,int fs) NE { HEADER(dlopen ,!pth||!*pth,(   pth,fs)) ; Dlopen r{pth,"dlopen" } ; return r(orig(   F(r),fs)) ; }
-		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,F(r),fs)) ; }
+		// not necessary with ld_audit as auditing mechanism provides a reliable way of finding indirect deps
+		void* dlopen (          CC* pth,int fs) NE { HEADER(dlopen ,!pth||!*pth,(   pth,fs)) ; Dlopen r{pth,"dlopen" } ; return r(orig(   pth,fs)) ; } // we do not support tmp mapping for indirect ...
+		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,pth,fs)) ; } // ... deps, so we can path pth to orig
 	#endif
 
 	// dup2

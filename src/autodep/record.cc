@@ -92,9 +92,9 @@ Record::SolveReport Record::_solve( Path& path , bool no_follow , bool read , ::
 	if ( !read && +sr.last_lnk   ) _report_dep( ::move(sr.last_lnk) , Ddate()                    , Access::Lnk , comment+".lst" ) ; // sr.lastlnk does not exist and we have not looked at errno ...
 	sr.lnks.clear() ;                                                                                                               // ... so we can report an unseen dep
 	if ( sr.mapped && path.file && path.file[0] ) {                                                                                 // else path is ok as it is
-		if      (is_abs(sr.real)) path.share   (               +sr.real?sr.real.c_str():"/"                    ) ;
-		else if (path.has_at    ) path.share   ( s_root_fd() ,          sr.real.c_str()                        ) ;
-		else                      path.allocate(               to_string(s_autodep_env().root_dir,'/',sr.real) ) ;
+		if      (is_abs(sr.real)) { if (+sr.real) path.allocate(sr.real) ; else path.share("/") ;      }                            // dont share real with file as real may be moved
+		else if (path.has_at    )   path.allocate( s_root_fd() , sr.real                           ) ;
+		else                        path.allocate( to_string(s_autodep_env().root_dir,'/',sr.real) ) ;
 	}
 	path.kind = sr.kind ;
 	return sr ;

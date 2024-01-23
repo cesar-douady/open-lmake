@@ -17,6 +17,7 @@ namespace Engine {
 
 	static constexpr uint8_t JobNGuardBits = 2 ;           // one to define JobTgt, the other to put it in a CrunchVector
 
+
 }
 #endif
 #ifdef STRUCT_DEF
@@ -131,9 +132,10 @@ namespace Engine {
 		void             continue_  ( Req , bool report=true                                                  ) ;       // Req is killed but job has some other req
 		void             not_started(                                                                         ) ;       // Req was killed before it started
 		//
-		void audit_end( ::string const& pfx , ReqInfo const&     , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
-		void audit_end( ::string const& pfx , ReqInfo const& cri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
-			audit_end(pfx,cri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
+		// audit_end returns the report to do if job is finally not rerun
+		JobReport audit_end( ::string const& pfx , ReqInfo const&     , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
+		JobReport audit_end( ::string const& pfx , ReqInfo const& cri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
+			return audit_end(pfx,cri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// start/end date book keeping
 	private :

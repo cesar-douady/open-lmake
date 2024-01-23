@@ -74,6 +74,7 @@ template<class T        > concept IsNotVoid = !::is_void_v<T>                   
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
 template<class T> static inline constexpr T        copy    (T const& x) { return x ; }
+template<class T> static inline constexpr T      & ref     (T     && x) { return x ; }
 template<class T> static inline constexpr T const& constify(T const& x) { return x ; }
 
 //
@@ -933,8 +934,8 @@ template<char Delimiter> ::string mk_printable(::string const& s) {            /
 			case '\v' : res += "\\v"  ; break ;
 			case '\\' : res += "\\\\" ; break ;
 			default   :
-				if ( is_printable(c) && c!=Delimiter ) res +=                                                            c   ;
-				else                                   res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
+				if ( is_printable(c) && c!=Delimiter ) res +=                                                                    c   ;
+				else                                   res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(uint8_t(c))) ;
 		}
 	}
 	return res ;

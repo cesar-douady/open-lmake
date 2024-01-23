@@ -156,7 +156,7 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 		::close(c2p.read) ;
 		if (c2p.write!=Fd::Stdout) { ::dup2(c2p.write,Fd::Stdout) ; ::close(c2p.write) ; }
 		::close(Fd::Stdin) ;                                                                                  // no input
-		const char* args[] = { "/bin/addr2line" , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
+		const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 		::execv( args[0] , const_cast<char**>(args) ) ;
 		exit(2) ;                                                              // in case exec fails
 	}

@@ -86,7 +86,7 @@ private :
 		for( auto const& [f,_] : jerr.files ) { trace(f) ; accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ; }
 	}
 	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                         // fd for trace purpose only
-		Trace trace("_new_guards",fd) ;
+		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
 	void _codec( ServerReply&& sr , JobRpcReply const& jrr ) {

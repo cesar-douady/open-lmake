@@ -352,18 +352,11 @@ R"({
 		for( auto [t,a] : pre_actions.first ) {
 			::string tn = mk_shell_str(t->name()) ;
 			switch (a.tag) {
-				case FileActionTag::Keep     :                                                                                                                                                  break ;
+				case FileActionTag::None     :                                                                 break ;
+				case FileActionTag::Mkdir    :   append_to_string(script,"mkdir -p ",tn,               '\n') ; break ;
+				case FileActionTag::Rmdir    :   append_to_string(script,"rmdir "   ,tn," 2>/dev/null",'\n') ; break ;
 				case FileActionTag::Unlink   : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
-				case FileActionTag::Mkdir    : { ::string c = "mkdir -p "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
-				case FileActionTag::Rmdir : {
-					const char* sep = "" ;
-					for( Node d=t ; +d && !to_mkdirs.contains(d) ; d=d->dir() ) {
-						append_to_string( script , sep , "rmdir " , mk_shell_str(d->name()) , " 2>/dev/null" ) ;
-						sep = " && " ;
-					}
-					script += '\n' ;
-				} break ;
 				default : FAIL(a.tag) ;
 			}
 		}

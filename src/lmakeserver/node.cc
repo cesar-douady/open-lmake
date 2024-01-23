@@ -314,6 +314,7 @@ namespace Engine {
 			//
 			if (dri.waiting()) {
 				dir()->add_watcher(dri,idx(),ri,ri.pressure) ;
+				status(NodeStatus::Uphill) ;                                                             // temporarily, until dir() is built and we know the definitive answer
 				goto NotDone ;                                                                           // return value is meaningless when waiting
 			}
 			SWEAR(dir()->done(dri)) ;                                                                    // after having called make, dep must be either waiting or done
@@ -321,7 +322,7 @@ namespace Engine {
 		// step 3 : handle what needs dir status
 		switch (dir()->buildable) {
 			case Buildable::Maybe :
-				if (dir()->status()==NodeStatus::None) goto NotDone ;
+				if (dir()->status()==NodeStatus::None) { status(NodeStatus::Unknown) ; goto NotDone ; }  // not Uphill anymore
 				[[fallthrough]] ;
 			case Buildable::Yes :
 				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                            // propagate as dir->buildable may have changed from Maybe to Yes when made

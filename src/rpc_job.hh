@@ -55,7 +55,8 @@ constexpr Dflags DfltDflags   {                    Dflag::Required              
 
 ENUM_1( FileActionTag
 ,	HasFile = Uniquify // <=HasFile means action acts on file
-,	Keep               // no action, just check integrity
+,	Src                // file is src, no action
+,	None               // no action, just check integrity
 ,	Unlink
 ,	Uniquify
 ,	Mkdir
@@ -738,7 +739,8 @@ public :
 			case P::Confirm  : ::serdes(s,ok     ) ;                   break           ;
 			case P::Guard    :
 			case P::Tmp      :
-			case P::Trace    : ::serdes(s,txt    ) ;                   break           ;
+			case P::Trace    :
+			case P::Panic    : ::serdes(s,txt    ) ;                   break           ;
 			case P::Access   : ::serdes(s,txt    ) ;                   [[fallthrough]] ;
 			case P::DepInfos : ::serdes(s,digest ) ;                   break           ;
 			case P::Encode   : ::serdes(s,min_len) ;                   [[fallthrough]] ;
