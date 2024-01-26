@@ -529,6 +529,10 @@ This way, if you want a reliable run, then you must not modify the repository wh
 But if you are running @lmake in an interactive mode, it is very comfortable to be able to go on with your edition session while some regression testing is running.
 At worst, you will have an error mentionning a file has been overwritten, but you will not have an incoherent result based on some old files and some newer files.
 
+Before processing arguments, @lmake prepends the content of the @code{LMAKE_ARGS} environment variable, separated by spaces.
+This eases the management of user preferences.
+For example, a user may like to systematically pass the @code{-a} and @code{-t} options, in which case it can set @code{LMAKE_ARGS='-a -t'}.
+
 Options :
 @itemize @bullet
 @item @code{-a}|@code{--archive} : ensure all intermediate files are up to date, in addition to the asked targets.

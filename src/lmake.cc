@@ -65,8 +65,18 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
 	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                   } }
 	}} ;
-	ReqCmdLine      cmd_line { syntax , argc , argv }             ;
-	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs] ;
+	// add args passed in environment
+	SWEAR(argc>0) ;
+	::vector_s            env_args = split(get_env("LMAKE_ARGS"))                   ;
+	::vector<const char*> args     = {argv[0]} ; args.reserve(env_args.size()+argc) ;
+	for( ::string const& a : env_args ) args.push_back(a.c_str()) ;
+	for( int i=1 ; i<argc ; i++       ) args.push_back(argv[i]  ) ;
+	Trace trace("main",::c_vector_view<const char*>(argv,argc)) ;
+	/**/  trace("main",env_args                               ) ;
+	/**/  trace("main",args                                   ) ;
+	//
+	ReqCmdLine      cmd_line { syntax , int(args.size()) , args.data() } ;
+	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs]        ;
 	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
