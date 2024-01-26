@@ -445,6 +445,7 @@ namespace Engine {
 		// data
 		Re::RegExpr      re     ;
 		::vector<VarIdx> groups ; // indexed by stem index, provide the corresponding group number in pattern
+		::string         txt    ; // human readable pattern
 	} ;
 
 	struct RuleData {

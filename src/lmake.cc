@@ -36,8 +36,7 @@ static void _int_thread_func( ::stop_token stop , Fd int_fd ) {
 	}
 }
 
-
-int main( int argc , char* argv[] ) {
+static void _handle_int() {
 	struct Exit {
 		Exit() : int_fd{open_sig_fd({SIGINT})} {}
 		~Exit() {                                                              // this must be executed after _int_thread_func has completed
@@ -49,7 +48,11 @@ int main( int argc , char* argv[] ) {
 		}
 		Fd int_fd ;
 	} ;
-	static Exit exit ;
+	static Exit      exit   ;
+	static ::jthread int_jt { _int_thread_func , exit.int_fd } ;
+}
+
+int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
 	app_init(true/*search_root*/,true/*cd_root*/) ;
 	//
@@ -80,8 +83,8 @@ int main( int argc , char* argv[] ) {
 	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , [&]()->void { static ::jthread int_jt { _int_thread_func , exit.int_fd } ; } ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mk_rc(ok) ;
 }

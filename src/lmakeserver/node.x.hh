@@ -519,6 +519,7 @@ namespace Engine {
 		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
 		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
 		if (!tn       ) tn = (*this)->name() ;                                 // .
+Trace trace("lazy_star_tflag",tf,sm,tn);
 		/**/            return sm.rule->tflags(sm.star_idx(tn))[tf] ;
 	}
 

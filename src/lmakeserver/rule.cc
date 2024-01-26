@@ -904,7 +904,7 @@ namespace Engine {
 		TargetPattern res       ;
 		VarIdx        cur_group = 1 ;
 		//
-		::string pattern = _subst_target(
+		res.txt = _subst_target(
 			target
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
@@ -920,7 +920,7 @@ namespace Engine {
 			}
 		,	true/*escape*/
 		) ;
-		res.re = RegExpr( pattern , true/*fast*/ ) ; // stem regexprs have been validated, normally there is no error here
+		res.re = RegExpr( res.txt , true/*fast*/ ) ; // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -999,6 +999,9 @@ namespace Engine {
 			wt          = ::max(wt,p.size()) ;
 			patterns[k] = ::move(p)          ;
 		}
+		//
+		res << indent("targets :\n",i) ;
+		//
 		for( auto const& [k,te] : targets ) {
 			Tflags        dflt_flags = DfltTflags ;                            // flags in effect if no special user info
 			OStringStream flags      ;
@@ -1026,13 +1029,16 @@ namespace Engine {
 				}
 				flags << targets[c].first ;
 			}
-			if (!first_conflict) flags << ']'         ;
-			res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
+			if (!first_conflict) flags << ']' ;
+			res << indent(to_string(::setw(wk),k," : "),i+1) ;
 			::string flags_str = ::move(flags).str() ;
 			if (+flags_str) res << ::setw(wt)<<patterns[k] << flags_str ;
 			else            res <<             patterns[k]              ;
 			res <<'\n' ;
 		}
+		//
+		res << indent("target_patterns :\n",i) ;
+		for( size_t t=0 ; t<targets.size() ; t++ ) res << indent(to_string(::setw(wk),rd.targets[t].first," : ",rd.target_patterns[t].txt,'\n'),i+1) ;
 		return res.str() ;
 	}
 	static ::string _pretty_sigs( ::vector<uint8_t> const& sigs ) {
@@ -1219,8 +1225,8 @@ namespace Engine {
 			/**/               entries.emplace_back( "interpreter" , i                                         ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
-		if (+stems) res << indent("stems :\n"  ,1) << _pretty_vmap   (      2,stems  ,true/*uniq*/) ;
-		/**/        res << indent("targets :\n",1) << _pretty_targets(*this,2,targets             ) ;
+		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;
+		/**/        res <<                          _pretty_targets(*this,1,targets           ) ;
 		if (!is_special()) {
 			res << _pretty_str(1,deps_attrs        ,*this) ;
 			res << _pretty_str(1,create_none_attrs       ) ;
@@ -1441,10 +1447,14 @@ namespace Engine {
 		if (it==_static_targets.end()) return star_idx(target) ;
 		else                           return it->second       ;
 	}
+
 	VarIdx Rule::SimpleMatch::star_idx(::string const& target) const {
+Trace trace("star_idx",*this,target) ;
 		for( VarIdx t=rule->n_static_targets ; t<rule->targets.size() ; t++ ) {
+trace(t);
 			Match m = rule->target_patterns[t].match(target) ;
 			if (!m) continue ;
+trace(rule->n_static_stems,rule->target_patterns[t].groups,stems) ;
 			for( VarIdx i=0 ; i<rule->n_static_stems ; i++ ) if (m[rule->target_patterns[t].groups[i]]!=stems[i]) goto Continue ;
 			return t ;
 		Continue : ;

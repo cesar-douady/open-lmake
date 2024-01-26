@@ -57,11 +57,11 @@ def dir_guard(file) :
 
 class BaseRule(Rule) :
 	stems = {
-		'Dir'  : r'.+?'                # use non-greedy to be protected against dirs ending in .dir in tar file
-	,	'DirS' : r'.+/|'               # include trailing / or empty to designate top-level
-	,	'File' : r'.+'
-	,	'Base' : r'[^/]+'
-	,	'Ext'  : r'[^/]+'
+		'Dir'  : r'(.+?)'                # use non-greedy to be protected against dirs ending in .dir in tar file
+	,	'DirS' : r'(.+/|)'               # include trailing / or empty to designate top-level
+	,	'File' : r'(.+)'
+	,	'Base' : r'([^/]+)'
+	,	'Ext'  : r'([^/]+)'
 	}
 	autodep     = 'ptrace'
 	backend     = backend

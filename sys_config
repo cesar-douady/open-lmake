@@ -137,9 +137,8 @@ fi
 #
 # addr2line
 #
-if [ -x $(dirname $CC)/addr2line ]
-then ADDR2LINE=$(dirname $CC)/addr2line
-else ADDR2LINE=/bin/addr2line
+if   [ -x $(dirname $CC)/addr2line ] ; then ADDR2LINE=$(dirname $CC)/addr2line
+else                                        ADDR2LINE=$(type -p addr2line)
 fi
 
 cat <<EOF

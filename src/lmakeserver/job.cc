@@ -46,6 +46,7 @@ namespace Engine {
 		Job                                        j    = jd.idx() ;
 		Trace trace("targets_to_wash",j) ;
 		auto handle_target = [&]( Node t , ::function<bool(Tflag)> has_flag )->void {
+trace(t) ;
 			FileActionTag at   = FileActionTag::Unknown/*garbage*/ ;
 			bool          warn = false                             ;
 			//
