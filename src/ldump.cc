@@ -20,9 +20,10 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	Persistent::new_config({}/*config*/,false/*dynamic*/) ;
 	//
-	for( const Rule r : Persistent::rule_lst() ) _out( {}           , to_string(r      ) , r->name   ) ;
-	for( const Job  j : Persistent::job_lst () ) _out( to_string(j) , to_string(j->rule) , j->name() ) ;
-	for( const Node n : Persistent::node_lst() )
+	for( const Rule r : Persistent::rule_lst() )             _out( {}           , to_string(r      ) , r->name   ) ;
+	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( to_string(j) , to_string(j->rule) , j->name() ) ; }
+	for( const Node n : Persistent::node_lst() ) {
+		n.chk() ;
 		switch (n->buildable) {
 			case Buildable::LongName  :
 			case Buildable::DynAnti   :
@@ -40,6 +41,7 @@ int main( int argc , char* /*argv*/[] ) {
 			case Buildable::DynSrc    :
 			case Buildable::Unknown   : _out( to_string(n) , to_string(n->actual_job_tgt()) , n->name() ) ; break ;
 		}
+	}
 	//
 	Persistent::chk() ;
 	//

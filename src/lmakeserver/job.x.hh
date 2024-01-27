@@ -217,12 +217,13 @@ namespace Engine {
 		static ::umap<Node,NodeIdx/*cnt*/> _s_hier_target_dirs  ;              // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
-		JobData() = default ;
-		JobData( Special sp , Deps ds={} ) : deps{ds} , rule{sp} {             // special Job, all deps
+		JobData(                                  ) = default ;
+		JobData( Name n                           ) : DataBase{n}                       {} // special Job, all deps
+		JobData( Name n , Special sp , Deps ds={} ) : DataBase{n} , deps{ds} , rule{sp} {  // special Job, all deps
 			SWEAR(sp!=Special::Unknown) ;
-			exec_gen = NExecGen ;                                              // special jobs are always exec_ok
+			exec_gen = NExecGen ;                                                          // special jobs are always exec_ok
 		}
-		JobData( Rule r , Deps sds ) : deps{sds} , rule{r} {                   // plain Job, static deps
+		JobData( Name n , Rule r , Deps sds ) : DataBase{n} , deps{sds} , rule{r} {        // plain Job, static deps
 			SWEAR(!rule.is_shared()) ;
 		}
 		//

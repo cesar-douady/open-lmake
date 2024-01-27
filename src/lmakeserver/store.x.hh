@@ -100,7 +100,7 @@ namespace Engine::Persistent {
 		friend struct NodeBase ;
 		// cxtors & casts
 		DataBase(      ) = default ;
-		DataBase(Name n) : _full_name{n} {} ;
+		DataBase(Name n) : _full_name{n} { fence() ; } // ensure when you reach item by name, its name is the expected one
 		// accesses
 		::string full_name   (FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
 		size_t   full_name_sz(FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
@@ -143,6 +143,8 @@ namespace Engine::Persistent {
 		RuleIdx rule_idx () const ;
 		bool    frozen   () const ;
 		bool    manual_ok() const ;
+		// services
+		void chk() const ;
 	} ;
 
 	struct NodeBase
@@ -183,6 +185,8 @@ namespace Engine::Persistent {
 		bool            frozen    () const ;
 		bool            manual_ok () const ;
 		bool            no_trigger() const ;
+		// services
+		void chk() const ;
 	} ;
 
 	struct RuleBase
@@ -417,17 +421,17 @@ namespace Engine::Persistent {
 	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
 	// cxtors & casts
 	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {    // 1st arg is only used to disambiguate
-		*this = _job_file.emplace(::forward<A>(args)...) ;
+		*this = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
 	}
-	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) {
+	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		Name name_ = _name_file.insert(name_sfx.first,name_sfx.second) ;
 		*this = _name_file.c_at(+name_).job() ;
 		if (+*this) {
 			SWEAR( name_==(*this)->_full_name , name_ , (*this)->_full_name ) ;
 			if (!new_) return ;
-			**this = JobData(::forward<A>(args)...) ;
+			**this = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
-			_name_file.at(+name_) = *this = _job_file.emplace(::forward<A>(args)...) ;
+			_name_file.at(+name_) = *this = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
 		}
 		(*this)->_full_name = name_ ;
 	}
@@ -443,7 +447,12 @@ namespace Engine::Persistent {
 	//
 	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+*this) ; }
 	inline JobData      & JobBase::operator*()       { return _job_file.at  (+*this) ; }
-	//
+	// services
+	inline void JobBase::chk() const {
+		Name fn = (*this)->_full_name ;
+		Job  j  = _name_file.c_at(fn).job() ;
+		SWEAR( *this==j , *this , fn , j ) ;
+	}
 
 	//
 	// NodeBase
@@ -474,19 +483,18 @@ namespace Engine::Persistent {
 	inline NodeBase::NodeBase( Name name_ , bool no_dir , bool locked ) {
 		if (!name_) return ;
 		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {                                                                   // fast path : avoid taking lock
-			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name ) ;
+		if (+*this) {                                                                                                                 // fast path : avoid taking lock
+			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
 			return ;
 		}
 		// restart with lock
 		static ::mutex s_m ;                                                                                // nodes can be created from several threads, ensure coherence between names and nodes
 		::unique_lock lock = locked? (SWEAR(!s_m.try_lock()),::unique_lock<mutex>()) : ::unique_lock(s_m) ;
 		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {                                                                   // fast path : avoid taking lock
-			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name ) ;
+		if (+*this) {                                                                                                                 // fast path : avoid taking lock
+			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
 		} else {
 			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ; // if dir must be created, we already hold the lock
-			(*this)->_full_name  =         name_                                           ;
 		}
 	}
 	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {
@@ -499,6 +507,12 @@ namespace Engine::Persistent {
 	//
 	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+*this) ; }
 	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+*this) ; }
+	// services
+	inline void NodeBase::chk() const {
+		Name fn = (*this)->_full_name ;
+		Node n  = _name_file.c_at(fn).node() ;
+		SWEAR( *this==n , *this , fn , n ) ;
+	}
 
 	//
 	// RuleBase

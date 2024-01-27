@@ -702,8 +702,7 @@ namespace Store {
 		}
 		Idx _emplace( Kind k , bool used , Idx idx , ChunkIdx start , ChunkIdx chunk_sz , CharUint cmp_val , ChunkBit cmp_bit ) {
 			Sz sz = Item::s_min_sz( k , used , chunk_sz ) ;
-			Idx new_idx = Base::emplace( sz , sz , k , used , chunk_sz , _at(idx) , start , cmp_val , cmp_bit ) ;
-			return new_idx ;
+			return Base::emplace( sz , sz , k , used , chunk_sz , _at(idx) , start , cmp_val , cmp_bit ) ;
 		}
 		Idx _emplace( Kind k , bool used , Idx idx , ChunkIdx start , ChunkIdx chunk_sz ) {
 			if (k==Kind::Split) {
@@ -1251,7 +1250,9 @@ namespace Store {
 			ULock     lock{_mutex}                        ;
 			DvgDigest dvg { root , *this , name_ , psfx } ;
 			if (dvg.is_match()) return dvg.idx ;
-			else                return _insert( dvg.idx , dvg.chunk_pos , name_ , psfx , dvg.name_pos ) ;
+			Idx res = _insert( dvg.idx , dvg.chunk_pos , name_ , psfx , dvg.name_pos ) ;
+			if constexpr (HasData) SWEAR(at(res)==DataNv()) ;
+			return res ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
