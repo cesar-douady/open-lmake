@@ -425,28 +425,29 @@ namespace Backends {
 		return false/*keep_fd*/ ;
 	}
 
-	// kill all if req==0
-	void Backend::_s_kill_req(ReqIdx req) {
-		Trace trace(BeChnl,"s_kill_req",req) ;
-		::vmap  <JobIdx,pair<StartEntry::Conn,Pdate>> to_wakeup ;
-		{	::unique_lock lock { _s_mutex } ;                                  // lock for minimal time
+	// kill all if ri==0
+	void Backend::_s_kill_req(ReqIdx ri) {
+		Trace trace(BeChnl,"s_kill_req",ri) ;
+		Req                                         req       { ri } ;
+		::vmap<JobIdx,pair<StartEntry::Conn,Pdate>> to_wakeup ;
+		{	::unique_lock lock { _s_mutex } ;                                                                   // lock for minimal time
 			for( Tag t : Tag::N )
 				if (s_ready(t))
-					for( JobIdx j : s_tab[+t]->kill_req(req) )
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {            // /!\ we erase entries while iterating
+					for( JobIdx j : s_tab[+t]->kill_req(ri) )
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , false/*report*/ ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                 // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
-				if (req) {
-					if ( e.reqs.size()==1 && e.reqs[0]==req ) goto Kill ;
-					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) { // e.reqs is a non-sorted vector, we must search req by hand
-						if (*it!=req) continue ;
+				if (ri) {
+					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
+					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                 // e.reqs is a non-sorted vector, we must search ri by hand
+						if (*it!=ri) continue ;
 						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::Continue , JobExec(j,New,New) , Req(req) ) ; // job is for some other Req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , true/*report*/ ) ; // job is useful for some other Req
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						trace("continue",j) ;
 						break ;
 					}
@@ -454,10 +455,10 @@ namespace Backends {
 					continue ;
 				}
 			Kill :
-				if (+e.start) { trace("wakeup"     ,j) ; to_wakeup.emplace_back(j,::pair(e.conn,e.start))                   ;                    jit++  ; }
-				//                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				else          { trace("not_started",j) ; g_engine_queue.emplace( JobProc::NotStarted , JobExec(j,New,New) ) ; _s_start_tab.erase(jit++) ; }
-				//                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (+e.start) { trace("wakeup"     ,j) ; to_wakeup.emplace_back(j,::pair(e.conn,e.start))               ;                    jit++  ; }
+				//                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				else          { trace("not_started",j) ; g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) ) ; _s_start_tab.erase(jit++) ; }
+				//                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 		}
 		//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

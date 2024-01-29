@@ -75,8 +75,7 @@ ENUM( JobProc
 ,	None
 ,	Start
 ,	ReportStart
-,	Continue    // req is killed but job is necessary for some other req
-,	NotStarted  // req was killed before it actually started
+,	GiveUp      // Req (all if 0) was killed and job was not (either because of other Req's or it did not start yet)
 ,	ChkDeps
 ,	DepInfos
 ,	Decode

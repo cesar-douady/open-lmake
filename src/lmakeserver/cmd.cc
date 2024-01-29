@@ -474,9 +474,9 @@ R"({
 		::string cmd         = _mk_cmd   ( job , ro.flags , start        , dbg_dir , redirected                ) ;
 		::string vscode      = _mk_vscode( job ,            report_start , dbg_dir ,                    vs_ext ) ;
 		//
-		dir_guard(script_file) ; OFStream(script_file) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
-		dir_guard(cmd_file   ) ; OFStream(cmd_file   ) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
-		dir_guard(vscode_file) ; OFStream(vscode_file) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
+		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
+		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
+		OFStream(dir_guard(vscode_file)) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
 		//
 		Job::s_manual_oks(true/*add*/,{job}) ;
 		//

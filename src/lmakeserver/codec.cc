@@ -259,9 +259,7 @@ namespace Codec {
 		return JobRpcReply(JobProc::Encode,"crc clash",{},No) ;           // this is a true full crc clash
 	NewCode :
 		trace("new_code",code) ;
-		{	OFStream os { file , ::ios::app } ;
-			os << _codec_line(ctx,code,txt,true/*with_nl*/) ;
-		}
+		OFStream(file,::ios::app) << _codec_line(ctx,code,txt,true/*with_nl*/) ;
 		Entry& entry = s_tab.at(file) ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;
 		decode_node->date() = entry.log_date  ;

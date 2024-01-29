@@ -132,7 +132,7 @@ namespace Disk {
 	//
 	int/*n_dirs*/ mkdir        ( Fd at , ::string const& dir     ,             bool multi=true , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
 	int/*n_dirs*/ mkdir        ( Fd at , ::string const& dir     , NfsGuard& , bool multi=true , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
-	void          dir_guard    ( Fd at , ::string const& file                                                         ) ; // return file
+	void          dir_guard    ( Fd at , ::string const& file                                                         ) ;
 	void          unlink_inside( Fd at , ::string const& dir ={}                                                      ) ;
 	bool/*done*/  unlink       ( Fd at , ::string const& file    , bool dir_ok=false                                  ) ; // if dir_ok <=> unlink whole dir if it is one
 	bool/*done*/  uniquify     ( Fd at , ::string const& file                                                         ) ;

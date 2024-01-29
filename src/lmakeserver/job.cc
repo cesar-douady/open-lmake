@@ -279,17 +279,21 @@ trace(t) ;
 		}
 	}
 
-	void JobExec::continue_( Req req , bool report ) {
-		Trace trace("continue_",*this,req,STR(report)) ;
-		ReqInfo& ri = (*this)->req_info(req) ;
-		(*this)->make( ri , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
-		if (report) req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;
-		req.chk_end() ;
-	}
-
-	void JobExec::not_started() {
-		Trace trace("not_started",*this) ;
-		for( Req req : (*this)->running_reqs() ) continue_(req,false/*report*/) ;
+	void JobExec::give_up( Req req , bool report ) {
+		Trace trace("give_up",*this,req) ;
+		if (+req) {
+			(*this)->make( (*this)->req_info(req) , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
+			if (report)
+				for( Req r : (*this)->running_reqs() ) {
+					SWEAR(r!=req) ;
+					req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;        // generate a continue line if some other req is still active
+					break ;
+				}
+			req.chk_end() ;
+		} else {
+			for( Req r : (*this)->running_reqs() ) give_up(r,false/*report*/)                                      ;
+			for( Req r : (*this)->running_reqs() ) FAIL((*this)->name(),"is still running for",r,"after kill all") ;
+		}
 	}
 
 	// answer to job execution requests
@@ -685,8 +689,7 @@ trace(t) ;
 				// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
 				if ( !cached && +cache_none_attrs.key && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) { // cache only successful results
 					NfsGuard nfs_guard{g_config.reliable_dirs} ;
-					Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
-					cached = true ;
+					cached |= Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
 				}
 				ri.wakeup_watchers() ;
 			} else {

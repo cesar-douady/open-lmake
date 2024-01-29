@@ -420,9 +420,8 @@ namespace Engine {
 		switch (ecj.proc) {
 			case JobProc::Start       : if (ecj.report) os <<",report" ; break ;
 			case JobProc::LiveOut     : os <<','<< ecj.txt.size()      ; break ;
-			case JobProc::Continue    : os <<','<< ecj.req             ; break ;
+			case JobProc::GiveUp      : os <<','<< ecj.req             ; break ;
 			case JobProc::ReportStart :                                  break ;
-			case JobProc::NotStarted  :                                  break ;
 			case JobProc::End         : os <<','<< ecj.digest          ; break ;
 			case JobProc::ChkDeps     : os <<','<< ecj.digest.deps     ; break ;
 			default : FAIL(ecj.proc) ;

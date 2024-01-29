@@ -263,10 +263,10 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
 		JobProc        proc          = JobProc::None ;
 		JobExec        exec          = {}            ;
-		bool           report        = false         ; // if proc == Start
+		bool           report        = false         ; // if proc == Start | GiveUp
 		::vector<Node> report_unlink = {}            ; // if proc == Start
 		::string       txt           = {}            ; // if proc == Start | LiveOut
-		Req            req           = {}            ; // if proc == Continue
+		Req            req           = {}            ; // if proc == GiveUp
 		::vmap_ss      rsrcs         = {}            ; // if proc == End
 		JobDigest      digest        = {}            ; // if proc == End
 		::string       backend_msg   = {}            ; // if proc == End
@@ -303,9 +303,9 @@ namespace Engine {
 		,	job  { .proc=p , .exec=::move(je) , .report=r , .report_unlink=::move(ru) , .txt=::move(t) , .backend_msg=::move(bem) }
 		{ SWEAR(p==JP::Start) ; }
 		//
-		EngineClosure( JP p , JE&& je , ::string&& t ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=::move(t)} { SWEAR( p==JP::LiveOut                          ) ; }
-		EngineClosure( JP p , JE&& je , R          r ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.req=r        } { SWEAR( p==JP::Continue                         ) ; }
-		EngineClosure( JP p , JE&& je                ) : kind{K::Job} , job{.proc=p,.exec=::move(je)               } { SWEAR( p==JP::ReportStart || p==JP::NotStarted ) ; }
+		EngineClosure( JP p , JE&& je , ::string&& t    ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=::move(t)     } { SWEAR( p==JP::LiveOut                      ) ; }
+		EngineClosure( JP p , JE&& je , R rq , bool rpt ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.report=rpt,.req=rq} { SWEAR( p==JP::GiveUp                       ) ; }
+		EngineClosure( JP p , JE&& je                   ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::GiveUp || p==JP::ReportStart ) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd , ::string&& bem={}  ) :
 			kind { K::Job                                                                                       }

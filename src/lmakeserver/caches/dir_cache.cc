@@ -292,7 +292,7 @@ namespace Caches {
 		}
 	}
 
-	bool DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {
+	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
 		mkdir(dir_fd,jn) ;
@@ -325,9 +325,18 @@ namespace Caches {
 			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
 			// transform date into crc
 			for( auto& [dn,dd] : report_end.end.digest.deps ) {
-				Node d{dn} ;
-				if (dd.is_date) { SWEAR( dd.date()==(d->crc==Crc::None?Ddate():d->date()) , dd.date() , d->crc==Crc::None?Ddate():d->date() ) ; dd.crc(d->crc) ; }
-				else            { SWEAR( d->up_to_date(dd)                                                                                  ) ;                  }
+				try {
+					Node d{dn} ;
+					if (dd.is_date) {
+						if      (!d->crc.valid()  )                             throw to_string("invalid dep node"                                  ) ;
+						else if (d->crc==Crc::None) { if (+dd.date()          ) throw to_string("no dep seen "        ,dd.date()                    ) ; }
+						else                        { if (dd.date()!=d->date()) throw to_string("dep date clash seen ",dd.date()," known ",d->date()) ; }
+						dd.crc(d->crc) ;
+					} else {
+						if      (!dd.crc().valid())                             throw to_string("invalid dep"                                       ) ;
+						else                        { if (!d->up_to_date(dd)  ) throw to_string("not up to date"                                    ) ; }
+					}
+				} catch (::string const& e) { throw to_string(e," : ",dn) ; }
 			}
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;
@@ -341,15 +350,15 @@ namespace Caches {
 			made_room = true ;
 			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ )
 				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlink_dst*/ , true/*mk_read_only*/ ) ;
-		} catch (::string const&) {
-			trace("failed") ;
+		} catch (::string const& e) {
+			trace("failed",e) ;
 			unlink_inside(dfd) ;                                               // clean up in case of partial execution
 			_mk_room( made_room?new_sz:old_sz , 0 ) ;                          // finally, we did not populate the entry
-			return false ;
+			return false/*ok*/ ;
 		}
 		_lru_first(jn,new_sz) ;
 		trace("done",new_sz) ;
-		return true ;
+		return true/*ok*/ ;
 	}
 
 }

@@ -210,9 +210,8 @@ Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 ::vector_s cmd_line() {
 	::vector_s cmd_line = ::move(g_start_info.interpreter) ;                                                     // avoid copying as interpreter is used only here
 	if ( g_start_info.use_script || (g_start_info.cmd.first.size()+g_start_info.cmd.second.size())>ARG_MAX/2 ) { // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		::string cmd_file   = to_string(g_start_info.remote_admin_dir,"/job_cmds/",g_start_info.small_id) ;
-		OFStream cmd_stream { dir_guard(cmd_file) }                                                       ;
-		cmd_stream << g_start_info.cmd.first << g_start_info.cmd.second ;
+		::string cmd_file = to_string(g_start_info.remote_admin_dir,"/job_cmds/",g_start_info.small_id) ;
+		OFStream(dir_guard(cmd_file)) << g_start_info.cmd.first << g_start_info.cmd.second ;
 		cmd_line.reserve(cmd_line.size()+1) ;
 		cmd_line.push_back(::move(cmd_file)) ;
 	} else {

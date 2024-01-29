@@ -146,8 +146,7 @@ namespace Engine::Persistent {
 	}
 	void _save_config() {
 		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
-		OFStream config_stream{AdminDir+"/config"s} ;
-		config_stream << g_config.pretty_str() ;
+		OFStream(AdminDir+"/config"s) << g_config.pretty_str() ;
 	}
 
 	void _diff_config( Config const& old_config , bool dynamic ) {

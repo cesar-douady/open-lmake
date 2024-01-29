@@ -495,7 +495,7 @@ namespace Engine {
 		Tflags tflags      (VarIdx t) const { return t==NoVar ? UnexpectedTflags : targets[t].second.tflags ; }
 		bool   sure        (VarIdx t) const { return s_sure(tflags(t))                                      ; }
 		//
-		Bool3 common_tflags( Tflag  f, bool unexpected ) const {
+		Bool3 common_tflags( Tflag  f , bool unexpected ) const {
 			if (unexpected) return No | UnexpectedTflags[f]                  ;
 			else            return ( Maybe | min_tflags[f] ) & max_tflags[f] ;
 		}

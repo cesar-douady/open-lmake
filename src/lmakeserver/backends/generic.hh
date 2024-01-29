@@ -266,13 +266,13 @@ namespace Backends {
 			return digest ;
 		}
 		// kill all if req==0
-		virtual ::uset<JobIdx> kill_req(ReqIdx req=0) {
-			::uset<JobIdx> res ;
+		virtual ::vector<JobIdx> kill_req(ReqIdx req=0) {
+			::vector<JobIdx> res ;
 			Trace trace("kill_req",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
 				if (req) SWEAR( reqs.size()==1 && req==reqs.begin()->first ) ;    // ensure the last req is the right one
 				// kill waiting jobs
-				for( auto const& [j,_] : waiting_jobs ) res.insert(j) ;
+				for( auto const& [j,_] : waiting_jobs ) res.push_back(j) ;
 				waiting_jobs.clear() ;
 				// kill spawned jobs
 				for( auto sjit=spawned_jobs.begin() ; sjit!=spawned_jobs.end() ;) // /!\ we delete entries during iteration
@@ -285,6 +285,7 @@ namespace Backends {
 						kill_queued_job(j,se) ;
 						trace("killed_all",j,se.id) ;
 						spawned_jobs.erase(sjit++) ;
+						res.push_back(j) ;
 					}
 				for( auto& [_,re] : reqs ) re.clear() ;
 			} else {
@@ -293,8 +294,9 @@ namespace Backends {
 				// kill waiting jobs
 				for( auto const& [j,_] : re.waiting_jobs ) {
 					WaitingEntry& we = waiting_jobs.at(j) ;
-					if (we.n_reqs==1) { waiting_jobs.erase(j) ; res.insert(j) ; }
-					else                we.n_reqs--           ;
+					if (we.n_reqs==1) waiting_jobs.erase(j) ;
+					else              we.n_reqs--           ;
+					res.push_back(j) ;
 				}
 				// kill spawned jobs
 				for( JobIdx j : re.queued_jobs ) {
@@ -305,6 +307,7 @@ namespace Backends {
 					kill_queued_job(j,se) ;
 					trace("killed",j,se.id) ;
 					spawned_jobs.erase(j) ;
+					res.push_back(j) ;
 				}
 				re.clear() ;
 			}
