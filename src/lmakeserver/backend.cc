@@ -433,10 +433,12 @@ namespace Backends {
 		{	::unique_lock lock { _s_mutex } ;                                                                   // lock for minimal time
 			for( Tag t : Tag::N )
 				if (s_ready(t))
-					for( JobIdx j : s_tab[+t]->kill_req(ri) )
+					for( JobIdx j : s_tab[+t]->kill_waiting_jobs(ri) ) {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , false/*report*/ ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						trace("waiting",j) ;
+					}
 			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                 // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
@@ -445,9 +447,9 @@ namespace Backends {
 					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                 // e.reqs is a non-sorted vector, we must search ri by hand
 						if (*it!=ri) continue ;
 						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , true/*report*/ ) ; // job is useful for some other Req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , +e.start/*report*/ ) ; // job is useful for some other Req
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						trace("continue",j) ;
 						break ;
 					}
@@ -455,10 +457,18 @@ namespace Backends {
 					continue ;
 				}
 			Kill :
-				if (+e.start) { trace("wakeup"     ,j) ; to_wakeup.emplace_back(j,::pair(e.conn,e.start))               ;                    jit++  ; }
-				//                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				else          { trace("not_started",j) ; g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) ) ; _s_start_tab.erase(jit++) ; }
-				//                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (+e.start) {
+					trace("kill",j) ;
+					to_wakeup.emplace_back(j,::pair(e.conn,e.start)) ;
+					jit++ ;
+				} else {
+					trace("not_started",j) ;
+					s_tab[+e.tag]->kill_job(j) ;
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					_s_start_tab.erase(jit++) ;
+				}
 			}
 		}
 		//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

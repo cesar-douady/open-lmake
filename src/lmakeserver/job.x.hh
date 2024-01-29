@@ -239,12 +239,11 @@ namespace Engine {
 		//
 		bool active() const { return !rule.old() ; }
 		//
-		ReqInfo const& c_req_info   (Req           ) const ;
-		ReqInfo      & req_info     (Req           ) const ;
-		ReqInfo      & req_info     (ReqInfo const&) const ;                   // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs         (              ) const ;
-		::vector<Req>  running_reqs (              ) const ;
-		::vector<Req>  old_done_reqs(              ) const ;
+		ReqInfo const& c_req_info   (Req                   ) const ;
+		ReqInfo      & req_info     (Req                   ) const ;
+		ReqInfo      & req_info     (ReqInfo const&        ) const ;                   // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs         (                      ) const ;
+		::vector<Req>  running_reqs (bool with_zombies=true) const ;
 		//
 		bool cmd_ok    (   ) const { return                      exec_gen >= rule->cmd_gen   ; }
 		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; } // dont care about rsrcs if job went ok

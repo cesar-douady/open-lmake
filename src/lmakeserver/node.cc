@@ -66,10 +66,12 @@ namespace Engine {
 						break ;
 					}
 				[[fallthrough]] ;
-				case Manual::Modif :
-					req->audit_node( Color::Err  ,                         dangling?"dangling":"manual"  , idx()     ) ;
-					req->audit_node( Color::Note , to_string("consider : ",dangling?"git add" :"rm"    ) , idx() , 1 ) ;
-				break ;
+				case Manual::Modif : {
+					bool mo = req->options.flags[ReqFlag::ManualOk] ;
+					if      (dangling) { req->audit_node( Color::Err  , "dangling"           , idx()     ) ; req->audit_node( Color::Note , "consider : rm"      , idx() , 1 ) ; }
+					else if (mo      )   req->audit_node( Color::Note , "manual"             , idx()     ) ;
+					else               { req->audit_node( Color::Err  , "manual"             , idx()     ) ; req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ; }
+				} break ;
 				default : FAIL(ri.manual) ;
 			}
 			SWEAR(ri.manual!=Manual::Unknown) ;

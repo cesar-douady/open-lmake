@@ -284,21 +284,21 @@ trace(t) ;
 		if (+req) {
 			(*this)->make( (*this)->req_info(req) , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
 			if (report)
-				for( Req r : (*this)->running_reqs() ) {
+				for( Req r : (*this)->running_reqs(false/*with_zombies*/) ) {
 					SWEAR(r!=req) ;
 					req->audit_job(Color::Note,"continue",*this,true/*at_end*/) ;        // generate a continue line if some other req is still active
 					break ;
 				}
 			req.chk_end() ;
 		} else {
-			for( Req r : (*this)->running_reqs() ) give_up(r,false/*report*/)                                      ;
-			for( Req r : (*this)->running_reqs() ) FAIL((*this)->name(),"is still running for",r,"after kill all") ;
+			for( Req r : (*this)->running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                      ;
+			for( Req r : (*this)->running_reqs(true/*with_zombies*/) ) FAIL((*this)->name(),"is still running for",r,"after kill all") ;
 		}
 	}
 
 	// answer to job execution requests
 	JobRpcReply JobExec::job_info( JobProc proc , ::vector<Dep> const& deps ) const {
-		::vector<Req> reqs = (*this)->running_reqs() ;
+		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_info",proc,deps.size()) ;
 		if (!reqs) return proc ;                                                      // if job is not running, it is too late
 		//
@@ -360,7 +360,7 @@ trace(t) ;
 
 	void JobExec::live_out(::string const& txt) const {
 		Trace trace("report_start",*this) ;
-		for( Req req : (*this)->running_reqs() ) live_out((*this)->req_info(req),txt) ;
+		for( Req req : (*this)->running_reqs(false/*with_zombies*/) ) live_out((*this)->req_info(req),txt) ;
 	}
 
 	bool/*reported*/ JobExec::report_start( ReqInfo& ri , ::vector<Node> const& report_unlink , ::string const& stderr , ::string const& msg ) const {
@@ -382,7 +382,7 @@ trace(t) ;
 	}
 	void JobExec::report_start() const {
 		Trace trace("report_start",*this) ;
-		for( Req req : (*this)->running_reqs() ) report_start((*this)->req_info(req)) ;
+		for( Req req : (*this)->running_reqs(false/*with_zombies*/) ) report_start((*this)->req_info(req)) ;
 	}
 
 	void JobExec::started( bool report , ::vector<Node> const& report_unlink , ::string const& stderr , ::string const& msg ) {
@@ -405,17 +405,17 @@ trace(t) ;
 
 	// XXX generate consider line if status==Manual
 	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string const& backend_msg ) {
-		Status            status           = digest.status           ;                                                // status will be modified, need to make a copy
-		Bool3             ok               = is_ok  (status)         ;
-		bool              lost             = is_lost(status)         ;
-		JobReason         local_reason     = JobReasonTag::None      ;
-		bool              local_err        = false                   ;
-		bool              any_modified     = false                   ;
-		bool              fresh_deps       = status>Status::Async    ; // if job did not go through, old deps are better than new ones
-		Rule              rule             = (*this)->rule           ;
-		::vector<Req>     running_reqs_    = (*this)->running_reqs() ;
-		::string          msg              ;                           // to be reported if job was otherwise ok
-		::string          severe_msg       ;                           // to be reported always
+		Status            status           = digest.status                               ;                            // status will be modified, need to make a copy
+		Bool3             ok               = is_ok  (status)                             ;
+		bool              lost             = is_lost(status)                             ;
+		JobReason         local_reason     = JobReasonTag::None                          ;
+		bool              local_err        = false                                       ;
+		bool              any_modified     = false                                       ;
+		bool              fresh_deps       = status>Status::Async                        ; // if job did not go through, old deps are better than new ones
+		Rule              rule             = (*this)->rule                               ;
+		::vector<Req>     running_reqs_    = (*this)->running_reqs(true/*with_zombies*/) ;
+		::string          msg              ;                                               // to be reported if job was otherwise ok
+		::string          severe_msg       ;                                               // to be reported always
 		CacheNoneAttrs    cache_none_attrs ;
 		EndCmdAttrs       end_cmd_attrs    ;
 		Rule::SimpleMatch match            ;
@@ -1214,7 +1214,7 @@ trace(t) ;
 			req->audit_stderr( rule->cache_none_attrs.s_exc_msg(true/*using_static*/) , e , -1 , 1 ) ;
 		}
 		ri.backend = submit_rsrcs_attrs.backend ;
-		for( Req r : running_reqs() ) if (r!=req) {
+		for( Req r : running_reqs(false/*with_zombies*/) ) if (r!=req) {
 			ReqInfo const& cri = c_req_info(r) ;
 			SWEAR( cri.backend==ri.backend , cri.backend , ri.backend ) ;
 			ri.n_wait++ ;
@@ -1350,19 +1350,9 @@ trace(t) ;
 		return true ;
 	}
 
-	::vector<Req> JobData::running_reqs() const {                                           // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                  // pessimistic, so no realloc
-		for( Req r : Req::s_reqs_by_start ) if (c_req_info(r).running()) res.push_back(r) ;
-		return res ;
-	}
-
-	::vector<Req> JobData::old_done_reqs() const {                             // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                     // pessimistic, so no realloc
-		for( Req r : Req::s_reqs_by_start ) {
-			ReqInfo const& cri = c_req_info(r) ;
-			if (cri.running()) break ;
-			if (cri.done()   ) res.push_back(r) ;
-		}
+	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                          // sorted by start
+		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                  // pessimistic, so no realloc
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r->zombie) && c_req_info(r).running() ) res.push_back(r) ;
 		return res ;
 	}
 

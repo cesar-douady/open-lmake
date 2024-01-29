@@ -18,7 +18,7 @@ import lmake
 from lmake       import config,pdict
 from lmake.rules import Rule,AntiRule
 
-if False and 'slurm' in lmake.backends :
+if 'slurm' in lmake.backends :
 	backend = 'slurm'
 	config.backends.slurm = {
 		'use_nice'          : True
