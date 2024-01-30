@@ -60,6 +60,7 @@ namespace Engine {
 				case Manual::Unlinked : break ;
 				case Manual::Empty :
 					if (!dangling) {
+						Trace trace("manual_wash","unlink",idx()) ;
 						unlink(name()) ;
 						req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
 						ri.manual = Manual::Unlinked ;
@@ -68,9 +69,10 @@ namespace Engine {
 				[[fallthrough]] ;
 				case Manual::Modif : {
 					bool mo = req->options.flags[ReqFlag::ManualOk] ;
-					if      (dangling) { req->audit_node( Color::Err  , "dangling"           , idx()     ) ; req->audit_node( Color::Note , "consider : rm"      , idx() , 1 ) ; }
-					else if (mo      )   req->audit_node( Color::Note , "manual"             , idx()     ) ;
-					else               { req->audit_node( Color::Err  , "manual"             , idx()     ) ; req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ; }
+					Trace trace("manual_wash","modif",STR(dangling),STR(mo),idx()) ;
+					if      (dangling) { req->audit_node( Color::Err  , "dangling" , idx() ) ; req->audit_node( Color::Note , "consider : rm"      , idx() , 1 ) ; }
+					else if (mo      )   req->audit_node( Color::Note , "manual"   , idx() ) ;
+					else               { req->audit_node( Color::Err  , "manual"   , idx() ) ; req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ; }
 				} break ;
 				default : FAIL(ri.manual) ;
 			}
@@ -496,15 +498,16 @@ namespace Engine {
 						case RunAction::Status  :                                                 break ;
 						case RunAction::Dsk :
 							if (jt.produces(idx())) {
-								if      (!has_actual_job(  )) reason = {JobReasonTag::NoTarget     ,+idx()} ;
-								else if (!has_actual_job(jt)) reason = {JobReasonTag::PolutedTarget,+idx()} ;
-								else if (unlinked           ) reason = {JobReasonTag::NoTarget     ,+idx()} ;
-								else
+								if      (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
+								else if (!has_actual_job(jt)              ) reason = {JobReasonTag::PollutedTarget,+idx()} ;
+								else if (unlinked                         ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
+								else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
+								else                                                                                         // ... and checking may modify it
 									switch (manual_wash(ri,true/*lazy*/)) {
-										case Manual::Ok       :                                                 break ;
-										case Manual::Unlinked : reason = {JobReasonTag::NoTarget     ,+idx()} ; break ;
+										case Manual::Ok       :                                                  break ;
+										case Manual::Unlinked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 										case Manual::Empty    :
-										case Manual::Modif    : reason = {JobReasonTag::PolutedTarget,+idx()} ; break ;
+										case Manual::Modif    : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
 										default : FAIL(manual_wash(ri,true/*lazy*/)) ;
 									}
 							}

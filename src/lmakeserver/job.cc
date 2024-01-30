@@ -498,7 +498,7 @@ trace(t) ;
 					Tflags aj_flags = aj->rule->tflags(aj_idx)   ;
 					trace("clash",*this,tflags,aj,aj_idx,aj_flags,target) ;
 					// /!\ This may be very annoying !
-					//     Even completed Req's may have been poluted as at the time t->actual_job_tgt() completed, it was not aware of the clash. But this is too complexe and too rare to detect.
+					//     Even completed Req's may have been polluted as at the time t->actual_job_tgt() completed, it was not aware of the clash. But this is too complexe and too rare to detect.
 					//     Putting target in clash_nodes will generate a message to user asking to relaunch command.
 					if (tflags  [Tflag::Crc]) local_reason |= {JobReasonTag::ClashTarget,+target} ; // if we care about content, we must rerun
 					if (aj_flags[Tflag::Crc]) {                                                     // if actual job cares about content, we may have the annoying case mentioned above
@@ -1348,6 +1348,11 @@ trace(t) ;
 		}
 		trace("summary",deps) ;
 		return true ;
+	}
+
+	bool JobData::running(bool with_zombies) const {
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r->zombie) && c_req_info(r).running() ) return true ;
+		return false ;
 	}
 
 	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                          // sorted by start

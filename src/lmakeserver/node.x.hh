@@ -446,20 +446,19 @@ namespace Engine {
 	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           )           ; }
 
 	inline Manual NodeData::manual(Ddate d,bool empty) const {
-		const char* res_str = nullptr         ;
-		Manual      res     = Manual::Unknown ;
+		Manual res = Manual::Unknown ;
 		if (crc==Crc::None) {
-			if      (!d       )   return Manual::Ok       ;
-			else if (empty    ) { res =  Manual::Empty    ; res_str = "new"      ; }
-			else                { res =  Manual::Modif    ; res_str = "new"      ; }
+			if      (!d       ) return Manual::Ok       ;
+			else if (empty    ) res =  Manual::Empty    ;
+			else                res =  Manual::Modif    ;
 		} else {
-			if      (!d       ) { res =  Manual::Unlinked ; res_str = "unlinked" ; }
-			else if (d==date())   return Manual::Ok       ;
-			else if (empty    ) { res =  Manual::Empty    ; res_str = "modif"    ; }
-			else                { res =  Manual::Modif    ; res_str = "modif"    ; }
+			if      (!d       ) res =  Manual::Unlinked ;
+			else if (d==date()) return Manual::Ok       ;
+			else if (empty    ) res =  Manual::Empty    ;
+			else                res =  Manual::Modif    ;
 		}
 		//
-		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res_str,STR(empty)) ;
+		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res,STR(empty)) ;
 		return res ;
 	}
 

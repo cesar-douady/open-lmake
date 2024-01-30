@@ -55,7 +55,7 @@ namespace Engine {
 					if (!j.active()) throw "not frozen "+mk_file(j->name()) ;
 					if (!j.frozen()) throw "not frozen "+mk_file(j->name()) ;
 				}
-				if (+j->running_reqs()) throw "job is running"+mk_file(j->name()) ;
+				if (j->running()) throw "job is running"+mk_file(j->name()) ;
 				//
 				w = ::max( w , j->rule->name.size() ) ;
 				jobs.push_back(j) ;
