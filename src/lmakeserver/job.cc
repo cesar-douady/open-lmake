@@ -176,7 +176,7 @@ trace(t) ;
 	//
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {
-		return os<<"JRI(" << ri.req <<','<< ri.action <<','<< ri.lvl<<':'<<ri.dep_lvl <<','<< ri.n_wait <<')' ;
+		return os<<"JRI(" << ri.req <<','<< ri.action <<','<< ri.speculate <<','<< ri.lvl<<':'<<ri.dep_lvl <<','<< ri.n_wait <<')' ;
 	}
 
 	//

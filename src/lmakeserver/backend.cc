@@ -214,15 +214,12 @@ namespace Backends {
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
+			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
 			submit_attrs = entry.submit_attrs ;
 			rsrcs        = entry.rsrcs        ;
 			//                              vvvvvvvvvvvvvvvvvvvvvvv
 			ensure_nl(jrr.msg) ; jrr.msg += s_start(entry.tag,+job) ;
 			//                              ^^^^^^^^^^^^^^^^^^^^^^^
-			for( Req r : entry.reqs ) if (!r->zombie) goto Start ;
-			trace("no_req") ;
-			return false ;    // no Req found, job has been cancelled but start message still arrives, give up
-		Start :
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			Rule::SimpleMatch match = job->simple_match() ;
 			try {

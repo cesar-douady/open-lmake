@@ -113,7 +113,7 @@ namespace Backends {
 		struct SpawnedEntry {
 			Rsrcs   rsrcs   ;
 			SpawnId id      = -1    ;
-			bool    started = false ;  // if true <=> start() has been called for this job
+			bool    started = false ;  // if true <=> start() has been called for this job, for assert only
 			bool    verbose = false ;
 		} ;
 
@@ -255,12 +255,12 @@ namespace Backends {
 		}
 		virtual ::pair_s<bool/*retry*/> end( JobIdx j , Status s ) {
 			auto it = spawned_jobs.find(j) ;
-			if (it==spawned_jobs.end()) return {{},false/*retry*/} ;           // job was killed in the mean time
-			SpawnedEntry&           se     = it->second      ;
+			if (it==spawned_jobs.end()) return {{},false/*retry*/} ;               // job was killed in the mean time
+			SpawnedEntry&           se     = it->second      ; SWEAR(se.started) ;
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
-			Rsrcs                   rsrcs  = se.rsrcs        ;                 // copy resources before erasing job from spawned_jobs
-			spawned_jobs.erase(it) ;                                           // erase before calling launch so job is freed w.r.t. n_jobs
-			launch( call_launch_after_end() , rsrcs ) ;                        // not compulsery but improves reactivity
+			Rsrcs                   rsrcs  = se.rsrcs        ;                     // copy resources before erasing job from spawned_jobs
+			spawned_jobs.erase(it) ;                                               // erase before calling launch so job is freed w.r.t. n_jobs
+			launch( call_launch_after_end() , rsrcs ) ;                            // not compulsery but improves reactivity
 			return digest ;
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(JobIdx j) {                                               // called on jobs that did not start after at least newwork_delay time

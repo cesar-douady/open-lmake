@@ -16,13 +16,17 @@ if __name__!='__main__' :
 			for x in range(1000) : print(x)
 
 	class Trig(PyRule) :
-		target = 'out_{N:\d+}'
+		target = 'out_{P:\d+}_{N:\d+}'
 		def cmd() :
-			lmake.depend([f'file_{x}' for x in range(int(N))])
+			p = int(P)
+			if p : lmake.depend([f'out_{p-1}_{x}' for x in range(int(N)+1)])
+			else : lmake.depend([f'file_{x}'      for x in range(int(N)+1)])
 
 else :
 
 	import ut
 
-	n = 1000
-	ut.lmake( f'out_{n}' , may_rerun=1 , done=n , steady=1 )
+	n = 20
+	p = 40
+	d = ut.lmake( f'out_{p}_{n}' , may_rerun=... , rerun=... , was_done=... , done=... , steady=... )
+	assert d['was_done']+d['done']+d['steady']==n*p+p+n+2,f'bad counts : {d}'
