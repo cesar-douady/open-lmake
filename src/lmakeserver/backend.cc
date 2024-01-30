@@ -205,9 +205,6 @@ namespace Backends {
 		StartRsrcsAttrs                            start_rsrcs_attrs ;
 		StartNoneAttrs                             start_none_attrs  ;
 		::string                                   start_stderr      ;
-		Pdate                                      eta               ;
-		SubmitAttrs                                submit_attrs      ;
-		::vmap_ss                                  rsrcs             ;
 		Trace trace(BeChnl,"_s_handle_job_start",jrr) ;
 		{	::unique_lock lock { _s_mutex } ;           // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
@@ -215,37 +212,33 @@ namespace Backends {
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",entry) ;
 			if (!entry.useful()) { trace("useless") ; return false ; } // no Req found, job has been cancelled but start message still arrives, give up
-			submit_attrs = entry.submit_attrs ;
-			rsrcs        = entry.rsrcs        ;
 			//                              vvvvvvvvvvvvvvvvvvvvvvv
 			ensure_nl(jrr.msg) ; jrr.msg += s_start(entry.tag,+job) ;
 			//                              ^^^^^^^^^^^^^^^^^^^^^^^
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			Rule::SimpleMatch match = job->simple_match() ;
 			try {
-				start_none_attrs = rule->start_none_attrs.eval(match,rsrcs) ;
+				start_none_attrs = rule->start_none_attrs.eval(match,entry.rsrcs) ;
 			} catch (::string const& e) {
 				/**/                 start_none_attrs  = rule->start_none_attrs.spec                            ;
 				ensure_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 				/**/                 start_stderr      = e                                                      ;
 			}
-			int  step     = 0                ;
-			bool keep_tmp = false/*garbage*/ ;
-			tie(eta,keep_tmp) = entry.req_info() ;
+			int  step           = 0                ;
+			auto [eta,keep_tmp] = entry.req_info() ;
 			keep_tmp |= start_none_attrs.keep_tmp ;
 			try {
-				deps_attrs        = rule->deps_attrs       .eval(match      )                                     ; step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs)                                     ; step = 2 ;
-				cmd               = rule->cmd              .eval(match,rsrcs)                                     ; step = 3 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs)                                     ; step = 4 ;
-				pre_actions       = job->pre_actions( match , submit_attrs.manual_ok , true/*mark_target_dirs*/ ) ; step = 5 ;
+				deps_attrs        = rule->deps_attrs       .eval(match            )                                     ; step = 1 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,entry.rsrcs)                                     ; step = 2 ;
+				cmd               = rule->cmd              .eval(match,entry.rsrcs)                                     ; step = 3 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,entry.rsrcs)                                     ; step = 4 ;
+				pre_actions       = job->pre_actions( match , entry.submit_attrs.manual_ok , true/*mark_target_dirs*/ ) ; step = 5 ;
 			} catch (::string const& e) {
 				_s_small_ids.release(entry.conn.small_id) ;
 				job_exec = { job , New , New } ;            // job starts and ends, no host
 				Tag      tag             = entry.tag ;      // record tag before releasing entry
 				::string end_backend_msg ;
 				trace("release_start_tab",job_exec,entry,step,e) ;
-				_s_release_start_entry(it) ;
 				switch (step) {
 					case 0 : end_backend_msg = rule->deps_attrs       .s_exc_msg(false/*using_static*/) ; break ;
 					case 1 : end_backend_msg = rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
@@ -262,8 +255,8 @@ namespace Backends {
 				{	OFStream ofs { dir_guard(job->ancillary_file()) } ;
 					serialize( ofs , JobInfoStart({
 						.eta          = eta
-					,	.submit_attrs = submit_attrs
-					,	.rsrcs        = rsrcs
+					,	.submit_attrs = entry.submit_attrs
+					,	.rsrcs        = entry.rsrcs
 					,	.host         = job_exec.host
 					,	.pre_start    = jrr
 					,	.start        = reply
@@ -274,8 +267,9 @@ namespace Backends {
 				if (step>0) job_exec->end_exec() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg        ) ) ;
-				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                                          , ::move(end_backend_msg) ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(entry.rsrcs) , ::move(digest)                                    , ::move(end_backend_msg) ) ;
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				_s_release_start_entry(it) ;
 				return false ;
 			}
 			//
@@ -305,7 +299,7 @@ namespace Backends {
 			reply.interpreter               = rule->interpreter                  ;
 			reply.keep_tmp                  = keep_tmp                           ;
 			reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs) ;
-			reply.live_out                  = submit_attrs.live_out              ;
+			reply.live_out                  = entry.submit_attrs.live_out        ;
 			reply.method                    = start_cmd_attrs.method             ;
 			reply.remote_admin_dir          = g_config.remote_admin_dir          ;
 			reply.small_id                  = small_id                           ;
@@ -326,28 +320,27 @@ namespace Backends {
 			for( VarIdx ti=0 ; ti<targets.size() ; ti++ ) reply.targets.emplace_back( targets[ti] , rule->tflags(ti) ) ;
 			//
 			reply.static_deps = _mk_digest_deps(deps_attrs) ;
-			//
+			//vvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send(fd,reply) ;                                                 // send reply as soon as possible to minimize overhead time
+			//^^^^^^^^^^^^^^^^^^^^^^
 			entry.start         = job_exec.start_ ;
 			entry.conn.host     = job_exec.host   ;
 			entry.conn.port     = jrr.port        ;
 			entry.conn.small_id = small_id        ;
+			trace("started",reply) ;
+			serialize(                                                                // /!\ we must ensure ancillary file is written when _s_handle_job_end appends to it ...
+				OFStream(dir_guard(job->ancillary_file()))                            // ... there are 2 ways : either write before sending reply, but this implies a longer overhead ...
+			,	JobInfoStart({                                                        // ... or keep the lock until file is written (which is what we do)
+					.eta          = eta
+				,	.submit_attrs = entry.submit_attrs
+				,	.rsrcs        = entry.rsrcs
+				,	.host         = job_exec.host
+				,	.pre_start    = jrr
+				,	.start        = ::move(reply)
+				,	.stderr       = start_stderr
+				})
+			) ;
 		}
-		//vvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send(fd,reply) ;
-		//^^^^^^^^^^^^^^^^^^^^^^
-		trace("started",reply) ;
-		serialize(
-			OFStream(dir_guard(job->ancillary_file()))
-		,	JobInfoStart({
-				.eta          = eta
-			,	.submit_attrs = submit_attrs
-			,	.rsrcs        = ::move(rsrcs)
-			,	.host         = job_exec.host
-			,	.pre_start    = jrr
-			,	.start        = ::move(reply)
-			,	.stderr       = start_stderr
-			})
-		) ;
 		bool report_now = Delay(job->exec_time)>=start_none_attrs.start_delay ;                                                                   // dont defer long jobs
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( jrr.proc , JobExec(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg) ) ;
