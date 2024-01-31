@@ -133,6 +133,8 @@ namespace Backends {
 		static DeferredThread*          _s_deferred_report_thread ;
 		static DeferredThread*          _s_deferred_wakeup_thread ;
 		static ::mutex                  _s_mutex                  ;
+		static ::atomic<JobIdx>         _s_starting_job           ;            // this job is starting when _starting_job_mutex is locked
+		static ::mutex                  _s_starting_job_mutex     ;
 		static ::map<JobIdx,StartEntry> _s_start_tab              ;            // use map instead of umap because heartbeat iterates over while tab is moving
 		static SmallIds<SmallId>        _s_small_ids              ;
 		static SmallId                  _s_max_small_id           ;

@@ -35,6 +35,7 @@ ext/xxhash.h
 ext/xxhash.patch_script
 lmake_env/Lmakefile.py
 lmake_env/ext_lnk
+src/align_comments.cc
 src/app.cc
 src/app.hh
 src/autodep/autodep.cc

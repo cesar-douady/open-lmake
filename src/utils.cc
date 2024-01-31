@@ -1,10 +1,10 @@
-// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023 Doliam
-// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//! This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+//! Copyright (c) 2023 Doliam
+//! This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+//! This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <execinfo.h>                  // backtrace
-#include <link.h>                      // struct link_map
+#include <execinfo.h> // backtrace
+#include <link.h>     // struct link_map
 
 #if HAS_CLOSE_RANGE
     #include <linux/close_range.h>
@@ -20,18 +20,18 @@
 //
 
 ::string mk_py_str(::string const& s) {
-	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + initial and final quotes
+	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
-			case '\a' : res += "\\a" ; break ;           // special case
-			case '\b' : res += "\\b" ; break ;           // .
-			case '\f' : res += "\\f" ; break ;           // .
-			case '\n' : res += "\\n" ; break ;           // .
-			case '\r' : res += "\\r" ; break ;           // .
-			case '\t' : res += "\\t" ; break ;           // .
-			case '\v' : res += "\\v" ; break ;           // .
-			case '\\' :                                  // must be escaped
-			case '\'' : res += '\\'  ; [[fallthrough]] ; // .
+			case '\a' : res += "\\a" ; break ;                    // special case
+			case '\b' : res += "\\b" ; break ;                    // .
+			case '\f' : res += "\\f" ; break ;                    // .
+			case '\n' : res += "\\n" ; break ;                    // .
+			case '\r' : res += "\\r" ; break ;                    // .
+			case '\t' : res += "\\t" ; break ;                    // .
+			case '\v' : res += "\\v" ; break ;                    // .
+			case '\\' :                                           // must be escaped
+			case '\'' : res += '\\'  ; [[fallthrough]] ;          // .
 			default :
 				if (is_printable(c)) res +=                                                            c   ;
 				else                 res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
@@ -42,10 +42,10 @@
 }
 
 ::string mk_shell_str(::string const& s) {
-	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ;              // take a little bit of margin + quotes
+	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + quotes
 	for( char c : s )
 		switch (c) {
-			case '\'' : res += "\'\\\'\'" ; break ;                            // no way to escape a ' in a shell '-string, you have to exit, insert the ', and enter back, i.e. : '\''
+			case '\'' : res += "\'\\\'\'" ; break ;               // no way to escape a ' in a shell '-string, you have to exit, insert the ', and enter back, i.e. : '\''
 			default   : res += c          ;
 		}
 	res += '\'' ;
@@ -80,7 +80,7 @@ void set_sig_handler( int sig , void (*handler)(int) ) {
 	::sigaction( sig , &action , nullptr ) ;
 }
 
-static size_t/*len*/ _beautify(char* filename) {                               // does not call malloc for use in src_point
+static size_t/*len*/ _beautify(char* filename) {                      // does not call malloc for use in src_point
 	enum State { Plain , Slash , Dot , DotDot } ;
 	char*       out = filename ;
 	const char* min = filename ;
@@ -94,19 +94,19 @@ static size_t/*len*/ _beautify(char* filename) {                               /
 				switch (s) {
 					case Plain : break ;
 					case Slash  :
-						if (in!=filename) continue ;                           // 2 consecutive /, ignore 2nd if not first char
+						if (in!=filename) continue ;                  // 2 consecutive /, ignore 2nd if not first char
 						min = filename+1 ;
 					break ;
-					case Dot :                                                 // after a ., suppress it
+					case Dot :                                        // after a ., suppress it
 						out-- ;
 						continue ;
 					case DotDot :
 						if (out>=min+4) {
-							out -= 3 ;                                         // suppress /..
-							while ( out>min && out[-1]!='/' ) out-- ;          // and previous dir
+							out -= 3 ;                                // suppress /..
+							while ( out>min && out[-1]!='/' ) out-- ; // and previous dir
 							continue ;
 						}
-						min = out ;                                            // prevent following .. from clobbering this one
+						min = out ;                                   // prevent following .. from clobbering this one
 					break ;
 				}
 			} break ;
@@ -127,7 +127,7 @@ static size_t/*len*/ _beautify(char* filename) {                               /
 	return out-filename ;
 }
 
-::string beautify_filename(::string const& filename) {                         // normal interface
+::string beautify_filename(::string const& filename) { // normal interface
 	::string res = filename              ;
 	size_t   len = _beautify(res.data()) ;
 	res.resize(len) ;
@@ -140,7 +140,7 @@ struct SrcPoint {
 	char     func[1000]     ;
 } ;
 
-// XXX : use c++23 backtrace facility rather than use/mimic https://github.com/ianlancetaylor/libbacktrace or libbfd
+// XXX : use c++23 backtrace facility rather than use/mimic https:                                              //github.com/ianlancetaylor/libbacktrace or libbfd
 static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_points ) {
 	char             exe[PATH_MAX]  ;
 	ssize_t          cnt            = ::readlink("/proc/self/exe",exe,sizeof(exe)) ; exe[cnt] = 0 ;
@@ -152,13 +152,13 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 	char             hex_offset[20] ; ::snprintf(hex_offset,sizeof(hex_offset),"0x%lx",(unsigned long)offset) ;
 	Pipe             c2p            { New } ;                                                                   // dont use Child as if called from signal handler, malloc is forbidden
 	int pid = ::fork() ;
-	if (!pid) {                                                                // child
+	if (!pid) {                                                                                                 // child
 		::close(c2p.read) ;
 		if (c2p.write!=Fd::Stdout) { ::dup2(c2p.write,Fd::Stdout) ; ::close(c2p.write) ; }
-		::close(Fd::Stdin) ;                                                                                  // no input
+		::close(Fd::Stdin) ;                                                                                    // no input
 		const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 		::execv( args[0] , const_cast<char**>(args) ) ;
-		exit(2) ;                                                              // in case exec fails
+		exit(2) ;                                                                                               // in case exec fails
 	}
 	::close(c2p.write) ;
 	size_t n_sp ;
@@ -194,10 +194,10 @@ Return :
 void write_backtrace( ::ostream& os , int hide_cnt ) {
 	static constexpr size_t StackSize = 100 ;
 	//
-	static void*    stack         [StackSize] ;                                // avoid big allocation on stack
-	static SrcPoint symbolic_stack[StackSize] ;                                // .
+	static void*    stack         [StackSize] ;     // avoid big allocation on stack
+	static SrcPoint symbolic_stack[StackSize] ;     // .
 	//
-	int backtrace_sz = backtrace(stack,StackSize) ;                             // XXX : dont know how to avoid malloc here
+	int backtrace_sz = backtrace(stack,StackSize) ; // XXX : dont know how to avoid malloc here
 	int stack_sz     = 0                          ;
 	for( int i=hide_cnt+1 ; i<backtrace_sz ; i++ ) {
 		stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;

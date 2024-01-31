@@ -13,18 +13,24 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
-	,	'side.1'
-	,	'side.2'
+	,	'no_dep.1'
+	,	'no_dep.2'
 	)
 
 	class Test(PyRule) :
-		targets = { 'DST'  : 'test' }
+		targets = { 'DST' : '{File:.*}.test' }
 		if step==1 :
-			targets['SIDE'] = ( 'side.{*:[12]}' , '-Dep','Incremental','-Match','-Write' )
+			targets['NO_DEP'] = ( 'no_dep.{*:[12]}' , '-Match','-Dep','Incremental','-Write' )
+			targets['UNIQ'  ] = ( 'uniq'            , '-Match','Star'                        )
+			targets['SIDE'  ] = ( 'side.{*:[12]}'   , '-Match'                               )
 		allow_stderr = True
 		def cmd() :
-			open('side.1')
-			open('side.2')
+			open('no_dep.1')
+			open('no_dep.2')
+			if step==1 :
+				open('uniq'  ,'w')
+				open('side.1','w')
+				open('side.2','w')
 			open(DST,'w')
 
 else :
@@ -33,14 +39,16 @@ else :
 
 	import ut
 
-	print(file=open('side.1','w'))
-	print(file=open('side.2','w'))
+	print(file=open('no_dep.1','w'))
+	print(file=open('no_dep.2','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'test' , done=1 )
+	ut.lmake( 'foo.test' , done=1 )
+	os.unlink('foo.test')
+	ut.lmake( 'foo.test' , steady=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'test' , steady=1 , new=2 )
+	ut.lmake( 'foo.test' , steady=1 , new=2 )
 
-	print('v2',file=open('side.1','w'))
-	ut.lmake( 'test' , steady=1 , changed=1 )
+	print('v2',file=open('no_dep.1','w'))
+	ut.lmake( 'foo.test' , steady=1 , changed=1 )

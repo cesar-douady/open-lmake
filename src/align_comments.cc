@@ -1,0 +1,163 @@
+// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+// Copyright (c) 2023 Doliam
+// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+#include "disk.hh"
+
+using namespace Disk ;
+
+struct Line {                             // by default, construct a blank line
+	size_t   lvl         = 0            ;
+	bool     blank       = true         ;
+	::string pfx         ;
+	::string code        ;
+	size_t   code_len    = 0            ; // with tab expansion
+	::string comment     ;
+	size_t   comment_pos = 0/*garbage*/ ; // filled in by optimize()
+} ;
+
+size_t   g_tab_width    = 0/*garbage*/ ;
+size_t   g_max_line_sz  = 0/*garbage*/ ;
+::string g_comment_sign ;
+
+::vector<Line> get_lines(const char* file) {
+	::vector<Line> res   ;
+	::vector_s     lines ;
+	//
+	if (file) lines = read_lines(file) ;
+	else      for( ::string l ; ::getline(::cin,l) ;) lines.push_back(l) ;
+	//
+	for( ::string const& l : lines ) {
+		size_t lvl   = 0    ;
+		size_t cnt   = 0    ;
+		size_t start = 0    ;
+		bool   blank = true ; for( char c : l ) if (!::isspace(c)) { blank = false ; break ; }
+		for( size_t i=0 ; i<l.size() ; i++ ) {
+			if (l[i]=='\t') {
+				lvl++ ;
+				cnt      = 0   ;
+				start    = i+1 ;
+			} else {
+				cnt++ ;
+				if (cnt==g_tab_width) break ;
+			}
+		}
+		size_t pos = l.find(g_comment_sign,start) ;
+		if      ( pos!=Npos && l[pos+g_comment_sign.size()]=='!' ) pos = Npos                                               ;
+		else if ( pos==start                                     ) pos = l.find(g_comment_sign,start+g_comment_sign.size()) ;
+		size_t code_len = pos ;
+		if (pos==Npos) {
+			code_len = l.size() ;
+		} else {
+			while ( code_len && l[code_len-1]==' ' ) code_len-- ;
+		}
+		if (pos==Npos) res.emplace_back( lvl , blank , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start                 ) ;
+		else           res.emplace_back( lvl , blank , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start , l.substr(pos) ) ;
+	}
+	return res ;
+}
+
+struct Info {
+	// cxtors & casts
+	Info( bool ko_ , size_t n_lvls ) : ko{ko_} , breaks(n_lvls) {}
+	// services
+	bool operator<(Info const& other) const {
+		/**/                                      if (ko         !=other.ko         ) return ko         <other.ko          ;
+		for( size_t i=breaks.size() ; i>0 ; i-- ) if (breaks[i-1]!=other.breaks[i-1]) return breaks[i-1]<other.breaks[i-1] ;
+		/**/                                                                          return glb_pos    <other.glb_pos     ;
+	}
+	// data
+	bool             ko      = true         ;
+	::vector<size_t> breaks  = {}           ;
+	size_t           glb_pos = 0            ;
+	size_t           prev_x  = 0/*garbage*/ ;
+} ;
+
+struct Tab {
+	// cxtors & casts
+	Tab( size_t h_ , size_t w_ , size_t nl ) : h{h_} , w{w_} , tab{h*w,Info(true/*ko*/,nl)} {}
+	// accesses
+	::vector_view<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }
+	// data
+	size_t         h   ;
+	size_t         w   ;
+	::vector<Info> tab ;
+} ;
+
+// use dynamic programming to find best comment alignment
+void optimize( ::vector<Line>& lines) {
+	size_t         n_lvls = 0                                         ; for( Line const& l : lines ) n_lvls = ::max(n_lvls,l.lvl+1) ;
+	Tab            tab    { lines.size() , g_max_line_sz , n_lvls+1 } ;
+	Line           l0     ;
+	::vector<Info> t0     { tab.w , {false/*ko*/,n_lvls+1}          } ;
+	//
+	size_t py         = Npos ;
+	size_t break_lvl1 = 0    ; // minimum indentation level of line separating comments, 0 is reserved to mean blank line
+	for( size_t y=0 ; y<tab.h ; y++ ) {
+		Line const&         l  =            lines[y ]                           ;
+		::vector_view<Info> t  =            tab  [y ]                           ;
+		::vector_view<Info> pt = py!=Npos ? tab  [py] : ::vector_view<Info>(t0) ;
+		if (!l .comment) {
+			if (l.blank) break_lvl1 = 0                         ;
+			else         break_lvl1 = ::min(break_lvl1,l.lvl+1) ;
+			continue ;
+		}
+		py = y ;
+		size_t px = 0     ;
+		Info   pi = pt[0] ;
+		for( size_t x=1 ; x<pt.size() ; x++ ) {
+			if (pt[x]<pi) { pi = pt[x] ; px = x ; }
+		}
+		if (break_lvl1) pi.breaks[break_lvl1-1]++ ;
+		break_lvl1 = n_lvls+1 ;
+		for( size_t x=l.code_len ; x+l.comment.size()<=tab.w ; x++ ) {
+			if (pt[x]<pi) { t[x] = pt[x] ; t[x].prev_x = x  ; }
+			else          { t[x] = pi    ; t[x].prev_x = px ; }
+			t[x].glb_pos += x ;
+		}
+	}
+	size_t              min_x  = 0       ;
+	::vector_view<Info> last_t = tab[py] ;
+	for( size_t x=1 ; x<last_t.size() ; x++ ) {
+		if (last_t[x]<last_t[min_x]) min_x = x ;
+	}
+	SWEAR(!last_t[min_x].ko) ;
+	for( size_t y1=tab.h ; y1>0 ; y1-- ) {
+		Line& l = lines[y1-1] ;
+		if (!l.comment) continue ;
+		l.comment_pos = min_x ;
+		min_x = tab[y1-1][min_x].prev_x ;
+	}
+}
+
+int main( int argc , char* argv[] ) {
+	if ( argc<4 || argc>5 ) exit(2,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
+	g_tab_width    = from_chars<size_t>(argv[1]) ;
+	g_max_line_sz  = from_chars<size_t>(argv[2]) ;
+	g_comment_sign =                    argv[3]  ;
+	//
+	::vector<Line> lines = get_lines(argc==5?argv[4]:nullptr) ;
+	if (!lines) return 0 ;
+	// ensure comments are not to close to code
+	::vector<size_t> code_lens ;
+	for( size_t li=0 ; li<lines.size() ; li++ ) {
+		size_t cl = lines[li].code_len ;
+		if (li>0             ) cl = ::max( cl , lines[li-1].code_len ) ;
+		if (li<lines.size()-1) cl = ::max( cl , lines[li+1].code_len ) ;
+		code_lens.push_back(cl+1) ;
+	}
+	for( size_t li=0 ; li<lines.size() ; li++ ) {
+		if (code_lens[li]+lines[li].comment.size()>g_max_line_sz) exit(1,"cannot align comment at line ",li+1) ;
+		lines[li].code_len = code_lens[li] ;
+	}
+	//
+	optimize(lines) ;
+	//
+	::cout << ::left ;
+	for( Line const& l : lines ) {
+		if (+l.comment) ::cout << l.pfx << ::setw(l.comment_pos-g_tab_width*l.lvl) << l.code << l.comment <<'\n' ;
+		else            ::cout << l.pfx <<                                            l.code <<             '\n' ;
+	}
+	return 0 ;
+}

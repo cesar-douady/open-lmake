@@ -26,16 +26,13 @@ __pycache__
 *.stamp
 */stamp
 *.inc_stamp
-/_bin/autodep
-/_bin/job_exec
-/_bin/ldump
-/_bin/ldump_job
-/_bin/lmakeserver
-/_bin/read_makefiles
+!/_bin/ut_launch
+/_bin
 
 # tests
 tok
 /src/store/unit_test
+/core.*
 
 # IDE files
 /.idea/

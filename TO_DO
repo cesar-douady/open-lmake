@@ -18,10 +18,12 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve rule set recognition
-	- to avoid incrementing generation if nothing changed
-	- as of today, a simple touch of a makefile and lmark refuses to trust job for a target
-	- to reproduce : lmake target, touch Lmakefile.py, lmark target
+* improve rule/sources/config re-read
+	- store crc, date in makefiles lists
+	- if date changes, recompute crc, if crc changes re-read, if result changes, reconfigure
+	- not only an optim, allow
+		- jobs to touch git files when not actually changing source list
+		- working :  lmake target, touch Lmakefile.py, lmark target
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -61,7 +63,7 @@ items :
 
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
-* generate performance metrics
+* generate KPI's
 	- useful/useless created jobs
 	- number of non buildable nodes
 	- max number of resources slots in backend
@@ -215,11 +217,6 @@ items :
 	- pass JobRpcReply as argument to job_exec when reasonably small
 	- job_exec connect to server in parallel with job execution to get connection info
 	- synchronize in case gather_deps needs to connect to server (ChkDeps &co)
-	- suppress acknowledge at end of job
-	- defer heartbeat when it cannot connect to job
-		- wait 1s+network_delay
-		- to leave time to end report to be processed
-		- process heartbeat generated end of job only when no other connection is pending
 * there can be 1 backend thread per backend
 	- with one master socket
 	- and everything replicated per backend (including mutexes, tables, etc.)
@@ -288,20 +285,6 @@ items :
 	- ensure ancillary file contains all necessary info to rebuild DB
 		- rule crc
 		- deps crc
-* make a align_comment tool
-	- identify comment in each line
-		- handle //* as start of block
-		- handle //! as dont touch comment (process as code)
-		- check no " after comment sign (else dont touch), in case comment sign is part of a string
-	- propagate minimum comment pos to neighboring lines
-	- split source in blocks separated by \n
-	- in each block, identify comment pos based on min pos for the block
-		- if comments do not fit within 200 chars, split block on lines that are longer than min pos and call recursively
-	- keep contiguous comments at same pos
-	- violate rules if this makes comment fit within 200 chars
-		- allow comments to be close to code (overlap neigbors)
-		- then allow contiguous comments at different pos
-	- generate ouput once all comment pos are computed
 * consider gdb guis :
 	- apt install nemiver
 	- insight

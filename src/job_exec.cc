@@ -163,21 +163,21 @@ Digest analyze( ::string& msg , bool at_end ) {
 				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; } // we are only interested in read accesses that found a file
 				else            { if (ad.crc()==Crc::None) a = Accesses::None ; } // .
 			}
-			try {
-				chk(info.tflags) ;
-			} catch (::string const& e) {                                         // dont know what to do with such an access
-				trace("bad_flags",info.tflags) ;
-				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
-				continue ;
-			}
-			bool     has_crc   = info.tflags[Tflag::Crc]                              ;
 			bool     unlink    = ad.prev_unlink && ad.unlink                          ;
 			bool     confirmed = ad.unlink==ad.prev_unlink && ad.write==ad.prev_write ;
 			Tflags   tf        = info.tflags                                          ; if ( !confirmed          ) tf |= Tflag::ManualOk ; // report is unreliable
-			FileInfo fi        ;                                                        if ( !unlink && !has_crc ) fi = {file} ;
+			bool     has_crc   = tf[Tflag::Crc]                                       ;
+			FileInfo fi        ;                                                        if ( !unlink && !has_crc ) fi  = {file}          ;
+			try {
+				chk(tf) ;
+			} catch (::string const& e) {                                         // dont know what to do with such an access
+				trace("bad_flags",tf) ;
+				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
+				continue ;
+			}
 			TargetDigest td {
 				a
-			,	info.tflags
+			,	tf
 			,	ad.write
 			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )        // prepare crc in case it is not computed
 			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date         // if !date && !crc , compute crc and associated date
@@ -186,7 +186,7 @@ Digest analyze( ::string& msg , bool at_end ) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
+			trace("target",td,STR(ad.unlink),tf,td,file) ;
 		}
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size()) ;

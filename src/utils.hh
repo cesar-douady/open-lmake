@@ -1,20 +1,20 @@
-// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023 Doliam
-// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//! This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+//! Copyright (c) 2023 Doliam
+//! This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+//! This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #pragma once
 
-#include <netinet/ip.h>                // in_addr_t, in_port_t
-#include <signal.h>                    // SIG*, kill
-#include <sys/file.h>                  // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
+#include <netinet/ip.h> // in_addr_t, in_port_t
+#include <signal.h>     // SIG*, kill
+#include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
 
-#include <cstring>                     // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
+#include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>
 #include <atomic>
 #include <array>
-#include <charconv>                    // from_chars_result
+#include <charconv> // from_chars_result
 #include <concepts>
 #include <fstream>
 #include <functional>
@@ -37,8 +37,8 @@
 #include "sys_config.h"
 #include "non_portable.hh"
 
-using namespace std ;                                                          // use std at top level so one write ::stuff instead of std::stuff
-using std::getline ;                                                           // special case getline which also has a C version that hides std::getline
+using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
+using std::getline ;  // special case getline which also has a C version that hides std::getline
 
 //
 // meta programming
@@ -56,7 +56,7 @@ template<bool C,class T> using Const = ::conditional_t<C,const T,T> ;
 // place holder when you need a type which is semantically void but syntactically needed
 struct Void {} ;
 template<class T,class D=Void> using NoVoid = ::conditional_t<is_void_v<T>,D,T> ;
-template<class T,T... X> requires(false) struct Err {} ; // for debug purpose, to be used as a tracing point through the diagnostic message
+template<class T,T... X> requires(false) struct Err {} ;                          // for debug purpose, to be used as a tracing point through the diagnostic message
 
 template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
 
@@ -165,11 +165,11 @@ template<class M> ::uset  <               VT(M)::second_type >       mk_val_uset
 template<class M> ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
 
 // support container arg to standard utility functions
-using std::sort          ; // keep std definitions
-using std::stable_sort   ; // .
-using std::binary_search ; // .
-using std::min           ; // .
-using std::max           ; // .
+using std::sort          ;                              // keep std definitions
+using std::stable_sort   ;                              // .
+using std::binary_search ;                              // .
+using std::min           ;                              // .
+using std::max           ;                              // .
 #define CMP ::function<bool(VT(T) const&,VT(T) const&)>
 template<class T> void  sort         ( T      & x ,                  CMP cmp ) {                                             ::sort         ( x.begin() , x.end() ,     cmp ) ; }
 template<class T> void  stable_sort  ( T      & x ,                  CMP cmp ) {                                             ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
@@ -265,10 +265,10 @@ template<class... A> static inline ::string to_string(A const&... args) {
 	return res.str() ;
 }
 //
-static inline ::string to_string(::string const& s) { return  s  ; }           // fast path
-static inline ::string to_string(const char*     s) { return  s  ; }           // .
-static inline ::string to_string(char            c) { return {c} ; }           // .
-static inline ::string to_string(                 ) { return {}  ; }           // .
+static inline ::string to_string(::string const& s) { return  s  ; } // fast path
+static inline ::string to_string(const char*     s) { return  s  ; } // .
+static inline ::string to_string(char            c) { return {c} ; } // .
+static inline ::string to_string(                 ) { return {}  ; } // .
 
 using ::std::from_chars ;
 template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
@@ -382,10 +382,10 @@ static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_s
 	for( size_t i=0 ; i<n_sep ; i++ ) {
 		size_t   end    = txt.find(sep,pos) ;
 		res.emplace_back( txt.substr(pos,end-pos) ) ;
-		if (end==Npos) return res ;                                            // we have exhausted all sep's
-		pos = end+1 ;                                                          // after the sep
+		if (end==Npos) return res ;                   // we have exhausted all sep's
+		pos = end+1 ;                                 // after the sep
 	}
-	res.emplace_back(txt.substr(pos)) ;                                        // all the remaining as last component after n_sep sep's
+	res.emplace_back(txt.substr(pos)) ;               // all the remaining as last component after n_sep sep's
 	return res ;
 }
 
@@ -393,11 +393,11 @@ template<class... A> static inline ::string mk_snake(A const&... args) {
 	return mk_snake(to_string(args...)) ;
 }
 template<> inline ::string mk_snake<::string>(::string const& s) {
-	::string res           ; res.reserve(s.size()+2) ;                         // 3 words is a reaonable pessimistic guess
+	::string res           ; res.reserve(s.size()+2) ;             // 3 words is a reaonable pessimistic guess
 	bool     start_of_word = true ;
 	for( char c : s ) {
 		if (::isupper(c)) {
-			if (!start_of_word) res.push_back('_'         ) ;                  // convert CamelCase to snake_case
+			if (!start_of_word) res.push_back('_'         ) ;      // convert CamelCase to snake_case
 			/**/                res.push_back(::tolower(c)) ;
 		} else {
 			res.push_back(c) ;
@@ -418,18 +418,18 @@ static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep
 
 template<::integral I> static inline I decode_int(const char* p) {
 	I r = 0 ;
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ;      // little endian, /!\ : beware of signs, casts & integer promotion
+	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
 	return r ;
 }
 
 template<::integral I> static inline void encode_int( char* p , I x ) {
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;             // little endian
+	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;      // little endian
 }
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
-template<char U,::integral I> I        from_string_with_units(::string const& s) ; // provide default unit in U. If provided, return value is expressed in this unit
-template<char U,::integral I> ::string to_string_with_units  (I               x) ; // .
+template<char U,::integral I> I        from_string_with_units(::string const& s) ;                                           // provide default unit in U. ...
+template<char U,::integral I> ::string to_string_with_units  (I               x) ;                                           // ... If provided, return value is expressed in this unit
 template<       ::integral I> I        from_string_with_units(::string const& s) { return from_string_with_units<0,I>(s) ; }
 template<       ::integral I> ::string to_string_with_units  (I               x) { return to_string_with_units  <0,I>(x) ; }
 
@@ -450,7 +450,7 @@ template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	static bool busy = false ;
-	if (!busy) {                                                               // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+	if (!busy) {                             // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
 		busy = true ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
@@ -458,7 +458,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
-		write_backtrace(::cerr,hide_cnt+1) ;                                   // rather than merely calling abort, this works even if crash_handler is not installed
+		write_backtrace(::cerr,hide_cnt+1) ; // rather than merely calling abort, this works even if crash_handler is not installed
 		kill_self(sig) ;
 	}
 	set_sig_handler(SIGABRT,SIG_DFL) ;
@@ -509,9 +509,9 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 
 static inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process ",pid) ;                                         // ensure no system wide catastrophe !
-	bool proc_killed  =             ::kill( pid,sig)==0 ;                              // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
-	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                              // kill group if asked so, whether proc was killed or not
+	swear_prod(pid>1,"killing process ",pid) ;                                          // ensure no system wide catastrophe !
+	bool proc_killed  =             ::kill( pid,sig)==0 ;                               // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
+	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                               // kill group if asked so, whether proc was killed or not
 	return proc_killed || group_killed ;
 }
 static inline bool/*done*/ kill_self(int sig) { return kill_process(::getpid(),sig) ; } // raise kills the thread, not the process
@@ -756,8 +756,8 @@ template<StdEnum E> ::map_s<E> _mk_enum_tab() {
 	::map_s<E> res ;
 	for( E e : E::N ) {
 		::string s = _enum_name(e) ;
-		res[         s ] = e ;                                                 // CamelCase
-		res[mk_snake(s)] = e ;                                                 // snake_case
+		res[         s ] = e ;                                                       // CamelCase
+		res[mk_snake(s)] = e ;                                                       // snake_case
 	}
 	return res ;
 }
@@ -863,7 +863,7 @@ template<::unsigned_integral T> struct SmallIds {
 		if (!free_ids) {
 			res = n_allocated ;
 			n_allocated++ ;
-			SWEAR(n_allocated) ;                                               // ensure no overflow
+			SWEAR(n_allocated) ;        // ensure no overflow
 		} else {
 			res = *free_ids.begin() ;
 			free_ids.erase(res) ;
@@ -871,8 +871,8 @@ template<::unsigned_integral T> struct SmallIds {
 		return res ;
 	}
 	void release(T id) {
-		if (!id) return ;                                                      // id 0 has not been acquired
-		SWEAR(!free_ids.contains(id)) ;                                        // else, double release
+		if (!id) return ;               // id 0 has not been acquired
+		SWEAR(!free_ids.contains(id)) ; // else, double release
 		free_ids.insert(id) ;
 	}
 	// data
@@ -880,12 +880,12 @@ template<::unsigned_integral T> struct SmallIds {
 		return n_allocated - 1 - free_ids.size() ;
 	}
 	set<T> free_ids    ;
-	T      n_allocated = 1 ;                                                   // dont use id 0 so that it is free to mean "no id"
+	T      n_allocated = 1 ;            // dont use id 0 so that it is free to mean "no id"
 } ;
 
 static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
 
-template<class T> static inline T clone(T const& x) { return x ; }             // simply clone a value
+template<class T> static inline T clone(T const& x) { return x ; } // simply clone a value
 
 template<class T,bool Fence=false> struct Save {
 	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
@@ -912,16 +912,16 @@ private :
 // string
 //
 
-static constexpr bool _can_be_delimiter(char c) {                              // ensure delimiter does not clash with encoding
+static constexpr bool _can_be_delimiter(char c) {                             // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;
 	if ( 'a'<=c && c<='z' ) return false ;
 	if ( '0'<=c && c<='9' ) return false ;
 	/**/                    return true  ;
 }
 // guarantees that result contains only printable characters and no Delimiter
-template<char Delimiter> ::string mk_printable(::string const& s) {            // encode s so that it is printable and contains no delimiter
+template<char Delimiter> ::string mk_printable(::string const& s) {           // encode s so that it is printable and contains no delimiter
 	static_assert(_can_be_delimiter(Delimiter)) ;
-	::string res ; res.reserve(s.size()) ;                                     // typically, all characters are printable and nothing to add
+	::string res ; res.reserve(s.size()) ;                                    // typically, all characters are printable and nothing to add
 	for( char c : s ) {
 		switch (c) {
 			case '\a' : res += "\\a"  ; break ;

@@ -175,11 +175,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 - private otherwise
 
 ## comments
-- placement w.r.t. code
-	- generally, comments start in column 80 (assuming tab of 4 characters)
-	- they are put in columns 20, 40 or 60 if commenting lists of short items (data members, enum members, ...)
-	- the are always separated with code with at least 1 character and 1 line
-	- comments in successive lines are aligned
+- comments can be realigned with the command \_bin/align\_comments 4 200 [// or #]
 - standard comments
 	- `//vvvvvvvvvvvvvvvvvvvvvvvvvv`
 	- `main purpose of the function`

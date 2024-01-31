@@ -317,6 +317,7 @@ class TarLmake(BaseRule) :
 	,	'LDBG'               : 'bin/ldebug'
 	,	'LSHOW'              : 'bin/lshow'
 	,	'XXHSUM'             : 'bin/xxhsum'
+	,	'ALIGN_COMMENTS'     : 'bin/align_comments'
 	,	'DOC'                : 'doc/lmake.html'
 	}
 	cmd = "tar -cz {' '.join(deps.values())}"
@@ -473,9 +474,11 @@ for client in ('ldebug','lforget','lmake','lmark','lshow') :
 		targets = { 'TARGET' : f'bin/{client}'   }
 		deps    = { 'MAIN'   : f'src/{client}.o' }
 
-class LinkXxhsum(LinkAppExe) :
-	targets = { 'TARGET' : 'bin/xxhsum'   }
-	deps    = { 'MAIN'   : 'src/xxhsum.o' }
+for app in ('xxhsum','align_comments') :
+	class LinkXxhsum(LinkAppExe) :
+		name    = f'link {app}'
+		targets = { 'TARGET' : f'bin/{app}'   }
+		deps    = { 'MAIN'   : f'src/{app}.o' }
 
 class LinkJobSupport(LinkClientAppExe) :
 	deps = {

@@ -904,6 +904,7 @@ namespace Engine {
 		TargetPattern res       ;
 		VarIdx        cur_group = 1 ;
 		//
+		res.groups.resize(stems.size()) ;
 		res.txt = _subst_target(
 			target
 		,	[&](VarIdx s)->::string {
@@ -912,10 +913,9 @@ namespace Engine {
 					if (k.front()=='<'&&k.back()=='>' ) return escape(to_string('{',""s,"*}")) ; // when matching on job name, star stems are matched as they are reported to user
 					else                                return escape(to_string('{',k  ,"*}")) ; // .
 				}
-				if ( grow(res.groups,s) )
-					return to_string("(?:\\",res.groups[s],')') ; // already seen, we must protect against following text potentially containing numbers
-				grow(res.groups,s)  = cur_group             ;
-				cur_group          += 1+stem_mark_counts[s] ;
+				if (res.groups[s]) return to_string("(?:\\",res.groups[s],')') ; // already seen, we must protect against following text potentially containing numbers
+				res.groups[s]  = cur_group             ;
+				cur_group     += 1+stem_mark_counts[s] ;
 				return to_string('(',stems[s].second,')') ;
 			}
 		,	true/*escape*/
@@ -1455,7 +1455,10 @@ trace(t);
 			Match m = rule->target_patterns[t].match(target) ;
 			if (!m) continue ;
 trace(rule->n_static_stems,rule->target_patterns[t].groups,stems) ;
-			for( VarIdx i=0 ; i<rule->n_static_stems ; i++ ) if (m[rule->target_patterns[t].groups[i]]!=stems[i]) goto Continue ;
+			for( VarIdx i=0 ; i<rule->n_static_stems ; i++ ) {
+				VarIdx g = rule->target_patterns[t].groups[i] ;
+				if ( g && m[g]!=stems[i] ) goto Continue ;
+			}
 			return t ;
 		Continue : ;
 		}

@@ -164,15 +164,16 @@ LMAKE_SERVER_PY_FILES = \
 	$(LIB)/lmake_runtime.py
 
 LMAKE_SERVER_BIN_FILES = \
-	$(SBIN)/lmakeserver              \
-	$(SBIN)/ldump                    \
-	$(SBIN)/ldump_job                \
-	$(BIN)/autodep                   \
-	$(BIN)/ldebug                    \
-	$(BIN)/lforget                   \
-	$(BIN)/lmake                     \
-	$(BIN)/lmark                     \
-	$(BIN)/lshow                     \
+	$(SBIN)/lmakeserver    \
+	$(SBIN)/ldump          \
+	$(SBIN)/ldump_job      \
+	$(SBIN)/align_comments \
+	$(BIN)/autodep         \
+	$(BIN)/ldebug          \
+	$(BIN)/lforget         \
+	$(BIN)/lmake           \
+	$(BIN)/lmark           \
+	$(BIN)/lshow           \
 	$(BIN)/xxhsum
 
 LMAKE_SERVER_FILES = \
@@ -448,11 +449,9 @@ $(SBIN)/job_exec : \
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
-$(SBIN)/read_dyn : \
+$(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
-	$(SRC)/app$(SAN).o      \
-	$(SRC)/trace$(SAN).o    \
-	$(SRC)/read_dyn$(SAN).o
+	$(SRC)/align_comments$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
