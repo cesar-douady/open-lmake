@@ -4,7 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/resource.h>
-#include <linux/limits.h>              // ARG_MAX
+#include <linux/limits.h> // ARG_MAX
 
 #include "app.hh"
 #include "disk.hh"
@@ -23,7 +23,7 @@ using namespace Hash ;
 using namespace Re   ;
 using namespace Time ;
 
-static constexpr int NConnectionTrials = 3 ;               // number of times to try connect when connecting to server
+static constexpr int NConnectionTrials = 3 ; // number of times to try connect when connecting to server
 
 ServerSockFd               g_server_fd       ;
 GatherDeps                 g_gather_deps     { New }        ;
@@ -33,7 +33,7 @@ JobRpcReply                g_start_info      ;
 ::string                   g_service_end     ;
 SeqId                      g_seq_id          = 0/*garbage*/ ;
 JobIdx                     g_job             = 0/*garbage*/ ;
-::atomic<bool>             g_killed          = false        ;                  // written by thread S and read by main thread
+::atomic<bool>             g_killed          = false        ; // written by thread S and read by main thread
 ::umap_s<          Tflags> g_known_targets   ;
 ::vmap<RegExpr,Tflags>     g_target_patterns ;
 NfsGuard                   g_nfs_guard       ;
@@ -50,33 +50,33 @@ void kill_thread_func(::stop_token stop) {
 	for( size_t i=0 ;; i++ ) {
 		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : -1 ; // -1 means best effort
 		trace("sig",sig) ;
-		if (!g_gather_deps.kill(sig)  ) return ;                               // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
-		if (!Delay(1.).sleep_for(stop)) return ;                               // job_exec has ended
+		if (!g_gather_deps.kill(sig)  ) return ;                                     // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
+		if (!Delay(1.).sleep_for(stop)) return ;                                     // job_exec has ended
 	}
 }
 
 void kill_job() {
 	Trace trace("kill_job") ;
-	static ::jthread kill_thread{kill_thread_func} ;                           // launch job killing procedure while continuing to behave normally
+	static ::jthread kill_thread{kill_thread_func} ; // launch job killing procedure while continuing to behave normally
 }
 
 bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 	Trace trace("handle_server_req",jsrr) ;
 	switch (jsrr.proc) {
 		case JobServerRpcProc::Heartbeat :
-			if (jsrr.seq_id!=g_seq_id) {                                       // report that the job the server tries to connect to no longer exists
+			if (jsrr.seq_id!=g_seq_id) {               // report that the job the server tries to connect to no longer exists
 				trace("bad_id",g_seq_id,jsrr.seq_id) ;
 				try {
 					OMsgBuf().send(
 						ClientSockFd( g_service_end , NConnectionTrials )
 					,	JobRpcReq( JobProc::End , jsrr.seq_id , jsrr.job , {.status=Status::LateLost} )
 					) ;
-				} catch (::string const& e) {}                                 // if server is dead, no harm
+				} catch (::string const& e) {}         // if server is dead, no harm
 			}
 		break ;
 		case JobServerRpcProc::Kill :
 			g_killed = true ;
-			if (jsrr.seq_id==g_seq_id) kill_job() ;                            // else server is not sending its request to us
+			if (jsrr.seq_id==g_seq_id) kill_job() ;    // else server is not sending its request to us
 		break ;
 		default : FAIL(jsrr.proc) ;
 	}
@@ -123,9 +123,9 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 }
 
 struct Digest {
-	::vmap_s<TargetDigest> targets ;
-	::vmap_s<DepDigest   > deps    ;
-	::vector<NodeIdx     > crcs    ; // index in targets of entry for which we need to compute a crc
+	::vmap_s<TargetDigest>            targets ;
+	::vmap_s<DepDigest   >            deps    ;
+	::vmap<NodeIdx,bool/*confirmed*/> crcs    ; // index in targets of entry for which we need to compute a crc
 } ;
 
 Digest analyze( ::string& msg , bool at_end ) {
@@ -158,35 +158,34 @@ Digest analyze( ::string& msg , bool at_end ) {
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,file) ;
-		} else if (at_end) {                                                      // else we are handling chk_deps and we only care about deps
+		} else if (at_end) {                                                                                  // else we are handling chk_deps and we only care about deps
 			if (+a) {
-				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; } // we are only interested in read accesses that found a file
-				else            { if (ad.crc()==Crc::None) a = Accesses::None ; } // .
+				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; }                             // we are only interested in read accesses that found a file
+				else            { if (ad.crc()==Crc::None) a = Accesses::None ; }                             // .
 			}
 			bool     unlink    = ad.prev_unlink && ad.unlink                          ;
 			bool     confirmed = ad.unlink==ad.prev_unlink && ad.write==ad.prev_write ;
-			Tflags   tf        = info.tflags                                          ; if ( !confirmed          ) tf |= Tflag::ManualOk ; // report is unreliable
-			bool     has_crc   = tf[Tflag::Crc]                                       ;
-			FileInfo fi        ;                                                        if ( !unlink && !has_crc ) fi  = {file}          ;
+			bool     has_crc   = info.tflags[Tflag::Crc]                              ;
+			FileInfo fi        ; if ( !unlink && !has_crc ) fi  = {file} ;
 			try {
-				chk(tf) ;
-			} catch (::string const& e) {                                         // dont know what to do with such an access
-				trace("bad_flags",tf) ;
+				chk(info.tflags) ;
+			} catch (::string const& e) {                                                                     // dont know what to do with such an access
+				trace("bad_flags",info.tflags) ;
 				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
 				continue ;
 			}
 			TargetDigest td {
 				a
-			,	tf
+			,	info.tflags
 			,	ad.write
-			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )        // prepare crc in case it is not computed
-			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date         // if !date && !crc , compute crc and associated date
+			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )                                    // prepare crc in case it is not computed
+			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date                                     // if !date && !crc , compute crc and associated date
 			} ;
-			if (!td.crc) res.crcs.push_back(res.targets.size()) ;
+			if (!td.crc) res.crcs.emplace_back(res.targets.size(),confirmed) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",td,STR(ad.unlink),tf,td,file) ;
+			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
 		}
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size()) ;
@@ -223,7 +222,7 @@ Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 }
 
 void live_out_cb(::string_view const& txt) {
-	static ::string live_out_buf ;                                             // used to store incomplete last line to have line coherent chunks
+	static ::string live_out_buf ;           // used to store incomplete last line to have line coherent chunks
 	// could be slightly optimized, but when generating live output, we have very few jobs, no need to optimize
 	live_out_buf.append(txt) ;
 	size_t pos = live_out_buf.rfind('\n') ;
@@ -236,23 +235,26 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs ) {
-	static ::atomic<NodeIdx> target_idx = 0 ;
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vmap<NodeIdx,bool/*confirmed*/> const* crcs , Pdate end_job ) {
+	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc",targets->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                                      // cnt is for trace only
-	for( NodeIdx ti=0 ; (ti=target_idx++)<crcs->size() ; cnt++ ) {
-trace(ti);
-trace((*crcs)[ti]);
-		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ti]] ;
-		Pdate                   before = Pdate::s_now()                    ;
+	NodeIdx cnt = 0 ;                                           // cnt is for trace only
+	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
+trace(ci);
+trace((*crcs)[ci]);
+		auto                    [ti,confirmed] = (*crcs)[ci]    ;
+		::pair_s<TargetDigest>& e              = (*targets)[ti] ;
+		// when job is killed while doing a syscall, syscall may continue after process is dead, wait a little while to have a reliable access to the file
+		if (!confirmed) (end_job+g_start_info.network_delay).sleep_until() ;
+		Pdate before = Pdate::s_now() ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
-		trace("crc_date",ti,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
+		trace("crc_date",ci,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
 	}
 	trace("done",cnt) ;
 }
 
-void compute_crcs(Digest& digest) {
+void compute_crcs( Digest& digest , Pdate end_job ) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -260,11 +262,12 @@ void compute_crcs(Digest& digest) {
 	//
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i=0 ; i<n_threads ; i++ ) crc_threads.emplace_back(crc_thread_func,i,&digest.targets,&digest.crcs) ; // just constructing a destructing the threads will execute & join them
+		for( size_t i=0 ; i<n_threads ; i++ )
+			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , end_job ) ; // just constructing and destructing the threads will execute & join them
 	}
-	if (!g_start_info.autodep_env.reliable_dirs) {                                                  // fast path : avoid listing targets & guards if reliable_dirs
-		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                     // protect against NFS strange notion of coherence while computing crcs
-		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                     // .
+	if (!g_start_info.autodep_env.reliable_dirs) {                                                       // fast path : avoid listing targets & guards if reliable_dirs
+		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                          // protect against NFS strange notion of coherence while computing crcs
+		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                          // .
 		g_nfs_guard.close() ;
 	}
 }
@@ -273,7 +276,7 @@ int main( int argc , char* argv[] ) {
 	//
 	Pdate start_overhead = Pdate::s_now() ;
 	//
-	swear_prod(argc==6,argc) ;                                                 // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx is_remote
+	swear_prod(argc==6,argc) ;                      // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx is_remote
 	g_service_start =                    argv[1]  ;
 	g_service_mngt  =                    argv[2]  ;
 	g_service_end   =                    argv[3]  ;
@@ -286,16 +289,16 @@ int main( int argc , char* argv[] ) {
 	JobRpcReq end_report { JobProc::End   , g_seq_id , g_job , {.status=Status::EarlyErr,.end_date=start_overhead} } ; // prepare to return an error, so we can goto End anytime
 	try {
 		ClientSockFd fd {g_service_start,NConnectionTrials} ;
-		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv                                          // once connection is established, everything should be smooth
-		try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { exit(3) ; } // maybe normal in case ^C was hit
-		try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { exit(4) ; } // .
+		//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv                                           // once connection is established, everything should be smooth
+		try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { exit(3) ; }  // maybe normal in case ^C was hit
+		try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { exit(4) ; }  // .
 		//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	} catch (::string const&) { exit(5) ; }                                    // maybe normal in case ^C was hit
+	} catch (::string const&) { exit(5) ; }                                                                            // maybe normal in case ^C was hit
 	g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 	//
 	switch (g_start_info.proc) {
-		case JobProc::None  : return 0 ;                                       // server ask us to give up
-		case JobProc::Start : break    ;                                       // normal case
+		case JobProc::None  : return 0 ;      // server ask us to give up
+		case JobProc::Start : break    ;      // normal case
 		default : FAIL(g_start_info.proc) ;
 	}
 	//
@@ -306,8 +309,8 @@ int main( int argc , char* argv[] ) {
 	{	if (g_start_info.trace_n_jobs) {
 			g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",g_seq_id%g_start_info.trace_n_jobs)} ;
 			//
-			Trace::s_sz = 10<<20 ;                                             // this is more than enough
-			::unlink(g_trace_file->c_str()) ;                                  // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+			Trace::s_sz = 10<<20 ;            // this is more than enough
+			::unlink(g_trace_file->c_str()) ; // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 		}
 		app_init() ;
 		//
@@ -317,7 +320,7 @@ int main( int argc , char* argv[] ) {
 		trace("g_start_info"  ,g_start_info  ) ;
 		//
 		for( auto const& [d,_] : g_start_info.static_deps )
-			g_known_targets.emplace(d,UnexpectedTflags) ;                      // if a target happens to be a static dep, it is necessarily unexpected
+			g_known_targets.emplace(d,UnexpectedTflags) ;                                                         // if a target happens to be a static dep, it is necessarily unexpected
 		for( auto const& [p,tf] : g_start_info.targets )
 			if (tf[Tflag::Star]) g_target_patterns.emplace_back(p,tf) ;
 			else                 g_known_targets  .emplace     (p,tf) ;
@@ -356,21 +359,21 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate         start_job = Pdate::s_now() ;                                                                  // as late as possible before child starts
+		Pdate         start_job = Pdate::s_now() ;                                                                // as late as possible before child starts
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status        status    = g_gather_deps.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job   = Pdate::s_now() ;                                                                  // as early as possible after child ends
+		Pdate         end_job   = Pdate::s_now() ;                                                                // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
 		::string msg ;
 		Digest digest = analyze(msg,true/*at_end*/) ;
 		//
-		compute_crcs(digest) ;
+		compute_crcs(digest,end_job) ;
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
-			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {} // cleaning is done at job start any way, so no harm
+			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
 		if      (+msg    ) status = Status::Err    ;
 		else if (g_killed) status = Status::Killed ;
@@ -395,7 +398,7 @@ End :
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = Pdate::s_now()                      ;
 		Trace trace("end",end_overhead,end_report.digest.status) ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;            // measure overhead as late as possible
+		end_report.digest.stats.total = end_overhead - start_overhead ;                                           // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

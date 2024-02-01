@@ -1,7 +1,7 @@
-//! This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-//! Copyright (c) 2023 Doliam
-//! This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
-//! This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+// Copyright (c) 2023 Doliam
+// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #pragma once
 
@@ -912,16 +912,16 @@ private :
 // string
 //
 
-static constexpr bool _can_be_delimiter(char c) {                             // ensure delimiter does not clash with encoding
+static constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;
 	if ( 'a'<=c && c<='z' ) return false ;
 	if ( '0'<=c && c<='9' ) return false ;
 	/**/                    return true  ;
 }
 // guarantees that result contains only printable characters and no Delimiter
-template<char Delimiter> ::string mk_printable(::string const& s) {           // encode s so that it is printable and contains no delimiter
+template<char Delimiter> ::string mk_printable(::string const& s) { // encode s so that it is printable and contains no delimiter
 	static_assert(_can_be_delimiter(Delimiter)) ;
-	::string res ; res.reserve(s.size()) ;                                    // typically, all characters are printable and nothing to add
+	::string res ; res.reserve(s.size()) ;                          // typically, all characters are printable and nothing to add
 	for( char c : s ) {
 		switch (c) {
 			case '\a' : res += "\\a"  ; break ;

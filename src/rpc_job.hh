@@ -545,6 +545,7 @@ struct JobRpcReply {
 				::serdes(s,kill_sigs       ) ;
 				::serdes(s,live_out        ) ;
 				::serdes(s,method          ) ;
+				::serdes(s,network_delay   ) ;
 				::serdes(s,pre_actions     ) ;
 				::serdes(s,remote_admin_dir) ;
 				::serdes(s,small_id        ) ;
@@ -573,6 +574,7 @@ struct JobRpcReply {
 	vector<uint8_t>           kill_sigs        ;                               // proc == Start
 	bool                      live_out         = false               ;         // proc == Start
 	AutodepMethod             method           = AutodepMethod::Dflt ;         // proc == Start
+	Time::Delay               network_delay    ;                               // proc == Start
 	::vmap_s<FileAction>      pre_actions      ;                               // proc == Start
 	::string                  remote_admin_dir ;                               // proc == Start
 	SmallId                   small_id         = 0                   ;         // proc == Start

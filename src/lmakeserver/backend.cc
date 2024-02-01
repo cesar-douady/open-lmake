@@ -311,6 +311,7 @@ namespace Backends {
 			reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs) ;
 			reply.live_out                  = submit_attrs.live_out              ;
 			reply.method                    = start_cmd_attrs.method             ;
+			reply.network_delay             = g_config.network_delay             ;
 			reply.remote_admin_dir          = g_config.remote_admin_dir          ;
 			reply.small_id                  = small_id                           ;
 			reply.timeout                   = start_rsrcs_attrs.timeout          ;

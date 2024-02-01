@@ -7,14 +7,20 @@
 
 using namespace Disk ;
 
-struct Line {                             // by default, construct a blank line
-	size_t   lvl         = 0            ;
-	bool     blank       = true         ;
+ENUM(LineKind
+,	Blank
+,	Comment
+,	Plain
+)
+
+struct Line {                                // by default, construct a blank line
+	size_t   lvl         = 0               ;
+	LineKind kind        = LineKind::Blank ;
 	::string pfx         ;
 	::string code        ;
-	size_t   code_len    = 0            ; // with tab expansion
+	size_t   code_len    = 0               ; // with tab expansion
 	::string comment     ;
-	size_t   comment_pos = 0/*garbage*/ ; // filled in by optimize()
+	size_t   comment_pos = 0/*garbage*/    ; // filled in by optimize()
 } ;
 
 size_t   g_tab_width    = 0/*garbage*/ ;
@@ -29,31 +35,37 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 	else      for( ::string l ; ::getline(::cin,l) ;) lines.push_back(l) ;
 	//
 	for( ::string const& l : lines ) {
-		size_t lvl   = 0    ;
-		size_t cnt   = 0    ;
-		size_t start = 0    ;
-		bool   blank = true ; for( char c : l ) if (!::isspace(c)) { blank = false ; break ; }
+		size_t   lvl   = 0               ;
+		size_t   cnt   = 0               ;
+		size_t   start = 0               ;
+		LineKind kind  = LineKind::Blank ; for( char c : l ) if (!::isspace(c)) { kind = LineKind::Plain ; break ; }
 		for( size_t i=0 ; i<l.size() ; i++ ) {
 			if (l[i]=='\t') {
 				lvl++ ;
-				cnt      = 0   ;
-				start    = i+1 ;
+				cnt   = 0   ;
+				start = i+1 ;
 			} else {
 				cnt++ ;
 				if (cnt==g_tab_width) break ;
 			}
 		}
-		size_t pos = l.find(g_comment_sign,start) ;
-		if      ( pos!=Npos && l[pos+g_comment_sign.size()]=='!' ) pos = Npos                                               ;
-		else if ( pos==start                                     ) pos = l.find(g_comment_sign,start+g_comment_sign.size()) ;
-		size_t code_len = pos ;
-		if (pos==Npos) {
-			code_len = l.size() ;
+		//
+		if (kind==LineKind::Blank) {
+			res.emplace_back() ;
 		} else {
-			while ( code_len && l[code_len-1]==' ' ) code_len-- ;
+			size_t code_len    = 0        ;
+			size_t comment_pos = l.size() ;
+			if (l.substr(start).starts_with(g_comment_sign)) kind = LineKind::Comment ;
+			comment_pos = l.find(' '+g_comment_sign,start) ;
+			if (comment_pos==Npos) {
+				comment_pos = l.size() ;
+			} else {
+				comment_pos++ ;
+				if (l[comment_pos+g_comment_sign.size()]=='!') comment_pos = l.size() ;
+			}
+			for ( code_len=comment_pos ; code_len&&l[code_len-1]==' ' ; code_len-- ) ;
+			res.emplace_back( lvl , kind , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start , l.substr(comment_pos) ) ;
 		}
-		if (pos==Npos) res.emplace_back( lvl , blank , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start                 ) ;
-		else           res.emplace_back( lvl , blank , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start , l.substr(pos) ) ;
 	}
 	return res ;
 }
@@ -64,14 +76,16 @@ struct Info {
 	// services
 	bool operator<(Info const& other) const {
 		/**/                                      if (ko         !=other.ko         ) return ko         <other.ko          ;
+		/**/                                      if (n_closes   !=other.n_closes   ) return n_closes   <other.n_closes    ;
 		for( size_t i=breaks.size() ; i>0 ; i-- ) if (breaks[i-1]!=other.breaks[i-1]) return breaks[i-1]<other.breaks[i-1] ;
 		/**/                                                                          return glb_pos    <other.glb_pos     ;
 	}
 	// data
-	bool             ko      = true         ;
-	::vector<size_t> breaks  = {}           ;
-	size_t           glb_pos = 0            ;
-	size_t           prev_x  = 0/*garbage*/ ;
+	bool             ko       = true         ;
+	size_t           n_closes = 0            ;
+	::vector<size_t> breaks   = {}           ;
+	size_t           glb_pos  = 0            ;
+	size_t           prev_x   = 0/*garbage*/ ;
 } ;
 
 struct Tab {
@@ -93,28 +107,31 @@ void optimize( ::vector<Line>& lines) {
 	::vector<Info> t0     { tab.w , {false/*ko*/,n_lvls+1}          } ;
 	//
 	size_t py         = Npos ;
-	size_t break_lvl1 = 0    ; // minimum indentation level of line separating comments, 0 is reserved to mean blank line
+	size_t break_lvl1 = 0    ;          // minimum indentation level of line separating comments, 0 is reserved to mean blank line
 	for( size_t y=0 ; y<tab.h ; y++ ) {
 		Line const&         l  =            lines[y ]                           ;
 		::vector_view<Info> t  =            tab  [y ]                           ;
 		::vector_view<Info> pt = py!=Npos ? tab  [py] : ::vector_view<Info>(t0) ;
 		if (!l .comment) {
-			if (l.blank) break_lvl1 = 0                         ;
-			else         break_lvl1 = ::min(break_lvl1,l.lvl+1) ;
+			if (l.kind==LineKind::Blank) break_lvl1 = 0                         ;
+			else                         break_lvl1 = ::min(break_lvl1,l.lvl+1) ;
 			continue ;
 		}
 		py = y ;
 		size_t px = 0     ;
 		Info   pi = pt[0] ;
-		for( size_t x=1 ; x<pt.size() ; x++ ) {
+		for( size_t x=1 ; x<pt.size() ; x++ )
 			if (pt[x]<pi) { pi = pt[x] ; px = x ; }
-		}
 		if (break_lvl1) pi.breaks[break_lvl1-1]++ ;
 		break_lvl1 = n_lvls+1 ;
-		for( size_t x=l.code_len ; x+l.comment.size()<=tab.w ; x++ ) {
+		size_t code_len3 = l.code_len ;                                                                         // ensure comments are not too close to code
+		if ( y>0       && lines[y-1].kind==LineKind::Plain ) code_len3 = ::max(code_len3,lines[y-1].code_len) ;
+		if ( y<tab.h-1 && lines[y+1].kind==LineKind::Plain ) code_len3 = ::max(code_len3,lines[y+1].code_len) ;
+		for( size_t x=l.code_len+1 ; x+l.comment.size()<=tab.w ; x++ ) {
 			if (pt[x]<pi) { t[x] = pt[x] ; t[x].prev_x = x  ; }
 			else          { t[x] = pi    ; t[x].prev_x = px ; }
-			t[x].glb_pos += x ;
+			if (x<code_len3+1) t[x].n_closes++ ;
+			/**/               t[x].glb_pos += x ;
 		}
 	}
 	size_t              min_x  = 0       ;
@@ -139,18 +156,6 @@ int main( int argc , char* argv[] ) {
 	//
 	::vector<Line> lines = get_lines(argc==5?argv[4]:nullptr) ;
 	if (!lines) return 0 ;
-	// ensure comments are not to close to code
-	::vector<size_t> code_lens ;
-	for( size_t li=0 ; li<lines.size() ; li++ ) {
-		size_t cl = lines[li].code_len ;
-		if (li>0             ) cl = ::max( cl , lines[li-1].code_len ) ;
-		if (li<lines.size()-1) cl = ::max( cl , lines[li+1].code_len ) ;
-		code_lens.push_back(cl+1) ;
-	}
-	for( size_t li=0 ; li<lines.size() ; li++ ) {
-		if (code_lens[li]+lines[li].comment.size()>g_max_line_sz) exit(1,"cannot align comment at line ",li+1) ;
-		lines[li].code_len = code_lens[li] ;
-	}
 	//
 	optimize(lines) ;
 	//

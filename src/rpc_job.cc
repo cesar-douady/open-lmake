@@ -137,24 +137,25 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		case JobProc::Encode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.dep_infos                          ; break ;
 		case JobProc::Start :
-			/**/                  os <<',' << hex<<jrr.addr<<dec               ;
-			/**/                  os <<',' << jrr.autodep_env                  ;
-			if (+jrr.chroot     ) os <<',' << jrr.chroot                       ;
-			if (+jrr.cwd_s      ) os <<',' << jrr.cwd_s                        ;
-			/**/                  os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			if (+jrr.static_deps) os <<',' << jrr.static_deps                  ;
-			/**/                  os <<',' << jrr.interpreter                  ;
-			if (jrr.keep_tmp    ) os <<',' << "keep_tmp"                       ;
-			/**/                  os <<',' << jrr.kill_sigs                    ;
-			if (jrr.live_out    ) os <<',' << "live_out"                       ;
-			/**/                  os <<',' << jrr.method                       ;
-			/**/                  os <<',' << jrr.remote_admin_dir             ;
-			/**/                  os <<',' << jrr.small_id                     ;
-			if (+jrr.stdin      ) os <<'<' << jrr.stdin                        ;
-			if (+jrr.stdout     ) os <<'>' << jrr.stdout                       ;
-			/**/                  os <<"*>"<< jrr.targets                      ;
-			if (+jrr.timeout    ) os <<',' << jrr.timeout                      ;
-			/**/                  os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
+			/**/                    os <<',' << hex<<jrr.addr<<dec               ;
+			/**/                    os <<',' << jrr.autodep_env                  ;
+			if (+jrr.chroot       ) os <<',' << jrr.chroot                       ;
+			if (+jrr.cwd_s        ) os <<',' << jrr.cwd_s                        ;
+			/**/                    os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			if (+jrr.static_deps  ) os <<',' << jrr.static_deps                  ;
+			/**/                    os <<',' << jrr.interpreter                  ;
+			if (jrr.keep_tmp      ) os <<',' << "keep_tmp"                       ;
+			/**/                    os <<',' << jrr.kill_sigs                    ;
+			if (jrr.live_out      ) os <<',' << "live_out"                       ;
+			/**/                    os <<',' << jrr.method                       ;
+			if (+jrr.network_delay) os <<',' << jrr.network_delay                ;
+			/**/                    os <<',' << jrr.remote_admin_dir             ;
+			/**/                    os <<',' << jrr.small_id                     ;
+			if (+jrr.stdin        ) os <<'<' << jrr.stdin                        ;
+			if (+jrr.stdout       ) os <<'>' << jrr.stdout                       ;
+			/**/                    os <<"*>"<< jrr.targets                      ;
+			if (+jrr.timeout      ) os <<',' << jrr.timeout                      ;
+			/**/                    os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
