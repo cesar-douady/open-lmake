@@ -13,7 +13,7 @@ using namespace Disk ;
 using namespace Time ;
 
 ::string* g_lmake_dir     = nullptr ;
-::string* g_startup_dir_s = nullptr ;  // includes final /, relative to g_root_dir , dir from which command was launched
+::string* g_startup_dir_s = nullptr ; // includes final /, relative to g_root_dir , dir from which command was launched
 ::string* g_root_dir      = nullptr ;
 
 void crash_handler(int sig) {
@@ -35,7 +35,7 @@ void app_init( bool search_root , bool cd_root ) {
 		}
 	} catch (::string const& e) { exit(2,e) ; }
 	if (cd_root) {
-		SWEAR(search_root) ;                                                          // it is meaningless to cd to root dir if we do not search it
+		SWEAR(search_root) ;                                                                       // it is meaningless to cd to root dir if we do not search it
 		if (::chdir(g_root_dir->c_str())!=0) exit(2,"cannot chdir to ",*g_root_dir) ;
 	}
 	//

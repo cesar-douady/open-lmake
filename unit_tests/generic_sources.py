@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,SourceRule , ignore_flags
+	from lmake.rules import Rule,SourceRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -19,8 +19,8 @@ if __name__!='__main__' :
 		cmd    = 'cat'
 
 	class Test(Rule) :
-		target = 'test'
-		post_targets = { 'SUB' : ( '{*:.*}.src' , '-match','source_ok','incremental' ) }
+		target       = 'test'
+		target_flags = { 'SUB' : ( '{*:.*}.src' , 'manual_ok','incremental' ) }
 		cmd = '''
 			echo sub > sub.src
 			cat sub.src.cpy

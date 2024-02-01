@@ -168,19 +168,22 @@ template<class M> ::vector<               VT(M)::second_type >       mk_val_vect
 using std::sort          ;                              // keep std definitions
 using std::stable_sort   ;                              // .
 using std::binary_search ;                              // .
+using std::lower_bound   ;                              // .
 using std::min           ;                              // .
 using std::max           ;                              // .
 #define CMP ::function<bool(VT(T) const&,VT(T) const&)>
-template<class T> void  sort         ( T      & x ,                  CMP cmp ) {                                             ::sort         ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> void  stable_sort  ( T      & x ,                  CMP cmp ) {                                             ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> bool  binary_search( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
-template<class T> VT(T) min          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> VT(T) max          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> void  sort         ( T      & x                            ) {                                             ::sort         ( x.begin() , x.end()           ) ; }
-template<class T> void  stable_sort  ( T      & x                            ) {                                             ::stable_sort  ( x.begin() , x.end()           ) ; }
-template<class T> bool  binary_search( T const& x , VT(T) const& v           ) {                                     return  ::binary_search( x.begin() , x.end() , v       ) ; }
-template<class T> VT(T) min          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end()           ) ; }
-template<class T> VT(T) max          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end()           ) ; }
+template<class T>          void              sort         ( T      & x ,                  CMP cmp ) {                                             ::sort         ( x.begin() , x.end() ,     cmp ) ; }
+template<class T>          void              stable_sort  ( T      & x ,                  CMP cmp ) {                                             ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
+template<class T>          bool              binary_search( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP cmp ) {                                     return  ::lower_bound  ( x.begin() , x.end() , v , cmp ) ; }
+template<class T>          VT(T)             min          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end() ,     cmp ) ; }
+template<class T>          VT(T)             max          ( T const& x ,                  CMP cmp ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end() ,     cmp ) ; }
+template<class T>          void              sort         ( T      & x                            ) {                                             ::sort         ( x.begin() , x.end()           ) ; }
+template<class T>          void              stable_sort  ( T      & x                            ) {                                             ::stable_sort  ( x.begin() , x.end()           ) ; }
+template<class T>          bool              binary_search( T const& x , VT(T) const& v           ) {                                     return  ::binary_search( x.begin() , x.end() , v       ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v           ) {                                     return  ::lower_bound  ( x.begin() , x.end() , v       ) ; }
+template<class T>          VT(T)             min          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::min_element  ( x.begin() , x.end()           ) ; }
+template<class T>          VT(T)             max          ( T const& x                            ) { if (x.begin()==x.end()) return {} ; return *::max_element  ( x.begin() , x.end()           ) ; }
 #undef CMP
 
 #undef TVT
@@ -323,10 +326,12 @@ template<char Delimiter=0> static inline ::string mk_printable(::string     && t
 }
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
-static inline ::string ensure_nl   (::string     && txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; return txt ; }
-static inline ::string ensure_no_nl(::string     && txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; return txt ; }
-static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;                            }
-static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;                            }
+static inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
+static inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
+static inline ::string ensure_nl   (::string     && txt) { set_nl   (txt) ; return txt ;                    }
+static inline ::string ensure_no_nl(::string     && txt) { set_no_nl(txt) ; return txt ;                    }
+static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;               }
+static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
 
 template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
@@ -454,7 +459,11 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 		busy = true ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlink("/proc/self/exe",buf,PATH_MAX) ;
-		if ( cnt>=0 || cnt<=PATH_MAX ) ::cerr << ::string_view(buf,cnt) <<':'<<t_thread_key<<" :" ;
+		if ( cnt>=0 || cnt<=PATH_MAX ) {
+			/**/                   ::cerr << ::string_view(buf,cnt) ;
+			if (t_thread_key!='?') ::cerr <<':'<< t_thread_key      ;
+			/**/                   ::cerr <<" :"                    ;
+		}
 		[[maybe_unused]] bool _[] ={false,(::cerr<<' '<<args,false)...} ;
 		::cerr << '\n' ;
 		set_sig_handler(sig,SIG_DFL) ;
@@ -487,7 +496,7 @@ template<class... A> [[noreturn]] static inline void fail( A const&... args [[ma
 
 template<class... A> static inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation @ " , args... ) ;
+		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
 	#else
 		if (!cond) unreachable() ;
 	#endif
@@ -498,7 +507,7 @@ template<class... A> [[noreturn]] static inline void fail_prod( A const&... args
 }
 
 template<class... A> static inline constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation @ " , args... ) ;
+	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
 }
 
 #define _FAIL_STR2(x) #x
@@ -723,16 +732,17 @@ template<StdEnum E> struct BitMap {
 	constexpr Val  operator+() const { return  _val ; }
 	constexpr bool operator!() const { return !_val ; }
 	// services
-	constexpr bool    operator==(BitMap const&) const = default ;
-	constexpr bool    operator<=(BitMap other ) const { return !(  _val & ~other._val )      ; }
-	constexpr bool    operator>=(BitMap other ) const { return !( ~_val &  other._val )      ; }
-	constexpr BitMap  operator~ (             ) const { return BitMap(lsb_msk(+E::N)&~_val)  ; }
-	constexpr BitMap  operator& (BitMap other ) const { return BitMap(_val&other._val)       ; }
-	constexpr BitMap  operator| (BitMap other ) const { return BitMap(_val|other._val)       ; }
-	constexpr BitMap& operator&=(BitMap other )       { *this = *this & other ; return *this ; }
-	constexpr BitMap& operator|=(BitMap other )       { *this = *this | other ; return *this ; }
-	constexpr bool    operator[](E      bit_  ) const { return bit(_val,+bit_)               ; }
-	constexpr uint8_t popcount  (             ) const { return ::popcount(_val)              ; }
+	constexpr bool    operator==( BitMap const&     ) const = default ;
+	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )      ;         }
+	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )      ;         }
+	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(+E::N)&~_val)  ;         }
+	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)       ;         }
+	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)       ;         }
+	constexpr BitMap& operator&=( BitMap other      )       { *this = *this & other ; return *this ;         }
+	constexpr BitMap& operator|=( BitMap other      )       { *this = *this | other ; return *this ;         }
+	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)               ;         }
+	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)              ;         }
+	constexpr void    set       ( E flag , bool val )       { if (val) *this |= flag ; else *this &= ~flag ; }
 	// data
 private :
 	Val _val = 0 ;

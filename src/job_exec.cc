@@ -25,24 +25,35 @@ using namespace Time ;
 
 static constexpr int NConnectionTrials = 3 ; // number of times to try connect when connecting to server
 
-ServerSockFd               g_server_fd       ;
-GatherDeps                 g_gather_deps     { New }        ;
-JobRpcReply                g_start_info      ;
-::string                   g_service_start   ;
-::string                   g_service_mngt    ;
-::string                   g_service_end     ;
-SeqId                      g_seq_id          = 0/*garbage*/ ;
-JobIdx                     g_job             = 0/*garbage*/ ;
-::atomic<bool>             g_killed          = false        ; // written by thread S and read by main thread
-::umap_s<          Tflags> g_known_targets   ;
-::vmap<RegExpr,Tflags>     g_target_patterns ;
-NfsGuard                   g_nfs_guard       ;
+template<class T> struct PatternDict {
+	static constexpr T NotFound = {} ;
+	// services
+	T const& at(::string const& x) const {
+		if ( auto it=knowns.find(x) ; it!=knowns.end() )     return it->second ;
+		for( auto const& [p,r] : patterns ) if (+p.match(x)) return r          ;
+		/**/                                                 return NotFound   ;
+	}
+	void add( bool star , ::string const& key , T const& val ) {
+		if (star) patterns.emplace_back( RegExpr(key,true/*fast*/,true/*no_group*/) , val ) ;
+		else      knowns  .emplace     (         key                                , val ) ;
+	}
+	// data
+	::umap_s<T>       knowns    = {} ;
+	::vmap<RegExpr,T> patterns  = {} ;
+} ;
 
-Tflags tflags(::string const& target) {
-	auto it = g_known_targets.find(target) ;      if (it!=g_known_targets.end()) return it->second       ;
-	for( auto const& [p,tf] : g_target_patterns ) if (+p.match(target)         ) return tf               ;
-	/**/                                                                         return UnexpectedTflags ;
-}
+ServerSockFd            g_server_fd              ;
+GatherDeps              g_gather_deps            { New }        ;
+JobRpcReply             g_start_info             ;
+::string                g_service_start          ;
+::string                g_service_mngt           ;
+::string                g_service_end            ;
+SeqId                   g_seq_id                 = 0/*garbage*/ ;
+JobIdx                  g_job                    = 0/*garbage*/ ;
+::atomic<bool>          g_killed                 = false        ; // written by thread S and read by main thread
+PatternDict<MatchFlags> g_match_dct              ;
+NfsGuard                g_nfs_guard              ;
+::uset_s                g_missing_static_targets ;
 
 void kill_thread_func(::stop_token stop) {
 	t_thread_key = 'K' ;
@@ -85,7 +96,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 
 ::pair_s<bool/*ok*/> wash(Pdate start) {
 	Trace trace("wash",start,g_start_info.pre_actions) ;
-	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
+	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 	trace("unlinks",actions) ;
 	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlink(start,f) ;
 	else                             trace(actions.second) ;
@@ -123,34 +134,37 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 }
 
 struct Digest {
-	::vmap_s<TargetDigest>            targets ;
-	::vmap_s<DepDigest   >            deps    ;
-	::vmap<NodeIdx,bool/*confirmed*/> crcs    ; // index in targets of entry for which we need to compute a crc
+	::vmap_s<TargetDigest> targets ;
+	::vmap_s<DepDigest   > deps    ;
+	::vector<NodeIdx     > crcs    ; // index in targets of entry for which we need to compute a crc
+	::string               msg     ;
 } ;
 
-Digest analyze( ::string& msg , bool at_end ) {
+Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	Digest  res              ;     res.deps.reserve(g_gather_deps.accesses.size()) ;                          // typically most of accesses are deps
+	Digest  res              ;     res.deps.reserve(g_gather_deps.accesses.size()) ;                                        // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0 ;
 	//
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
 		AccessDigest const& ad = info.digest ;
-		Accesses            a  = ad.accesses ; if (!info.tflags[Tflag::Stat]) a &= ~Access::Stat ;
+		Accesses            a  = ad.accesses ;
 		info.chk() ;
-		if (info.is_dep()) {
+		MatchFlags flags = g_match_dct.at(file) ;
+		if ( info.digest.idle() && flags.is_target!=Yes ) {
 			DepDigest dd = ad ;
-			dd.parallel = info.parallel_id && info.parallel_id==prev_parallel_id ;
-			dd.accesses = a                                                      ;
-			if ( +dd.accesses && dd.is_date ) {                                                               // try to transform date into crc as far as possible
-				if      ( !info.seen                               ) dd.crc(Crc::None) ;                      // the whole job has been executed without seeing the file
-				else if ( !dd.date()                               ) dd.crc({}       ) ;                      // file was not always present, this is a case of incoherence
-				else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                      // file dates are incoherent from first access to end of job ...
-				else                                                                                          // ... we do not know what we have read, not even the tag
+			if (flags.is_target==No) dd.dflags   |= flags.dflags()                                         ;
+			/**/                     dd.parallel  = info.parallel_id && info.parallel_id==prev_parallel_id ;
+			/**/                     dd.accesses  = a                                                      ;
+			if ( +dd.accesses && dd.is_date ) {                                                                             // try to transform date into crc as far as possible
+				if      ( !info.seen                               ) dd.crc(Crc::None) ;                                    // the whole job has been executed without seeing the file
+				else if ( !dd.date()                               ) dd.crc({}       ) ;                                    // file was not always present, this is a case of incoherence
+				else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                                    // file dates are incoherent from first access to end of job ...
+				else                                                                                                        // ... we do not know what we have read, not even the tag
 					switch (dfi.tag) {
 						case FileTag::Reg :
 						case FileTag::Exe :
-						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-						default           :                                         dd.crc({}     ) ; break ; // file is either awkward or has disappeared after having seen
+						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ;               // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+						default           :                                         dd.crc({}     ) ; break ;               // file is either awkward or has disappeared after having been seen
 					}
 			}
 			prev_parallel_id = info.parallel_id ;
@@ -158,45 +172,44 @@ Digest analyze( ::string& msg , bool at_end ) {
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,file) ;
-		} else if (at_end) {                                                                                  // else we are handling chk_deps and we only care about deps
+		} else if (at_end) {                                                                                                // else we are handling chk_deps and we only care about deps
 			if (+a) {
-				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; }                             // we are only interested in read accesses that found a file
-				else            { if (ad.crc()==Crc::None) a = Accesses::None ; }                             // .
+				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; }                                           // we are only interested in read accesses that found a file
+				else            { if (ad.crc()==Crc::None) a = Accesses::None ; }                                           // .
 			}
-			bool     unlink    = ad.prev_unlink && ad.unlink                          ;
-			bool     confirmed = ad.unlink==ad.prev_unlink && ad.write==ad.prev_write ;
-			bool     has_crc   = info.tflags[Tflag::Crc]                              ;
-			FileInfo fi        ; if ( !unlink && !has_crc ) fi  = {file} ;
-			try {
-				chk(info.tflags) ;
-			} catch (::string const& e) {                                                                     // dont know what to do with such an access
-				trace("bad_flags",info.tflags) ;
-				append_to_string(msg,"bad flags (",e,") ",mk_file(file)) ;
-				continue ;
+			Tflags tflags ;
+			if      ( flags.is_target==Yes                 ) tflags = ad.tflags | flags.tflags() ;
+			else if ( !flags && (info.target_ok|ad.unlink) ) tflags = ad.tflags                  ;                          // it is allowed to write then unlink anywhere without declaration
+			else {
+				SWEAR(!info.digest.idle()) ;                                                                                // else it should be a dep
+				trace("bad access",STR(ad.unlink),flags.is_target) ;
+				append_to_string( res.msg , "unexpected " , ad.unlink?"unlink":"write to" , ' ' , flags.is_target==No?"dep ":"" , mk_file(file) , '\n' ) ;
 			}
-			TargetDigest td {
-				a
-			,	info.tflags
-			,	ad.write
-			,	unlink ? Crc::None : has_crc ? Crc::Unknown : Crc(fi.tag )                                    // prepare crc in case it is not computed
-			,	unlink ? Ddate()   : has_crc ? Ddate()      :     fi.date                                     // if !date && !crc , compute crc and associated date
-			} ;
-			if (!td.crc) res.crcs.emplace_back(res.targets.size(),confirmed) ;
+			TargetDigest td { a , tflags , ad.write } ;
+			if      ( ad.unlink                        ) td.crc = Crc::None ;
+			else if ( !ad.write                        ) {}
+			else if ( killed || !tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag) ; td.date = fi.date ; } // no crc if killed nor non-official targets (for perf)
+			else                                         res.crcs.emplace_back(res.targets.size()) ;                        // defer (parallel) crc computation
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",td,STR(ad.unlink),info.tflags,td,file) ;
+			if ( tflags[Tflag::Static] && tflags[Tflag::Target] ) g_missing_static_targets.erase(file) ;
+			trace("target",td,STR(ad.unlink),tflags,file) ;
 		}
 	}
-	trace("done",res.deps.size(),res.targets.size(),res.crcs.size()) ;
+	for( ::string const& f : g_missing_static_targets ) {
+		FileInfo fi{f} ;
+		append_to_string( res.msg , "missing static target", (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") , " : " , mk_file(f) , '\n' ) ;
+		res.targets.emplace_back( f , TargetDigest({},{Tflag::Static,Tflag::Target}) ) ;                                    // report missing static targets as targets with no accesses
+	}
+	trace("done",res.msg,res.deps.size(),res.targets.size(),res.crcs.size()) ;
 	return res ;
 }
 
 Fd/*reply*/ server_cb(JobExecRpcReq&& jerr) {
 	JobRpcReq jrr ;
-	::string  _   ;
-	if (jerr.proc==JobExecRpcProc::ChkDeps) jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(_,false/*at_end*/).deps ) ;
-	else                                    jrr = JobRpcReq(                    g_seq_id , g_job , ::move(jerr)                    ) ;
+	if (jerr.proc==JobExecRpcProc::ChkDeps) jrr = JobRpcReq( JobProc::ChkDeps , g_seq_id , g_job , analyze(false/*at_end*/).deps ) ;
+	else                                    jrr = JobRpcReq(                    g_seq_id , g_job , ::move(jerr)                  ) ;
 	Trace trace("server_cb",jerr.proc,jrr.digest.deps.size()) ;
 	ClientSockFd fd{g_service_mngt} ;
 	//    vvvvvvvvvvvvvvvvvvvvvv
@@ -235,7 +248,7 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vmap<NodeIdx,bool/*confirmed*/> const* crcs , Pdate end_job ) {
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc",targets->size(),crcs->size()) ;
@@ -243,18 +256,15 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vmap<NodeIdx
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 trace(ci);
 trace((*crcs)[ci]);
-		auto                    [ti,confirmed] = (*crcs)[ci]    ;
-		::pair_s<TargetDigest>& e              = (*targets)[ti] ;
-		// when job is killed while doing a syscall, syscall may continue after process is dead, wait a little while to have a reliable access to the file
-		if (!confirmed) (end_job+g_start_info.network_delay).sleep_until() ;
-		Pdate before = Pdate::s_now() ;
+		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
+		Pdate                   before = Pdate::s_now()          ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
 		trace("crc_date",ci,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
 	}
 	trace("done",cnt) ;
 }
 
-void compute_crcs( Digest& digest , Pdate end_job ) {
+void compute_crcs(Digest& digest) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -263,12 +273,7 @@ void compute_crcs( Digest& digest , Pdate end_job ) {
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 		for( size_t i=0 ; i<n_threads ; i++ )
-			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , end_job ) ; // just constructing and destructing the threads will execute & join them
-	}
-	if (!g_start_info.autodep_env.reliable_dirs) {                                                       // fast path : avoid listing targets & guards if reliable_dirs
-		for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                          // protect against NFS strange notion of coherence while computing crcs
-		for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                          // .
-		g_nfs_guard.close() ;
+			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs ) ; // just constructing and destructing the threads will execute & join them
 	}
 }
 
@@ -303,7 +308,7 @@ int main( int argc , char* argv[] ) {
 	}
 	//
 	if (::chdir(g_start_info.autodep_env.root_dir.c_str())!=0) {
-		end_report.msg = to_string("cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
+		append_to_string(end_report.msg,"cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
 		goto End ;
 	}
 	{	if (g_start_info.trace_n_jobs) {
@@ -319,15 +324,16 @@ int main( int argc , char* argv[] ) {
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
 		//
-		for( auto const& [d,_] : g_start_info.static_deps )
-			g_known_targets.emplace(d,UnexpectedTflags) ;                                                         // if a target happens to be a static dep, it is necessarily unexpected
-		for( auto const& [p,tf] : g_start_info.targets )
-			if (tf[Tflag::Star]) g_target_patterns.emplace_back(p,tf) ;
-			else                 g_known_targets  .emplace     (p,tf) ;
+		for( auto const& [d,digest] : g_start_info.static_deps    ) g_match_dct.add( false/*star*/ , d , digest.dflags ) ;
+		for( auto const& [t,flags ] : g_start_info.static_matches ) g_match_dct.add( false/*star*/ , t , flags         ) ;
+		for( auto const& [p,flags ] : g_start_info.star_matches   ) g_match_dct.add( true /*star*/ , p , flags         ) ;
+		//
+		for( auto const& [t,flags ] : g_start_info.static_matches )
+			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets.insert(t) ;
 		//
 		::map_ss cmd_env ;
-		try                       { cmd_env = prepare_env() ;       }
-		catch (::string const& e) { end_report.msg = e ; goto End ; }
+		try                       { cmd_env = prepare_env() ;        }
+		catch (::string const& e) { end_report.msg += e ; goto End ; }
 		//
 		/**/                       g_gather_deps.addr         = g_start_info.addr        ;
 		/**/                       g_gather_deps.autodep_env  = g_start_info.autodep_env ;
@@ -339,12 +345,11 @@ int main( int argc , char* argv[] ) {
 		if (g_start_info.live_out) g_gather_deps.live_out_cb  = live_out_cb              ;
 		/**/                       g_gather_deps.method       = g_start_info.method      ;
 		/**/                       g_gather_deps.server_cb    = server_cb                ;
-		/**/                       g_gather_deps.tflags_cb    = tflags                   ;
 		/**/                       g_gather_deps.timeout      = g_start_info.timeout     ;
 		/**/                       g_gather_deps.kill_job_cb  = kill_job                 ;
 		//
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
-		end_report.msg = wash_report.first ;
+		end_report.msg += wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::Manual ; goto End ; }
 		g_gather_deps.new_static_deps( start_overhead , ::move(g_start_info.static_deps) , g_start_info.stdin ) ; // ensure static deps are generated first
 		//
@@ -355,7 +360,7 @@ int main( int argc , char* argv[] ) {
 		Fd child_stdout = Child::Pipe ;
 		if (+g_start_info.stdout) {
 			child_stdout = open_write(g_start_info.stdout) ;
-			g_gather_deps.new_target( start_overhead , g_start_info.stdout , {}/*neg_tflags*/ , {}/*pos_tflags*/ , "<stdout>" ) ;
+			g_gather_deps.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
 			child_stdout.no_std() ;
 		}
 		//
@@ -367,17 +372,40 @@ int main( int argc , char* argv[] ) {
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
-		::string msg ;
-		Digest digest = analyze(msg,true/*at_end*/) ;
+		bool killed = g_killed ;                                                                                  // sample g_killed to ensure coherence
 		//
-		compute_crcs(digest,end_job) ;
+		Digest digest = analyze(true/*at_end*/,killed) ;
+		//
+		compute_crcs(digest) ;
+		//
+		if (!g_start_info.autodep_env.reliable_dirs) {                                                            // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                               // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                               // .
+			g_nfs_guard.close() ;
+		}
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
-		if      (+msg    ) status = Status::Err    ;
-		else if (g_killed) status = Status::Killed ;
-		end_report.msg = +g_gather_deps.msg ? ensure_nl(msg)+g_gather_deps.msg : msg ;
+		end_report.msg += digest.msg ;
+		switch (status) {
+			case Status::Ok :
+				if (+digest.msg) {
+					trace("analysis_err") ;
+					status = Status::Err ;
+				} else if (!g_gather_deps.all_confirmed()) {
+					trace("!confirmed",g_gather_deps.to_confirm_write,g_gather_deps.to_confirm_unlink) ;
+					status = Status::LateLostErr ;
+					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_write  ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed write to ",mk_file(f),'\n') ;
+					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_unlink ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed unlink "  ,mk_file(f),'\n') ;
+				}
+			break ;
+			case Status::LateLost :
+				if (killed) { trace("killed") ; status = Status::Killed ; }
+			break ;
+			default : ;
+		}
+		end_report.msg += g_gather_deps.msg ;
 		end_report.digest = {
 			.status       = status
 		,	.targets      { ::move(digest.targets      ) }

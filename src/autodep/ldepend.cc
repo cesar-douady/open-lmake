@@ -6,7 +6,7 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "support.hh"
+#include "record.hh"
 
 #include "rpc_job.hh"
 
@@ -15,8 +15,8 @@ using namespace Disk ;
 ENUM(Key,None)
 ENUM(Flag
 ,	NoFollow
-,	Critical
 ,	Essential
+,	Critical
 ,	IgnoreError
 ,	NoRequired
 ,	Verbose
@@ -24,11 +24,11 @@ ENUM(Flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                    } }
-	,	{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links"  } }
+		{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                   } }
+	,	{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links" } }
 	//
-	,	{ Flag::Critical    , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::Essential   , { .short_name=DflagChars[+Dflag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
+	,	{ Flag::Critical    , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::IgnoreError , { .short_name=DflagChars[+Dflag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"           } }
 	,	{ Flag::NoRequired  , { .short_name=DflagChars[+Dflag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"        } }
 	}} ;
@@ -37,19 +37,18 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
 	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 	//
-	bool              verbose   = cmd_line.flags[Flag::Verbose ] ;
-	bool              no_follow = cmd_line.flags[Flag::NoFollow] ;
-	Dflags            dflags    = DfltDflags                    ;
-	if (cmd_line.flags[Flag::Critical   ]) dflags |=  Dflag::Critical    ;
-	if (cmd_line.flags[Flag::Essential  ]) dflags |=  Dflag::Essential   ;
-	if (cmd_line.flags[Flag::IgnoreError]) dflags |=  Dflag::IgnoreError ;
-	if (cmd_line.flags[Flag::NoRequired ]) dflags &= ~Dflag::Required    ;
+	bool   verbose   = cmd_line.flags[Flag::Verbose ] ;
+	bool   no_follow = cmd_line.flags[Flag::NoFollow] ;
+	Dflags dflags    ;
+	if ( cmd_line.flags[Flag::Essential  ]) dflags |= Dflag::Essential   ;
+	if ( cmd_line.flags[Flag::Critical   ]) dflags |= Dflag::Critical    ;
+	if ( cmd_line.flags[Flag::IgnoreError]) dflags |= Dflag::IgnoreError ;
+	if (!cmd_line.flags[Flag::NoRequired ]) dflags |= Dflag::Required    ;
 	//
 	if (verbose) {
-		JobExecRpcReq   jerr  = JobExecRpcReq( JobExecRpcProc::DepInfos , ::move(cmd_line.args) , Accesses::All , dflags , no_follow ) ;
-		JobExecRpcReply reply = AutodepSupport(New).req(jerr)                                                                          ;
+		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecRpcProc::DepInfos , ::copy(cmd_line.args) , {Accesses::All,dflags} , no_follow , true/*sync*/ , "ldepend" )) ;
 		//
-		SWEAR( reply.dep_infos.size()==jerr.files.size() , reply.dep_infos.size() , jerr.files.size() ) ;
+		SWEAR( reply.dep_infos.size()==cmd_line.args.size() , reply.dep_infos.size() , cmd_line.args.size() ) ;
 		//
 		bool err = false ;
 		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
@@ -59,12 +58,12 @@ int main( int argc , char* argv[]) {
 				case No    : ::cout << "err " ; err = true ; break ;
 				default : FAIL(reply.dep_infos[i].first) ;
 			}
-			::cout << ::string(reply.dep_infos[i].second) <<' '<< jerr.files[i].first <<'\n' ;
+			::cout << ::string(reply.dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 		}
 		//
 		return err ? 1 : 0 ;
 	} else {
-		AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {Accesses::All,dflags} , no_follow , "ldepend" ) ) ;
+		Record(New).direct(JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {Accesses::All,dflags} , no_follow , "ldepend" )) ;
 		return 0 ;
 	}
 }

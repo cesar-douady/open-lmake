@@ -36,7 +36,7 @@ namespace Disk {
 				break ;
 				case '.' :
 					switch (state) {
-						case CanonState::First  :                                      // seen from ., First is like Empty
+						case CanonState::First  :                                             // seen from ., First is like Empty
 						case CanonState::Empty  : state = CanonState::Dot    ; break ;
 						case CanonState::Dot    : state = CanonState::DotDot ; break ;
 						case CanonState::DotDot : state = CanonState::Plain  ; break ;
@@ -49,8 +49,8 @@ namespace Disk {
 			}
 		}
 		switch (state) {
-			case CanonState::First  :                                          // an empty name
-			case CanonState::Empty  : return true  ;                           // a directory ending with /
+			case CanonState::First  :                                                         // an empty name
+			case CanonState::Empty  : return true  ;                                          // a directory ending with /
 			case CanonState::Dot    : return false ;
 			case CanonState::DotDot : return false ;
 			case CanonState::Plain  : return true  ;
@@ -71,9 +71,9 @@ namespace Disk {
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
 			if (entry->d_name[0]!='.') goto Ok  ;
-			if (entry->d_name[1]==0  ) continue ;                              // ignore .
+			if (entry->d_name[1]==0  ) continue ; // ignore .
 			if (entry->d_name[1]!='.') goto Ok  ;
-			if (entry->d_name[2]==0  ) continue ;                              // ignore ..
+			if (entry->d_name[2]==0  ) continue ; // ignore ..
 		Ok :
 			res.emplace_back(prefix+entry->d_name) ;
 		}
@@ -96,14 +96,14 @@ namespace Disk {
 		return true/*done*/ ;
 	}
 
-	bool/*done*/ uniquify( Fd at , ::string const& file ) {                            // uniquify file so as to ensure modifications do not alter other hard links
-		SWEAR(+file) ;                                                         // cannot unlink at without file
+	bool/*done*/ uniquify( Fd at , ::string const& file ) {                                 // uniquify file so as to ensure modifications do not alter other hard links
+		SWEAR(+file) ;                                                                      // cannot unlink at without file
 		const char*   f   = file.c_str() ;
 		const char*   msg = nullptr      ;
 		struct ::stat st  ;
 		{
 			int     src     = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)                ; if (src<0         )                                     return false/*done*/ ;
-			/**/                                                                       if (st.st_nlink<=1)                                     return true /*done*/ ;
+			/**/                                                                       if (st.st_nlink<=1)                                     return false/*done*/ ;
 			int     rfd     = ::openat(at,f,O_RDONLY|O_NOFOLLOW)                     ; if (rfd<0         ) { msg = "cannot open for reading" ; goto Bad             ; }
 			void*   content = ::mmap(nullptr,st.st_size,PROT_READ,MAP_PRIVATE,rfd,0) ; if (!content      ) { msg = "cannot map"              ; goto Bad             ; }
 			int     urc     = ::unlinkat(at,f,0)                                     ; if (urc<0         ) { msg = "cannot unlink"           ; goto Bad             ; }
@@ -185,17 +185,17 @@ namespace Disk {
 		const char* msg   = nullptr ;
 		int         res   = 0       ;
 		while (+to_mk) {
-			::string const& d = to_mk.back() ;                                 // parents are after children in to_mk
+			::string const& d = to_mk.back() ;                                                             // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d) ; }
 			if (::mkdirat(at,d.c_str(),0777)==0) {
 				res++ ;
 				to_mk.pop_back() ;
 				continue ;
-			} // done
+			}                                                                                              // done
 			switch (errno) {
 				case EEXIST :
-					if ( unlink_ok && !is_dir(at,d) ) unlink(at,d) ;           // retry
-					else                              to_mk.pop_back() ;       // done
+					if ( unlink_ok && !is_dir(at,d) ) unlink(at,d) ;                                       // retry
+					else                              to_mk.pop_back() ;                                   // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
@@ -252,7 +252,7 @@ namespace Disk {
 		::string_view f_v  = file  ;
 		for(; f_v.starts_with("../") ; f_v = f_v.substr(3) ) {
 			SWEAR(+d_sv) ;
-			d_sv = d_sv.substr(0,d_sv.size()-1) ;                              // suppress ending /
+			d_sv = d_sv.substr(0,d_sv.size()-1) ;                                         // suppress ending /
 			size_t last_slash = d_sv.rfind('/') ;
 			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = d_sv.substr(0,0           ) ; }
 			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
@@ -264,11 +264,11 @@ namespace Disk {
 		size_t   pos = first_file        ;
 		::string res = txt.substr(0,pos) ;
 		while (pos!=Npos) {
-			pos++ ;                                                            // clobber marker
-			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;                       // ensure we have enough room to find file length
+			pos++ ;                                                  // clobber marker
+			SWEAR(txt.size()>=pos+sizeof(FileNameIdx)) ;             // ensure we have enough room to find file length
 			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ;
-			pos += sizeof(FileNameIdx) ;                                       // clobber file length
-			SWEAR(txt.size()>=pos+len) ;                                       // ensure we have enough room to read file
+			pos += sizeof(FileNameIdx) ;                             // clobber file length
+			SWEAR(txt.size()>=pos+len) ;                             // ensure we have enough room to read file
 			res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ;
 			pos += len ;
 			size_t new_pos = txt.find(FileMrkr,pos) ;
@@ -295,8 +295,8 @@ namespace Disk {
 		switch (errno) {
 			case 0       :                       break  ;
 			case ENOENT  :
-			case ENOTDIR : tag = FileTag::None ; return ;                      // no available info
-			default      : tag = FileTag::Err  ; return ;                      // .
+			case ENOTDIR : tag = FileTag::None ; return ;                                                   // no available info
+			default      : tag = FileTag::Err  ; return ;                                                   // .
 		}
 		if      (S_ISREG(st.st_mode)) { tag = st.st_mode&S_IXUSR ? FileTag::Exe : FileTag::Reg ;          }
 		else if (S_ISLNK(st.st_mode)) { tag =                      FileTag::Lnk                ;          }
@@ -322,8 +322,8 @@ namespace Disk {
 		if (!_fd) return ;
 		data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
 		if (data==MAP_FAILED) {
-			_fd.detach() ;                                                     // report error
-			data = nullptr ;                                                   // avoid garbage info
+			_fd.detach() ;      // report error
+			data = nullptr ;    // avoid garbage info
 			return ;
 		}
 		_ok = true ;
@@ -374,7 +374,7 @@ namespace Disk {
 	// - avoid ::string copying as much as possible
 	// - do not support links outside repo & tmp, except from /proc (which is meaningful)
 	// - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
-	static inline int _get_symloop_max() {                                     // max number of links to follow before decreting it is a loop
+	static inline int _get_symloop_max() {     // max number of links to follow before decreting it is a loop
 		int res = ::sysconf(_SC_SYMLOOP_MAX) ;
 		if (res>=0) return res                ;
 		else        return _POSIX_SYMLOOP_MAX ;
@@ -388,10 +388,10 @@ namespace Disk {
 
 		::vector_s lnks ;
 
-		::string        local_file[2] ;                                        // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-		bool            exists        = true                      ;            // if false, we have seen a non-existent component and there cannot be symlinks within it
-		bool            mapped        = false                     ;            // if true <=> tmp mapping has been used
-		::string const* cur           = &file                     ;            // points to the current file : input file or local copy local_file
+		::string        local_file[2] ;                             // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
+		bool            exists        = true                      ; // if false, we have seen a non-existent component and there cannot be symlinks within it
+		bool            mapped        = false                     ; // if true <=> tmp mapping has been used
+		::string const* cur           = &file                     ; // points to the current file : input file or local copy local_file
 		size_t          pos           = file[0]=='/'              ;
 		::string        real          ; real.reserve(file.size()) ;                        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
 		if (!pos) {                                                                        // file is relative, meaning relative to at
@@ -402,13 +402,13 @@ namespace Disk {
 				real   = tmp_view + (real.c_str()+tmp_dir.size()) ;
 				mapped = true                                     ;
 			}
-			if (!is_abs(real) ) return {} ;                                    // user code might use the strangest at, it will be an error but we must support it
+			if (!is_abs(real) ) return {} ;                                                // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;
 		}
-		_Dvg in_repo ( root_dir   , real ) ;                                   // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp  ( tmp_view   , real ) ;                                   // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg in_admin( _admin_dir , real ) ;                                   // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc ( *proc      , real ) ;                                   // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_repo ( root_dir   , real ) ;                                               // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
+		_Dvg in_tmp  ( tmp_view   , real ) ;                                               // keep track of where we are w.r.t. tmp        , always track symlinks
+		_Dvg in_admin( _admin_dir , real ) ;                                               // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
+		_Dvg in_proc ( *proc      , real ) ;                                               // keep track of where we are w.r.t. /proc      , always track symlinks
 
 		// loop INVARIANT : accessed file is real+'/'+cur->substr(pos)
 		// when pos>cur->size(), we are done and result is real
@@ -418,42 +418,42 @@ namespace Disk {
 		for (
 		;	pos <= cur->size()
 		;		pos = end+1
-			,	in_repo.update(root_dir,real)                                  // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update(tmp_view,real)                                  // .
-			,	in_proc.update(*proc   ,real)                                  // .
+			,	in_repo.update(root_dir,real)                             // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
+			,	in_tmp .update(tmp_view,real)                             // .
+			,	in_proc.update(*proc   ,real)                             // .
 		) {
 			end = cur->find( '/', pos ) ;
 			bool last = end==Npos ;
 			if (last    ) end = cur->size() ;
-			if (end==pos) continue ;                                           // empty component, ignore
+			if (end==pos) continue ;                                      // empty component, ignore
 			if ((*cur)[pos]=='.') {
-				if ( end==pos+1                       ) continue ;             // component is .
-				if ( end==pos+2 && (*cur)[pos+1]=='.' ) {                      // component is ..
+				if ( end==pos+1                       ) continue ;        // component is .
+				if ( end==pos+2 && (*cur)[pos+1]=='.' ) {                 // component is ..
 					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
 			}
 			size_t    prev_real_size = real.size()                      ;
-			::string* nxt            = &local_file[cur!=&local_file[1]] ;      // bounce, initially, when cur is neither local_file's, any buffer is ok
+			::string* nxt            = &local_file[cur!=&local_file[1]] ; // bounce, initially, when cur is neither local_file's, any buffer is ok
 			real.push_back('/') ;
 			real.append(*cur,pos,end-pos) ;
-			in_admin.update(_admin_dir,real) ;                                 // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
-			if ( !exists           ) continue       ;                          // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( no_follow && last ) continue       ;                          // dont care about last component if no_follow
-			if ( in_tmp            ) goto HandleLnk ;                          // note that tmp can lie within repo or admin
+			in_admin.update(_admin_dir,real) ;                            // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
+			if ( !exists           ) continue       ;                     // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last ) continue       ;                     // dont care about last component if no_follow
+			if ( in_tmp            ) goto HandleLnk ;                     // note that tmp can lie within repo or admin
 			if ( in_admin          ) continue       ;
 			if ( in_proc           ) goto HandleLnk ;
 			if ( !in_repo          ) continue       ;
 			//
-			if ( !last && !reliable_dirs )                                                              // at last level, dirs are rare and NFS does the coherence job
-				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME) ; +dfd ) { // sym links are rare, so this has no significant perf impact ...
-					::close(dfd) ;                                                                      // ... and protects against NFS strange notion of coherence
+			if ( !last && !reliable_dirs )                                                                                // at last level, dirs are rare and NFS does the coherence job
+				if ( Fd dfd = ::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME) ; +dfd ) {                   // sym links are rare, so this has no significant perf impact ...
+					::close(dfd) ;                                                                                        // ... and protects against NFS strange notion of coherence
 					continue ;
 				}
 			//
 			switch (lnk_support) {
 				case LnkSupport::None :                                 continue ;
-				case LnkSupport::File : if (last) goto HandleLnk ; else continue ; // only handle sym links as last component
+				case LnkSupport::File : if (last) goto HandleLnk ; else continue ;                                        // only handle sym links as last component
 				case LnkSupport::Full :           goto HandleLnk ;
 				default : FAIL(lnk_support) ;
 			}
@@ -476,17 +476,17 @@ namespace Disk {
 				// - d & d/e will be indrectly depended on through caller depending on d/e/f (the real accessed file returned as the result)
 				continue ;
 			}
-			if (n_lnks++>=s_n_max_lnks) return {{},::move(lnks)} ;             // link loop detected, same check as system
-			if (!last) {                                                       // append unprocessed part
+			if (n_lnks++>=s_n_max_lnks) return {{},::move(lnks)} ;                               // link loop detected, same check as system
+			if (!last) {                                                                         // append unprocessed part
 				nxt->push_back('/'       ) ;
-				nxt->append   (*cur,end+1) ;                                   // avoiding this copy is very complex (would require to manage a stack) and links to dir are uncommon
+				nxt->append   (*cur,end+1) ;                                                     // avoiding this copy is very complex (would require to manage a stack) and links to dir are uncommon
 			}
-			if ((*nxt)[0]=='/') { end =  0 ; prev_real_size = 0 ; }            // absolute link target : flush real
-			else                { end = -1 ;                      }            // end must point to the /, invent a virtual one before the string
-			real.resize(prev_real_size) ;                                      // links are relative to containing dir, suppress last component
+			if ((*nxt)[0]=='/') { end =  0 ; prev_real_size = 0 ; }                              // absolute link target : flush real
+			else                { end = -1 ;                      }                              // end must point to the /, invent a virtual one before the string
+			real.resize(prev_real_size) ;                                                        // links are relative to containing dir, suppress last component
 			cur = nxt ;
 		}
-		Accesses last_accesses ; if ( !exists && !no_follow ) last_accesses |= Access::Lnk ; // if have accessed a component which is not protected by a sub-component, signal it
+		Accesses last_accesses ; if ( !exists && !no_follow ) last_accesses |= Access::Lnk ;     // if have accessed a component which is not protected by a sub-component, signal it
 		// admin is typically in repo, tmp might be, repo root is in_repo
 		if (in_tmp) {
 			if (has_tmp_view               ) return { tmp_dir + real.substr(tmp_view.size()) , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Tmp     , true/*mapped*/ } ;
@@ -515,7 +515,7 @@ namespace Disk {
 		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			//
-			if (sr.kind>Kind::Dep && sr.kind!=Kind::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
+			if (sr.kind>Kind::Dep && sr.kind!=Kind::Tmp) break ;                             // if we escaped from the repo, there is no more deps to gather
 			//
 			if (sr.mapped) throw to_string("executing ",mk_file(sr.real)," with mapped files along its interpreter path from ",tmp_view," to ",tmp_dir," would require to modify the file content") ;
 			//
@@ -527,12 +527,12 @@ namespace Disk {
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;
 			if (strncmp(hdr,"#!",2)!=0            ) break ;
 			interpreter.resize(256) ;
-			real_stream.getline(interpreter.data(),interpreter.size()) ;       // man execve specifies that data beyond 255 chars are ignored
+			real_stream.getline(interpreter.data(),interpreter.size()) ;                     // man execve specifies that data beyond 255 chars are ignored
 			if (!real_stream.gcount()) break ;
 			size_t pos = interpreter.find(' ') ;
-			if      (pos!=Npos               ) interpreter.resize(pos                   ) ; // interpreter is the first word
-			else if (interpreter.back()=='\n') interpreter.resize(real_stream.gcount()-1) ; // or the entire line if it is composed of a single word
-			else                               interpreter.resize(real_stream.gcount()  ) ; // .
+			if      (pos!=Npos               ) interpreter.resize(pos                   ) ;  // interpreter is the first word
+			else if (interpreter.back()=='\n') interpreter.resize(real_stream.gcount()-1) ;  // or the entire line if it is composed of a single word
+			else                               interpreter.resize(real_stream.gcount()  ) ;  // .
 			// recurse
 			sr = solve(interpreter,false/*no_follow*/) ;
 		}

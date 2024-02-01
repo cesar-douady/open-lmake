@@ -602,13 +602,14 @@ Options :
 @itemize @bullet
 @item @code{-d}|@code{--deps} : output the list of all the deps of the jobs.
 Unless the verbose flag is specified, only existing deps are shown.
-Each line is composed of 5 fields  separated by spaces :
+Each line is composed of 6 fields  separated by spaces :
 @itemize @minus
 @item Flags : each flag is either a letter if set, or a @code{-} if not :
 	@itemize .
+	@item @code{E} : dep is essential, i.e. dep is show in a future graphical tool.
 	@item @code{c} : dep is critical (cf @pxref{critical-deps}).
-	@item @code{s} : dep is essential, i.e. dep is show in a future graphical tool.
 	@item @code{e} : ignore errors on dep, i.e. job can be run even if this dep is built in error.
+	@item @code{i} : ignore dep, i.e. job is not rerun if dep is modified, implies ignore errors.
 	@item @code{r} : dep is required, i.e. job is in error if dep is not buildable. For static deps, job is not even tried if dep is not buildable (and another rule is used if possible).
 	@item @code{S} : dep is static.
 	@end itemize
@@ -636,18 +637,23 @@ Note that if job requires tmp mapping or auto mkdir, autodep is used in all case
 @item @code{-b}|@code{--backend} : show some execution information from backend generated when @lmake is run with the @code{-v} flag.
 @item @code{-t}|@code{--targets} : show the targets of the jobs.
 Unless the verbose flag is specified, only existing targets are shown.
-Each line is composed of 4 fields  separated by spaces :
+Each line is composed of 3 fields  separated by spaces :
 @itemize @minus
-@item Info : composed of 4 letters :
+@item Info : composed of 2 characters :
 @itemize .
-@item match  : @code{-} if target can be matched (as a dep by another rule), @code{#} if it cannot.
 @item exists : @code{-} if target exists, @code{!} if it does not (it may have been unlinked after having been written).
 @item access : @code{-} if target was neither read nor written, @code{R} if it was only read, @code{W} if it was only written, @code{U} if it was both read and written.
-@item star   : @code{-} if target is static, @code{*} if it is a star target.
 @end itemize
-@item Flags : composed of one letter for each flag that may appear in the @code{ltarget} command.
-The letter is the short option name if set, else @code{-}.
-@item Key : key under which target has been recognized, or @code{<unexpected>} if it has not been recognized.
+@item Flags : each flag is either a letter if set, or a @code{-} if not :
+	@itemize .
+	@item @code{E} : target is essential, i.e. target is show in a future graphical tool.
+	@item @code{i} : target is incremental, i.e. it is not unlinked before job execution and read accesses are ignored
+	@item @code{m} : job can write over manual modifications, including if target happens to be a source.
+	@item @code{u} : target is not uniquified if several links point to it before job execution (only meaningful for incremental targets).
+	@item @code{w} : no warning is emitted if target is either uniquified or unlinked while produced by another job.
+	@item @code{S} : target is static.
+	@item @code{T} : target is official, i.e. job can be triggered when another one depend on this target.
+	@end itemize
 @item The name of the target.
 @end itemize
 If a target does not exist, it is deemed secondary information and is shown in gray.
@@ -846,10 +852,10 @@ The commands listed hereafter are meant to be executed from within a job, not as
 
 @section @code{ldepend}
 
-Usage : @code{ldepend [--no-follow|-P] [--critical|-c] [--ignore-error|-e] [--no-required|-r] [--essential|-s] [--verbose|-v] files ...}
+Usage : @code{ldepend [--no-follow|-P] [--essential|-E] [--critical|-c] [--ignore-error|-e][--ignore|-i] [--no-required|-r] [--no-warning|-w] [--verbose|-v] files ...}
 
 @code{ldepend} may be used to inform @lmake that some files must be deemed as read as if you called the @code{open} system call on each of them.
-To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faste since @code{files} are not really accessed).
+To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faster since @code{files} are not really accessed).
 
 Also, generated dependencies are parallel, i.e. a modification on a dependency will not mask an error on another one.
 For example, if you do @code{cat a b}, @lmake sees 2 @code{open} system calls, to @file{a} then to @file{b},
@@ -864,14 +870,17 @@ If you do @code{ldepend a b} and @file{a} is modified and @file{b} is in error, 
 
 Also, if for some reasons you run with autodep method @code{none}, this is the way to report dependencies.
 
+In addition to signaling an access, @code{ldepend} is used to set flag on the files passed as arguments. Flags accumulate and will apply if the file is independently accessed.
+
 The following options are supported :
 @itemize @bullet
-@item @code{-v}|@code{--verbose}     : write lines composed of the crc and the name separated by a space for each required dependency.
-@item @code{-P}|@code{--no-follow}   : do not follow the last level symbolic link.
-@item @code{-c}|@code{--critical}    : create critical deps (cf @pxref{critical-deps}).
-@item @code{-e}|@code{--no-error}    : ignore the error status of the passed dependencies.
-@item @code{-r}|@code{--no-required} : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok)
-@item @code{-s}|@code{--esential}    : passed dependencies will not appear in the flow shown with a graphical tool.
+@item @code{-v}|@code{--verbose}      : write lines composed of the crc and the name separated by a space for each required dependency.
+@item @code{-P}|@code{--no-follow}    : do not follow the last level symbolic link.
+@item @code{-E}|@code{--esential}     : passed dependencies will appear in the flow shown with a graphical tool.
+@item @code{-c}|@code{--critical}     : create critical deps (cf @pxref{critical-deps}).
+@item @code{-e}|@code{--ignore-error} : ignore the error status of the passed dependencies.
+@item @code{-i}|@code{--ignore}       : dep is ignored altogether.
+@item @code{-r}|@code{--no-required}  : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok)
 @end itemize
 
 @section @code{lcheck_deps}
@@ -914,25 +923,17 @@ Usage : @code{ltarget [-<short-option>|--<long-option>]... files ...}
 @code{ltarget} may be used to inform @lmake that some files must be deemed as written as if you called the @code{open} system call on each of them.
 If for some reasons you run with autodep method @code{none}, this is the way to report targets.
 
-It is possible to alter the target flags for these targets which, by default, have the flags mentioned in the rule.
-Default flags are augmented with @code{crc} and @code{write} if the @code{--unlink} option is not used.
+Also, it is possible to alter the target flags for these targets. Flags accumulate and apply if the files are independently accessed.
 
 The following options are supported :
 @itemize @bullet
-@item @code{-u} or @code{--unlink}       : report an unlink rather than writing
-@item @code{-P} or @code{--no-follow}    : do not follow the last level symbolic link
-@item @code{-c} or @code{--crc}          : generate a crc for this target (compulsery if Match)
-@item @code{-d} or @code{--dep}          : reads not followed by writes trigger dependencies
-@item @code{-e} or @code{--essential}    : show when generating user oriented graphs
-@item @code{-f} or @code{--phony}        : unlinks are allowed (possibly followed by reads which are ignored)
-@item @code{-s} or @code{--source-ok}    : ok to overwrite source files
-@item @code{-w} or @code{--write}        : writes are allowed (possibly followed by reads which are ignored)
-@item @code{-C} or @code{--no-crc}       : do not generate a crc for this target (compulsery if Match)
-@item @code{-D} or @code{--no-dep}       : reads not followed by writes do not trigger dependencies
-@item @code{-E} or @code{--no-essential} : do not show when generating user oriented graphs
-@item @code{-F} or @code{--no-phony}     : unlinks are not allowed (possibly followed by reads which are ignored)
-@item @code{-S} or @code{--no-source-ok} : not ok to overwrite source files
-@item @code{-W} or @code{--no-write}     : writes are not allowed (possibly followed by reads which are ignored)
+@item @code{-u} or @code{--unlink}       : report an unlink rather than writing.
+@item @code{-P} or @code{--no-follow}    : do not follow the last level symbolic link.
+@item @code{-E} or @code{--essential}    : show when generating user oriented graphs.
+@item @code{-i} or @code{--incremental}  : target is not unliked before job execution and read accesses to it are ignored.
+@item @code{-m} or @code{--manual-ok}    : overwriting manual modification is allowed (including if a source).
+@item @code{-u} or @code{--no-uniquify}  : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
+@item @code{-w} or @code{--no-warning}   : no warning is emitted if target is either uniquified or unlinked while generated by another job.
 @end itemize
 
 @section @code{ldecode}
@@ -1583,7 +1584,7 @@ This attribute specify a set of attribute names to be processed with combined in
 
 Combined attributes may only be @code{dict}, @code{set} and @code{list}.
 @code{dict}'s and @code{set}'s are @code{update}d, @code{list}'s are @code{append}ed.
-@code{dict}'s and @code{list}'s are ordered in reverse MRO, base classes being before derived classes.
+@code{dict}'s and @code{list}'s are ordered in MRO, base classes being after derived classes.
 
 Note that this attribute is itself combined, and thus can easily be extended.
 
@@ -1751,27 +1752,18 @@ If a regular expression requires unbalanced @code{@{@}}, it must be put in a @co
 
 Regular expressions are used with the @code{DOTALL} flag, i.e. a @code{.} matches any character, including @code{\n}.
 
-The flags may be any combination of the following flags, optionally preceded by - to turn it off when it is present by default.
+The flags may be any combination of the following flags, optionally preceded by - to turn it off.
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
-@headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
-@item Crc @tab crc @tab Yes @tab A checksum is computed on these targets when generated. Compulsery for matching targets.
-@item Dep @tab dep @tab !match @tab If such a file is read and not written, it will actually be a dependency, not a target.
-@item Essential @tab essential @tab Yes @tab This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
-@item Incremental @tab incremental @tab No @tab Previous content may be used to produce these targets.
+@headitem CamelCase @tab snake_case  @tab Default @tab Description
+@item Essential     @tab essential   @tab Yes     @tab This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
+@item Incremental   @tab incremental @tab No      @tab Previous content may be used to produce these targets.
 In that case, these are not unlinked before execution.
 However, if the link count is more than 1, they are uniquified, i.e. they are copied in place to ensure modification to the link does not alter other links.
-@item ManualOk @tab manual_ok @tab No @tab Modifying these targets outside @lmake control will not prevent job from executing.
-@item Match @tab match @tab Yes @tab This entry may be used to select this rule.
-@item Phony @tab phony @tab No @tab A possible content for target is to be not present on disk. If a star target, all matching files are deemed generated by this rule.
-@item SourceOk @tab source_ok @tab No @tab Do not trigger an error if target is indeed a source.
-This may occur if another target is required or if this target is a star target (otherwise, the rule will not be executed as target will be recognized as a source).
-@item Star @tab star @tab if star stem present @tab Target is a star target, even if no star stem is present (which means next rule will be tried if file is not generated).
-@item Stat @tab stat @tab Yes @tab @code{inode} accesses (e.g. stat) are deeemed to be read (else they are ignored).
-@item Top @tab top @tab No @tab target pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
-@item Uniquify @tab uniquify @tab incremental @tab if such a target has several hard links pointing to it, it is uniquified (i.e. copied in place) before job execution.
-@item Warning @tab warning @tab No @tab Warning is reported if a target is unlinked before job execution while generated by another job.
-@item Write @tab write @tab Yes @tab Job is allowed to write to this target.
+@item ManualOk      @tab manual_ok   @tab No      @tab Modifying these targets outside @lmake control will not prevent job from executing.
+@item NoUniquify    @tab no_uniquify @tab No      @tab If such a target has several hard links pointing to it, it is not uniquified (i.e. copied in place) before job execution.
+@item NoWarning     @tab no_warning  @tab No      @tab Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job.
+@item Top           @tab top         @tab No      @tab target pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
 All matching targets must have the same set of static stems (i.e. stems with no * in its name).
@@ -1795,14 +1787,12 @@ Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the 
 @tab No.
 @end multitable
 
-This attribute defines an unnamed target as the last target.
-Its syntax is the same as any target entry except that it may not be @code{incremental}, @code{phony} nor @code{star}.
+This attribute defines an unnamed target.
+Its syntax is the same as any target entry except that it may not be @code{incremental}. Also, such a target may not be a @code{star} target.
 
 During execution, @code{cmd} stdout will be redirected to this (necessarily unique since it cannot be a @code{star}) target.
 
-It is exclusive with the @code{post_target} attribute.
-
-@section @code{post_targets}
+@section @code{target_flags}
 
 @multitable @columnfractions 0.1 0.9
 @item Inheritance
@@ -1817,28 +1807,8 @@ It is exclusive with the @code{post_target} attribute.
 
 This attribute is identical to @code{targets} except that :
 @itemize @minus
-@item their entries are in reversed order
-@item they are put at the end of the targets
-@end itemize
-
-@section @code{post_target}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{str} or @code{list} or @code{tuple}
-@item Default
-@tab -
-@item Dynamic
-@tab No.
-@end multitable
-
-This attribute is identical to @code{target} except that :
-
-@itemize @minus
-@item it is defined as the last @code{post_targets} (before being reversed)
-@item it is exclusive with the @code{target} attribute.
+@item targets listed here do not trigger job execution, i.e. they do not participate to the rule selection process (cf @pxref{rule-selection}).
+@item it not compulsery to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.
 @end itemize
 
 @section @code{deps}
@@ -1872,9 +1842,9 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 
 @multitable @columnfractions 0.1 0.1 0.05 0.75
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
+@item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
-@item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
@@ -1898,6 +1868,40 @@ Unless the @code{top} flag is set, the @code{cwd} attribute is prepended to the 
 This attribute defines an unnamed static dependency.
 
 During execution, @code{cmd} stdin will be redirected to this dependency, else it is @file{/dev/null}.
+
+@section @code{dep_flags}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{dict}
+@item Default
+@tab @code{@{@}}
+@item Dynamic
+@tab No.
+@end multitable
+
+This attribute is used to define flags to deps when they are acquired during job execution.
+It does not declare a dep by itself.
+Syntactically, it follows the @code{target_flags} attribute except that specified flags are dep flags rather than target flags.
+
+@section @code{order}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Combined
+@item Type
+@tab @code{list}
+@item Default
+@tab @code{@{@}}
+@item Dynamic
+@tab No.
+@end multitable
+
+By default @code{target}, @code{target_flags} and @code{dep_flags} are handled in this order (cf @pxref{targets-deps}).
+If this order is inadequate, this attribute may be used to specify the order.
+The order may be partial : other keys are put after the mentioned keys, keeping their relative order.
 
 @section @code{chroot}
 
@@ -2263,7 +2267,7 @@ After interpretation, the @code{dict} is passed to the @code{backend} to be used
 @item Default
 @tab @code{100}
 @item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
+@tab Yes. Environment includes stems, targets, deps.
 @end multitable
 
 This attribute defines the maximum number of lines of stderr that will be displayed in the output of @lmake.
@@ -2309,23 +2313,6 @@ This is useful for scripts in situations such as :
 @item As a consequence, no dependency is set for @file{a/b} and the problem will not be resolved by a further re-execution.
 @item Setting this attribute to @code{True} creates directory @file{a} on the fly when @code{chdir} is called so that it succeeds and the correct dependency is set.
 @end itemize
-
-@section @code{ignore_stat}
-
-@multitable @columnfractions 0.1 0.9
-@item Inheritance
-@tab Python
-@item Type
-@tab @code{bool}
-@item Default
-@tab @code{False}
-@item Dynamic
-@tab Yes. Environment includes stems, targets, deps and resources.
-@end multitable
-
-When this attribute is set to a @code{True} value, stat-like syscalls (i.e. syscalls that access the i-node only) are ignored.
-The @code{'-Stat'} flag on targets provide a more flexible mecanism.
-The only advantage of this attribute is that precisely because it is rather crude, stat-like syscalls can be filtered very early and performances are better.
 
 @section @code{keep_tmp}
 
@@ -2576,7 +2563,7 @@ As these are described with @code{dict}, you would like to inherit @code{dict} e
 A possibility would have been to use the @code{__prepare__} method of a meta-class to pre-define inherited values of such attributes,
 but that would defeat the practical possibility to use multiple inheritance by suppressing the diamond rule.
 
-The chosen method has been to walk through the MRO at class creation time and :
+The chosen method has been designed to walk through the MRO at class creation time and :
 @itemize @minus
 @item Define a set of attributes to be handled through combination. This set is defined by the attribute @code{combine}, itself being handled by combination.
 @item Combined attribute are handled by updating/appending rather than replacing when walking through MRO in reverse order.
@@ -2586,13 +2573,15 @@ Similarly, values inserted in a set prefixed with a @code{'-'} remove the corres
 
 Because this mechanism walks through the MRO, the diamond rule is enforced.
 
+@code{dict}'s and @code{list}'s are ordered so that the most specific information appear first, as if classes are searched in MRO.
+
 @anchor{regexpr}
 @section Regular expressions
 Internally, @lmake uses a regular expression library, that may change with versions, but which are always very close to the Python @code{re} module.
 
 As of today, the standard @code{std::regex} package is used with the @code{ECMASript} grammar.
 The following differences with Python @code{re} are known :
-@itemize
+@itemize @bullet
 @item named groups are not supported.
 There are hardly any reason to use named groups in stems.
 This would allow back references as number based back references cannot be used as one cannot know what number to use.
@@ -2603,6 +2592,25 @@ A file such as @file{image1/image2_big.jpg} will not match.
 @item braces (@code{@{@}}) are sometimes recognized as literal braces by Python, even when not escaped with @code{\}.
 This is not the case with @code{std::regex}, they always must be escaped.
 @end itemize
+
+@anchor{targets-deps}
+@section Handling an access
+When a job accesses a file the following steps are done to decide how to mangage the accessed file :
+@itemize @bullet
+@item First, if the file has been mentioned in a @code{ldepend} or @code{ltarget} (or equivalent python function), it is processed as specified by these commands.
+@item Then, the file is matched against the regular expressions appearing in the @code{targets}, @code{target_flags} and @code{dep_flags} rule attributes.
+The first match decides the entry and this matching process stops.
+The order in which these matches are tried are as mentioned above, unless the @code{order} attribute is set in which case entries listed in this attribute are tried first.
+
+If a file is found in both of these first steps, the flags are merged, i.e. all mentioned flags apply.
+@item If a match is found, the file is a target if matched in a @code{targets} or @code{target_flags} entry, a dep if in a @code{dep_flags} entry.
+@item If no match is found, a read is considered to be a dep and a write (or a unlink) to be a target.
+In that case, targets are errors unless they are unlinked by the end of job execution.
+I.e., writing to a file without declaring it somehow is an error if the file is still present when the job completes.
+@end itemize
+
+Before a job has first run, it is deemed to have only its official static targets (i.e. listed in the @code{targets} attribute) as targets and its static deps as deps.
+After that, the targets and deps acquired during the last job execution are used.
 
 @anchor{backends}
 @section Backends

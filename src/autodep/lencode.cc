@@ -6,7 +6,7 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "support.hh"
+#include "record.hh"
 
 #include "rpc_job.hh"
 
@@ -39,14 +39,13 @@ int main( int argc , char* argv[]) {
 	} catch (::string const& e) {
 		syntax.usage(to_string("bad min len value : ",e)) ;
 	}
-	JobExecRpcReq jerr {
+	JobExecRpcReply reply = Record(New).direct(JobExecRpcReq(
 		JobExecRpcProc::Encode
 	,	::move(cmd_line.flag_args[+Flag::File   ])
 	,	to_string(::cin.rdbuf())
 	,	::move(cmd_line.flag_args[+Flag::Context])
 	,	min_len
-	} ;
-	JobExecRpcReply reply = AutodepSupport(New).req(jerr) ;
+	)) ;
 	if (reply.ok==Yes) { ::cout<<reply.txt<<'\n' ; return 0 ; }
 	else               { ::cerr<<reply.txt       ; return 1 ; }
 }

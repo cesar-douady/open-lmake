@@ -23,7 +23,7 @@ namespace Engine {
 	struct Dep  ;
 	struct Deps ;
 
-	static constexpr uint8_t NodeNGuardBits = 1 ;                              // to be able to make Target
+	static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
 
 	ENUM( Buildable
 	,	LongName    //                                   name is longer than allowed in config
@@ -97,21 +97,12 @@ namespace Engine {
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , Target const ) ;
 		// cxtors & casts
-		Target(                        ) = default ;
-		Target( Node n , bool iu=false ) : Node(n) { is_unexpected( +n && iu        ) ; } // if no node, ensure Target appears as false
-		Target( Target const& t        ) : Node(t) { is_unexpected(t.is_unexpected()) ; }
-		//
-		Target& operator=(Target const& tu) { Node::operator=(tu) ; is_unexpected(tu.is_unexpected()) ; return *this ; }
-		// accesses
-		Idx operator+() const { return Node::operator+() | is_unexpected()<<(NValBits-1) ; }
-		//
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const = delete ; // { return Node::side<W,LSB+1>(   ) ; }
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       = delete ; // {        Node::side<W,LSB+1>(val) ; }
-		//
-		bool is_unexpected(        ) const { return Node::side<1>(   ) ; }
-		void is_unexpected(bool val)       {        Node::side<1>(val) ; }
+		Target(                       ) = default ;
+		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
 		// services
-		bool lazy_star_tflag( Tflag tf , Rule::SimpleMatch const& sm , ::string& tn ) ; // fm & tn are lazy evaluated
+		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
+		// data
+		Tflags tflags ;
 	} ;
 
 	//
@@ -140,9 +131,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,AccDflags> const& ,                                  bool parallel=true ) ;
-		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,                       bool parallel=true ) ;
-		Deps( ::vector<Node          > const& , Accesses , Dflags=StaticDflags , bool parallel=true ) ;
+		Deps( ::vmap  <Node,AccDflags> const& ,                     bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,          bool parallel=true ) ;
+		Deps( ::vector<Node          > const& , Accesses , Dflags , bool parallel=true ) ;
 	} ;
 
 }
@@ -151,11 +142,11 @@ namespace Engine {
 namespace Engine {
 
 	ENUM( NodeLvl
-	,	None       // reserve value 0 as they are not counted in n_total
-	,	Zombie     // req is zombie but node not marked done yet
-	,	Uphill     // first level set at init, uphill directory
-	,	NoJob      // job candidates are exhausted
-	,	Plain      // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
+	,	None      // reserve value 0 as they are not counted in n_total
+	,	Zombie    // req is zombie but node not marked done yet
+	,	Uphill    // first level set at init, uphill directory
+	,	NoJob     // job candidates are exhausted
+	,	Plain     // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
 	)
 
 	struct NodeReqInfo : ReqInfo {                                              // watchers of Node's are Job's
@@ -172,13 +163,13 @@ namespace Engine {
 		void update( RunAction , MakeAction , NodeData const& ) ;
 		// data
 	public :
-		RuleIdx        prio_idx     = NoIdx                ;                   //    16 bits
-		bool           single       = false                ;                   // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Disk::Accesses overwritten  = Disk::Accesses::None ;                   // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
-		Manual         manual       = Manual::Unknown      ;                   // 3<= 8 bits
-		Bool3          speculate    = Yes                  ;                   // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		RuleIdx        prio_idx     = NoIdx                ;                    //    16 bits
+		bool           single       = false                ;                    // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		Disk::Accesses overwritten  = Disk::Accesses::None ;                    // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		Manual         manual       = Manual::Unknown      ;                    // 3<= 8 bits
+		Bool3          speculate    = Yes                  ;                    // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 	} ;
-	static_assert(sizeof(NodeReqInfo)==24) ;                                   // check expected size
+	static_assert(sizeof(NodeReqInfo)==24) ;                                    // check expected size
 
 }
 #endif
@@ -189,7 +180,7 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ; // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                                      // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
@@ -228,7 +219,7 @@ namespace Engine {
 		bool           has_req   ( Req                               ) const ;
 		ReqInfo const& c_req_info( Req                               ) const ;
 		ReqInfo      & req_info  ( Req                               ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&                    ) const ; // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&                    ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                                   ) const ;
 		bool           waiting   (                                   ) const ;
 		bool           done      ( ReqInfo const&     , RunAction    ) const ;
@@ -262,7 +253,7 @@ namespace Engine {
 			JobTgt cjt = conform_job_tgt() ;
 			return +cjt && ( cjt->is_special() || has_actual_job_tgt(cjt) ) ;
 		}
-		Bool3 ok() const {      // if Maybe <=> not built
+		Bool3 ok() const {                                                                      // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No    | !conform_job_tgt()->err() ;
 				case NodeStatus::Multi : return No                                ;
@@ -302,31 +293,31 @@ namespace Engine {
 		}
 		//
 		// services
-		bool read(Accesses a) const {                                          // return true <= file was perceived different from non-existent, assuming access provided in a
-			if (crc==Crc::None ) return false          ;                       // file does not exist, cannot perceive difference
-			if (unlinked       ) return false          ;                       // file did not exist despite a non-None crc
-			if (a[Access::Stat]) return true           ;                       // if file exists, stat is different
+		bool read(Accesses a) const {                                                           // return true <= file was perceived different from non-existent, assuming access provided in a
+			if (crc==Crc::None ) return false          ;                                        // file does not exist, cannot perceive difference
+			if (unlinked       ) return false          ;                                        // file did not exist despite a non-None crc
+			if (a[Access::Stat]) return true           ;                                        // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
-			else                 return +a             ;                       // dont know if file is a link, any access may have perceived a difference
+			else                 return +a             ;                                        // dont know if file is a link, any access may have perceived a difference
 		}
 		bool up_to_date(DepDigest const& dd) const { return crc.match(dd.crc(),dd.accesses) ; } // only manage crc, not dates
 		//
 		Manual manual_wash( ReqInfo& ri , bool lazy=false ) ;
 		//
 		void mk_old   (                                ) ;
-		void mk_src   (Disk::FileTag=Disk::FileTag::Err) ; // Err means no crc update
+		void mk_src   (Disk::FileTag=Disk::FileTag::Err) ;                                      // Err means no crc update
 		void mk_no_src(                                ) ;
 		//
 		::c_vector_view<JobTgt> prio_job_tgts   (RuleIdx prio_idx) const ;
 		::c_vector_view<JobTgt> conform_job_tgts(ReqInfo const&  ) const ;
 		::c_vector_view<JobTgt> conform_job_tgts(                ) const ;
 		//
-		void set_buildable( Req={}   , DepDepth lvl=0       ) ;             // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
+		void set_buildable( Req={}   , DepDepth lvl=0       ) ;                                 // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
 		void set_pressure ( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ; // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;                 // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			_propag_speculate(ri) ;
@@ -336,7 +327,7 @@ namespace Engine {
 		//
 		void make( ReqInfo& , RunAction=RunAction::Status , Watcher asking={} , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
 		//
-		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,{}/*asking*/,Yes/*speculate*/,ma) ; } // for wakeup
+		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,{}/*asking*/,Yes/*speculate*/,ma) ; }                  // for wakeup
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -354,7 +345,7 @@ namespace Engine {
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts()) return Buildable::No                             ;               // fast path : avoid computing name()
+			if (!rule_tgts()) return Buildable::No                             ;                                                           // fast path : avoid computing name()
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
@@ -390,7 +381,7 @@ namespace Engine {
 	private :
 		RuleIdx _conform_idx = -+NodeStatus::Unknown ;           //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 	} ;
-	static_assert(sizeof(NodeData)==48) ;                                      // check expected size
+	static_assert(sizeof(NodeData)==48) ;                        // check expected size
 
 }
 #endif
@@ -422,7 +413,7 @@ namespace Engine {
 	}
 	inline Node::ReqInfo const& NodeData::c_req_info(Req r) const {
 		::umap<Node,ReqInfo> const& req_infos = Req::s_store[+r].nodes ;
-		auto                        it        = req_infos.find(idx())  ;       // avoid double look up
+		auto                        it        = req_infos.find(idx())  ;                 // avoid double look up
 		if (it==req_infos.end()) return Req::s_store[+r].nodes.dflt ;
 		else                     return it->second                  ;
 	}
@@ -508,18 +499,6 @@ namespace Engine {
 			case Manual::Modif    : refresh( {}        , fi.date ) ; break ;
 			default : FAIL(fi.date,fi.sz) ;
 		}
-	}
-
-	//
-	// Target
-	//
-
-	inline bool Target::lazy_star_tflag( Tflag tf , Rule::SimpleMatch const& sm , ::string& tn ) { // fm & tn are lazy evaluated
-		Bool3 res = sm.rule->common_tflags(tf,is_unexpected()) ;
-		if (res!=Maybe) return res==Yes ;                                      // fast path : flag is common, no need to solve lazy evaluation
-		if (!tn       ) tn = (*this)->name() ;                                 // .
-Trace trace("lazy_star_tflag",tf,sm,tn);
-		/**/            return sm.rule->tflags(sm.star_idx(tn))[tf] ;
 	}
 
 	//

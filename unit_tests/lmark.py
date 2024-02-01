@@ -45,11 +45,11 @@ else :
 	sp.run(('lmark','-f','-c'           ),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,                    done=2 , rc=0 )
 
 	# no-trigger
-	None                                             ; print(5,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out of date
-	None                                             ; print(6,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up to date
-	sp.run(('lmark','-t','-a','src'    ),check=True) ; None                              ; ut.lmake( 'src.cpy'                      ) # check up to date
-	None                                             ; print(7,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
-	sp.run(('lmark','-t','-d','src'    ),check=True) ; None                              ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
+	None                                         ; print(5,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out of date
+	None                                         ; print(6,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up to date
+	sp.run(('lmark','-t','-a','src'),check=True) ; None                              ; ut.lmake( 'src.cpy'                      ) # check up to date
+	None                                         ; print(7,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
+	sp.run(('lmark','-t','-d','src'),check=True) ; None                              ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
 
 	# manual-ok
 	None                                             ; None                              ; ut.lmake( 'src.cpy2' ,             done=1          ) # check src.cpy up to date

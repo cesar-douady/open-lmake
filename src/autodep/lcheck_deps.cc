@@ -5,7 +5,7 @@
 
 #include "app.hh"
 
-#include "support.hh"
+#include "record.hh"
 
 ENUM(Key,None)
 ENUM(Flag
@@ -19,6 +19,6 @@ int main( int argc , char* argv[]) {
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }        ;
 	bool              verbose  = cmd_line.flags[Flag::Verbose] ;
 	if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::ChkDeps , cmd_line.flags[Flag::Verbose]/*sync*/ ) ) ;
+	JobExecRpcReply reply = Record(New).direct( JobExecRpcReq( JobExecRpcProc::ChkDeps , cmd_line.flags[Flag::Verbose]/*sync*/ ) ) ;
 	return verbose && reply.ok!=Yes ? 1 : 0 ;
 }

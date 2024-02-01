@@ -128,6 +128,10 @@ items :
 *5 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
+* implement quarantine
+	- instead of rm, or manual support, dangling, etc.
+	- LMAKE/quarantine as a copy of the repo with all quarantined files inside
+	- generate a warning message each time a file is quarantined
 * support formulas in n_tokens
 	- to automatically depend on config update
 * result cache v2 (copy & link) :
@@ -153,10 +157,9 @@ items :
 		- then resume participates to allocation competition
 ! record deps during attribute computation
 	- when dynamic
-! implement star optional :
+! implement star phony :
 	- walk through nodes from best root (which means implementing "find")
 	- match against regexpr
-	- operate as for star in star_targets
 ? add post_cmd as there is post_targets
 ? implement a compilation rule py->pyc
 	- and use python -B
@@ -193,6 +196,15 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* implement deps compression
+	- store words (NodeIdx)
+	- MSB=1, no flag and crc=None, use a single word
+	- else if 2nd word does not look like a flag word (with a marker inside flag word), no flag and crc : use 3 words
+	- else if 2nd indicates no presence of crc, flag and crc=None, use 2 words
+	- else flag and crc, use 4 words
+	- there is marginal case where crc looks like flag, in this case use 4 words instead of 3 when no flag, not a drama, even with a 8 bits marker
+	- should bring about 3x reduction in deps size
+	- targets can be compressed similarly when no flag
 * regexprs
 	- consider using PCRE2 instead of std::regex
 	- consider handling prefix/suffix apart

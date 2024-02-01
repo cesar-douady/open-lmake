@@ -30,20 +30,9 @@ struct Record {
 		}
 		return _s_root_fd ;
 	}
-	static Fd s_report_fd() {
-		if (!_s_report_fd) {
-			// establish connection with server
-			::string const& service = s_autodep_env().service ;
-			if (service.back()==':') _s_report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-			else                     _s_report_fd = ClientSockFd(service) ;
-			_s_report_fd.no_std() ;                                                   // avoid poluting standard descriptors
-			swear_prod(+_s_report_fd,"cannot connect to job_exec through ",service) ;
-		}
-		return _s_report_fd ;
-	}
 	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
 	static AutodepEnv const& s_autodep_env() {
-		if (!_s_autodep_env) _s_autodep_env =new AutodepEnv{getenv("LMAKE_AUTODEP_ENV")} ;
+		if (!_s_autodep_env) _s_autodep_env = new AutodepEnv{New} ;
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
@@ -51,26 +40,41 @@ struct Record {
 		_s_autodep_env = new AutodepEnv{ade} ;
 		return *_s_autodep_env ;
 	}
-	static void s_hide(int fd) {                                               // guaranteed syscall free, so no need for caller to protect errno
-		if (_s_root_fd  .fd==fd) _s_root_fd  .detach() ;
-		if (_s_report_fd.fd==fd) _s_report_fd.detach() ;
-	}
-	static void s_hide_range( int min , int max=~0u ) {                             // guaranteed syscall free, so no need for caller to protect errno
-		if ( _s_root_fd  .fd>=min && _s_root_fd  .fd<=max ) _s_root_fd  .detach() ;
-		if ( _s_report_fd.fd>=min && _s_report_fd.fd<=max ) _s_report_fd.detach() ;
-	}
 private :
-	static void            _s_report   ( JobExecRpcReq const& jerr ) { OMsgBuf().send(s_report_fd(),jerr) ;                       }
-	static JobExecRpcReply _s_get_reply(                           ) { return IMsgBuf().receive<JobExecRpcReply>(s_report_fd()) ; }
 	// static data
 	static Fd          _s_root_fd     ;
-	static Fd          _s_report_fd   ;
 	static AutodepEnv* _s_autodep_env ;
 	// cxtors & casts
 public :
-	Record(pid_t pid=0) : real_path{s_autodep_env(),pid} {}
+	Record(                       ) = default ;
+	Record( NewType , pid_t pid=0 ) : _real_path{s_autodep_env(),pid} , _running{true}  {}
+	// accesses
+	bool operator+() const { return _running ; }
+	bool operator!() const { return !+*this  ; }
 	// services
+	Fd report_fd() const {
+		if (!_report_fd) {
+			// establish connection with server
+			::string const& service = s_autodep_env().service ;
+			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
+			else                     _report_fd = ClientSockFd(service) ;
+			_report_fd.no_std() ;                                                          // avoid poluting standard descriptors
+			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
+		}
+		return _report_fd ;
+	}
+	void hide(int fd) const {                                                              // guaranteed syscall free, so no need for caller to protect errno
+		if (_s_root_fd.fd==fd) _s_root_fd.detach() ;
+		if (_report_fd.fd==fd) _report_fd.detach() ;
+	}
+	void hide_range( int min , int max=~0u ) const {                                       // guaranteed syscall free, so no need for caller to protect errno
+		if ( _s_root_fd  .fd>=min && _s_root_fd  .fd<=max ) _s_root_fd  .detach() ;
+		if ( _report_fd.fd>=min && _report_fd.fd<=max ) _report_fd.detach() ;
+	}
 private :
+	void            _report   ( JobExecRpcReq const& jerr ) const { OMsgBuf().send(report_fd(),jerr) ;                       }
+	JobExecRpcReply _get_reply(                           ) const { return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ; }
+	//
 	void _report_access( JobExecRpcReq const& jerr ) const ;
 	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , bool unlink , ::string&& c={} ) const {
 		AccessDigest ad { a } ;
@@ -79,7 +83,7 @@ private :
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , ad , ::move(c) ) ) ;
 	}
 	void _report_guard( ::string&& f , ::string&& c={} ) const {
-		_s_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
+		_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlink, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -96,8 +100,7 @@ private :
 	void _report_update( ::string&& f , Accesses , ::string&& c={} ) const { _report_update( ::move(f) , Disk::file_date(s_root_fd(),f) , Accesses::All , ::move(c) ) ; }
 	void _report_dep   ( ::string&& f , Accesses , ::string&& c={} ) const { _report_dep   ( ::move(f) , Disk::file_date(s_root_fd(),f) , Accesses::All , ::move(c) ) ; }
 	//
-	void _report_confirm( ::vector_s&& fs , bool ok ) const { _s_report(JobExecRpcReq( JobExecRpcProc::Confirm , ::move(fs) , ok )) ; }
-	void _report_confirm( ::string  && f  , bool ok ) const { _report_confirm(::vector_s({::move(f)}),ok) ;                         ; }
+	void _report_confirm( bool unlink , bool ok ) const { _report(JobExecRpcReq( JobExecRpcProc::Confirm , unlink , ok )) ; }
 	//
 	void _report_deps( ::vmap_s<Ddate>&& fs , Accesses a , bool u , ::string&& c={} ) const {
 		AccessDigest ad { a } ;
@@ -120,13 +123,13 @@ private :
 		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , ad , ::move(c) ) ) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
-		if      (!tmp_cache) tmp_cache = true ;
+		if      (!_tmp_cache) _tmp_cache = true ;
 		else if (!sync     ) return ;
-		_s_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
+		_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
 	}
 public :
-	template<class... A> [[noreturn]] void report_panic(A const&... args) { _s_report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(2) ; } // continuing is meaningless
-	template<class... A>              void report_trace(A const&... args) { _s_report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;           }
+	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(2) ; } // continuing is meaningless
+	template<class... A>              void report_trace(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;           }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	struct Path {
@@ -148,7 +151,7 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.allocated = false       ; // we have clobbered allocation, so it is no more p's responsibility
+			p.allocated = false       ;                                                   // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -163,7 +166,7 @@ public :
 		void allocate( Fd at_ , const char* file_ , size_t sz ) {
 			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
 			deallocate() ;
-			char* buf = new char[sz+1] ;                                       // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                  // +1 to account for terminating null
 			::memcpy(buf,file_,sz+1) ;
 			file      = buf  ;
 			at        = at_  ;
@@ -178,11 +181,11 @@ public :
 			allocated = false ;
 		}
 		// data
-		bool        has_at    = false         ;            // if false => at is not managed and may not be substituted any non-default value
-		bool        allocated = false         ;            // if true <=> file has been allocated and must be freed upon destruction
-		Kind        kind      = Kind::Unknown ;            // updated when analysis is done
-		Fd          at        = Fd::Cwd       ;            // at & file may be modified, but together, they always refer to the same file
-		const char* file      = ""            ;            // .
+		bool        has_at    = false         ;                                           // if false => at is not managed and may not be substituted any non-default value
+		bool        allocated = false         ;                                           // if true <=> file has been allocated and must be freed upon destruction
+		Kind        kind      = Kind::Unknown ;                                           // updated when analysis is done
+		Fd          at        = Fd::Cwd       ;                                           // at & file may be modified, but together, they always refer to the same file
+		const char* file      = ""            ;                                           // .
 	} ;
 	struct Solve : Path {
 		// search (executable if asked so) file in path_var
@@ -262,12 +265,12 @@ public :
 		Rename() = default ;
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , ::string&& comment="rename" ) ;
 		// services
-		int operator()( Record& , int rc ) ;                                   // if file is updated and did not exist, its date must be capture before the actual syscall
+		int operator()( Record& , int rc ) ;                                              // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data
-		Solve      src     ;
-		Solve      dst     ;
-		::vector_s unlinks ;
-		::vector_s writes  ;
+		Solve src         ;
+		Solve dst         ;
+		bool  has_unlinks ;
+		bool  has_writes  ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
@@ -293,15 +296,15 @@ public :
 		int operator()( Record& , int rc ) ;
 	} ;
 	//
-	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; real_path.cwd_ = dir ; }
+	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; _real_path.cwd_ = dir ; }
 	//
-protected :
+private :
 	SolveReport _solve( Path& , bool no_follow , bool read , ::string const& comment={} ) ;
-	//
 	// data
-protected :
-	Disk::RealPath                                                real_path    ;
-	bool                                                          tmp_mapped   = false ; // set when tmp_map is actually used to solve a file
-	mutable bool                                                  tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
-	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> access_cache ;         // map file to read accesses
+	Disk::RealPath                                                _real_path    ;
+	bool                                                          _tmp_mapped   = false ; // set when tmp_map is actually used to solve a file
+	bool                                                          _running      = false ;
+	mutable Fd                                                    _report_fd    ;
+	mutable bool                                                  _tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
+	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> _access_cache ;         // map file to read accesses
 } ;

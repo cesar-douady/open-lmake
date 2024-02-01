@@ -139,7 +139,7 @@ else :
 	open('auto_mkdir.no.ref','w')
 
 	print(f'step=0',file=open('step.py','w'))
-	ut.lmake( 'cmd' , done=1 , new=1 )                                         # create file cmd to ensure transition bad->good does not leave a manual file
+	ut.lmake( 'cmd' , done=1 , new=1 )        # create file cmd to ensure transition bad->good does not leave a manual file
 
 	for s in (1,2) :
 		print(f'step={s}',file=open('step.py','w'))
@@ -159,4 +159,4 @@ else :
 		ut.lmake( 'auto_mkdir.yes.ok'   , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
 		ut.lmake( 'cmd'                 , done=1-rc   , steady=0    , failed=rc , new=0      ,                rc=rc )
 		#
-		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , rc=rc )
+		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2*rc , steady=0 , new=rc , rc=0 )

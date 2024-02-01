@@ -164,7 +164,7 @@ namespace Engine {
 			}
 		}
 		rule_tgts().clear() ;
-		return Buildable::Maybe ; // node may be buildable from dir
+		return Buildable::Maybe ;                                                                              // node may be buildable from dir
 	}
 
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly
@@ -385,7 +385,7 @@ namespace Engine {
 	Codec :
 		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (date()>req->start_ddate) ri.overwritten = Access::Reg ;                                       // date is only updated when actual content is modified and codec cannot be links
+			if (date()>req->start_ddate) ri.overwritten = Access::Reg ;                                  // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto Done ;
 		}
@@ -413,7 +413,7 @@ namespace Engine {
 	void NodeData::_make_raw( ReqInfo& ri , RunAction run_action , Watcher asking_ , Bool3 speculate , MakeAction make_action ) {
 		RuleIdx prod_idx       = NoIdx                                ;
 		Req     req            = ri.req                               ;
-		Bool3   clean          = Maybe                                ;                                           // lazy evaluate manual()==No
+		Bool3   clean          = Maybe                                ;                                  // lazy evaluate manual()==No
 		bool    multi          = false                                ;
 		bool    stop_speculate = speculate<ri.speculate && +ri.action ;
 		Trace trace("Nmake",idx(),ri,run_action,make_action) ;
@@ -439,12 +439,12 @@ namespace Engine {
 		} else {
 			// check if we need to regenerate node
 			if (ri.done(ri.action)) {
-				if (!unlinked                   ) goto Wakeup ;                                                   // no need to regenerate
-				if (ri.action<=RunAction::Status) goto Wakeup ;                                                   // no need for the file on disk
-				if (status()!=NodeStatus::Plain ) goto Wakeup ;                                                   // no hope to regenerate, proceed as a done target
-				ri.done_    = RunAction::Status ;                                                                 // regenerate
-				ri.prio_idx = conform_idx()     ;                                                                 // .
-				ri.single   = true              ;                                                                 // only ask to run conform job
+				if (!unlinked                   ) goto Wakeup ;                                          // no need to regenerate
+				if (ri.action<=RunAction::Status) goto Wakeup ;                                          // no need for the file on disk
+				if (status()!=NodeStatus::Plain ) goto Wakeup ;                                          // no hope to regenerate, proceed as a done target
+				ri.done_    = RunAction::Status ;                                                        // regenerate
+				ri.prio_idx = conform_idx()     ;                                                        // .
+				ri.single   = true              ;                                                        // only ask to run conform job
 				goto Make ;
 			}
 			// fast path : check jobs we were waiting for, lighter than full analysis
@@ -453,32 +453,32 @@ namespace Engine {
 				JobTgt jt   = *it                                                   ;
 				bool   done = jt->c_req_info(req).done(ri.action&RunAction::Status) ;
 				trace("check",jt,jt->c_req_info(req)) ;
-				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               }          // we waited for it and it is not done, retry
-				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }          // jobs in error are deemed to produce all their potential targets
+				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               } // we waited for it and it is not done, retry
+				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
 			}
-			if (prod_idx!=NoIdx) goto DoWakeup ;                                                                  // we have at least one done job, no need to investigate any further
-			ri.prio_idx = it.idx ;                                                                                // go on with next prio
+			if (prod_idx!=NoIdx) goto DoWakeup ;                                                         // we have at least one done job, no need to investigate any further
+			ri.prio_idx = it.idx ;                                                                       // go on with next prio
 		}
 	Make :
 		for(;;) {
 			SWEAR(prod_idx==NoIdx,prod_idx) ;
-			if (ri.prio_idx>=job_tgts().size()) {                                                                 // gather new job_tgts from rule_tgts
-				SWEAR(!ri.single) ;                                                                               // we only regenerate using an existing job
+			if (ri.prio_idx>=job_tgts().size()) {                                                        // gather new job_tgts from rule_tgts
+				SWEAR(!ri.single) ;                                                                      // we only regenerate using an existing job
 				try {
 					//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
 					buildable = buildable | _gather_prio_job_tgts(req) ;
 					//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (ri.prio_idx>=job_tgts().size()) break ;                                                   // fast path
+					if (ri.prio_idx>=job_tgts().size()) break ;                                          // fast path
 				} catch (::vector<Node> const& e) {
 					set_infinite(e) ;
 					break ;
 				}
 			}
 			JobTgtIter it{*this,ri} ;
-			if (!ri.single) {                                                                                     // fast path : cannot have several jobs if we consider only a single job
-				for(; it ; it++ ) {                                                                               // check if we obviously have several jobs, in which case make nothing
+			if (!ri.single) {                                                                            // fast path : cannot have several jobs if we consider only a single job
+				for(; it ; it++ ) {                                                                      // check if we obviously have several jobs, in which case make nothing
 					JobTgt jt = *it ;
-					if      ( jt.sure()                 ) buildable = Buildable::Yes ;                            // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+					if      ( jt.sure()                 ) buildable = Buildable::Yes ;                   // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 					else if (!jt->c_req_info(req).done()) continue ;
 					else if (!jt.produces(idx())        ) continue ;
 					if (prod_idx!=NoIdx) { multi = true ; goto DoWakeup ; }
@@ -488,13 +488,13 @@ namespace Engine {
 				prod_idx = NoIdx ;
 			}
 			// make eligible jobs
-			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                                 // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
+			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                        // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 				for(; it ; it++ ) {
 					JobTgt    jt     = *it               ;
 					RunAction action = RunAction::Status ;
 					JobReason reason ;
 					switch (ri.action) {
-						case RunAction::Makable : if (jt.is_sure()) action = RunAction::Makable ; break ;         // if star, job must be run to know if we are generated
+						case RunAction::Makable : if (jt.is_sure()) action = RunAction::Makable ; break ;                    // if star, job must be run to know if we are generated
 						case RunAction::Status  :                                                 break ;
 						case RunAction::Dsk :
 							if (jt.produces(idx())) {
@@ -515,13 +515,13 @@ namespace Engine {
 						default : FAIL(ri.action) ;
 					}
 					Job::ReqInfo& jri = jt->req_info(req) ;
-					if (ri.live_out) jri.live_out = ri.live_out ;                                                 // transmit user request to job for last level live output
+					if (ri.live_out) jri.live_out = ri.live_out ;                                                            // transmit user request to job for last level live output
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					jt->make( jri , action , reason , idx() , ri.speculate ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("job",ri,clean,action,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;
 					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
-					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
+					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }            // jobs in error are deemed to produce all their potential targets
 				}
 			}
 			if (ri.waiting()   ) goto Done ;
@@ -558,7 +558,7 @@ namespace Engine {
 			case NodeStatus::Multi      : { for( JobTgt j : conform_job_tgts(cri) ) j->propag_speculate( cri.req , cri.speculate ) ; } break ;
 			case NodeStatus::Unknown    :                                                                                              break ; // node is not built, nowhere to propagate
 			default :
-				SWEAR(status()<NodeStatus::Uphill,status()) ; // ensure we have not forgotten a case
+				SWEAR(status()<NodeStatus::Uphill,status()) ;                                                                                  // ensure we have not forgotten a case
 		}
 	}
 
@@ -570,7 +570,7 @@ namespace Engine {
 		RuleIdx k    = 0         ;
 		Prio    prio = -Infinity ;
 		for( Job j : job_tgts() ) {
-			if (j->rule->prio<prio) break ; // all jobs above or besides conform job(s)
+			if (j->rule->prio<prio) break ;  // all jobs above or besides conform job(s)
 			res &= j->forget(targets,deps) ;
 			if (k==conform_idx()) prio = j->rule->prio ;
 			k++ ;
@@ -668,10 +668,10 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , Target const t ) {
-		/**/                   os << "T("          ;
-		if (+t               ) os << +t            ;
-		if (t.is_unexpected()) os << ",unexpected" ;
-		return                 os << ')'           ;
+		/**/           os << "T("         ;
+		if (+t       ) os << +t           ;
+		if (+t.tflags) os <<','<<t.tflags ;
+		return         os << ')'          ;
 	}
 
 

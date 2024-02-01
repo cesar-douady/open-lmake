@@ -186,8 +186,8 @@ LMAKE_REMOTE_FILES = \
 	$(SLIB)/ld_preload.so \
 	$(BIN)/lcheck_deps    \
 	$(BIN)/ldecode        \
-	$(BIN)/ldepend        \
 	$(BIN)/lencode        \
+	$(BIN)/ldepend        \
 	$(BIN)/ltarget        \
 	$(LIB)/clmake.so
 
@@ -328,7 +328,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 #
 
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx re rpc_client rpc_job serialize thread time trace utils )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env support gather_deps ptrace record                                                                                 )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ptrace record                                                                                         )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                    )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x )
 BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                               )
@@ -535,7 +535,6 @@ $(BIN)/ldecode : \
 	$(SRC)/app.o             \
 	$(SRC)/rpc_job.o         \
 	$(SRC)/trace.o           \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ldecode.o
@@ -547,7 +546,6 @@ $(BIN)/ldepend : \
 	$(SRC)/app.o             \
 	$(SRC)/rpc_job.o         \
 	$(SRC)/trace.o           \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ldepend.o
@@ -559,7 +557,6 @@ $(BIN)/lencode : \
 	$(SRC)/app.o             \
 	$(SRC)/rpc_job.o         \
 	$(SRC)/trace.o           \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/lencode.o
@@ -571,7 +568,6 @@ $(BIN)/ltarget : \
 	$(SRC)/app.o             \
 	$(SRC)/rpc_job.o         \
 	$(SRC)/trace.o           \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ltarget.o
@@ -583,7 +579,6 @@ $(BIN)/lcheck_deps : \
 	$(SRC)/app.o             \
 	$(SRC)/rpc_job.o         \
 	$(SRC)/trace.o           \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/lcheck_deps.o
@@ -613,7 +608,6 @@ $(SLIB)/ld_audit.so : \
 $(LIB)/clmake.so : \
 	$(LMAKE_BASIC_OBJS)      \
 	$(SRC)/rpc_job.o         \
-	$(SRC)/autodep/support.o \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/clmake.o
@@ -635,8 +629,8 @@ UT_DIR      := unit_tests
 UT_BASE_DIR := $(UT_DIR)/base
 UT_BASE     := Manifest $(shell grep -x '$(UT_BASE_DIR)/.*' Manifest)
 
-UNIT_TESTS1 : Manifest $(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) )
-UNIT_TESTS2 : Manifest $(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
+UNIT_TESTS1 : Manifest $(patsubst %.py,%.dir/tok,     $(shell grep -x '$(UT_DIR)/[^/]*\.py'  Manifest) )
+UNIT_TESTS2 : Manifest $(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)/.*\.script' Manifest) )
 
 UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 
@@ -645,13 +639,13 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) > $@ || ( cat $@ ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) > $@ || ( cat $@ ; mv $@ $@.out ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	mkdir -p $(@D)
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; cat $@.err ; rm $@ ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; cat $@.err ; mv $@ $@.out ; exit 1 )
 	cat $@.err
 
 #

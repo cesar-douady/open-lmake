@@ -148,8 +148,8 @@ namespace Engine {
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
 			::vector<Node> nodes ;
-			if (ecr.as_job()) nodes = ecr.job()->targets() ;
-			else              nodes = ecr.targets()        ;
+			if (ecr.as_job()) nodes = mk_vector<Node>(ecr.job()->targets) ;
+			else              nodes = ecr.targets()                       ;
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
@@ -330,8 +330,7 @@ R"({
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( ::string const& tn : match.static_targets() ) Node(tn)->set_buildable() ; // necessary for pre_actions()
-		for( Node            t  : j->star_targets        )      t  ->set_buildable() ; // .
+		for( Node t  : j->targets ) t->set_buildable() ; // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
 		::string                                           script      = "#!/bin/bash\n"               ;
@@ -759,20 +758,15 @@ R"({
 			break ;
 			case ReqKey::Targets : {
 				Rule::SimpleMatch match = job->simple_match() ;
-				size_t            wk    = 0                   ; for( auto const& [k,_] : rule->targets ) wk = ::max(wk,k.size()) ;
 				for( auto const& [tn,td] : digest.targets ) {
-					VarIdx   ti         = match.idx(tn)      ;
-					Tflags   stfs       = rule->tflags(ti)   ;
-					bool     m          = stfs[Tflag::Match] ;
-					::string flags_str  ;
-					::string target_key = ti==Rule::NoVar ? ""s : rule->targets[ti].first ;
-					flags_str += m                 ? '-'                : '#'                ;
-					flags_str += td.crc==Crc::None ? '!'                : '-'                ;
-					flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
-					flags_str += stfs[Tflag::Star] ? '*'                : '-'                ;
-					flags_str += ' ' ;
-					for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-' ;
-					_send_node( fd , ro , verbose , Maybe|!m/*hide*/ , to_string( flags_str ,' ', ::setw(wk) , target_key ) , Node(tn) , lvl ) ;
+					Node t { tn } ;
+					::string flags_str ;
+					/**/                       flags_str += t->crc==Crc::None ? '!'                : '-'                ;
+					/**/                       flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
+					/**/                       flags_str += ' '                                                         ;
+					for( Tflag tf : Tflag::N ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-'                           ;
+					//
+					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}
 			} break ;
 			default :

@@ -30,7 +30,7 @@ private :
 	// cxtors & casts
 public :
 	constexpr Idxed(     ) = default ;
-	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; }                       // ensure no index overflow
+	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; } // ensure no index overflow
 	//
 	constexpr Idx  operator+() const { return  _idx&lsb_msk(NValBits) ; }
 	constexpr bool operator!() const { return !+*this                 ; }
@@ -182,11 +182,10 @@ namespace Vector {
 		using Mrkr   = Mrkr_                       ;
 		using Sz     = Idx                         ;
 		using F      = File<Crunch<Idx,Item,Mrkr>> ;
-		static_assert(sizeof(Item_)>=sizeof(Idx_)) ;                           // else it is difficult to implement the items() method with a cast in case of single element
 		// cxtors & casts
 		using Base::Base ;
 		//
-		template<IsA<Item> I> CrunchBase (I                const& x) = delete ;
+		template<IsA<Item>              I> CrunchBase(           I                const& x ) = delete ;
 		template<::convertible_to<Item> I> CrunchBase( NewType , I                const& x ) : Base{Item(x)} {}
 		template<::convertible_to<Item> I> CrunchBase(           ::vector_view<I> const& v ) {
 			if (v.size()!=1) static_cast<Base&>(*this) = F::file.emplace(v) ;
@@ -202,21 +201,12 @@ namespace Vector {
 		void clear () {                                    pop        () ; }
 		void forget() {                                    Base::clear() ; }
 		// accesses
-		auto        size () const -> Sz {
-			if (_single()) return 1                   ;
-			/**/           return F::file.size(*this) ;
-		}
-		Item const* items() const {
-			if (_single()) return &static_cast<Item const&>(*this) ;
-			/**/           return ::constify(F::file).items(*this) ;
-		}
-		Item      * items()       {
-			if (_single()) return &static_cast<Item&>(*this) ;
-			/**/           return F::file.items(*this)       ;
-		}
+		auto        size () const -> Sz { if (_single()) return 1                                ; else return            F::file .size (*this) ; }
+		Item const* items() const       { if (_single()) return &static_cast<Item const&>(*this) ; else return ::constify(F::file).items(*this) ; }
+		Item      * items()             { if (_single()) return &static_cast<Item      &>(*this) ; else return            F::file .items(*this) ; }
 	private :
-		bool _multi () const { return !this->template is_a<Item  >() ; }       // 0 is both a Vector and an Item, so this way 0 is !_multi ()
-		bool _single() const { return !this->template is_a<Vector>() ; }       // 0 is both a Vector and an Item, so this way 0 is !_single()
+		bool _multi () const { return !this->template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()
+		bool _single() const { return !this->template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
 		// services
 	public :
 		void shorten_by(Sz by) {
@@ -241,10 +231,12 @@ namespace Vector {
 	template<class V> ::ostream& operator<<( ::ostream& , Generic<V> const& ) ;
 	template<class V> struct Generic : V {
 		friend ::ostream& operator<< <>( ::ostream& , Generic const& ) ;
-		using Base       = V                   ;
-		using Idx        = typename Base::Idx  ;
-		using Item       = typename Base::Item ;
-		using value_type = Item                ;                               // mimic vector
+		using Base           = V                   ;
+		using Idx            = typename Base::Idx  ;
+		using Item           = typename Base::Item ;
+		using value_type     = Item                ;                          // mimic vector
+		using iterator       = Item      *         ;                          // .
+		using const_iterator = Item const*         ;                          // .
 		static constexpr bool IsStr = IsChar<Item> ;
 		//
 		using Base::items ;
@@ -271,18 +263,18 @@ namespace Vector {
 		::vector_view      <Item> view    ()                       { return { items() , size() } ; }
 		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
 		//
-		Item const* begin     (        ) const { return items()           ; }  // mimic vector
-		Item      * begin     (        )       { return items()           ; }  // .
-		Item const* cbegin    (        ) const { return items()           ; }  // .
-		Item const* end       (        ) const { return items()+size()    ; }  // .
-		Item      * end       (        )       { return items()+size()    ; }  // .
-		Item const* cend      (        ) const { return items()+size()    ; }  // .
-		Item const& front     (        ) const { return items()[0       ] ; }  // .
-		Item      & front     (        )       { return items()[0       ] ; }  // .
-		Item const& back      (        ) const { return items()[size()-1] ; }  // .
-		Item      & back      (        )       { return items()[size()-1] ; }  // .
-		Item const& operator[](size_t i) const { return items()[i       ] ; }  // .
-		Item      & operator[](size_t i)       { return items()[i       ] ; }  // .
+		Item const* begin     (        ) const { return items()           ; } // mimic vector
+		Item      * begin     (        )       { return items()           ; } // .
+		Item const* cbegin    (        ) const { return items()           ; } // .
+		Item const* end       (        ) const { return items()+size()    ; } // .
+		Item      * end       (        )       { return items()+size()    ; } // .
+		Item const* cend      (        ) const { return items()+size()    ; } // .
+		Item const& front     (        ) const { return items()[0       ] ; } // .
+		Item      & front     (        )       { return items()[0       ] ; } // .
+		Item const& back      (        ) const { return items()[size()-1] ; } // .
+		Item      & back      (        )       { return items()[size()-1] ; } // .
+		Item const& operator[](size_t i) const { return items()[i       ] ; } // .
+		Item      & operator[](size_t i)       { return items()[i       ] ; } // .
 		//
 		::c_vector_view    <Item> const subvec( size_t start , size_t sz=Npos ) const { return ::c_vector_view    ( begin()+start , ::min(sz,size()-start) ) ; }
 		::vector_view      <Item>       subvec( size_t start , size_t sz=Npos )       { return ::vector_view      ( begin()+start , ::min(sz,size()-start) ) ; }

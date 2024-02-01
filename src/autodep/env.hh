@@ -14,7 +14,8 @@ struct AutodepEnv : Disk::RealPathEnv {
 	AutodepEnv() = default ;
 	// env format : server:port:options:source_dirs:tmp_dir:tmp_view:root_dir
 	//if port is empty, server is considered a file to log deps to (which defaults to stderr if empty)
-	AutodepEnv( ::string const& env ) ;
+	AutodepEnv(::string const& env) ;
+	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
 	operator ::string() const ;
 	// services
 	template<IsStream S> void serdes(S& s) {

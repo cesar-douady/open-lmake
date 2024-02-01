@@ -13,21 +13,21 @@ if __name__!='__main__' :
 	,)
 
 	class Star(PyRule):
-		targets = { 'DST' : r'out{Wait:\d}/{__file__*}' }
+		targets = { 'DST' : r'out{Wait:\d}/{*:.*}' }
 		def cmd():
 			import time
 			import os
 			time.sleep(int(Wait))
 			dir = f'out{Wait}'
-			try                      : os.unlink(f'{dir}/mrkr0')
+			try                      : os.unlink(DST('mrkr0'))
 			except FileNotFoundError : pass
-			try                      : os.unlink(f'{dir}/mrkr1')
+			try                      : os.unlink(DST('mrkr1'))
 			except FileNotFoundError : pass
-			open(f'{dir}/a_file','w').write('hello')
+			open(DST('a_file'),'w').write('hello')
 
 	class Mrkr(Rule):
-		targets = { 'MRKR' : r'{__dir__}mrkr{Wait:\d}' }                       # cannot use target as we want to wait before creating MRKR
-		cmd     = 'sleep {Wait} ; echo > {MRKR}'                               # just create output
+		targets = { 'MRKR' : r'{:(.*/)?}mrkr{Wait:\d}' } # cannot use target as we want to wait before creating MRKR
+		cmd     = 'sleep {Wait} ; echo > {MRKR}'         # just create output
 
 	class Res1(PyRule):
 		target = 'res1'
@@ -45,7 +45,7 @@ else :
 
 	import ut
 
-	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 )               # check case where mrkr has been unlinked after having been created
-	ut.lmake( 'res1'                                           )               # ensure up to date
-	ut.lmake( 'res2' ,         done=3 , may_rerun=1            )               # check case where mrkr has been unlinked before having been created
-	ut.lmake( 'res2'                                           )               # ensure up to date
+	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 ) # check case where mrkr has been unlinked after having been created
+	ut.lmake( 'res1'                                           ) # ensure up to date
+	ut.lmake( 'res2' ,         done=3 , may_rerun=1            ) # check case where mrkr has been unlinked before having been created
+	ut.lmake( 'res2'                                           ) # ensure up to date

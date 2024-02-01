@@ -20,9 +20,11 @@ if __name__!='__main__' :
 	class Test(PyRule) :
 		targets = { 'DST' : '{File:.*}.test' }
 		if step==1 :
-			targets['NO_DEP'] = ( 'no_dep.{*:[12]}' , '-Match','-Dep','Incremental','-Write' )
-			targets['UNIQ'  ] = ( 'uniq'            , '-Match','Star'                        )
-			targets['SIDE'  ] = ( 'side.{*:[12]}'   , '-Match'                               )
+			target_flags = {
+				'UNIQ' : 'uniq'
+			,	'SIDE' : 'side.{*:[12]}'
+			}
+			dep_flags = { 'NO_DEP' : ( 'no_dep.{*:[12]}' , 'Ignore' ) }
 		allow_stderr = True
 		def cmd() :
 			open('no_dep.1')

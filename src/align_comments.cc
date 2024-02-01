@@ -134,6 +134,7 @@ void optimize( ::vector<Line>& lines) {
 			/**/               t[x].glb_pos += x ;
 		}
 	}
+	if (py==Npos) return ;                                                                                      // nothing to optimize
 	size_t              min_x  = 0       ;
 	::vector_view<Info> last_t = tab[py] ;
 	for( size_t x=1 ; x<last_t.size() ; x++ ) {

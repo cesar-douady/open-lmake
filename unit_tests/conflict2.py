@@ -15,17 +15,17 @@ if __name__!='__main__' :
 		def cmd(): pass
 
 	class B(Rule):
-		targets = {
-			'B' : 'b'
-		,	'A' : ('a{*:.*}', '-Dep','Incremental','-Match','-Write','-Stat')
-		}
+		targets   = { 'B' :  'b'                 }
+		dep_flags = { 'A' : ('a{*:.*}','Ignore') }
 		def cmd():
-			open('a'    )
-			open(B  ,'w')
+			open(A('')    )
+			open(B    ,'w')
 
 else :
 
 	import ut
-	ut.lmake('a',done  =1)
-	ut.lmake('b',done  =1)
-	ut.lmake('a',steady=0)                                                     # check a is not remade because b ran
+	ut.lmake(     'b',new=1,failed=1,rc=1) # a does not exist
+	ut.lmake(     'a',      done  =1     )
+	ut.lmake(     'b',      done  =0,rc=1) # b is up to date
+	ut.lmake('-e','b',      done  =1     ) # b is remade because it was in error
+	ut.lmake(     'a'                    ) # check a is not remade because b ran

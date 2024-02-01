@@ -17,11 +17,11 @@ sys.implementation.cache_tag = None                                             
 sys.dont_write_bytecode      = True                                               # and dont generate them
 sys.path                     = [lmake_dir+'/lib',lmake_dir+'/_lib','.',*sys.path] # ensure we have safe entries in front so as to be immune to uncontrolled user settings
 
-import lmake                                                                   # import before user code to be sure user did not play with sys.path
+import lmake     # import before user code to be sure user did not play with sys.path
 import serialize
 pdict = lmake.pdict
 
-sys.path = [sys.path[0],*sys.path[2:]]                                         # suppress access to _lib
+sys.path = [sys.path[0],*sys.path[2:]] # suppress access to _lib
 
 if len(sys.argv)!=4 :
 	print('usage : python read_makefiles.py <out_file> [ config | rules | srcs ] <module>',file=sys.stderr)
@@ -32,64 +32,65 @@ action   =               sys.argv[2]
 module   = import_module(sys.argv[3])
 
 # helper constants
-# AntiRule's only need a subset of plain rule attributes as there is no execution
-StdAntiAttrs = {
-	#                  type    dynamic
-	'job_name'     : ( str   , False   )
-,	'name'         : ( str   , False   )
-,	'post_targets' : ( dict  , False   )
-,	'prio'         : ( float , False   )
-,	'targets'      : ( dict  , False   )
-,	'stems'        : ( dict  , False   )
+StdAttrs = {
+	#                       type   dynamic
+	'job_name'          : ( str   , False )
+,	'name'              : ( str   , False )
+,	'prio'              : ( float , False )
+,	'stems'             : ( dict  , False )
+,	'targets'           : ( dict  , False )
+,	'allow_stderr'      : ( bool  , True  )
+,	'autodep'           : ( str   , True  )
+,	'auto_mkdir'        : ( bool  , True  )
+,	'backend'           : ( str   , True  )
+,	'chroot'            : ( str   , True  )
+,	'cache'             : ( str   , True  )
+,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'dep_flags'         : ( dict  , True  )
+,	'deps'              : ( dict  , True  )
+,	'environ_cmd'       : ( dict  , True  )
+,	'environ_resources' : ( dict  , True  )
+,	'environ_ancillary' : ( dict  , True  )
+,	'ete'               : ( float , False )
+,	'force'             : ( bool  , False )
+,	'ignore_stat'       : ( bool  , True  )
+,	'job_tokens'        : ( int   , True  )
+,	'keep_tmp'          : ( bool  , True  )
+,	'kill_sigs'         : ( tuple , True  )
+,	'max_stderr_len'    : ( int   , True  )
+,	'n_retries'         : ( int   , True  )
+,	'n_tokens'          : ( int   , False )
+,	'order'             : ( list  , False )
+,	'python'            : ( tuple , False )
+,	'resources'         : ( dict  , True  )
+,	'shell'             : ( tuple , False )
+,	'start_delay'       : ( float , True  )
+,	'target_flags'      : ( dict  , True  )
+,	'timeout'           : ( float , True  )
+,	'tmp'               : ( str   , True  )
+,	'use_script'        : ( bool  , True  )
 }
-StdExecAttrs = {
-	#                       type    dynamic
-	'allow_stderr'      : ( bool  , True    )
-,	'autodep'           : ( str   , True    )
-,	'auto_mkdir'        : ( bool  , True    )
-,	'backend'           : ( str   , True    )
-,	'chroot'            : ( str   , True    )
-,	'cache'             : ( str   , True    )
-,	'cmd'               : ( str   , True    )              # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'deps'              : ( dict  , True    )
-,	'environ_cmd'       : ( dict  , True    )
-,	'environ_resources' : ( dict  , True    )
-,	'environ_ancillary' : ( dict  , True    )
-,	'ete'               : ( float , False   )
-,	'force'             : ( bool  , False   )
-,	'ignore_stat'       : ( bool  , True    )
-,	'job_tokens'        : ( int   , True    )
-,	'keep_tmp'          : ( bool  , True    )
-,	'kill_sigs'         : ( tuple , True    )
-,	'n_retries'         : ( int   , True    )
-,	'n_tokens'          : ( int   , False   )
-,	'python'            : ( tuple , False   )
-,	'resources'         : ( dict  , True    )
-,	'shell'             : ( tuple , False   )
-,	'start_delay'       : ( float , True    )
-,	'max_stderr_len'    : ( int   , True    )
-,	'timeout'           : ( float , True    )
-,	'tmp'               : ( str   , True    )
-,	'use_script'        : ( bool  , True    )
-}
-Keywords     = {'dep','deps','resources','stems','target','targets','post_target','post_targets'}
-StdAttrs     = { **StdAntiAttrs , **StdExecAttrs }
+Keywords     = {'dep','deps','resources','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
-SimpleStemRe = re.compile(r'{\w+}|{{|}}')                                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
-SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')                           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
-SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )                           # this means string has no variable parts
+SimpleStemRe = re.compile(r'{\w+}|{{|}}')                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
+SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
+SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )           # this means string has no variable parts
 
 def update_dct(acc,new,paths=None,prefix=None) :
+	sav = acc.copy()
+	acc.clear()
 	for k,v in new.items() :
-		old_v = acc.pop(k,None)                                                # ensure entry is put at the end of dict order
-		if v is None : continue                                                # None is used to suppress entries
+		if v is None :
+			sav.pop(k,None)
+			continue                                                                                # None is used to suppress entries
 		if paths :
 			pk = prefix+'.'+k
-			if pk in paths and old_v is not None :
+			if pk in paths and sav.get(k) is not None :
 				sep    = paths[pk]
-				acc[k] = re.sub(fr'(?<={sep})\.\.\.(?={sep})',old_v,sep+v+sep)[len(sep):-len(sep)] # add seps before and after, then remove them because look-behind must be of fixed length
+				acc[k] = re.sub(fr'(?<={sep})\.\.\.(?={sep})',sav[k],sep+v+sep)[len(sep):-len(sep)] # add seps before and after, then remove them because look-behind must be of fixed length
 				continue
 		acc[k] = v
+	for k,v in sav.items() : acc.setdefault(k,v)
 def update_set(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
 	for k in new :
@@ -97,7 +98,7 @@ def update_set(acc,new) :
 		else                                     : acc.add    (k    )
 def update_lst(acc,new) :
 	if not isinstance(new,(list,tuple,set)) : new = (new,)
-	acc += new
+	acc[0:0] = new
 def update(acc,new,paths=None,prefix=None) :
 	if   callable  (acc     ) : acc = top(new)
 	elif callable  (new     ) : acc = top(new)
@@ -114,15 +115,6 @@ def top(new) :
 	else                      : raise TypeError(f'cannot combine {new.__class__.__name__}')
 	return update(acc,new)
 
-def _no_match_flags(flags) :
-	if isinstance(flags, str            ) : return flags in ('-match','-Match')
-	if isinstance(flags,(tuple,list,set)) : return any(_no_match_flags(f) for f in flags)
-	raise TypeError('unrecognized flags : {flags}')
-def no_match(target) :
-	if isinstance(target, str            ) : return False
-	if isinstance(target,(tuple,list,set)) : return _no_match_flags(target[1:])
-	raise TypeError('unrecognized target : {target}')
-
 def _qualify_key(kind,key,strong,is_python,seen) :
 	if not isinstance(key,str) : raise TypeError (f'{kind} key {key} is not a str'               )
 	if key in seen             : raise ValueError(f'{kind} key {key} already seen as {seen[key]}')
@@ -135,10 +127,11 @@ def _qualify_key(kind,key,strong,is_python,seen) :
 			except SyntaxError : raise ValueError(f'{kind} key {key} is a python keyword')
 def qualify(attrs,is_python) :
 	seen = {}
-	for k in attrs.stems       .keys() : _qualify_key('stem'       ,k,True,is_python,seen)
-	for k in attrs.targets     .keys() : _qualify_key('target'     ,k,True,is_python,seen)
-	for k in attrs.post_targets.keys() : _qualify_key('post_target',k,True,is_python,seen)
+	for k in attrs.stems       .keys() : _qualify_key('stem'        ,k,True,is_python,seen)
+	for k in attrs.targets     .keys() : _qualify_key('target'      ,k,True,is_python,seen)
 	if attrs.__special__ : return
+	for k in attrs.target_flags.keys() : _qualify_key('target_flags',k,True,is_python,seen)
+	for k in attrs.dep_flags   .keys() : _qualify_key('dep_flags'   ,k,True,is_python,seen)
 	for key in ('dep','resource') :
 		dct = attrs[key+'s']
 		if callable(dct) : continue
@@ -148,22 +141,22 @@ def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
 	combine = set()
 	paths   = {}
-	dct     = pdict(cmd=[])                                                    # cmd is handled specially
+	dct     = pdict(cmd=[])                                                 # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
-	is_python = callable(getattr(rule,'cmd',None))                             # first determine if final objective is python or shell by searching the closest cmd definition
+	is_python = callable(getattr(rule,'cmd',None))                          # first determine if final objective is python or shell by searching the closest cmd definition
 	try :
 		for i,r in enumerate(reversed(rule.__mro__)) :
 			d = r.__dict__
 			if 'combine' in d :
 				for k in d['combine'] :
-					if k in dct and k not in combine : dct[k] = top(dct[k])    # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
-				combine = update(combine,d['combine'])                         # process combine first so we use the freshest value
+					if k in dct and k not in combine : dct[k] = top(dct[k]) # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
+				combine = update(combine,d['combine'])                      # process combine first so we use the freshest value
 			if 'paths' in d : paths = update(paths,d['paths'])
 			for k,v in d.items() :
-				if k.startswith('__') and k.endswith('__') : continue          # do not process standard python attributes
+				if k.startswith('__') and k.endswith('__') : continue       # do not process standard python attributes
 				if k=='combine'                            : continue
-				if k=='cmd' :                                                  # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
+				if k=='cmd' :                                               # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
 					if is_python :
 						if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.__name__}')
 					else :
@@ -172,7 +165,7 @@ def handle_inheritance(rule) :
 					dct[k].append(v)
 				elif k in combine :
 					if k in dct : dct[k] = update(dct[k],v,paths,k)
-					else        : dct[k] = top   (       v        )            # make a fresh copy as it may be modified by further combine's
+					else        : dct[k] = top   (       v        )         # make a fresh copy as it may be modified by further combine's
 				else :
 					dct[k] = v
 	except Exception as e :
@@ -182,8 +175,8 @@ def handle_inheritance(rule) :
 	# reformat dct
 	attrs = pdict()
 	for k,v in dct.items() :
-		if k in StdAttrs and k!='cmd' :                                        # special case cmd
-			if v is None : continue                                            # None is not transported
+		if k in StdAttrs and k!='cmd' :                                     # special case cmd
+			if v is None : continue                                         # None is not transported
 			typ,dyn = StdAttrs[k]
 			if typ and not ( dyn and callable(v) ) :
 				try :
@@ -192,7 +185,7 @@ def handle_inheritance(rule) :
 				except :
 					raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
 		attrs[k] = v
-	attrs.name        = rule.__dict__.get('name',rule.__name__)                # name is not inherited as it must be different for each rule and defaults to class name
+	attrs.name        = rule.__dict__.get('name',rule.__name__)             # name is not inherited as it must be different for each rule and defaults to class name
 	attrs.__special__ = rule.__special__
 	attrs.is_python   = is_python
 	qualify(attrs,is_python)
@@ -235,8 +228,8 @@ def find_static_stems(job_name) :
 		key   = ''
 		state = 'Literal'
 	if state!='Literal'  :
-		if state=='SeenStop' : raise ValueError(f'spurious }}')
-		else                 : raise ValueError(f'spurious {{')
+		if state=='SeenStop' : raise ValueError(f'spurious }} in job_name {job_name}')
+		else                 : raise ValueError(f'spurious {{ in job_name {job_name}')
 	return stems
 
 def static_fstring(s) :
@@ -266,7 +259,7 @@ class Handle :
 		self.rule     = rule
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict( { k:attrs[k] for k in ('name','prio','stems','is_python') } )
+		self.rule_rep = pdict( { k:attrs[k] for k in ('name','prio','stems') } )
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -303,8 +296,8 @@ class Handle :
 				return False,x
 		else :
 			if SimpleStrRe.match(x)  :
-				return False,static_fstring(x)                                 # v has no variable parts, can be interpreted statically as an f-string
-		return True,serialize.f_str(x)                                         # x is made an f-string
+				return False,static_fstring(x)                        # v has no variable parts, can be interpreted statically as an f-string
+		return True,serialize.f_str(x)                                # x is made an f-string
 
 	def _handle_val(self,key,rep_key=None,for_deps=False) :
 		if not rep_key               : rep_key = key
@@ -319,7 +312,7 @@ class Handle :
 			for k,v in val.items() :
 				id_k,k = self._fstring(k,False                  )
 				id_v,v = self._fstring(v      ,for_deps=for_deps)
-				if   id_k or id_v : dv[k],sv[k] = self._fstring(v)[1],None     # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
+				if   id_k or id_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
 				else              : sv[k]       = v
 			if sv : self.static_val [key] = sv
 			if dv : self.dynamic_val[key] = dv
@@ -342,52 +335,43 @@ class Handle :
 		)
 		return ( static_val , tuple(names) , ctx , code )
 
-	def _fmt_deps_targets(self,key,entry) :
-		if callable(entry)       : return entry
-		if isinstance(entry,str) :
-			entry = (entry,())
-		else :
-			def chk_strs(x) :
-				if callable(x) or isinstance(x,str) : return
-				if isinstance(x,(tuple,list))       : any(chk_strs(c) for c in x)
-				else                                : raise TypeError(f'seen non str component {x}')
-			if not entry : raise TypeError(f'cannot find target {key} in empty entry')
-			chk_strs(entry)
-			if len(entry)!=2 or not isinstance(entry[1],(tuple,list)) : entry = (entry[0],entry[1:])
-		return entry
-
-	def handle_targets(self) :
-		if   'target'      in self.attrs and 'post_target' in self.attrs : raise ValueError('cannot specify both target and post_target')
-		if   'target'      in self.attrs                                 : self.attrs.targets     ['<stdout>'] = self.attrs.pop('target'     )
-		elif 'post_target' in self.attrs                                 : self.attrs.post_targets['<stdout>'] = self.attrs.pop('post_target')
-		bad_keys = set(self.attrs.targets) & set(self.attrs.post_targets)
-		if bad_keys : raise ValueError(f'{bad_keys} are defined both as target and post_target')
+	def handle_matches(self) :
+		if 'target' in self.attrs : self.attrs.targets['<stdout>'] = self.attrs.pop('target')
 		#
-		self.rule_rep.targets = {
-			**{ k:self._fmt_deps_targets(k,t) for k,t in               self.attrs.targets     .items()   }
-		,	**{ k:self._fmt_deps_targets(k,t) for k,t in reversed(list(self.attrs.post_targets.items())) }
+		def fmt(k,kind,val) :
+			if   isinstance(val,str         ) : return (val   ,kind        )
+			elif isinstance(val,(list,tuple)) : return (val[0],kind,val[1:])
+			raise TypeError(f'bad {kind} {k} : {val}')
+		#
+		d = {
+			**{ k:fmt(k,'target'      ,t) for k,t in self.attrs.targets     .items() }
+		,	**{ k:fmt(k,'target_flags',t) for k,t in self.attrs.target_flags.items() }
+		,	**{ k:fmt(k,'dep_flags'   ,t) for k,t in self.attrs.dep_flags   .items() }
 		}
+		if self.attrs.order : # reorder d
+			d2 = {}
+			for k in self.attrs.order : d2[k] = d[k]
+			for k,v in d.items()      : d2[k] = v
+			d = d2
+		self.rule_rep.matches = d
 
 	def handle_job_name(self) :
-		def find_job_name() :
-			if '<stdout>' in targets : return '<stdout>'                       # if we have a stdout, this is an excellent job_name
-			for r in self.rule.__mro__ :                                       # find the first clean target of the most specific class that has one
-				for k in r.__dict__.get('targets',{}).keys() :
-					if not no_match(targets[k]) : return k                     # no_match targets are not good names : they may be ambiguous and they are not the focus of the user
-			for k,t in targets.items() :                                       # find anything, a priori a post_target
-				if not no_match(t) : return k
-			assert False,f'cannot find adequate target to name jobs of {rule.__name__}' # we know we have clean targets, we should have found a job_name
-		#
-		targets = self.rule_rep.targets
-		if 'job_name' in self.attrs : self.rule_rep.job_name = self.attrs.job_name
-		else                        : self.rule_rep.job_name = targets[find_job_name()][0]
+		matches = self.rule_rep.matches
+		if   'job_name' in self.attrs : self.rule_rep.job_name = self.attrs.job_name    # if job name is specified, use it
+		elif '<stdout>' in matches    : self.rule_rep.job_name = matches['<stdout>'][0] # if we have a stdout, use it
+		else :                                                                          # use first target, the most specific one
+			for t in matches.values() :
+				if t[1]=='target' :
+					self.rule_rep.job_name = t[0]
+					break
+			else : assert False,f'cannot find a suitable job_name for {self.rule_rep.name}'
 
 	def prepare_jobs(self) :
 		self.static_stems = find_static_stems(self.rule_rep.job_name)
-		self.aggregate_per_job = {'stems','targets'}
+		self.aggregate_per_job = {'stems','target','targets'}
 		self.per_job = {
 			*self.static_stems
-		,	*( k for k in self.rule_rep.targets.keys() if k.isidentifier() )
+		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
 		self.rule_rep.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
@@ -405,14 +389,14 @@ class Handle :
 		self.rule_rep.cache_none_attrs = self._finalize()
 
 	def handle_deps(self) :
-		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.dep
+		if 'dep' in self.attrs : self.attrs.deps['<stdin>'] = self.attrs.pop('dep')
 		self._init()
 		self._handle_val('deps',for_deps=True)
 		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
 		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
 		if callable(self.dynamic_val) :
-			assert not self.static_val                                         # there must be no static val when deps are full dynamic
-			self.static_val  = None                                            # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                                                                  # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                                                     # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
@@ -437,7 +421,6 @@ class Handle :
 		self._handle_val('auto_mkdir'               )
 		self._handle_val('env'        ,'environ_cmd')
 		self._handle_val('ignore_stat'              )
-		self._handle_val('autodep'                  )
 		self._handle_val('chroot'                   )
 		self._handle_val('interpreter'              )
 		self._handle_val('tmp'                      )
@@ -456,6 +439,7 @@ class Handle :
 		self._handle_val('keep_tmp'                       )
 		self._handle_val('start_delay'                    )
 		self._handle_val('kill_sigs'                      )
+		self._handle_val('autodep'                        )
 		self._handle_val('n_retries'                      )
 		self._handle_val('env'        ,'environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
@@ -471,7 +455,8 @@ class Handle :
 		self.rule_rep.end_none_attrs = self._finalize()
 
 	def handle_cmd(self) :
-		if self.rule_rep.is_python :
+		self.rule_rep.is_python = self.attrs.is_python
+		if self.attrs.is_python :
 			cmd_ctx       = set()
 			serialize_ctx = (self.per_job,self.aggregate_per_job,*self.glbs)
 			cmd           = self.attrs.cmd
@@ -499,7 +484,7 @@ class Handle :
 			)
 			if multi :
 				cmd += 'def cmd() : \n'
-				x = avoid_ctx('x',serialize_ctx)                               # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx) # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
@@ -515,21 +500,22 @@ class Handle :
 			self.rule_rep.cmd = self._finalize()
 
 def fmt_rule(rule) :
-	if rule.__dict__.get('virtual',False) : return                             # with an explicit marker, this is definitely a base class
+	if rule.__dict__.get('virtual',False) : return                                                                   # with an explicit marker, this is definitely a base class
 	#
 	h = Handle(rule)
 	#
-	h.handle_targets()
-	if all(no_match(t) for t in h.rule_rep.targets.values()) :                                                       # if there is no way to match this rule, must be a base class
+	h.handle_matches()
+	if all(m[1]!='target' for m in h.rule_rep.matches.values()) :                                                    # if there is no way to match this rule, must be a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no matching target while virtual forced False')
 		return
 	h.handle_job_name()
 	#
 	# handle cases with no execution
 	if rule.__special__ :
-		return pdict( { k:v for k,v in h.rule_rep.items() if k in StdAntiAttrs } , __special__=rule.__special__ )
+		h.rule_rep.__special__ = rule.__special__
+		return h.rule_rep
 	# plain case
-	if not getattr(h.attrs,'cmd',None) :                                                                          # Rule must have a cmd, or it is a base class
+	if not getattr(h.attrs,'cmd',None) :                                                                             # Rule must have a cmd, or it is a base class
 		if not rule.__dict__.get('virtual',True) : raise ValueError('no cmd while virtual forced False')
 		return
 	#
@@ -591,7 +577,7 @@ def sep(l) :
 	lvl_stack[l+1:]  = []
 	lvl_stack[l]    += 1
 	return '\t'*l + (',','')[indent] + '\t'
-def tuple_end(l) :                                                             # /!\ must add a comma at end of singletons
+def tuple_end(l) :                                                   # /!\ must add a comma at end of singletons
 	return '\t'*l + ('',',')[ len(lvl_stack)>l and lvl_stack[l]==1 ]
 
 with open(sys.argv[1],'w') as out :

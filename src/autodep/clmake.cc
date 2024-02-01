@@ -10,7 +10,8 @@
 #include "hash.hh"
 #include "time.hh"
 
-#include "support.hh"
+#include "env.hh"
+#include "record.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -18,7 +19,12 @@ using namespace Time ;
 
 using Proc = JobExecRpcProc ;
 
-static AutodepSupport _g_autodep_support ;
+static AutodepEnv _g_autodep_env ;
+
+static Record& record() {
+	static Record* s_res = new Record{New} ;
+	return *s_res ;
+}
 
 static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	ssize_t n_args = PyTuple_GET_SIZE(args) + (kw?PyDict_Size(kw):0) ;
@@ -29,7 +35,7 @@ static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) 
 		if (!py_verbose) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
 		verbose = PyObject_IsTrue(py_verbose) ;
 	}
-	JobExecRpcReply reply = _g_autodep_support.req(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/)) ;
+	JobExecRpcReply reply = record().direct(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/)) ;
 	if (!verbose) Py_RETURN_NONE ;
 	switch (reply.ok) {
 		case Yes   :                                                                   Py_RETURN_TRUE  ;
@@ -93,8 +99,7 @@ static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		//
 		if (n_kwds) throw "unexpected keyword arg"s ;
 		//
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) ) ;
-		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                              ;
+		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) )) ;
 		if (reply.ok!=Yes) throw reply.txt ;
 		return PyUnicode_FromString(reply.txt.c_str()) ;
 	} catch (::string const& e) {
@@ -114,67 +119,12 @@ static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		if (n_kwds                ) throw "unexpected keyword arg"s                                                                      ;
 		if (min_len>MaxCodecBits/4) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits/4,')') ; // codes are output in hex, 4 bits/digit
 		//
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len ) ;
-		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                       ;
+		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len )) ;
 		if (reply.ok!=Yes) throw reply.txt ;
 		return PyUnicode_FromString(reply.txt.c_str()) ;
 	} catch (::string const& e) {
 		if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError,e.c_str()) ;
 		return nullptr ;
-	}
-}
-
-static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t  n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool     verbose   = false                    ;
-	bool     no_follow = false                    ;
-	Accesses accesses  = Accesses::All            ;
-	Dflags   dflags    = DfltDflags               ;
-	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"verbose"        ) ) { n_kw_args-- ; verbose   =  PyObject_IsTrue(py_v) ; }
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
-		for( Access a : Access::N )
-			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a).c_str())) {
-				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) accesses |=  a ;
-				else                       accesses &= ~a ;
-			}
-		for( Dflag df=Dflag::HiddenMin ; df<Dflag::HiddenMax1 ; df++ )
-			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) {
-				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) dflags |=  df ;
-				else                       dflags &= ~df ;
-			}
-		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
-	}
-	::vector_s files ;
-	try                       { files = _get_files(args) ;                                    }
-	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
-	//
-	if (verbose) {
-		if (!files) return PyDict_New() ;                               // fast path : depend on no files
-		//
-		JobExecRpcReq   jerr  = JobExecRpcReq( Proc::DepInfos , ::move(files) , accesses , dflags , no_follow ) ;
-		JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                    ;
-		SWEAR( reply.dep_infos.size()==jerr.files.size() , reply.dep_infos.size() , jerr.files.size() ) ;
-		PyObject* res = PyDict_New() ;
-		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
-			PyObject* v = PyTuple_New(2) ;
-			switch (reply.dep_infos[i].first) {
-				case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
-				case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
-				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
-				default : FAIL(reply.dep_infos[i].first) ;
-			}
-			// answer returned value, even if dep is out-of-date, as if crc turns out to be correct, the job will not be rerun
-			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.dep_infos[i].second).c_str()) ) ;
-			PyDict_SetItemString( res , jerr.files[i].first.c_str() , v ) ;
-			Py_DECREF(v) ;
-		}
-		return res ;
-	} else {
-		_g_autodep_support.req( JobExecRpcReq( Proc::Access , ::move(files) , {accesses,dflags} , no_follow , "depend" ) ) ;
-		Py_RETURN_NONE ;
 	}
 }
 
@@ -220,16 +170,16 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	::string const& view = views[0] ;
 	if (!view) return PyUnicode_FromString("") ;
 	//
-	RealPath::SolveReport solve_report = RealPath(_g_autodep_support).solve(view,no_follow) ;
+	RealPath::SolveReport solve_report = RealPath(_g_autodep_env).solve(view,no_follow) ;
 	//
 	switch (solve_report.kind) {
 		case Kind::Root :
 			return PyUnicode_FromString("") ;
 		case Kind::Repo :
 			try {
-				::string abs_path         = mk_abs(solve_report.real,_g_autodep_support.root_dir+'/') ;
+				::string abs_path         = mk_abs(solve_report.real,_g_autodep_env.root_dir+'/') ;
 				::string abs_sub_root_dir = search_root_dir(abs_path).first                           ; abs_sub_root_dir += '/' ;
-				return PyUnicode_FromString( abs_sub_root_dir.c_str()+_g_autodep_support.root_dir.size()+1 ) ;
+				return PyUnicode_FromString( abs_sub_root_dir.c_str()+_g_autodep_env.root_dir.size()+1 ) ;
 			} catch (::string const&e) {
 				PyErr_SetString(PyExc_ValueError,e.c_str()) ;
 				return nullptr ;
@@ -240,38 +190,73 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	}
 }
 
-static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_kw_args  = kw ? PyDict_Size(kw) : 0 ;
-	bool    unlink     = false                    ;
-	bool    no_follow  = false                    ;
-	Tflags  neg_tflags ;
-	Tflags  pos_tflags ;
+static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	ssize_t  n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool     verbose   = false                    ;
+	bool     no_follow = false                    ;
+	Accesses accesses  = Accesses::All            ;
+	Dflags   dflags    ;
 	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"unlink"         ) ) { n_kw_args-- ; unlink    =  PyObject_IsTrue(py_v) ; }
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks") ) { n_kw_args-- ; no_follow = !PyObject_IsTrue(py_v) ; }
+		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"verbose"           )) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) verbose    = true ; }
+		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) no_follow  = true ; }
+		for( Access a  : Access::N   ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a ).c_str())) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) accesses  &= ~a   ; }
+		for( Dflag  df : Dflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) dflags    |= df   ; }
 	}
-	if (!unlink) pos_tflags = {Tflag::Crc,Tflag::Write} ;                      // we declare that we write, allow it and compute crc by default
 	if (n_kw_args) {
-		for( Tflag tf=Tflag::HiddenMin ; tf<Tflag::HiddenMax1 ; tf++ )
-			if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) {
-				n_kw_args-- ;
-				if (PyObject_IsTrue(py_v)) pos_tflags |= tf ;
-				else                       neg_tflags |= tf ;
-			}
-		if (n_kw_args) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
+		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;
+		return nullptr ;
 	}
-	if ( unlink && (+neg_tflags||+pos_tflags) ) { PyErr_SetString(PyExc_TypeError,"cannot unlink and set target flags") ; return nullptr ; }
 	::vector_s files ;
 	try                       { files = _get_files(args) ;                                    }
 	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
 	//
-	AccessDigest ad ;
-	ad.neg_tflags = neg_tflags ;
-	ad.pos_tflags = pos_tflags ;
-	ad.write      = !unlink    ;
-	ad.unlink     = unlink     ;
-	JobExecRpcReq   jerr  = JobExecRpcReq( Proc::Access , ::move(files) , ad , no_follow , "target" ) ;
-	JobExecRpcReply reply = _g_autodep_support.req(jerr)                                                                                                                         ;
+	if (verbose) {
+		if (!files) return PyDict_New() ; // fast path : depend on no files
+		//
+		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {accesses,dflags} , no_follow , true/*sync*/ , "depend" )) ;
+		//
+		SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
+		PyObject* res = PyDict_New() ;
+		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
+			PyObject* v = PyTuple_New(2) ;
+			switch (reply.dep_infos[i].first) {
+				case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
+				case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
+				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
+				default : FAIL(reply.dep_infos[i].first) ;
+			}
+			// answer returned value, even if dep is out-of-date, as if crc turns out to be correct, the job will not be rerun
+			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.dep_infos[i].second).c_str()) ) ;
+			PyDict_SetItemString( res , files[i].c_str() , v ) ;
+			Py_DECREF(v) ;
+		}
+		return res ;
+	} else {
+		record().direct(JobExecRpcReq( Proc::Access , ::move(files) , {accesses,dflags} , no_follow , "depend" )) ;
+		Py_RETURN_NONE ;
+	}
+}
+
+static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
+	ssize_t      n_kw_args = kw ? PyDict_Size(kw) : 0 ;
+	bool         no_follow = false                    ;
+	AccessDigest ad        ;
+	if (n_kw_args) {
+		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"unlink"            )) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) ad.unlink  = true ; }
+		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) no_follow  = true ; }
+		for( Tflag tf : Tflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) ad.tflags |= tf   ; }
+	}
+	if (n_kw_args) {
+		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;
+		return nullptr ;
+	}
+	::vector_s files ;
+	try                       { files = _get_files(args) ;                                    }
+	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
+	//
+	ad.write = !ad.unlink ;
+	record().direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
+	record().direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlink*/ , true/*ok*/                                            )) ;
 	//
 	Py_RETURN_NONE ;
 }
@@ -290,7 +275,7 @@ static PyMethodDef funcs[] = {
 ,	{	"depend"
 	,	reinterpret_cast<PyCFunction>(depend)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,critical=False,ignore_error=False,essential=False). Mark all arguments as parallel dependencies."
+	,	"depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...). Pretend read of all argument and mark them with flags mentioned as True."
 	}
 ,	{	"encode"
 	,	reinterpret_cast<PyCFunction>(encode)
@@ -310,7 +295,7 @@ static PyMethodDef funcs[] = {
 ,	{	"target"
 	,	reinterpret_cast<PyCFunction>(target)
 	,	METH_VARARGS|METH_KEYWORDS
-	,	"target(target1,target2,...,unlink=False,follow_symlinks=True,<flags>=<leave as is>). Mark all arguments as targets."
+	,	"target(target1,target2,...,follow_symlinks=True,unlink=False,<target flags=True>,...). Pretend write to/unlink all arguments and mark them with flags mentioned as True."
 	}
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
@@ -331,25 +316,26 @@ static struct PyModuleDef lmake_module = {
 PyMODINIT_FUNC PyInit_clmake() {
 	PyObject* mod = PyModule_Create(&lmake_module) ;
 	//
-	_g_autodep_support = New ;
-	if (!has_env("LMAKE_AUTODEP_ENV")) {
-		try                     { _g_autodep_support.root_dir = search_root_dir().first ; }
-		catch (::string const&) { _g_autodep_support.root_dir = cwd()                   ; }
+	if (has_env("LMAKE_AUTODEP_ENV")) {
+		_g_autodep_env = New ;
+	} else {
+		try                     { _g_autodep_env.root_dir = search_root_dir().first ; }
+		catch (::string const&) { _g_autodep_env.root_dir = cwd()                   ; }
 	}
 	PyObject* backends_py = PyTuple_New(1+HAS_SLURM) ;                             // PER_BACKEND : add an entry here
 	/**/           PyTuple_SET_ITEM(backends_py,0,PyUnicode_FromString("local")) ;
 	if (HAS_SLURM) PyTuple_SET_ITEM(backends_py,1,PyUnicode_FromString("slurm")) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_support.root_dir.c_str() ) ;
-	PyModule_AddObject        ( mod , "backends"       , backends_py                         ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False   ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True              ) ;
-	PyObject_SetAttrString    ( mod , "has_ptrace"     ,                Py_True              ) ;
-	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)      ) ;
-	PyObject_SetAttrString    ( mod , "crc_a_link"     , PyLong_FromLong(+Crc::Lnk    )      ) ;
-	PyObject_SetAttrString    ( mod , "crc_a_reg"      , PyLong_FromLong(+Crc::Reg    )      ) ;
-	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )      ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_env.root_dir.c_str()   ) ;
+	PyModule_AddObject        ( mod , "backends"       , backends_py                       ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False ) ;
+	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True            ) ;
+	PyObject_SetAttrString    ( mod , "has_ptrace"     ,                Py_True            ) ;
+	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)    ) ;
+	PyObject_SetAttrString    ( mod , "crc_a_link"     , PyLong_FromLong(+Crc::Lnk    )    ) ;
+	PyObject_SetAttrString    ( mod , "crc_a_reg"      , PyLong_FromLong(+Crc::Reg    )    ) ;
+	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )    ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	return mod ;
 }
 #pragma GCC visibility pop

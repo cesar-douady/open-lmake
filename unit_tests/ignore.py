@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,ignore_flags
+	from lmake.rules import Rule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -14,11 +14,12 @@ if __name__!='__main__' :
 	)
 
 	class Cat(Rule) :
-		targets = {
-			'DST'     :  'hello.cpy'
-		,	'SCRATCH' : ('hello'    ,ignore_flags,'-write')
-		}
-		cmd = 'cat hello > {DST}'
+		targets      = { 'DST'     :  'hello.cpy'                            }
+		target_flags = { 'SCRATCH' : ('hello'    ,'incremental','manual_ok') }
+		cmd = '''
+			echo 2nd line >> hello
+			cat hello > {DST}
+		'''
 
 else :
 
@@ -26,4 +27,4 @@ else :
 
 	print('hello',file=open('hello','w'))
 
-	ut.lmake( 'hello.cpy' , done=1 )                                           # check no dependency on hello
+	ut.lmake( 'hello.cpy' , done=1 ) # check no dependency on hello

@@ -182,8 +182,8 @@ namespace Engine {
 		Console                                                                  console               ;
 		::map_s<size_t>                                                          static_n_tokenss      ;
 		::map_s<size_t>                                                          dyn_n_tokenss         ;
-		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {} ;     // precision of standard resources
-		::array<Backend,+BackendTag::N>                                          backends              ;          // backend may refuse dynamic modification
+		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {} ;    // precision of standard resources
+		::array<Backend,+BackendTag::N>                                          backends              ;         // backend may refuse dynamic modification
 		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {} ;
 	} ;
 
@@ -215,7 +215,7 @@ namespace Engine {
 			else                                     return ConfigDiff::None    ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted           = false ; // a marker to distinguish clean repository
+		bool     booted           = false ;                  // a marker to distinguish clean repository
 		::string local_admin_dir  ;
 		::string remote_admin_dir ;
 		::string remote_tmp_dir   ;
@@ -252,7 +252,7 @@ namespace Engine {
 		Job            job    (::string const& startup_dir_s={}) const ; // .
 		// data
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ; // if proc==Close
+		Req        req     = {}            ;                             // if proc==Close
 		Fd         in_fd   = {}            ;
 		Fd         out_fd  = {}            ;
 		::vector_s files   = {}            ;
@@ -337,7 +337,7 @@ namespace Engine {
 		// data
 		Kind kind = K::Global ;
 		union {
-			GlobalProc global_proc = GP::None ;            // if kind==Global
+			GlobalProc global_proc = GP::None ; // if kind==Global
 			Req_       req         ;
 			Job_       job         ;
 		} ;

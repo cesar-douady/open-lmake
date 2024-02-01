@@ -5,7 +5,7 @@
 
 #include "app.hh"
 
-#include "support.hh"
+#include "record.hh"
 
 #include "rpc_job.hh"
 
@@ -22,19 +22,18 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::File    , { .short_name='f' , .has_arg=true , .doc="file storing code-value associations"                 } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to retreive value from code" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line   { syntax,argc,argv } ;
+	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
 	if (!cmd_line.flags[Flag::Code   ]) syntax.usage("must have code to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
-	JobExecRpcReq jerr {
+	JobExecRpcReply reply = Record(New).direct(JobExecRpcReq(
 		JobExecRpcProc::Decode
 	,	::move(cmd_line.flag_args[+Flag::File   ])
 	,	::move(cmd_line.flag_args[+Flag::Code   ])
 	,	::move(cmd_line.flag_args[+Flag::Context])
-	} ;
-	JobExecRpcReply reply = AutodepSupport(New).req(jerr) ;
+	)) ;
 	if (reply.ok==Yes) { ::cout<<reply.txt ; return 0 ; }
 	else               { ::cerr<<reply.txt ; return 1 ; }
 }

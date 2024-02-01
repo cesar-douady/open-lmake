@@ -13,10 +13,8 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py','step.py')
 
 	class Cpy(Rule) :
-		targets = {
-			'DST'        :   'test'
-		,	'SCRATCHPAD' : ( 'test.sp' , 'phony' )
-		}
+		targets      = { 'DST'        : 'test'    }
+		target_flags = { 'SCRATCHPAD' : 'test.sp' }
 		if python :
 			def cmd() :
 				import os

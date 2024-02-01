@@ -45,12 +45,12 @@
 
 namespace Engine {
 
-	struct StoreMrkr {} ;              // just a marker to disambiguate file association
+	struct StoreMrkr {} ; // just a marker to disambiguate file association
 
 	struct Dep    ;
 	struct Target ;
 
-	extern SeqId* g_seq_id ;           // used to identify launched jobs. Persistent so that we keep as many old traces as possible
+	extern SeqId* g_seq_id ; // used to identify launched jobs. Persistent so that we keep as many old traces as possible
 
 }
 
@@ -160,16 +160,16 @@ namespace Engine::Persistent {
 		static ::vector<Node> s_frozens          (                                  ) ;
 		static ::vector<Node> s_manual_oks       (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
-		static void           s_frozens          ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
-		static void           s_manual_oks       ( bool add , ::vector<Node> const& ) ; // erase (!add) or insert (add)
-		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ; // .
+		static void           s_frozens          ( bool add , ::vector<Node> const& ) ;     // erase (!add) or insert (add)
+		static void           s_manual_oks       ( bool add , ::vector<Node> const& ) ;     // erase (!add) or insert (add)
+		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ;     // .
 		static void           s_clear_frozens    (                                  ) ;
 		static void           s_clear_manual_oks (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
 		//
 		static Targets const s_srcs( bool dirs                                    ) ;
-		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;   // erase (!add) or insert (add)
+		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;       // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
@@ -290,23 +290,23 @@ namespace Engine::Persistent {
 	// commons
 	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
-	static constexpr char StartMrkr = 0x0 ;                // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
+	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 
 	// visible data
 	extern bool writable ;
 
 	// on disk
-	extern JobFile      _job_file          ;               // jobs
-	extern DepsFile     _deps_file         ;               // .
-	extern TargetsFile  _star_targets_file ;               // .
-	extern NodeFile     _node_file         ;               // nodes
-	extern JobTgtsFile  _job_tgts_file     ;               // .
-	extern RuleStrFile  _rule_str_file     ;               // rules
-	extern RuleFile     _rule_file         ;               // .
-	extern RuleTgtsFile _rule_tgts_file    ;               // .
-	extern SfxFile      _sfxs_file         ;               // .
-	extern PfxFile      _pfxs_file         ;               // .
-	extern NameFile     _name_file         ;               // commons
+	extern JobFile      _job_file       ; // jobs
+	extern DepsFile     _deps_file      ; // .
+	extern TargetsFile  _targets_file   ; // .
+	extern NodeFile     _node_file      ; // nodes
+	extern JobTgtsFile  _job_tgts_file  ; // .
+	extern RuleStrFile  _rule_str_file  ; // rules
+	extern RuleFile     _rule_file      ; // .
+	extern RuleTgtsFile _rule_tgts_file ; // .
+	extern SfxFile      _sfxs_file      ; // .
+	extern PfxFile      _pfxs_file      ; // .
+	extern NameFile     _name_file      ; // commons
 	// in memory
 	extern ::uset<Job >       _frozen_jobs     ;
 	extern ::uset<Job >       _manual_ok_jobs  ;
@@ -318,10 +318,10 @@ namespace Engine::Persistent {
 }
 
 namespace Vector {
-	template<> struct File<Engine            ::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_deps_file         ; } ;
-	template<> struct File<Engine            ::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_star_targets_file ; } ;
-	template<> struct File<Engine            ::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_job_tgts_file     ; } ;
-	template<> struct File<Engine::Persistent::RuleStr    > { static constexpr Engine::Persistent::RuleStrFile& file = Engine::Persistent::_rule_str_file     ; } ;
+	template<> struct File<Engine            ::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_deps_file     ; } ;
+	template<> struct File<Engine            ::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_targets_file  ; } ;
+	template<> struct File<Engine            ::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_job_tgts_file ; } ;
+	template<> struct File<Engine::Persistent::RuleStr    > { static constexpr Engine::Persistent::RuleStrFile& file = Engine::Persistent::_rule_str_file ; } ;
 }
 
 namespace Engine::Persistent {
@@ -396,8 +396,8 @@ namespace Engine::Persistent {
 
 	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
 		bool modified = false ;
-		if      (add ) for( Item j : items ) modified |= mem.insert(j).second ;
-		else if (+mem) for( Item j : items ) modified |= mem.erase (j)        ; // fast path : no need to update mem if it is already empty
+		if      (add ) for( Item i : items ) modified |= mem.insert(i).second ;
+		else if (+mem) for( Item i : items ) modified |= mem.erase (i)        ; // fast path : no need to update mem if it is already empty
 		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
 	}
 	template<class Disk,class Item> inline void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
@@ -420,7 +420,7 @@ namespace Engine::Persistent {
 	//
 	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
 	// cxtors & casts
-	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {    // 1st arg is only used to disambiguate
+	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
 		*this = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
 	}
 	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
@@ -491,10 +491,10 @@ namespace Engine::Persistent {
 		static ::mutex s_m ;                                                                                // nodes can be created from several threads, ensure coherence between names and nodes
 		::unique_lock lock = locked? (SWEAR(!s_m.try_lock()),::unique_lock<mutex>()) : ::unique_lock(s_m) ;
 		*this = _name_file.c_at(name_).node() ;
-		if (+*this) {                                                                                                                 // fast path : avoid taking lock
+		if (+*this) {
 			SWEAR( name_==(*this)->_full_name , *this , name_ , (*this)->_full_name , _name_file.c_at((*this)->_full_name).node() ) ;
 		} else {
-			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ; // if dir must be created, we already hold the lock
+			_name_file.at(name_) = *this = _node_file.emplace(name_,no_dir,true/*locked*/) ;                // if dir must be created, we already hold the lock
 		}
 	}
 	inline NodeBase::NodeBase( ::string const& n , bool no_dir , bool locked ) {

@@ -22,7 +22,7 @@ using namespace Hash ;
 	return                                                os <<')'                      ;
 }
 
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
 	::uset_s   keep_dirs ;
 	::vector_s unlinks   ;
 	::string   msg       ;
@@ -38,9 +38,9 @@ using namespace Hash ;
 		{ if ( !a.crc.valid() || a.crc.match(Crc(f,ha)) )                     continue ;   } ok = false ;                          // if no expected crc or recomputed crc matches, it is not an error
 	}
 	if (ok)
-		for( auto const& [f,a] : pre_actions ) {                                                                                   // pre_actions are adequately sorted
-			SWEAR(+f) ;                                                                                                            // acting on root dir is non-sense
-			if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                    // no file to act on
+		for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
+			SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
+			if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                         // no file to act on
 			switch (a.tag) {
 				case FileActionTag::None     :                                                                                     break ;
 				case FileActionTag::Unlink   : if (unlink  (nfs_guard.change(f))) unlinks.push_back(f)                           ; break ;
@@ -89,6 +89,7 @@ using namespace Hash ;
 	if ( td.write   ) { os <<sep<< "write"     ; sep = "," ; }
 	if (+td.tflags  ) { os <<sep<< td.tflags   ; sep = "," ; }
 	if (+td.crc     ) { os <<sep<< td.crc      ; sep = "," ; }
+	if (+td.date    ) { os <<sep<< td.date     ; sep = "," ; }
 	return              os <<')'               ;
 }
 
@@ -113,7 +114,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		case JobExecRpcProc::Encode : proc = P::Encode  ; msg = ::move(jerr.txt) ; file = ::move(jerr.files[0].first) ; ctx = ::move(jerr.ctx) ; min_len = jerr.min_len ; break ;
 		case JobExecRpcProc::DepInfos : {
 			::vmap_s<DepDigest> ds ; ds.reserve(jerr.files.size()) ;
-			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,jerr.digest.dflags,true/*parallel*/) ) ;
+			for( auto&& [dep,date] : jerr.files ) ds.emplace_back( ::move(dep) , DepDigest(jerr.digest.accesses,date,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
 			proc        = P::DepInfos ;
 			digest.deps = ::move(ds) ;
 		} break ;
@@ -125,8 +126,15 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 // JobRpcReply
 //
 
-::ostream& operator<<( ::ostream& os , TargetSpec const& ts ) {
-	return os << "TargetSpec(" << ts.pattern <<','<< ts.tflags <<')' ;
+::ostream& operator<<( ::ostream& os , MatchFlags const& mf ) {
+	os << "MatchFlags(" ;
+	switch (mf.is_target) {
+		case Yes   : os << "target," << mf.tflags() ; break ;
+		case No    : os << "dep,"    << mf.dflags() ; break ;
+		case Maybe :                                  break ;
+		default : FAIL(mf.is_target) ;
+	}
+	return os << ')' ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobRpcReply const& jrr ) {
@@ -137,25 +145,26 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		case JobProc::Encode   : os <<','<< jrr.txt <<','<< jrr.crc <<','<< jrr.ok ; break ;
 		case JobProc::DepInfos : os <<','<< jrr.dep_infos                          ; break ;
 		case JobProc::Start :
-			/**/                    os <<',' << hex<<jrr.addr<<dec               ;
-			/**/                    os <<',' << jrr.autodep_env                  ;
-			if (+jrr.chroot       ) os <<',' << jrr.chroot                       ;
-			if (+jrr.cwd_s        ) os <<',' << jrr.cwd_s                        ;
-			/**/                    os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
-			if (+jrr.static_deps  ) os <<',' << jrr.static_deps                  ;
-			/**/                    os <<',' << jrr.interpreter                  ;
-			if (jrr.keep_tmp      ) os <<',' << "keep_tmp"                       ;
-			/**/                    os <<',' << jrr.kill_sigs                    ;
-			if (jrr.live_out      ) os <<',' << "live_out"                       ;
-			/**/                    os <<',' << jrr.method                       ;
-			if (+jrr.network_delay) os <<',' << jrr.network_delay                ;
-			/**/                    os <<',' << jrr.remote_admin_dir             ;
-			/**/                    os <<',' << jrr.small_id                     ;
-			if (+jrr.stdin        ) os <<'<' << jrr.stdin                        ;
-			if (+jrr.stdout       ) os <<'>' << jrr.stdout                       ;
-			/**/                    os <<"*>"<< jrr.targets                      ;
-			if (+jrr.timeout      ) os <<',' << jrr.timeout                      ;
-			/**/                    os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
+			/**/                     os <<',' << hex<<jrr.addr<<dec               ;
+			/**/                     os <<',' << jrr.autodep_env                  ;
+			if (+jrr.chroot        ) os <<',' << jrr.chroot                       ;
+			if (+jrr.cwd_s         ) os <<',' << jrr.cwd_s                        ;
+			/**/                     os <<',' << mk_printable(to_string(jrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+			/**/                     os <<',' << jrr.interpreter                  ;
+			if (jrr.keep_tmp       ) os <<',' << "keep_tmp"                       ;
+			/**/                     os <<',' << jrr.kill_sigs                    ;
+			if (jrr.live_out       ) os <<',' << "live_out"                       ;
+			/**/                     os <<',' << jrr.method                       ;
+			if (+jrr.network_delay ) os <<',' << jrr.network_delay                ;
+			/**/                     os <<',' << jrr.remote_admin_dir             ;
+			/**/                     os <<',' << jrr.small_id                     ;
+			if (+jrr.star_matches  ) os <<',' << jrr.star_matches                 ;
+			if (+jrr.static_deps   ) os <<'<' << jrr.static_deps                  ;
+			if (+jrr.static_matches) os <<'>' << jrr.static_matches               ;
+			if (+jrr.stdin         ) os <<'<' << jrr.stdin                        ;
+			if (+jrr.stdout        ) os <<'>' << jrr.stdout                       ;
+			if (+jrr.timeout       ) os <<',' << jrr.timeout                      ;
+			/**/                     os <<',' << jrr.cmd                          ; // last as it is most probably multi-line
 			;
 		break ;
 		default : ;
@@ -168,12 +177,12 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 //
 
 ::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
-	/**/                               os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
-	if ( ad.prev_write  || ad.write  ) os <<',' << "write:"<<ad.prev_write<<"->"<<ad.write        ;
-	if (+ad.neg_tflags               ) os <<",-"<< ad.neg_tflags                                  ;
-	if (+ad.pos_tflags               ) os <<",+"<< ad.pos_tflags                                  ;
-	if ( ad.prev_unlink || ad.unlink ) os <<",unlink:"<< ad.prev_unlink<<"->"<<ad.unlink          ;
-	return                             os <<')'                                                   ;
+	/**/             os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
+	if (+ad.tflags ) os <<","<< ad.tflags                                       ;
+	if (+ad.dflags ) os <<","<< ad.dflags                                       ;
+	if ( ad.write  ) os <<",write"                                              ;
+	if ( ad.unlink ) os <<",unlink"                                             ;
+	return           os <<')'                                                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -196,29 +205,22 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 }
 
 void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
-	dflags |= ad.dflags ;                                                  // in all cases, dflags are always accumulated
 	switch (order) {
 		case AccessOrder::Before :
-			crc_date(ad) ;                                                 // read info is sampled at first read
+			crc_date(ad) ;                                                                  // read info is sampled at first read
 			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
 		break ;
 		case AccessOrder::BetweenReadAndWrite :
-			if (!accesses) crc_date(ad) ;                                  // read info is sampled at first read
+			if (!accesses) crc_date(ad) ;                                                   // read info is sampled at first read
 			/**/           accesses |= ad.accesses ;
 		break ;
-		default : SWEAR(order>=AccessOrder::Write) ;                       // ensure we have not forgotten a case
+		default : SWEAR(order>=AccessOrder::Write) ;                                        // ensure we have not forgotten a case
 	}
 	//
-	Tflags ntfs1 = order>=AccessOrder::Write ?    neg_tflags : ad.neg_tflags ;
-	Tflags ptfs1 = order>=AccessOrder::Write ?    pos_tflags : ad.pos_tflags ;
-	Tflags ntfs2 = order>=AccessOrder::Write ? ad.neg_tflags :    neg_tflags ;
-	Tflags ptfs2 = order>=AccessOrder::Write ? ad.pos_tflags :    pos_tflags ;
-	neg_tflags = ( ntfs1 & ~ptfs2 ) | ntfs2 ;
-	pos_tflags = ( ptfs1 & ~ntfs2 ) | ptfs2 ;
+	tflags |= ad.tflags ;
+	dflags |= ad.dflags ;
 	//
 	if (!ad.idle()) {
-		prev_unlink = unlink ;
-		prev_write  = write  ;
 		if ( idle() || order==AccessOrder::After ) unlink = ( unlink && !ad.write ) || ad.unlink ;
 		/**/                                       write  =   write                 || ad.write  ;
 	}

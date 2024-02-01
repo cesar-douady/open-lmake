@@ -24,9 +24,9 @@ namespace Backends::Slurm {
 	struct Daemon {
 		friend ::ostream& operator<<( ::ostream& , Daemon const& ) ;
 		// data
-		Pdate           time_origin { "2023-01-01 00:00:00" } ;                // this leaves room til 2091
-		float           nice_factor { 1                     } ;                // conversion factor in the form of number of nice points per second
-		::map_s<size_t> licenses    ;                                          // licenses sampled from daemon
+		Pdate           time_origin { "2023-01-01 00:00:00" } ; // this leaves room til 2091
+		float           nice_factor { 1                     } ; // conversion factor in the form of number of nice points per second
+		::map_s<size_t> licenses    ;                           // licenses sampled from daemon
 	} ;
 
 	//
@@ -38,17 +38,17 @@ namespace Backends::Slurm {
 		// accesses
 		bool operator==(RsrcsDataSingle const&) const = default ;
 		// data
-		uint16_t cpu      = 0 ;        // number of logical cpu  (sbatch    --cpus-per-task option)
-		uint32_t mem      = 0 ;        // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
-		uint32_t tmp      = 0 ;        // tmp disk in MB         (sbatch    --tmp           option)
-		::string excludes ;            // list of excludes nodes (sbatch -x,--exclude       option)
-		::string feature  ;            // feature/contraint      (sbatch -C,--constraint    option)
-		::string gres     ;            // generic resources      (sbatch    --gres          option)
-		::string licenses ;            // licenses               (sbtach -L,--licenses      option)
-		::string nodes    ;            // list of required nodes (sbatch -w,--nodelist      option)
-		::string part     ;            // partition name         (sbatch -p,--partition     option)
-		::string qos      ;            // quality of service     (sbtach -q,--qos           option)
-		::string reserv   ;            // reservation            (sbtach -r,--reservation   option)
+		uint16_t cpu      = 0 ; // number of logical cpu  (sbatch    --cpus-per-task option)
+		uint32_t mem      = 0 ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
+		uint32_t tmp      = 0 ; // tmp disk in MB         (sbatch    --tmp           option)
+		::string excludes ;     // list of excludes nodes (sbatch -x,--exclude       option)
+		::string feature  ;     // feature/contraint      (sbatch -C,--constraint    option)
+		::string gres     ;     // generic resources      (sbatch    --gres          option)
+		::string licenses ;     // licenses               (sbtach -L,--licenses      option)
+		::string nodes    ;     // list of required nodes (sbatch -w,--nodelist      option)
+		::string part     ;     // partition name         (sbatch -p,--partition     option)
+		::string qos      ;     // quality of service     (sbtach -q,--qos           option)
+		::string reserv   ;     // reservation            (sbtach -r,--reservation   option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
@@ -112,14 +112,14 @@ namespace Backends::Slurm {
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
 			// no entry is equivalent to entry with 0
-			void inc(Rsrcs rs) { try_emplace(rs,0).first->second++ ; }         // create 0 entry if necessary
-			void dec(Rsrcs rs) {                                               // entry must exist
+			void inc(Rsrcs rs) { try_emplace(rs,0).first->second++ ; } // create 0 entry if necessary
+			void dec(Rsrcs rs) {                                       // entry must exist
 				auto sit = find(rs) ;
-				if(!--sit->second) erase(sit) ;                                // no entry means 0, so collect when possible (questionable)
+				if(!--sit->second) erase(sit) ;                        // no entry means 0, so collect when possible (questionable)
 			}
 			JobIdx n_spawned(Rsrcs rs) {
 				auto it = find(rs) ;
-				if (it==end()) return 0          ;                             // no entry means 0
+				if (it==end()) return 0          ;                     // no entry means 0
 				else           return it->second ;
 			}
 		} ;
@@ -132,12 +132,12 @@ namespace Backends::Slurm {
 		}
 
 		// static data
-		static QueueThread<uint32_t>* _s_slurm_cancel_thread ;                 // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static QueueThread<uint32_t>* _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
-		virtual Bool3 call_launch_after_start() const { return Maybe ; }       // if Maybe, only launch jobs w/ same resources
-		virtual Bool3 call_launch_after_end  () const { return No    ; }       // .
+		virtual Bool3 call_launch_after_start() const { return Maybe ; } // if Maybe, only launch jobs w/ same resources
+		virtual Bool3 call_launch_after_end  () const { return No    ; } // .
 
 		// services
 
@@ -146,7 +146,7 @@ namespace Backends::Slurm {
 			if (!dynamic) slurm_init() ;
 			static QueueThread<uint32_t> slurm_cancel_thread{'C',slurm_cancel} ; _s_slurm_cancel_thread = &slurm_cancel_thread ;
 			//
-			repo_key = base_name(*g_root_dir)+':' ;                            // cannot put this code directly as init value as g_root_dir is not available early enough
+			repo_key = base_name(*g_root_dir)+':' ; // cannot put this code directly as init value as g_root_dir is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
@@ -208,7 +208,7 @@ namespace Backends::Slurm {
 			return to_string("slurm_id:",se.id) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( JobIdx j , SpawnedEntry const& se , Status s ) const {
-			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;  // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
+			if ( !se.verbose && s>Status::Async ) return {{},true/*retry*/} ;                           // common case, must be fast, if job was ended asynchronously, better to ask slurm controler why
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c=0 ; c<2 ; c++ ) {
 				Delay d { 0.01 }                                                  ;
@@ -217,16 +217,16 @@ namespace Backends::Slurm {
 					info = slurm_job_state(se.id) ;
 					if (info.second!=Maybe) goto JobDead ;
 					if (c>=e              ) break        ;
-					d.sleep_for() ;                                            // wait, hoping job is dying, double delay every loop until hearbeat tick
+					d.sleep_for() ;                                                 // wait, hoping job is dying, double delay every loop until hearbeat tick
 					d = ::min( d+d , g_config.heartbeat_tick ) ;
 				}
-				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
+				if (c==0) _s_slurm_cancel_thread->push(se.id) ;                     // if still alive after network delay, (asynchronously as faster and no return value) cancel job and retry
 			}
 			info.first = "job is still alive" ;
 		JobDead :
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (+stderr) info.first = ensure_nl(::move(info.first))+stderr ; // full report
+				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }     // full report
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -236,14 +236,14 @@ namespace Backends::Slurm {
 			//
 			if (se.verbose) {
 				::string stderr = read_stderr(j) ;
-				if (+stderr) info.first = ensure_nl(::move(info.first))+stderr ;
+				if (+stderr) { set_nl(info.first) ; info.first += stderr ; }
 			}
 			spawned_rsrcs.dec(se.rsrcs) ;
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job( JobIdx , SpawnedEntry const& se ) const {
-			_s_slurm_cancel_thread->push(se.id) ;                               // asynchronous (as faster and no return value) cancel
+			_s_slurm_cancel_thread->push(se.id) ;                                   // asynchronous (as faster and no return value) cancel
 			spawned_rsrcs.dec(se.rsrcs) ;
 		}
 		virtual uint32_t/*id*/ launch_job( JobIdx j , Pdate prio , ::vector_s const& cmd_line , Rsrcs const& rs , bool verbose ) const {
@@ -251,17 +251,17 @@ namespace Backends::Slurm {
 			nice &= 0x7fffffff ;                                                                         // slurm will not accept negative values, default values overflow in ... 2091
 			Trace trace(Channel::Backend,"Slurm::launch_job",repo_key,j,nice,cmd_line,rs,STR(verbose)) ;
 			uint32_t id = slurm_spawn_job( repo_key , j , nice , cmd_line , *rs , verbose ) ;
-			spawned_rsrcs.inc(rs) ;                                                           // only reserv resources once we are sure job is launched
+			spawned_rsrcs.inc(rs) ;                                                                      // only reserv resources once we are sure job is launched
 			return id ;
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs     ;            // number of spawned jobs queued in slurm queue
-		::vector<RsrcsData> req_forces        ;            // indexed by req, resources forced by req
-		uint32_t            n_max_queued_jobs = -1    ;    // no limit by default
+		SpawnedMap mutable  spawned_rsrcs     ;         // number of spawned jobs queued in slurm queue
+		::vector<RsrcsData> req_forces        ;         // indexed by req, resources forced by req
+		uint32_t            n_max_queued_jobs = -1    ; // no limit by default
 		bool                use_nice          = false ;
-		::string            repo_key          ;            // a short identifier of the repository
-		Daemon              daemon            ;            // info sensed from slurm daemon
+		::string            repo_key          ;         // a short identifier of the repository
+		Daemon              daemon            ;         // info sensed from slurm daemon
 	} ;
 
 	QueueThread<uint32_t>* SlurmBackend::_s_slurm_cancel_thread ;
@@ -307,7 +307,7 @@ namespace Backends::Slurm {
 		s = v[0] ;
 		for( size_t i=1 ; i<v.size() ; i++ ) append_to_string(s,',',v[i]) ;
 	}
-	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} {        // ensure we have at least 1 entry as we sometimes access element 0
+	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
 			size_t           p    = kn.find(':')                                          ;
@@ -442,19 +442,19 @@ namespace Backends::Slurm {
 	}
 
 	RsrcsData parse_args(::string const& args) {
-		static ::string slurm = "slurm" ;                                      // apparently "slurm"s.data() does not work as memory is freed right away
+		static ::string slurm = "slurm" ;                  // apparently "slurm"s.data() does not work as memory is freed right away
 		Trace trace(Channel::Backend,"parse_args",args) ;
 		//
-		if (!args) return {} ;                                                 // fast path
+		if (!args) return {} ;                             // fast path
 		//
 		::vector_s arg_vec   = split(args,' ')           ;
 		uint32_t   argc      = 1                         ;
-		char **    argv      = new char*[arg_vec.size()] ;                     // large enough to hold all args (may not be entirely used if there are several RsrcsDataSingle's)
+		char **    argv      = new char*[arg_vec.size()] ; // large enough to hold all args (may not be entirely used if there are several RsrcsDataSingle's)
 		RsrcsData  res       ;
 		bool       seen_help = false                     ;
 		//
 		argv[0] = slurm.data() ;
-		arg_vec.push_back(":") ;                                               // sentinel to parse last args
+		arg_vec.push_back(":") ;                           // sentinel to parse last args
 		for ( ::string& ca : arg_vec ) {
 			if (ca!=":") {
 				argv[argc++] = ca.data() ;
@@ -507,19 +507,19 @@ namespace Backends::Slurm {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",slurm_err()) ;
 	}
 
-	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {             // Maybe means job has not completed
+	::pair_s<Bool3/*job_ok*/> slurm_job_state(uint32_t slurm_id) {                                                                           // Maybe means job has not completed
 		Trace trace(Channel::Backend,"slurm_job_state",slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		//
 		if (SlurmApi::load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) return { "cannot load job info : "+slurm_err() , Yes/*job_ok*/ } ; // no info on job -> retry
 		//
-		bool completed = true ;                                                // job is completed if all tasks are
+		bool completed = true ;                                                                                                              // job is completed if all tasks are
 		for ( uint32_t i=0 ; i<resp->record_count ; i++ ) {
 			slurm_job_info_t const& ji = resp->job_array[i]                          ;
 			job_states              js = job_states( ji.job_state & JOB_STATE_BASE ) ;
 			//
 			completed &= js>=JOB_COMPLETE ;
-			if (js<=JOB_COMPLETE) continue ;                                                                  // we only search errors
+			if (js<=JOB_COMPLETE) continue ;                                                                                                 // we only search errors
 			const char* on_nodes  = !ji.nodes||::strchr(ji.nodes,' ')==nullptr?" on node : ":" on nodes : " ;
 			int         exit_code = ji.exit_code                                                 ;
 			// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
@@ -533,14 +533,14 @@ namespace Backends::Slurm {
 				//   JOB_RUNNING                                                                                                        allocated resources and executing
 				//   JOB_SUSPENDED                                                                                                      allocated resources, execution suspended
 				//   JOB_COMPLETE                                                                                                       completed execution successfully
-				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ; // cancelled by user
-				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ; // completed execution unsuccessfully
-				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // terminated on reaching time limit
-				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on node failure
-				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to preemption
-				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated due to node boot failure
-				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ; // terminated on deadline
-				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ; // experienced out of memory error
+				case JOB_CANCELLED : return {           "cancelled by user"s                                     , Yes/*job_ok*/ } ;         // cancelled by user
+				case JOB_FAILED    : return { to_string("failed (",wstatus_str(exit_code),')',on_nodes,ji.nodes) , No /*job_ok*/ } ;         // completed execution unsuccessfully
+				case JOB_TIMEOUT   : return { to_string("timeout"                            ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // terminated on reaching time limit
+				case JOB_NODE_FAIL : return { to_string("node failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on node failure
+				case JOB_PREEMPTED : return { to_string("preempted"                          ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to preemption
+				case JOB_BOOT_FAIL : return { to_string("boot failure"                       ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated due to node boot failure
+				case JOB_DEADLINE  : return { to_string("deadline reached"                   ,on_nodes,ji.nodes) , Yes/*job_ok*/ } ;         // terminated on deadline
+				case JOB_OOM       : return { to_string("out of memory"                      ,on_nodes,ji.nodes) , No /*job_ok*/ } ;         // experienced out of memory error
 				//   JOB_END                                                                                                            not a real state, last entry in table
 				default : FAIL("Slurm: wrong job state return for job (",slurm_id,"): ",js) ;
 			}

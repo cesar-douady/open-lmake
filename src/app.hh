@@ -10,9 +10,9 @@
 #include "time.hh"
 #include "trace.hh"
 
-extern ::string* g_startup_dir_s ;     // pointer to avoid init/fini order hazards, relative to g_root_dir, includes final /,  dir from which command was launched
-extern ::string* g_lmake_dir     ;     // pointer to avoid init/fini order hazards, absolute              , installation dir of lmake
-extern ::string* g_root_dir      ;     // pointer to avoid init/fini order hazards, absolute              , root of repository
+extern ::string* g_startup_dir_s ; // pointer to avoid init/fini order hazards, relative to g_root_dir, includes final /,  dir from which command was launched
+extern ::string* g_lmake_dir     ; // pointer to avoid init/fini order hazards, absolute              , installation dir of lmake
+extern ::string* g_root_dir      ; // pointer to avoid init/fini order hazards, absolute              , root of repository
 
 struct KeySpec {
 	char     short_name = 0 ;
@@ -54,7 +54,7 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 		Trace trace("files") ;
 		::vector_s res ; res.reserve(args.size()) ;
 		for( ::string const& a : args ) {
-			res.push_back(Disk::mk_glb(a,*g_startup_dir_s)) ;                  // translate arg to be relative to repo root dir
+			res.push_back(Disk::mk_glb(a,*g_startup_dir_s)) ; // translate arg to be relative to repo root dir
 			trace(a,"->",res.back()) ;
 		}
 		return res ;
@@ -73,6 +73,8 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	size_t key_sz  = 0     ; for( Key  k : Key ::N ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , mk_snake(k).size() ) ;
 	size_t flag_sz = 0     ; for( Flag f : Flag::N ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , mk_snake(f).size() ) ;
 	bool   has_arg = false ; for( Flag e : Flag::N )                           has_arg |= flags[+e].has_arg                     ;
+	//
+	::cerr << ::left ;
 	//
 	if (+msg           ) ::cerr << msg <<'\n' ;
 	/**/                 ::cerr << Disk::base_name(Disk::read_lnk("/proc/self/exe")) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
@@ -118,10 +120,10 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 			if (!arg[1]) throw "unexpected lonely -"s ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { force_args = true ; continue ; }              // a lonely --, options are no more recognized
+				if (arg[2]==0) { force_args = true ; continue ; }                             // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
-				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ;                     // make snake case to use mk_enum while usual convention for options is to use '-'
+				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ; // make snake case to use mk_enum while usual convention for options is to use '-'
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					SWEAR(k!=Key::Unknown) ;

@@ -28,8 +28,7 @@ if __name__!='__main__' :
 			'TARGET' : '{File:.*}.tardir/{*:.*}'
 		,	'PROTO'  : '{File:.*}.proto'
 		}
-		deps    = { 'TAR' : '{File}.tar' }
-		cmd     = 'tar mxaf {TAR} -C {File}.tardir'
+		deps = { 'TAR' : '{File}.tar' }
 		def cmd() :
 			print(TARGET('<proto>'),file=open(PROTO,'w'))
 			os.system(f'tar mxaf {TAR} -C {File}.tardir')

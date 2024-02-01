@@ -5,7 +5,7 @@
 
 #include "app.hh"
 
-#include "support.hh"
+#include "record.hh"
 
 #include "rpc_job.hh"
 
@@ -13,79 +13,44 @@ ENUM(Key,None)
 ENUM(Flag
 ,	Unlink
 ,	NoFollow
-,	Crc            // generate a crc for this target (compulsery if Match)
-,	Dep            // reads not followed by writes trigger dependencies
-,	Essential      // show when generating user oriented graphs
-,	Phony          // unlinks are allowed (possibly followed by reads which are ignored)
-,	SourceOk       // ok to overwrite source files
-,	Stat           // inode accesses (stat-like) are not ignored
-,	Write          // writes are allowed (possibly followed by reads which are ignored)
-,	NoCrc
-,	NoDep
-,	NoEssential
-,	NoManualOk
-,	NoPhony
-,	NoSourceOk
-,	NoStat
-,	NoWrite
+,	Essential
+,	Incremental
+,	ManualOk
+,	NoUniquify
+,	NoWarning
 )
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::Unlink      , { .short_name='u'                                            , .has_arg=false , .doc="report an unlink"                                                      } }
-	,	{ Flag::NoFollow    , { .short_name='P'                                            , .has_arg=false , .doc="Physical view, do not follow symbolic links."                          } }
+		{ Flag::Unlink      , { .short_name='U'                             , .has_arg=false , .doc="report an unlink"                                                       } }
+	,	{ Flag::NoFollow    , { .short_name='P'                             , .has_arg=false , .doc="Physical view, do not follow symbolic links."                           } }
 	//
-	,	{ Flag::Crc         , { .short_name=               TflagChars[+Tflag::Crc      ]   , .has_arg=false , .doc="generate a crc for this target (compulsery if Match)"                  } }
-	,	{ Flag::Dep         , { .short_name=               TflagChars[+Tflag::Dep      ]   , .has_arg=false , .doc="reads not followed by writes trigger dependencies"                     } }
-	,	{ Flag::Essential   , { .short_name=               TflagChars[+Tflag::Essential]   , .has_arg=false , .doc="show when generating user oriented graphs"                             } }
-	,	{ Flag::Phony       , { .short_name=               TflagChars[+Tflag::Phony    ]   , .has_arg=false , .doc="phony, file is deemed to exist even if unlinked"                       } }
-	,	{ Flag::SourceOk    , { .short_name=               TflagChars[+Tflag::SourceOk ]   , .has_arg=false , .doc="ok to overwrite source files"                                          } }
-	,	{ Flag::Stat        , { .short_name=               TflagChars[+Tflag::Stat     ]   , .has_arg=false , .doc="inode accesses (stat-like) are not ignored"                            } }
-	,	{ Flag::Write       , { .short_name=               TflagChars[+Tflag::Write    ]   , .has_arg=false , .doc="writes are allowed (possibly followed by reads which are ignored)"     } }
-	,	{ Flag::NoCrc       , { .short_name=char(::toupper(TflagChars[+Tflag::Crc      ])) , .has_arg=false , .doc="do not generate a crc for this target (compulsery if Match)"           } }
-	,	{ Flag::NoDep       , { .short_name=char(::toupper(TflagChars[+Tflag::Dep      ])) , .has_arg=false , .doc="reads not followed by writes do not trigger dependencies"              } }
-	,	{ Flag::NoEssential , { .short_name=char(::toupper(TflagChars[+Tflag::Essential])) , .has_arg=false , .doc="do not show when generating user oriented graphs"                      } }
-	,	{ Flag::NoPhony     , { .short_name=char(::toupper(TflagChars[+Tflag::Phony    ])) , .has_arg=false , .doc="not phony, file is not deemed to exist if unlinked"                    } }
-	,	{ Flag::NoSourceOk  , { .short_name=char(::toupper(TflagChars[+Tflag::SourceOk ])) , .has_arg=false , .doc="not ok to overwrite source files"                                      } }
-	,	{ Flag::NoStat      , { .short_name=char(::toupper(TflagChars[+Tflag::Stat     ])) , .has_arg=false , .doc="inode accesses (stat-like) are ignored"                                } }
-	,	{ Flag::NoWrite     , { .short_name=char(::toupper(TflagChars[+Tflag::Write    ])) , .has_arg=false , .doc="writes are not allowed (possibly followed by reads which are ignored)" } }
+	,	{ Flag::Essential   , { .short_name=TflagChars[+Tflag::Essential  ] , .has_arg=false , .doc="show when generating user oriented graphs"                              } }
+	,	{ Flag::Incremental , { .short_name=TflagChars[+Tflag::Incremental] , .has_arg=false , .doc="do not rm file before job execution"                                    } }
+	,	{ Flag::ManualOk    , { .short_name=TflagChars[+Tflag::ManualOk   ] , .has_arg=false , .doc="accept if target has been manually modified"                            } }
+	,	{ Flag::NoUniquify  , { .short_name=TflagChars[+Tflag::NoUniquify ] , .has_arg=false , .doc="do not uniquify target if incremental and several links point to it"    } }
+	,	{ Flag::NoWarning   , { .short_name=TflagChars[+Tflag::NoWarning  ] , .has_arg=false , .doc="do not warn user if uniquified or rm'ed while generated by another job" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (!cmd_line.args) return 0 ;                                                                         // fast path : declare no targets
+	if (!cmd_line.args) return 0 ;                                                                                               // fast path : declare no targets
 	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot declare empty file as target") ;
 	//
-	Tflags neg_tflags ;
-	Tflags pos_tflags ;
-	bool   unlink     = cmd_line.flags[Flag::Unlink  ] ;
-	bool   no_follow  = cmd_line.flags[Flag::NoFollow] ;
+	AccessDigest ad        ;
+	bool         no_follow = cmd_line.flags[Flag::NoFollow] ;
 	//
-	if (cmd_line.flags[Flag::Crc        ]) pos_tflags |= Tflag::Crc       ;
-	if (cmd_line.flags[Flag::Dep        ]) pos_tflags |= Tflag::Dep       ;
-	if (cmd_line.flags[Flag::Essential  ]) pos_tflags |= Tflag::Essential ;
-	if (cmd_line.flags[Flag::Phony      ]) pos_tflags |= Tflag::Phony     ;
-	if (cmd_line.flags[Flag::SourceOk   ]) pos_tflags |= Tflag::SourceOk  ;
-	if (cmd_line.flags[Flag::Stat       ]) pos_tflags |= Tflag::Stat      ;
-	if (cmd_line.flags[Flag::Write      ]) pos_tflags |= Tflag::Write     ;
+	ad.unlink = cmd_line.flags[Flag::Unlink  ] ;
 	//
-	if (cmd_line.flags[Flag::NoCrc      ]) neg_tflags |= Tflag::Crc       ;
-	if (cmd_line.flags[Flag::NoDep      ]) neg_tflags |= Tflag::Dep       ;
-	if (cmd_line.flags[Flag::NoEssential]) neg_tflags |= Tflag::Essential ;
-	if (cmd_line.flags[Flag::NoPhony    ]) neg_tflags |= Tflag::Phony     ;
-	if (cmd_line.flags[Flag::NoSourceOk ]) neg_tflags |= Tflag::SourceOk  ;
-	if (cmd_line.flags[Flag::NoStat     ]) neg_tflags |= Tflag::Stat      ;
-	if (cmd_line.flags[Flag::NoWrite    ]) neg_tflags |= Tflag::Write     ;
+	if (cmd_line.flags[Flag::Essential  ]) ad.tflags |= Tflag::Essential   ;
+	if (cmd_line.flags[Flag::Incremental]) ad.tflags |= Tflag::Incremental ;
+	if (cmd_line.flags[Flag::ManualOk   ]) ad.tflags |= Tflag::ManualOk    ;
+	if (cmd_line.flags[Flag::NoUniquify ]) ad.tflags |= Tflag::NoUniquify  ;
+	if (cmd_line.flags[Flag::NoWarning  ]) ad.tflags |= Tflag::NoWarning   ;
 	//
-	if      ( +(neg_tflags&pos_tflags)   ) syntax.usage(to_string("cannot set and reset flags simultaneously : ",neg_tflags&pos_tflags)) ;
-	if      ( !unlink                    ) pos_tflags |= Tflags(Tflag::Crc,Tflag::Write) & ~neg_tflags ;                                   // we say we write, allow it and compute crc by default
-	else if ( +neg_tflags || +pos_tflags ) syntax.usage("cannot unlink and set/reset flags"s) ;
-	//
-	AccessDigest ad ;
-	ad.neg_tflags = neg_tflags ;
-	ad.pos_tflags = pos_tflags ;
-	ad.write      = !unlink    ;
-	ad.unlink     =  unlink    ;
-	JobExecRpcReply reply = AutodepSupport(New).req( JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , ad , no_follow , "ltarget" ) ) ;
+	ad.write = !ad.unlink ;
+	Record record{New} ;
+	record.direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(cmd_line.args) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
+	record.direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlink*/ , true/*ok*/                                                    )) ;
 	//
 	return 0 ;
 }

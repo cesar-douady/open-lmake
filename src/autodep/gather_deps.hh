@@ -27,35 +27,34 @@ struct GatherDeps {
 	using Accesses = Disk::Accesses ;
 	using Proc     = JobExecRpcProc ;
 	using Crc      = Hash::Crc      ;
-	using DD       = Time::Ddate    ;
 	using PD       = Time::Pdate    ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
-		AccessInfo() = default ;
-		AccessInfo( PD pd , Tflags tfs_ ) : access_date{pd} , tflags{tfs_} {}
+		AccessInfo(     ) = default ;
+		AccessInfo(PD pd) : access_date{pd} {}
 		//
 		bool operator==(AccessInfo const&) const = default ;                                                // XXX : why is this necessary ?!?
 		// accesses
-		bool is_dep() const { return digest.idle() && tflags[Tflag::Dep] ; }
+		bool is_dep() const { return digest.idle() ; }
 		// services
-		void update( PD pd , AccessDigest const& ad , NodeIdx parallel_id_ ) ;
+		void update( PD pd , AccessDigest const& ad , bool tok , NodeIdx parallel_id_ ) ;
 		void chk() const {
 			if      (seen            ) SWEAR( +digest.accesses                                          ) ; // cannot see a file as existing without accessing it
 			else if (+digest.accesses) SWEAR( digest.is_date ? !digest.date() : digest.crc()==Crc::None ) ; // cannot have a date or a crc without seeing the file
 		}
 		// data
-		PD           access_date      ;              // first access date
-		PD           first_write_date ;              // if !digest.idle(), first write/unlink date
-		PD           last_write_date  ;              // if !digest.idle(), last  write/unlink date
+		PD           access_date      ;         // first access date
+		PD           first_write_date ;         // if !digest.idle(), first write/unlink date
+		PD           last_write_date  ;         // if !digest.idle(), last  write/unlink date
 		AccessDigest digest           ;
-		NodeIdx      parallel_id      = 0          ;
-		Tflags       tflags           = DfltTflags ; // resulting flags after appliation of info flags modifiers
-		bool         seen             = false      ; // if true <=  file has been seen existing
+		NodeIdx      parallel_id      = 0     ;
+		bool         seen             = false ; // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
+		bool         target_ok        = false ; // ... is seen as existing and is then unlinked as this incoherence is not seen by just checking file at first read and at job end
 	} ;
 	struct ServerReply {
-		IMsgBuf  buf        ; // buf to assemble the reply
-		Fd       fd         ; // fd to forward reply to
+		IMsgBuf  buf        ;                   // buf to assemble the reply
+		Fd       fd         ;                   // fd to forward reply to
 		::string codec_file ;
 	} ;
 	// cxtors & casts
@@ -65,49 +64,58 @@ public :
 	void init() {
 		master_fd.listen() ;
 	}
+	// accesses
+	bool all_confirmed() const { return !to_confirm_write && !to_confirm_unlink ; }
 	// services
 private :
-	void _fix_auto_date( Fd , JobExecRpcReq& jerr) ;                                                                                                                      // Fd for trace purpose only
+	void _fix_auto_date( Fd , JobExecRpcReq& jerr) ;                                                                                                             // Fd for trace purpose only
 	//
-	void _new_access( Fd    , PD    , ::string&&   , AccessDigest const&    , bool confirm , ::string const& comment={} ) ;                                               // .
-	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad , bool confirm , ::string const& c      ={} ) { _new_access({},pd,::move(f),ad,confirm,c) ; }
-	void _new_access( Fd fd , PD pd , ::string&& f , AccessDigest const& ad ,                ::string const& c      ={} ) { _new_access(fd,pd,::move(f),ad,false  ,c) ; } // .
-	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad ,                ::string const& c      ={} ) { _new_access({},pd,::move(f),ad,false  ,c) ; }
+	void _new_access( Fd    , PD    , ::string&&   , AccessDigest const&    , bool tok , ::string const& comment ) ;                                             // .
+	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad , bool tok , ::string const& c       ) { _new_access({},pd,::move(f),ad,tok  ,c) ; }
+	void _new_access( Fd fd , PD pd , ::string&& f , AccessDigest const& ad ,            ::string const& c       ) { _new_access(fd,pd,::move(f),ad,false,c) ; }
+	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad ,            ::string const& c       ) { _new_access({},pd,::move(f),ad,false,c) ; } // .
 	//
-	void _new_accesses( Fd fd , JobExecRpcReq&& jerr ) {                       // fd for trace purpose only
+	void _new_accesses( Fd fd , JobExecRpcReq&& jerr , bool confirmed=false ) {
+		if ( !confirmed && !jerr.digest.idle() ) {
+			if (jerr.digest.write ) { bool inserted = to_confirm_write .emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
+			if (jerr.digest.unlink) { bool inserted = to_confirm_unlink.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
+			return ;
+		}
 		parallel_id++ ;
 		for( auto& [f,dd] : jerr.files ) {
 			jerr.digest.date(dd) ;
-			_new_access( fd , jerr.date , ::move(f) , jerr.digest , jerr.txt ) ;
+			_new_access( fd , jerr.date , ::move(f) , jerr.digest , jerr.ok , jerr.txt ) ;
 		}
 	}
 	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
 		Trace trace("_confirm",fd,STR(jerr.ok)) ;
-		for( auto const& [f,_] : jerr.files ) { trace(f) ; accesses[access_map.at(f)].second.digest.confirm(jerr.ok) ; }
+		::umap<Fd,JobExecRpcReq>& to_confirm = jerr.unlink ? to_confirm_unlink : to_confirm_write ;
+		auto it = to_confirm.find(fd) ;
+		SWEAR(it!=to_confirm.end(),fd) ;
+		if (jerr.ok) _new_accesses( fd , ::move(it->second) , true/*confirmed*/ ) ;
+		to_confirm.erase(it) ;
 	}
-	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                         // fd for trace purpose only
+	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                                                                                                           // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
-	void _codec( ServerReply&& sr , JobRpcReply const& jrr ) {
+	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
 		AccessDigest ad { Disk::Access::Reg , jrr.crc } ;
 		ad.crc(jrr.crc) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , ad ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , ad , comment ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 public :
-	void new_target( PD pd , ::string const& t , Tflags n , Tflags p , ::string const& c="s_target" ) {
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) {
 		AccessDigest ad ;
-		ad.neg_tflags = n    ;
-		ad.pos_tflags = p    ;
-		ad.write      = true ;
-		_new_access(pd,::copy(t),ad,true/*confirm*/,c) ;
+		ad.write = true ;
+		_new_access(pd,::copy(t),ad,c) ;
 	}
 	void new_unlink( PD pd , ::string const& t , ::string const& c="s_unlink" ) {
 		AccessDigest ad ;
 		ad.unlink = true ;
-		_new_access(pd,::copy(t),ad,true/*confirm*/,c) ;
+		_new_access(pd,::copy(t),ad,c) ;
 	}
 	void new_guard (::string const& f) { guards.insert(f) ; }
 	//
@@ -116,42 +124,43 @@ public :
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}         // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                                   // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig=-1) ;                                            // is sig==-1, use best effort to kill job
+	bool/*done*/ kill(int sig=-1) ;                                                                                      // is sig==-1, use best effort to kill job
 	//
-	void reorder() ;                                                           // reorder accesses by first read access
+	void reorder() ;                                                                                                     // reorder accesses by first read access
 	// data
-	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd     { return {}               ; } ; // function to contact server when necessary, return error by default
-	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void   {                           } ; // function to report live output, dont report by default
-	::function<Tflags     (::string      const&)> tflags_cb    = [](::string      const&)->Tflags { return UnexpectedTflags ; } ; // function to compute tflags from target before modifiers
-	::function<void       (                    )> kill_job_cb  = [](                    )->void   {                           } ; // function to kill job
-	ServerSockFd                                  master_fd    ;
-	in_addr_t                                     addr         = NoSockAddr                                                     ; // local addr to which we can be contacted by running job
-	::atomic<bool>                                create_group = false                                                          ; // if true <=> process is launched in its own group
-	AutodepMethod                                 method       = AutodepMethod::Dflt                                            ;
-	AutodepEnv                                    autodep_env  ;
-	Time::Delay                                   timeout      ;
-	pid_t                                         pid          = -1                                                             ; // pid to kill
-	bool                                          killed       = false                                                          ; // do not start as child is supposed to be already killed
-	::vector<uint8_t>                             kill_sigs    ;                                                                  // signals used to kill job
-	::string                                      chroot       ;
-	::string                                      cwd          ;
-	 ::map_ss const*                              env          = nullptr                                                        ;
-	vmap_s<AccessInfo>                            accesses     ;
-	umap_s<NodeIdx   >                            access_map   ;
-	uset_s                                        guards       ;                                                                  // dir creation/deletion that must be guarded against NFS
-	NodeIdx                                       parallel_id  = 0                                                              ; // id to identify parallel deps
-	bool                                          seen_tmp     = false                                                          ;
-	int                                           wstatus      = 0/*garbage*/                                                   ;
-	Fd                                            child_stdout ;                                                                  // fd used to gather stdout
-	Fd                                            child_stderr ;                                                                  // fd used to gather stderr
-	::string                                      stdout       ;                                                                  // contains child stdout if child_stdout==Pipe
-	::string                                      stderr       ;                                                                  // contains child stderr if child_stderr==Pipe
-	::string                                      msg          ;                                                                  // contains error messages not from job
+	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb         = [](JobExecRpcReq     &&)->Fd     { return {} ; } ; // function to contact server when necessary, return error by default
+	::function<void       (::string_view const&)> live_out_cb       = [](::string_view const&)->void   {             } ; // function to report live output, dont report by default
+	::function<void       (                    )> kill_job_cb       = [](                    )->void   {             } ; // function to kill job
+	ServerSockFd                                  master_fd         ;
+	in_addr_t                                     addr              = NoSockAddr                                       ; // local addr to which we can be contacted by running job
+	::atomic<bool>                                create_group      = false                                            ; // if true <=> process is launched in its own group
+	AutodepMethod                                 method            = AutodepMethod::Dflt                              ;
+	AutodepEnv                                    autodep_env       ;
+	Time::Delay                                   timeout           ;
+	pid_t                                         pid               = -1                                               ; // pid to kill
+	bool                                          killed            = false                                            ; // do not start as child is supposed to be already killed
+	::vector<uint8_t>                             kill_sigs         ;                                                    // signals used to kill job
+	::string                                      chroot            ;
+	::string                                      cwd               ;
+	 ::map_ss const*                              env               = nullptr                                          ;
+	vmap_s<AccessInfo>                            accesses          ;
+	umap_s<NodeIdx   >                            access_map        ;
+	uset_s                                        guards            ;                                                    // dir creation/deletion that must be guarded against NFS
+	NodeIdx                                       parallel_id       = 0                                                ; // id to identify parallel deps
+	bool                                          seen_tmp          = false                                            ;
+	int                                           wstatus           = 0/*garbage*/                                     ;
+	Fd                                            child_stdout      ;                                                    // fd used to gather stdout
+	Fd                                            child_stderr      ;                                                    // fd used to gather stderr
+	::string                                      stdout            ;                                                    // contains child stdout if child_stdout==Pipe
+	::string                                      stderr            ;                                                    // contains child stderr if child_stderr==Pipe
+	::string                                      msg               ;                                                    // contains error messages not from job
+	::umap<Fd,JobExecRpcReq>                      to_confirm_write  ;
+	::umap<Fd,JobExecRpcReq>                      to_confirm_unlink ;
 private :
 	mutable ::mutex _pid_mutex ;
 } ;

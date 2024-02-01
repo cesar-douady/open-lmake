@@ -20,10 +20,8 @@ if __name__!='__main__' :
 	)
 
 	class CompileRust(HomelessRule,RustRule) :
-		targets = {
-			'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'
-		,	'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , '-Dep','Incremental','-Match' )
-		}
+		targets      = { 'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'                   }
+		target_flags = { 'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
 		deps    = {
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
@@ -51,7 +49,7 @@ else :
 
 	import ut
 
-	try    : sp.check_output('cargo')                                          # dont test rust if rust is not installed
+	try    : sp.check_output('cargo') # dont test rust if rust is not installed
 	except : exit()
 
 	os.makedirs('hello/src',exist_ok=True)
@@ -87,8 +85,8 @@ else :
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
-	ut.lmake( 'hello.ok' , steady=1 , changed=1 )                              # check cargo can run twice with no problem
+	ut.lmake( 'hello.ok' , steady=1 , changed=1 ) # check cargo can run twice with no problem
 
 	print('step=2',file=open('step.py','w'))
-	os.system('rm -rf hello/target')                                           # force cargo to regenerate everything
-	ut.lmake( 'hello.ok' , steady=1 )                                          # check ptrace works with cargo
+	os.system('rm -rf hello/target hello.ok') # force cargo to regenerate everything
+	ut.lmake( 'hello.ok' , steady=1 )         # check ptrace works with cargo

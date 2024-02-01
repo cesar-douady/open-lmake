@@ -57,15 +57,16 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "small_id    : "  << jrr.small_id                <<'\n' ;
 	::cout << "stdin       : "  << jrr.stdin                   <<'\n' ;
 	::cout << "stdout      : "  << jrr.stdout                  <<'\n' ;
-	::cout << "targets     : "  << jrr.targets                 <<'\n' ;
 	::cout << "timeout     : "  << jrr.timeout                 <<'\n' ;
-	::cout << "tmp_dir     : "  << jrr.autodep_env.tmp_dir     <<'\n' ;        // tmp directory on disk
-	::cout << "tmp_view    : "  << jrr.autodep_env.tmp_view    <<'\n' ;        // tmp directory as viewed by job
+	::cout << "tmp_dir     : "  << jrr.autodep_env.tmp_dir     <<'\n' ; // tmp directory on disk
+	::cout << "tmp_view    : "  << jrr.autodep_env.tmp_view    <<'\n' ; // tmp directory as viewed by job
 	::cout << "use_script  : "  << jrr.use_script              <<'\n' ;
 	//
-	::cout << "static_deps :\n" ; _print_map(jrr.static_deps)                               ;
-	::cout << "env :\n"         ; _print_map(jrr.env        )                               ;
-	::cout << "cmd :\n"         ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
+	::cout << "static matches :\n" ; _print_map(jrr.static_matches)                            ;
+	::cout << "star matches :\n"   ; _print_map(jrr.star_matches  )                            ;
+	::cout << "static_deps :\n"    ; _print_map(jrr.static_deps   )                            ;
+	::cout << "env :\n"            ; _print_map(jrr.env           )                            ;
+	::cout << "cmd :\n"            ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }
 
 void print_end(JobRpcReq const& jrr) {

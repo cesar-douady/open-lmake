@@ -161,7 +161,7 @@ namespace Engine {
 				for( auto const& [py_key,py_val] : py_n_tokens_tab ) {
 					fields[1] = Py::String(py_key) ;
 					size_t v = Py::Long(py_val) ;
-					if (v) static_n_tokenss[fields[1]] = v ; // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+					if (v) static_n_tokenss[fields[1]] = v ;   // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 				}
 			}
 			//
@@ -180,7 +180,7 @@ namespace Engine {
 					if (prec==0                ) continue ;
 					if (!::has_single_bit(prec)) throw to_string(prec," is not a power of 2") ;
 					if (prec==1                ) throw "must be 0 or at least 2"s             ;
-					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                     // number of kept digits
+					rsrc_digits[+r] = ::bit_width(prec)-1 ;                                                                     // number of kept digits
 				}
 				fields.pop_back() ;
 			}
@@ -250,8 +250,8 @@ namespace Engine {
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
 			}
-			reliable_dirs    = true ; // all backends are local, dirs are necessarily reliable
-			console.host_len = 0    ; // host has no interest if all jobs are local
+			reliable_dirs    = true ;                                                                                           // all backends are local, dirs are necessarily reliable
+			console.host_len = 0    ;                                                                                           // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) append_to_string(field,'.',f) ;
@@ -333,15 +333,15 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (!bbe                          ) continue ;                // not implemented
-			if (!be.configured                ) continue ;                // not configured
+			if (!bbe                          ) continue ;                   // not implemented
+			if (!be.configured                ) continue ;                   // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< mk_snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
 				continue ;
 			}
 			res <<"\t\t"<< mk_snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
-			size_t w = 9 ;                                                // room for interface
+			size_t w = 9 ;                                                   // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
 			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
@@ -377,7 +377,7 @@ namespace Engine {
 		for( BackendTag t : BackendTag::N )
 			if (Backends::Backend::s_ready(t))
 				for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
-					if (v) dyn_n_tokenss[to_string(mk_snake(k),'.',k)] = v ;                                 // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+					if (v) dyn_n_tokenss[to_string(mk_snake(t),'.',k)] = v ;                                 // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//

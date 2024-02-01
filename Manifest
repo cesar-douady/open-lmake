@@ -56,8 +56,6 @@ src/autodep/ptrace.cc
 src/autodep/ptrace.hh
 src/autodep/record.cc
 src/autodep/record.hh
-src/autodep/support.cc
-src/autodep/support.hh
 src/autodep/syscall.cc
 src/client.cc
 src/client.hh
@@ -179,7 +177,6 @@ unit_tests/numpy.py
 unit_tests/path.py
 unit_tests/path_max.py
 unit_tests/perf.py
-unit_tests/phony.py
 unit_tests/py_rule.py
 unit_tests/python2.py
 unit_tests/re.py

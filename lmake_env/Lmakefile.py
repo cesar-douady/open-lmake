@@ -63,7 +63,6 @@ class BaseRule(Rule) :
 	,	'Base' : r'([^/]+)'
 	,	'Ext'  : r'([^/]+)'
 	}
-	autodep     = 'ptrace'
 	backend     = backend
 	resources   = { 'mem' : '100M' }
 	n_retries   = 1
@@ -168,12 +167,10 @@ class PatchFile(BaseRule) :
 		run((osp.abspath(PATCH_SCRIPT),File+'.patched.'+Ext),cwd=dir,stdin=DEVNULL,stderr=STDOUT,check=True)
 
 class ConfigH(BaseRule) :
-	targets = {
-		'CONFIG_H'   :   'ext/{DirS}config.h'
-	,	'SCRATCHPAD' : ( 'ext/{DirS}{File*}'  , '-Match' )
-	}
-	deps = { 'CONFIGURE' : 'ext/{DirS}configure' }
-	cmd  = 'cd ext/{DirS} ; ./configure'
+	targets      = { 'CONFIG_H'   : 'ext/{DirS}config.h'  }
+	target_flags = { 'SCRATCHPAD' : 'ext/{DirS}{File*}'   }
+	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
+	cmd          = 'cd ext/{DirS} ; ./configure'
 
 class SysConfigH(Centos7Rule) :
     targets = {
@@ -328,8 +325,8 @@ class CpyPy(BaseRule) :
 	cmd    = 'cat'
 
 class CpyLmakePy(BaseRule) :
-	target          = 'lib/{File}.py'
-	dep             = '_lib/{File}.src.py'
+	target = 'lib/{File}.py'
+	dep    = '_lib/{File}.src.py'
 	def cmd() :
 		import shutil
 		txt = sys.stdin.read()
@@ -408,9 +405,8 @@ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 class LinkClmakeSo(LinkLibSo,LinkAutodep) :
 	targets = { 'TARGET' : 'lib/clmake.so' }
 	deps = {
-		'RECORD'  : 'src/autodep/record.o'
-	,	'SUPPORT' : 'src/autodep/support.o'
-	,	'MAIN'    : 'src/autodep/clmake.o'
+		'RECORD' : 'src/autodep/record.o'
+	,	'MAIN'   : 'src/autodep/clmake.o'
 	}
 
 class LinkAutodepExe(LinkAutodep,LinkAppExe) :
@@ -482,8 +478,7 @@ for app in ('xxhsum','align_comments') :
 
 class LinkJobSupport(LinkClientAppExe) :
 	deps = {
-		'SUPPORT' : 'src/autodep/support.o'
-	,	'RECORD'  : 'src/autodep/record.o'
+		'RECORD'  : 'src/autodep/record.o'
 	,	'RPC_JOB' : 'src/rpc_job.o'
 	}
 
