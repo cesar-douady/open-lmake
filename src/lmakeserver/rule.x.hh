@@ -845,7 +845,7 @@ namespace Engine {
 		Rule                               r          = solve_lazy(job,match)                             ;
 		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs                  ;
 		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems        : empty1 ; // fast path : when no need to compute match
-		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
+		::vector_s                         tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
 		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps      () : empty2 ; // fast path : when no need to compute deps
 		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( auto [k,i] : ctx ) {
@@ -872,7 +872,7 @@ namespace Engine {
 		Rule                               r          = solve_lazy(job,match)                             ;
 		auto                        const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs                  ;
 		::vector_s                  const& stems      = +(need&NeedStems  ) ? match.stems        : empty1 ; // fast path : when no need to compute match
-		::vector_s                  const& tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
+		::vector_s                         tgts       = +(need&NeedTargets) ? match.py_targets() : empty1 ; // fast path : when no need to compute targets
 		::vmap_s<pair_s<AccDflags>> const& deps       = +(need&NeedDeps   ) ? match.deps      () : empty2 ; // fast path : when no need to compute deps
 		::umap_ss                          rsrcs_map  ; if (+(need&NeedRsrcs)) rsrcs_map = mk_umap(rsrcs) ;
 		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {
