@@ -47,9 +47,10 @@ void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , NodeIdx pa
 		parallel_id = parallel_id_ ;
 	}
 	if (!ad.idle()) {
-		if      (digest.idle()            ) first_write_date = last_write_date = pd ;
-		else if (order==AccessOrder::After)                    last_write_date = pd ;
-		else if (order< AccessOrder::Write) first_write_date                   = pd ;
+		if      (digest.idle()             ) first_write_date = last_write_date = pd    ;
+		else if (order==AccessOrder::After )                    last_write_date = pd    ;
+		else if (order< AccessOrder::Write ) first_write_date                   = pd    ;
+		if      (order==AccessOrder::Before) seen                               = false ; // wash first read access if written before
 	}
 	seen |= order<AccessOrder::Write && +ad.accesses && (ad.is_date?+ad.date():ad.crc()!=Crc::None) ;
 	//
