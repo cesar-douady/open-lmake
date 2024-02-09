@@ -639,13 +639,13 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
 	cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) > $@ || ( cat $@ ; mv $@ $@.out ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	mkdir -p $(@D)
 	( cd $(@D) ; git clean -ffdxq || : )                                       # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
 	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ ; cat $@.err ; mv $@ $@.out ; exit 1 )
+	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
 	cat $@.err
 
 #

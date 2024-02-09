@@ -30,7 +30,7 @@ namespace Caches {
 	struct Lru {
 		::string     prev = DirCache::Head ;
 		::string     next = DirCache::Head ;
-		DirCache::Sz sz   = 0              ;               // size of entry, or overall size for head
+		DirCache::Sz sz   = 0              ; // size of entry, or overall size for head
 	} ;
 
 	void DirCache::chk(ssize_t delta_sz) const {
@@ -68,14 +68,14 @@ namespace Caches {
 
 	static ::string _unique_name(Job job) {
 		Rule     rule      = job->rule                              ;
-		::string full_name = job->full_name()                       ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ; // only name suffix is considered to make Rule
+		::string full_name = job->full_name()                       ; SWEAR( Rule(full_name)==rule , full_name , rule->name ) ;     // only name suffix is considered to make Rule
 		size_t   user_sz   = full_name.size() - rule->job_sfx_len() ;
 		::string res       = full_name.substr(0,user_sz)            ; res.reserve(res.size()+1+rule->n_static_stems*(2*(3+1))+16) ; // allocate 2x3 digits per stem, this is comfortable
 		//
 		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
 		res.push_back('/') ;
 		//
-		char* p = &full_name[user_sz+1] ;                                      // start of suffix
+		char* p = &full_name[user_sz+1] ;                                                                                           // start of suffix
 		for( VarIdx s=0 ; s<rule->n_static_stems ; s++ ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
@@ -93,15 +93,15 @@ namespace Caches {
 		::ifstream head_stream   { head_file }     ;
 		Lru        head          ;                   if (head_stream) deserialize(head_stream,head) ;
 		bool       some_removed  = false           ;
-		::string   expected_next = Head            ;                           // for assertion only
+		::string   expected_next = Head            ;                        // for assertion only
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                          // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                       // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			SWEAR(head.prev!=Head) ;                                           // else this would mean an empty cache and we know an empty cache can accept new_sz
+			SWEAR(head.prev!=Head) ;                                        // else this would mean an empty cache and we know an empty cache can accept new_sz
 			auto here = deserialize<Lru>(IFStream(_lru_file(head.prev))) ;
 			SWEAR( here.next==expected_next , here.next , expected_next ) ;
-			SWEAR( head.sz  >=here.sz       , head.sz   , here.sz       ) ;    // total size contains this entry
+			SWEAR( head.sz  >=here.sz       , head.sz   , here.sz       ) ; // total size contains this entry
 			unlink(dir_fd,head.prev,true/*dir_ok*/) ;
 			expected_next  = head.prev         ;
 			head.sz       -= here.sz           ;
@@ -157,18 +157,28 @@ namespace Caches {
 	DirCache::Sz DirCache::_lru_remove(::string const& entry) {
 		SWEAR(entry!=Head) ;
 		//
-		::ifstream here_stream { _lru_file(entry) }                    ; if (!here_stream) return 0 ; // nothing to remove
-		auto       here        = deserialize<Lru>(here_stream)         ;
-		::string   prev_file   = _lru_file(here.prev)                  ;
-		::string   next_file   = _lru_file(here.next)                  ;
-		auto       prev        = deserialize<Lru>(IFStream(prev_file)) ;
-		auto       next        = deserialize<Lru>(IFStream(next_file)) ;
-		//
-		prev.next = here.next ;
-		next.prev = here.prev ;
-		//
-		serialize(OFStream(prev_file),prev) ;
-		serialize(OFStream(next_file),next) ;
+		::ifstream here_stream { _lru_file(entry) }            ; if (!here_stream) return 0 ; // nothing to remove
+		auto       here        = deserialize<Lru>(here_stream) ;
+		if (here.prev==here.next) {
+			::string pn_file = _lru_file(here.prev)                ;
+			auto     pn      = deserialize<Lru>(IFStream(pn_file)) ;
+			//
+			pn.next = here.next ;
+			pn.prev = here.prev ;
+			//
+			serialize(OFStream(pn_file),pn) ;
+		} else {
+			::string   prev_file   = _lru_file(here.prev)                  ;
+			::string   next_file   = _lru_file(here.next)                  ;
+			auto       prev        = deserialize<Lru>(IFStream(prev_file)) ;
+			auto       next        = deserialize<Lru>(IFStream(next_file)) ;
+			//
+			prev.next = here.next ;
+			next.prev = here.prev ;
+			//
+			serialize(OFStream(prev_file),prev) ;
+			serialize(OFStream(next_file),next) ;
+		}
 		return here.sz ;
 	}
 
@@ -208,11 +218,12 @@ namespace Caches {
 				bool         critical = false ;
 				//
 				for( auto const& [dn,dd] : deps ) {
-					if ( critical && !dd.parallel ) break ;                    // if a critical dep needs reconstruction, do not proceed past parallel deps
+					if ( critical && !dd.parallel ) break    ;        // if a critical dep needs reconstruction, do not proceed past parallel deps
+					if ( dd.dflags[Dflag::Ignore] ) continue ;
 					Node d{dn} ;
 					if (!d->done(req,RunAction::Status)) {
 						nds.insert(d) ;
-						critical |= dd.dflags[Dflag::Critical] ;               // note critical flag to stop processing once parallel deps are exhausted
+						critical |= dd.dflags[Dflag::Critical] ;      // note critical flag to stop processing once parallel deps are exhausted
 						if (!nds) trace("not_done",dn) ;
 					} else if (!d->up_to_date(dd)) {
 						trace("diff",dn) ;
@@ -221,19 +232,19 @@ namespace Caches {
 				}
 				if (!nds) {
 					trace("hit",r) ;
-					return { .completed=true , .hit=Yes , .id{r} } ;           // hit
+					return { .completed=true , .hit=Yes , .id{r} } ;  // hit
 				}
 				if (!found) {
 					found    = true        ;
-					new_deps = ::move(nds) ;                                   // do as if new_deps contains the whole world
+					new_deps = ::move(nds) ;                          // do as if new_deps contains the whole world
 				} else {
 					for( auto it=new_deps.begin() ; it!=new_deps.end() ;)
 						if (nds.contains(*it))                it++  ;
-						else                   new_deps.erase(it++) ;          // /!\ be careful with erasing while iterating : increment it before erasing is done at it before increment
+						else                   new_deps.erase(it++) ; // /!\ be careful with erasing while iterating : increment it before erasing is done at it before increment
 				}
-			Miss : ;                                                           // missed for this entry, try next one
+			Miss : ;                                                  // missed for this entry, try next one
 			}
-		} catch (::string const&) {}                                           // if directory does not exist, it is as it was empty
+		} catch (::string const&) {}                                  // if directory does not exist, it is as it was empty
 		if (!found) {
 			trace("miss") ;
 			return { .completed=true , .hit=No } ;
@@ -256,12 +267,12 @@ namespace Caches {
 		try {
 			JobInfoStart report_start ;
 			JobInfoEnd   report_end   ;
-			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;      // because we read the data , shared is ok
+			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;                            // because we read the data , shared is ok
 				IFStream is           { to_string(dir,'/',jn,"/data") } ;
 				deserialize(is,report_start) ;
 				deserialize(is,report_end  ) ;
 				// update some info
-				report_start.pre_start.job = +job ;                            // id is not stored in cache
+				report_start.pre_start.job = +job ;                                                  // id is not stored in cache
 				report_start.submit_attrs.reason = reason ;
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
@@ -279,14 +290,14 @@ namespace Caches {
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
-			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;               // because we manipulate LRU, need exclusive
+			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;                                     // because we manipulate LRU, need exclusive
 				Sz sz_ = _lru_remove(jn) ;
 				_lru_first(jn,sz_) ;
 				trace("done",sz_) ;
 			}
 			return report_end.end.digest ;
 		} catch(::string const& e) {
-			for( ::string const& f : copied ) unlink(f) ;                      // clean up partial job
+			for( ::string const& f : copied ) unlink(f) ;                                            // clean up partial job
 			trace("failed") ;
 			throw e ;
 		}
@@ -295,54 +306,48 @@ namespace Caches {
 	bool/*ok*/ DirCache::upload( Job job , JobDigest const& digest , NfsGuard& nfs_guard ) {
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
-		mkdir(dir_fd,jn) ;
 		//
-		Sz          old_sz = 0                    ;
-		Sz          new_sz = 0                    ;
-		AutoCloseFd dfd    = open_read(dir_fd,jn) ;
+		JobInfoStart report_start ;
+		JobInfoEnd   report_end   ;
+		try {
+			IFStream is { job->ancillary_file() } ;
+			 deserialize(is,report_start) ;
+			 deserialize(is,report_end  ) ;
+			// update some specific info
+			report_start.pre_start.seq_id    = 0  ;                                                  // no seq_id   since no execution
+			report_start.start    .small_id  = 0  ;                                                  // no small_id since no execution
+			report_start.pre_start.job       = 0  ;                                                  // job_id may not be the same in the destination repo
+			report_start.eta                 = {} ;                                                  // dont care about timing info in cache
+			report_start.submit_attrs.reason = {} ;                                                  // cache does not care about original reason
+			report_start.rsrcs.clear() ;                                                             // caching resources is meaningless as they have no impact on content
+			// remove target dates
+			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
+			// check deps
+			for( auto const& [dn,dd] : report_end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
+		} catch (::string const& e) {
+			trace("no_ancillary_files",e) ;
+			return false/*ok*/ ;
+		}
+		//
+		mkdir(dir_fd,jn) ;
+		AutoCloseFd dfd = open_read(dir_fd,jn) ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
-		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                         // because we manipulate LRU and because we take several locks, need exclusive
-		LockedFd lock { dfd    , true/*exclusive*/ } ;                         // because we write the data , need exclusive
+		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                                               // because we manipulate LRU and because we take several locks, need exclusive
+		LockedFd lock { dfd    , true/*exclusive*/ } ;                                               // because we write the data , need exclusive
 		//
-		old_sz = _lru_remove(jn) ;
+		Sz old_sz = _lru_remove(jn) ;
+		Sz new_sz = 0               ;
 		unlink_inside(dfd) ;
 		//
 		bool made_room = false ;
 		try {
-			IFStream is           { job->ancillary_file() }       ;
-			auto     report_start = deserialize<JobInfoStart>(is) ;
-			auto     report_end   = deserialize<JobInfoEnd  >(is) ;
-			// update some specific info
-			report_start.pre_start.seq_id    = 0  ;                            // no seq_id   since no execution
-			report_start.start    .small_id  = 0  ;                            // no small_id since no execution
-			report_start.pre_start.job       = 0  ;                            // job_id may not be the same in the destination repo
-			report_start.eta                 = {} ;                            // dont care about timing info in cache
-			report_start.submit_attrs.reason = {} ;                            // cache does not care about original reason
-			report_start.rsrcs.clear() ;                                       // caching resources is meaningless as they have no impact on content
-			// remove target dates
-			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
-			// transform date into crc
-			for( auto& [dn,dd] : report_end.end.digest.deps ) {
-				try {
-					Node d{dn} ;
-					if (dd.is_date) {
-						if      (!d->crc.valid()  )                             throw to_string("invalid dep node"                                  ) ;
-						else if (d->crc==Crc::None) { if (+dd.date()          ) throw to_string("no dep seen "        ,dd.date()                    ) ; }
-						else                        { if (dd.date()!=d->date()) throw to_string("dep date clash seen ",dd.date()," known ",d->date()) ; }
-						dd.crc(d->crc) ;
-					} else {
-						if      (!dd.crc().valid())                             throw to_string("invalid dep"                                       ) ;
-						else                        { if (!d->up_to_date(dd)  ) throw to_string("not up to date"                                    ) ; }
-					}
-				} catch (::string const& e) { throw to_string(e," : ",dn) ; }
-			}
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;
 			::string deps_file = to_string(dir,'/',jn,"/deps") ;
 			{ OFStream os { data_file } ; serialize(os,report_start) ; serialize(os,report_end) ; }
-			{ OFStream os { deps_file } ; serialize(os,report_end.end.digest.deps) ;              } // store deps in a compact format so that matching is fast
+			{ OFStream os { deps_file } ; serialize(os,report_end.end.digest.deps) ;              }  // store deps in a compact format so that matching is fast
 			/**/                                       new_sz += FileInfo(data_file           ).sz ;
 			/**/                                       new_sz += FileInfo(deps_file           ).sz ;
 			for( auto const& [tn,_] : digest.targets ) new_sz += FileInfo(nfs_guard.access(tn)).sz ;
@@ -352,8 +357,8 @@ namespace Caches {
 				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlink_dst*/ , true/*mk_read_only*/ ) ;
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlink_inside(dfd) ;                                               // clean up in case of partial execution
-			_mk_room( made_room?new_sz:old_sz , 0 ) ;                          // finally, we did not populate the entry
+			unlink_inside(dfd) ;                                                                     // clean up in case of partial execution
+			_mk_room( made_room?new_sz:old_sz , 0 ) ;                                                // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}
 		_lru_first(jn,new_sz) ;

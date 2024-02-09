@@ -369,6 +369,7 @@ namespace Engine {
 		bool              local_err        = false                                       ;
 		bool              any_modified     = false                                       ;
 		bool              fresh_deps       = status>Status::Async                        ;                            // if job did not go through, old deps are better than new ones
+		bool              seen_dep_date    = false                                       ;
 		Rule              rule             = (*this)->rule                               ;
 		::vector<Req>     running_reqs_    = (*this)->running_reqs(true/*with_zombies*/) ;
 		::string          msg              ;                                                                          // to be reported if job was otherwise ok
@@ -387,8 +388,7 @@ namespace Engine {
 			cache_none_attrs = rule->cache_none_attrs.spec ;
 			for( Req req : running_reqs_ ) {
 				req->audit_job(Color::Note,"dynamic",*this,true/*at_end*/) ;
-				if (backend_msg.back()=='\n') req->audit_stderr( to_string(backend_msg,     rule->cache_none_attrs.s_exc_msg(true/*using_static*/)) , e , -1 , 1 ) ;
-				else                          req->audit_stderr( to_string(backend_msg,'\n',rule->cache_none_attrs.s_exc_msg(true/*using_static*/)) , e , -1 , 1 ) ;
+				req->audit_stderr( to_string(ensure_nl(backend_msg),rule->cache_none_attrs.s_exc_msg(true/*using_static*/)) , e , -1 , 1 ) ;
 			}
 		}
 		try                       { end_cmd_attrs = rule->end_cmd_attrs.eval(*this,match) ;                        }
@@ -511,23 +511,22 @@ namespace Engine {
 		// handle deps
 		//
 		if (fresh_deps) {
-			::vector<Dep> dep_vector ; dep_vector.reserve(digest.deps.size()) ;
-			for( auto const& [dn,dd] : digest.deps ) {                                                                              // static deps are guaranteed to appear first
-				Node d   { dn     } ;
-				Dep  dep { d , dd } ;
-				dep.acquire_crc() ;
-				if ( +dep.accesses && !dep.is_date && !dep.crc().valid() ) local_reason |= {JobReasonTag::DepNotReady,+dep} ;
-				dep_vector.emplace_back(dep) ;
-				trace("dep",dep,dd) ;
+			::vector<Dep> deps ; deps.reserve(digest.deps.size()) ;
+			for( auto const& [dn,dd] : digest.deps ) {              // static deps are guaranteed to appear first
+				Dep dep { Node(dn) , dd } ;
+				seen_dep_date |= dep.is_date ;
+				if ( !dep.is_date && +dep.accesses && !dep.crc().valid() ) local_reason |= {JobReasonTag::DepNotReady,+dep} ;
+				deps.emplace_back(dep) ;
+				trace("dep",dep) ;
 			}
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			(*this)->deps.assign(dep_vector) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvv
+			(*this)->deps.assign(deps) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// wrap up
 		//
-		_set_end_date() ;                                      // must be called after target analysis to ensure clash detection
+		_set_end_date() ;                                           // must be called after target analysis to ensure clash detection
 		//
 		if ( status==Status::Ok && +digest.stderr && !end_cmd_attrs.allow_stderr ) { append_to_string(msg,"non-empty stderr\n") ; local_err = true ; }
 		EndNoneAttrs end_none_attrs ;
@@ -542,8 +541,8 @@ namespace Engine {
 			stderr += digest.stderr ;
 		}
 		//
-		(*this)->exec_ok(true) ;                               // effect of old cmd has gone away with job execution
-		fence() ;                                              // only update status once every other info is set in case of crash and avoid transforming garbage into Err
+		(*this)->exec_ok(true) ;                                    // effect of old cmd has gone away with job execution
+		fence() ;                                                   // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		//                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if      ( +local_reason                   ) (*this)->status = ::min(status,Status::Garbage  ) ;
 		else if ( local_err && status==Status::Ok ) (*this)->status =              Status::Err        ;
@@ -551,11 +550,9 @@ namespace Engine {
 		else if ( status<=Status::Early           ) (*this)->status =              Status::EarlyLost  ;
 		else                                        (*this)->status =              Status::LateLost   ;
 		//                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		bool        report_stats     = status==Status::Ok                                           ;
-		CoarseDelay old_exec_time    = (*this)->best_exec_time().first                              ;
-		bool        cached           = false                                                        ;
-		bool        analysis_stamped = false                                                        ;
-		MakeAction  end_action       = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
+		bool        report_stats  = status==Status::Ok                                           ;
+		CoarseDelay old_exec_time = (*this)->best_exec_time().first                              ;
+		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		if (report_stats) {
 			SWEAR(+digest.stats.total) ;
 			(*this)->exec_time = digest.stats.total ;
@@ -569,63 +566,76 @@ namespace Engine {
 					req->stats.cur(ReqInfo::Lvl::Exec  )++ ;
 				[[fallthrough]] ;
 				case JobLvl::Exec :
-					ri.lvl = JobLvl::End ;                     // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+					ri.lvl = JobLvl::End ;                          // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 				break ;
 				default :
 					FAIL(ri.lvl) ;
 			}
 		}
+		bool      all_done   = true ;
+		JobReason err_reason ;
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",local_reason,status,ri) ;
-			req->missing_audits.erase(*this) ;                 // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(*this) ;                      // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason ,  {}/*asking*/ , Yes/*speculate*/ , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
 			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			::string bem = ensure_nl(backend_msg) ;
-			//
-			if (reason.tag>=JobReasonTag::Err) {
+			bool     err = reason.tag>=JobReasonTag::Err       ;
+			::string bem = ensure_nl(backend_msg) + severe_msg ;
+			if (err) {
 				append_to_string( bem , reason_str(reason) , '\n' ) ;
-			} else if (ri.done()) {
-				bem += msg ;
+				err_reason |= reason ;
 			}
-			bem += severe_msg ;
 			//
 			if (ri.done()) {
-				// it is not comfortable to store req-dependent info in a req-independent place, but we need reason from make()
-				if ( +bem && !analysis_stamped ) {             // this code is done in such a way as to be fast in the common case (bem empty)
-					::string jaf = (*this)->ancillary_file() ;
-					try {
-						IFStream is{jaf} ;
-						auto report_start = deserialize<JobInfoStart>(is) ;
-						auto report_end   = deserialize<JobInfoEnd  >(is) ;
-						//
-						report_end.end.msg = bem ;
-						//
-						OFStream os{jaf} ;
-						serialize(os,report_start) ;
-						serialize(os,report_end  ) ;
-					}
-					catch (...) {}                             // in case ancillary file cannot be read, dont record and ignore
-					analysis_stamped = true ;
-				}
-				// report exec time even if not recording it
-				// report user stderr if make analysis does not make these errors meaningless
-				audit_end( {}/*pfx*/ , ri , bem , reason.tag>=JobReasonTag::Err?""s:stderr , end_none_attrs.max_stderr_len , any_modified , digest.stats.total ) ;
-				trace("wakeup_watchers",ri) ;
-				// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
-				if ( !cached && +cache_none_attrs.key && (*this)->run_status==RunStatus::Complete && status==Status::Ok ) {                                // cache only successful results
-					NfsGuard nfs_guard{g_config.reliable_dirs} ;
-					cached |= Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
-				}
+				if (!err) bem += msg ;                                                                                                   // report msg if nothing more import to report
+				audit_end( {}/*pfx*/ , ri , bem , err?""s:stderr , end_none_attrs.max_stderr_len , any_modified , digest.stats.total ) ; // report user stderr if make analysis does not make ...
+				trace("wakeup_watchers",ri) ;                                                                                            // ... these errors meaningless
 				ri.wakeup_watchers() ;
 			} else {
+				all_done = false ;
 				JobReport jr = audit_end( +local_reason?"":"may_" , ri , bem , {}/*stderr*/ , -1/*max_stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
+				if (!err) bem += msg ;                                                       // report msg if nothing more import to report
 				req->missing_audits[*this] = { jr , any_modified , bem } ;
 			}
 			trace("req_after",ri) ;
 			req.chk_end() ;
+		}
+		bool full_ok     = all_done && (*this)->run_status==RunStatus::Complete && ok==Yes ;
+		bool update_deps = seen_dep_date && full_ok                                        ; // if full_ok, all deps have been resolved and we can update the record for a more reliable info
+		bool update_msg  = all_done && (+err_reason||+msg||+severe_msg)                    ; // if recorded msg was incomplete, update it
+		if ( update_deps || update_msg ) {
+			::string jaf = (*this)->ancillary_file() ;
+			try {
+				IFStream is{jaf} ;
+				auto report_start = deserialize<JobInfoStart>(is) ;
+				auto report_end   = deserialize<JobInfoEnd  >(is) ;
+				if (update_msg) {
+					set_nl(report_end.end.msg)                                                                            ;
+					append_to_string( report_end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : msg , severe_msg ) ;
+				}
+				if (update_deps) {
+					::vmap_s<DepDigest>& dds =report_end.end.digest.deps ;
+					SWEAR(dds.size()==(*this)->deps.size()) ;
+					for( NodeIdx di=0 ; di<dds.size() ; di++ ) {
+						DepDigest& dd = dds[di].second ;
+						if (dd.dflags[Dflag::Ignore]) continue ;
+						if (dd.is_date              ) dd.crc_date((*this)->deps[di]) ;
+						SWEAR(!dd.is_date) ;
+					}
+				}
+				OFStream os{jaf} ;
+				serialize(os,report_start) ;
+				serialize(os,report_end  ) ;
+			}
+			catch (...) {}                                                                   // in case ancillary file cannot be read, dont record and ignore
+		}
+		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
+		if ( full_ok && +cache_none_attrs.key ) {                                            // cache only successful results
+			NfsGuard nfs_guard{g_config.reliable_dirs} ;
+			Cache::s_tab.at(cache_none_attrs.key)->upload( *this , digest , nfs_guard ) ;
 		}
 		trace("summary",*this) ;
 		return any_modified ;

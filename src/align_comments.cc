@@ -107,7 +107,7 @@ void optimize( ::vector<Line>& lines) {
 	::vector<Info> t0     { tab.w , {false/*ko*/,n_lvls+1}          } ;
 	//
 	size_t py         = Npos ;
-	size_t break_lvl1 = 0    ;          // minimum indentation level of line separating comments, 0 is reserved to mean blank line
+	size_t break_lvl1 = 0    ;                                                                      // minimum indentation level of line separating comments, 0 is reserved to mean blank line
 	for( size_t y=0 ; y<tab.h ; y++ ) {
 		Line const&         l  =            lines[y ]                           ;
 		::vector_view<Info> t  =            tab  [y ]                           ;
@@ -124,17 +124,19 @@ void optimize( ::vector<Line>& lines) {
 			if (pt[x]<pi) { pi = pt[x] ; px = x ; }
 		if (break_lvl1) pi.breaks[break_lvl1-1]++ ;
 		break_lvl1 = n_lvls+1 ;
-		size_t code_len3 = l.code_len ;                                                                         // ensure comments are not too close to code
-		if ( y>0       && lines[y-1].kind==LineKind::Plain ) code_len3 = ::max(code_len3,lines[y-1].code_len) ;
-		if ( y<tab.h-1 && lines[y+1].kind==LineKind::Plain ) code_len3 = ::max(code_len3,lines[y+1].code_len) ;
+		size_t code_len_above = 0 ;                                                                 // ensure comments are not too close to code
+		size_t code_len_below = 0 ;                                                                 // ensure comments are not too close to code
+		if ( y>0       && lines[y-1].kind==LineKind::Plain ) code_len_above = lines[y-1].code_len ;
+		if ( y<tab.h-1 && lines[y+1].kind==LineKind::Plain ) code_len_below = lines[y+1].code_len ;
 		for( size_t x=l.code_len+1 ; x+l.comment.size()<=tab.w ; x++ ) {
 			if (pt[x]<pi) { t[x] = pt[x] ; t[x].prev_x = x  ; }
 			else          { t[x] = pi    ; t[x].prev_x = px ; }
-			if (x<code_len3+1) t[x].n_closes++ ;
-			/**/               t[x].glb_pos += x ;
+			if (x<code_len_above+1) t[x].n_closes++ ;
+			if (x<code_len_below+1) t[x].n_closes++ ;
+			/**/                    t[x].glb_pos += x ;
 		}
 	}
-	if (py==Npos) return ;                                                                                      // nothing to optimize
+	if (py==Npos) return ;                                                                          // nothing to optimize
 	size_t              min_x  = 0       ;
 	::vector_view<Info> last_t = tab[py] ;
 	for( size_t x=1 ; x<last_t.size() ; x++ ) {

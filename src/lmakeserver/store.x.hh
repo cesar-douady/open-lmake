@@ -450,6 +450,7 @@ namespace Engine::Persistent {
 	// services
 	inline void JobBase::chk() const {
 		Name fn = (*this)->_full_name ;
+		if (!fn) return ;
 		Job  j  = _name_file.c_at(fn).job() ;
 		SWEAR( *this==j , *this , fn , j ) ;
 	}

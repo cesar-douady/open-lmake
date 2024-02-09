@@ -118,14 +118,10 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 replace targets -match by file_info attribute
-	- provide file_info and post_file_info
-	- process in order targets, file_info, post_file_info,post_targets
-	? consider fusion between Tflags and Dflags as file_info may have both
-*3 implement lshow -i for nodes
-*4 implement lshow -i for rules
+*2 implement lshow -i for nodes
+*3 implement lshow -i for rules
 	- in particular, we want to see the exact regexpr associated to each target
-*5 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*4 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * implement quarantine
@@ -293,7 +289,7 @@ items :
 * TOOLS
 ****************************************************************************************************
 
-*2 lrepair
+*1 lrepair
 	- ensure ancillary file contains all necessary info to rebuild DB
 		- rule crc
 		- deps crc
