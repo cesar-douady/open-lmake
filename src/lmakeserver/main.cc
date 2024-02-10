@@ -375,7 +375,7 @@ int main( int argc , char** argv ) {
 	app_init(false/*search_root*/,false/*cd_root*/) ;                                       // server is always launched at root
 	Py::init(true/*multi-thread*/) ;
 	_g_real_path.init({ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }) ;
-	_g_server_mrkr = to_string(AdminDir,'/',ServerMrkr) ;
+	_g_server_mrkr = ServerMrkr ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
 	//             vvvvvvvvvvvvvv

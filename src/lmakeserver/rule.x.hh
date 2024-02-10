@@ -600,8 +600,8 @@ namespace Engine {
 		::string const&    key        (              ) const {                                                          return _matches().first          ; }
 		::string const&    target     (              ) const { SWEAR(_matches().second.flags.tflags()[Tflag::Target]) ; return _matches().second.pattern ; }
 		//
-		Tflags tflags() const { return _matches().second.flags.tflags()  ; }
-		bool   sure  () const { return tgt_idx<(*this)->n_static_targets ; }
+		Tflags tflags() const { return _matches().second.flags.tflags()                            ; }
+		bool   sure  () const { return tgt_idx<(*this)->n_static_targets || tflags()[Tflag::Phony] ; }
 	private :
 		::pair_s<RuleData::MatchEntry> const& _matches() const { return (*this)->matches[tgt_idx] ; }
 		// services

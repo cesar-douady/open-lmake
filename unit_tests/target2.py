@@ -32,7 +32,7 @@ if __name__!='__main__' :
 		}
 		def cmd() :
 			src = open(SRC_NAME).read().strip()
-			lmake.target( src , manual_ok=True )
+			lmake.target( src , source_ok=True )
 			open('a_source','w').write('something')
 
 else :

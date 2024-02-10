@@ -20,7 +20,7 @@ if __name__!='__main__' :
 
 	class Test(Rule) :
 		target       = 'test'
-		target_flags = { 'SUB' : ( '{*:.*}.src' , 'manual_ok','incremental' ) }
+		target_flags = { 'SUB' : ( '{*:.*}.src' , 'source_ok','incremental' ) }
 		cmd = '''
 			echo sub > sub.src
 			cat sub.src.cpy

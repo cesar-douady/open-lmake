@@ -35,7 +35,7 @@ static void connect_to_server(bool refresh) {
 	for ( int i=0 ; i<10 ; i++ ) {
 		trace("try_old",i) ;
 		// try to connect to an existing server
-		{	::ifstream server_mrkr_stream { to_string(AdminDir,'/',ServerMrkr) } ;
+		{	::ifstream server_mrkr_stream { ServerMrkr } ;
 			::string   pid_str            ;
 			if (!server_mrkr_stream                          ) { trace("no_marker"  ) ; goto LaunchServer ; }
 			if (!::getline(server_mrkr_stream,server_service)) { trace("bad_marker1") ; goto LaunchServer ; }
@@ -89,7 +89,7 @@ static void connect_to_server(bool refresh) {
 	exit(2
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
-	,	"\trm LMAKE/server\n"
+	,	to_string("\trm ",AdminDir,"/server\n")
 	) ;
 }
 

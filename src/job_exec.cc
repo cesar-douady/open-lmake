@@ -193,7 +193,7 @@ Digest analyze( bool at_end , bool killed=false ) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if ( tflags[Tflag::Static] && tflags[Tflag::Target] ) g_missing_static_targets.erase(file) ;
+			if ( tflags[Tflag::Static] && tflags[Tflag::Target] && !tflags[Tflag::Phony] ) g_missing_static_targets.erase(file) ;
 			trace("target",td,STR(ad.unlink),tflags,file) ;
 		}
 	}
@@ -329,7 +329,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [p,flags ] : g_start_info.star_matches   ) g_match_dct.add( true /*star*/ , p , flags         ) ;
 		//
 		for( auto const& [t,flags ] : g_start_info.static_matches )
-			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets.insert(t) ;
+			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] && !flags.tflags()[Tflag::Phony] ) g_missing_static_targets.insert(t) ;
 		//
 		::map_ss cmd_env ;
 		try                       { cmd_env = prepare_env() ;        }
@@ -387,11 +387,11 @@ int main( int argc , char* argv[] ) {
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
-		end_report.msg += digest.msg ;
 		switch (status) {
 			case Status::Ok :
 				if (+digest.msg) {
 					trace("analysis_err") ;
+					end_report.msg += digest.msg ;
 					status = Status::Err ;
 				} else if (!g_gather_deps.all_confirmed()) {
 					trace("!confirmed",g_gather_deps.to_confirm_write,g_gather_deps.to_confirm_unlink) ;

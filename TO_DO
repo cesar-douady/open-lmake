@@ -124,10 +124,6 @@ items :
 *4 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-* implement quarantine
-	- instead of rm, or manual support, dangling, etc.
-	- LMAKE/quarantine as a copy of the repo with all quarantined files inside
-	- generate a warning message each time a file is quarantined
 * support formulas in n_tokens
 	- to automatically depend on config update
 * result cache v2 (copy & link) :

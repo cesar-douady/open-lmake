@@ -195,12 +195,12 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	bool     verbose   = false                    ;
 	bool     no_follow = false                    ;
 	Accesses accesses  = Accesses::All            ;
-	Dflags   dflags    ;
+	Dflags   dflags    = Dflag::Required          ;
 	if (n_kw_args) {
-		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"verbose"           )) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) verbose    = true ; }
-		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) no_follow  = true ; }
-		for( Access a  : Access::N   ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a ).c_str())) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) accesses  &= ~a   ; }
-		for( Dflag  df : Dflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) dflags    |= df   ; }
+		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"verbose"           )) { n_kw_args-- ; verbose   =     PyObject_IsTrue(py_v)  ; }
+		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; no_follow =    !PyObject_IsTrue(py_v)  ; }
+		for( Access a  : Access::N   ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a ).c_str())) { n_kw_args-- ; accesses.set(a ,PyObject_IsTrue(py_v)) ; }
+		for( Dflag  df : Dflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) { n_kw_args-- ; dflags  .set(df,PyObject_IsTrue(py_v)) ; }
 	}
 	if (n_kw_args) {
 		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;
@@ -242,9 +242,9 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
 	bool         no_follow = false                    ;
 	AccessDigest ad        ;
 	if (n_kw_args) {
-		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"unlink"            )) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) ad.unlink  = true ; }
-		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; if (!PyObject_IsTrue(py_v)) no_follow  = true ; }
-		for( Tflag tf : Tflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) { n_kw_args-- ; if ( PyObject_IsTrue(py_v)) ad.tflags |= tf   ; }
+		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"unlink"            )) { n_kw_args-- ; ad.unlink =      PyObject_IsTrue(py_v)  ; }
+		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; no_follow =     !PyObject_IsTrue(py_v)  ; }
+		for( Tflag tf : Tflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) { n_kw_args-- ; ad.tflags.set(tf,PyObject_IsTrue(py_v)) ; }
 	}
 	if (n_kw_args) {
 		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;

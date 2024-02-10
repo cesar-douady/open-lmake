@@ -13,23 +13,27 @@
 using namespace Disk ;
 
 ENUM(Key,None)
-ENUM(Flag
-,	NoFollow
+ENUM_1(Flag
+,	NDyn = NoFollow
 ,	Essential
 ,	Critical
 ,	IgnoreError
+,	Ignore
 ,	NoRequired
+,	NoFollow
 ,	Verbose
 )
+static_assert(+Flag::NDyn==+Dflag::NDyn) ; // ensure we have not forgotten a flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
-		{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                   } }
-	,	{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links" } }
+		{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links" } }
+	,	{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                   } }
 	//
 	,	{ Flag::Essential   , { .short_name=DflagChars[+Dflag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
 	,	{ Flag::Critical    , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::IgnoreError , { .short_name=DflagChars[+Dflag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"           } }
+	,	{ Flag::Ignore      , { .short_name=DflagChars[+Dflag::Ignore     ] , .has_arg=false , .doc="ignore dep"                              } }
 	,	{ Flag::NoRequired  , { .short_name=DflagChars[+Dflag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"        } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
@@ -43,6 +47,7 @@ int main( int argc , char* argv[]) {
 	if ( cmd_line.flags[Flag::Essential  ]) dflags |= Dflag::Essential   ;
 	if ( cmd_line.flags[Flag::Critical   ]) dflags |= Dflag::Critical    ;
 	if ( cmd_line.flags[Flag::IgnoreError]) dflags |= Dflag::IgnoreError ;
+	if ( cmd_line.flags[Flag::Ignore     ]) dflags |= Dflag::Ignore      ;
 	if (!cmd_line.flags[Flag::NoRequired ]) dflags |= Dflag::Required    ;
 	//
 	if (verbose) {

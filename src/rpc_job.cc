@@ -16,10 +16,9 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , FileAction const& fa ) {
-	/**/                                                  os << "FileAction(" << fa.tag ;
-	if ( fa.tag<=FileActionTag::HasFile                 ) os <<','<< fa.date            ;
-	if ( fa.tag<=FileActionTag::HasFile && fa.manual_ok ) os <<",manual_ok"             ;
-	return                                                os <<')'                      ;
+	/**/                                os << "FileAction(" << fa.tag ;
+	if (fa.tag<=FileActionTag::HasFile) os <<','<< fa.date            ;
+	return                              os <<')'                      ;
 }
 
 ::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
@@ -28,32 +27,37 @@ using namespace Hash ;
 	::string   msg       ;
 	bool       ok        = true ;
 	//
-	// check manual
-	for( auto& [f,a] : pre_actions ) {                                                                                             // pre_actions are adequately sorted
-		{ if ( a.tag>FileActionTag::HasFile             )                     continue ;   } FileInfo fi { nfs_guard.access(f) } ; // no file to check
-		{ if ( !fi                                      ) { a.crc=Crc::None ; continue ; } }                                       // file does not exist, it cannot be manual
-		{ if ( a.crc!=Crc::None && fi.date==a.date      )                     continue ;   }                                       // if dates match, we are ok, else we are manual
-		append_to_string(msg,"manual ",mk_file(f),'\n') ;                                                                          // manual is not an error
-		{ if ( a.manual_ok                              )                     continue ;   }                                       // if manual_ok, it is not an error
-		{ if ( !a.crc.valid() || a.crc.match(Crc(f,ha)) )                     continue ;   } ok = false ;                          // if no expected crc or recomputed crc matches, it is not an error
-	}
-	if (ok)
-		for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
-			SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
-			if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                         // no file to act on
-			switch (a.tag) {
-				case FileActionTag::None     :                                                                                     break ;
-				case FileActionTag::Unlink   : if (unlink  (nfs_guard.change(f))) unlinks.push_back(f)                           ; break ;
-				case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
-				case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                break ;
-				case FileActionTag::Rmdir :
-					if (!keep_dirs.contains(f))
-						try                     { rmdir(nfs_guard.change(f)) ;                                                        }
-						catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
-				break ;
-				default : FAIL(a) ;
-			}
+	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
+		if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                         // no file to act on
+		switch (a.tag) {
+			case FileActionTag::None     :                                                                                     break ;
+			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
+			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                break ;
+			case FileActionTag::Unlink   : {
+				FileInfo fi { nfs_guard.access(f) } ;
+				if (+fi) {
+					bool done = true/*garbage*/ ;
+					if ( fi.date!=a.date && a.crc.valid() && (a.crc==Crc::None||!a.crc.match(Crc(f,ha))) ) {
+						done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
+						if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
+						else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
+					} else {
+						done = unlink(nfs_guard.change(f)) ;
+						if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
+					}
+					if (done) unlinks.push_back(f) ;
+					else      ok = false ;
+				}
+			} break ;
+			case FileActionTag::Rmdir :
+				if (!keep_dirs.contains(f))
+					try                     { rmdir(nfs_guard.change(f)) ;                                                        }
+					catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
+			break ;
+			default : FAIL(a) ;
 		}
+	}
 	return {unlinks,{msg,ok}} ;
 }
 
@@ -207,14 +211,14 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
 	switch (order) {
 		case AccessOrder::Before :
-			crc_date(ad) ;                                                                  // read info is sampled at first read
+			crc_date(ad) ;                                                 // read info is sampled at first read
 			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
 		break ;
 		case AccessOrder::BetweenReadAndWrite :
-			if (!accesses) crc_date(ad) ;                                                   // read info is sampled at first read
+			if (!accesses) crc_date(ad) ;                                  // read info is sampled at first read
 			/**/           accesses |= ad.accesses ;
 		break ;
-		default : SWEAR(order>=AccessOrder::Write) ;                                        // ensure we have not forgotten a case
+		default : SWEAR(order>=AccessOrder::Write) ;                       // ensure we have not forgotten a case
 	}
 	//
 	tflags |= ad.tflags ;

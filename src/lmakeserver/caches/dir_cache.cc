@@ -63,7 +63,7 @@ namespace Caches {
 		repo   = "repo-"+::string(::move(repo_hash).digest()) ;
 		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
-		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,"/LMAKE/size")))) ;
+		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,'/',AdminDir,"/size")))) ;
 	}
 
 	static ::string _unique_name(Job job) {

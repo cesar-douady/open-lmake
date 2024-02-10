@@ -17,7 +17,7 @@ if __name__!='__main__' :
 	class HelloWorld(Rule) :
 		targets = {
 			'HELLO' :   'hello'
-		,	'WORLD' : ( 'world' , 'ManualOk' )
+		,	'WORLD' : ( 'world' , 'SourceOk' )
 		}
 		cmd = 'echo hello >{HELLO} ; echo world > {WORLD}'
 

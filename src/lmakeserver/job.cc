@@ -21,8 +21,8 @@ namespace Engine {
 	// jobs thread
 	//
 
-	::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> JobData::pre_actions( Rule::SimpleMatch const& match , bool manual_ok , bool mark_target_dirs ) const { // thread-safe
-		Trace trace("pre_actions",idx(),STR(manual_ok),STR(mark_target_dirs)) ;
+	::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> JobData::pre_actions( Rule::SimpleMatch const& match , bool mark_target_dirs ) const { // thread-safe
+		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                    to_mkdirs        = match.target_dirs() ;
 		::uset<Node>                    to_mkdir_uphills ;
 		::uset<Node>                    locked_dirs      ;
@@ -50,7 +50,7 @@ namespace Engine {
 		Warn :
 			warn = !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ;
 		Do :
-			FileAction fa { fat , manual_ok || t.manual_ok() || t.tflags[Tflag::ManualOk] , t->crc , t->crc==Crc::None?Ddate():t->date() } ;
+			FileAction fa { fat , t->crc , t->crc==Crc::None?Ddate():t->date() } ;
 			Node       td = t->dir()                                                                                                       ;
 			trace("wash_target",t,fa,STR(warn)) ;
 			switch (fa.tag) {
@@ -378,9 +378,9 @@ namespace Engine {
 		EndCmdAttrs       end_cmd_attrs    ;
 		Rule::SimpleMatch match            ;
 		//
-		SWEAR(status!=Status::New) ;                                     // we just executed the job, it can be neither new, frozen or special
-		SWEAR(!frozen()          ) ;                                     // .
-		SWEAR(!rule->is_special()) ;                                     // .
+		SWEAR(status!=Status::New) ;                      // we just executed the job, it can be neither new, frozen or special
+		SWEAR(!frozen()          ) ;                      // .
+		SWEAR(!rule->is_special()) ;                      // .
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			cache_none_attrs = rule->cache_none_attrs.eval(*this,match) ;
@@ -404,33 +404,31 @@ namespace Engine {
 				default : FAIL(status) ;
 			}
 		//
-		(*this)->status = ::min(status,Status::Garbage) ;                // ensure we cannot appear up to date while working on data
+		(*this)->status = ::min(status,Status::Garbage) ; // ensure we cannot appear up to date while working on data
 		fence() ;
 		//
 		Trace trace("end",*this,status) ;
 		//
 		// handle targets
 		//
-		s_manual_oks( lost && status>Status::Early /*add*/ , {*this} ) ; // if late lost, we have not reported written targets, else wash manual_ok state
-		//
-		if ( !lost && status>Status::Early ) {                           // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
+		if ( !lost && status>Status::Early ) {            // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
 			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job_tgt().clear() ; // ensure targets we no more generate do not keep pointing to us
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
-				Tflags tflags           = td.tflags                                                     ;
-				Node   target           { tn }                                                          ;
-				bool   is_static_target = tflags[Tflag::Static] && tflags[Tflag::Target]                ;
-				bool   unlink           = td.crc==Crc::None                                             ;
-				bool   touched          = td.write || unlink                                            ;
-				Crc    crc              = touched ? td.crc : target->unlinked ? Crc::None : target->crc ;
+				Tflags tflags  = td.tflags                                                              ;
+				Node   target  { tn }                                                                   ;
+				bool   is_sure = tflags[Tflag::Target] && (tflags[Tflag::Static]||tflags[Tflag::Phony]) ;
+				bool   unlink  = td.crc==Crc::None                                                      ;
+				bool   touched = td.write || unlink                                                     ;
+				Crc    crc     = touched ? td.crc : target->unlinked ? Crc::None : target->crc          ;
 				//
 				target->set_buildable() ;
 				//
 				if ( td.write && target->is_src() ) {
 					if (!crc.valid()) crc = Crc(tn,g_config.hash_algo) ;                                 // force crc computation if updating a source
-					if (!tflags[Tflag::ManualOk]) {
+					if (!tflags[Tflag::SourceOk]) {
 						if (unlink) append_to_string( severe_msg , "unexpected unlink of source " , mk_file(tn) , '\n' ) ;
 						else        append_to_string( severe_msg , "unexpected write to source "  , mk_file(tn) , '\n' ) ;
 						local_err = true ;
@@ -464,22 +462,13 @@ namespace Engine {
 				//
 				if ( !tflags[Tflag::Incremental] && target->read(td.accesses) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
 				//
-				if (crc==Crc::None) {
+				if ( crc==Crc::None && !is_sure && !td.write ) {
 					// if we have written then unlinked, then there has been a transcient state where the file existed
 					// we must consider this is a real target with full clash detection.
 					// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
-					if (is_static_target) {
-						if (status==Status::Ok) {
-							append_to_string( msg , "missing target : " , mk_file(tn) , '\n' ) ;
-							local_err = true ;
-						}
-					} else {                                                                             // always keep static targets
-						if (!td.write) {
-							target->unlinked = target->crc!=Crc::None ;                                  // if target was just unlinked, note it as it is not considered a target of the job
-							trace("unlink",target,STR(target->unlinked)) ;
-							continue ;
-						}
-					}
+					target->unlinked = target->crc!=Crc::None ;                                          // if target was just unlinked, note it as it is not considered a target of the job
+					trace("unlink",target,STR(target->unlinked)) ;
+					continue ;
 				}
 				//
 				targets.emplace_back( target , tflags ) ;
@@ -487,32 +476,30 @@ namespace Engine {
 				Ddate date     = td.date ;
 				bool  modified = false   ;
 				if (!touched) {
-					if      ( target->unlinked                                           ) date = Ddate()                         ; // ideally, should be start date
-					else if ( tflags[Tflag::ManualOk] && file_date(target->name())!=date ) crc  = Crc(date,tn,g_config.hash_algo) ; // updating date is not mandatory ...
-					else                                                                   goto NoRefresh ;                         // ... but it is safer to update crc with corresponding date
+					if (target->unlinked) date = Ddate() ;                                               // ideally, should be start date
+					else                  goto NoRefresh ;
 				}
 				//         vvvvvvvvvvvvvvvvvvvvvvvvv
 				modified = target->refresh(crc,date) ;
 				//         ^^^^^^^^^^^^^^^^^^^^^^^^^
 			NoRefresh :
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				target->actual_job_tgt() = { *this , is_static_target } ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				target->actual_job_tgt() = { *this , is_sure } ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				any_modified |= modified && tflags[Tflag::Target] ;
 				trace("target",target,td,STR(modified),status) ;
 			}
-			::sort(targets) ;                                                                                                       // ease search in targets
+			::sort(targets) ;                                                                            // ease search in targets
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			(*this)->targets.assign(targets) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (Node::s_has_manual_oks()) Node::s_manual_oks( false/*add*/ , mk_vector<Node>(targets) ) ;
 		}
 		//
 		// handle deps
 		//
 		if (fresh_deps) {
 			::vector<Dep> deps ; deps.reserve(digest.deps.size()) ;
-			for( auto const& [dn,dd] : digest.deps ) {              // static deps are guaranteed to appear first
+			for( auto const& [dn,dd] : digest.deps ) {                                                   // static deps are guaranteed to appear first
 				Dep dep { Node(dn) , dd } ;
 				seen_dep_date |= dep.is_date ;
 				if ( !dep.is_date && +dep.accesses && !dep.crc().valid() ) local_reason |= {JobReasonTag::DepNotReady,+dep} ;
@@ -526,7 +513,7 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		_set_end_date() ;                                           // must be called after target analysis to ensure clash detection
+		_set_end_date() ;                                // must be called after target analysis to ensure clash detection
 		//
 		if ( status==Status::Ok && +digest.stderr && !end_cmd_attrs.allow_stderr ) { append_to_string(msg,"non-empty stderr\n") ; local_err = true ; }
 		EndNoneAttrs end_none_attrs ;
@@ -541,8 +528,8 @@ namespace Engine {
 			stderr += digest.stderr ;
 		}
 		//
-		(*this)->exec_ok(true) ;                                    // effect of old cmd has gone away with job execution
-		fence() ;                                                   // only update status once every other info is set in case of crash and avoid transforming garbage into Err
+		(*this)->exec_ok(true) ;                         // effect of old cmd has gone away with job execution
+		fence() ;                                        // only update status once every other info is set in case of crash and avoid transforming garbage into Err
 		//                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if      ( +local_reason                   ) (*this)->status = ::min(status,Status::Garbage  ) ;
 		else if ( local_err && status==Status::Ok ) (*this)->status =              Status::Err        ;
@@ -566,7 +553,7 @@ namespace Engine {
 					req->stats.cur(ReqInfo::Lvl::Exec  )++ ;
 				[[fallthrough]] ;
 				case JobLvl::Exec :
-					ri.lvl = JobLvl::End ;                          // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+					ri.lvl = JobLvl::End ;               // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 				break ;
 				default :
 					FAIL(ri.lvl) ;
@@ -577,7 +564,7 @@ namespace Engine {
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",local_reason,status,ri) ;
-			req->missing_audits.erase(*this) ;                      // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(*this) ;           // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason reason = (*this)->make( ri , RunAction::Status , local_reason ,  {}/*asking*/ , Yes/*speculate*/ , end_action , &old_exec_time , false/*wakeup_watchers*/ ) ;
@@ -1167,7 +1154,7 @@ namespace Engine {
 						JobExec  je        { idx() , New , New }      ;                // job starts and ends, no host
 						NfsGuard nfs_guard { g_config.reliable_dirs } ;
 						//
-						::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pa      = pre_actions( match , req->options.flags[ReqFlag::ManualOk] ) ;
+						::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pa      = pre_actions(match) ;
 						::vmap_s<FileAction>                               actions ; for( auto [t,a] : pa.first ) actions.emplace_back( t->name() , a ) ;
 						::pair_s<bool/*ok*/>                               dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config.hash_algo ).second/*msg*/ ;
 						//
@@ -1208,7 +1195,6 @@ namespace Engine {
 		try {
 			SubmitAttrs sa = {
 				.live_out  = ri.live_out
-			,	.manual_ok = req->options.flags[ReqFlag::ManualOk] || idx().manual_ok()
 			,	.n_retries = submit_none_attrs.n_retries
 			,	.pressure  = pressure
 			,	.reason    = reason

@@ -68,15 +68,20 @@ namespace Engine {
 					}
 				[[fallthrough]] ;
 				case Manual::Modif : {
-					bool mo = req->options.flags[ReqFlag::ManualOk] ;
-					Trace trace("manual_wash","modif",STR(dangling),STR(mo),idx()) ;
-					if      (dangling) { req->audit_node( Color::Err  , "dangling" , idx() ) ; req->audit_node( Color::Note , "consider : rm"      , idx() , 1 ) ; }
-					else if (mo      )   req->audit_node( Color::Note , "manual"   , idx() ) ;
-					else               { req->audit_node( Color::Err  , "manual"   , idx() ) ; req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ; }
+					Trace trace("manual_wash","modif",STR(dangling),idx()) ;
+					if (dangling) {
+						req->audit_node( Color::Err  , "dangling"           , idx()     ) ;
+						req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ;
+					} else {
+						::string n = name() ;
+						if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
+							req->audit_node( Color::Warning  , "quarantined" , idx() ) ;
+							ri.manual = Manual::Unlinked ;
+						}
+					}
 				} break ;
 				default : FAIL(ri.manual) ;
 			}
-			SWEAR(ri.manual!=Manual::Unknown) ;
 		}
 		return ri.manual ;
 	}

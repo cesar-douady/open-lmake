@@ -109,33 +109,6 @@ namespace Engine {
 		}
 	}
 
-	static bool/*ok*/ _manual_ok(EngineClosureReq const& ecr) {
-		Trace trace("_manual_ok",ecr) ;
-		Fd                fd = ecr.out_fd  ;
-		ReqOptions const& ro = ecr.options ;
-		//
-		if (_is_mark_glb(ro.key)) {
-			::vector<Node> markeds = Node::s_manual_oks() ;
-			if (ro.key==ReqKey::Clear) Node::s_clear_manual_oks() ;
-			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name()) ) ;
-		} else {
-			bool           add   = ro.key==ReqKey::Add ;
-			Job            job   ;
-			::vector<Node> nodes ;
-			if (ecr.as_job()) job   = ecr.job()     ;
-			else              nodes = ecr.targets() ;
-			//check
-			if ( +job && job.manual_ok()==add )           { audit( fd , ro , Color::Err , to_string("job is " ,add?"already":"not"," manual-ok : ",mk_file(job->name())) ) ; return false ; }
-			for( Node n : nodes ) if (n.manual_ok()==add) { audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," manual-ok : ",mk_file(n  ->name())) ) ; return false ; }
-			// do what is asked
-			Job ::s_manual_oks(add,{job}) ;
-			Node::s_manual_oks(add,nodes) ;
-			if (+job)             audit( fd , ro , add?Color::Warning:Color::Note , to_string(job->rule->name,' ',mk_file(job->name())) ) ;
-			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note ,                               mk_file(n  ->name())  ) ;
-		}
-		return true ;
-	}
-
 	static bool/*ok*/ _no_trigger(EngineClosureReq const& ecr) {
 		Trace trace("_no_trigger",ecr) ;
 		Fd                fd = ecr.out_fd  ;
@@ -477,8 +450,6 @@ R"({
 		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
 		OFStream(dir_guard(vscode_file)) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
 		//
-		Job::s_manual_oks(true/*add*/,{job}) ;
-		//
 		audit( fd , ro , script_file , true/*as_is*/ ) ;
 		return true ;
 	}
@@ -514,7 +485,6 @@ R"({
 
 	static bool/*ok*/ _mark(EngineClosureReq const& ecr) {
 		if (ecr.options.flags[ReqFlag::Freeze   ]) return _freeze    (ecr) ;
-		if (ecr.options.flags[ReqFlag::ManualOk ]) return _manual_ok (ecr) ;
 		if (ecr.options.flags[ReqFlag::NoTrigger]) return _no_trigger(ecr) ;
 		throw "no mark specified"s ;
 	}

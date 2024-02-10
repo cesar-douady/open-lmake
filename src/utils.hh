@@ -733,16 +733,16 @@ template<StdEnum E> struct BitMap {
 	constexpr bool operator!() const { return !_val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;
-	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )      ;         }
-	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )      ;         }
-	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(+E::N)&~_val)  ;         }
-	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)       ;         }
-	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)       ;         }
-	constexpr BitMap& operator&=( BitMap other      )       { *this = *this & other ; return *this ;         }
-	constexpr BitMap& operator|=( BitMap other      )       { *this = *this | other ; return *this ;         }
-	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)               ;         }
-	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)              ;         }
-	constexpr void    set       ( E flag , bool val )       { if (val) *this |= flag ; else *this &= ~flag ; }
+	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )      ;                 }
+	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )      ;                 }
+	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(+E::N)&~_val)  ;                 }
+	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)       ;                 }
+	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)       ;                 }
+	constexpr BitMap& operator&=( BitMap other      )       { *this = *this & other ; return *this ;                 }
+	constexpr BitMap& operator|=( BitMap other      )       { *this = *this | other ; return *this ;                 }
+	constexpr bool    operator[]( E      bit_       ) const { return bit(_val,+bit_)               ;                 }
+	constexpr uint8_t popcount  (                   ) const { return ::popcount(_val)              ;                 }
+	constexpr void    set       ( E flag , bool val )       { if (val) *this |= flag ; else *this &= ~BitMap(flag) ; } // operator~(E) is not always recognized because of namespace's
 	// data
 private :
 	Val _val = 0 ;

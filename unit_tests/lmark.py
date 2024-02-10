@@ -51,10 +51,8 @@ else :
 	None                                         ; print(7,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
 	sp.run(('lmark','-t','-d','src'),check=True) ; None                              ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
 
-	# manual-ok
-	None                                             ; None                              ; ut.lmake( 'src.cpy2' ,             done=1          ) # check src.cpy up to date
-	None                                             ; print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                               ) # check up to date, therefore no check
-	None                                             ; print(8,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , failed=1 , rc=1 ) # check out of date, therefore manual
-	sp.run(('lmark','-m','-a','src.cpy'),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,             done  =2        ) # check out of date despite manual src.cpy
-	None                                             ; print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                               ) # check up to date
-	None                                             ; print(9,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , failed=1 , rc=1 ) # check manual-ok is transcient
+	# manual
+	None                              ; ut.lmake( 'src.cpy2' ,             done=1        ) # check src.cpy up to date
+	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date, therefore no check
+	print(8,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , done=2 , rc=0 ) # check out of date, therefore manual (quarantined)
+	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date

@@ -68,6 +68,13 @@ static constexpr int JobExecBacklog = 1000 ;
 static constexpr uint8_t MaxCodecBits = 32 ;               // if more than 32 bits, then we need a stronger Crc as we are subject to the anniversary paradox here
 
 //
+// Directories
+//
+
+#define ADMIN_DIR "LMAKE"
+static constexpr char AdminDir[] = ADMIN_DIR ;
+
+//
 // derived info
 //
 

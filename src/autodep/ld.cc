@@ -12,7 +12,6 @@
 #include <unistd.h>
 
 #include "disk.hh"
-#include "lib.hh"
 #include "record.hh"
 
 #include "gather_deps.hh"

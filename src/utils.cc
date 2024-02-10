@@ -183,7 +183,7 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 			try                       { sp.line      = from_chars<size_t>(sp.file+col+1,true/*empty_ok*/) ; }
 			catch (::string const& e) { sp.line      = 0                                                  ; }
 		}
-		_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names and alignment makes all lines very long
+		_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names, and alignment makes all lines very long
 	}
 Return :
 	::close(c2p.read) ;

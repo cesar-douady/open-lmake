@@ -242,7 +242,7 @@ namespace Backends {
 				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs) ; start_cmd_attrs.chk(start_none_attrs.method) ; step = 2 ;
 				cmd               = rule->cmd              .eval(match,rsrcs) ;                                                step = 3 ;
 				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs) ;                                                step = 4 ;
-				pre_actions       = job->pre_actions( match , submit_attrs.manual_ok , true/*mark_target_dirs*/ ) ;            step = 5 ;
+				pre_actions       = job->pre_actions( match , true/*mark_target_dirs*/ ) ;                                     step = 5 ;
 			} catch (::string const& e) {
 				_s_small_ids.release(entry.conn.small_id) ;
 				job_exec = { job , New , New } ;                                   // job starts and ends, no host

@@ -243,13 +243,13 @@ namespace Engine {
 		//
 		ReqInfo const& c_req_info  (Req                   ) const ;
 		ReqInfo      & req_info    (Req                   ) const ;
-		ReqInfo      & req_info    (ReqInfo const&        ) const ;                                          // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info    (ReqInfo const&        ) const ;                                                                             // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs        (                      ) const ;
 		::vector<Req>  running_reqs(bool with_zombies=true) const ;
-		bool           running     (bool with_zombies=true) const ;                                          // fast implementation of +running_reqs(...)
+		bool           running     (bool with_zombies=true) const ;                                                                             // fast implementation of +running_reqs(...)
 		//
 		bool cmd_ok    (   ) const { return                      exec_gen >= rule->cmd_gen   ; }
-		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; }             // dont care about rsrcs if job went ok
+		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; }                                                // dont care about rsrcs if job went ok
 		bool is_special(   ) const { return rule->is_special() || idx().frozen()             ; }
 		bool has_req   (Req) const ;
 		//
@@ -270,7 +270,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		// services
-		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> pre_actions( Rule::SimpleMatch const& , bool manual_ok=false , bool mark_target_dirs=false ) const ; // thread-safe
+		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//
@@ -373,6 +373,7 @@ namespace Engine {
 	inline bool JobTgt::produces(Node t) const {
 		if ((*this)->missing()          ) return false ; // missing jobs produce nothing
 		if ((*this)->err()              ) return true  ; // jobs in error are deemed to produce all their potential targets
+		if (is_sure()                   ) return true  ;
 		if (t->has_actual_job_tgt(*this)) return true  ; // fast path
 		//
 		return ::binary_search( (*this)->targets , {t,{}} ) ;

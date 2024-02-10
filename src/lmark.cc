@@ -21,15 +21,14 @@ int main( int argc , char* argv[] ) {
 	},{
 		{ ReqFlag::Force     , { .short_name='F' , .doc="force action if possible"                          } }
 	,	{ ReqFlag::Freeze    , { .short_name='f' , .doc="freeze job : prevent rebuild and behave as source" } }
-	,	{ ReqFlag::ManualOk  , { .short_name='m' , .doc="allow overwriting of manual modifications"         } }
 	,	{ ReqFlag::NoTrigger , { .short_name='t' , .doc="do not trigger rebuild of dependent jobs"          } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	if ( is_mark_glb(cmd_line.key) && +cmd_line.args )
 		syntax.usage("cannot have files when listing or deleting all") ;
-	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::ManualOk] + cmd_line.flags[ReqFlag::NoTrigger] !=1 )
-		syntax.usage("can only process a single attribute among freeze manual-ok and no-trigger") ;
+	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 )
+		syntax.usage("can only process a single attribute : freeze or no-trigger") ;
 	//
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ::cout , ReqProc::Mark , true/*refresh_makefiles*/ , syntax , cmd_line ) ;

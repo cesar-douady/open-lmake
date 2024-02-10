@@ -115,15 +115,11 @@ namespace Engine::Persistent {
 	:	             Idxed<JobIdx,JobNGuardBits>
 	{	using Base = Idxed<JobIdx,JobNGuardBits> ;
 		// statics
-		static Job           s_idx             ( JobData const&                        ) ;
-		static bool          s_has_frozens     (                                       ) ;
-		static bool          s_has_manual_oks  (                                       ) ;
-		static ::vector<Job> s_frozens         (                                       ) ;
-		static ::vector<Job> s_manual_oks      (                                       ) ;
-		static void          s_frozens         ( bool add , ::vector<Job> const& items ) ;
-		static void          s_manual_oks      ( bool add , ::vector<Job> const& items ) ;
-		static void          s_clear_frozens   (                                       ) ;
-		static void          s_clear_manual_oks(                                       ) ;
+		static Job           s_idx          ( JobData const&                        ) ;
+		static bool          s_has_frozens  (                                       ) ;
+		static ::vector<Job> s_frozens      (                                       ) ;
+		static void          s_frozens      ( bool add , ::vector<Job> const& items ) ;
+		static void          s_clear_frozens(                                       ) ;
 		// cxtors & casts
 		using Base::Base ;
 		template<class... A> JobBase(                             NewType  , A&&...      ) ;
@@ -142,7 +138,6 @@ namespace Engine::Persistent {
 		//
 		RuleIdx rule_idx () const ;
 		bool    frozen   () const ;
-		bool    manual_ok() const ;
 		// services
 		void chk() const ;
 	} ;
@@ -154,17 +149,13 @@ namespace Engine::Persistent {
 		static Node           s_idx              ( NodeData const&                  ) ;
 		static bool           s_is_known         ( ::string const&                  ) ;
 		static bool           s_has_frozens      (                                  ) ;
-		static bool           s_has_manual_oks   (                                  ) ;
 		static bool           s_has_no_triggers  (                                  ) ;
 		static bool           s_has_srcs         (                                  ) ;
 		static ::vector<Node> s_frozens          (                                  ) ;
-		static ::vector<Node> s_manual_oks       (                                  ) ;
 		static ::vector<Node> s_no_triggers      (                                  ) ;
 		static void           s_frozens          ( bool add , ::vector<Node> const& ) ;     // erase (!add) or insert (add)
-		static void           s_manual_oks       ( bool add , ::vector<Node> const& ) ;     // erase (!add) or insert (add)
 		static void           s_no_triggers      ( bool add , ::vector<Node> const& ) ;     // .
 		static void           s_clear_frozens    (                                  ) ;
-		static void           s_clear_manual_oks (                                  ) ;
 		static void           s_clear_no_triggers(                                  ) ;
 		static void           s_clear_srcs       (                                  ) ;
 		//
@@ -183,7 +174,6 @@ namespace Engine::Persistent {
 		NodeData const* operator->() const { return &**this ; }
 		NodeData      * operator->()       { return &**this ; }
 		bool            frozen    () const ;
-		bool            manual_ok () const ;
 		bool            no_trigger() const ;
 		// services
 		void chk() const ;
@@ -260,16 +250,14 @@ namespace Engine {
 namespace Engine::Persistent {
 
 	struct JobHdr {
-		SeqId   seq_id     ;
-		JobTgts frozens    ; // these jobs are not rebuilt
-		JobTgts manual_oks ; // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
+		SeqId   seq_id  ;
+		JobTgts frozens ; // these jobs are not rebuilt
 	} ;
 
 	struct NodeHdr {
 		Targets srcs        ;
 		Targets src_dirs    ;
 		Targets frozens     ; // these nodes are not updated, like sources
-		Targets manual_oks  ; // these nodes can be freely overwritten by jobs if they have been manually modified (typically through a debug sessions)
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
@@ -308,12 +296,10 @@ namespace Engine::Persistent {
 	extern PfxFile      _pfxs_file      ; // .
 	extern NameFile     _name_file      ; // commons
 	// in memory
-	extern ::uset<Job >       _frozen_jobs     ;
-	extern ::uset<Job >       _manual_ok_jobs  ;
-	extern ::uset<Node>       _frozen_nodes    ;
-	extern ::uset<Node>       _manual_ok_nodes ;
-	extern ::uset<Node>       _no_triggers     ;
-	extern ::vector<RuleData> _rule_datas      ;
+	extern ::uset<Job >       _frozen_jobs  ;
+	extern ::uset<Node>       _frozen_nodes ;
+	extern ::uset<Node>       _no_triggers  ;
+	extern ::vector<RuleData> _rule_datas   ;
 
 }
 
@@ -409,14 +395,10 @@ namespace Engine::Persistent {
 	// JobBase
 	//
 	// statics
-	inline bool          JobBase::s_has_frozens     (                                       ) { return               +_job_file.c_hdr().frozens     ;                                  }
-	inline bool          JobBase::s_has_manual_oks  (                                       ) { return               +_job_file.c_hdr().manual_oks  ;                                  }
-	inline ::vector<Job> JobBase::s_frozens         (                                       ) { return mk_vector<Job>(_job_file.c_hdr().frozens   ) ;                                  }
-	inline ::vector<Job> JobBase::s_manual_oks      (                                       ) { return mk_vector<Job>(_job_file.c_hdr().manual_oks) ;                                  }
-	inline void          JobBase::s_frozens         ( bool add , ::vector<Job> const& items ) { _s_update(            _job_file.hdr  ().frozens   ,_frozen_jobs   ,add,items) ;        }
-	inline void          JobBase::s_manual_oks      ( bool add , ::vector<Job> const& items ) { _s_update(            _job_file.hdr  ().manual_oks,_manual_ok_jobs,add,items) ;        }
-	inline void          JobBase::s_clear_frozens   (                                       ) {                       _job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
-	inline void          JobBase::s_clear_manual_oks(                                       ) {                       _job_file.hdr  ().manual_oks.clear() ; _manual_ok_jobs.clear() ; }
+	inline bool          JobBase::s_has_frozens  (                                       ) { return               +_job_file.c_hdr().frozens     ;                                  }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(_job_file.c_hdr().frozens   ) ;                                  }
+	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update(            _job_file.hdr  ().frozens   ,_frozen_jobs   ,add,items) ;        }
+	inline void          JobBase::s_clear_frozens(                                       ) {                       _job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
 	//
 	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
 	// cxtors & casts
@@ -442,8 +424,7 @@ namespace Engine::Persistent {
 		clear() ;
 	}
 	// accesses
-	inline bool JobBase::frozen   () const { return _frozen_jobs   .contains(Job(+*this)) ; }
-	inline bool JobBase::manual_ok() const { return _manual_ok_jobs.contains(Job(+*this)) ; }
+	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+*this)) ; }
 	//
 	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+*this) ; }
 	inline JobData      & JobBase::operator*()       { return _job_file.at  (+*this) ; }
@@ -463,17 +444,13 @@ namespace Engine::Persistent {
 	inline bool NodeBase::s_is_known( ::string const& name) { return +_name_file.search(name) ; }
 
 	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +_node_file.c_hdr().frozens       ;                                  }
-	inline bool           NodeBase::s_has_manual_oks   (                                        ) { return                +_node_file.c_hdr().manual_oks    ;                                  }
 	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +_node_file.c_hdr().no_triggers   ;                                  }
 	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +_node_file.c_hdr().srcs          ;                                  }
 	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(_node_file.c_hdr().frozens     ) ;                                  }
-	inline ::vector<Node> NodeBase::s_manual_oks       (                                        ) { return mk_vector<Node>(_node_file.c_hdr().manual_oks  ) ;                                  }
 	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(_node_file.c_hdr().no_triggers ) ;                                  }
 	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(             _node_file.hdr  ().frozens    ,_frozen_nodes   ,add,items) ;        }
-	inline void           NodeBase::s_manual_oks       ( bool add , ::vector<Node> const& items ) { _s_update(             _node_file.hdr  ().manual_oks ,_manual_ok_nodes,add,items) ;        }
 	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(             _node_file.hdr  ().no_triggers,_no_triggers    ,add,items) ;        }
 	inline void           NodeBase::s_clear_frozens    (                                        ) {                        _node_file.hdr  ().frozens    .clear() ; _frozen_nodes   .clear() ; }
-	inline void           NodeBase::s_clear_manual_oks (                                        ) {                        _node_file.hdr  ().manual_oks .clear() ; _manual_ok_nodes.clear() ; }
 	inline void           NodeBase::s_clear_no_triggers(                                        ) {                        _node_file.hdr  ().no_triggers.clear() ; _no_triggers    .clear() ; }
 	inline void           NodeBase::s_clear_srcs       (                                        ) {                        _node_file.hdr  ().srcs       .clear() ;                          ; }
 	//
@@ -502,9 +479,8 @@ namespace Engine::Persistent {
 		*this = Node( _name_file.insert(n) , no_dir , locked ) ;
 	}
 	// accesses
-	inline bool NodeBase::frozen    () const { return _frozen_nodes   .contains(Node(+*this)) ; }
-	inline bool NodeBase::manual_ok () const { return _manual_ok_nodes.contains(Node(+*this)) ; }
-	inline bool NodeBase::no_trigger() const { return _no_triggers    .contains(Node(+*this)) ; }
+	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+*this)) ; }
+	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+*this)) ; }
 	//
 	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+*this) ; }
 	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+*this) ; }

@@ -63,12 +63,10 @@ namespace Engine::Persistent {
 	PfxFile      _pfxs_file      ; // .
 	NameFile     _name_file      ; // commons
 	// in memory
-	::uset<Job >       _frozen_jobs     ;
-	::uset<Job >       _manual_ok_jobs  ;
-	::uset<Node>       _frozen_nodes    ;
-	::uset<Node>       _manual_ok_nodes ;
-	::uset<Node>       _no_triggers     ;
-	::vector<RuleData> _rule_datas      ;
+	::uset<Job >       _frozen_jobs  ;
+	::uset<Node>       _frozen_nodes ;
+	::uset<Node>       _no_triggers  ;
+	::vector<RuleData> _rule_datas   ;
 
 	void _init_config() {
 		try         { g_config = deserialize<Config>(IFStream(PrivateAdminDir+"/config_store"s)) ; }
@@ -107,13 +105,9 @@ namespace Engine::Persistent {
 		SWEAR(RuleBase::s_match_gen>0) ;
 		_compile_srcs () ;
 		_compile_rules() ;
-		// jobs
-		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs    .insert(j) ;
-		for( Job  j : _job_file .c_hdr().manual_oks ) _manual_ok_jobs .insert(j) ;
-		// nodes
-		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes   .insert(n) ;
-		for( Node n : _node_file.c_hdr().manual_oks ) _manual_ok_nodes.insert(n) ;
-		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers    .insert(n) ;
+		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
+		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes.insert(n) ;
+		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers .insert(n) ;
 		//
 		trace("done",Pdate::s_now()) ;
 		//

@@ -10,9 +10,9 @@
 #include "app.hh"
 #include "serialize.hh"
 
-ENUM_1( ReqProc                        // PER_CMD : add a value that represents your command, above or below HasArgs as necessary
-,	HasArgs = Debug                    // >=HasArgs means command has arguments
-,	None                               // must stay first
+ENUM_1( ReqProc     // PER_CMD : add a value that represents your command, above or below HasArgs as necessary
+,	HasArgs = Debug // >=HasArgs means command has arguments
+,	None            // must stay first
 ,	Close
 ,	Kill
 ,	Debug
@@ -22,23 +22,23 @@ ENUM_1( ReqProc                        // PER_CMD : add a value that represents 
 ,	Show
 )
 
-ENUM( ReqKey       // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
-,	None           // must stay first
-,	Add            // if proc==Mark
-,	Clear          // if proc==Mark
-,	Cmd            // if proc==Show
-,	Delete         // if proc==Mark
-,	Deps           // if proc==Show
-,	Env            // if proc==Show
-,	Error          // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
-,	ExecScript     // if proc==Show
-,	Info           // if proc==Show
-,	InvDeps        // if proc==Show
-,	List           // if proc==Mark
-,	Resources      // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
-,	Stderr         // if proc==Show
-,	Stdout         // if proc==Show
-,	Targets        // if proc==Show
+ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
+,	None       // must stay first
+,	Add        // if proc==Mark
+,	Clear      // if proc==Mark
+,	Cmd        // if proc==Show
+,	Delete     // if proc==Mark
+,	Deps       // if proc==Show
+,	Env        // if proc==Show
+,	Error      // if proc==Forget, forget previous error, i.e. rerun targets in error that appear up-to-date
+,	ExecScript // if proc==Show
+,	Info       // if proc==Show
+,	InvDeps    // if proc==Show
+,	List       // if proc==Mark
+,	Resources  // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
+,	Stderr     // if proc==Show
+,	Stdout     // if proc==Show
+,	Targets    // if proc==Show
 )
 static inline bool is_mark_glb(ReqKey key) {
 	switch (key) {
@@ -50,30 +50,29 @@ static inline bool is_mark_glb(ReqKey key) {
 	}
 }
 
-ENUM( ReqFlag                          // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-,	Archive                            // if proc==                  Make               , all intermediate files are generated
-,	Backend                            // if proc==                  Make               , send argument to backends
-,	Debug                              // if proc==                                Show , generate debug executable script
-,	Deps                               // if proc==         Forget                      , forget deps
-,	Force                              // if proc==                         Mark        , act if doable, even if awkward
-,	ForgetOldErrors                    // if proc==                  Make               , assume old errors are transcient
-,	Freeze                             // if proc==                         Mark        , prevent job rebuild
-,	Graphic                            // if proc== Debug                          Show , use GUI to show debug script
-,	Vscode                             // if proc== Debug                          Show , use Vscode GUI to show debug script
-,	Job                                //                                                 interpret (unique) arg as job name
-,	Jobs                               // if proc==                  Make               , max number of jobs
-,	KeepTmp                            // if proc==                  Make               , keep tmp dir after job execution
-,	LiveOut                            // if proc==                  Make               , generate live output for last job
-,	Local                              // if proc==                  Make               , lauch all jobs locally
-,	ManualOk                           // if proc==                  Make | Mark        , allow lmake to overwrite manual files
-,	NoTrigger                          // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
-,	Porcelaine                         //                                                 generate easy to parse output
-,	Quiet                              //                                                 do not generate user oriented messages
-,	Rule                               //                                                 rule name when interpreting arg as job name
-,	SourceOk                           // if proc==                  Make               , allow lmake to overwrite source files
-,	Targets                            // if proc==         Forget                      , forget targets
-,	Verbose                            // if proc==                  Make        | Show , generate generous output
-,	Video                              //                                               , assume output video : n(ormal), r(everse) or f(ile)
+ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
+,	Archive         // if proc==                  Make               , all intermediate files are generated
+,	Backend         // if proc==                  Make               , send argument to backends
+,	Debug           // if proc==                                Show , generate debug executable script
+,	Deps            // if proc==         Forget                      , forget deps
+,	Force           // if proc==                         Mark        , act if doable, even if awkward
+,	ForgetOldErrors // if proc==                  Make               , assume old errors are transcient
+,	Freeze          // if proc==                         Mark        , prevent job rebuild
+,	Graphic         // if proc== Debug                          Show , use GUI to show debug script
+,	Vscode          // if proc== Debug                          Show , use Vscode GUI to show debug script
+,	Job             //                                                 interpret (unique) arg as job name
+,	Jobs            // if proc==                  Make               , max number of jobs
+,	KeepTmp         // if proc==                  Make               , keep tmp dir after job execution
+,	LiveOut         // if proc==                  Make               , generate live output for last job
+,	Local           // if proc==                  Make               , lauch all jobs locally
+,	NoTrigger       // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
+,	Porcelaine      //                                                 generate easy to parse output
+,	Quiet           //                                                 do not generate user oriented messages
+,	Rule            //                                                 rule name when interpreting arg as job name
+,	SourceOk        // if proc==                  Make               , allow lmake to overwrite source files
+,	Targets         // if proc==         Forget                      , forget targets
+,	Verbose         // if proc==                  Make        | Show , generate generous output
+,	Video           //                                               , assume output video : n(ormal), r(everse) or f(ile)
 )
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -92,7 +91,8 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 
-static constexpr char ServerMrkr[] = "server" ;
+static constexpr char PrivateAdminDir[] = ADMIN_DIR "/lmake"  ;
+static constexpr char ServerMrkr     [] = ADMIN_DIR "/server" ;
 
 struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;
@@ -123,7 +123,7 @@ struct ReqOptions {
 	}
 	// data
 	::string               startup_dir_s ;
-	Bool3                  reverse_video = Maybe        ;  // if Maybe <=> not a terminal, do not colorize
+	Bool3                  reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
 	ReqKey                 key           = ReqKey::None ;
 	ReqFlags               flags         ;
 	::array_s<+ReqFlag::N> flag_args     ;

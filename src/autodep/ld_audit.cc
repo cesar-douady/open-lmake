@@ -5,8 +5,6 @@
 
 #include <link.h>  // all dynamic link related
 
-#include "lib.hh"
-
 #include "record.hh"
 
 bool        g_force_orig = false   ;

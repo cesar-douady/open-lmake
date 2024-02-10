@@ -8,6 +8,7 @@
 
 #include "app.hh"
 #include "process.hh"
+#include "rpc_client.hh"
 
 using namespace Disk ;
 using namespace Time ;
