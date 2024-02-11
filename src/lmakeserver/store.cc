@@ -5,6 +5,8 @@
 
 #include <tuple>
 
+#include "rpc_job.hh"
+
 #include "core.hh"
 
 using Backends::Backend ;
@@ -177,6 +179,63 @@ namespace Engine::Persistent {
 		if (  dynamic &&                           g_config.booted ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
 		trace("done",Pdate::s_now()) ;
 		if (!g_config.booted) throw "no config available"s ;                                            // we'd better have a config at the end
+	}
+
+	void repair(::string const& from_dir) {
+		::vector<Rule>   rules    = rule_lst() ;
+		::umap<Crc,Rule> rule_tab ; for( Rule r : Rule::s_lst() ) rule_tab[r->cmd_crc] = r ; SWEAR(rule_tab.size()==rules.size()) ;
+		for( ::string const& jd : walk(from_dir,from_dir) ) {
+			{	IFStream     job_stream   { jd } ;
+				JobInfoStart report_start ;
+				JobInfoEnd   report_end   ;
+				try {
+					deserialize(job_stream,report_start) ;
+					deserialize(job_stream,report_end  ) ;
+				} catch (...) { goto NextJob ; }
+				// qualify report
+				if (report_start.pre_start.proc!=JobProc::Start) goto NextJob ;
+				if (report_start.start    .proc!=JobProc::Start) goto NextJob ;
+				if (report_end  .end      .proc!=JobProc::End  ) goto NextJob ;
+				if (report_end  .end.digest.status!=Status::Ok ) goto NextJob ;                           // repairing jobs in error is useless
+				// find rule
+				auto it = rule_tab.find(report_start.rule_cmd_crc) ;
+				if (it==rule_tab.end()) goto NextJob ;                                                    // no rule
+				Rule rule = it->second ;
+				// find targets
+				::vector<Target> targets ; targets.reserve(report_end.end.digest.targets.size()) ;
+				for( auto const& [tn,td] : report_end.end.digest.targets ) {
+					if ( !td.crc.valid()                                                 ) goto NextJob ;
+					if ( td.date!=file_date(tn)                                          ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
+					if ( td.crc==Crc::None && !Target::s_is_sure(td.tflags) && !td.write ) continue     ; // this is not a target
+					//
+					Node t{tn} ;
+					t->refresh(td.crc,td.date) ;
+					targets.emplace_back( t , td.tflags ) ;
+				}
+				::sort(targets) ;                                                                         // ease search in targets
+				// find deps
+				::vector<Dep> deps ; deps.reserve(report_end.end.digest.deps.size()) ;
+				for( auto const& [dn,dd] : report_end.end.digest.deps ) {
+					Dep dep { Node(dn) , dd } ;
+					if ( dep.is_date                         ) goto NextJob ;                             // dep could not be identified when job ran, hum, better not to repair that
+					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;                             // no valid crc, no interest to repair as job will rerun anyway
+					deps.emplace_back(dep) ;
+				}
+				// set job
+				Job job { {rule,::move(report_start.stems)} } ;
+				job->targets.assign(targets) ;
+				job->deps   .assign(deps   ) ;
+				job->status = report_end.end.digest.status ;
+				job->exec_ok(true) ;                                                                      // pretend job just ran
+				// set target actual_job's
+				for( Target t : targets ) t->actual_job_tgt() = { job , t.is_sure() } ;
+				// restore job_data
+				OFStream job_data_stream {dir_guard(job->ancillary_file()) } ;
+				serialize(job_data_stream,report_start) ;
+				serialize(job_data_stream,report_end  ) ;
+			}
+		NextJob : ;
+		}
 	}
 
 	void _compile_rule_datas() {

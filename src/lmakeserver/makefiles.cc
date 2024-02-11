@@ -76,7 +76,7 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) { // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( ::string const& action , ::string const& startup_dir_s , NfsGuard& nfs_guard ) {        // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
 		::string   deps_file   = to_string(AdminDir,'/',action,"_deps") ;
@@ -106,7 +106,7 @@ namespace Engine::Makefiles {
 		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {                    // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {             // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::ifstream deps_stream { _deps_file(action,new_) } ;
@@ -117,9 +117,9 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                                                                    // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                                             // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
-			n->set_buildable() ;                                                                                         // this is mandatory before is_src() or is_anti() can be called
+			n->set_buildable() ;                                                                                  // this is mandatory before is_src() or is_anti() can be called
 			if ( !n->is_src() && !n->is_anti()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
@@ -156,7 +156,7 @@ namespace Engine::Makefiles {
 
 	static ::pair<PyObject*,::vector_s/*deps*/> _read_makefiles( ::string const& action , ::string const& module ) {
 		//
-		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
+		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ;  // dir_s is \1, module is \3, matches both python 2 & 3
 		//
 		GatherDeps gather_deps { New }                                                                        ; gather_deps.autodep_env.src_dirs_s = {"/"} ;
 		::string   data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
@@ -208,8 +208,8 @@ namespace Engine::Makefiles {
 		return { "read config because "+reason , true/*done*/ } ;
 	}
 
-	ENUM( Reason   // reason to re-read makefiles
-	,	None       // must be first to be false
+	ENUM( Reason // reason to re-read makefiles
+	,	None     // must be first to be false
 	,	Set
 	,	Cleared
 	,	Modified
@@ -279,13 +279,13 @@ namespace Engine::Makefiles {
 		return {reason,true/*done*/} ;
 	}
 
-	::string/*msg*/ _refresh( bool chk , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) {
-		Trace trace("_refresh",STR(chk),STR(refresh_),STR(dynamic),startup_dir_s) ;
+	::string/*msg*/ _refresh( bool rescue , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) {
+		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dynamic),startup_dir_s) ;
 		if (!refresh_) {
 			SWEAR(!dynamic) ;
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Persistent::new_config( Config() , dynamic , chk ) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( Config() , dynamic , rescue ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return {} ;
 		}
 		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                             // until we have config info, protect against NFS
@@ -307,9 +307,9 @@ namespace Engine::Makefiles {
 				if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 				if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
 			} ;
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Persistent::new_config( ::move(config) , dynamic , chk , diff_config ) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                         // now that config is loaded, we can optimize protection against NFS
 			//
 			// /!\ sources must be processed first as source dirs influence rules
@@ -351,7 +351,7 @@ namespace Engine::Makefiles {
 		}
 	}
 
-	::string/*msg*/ refresh        ( bool chk , bool refresh_    ) { return _refresh( chk   , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ; }
-	::string/*msg*/ dynamic_refresh(::string const& startup_dir_s) { return _refresh( false , true     , true /*dynamic*/ , startup_dir_s    ) ; }
+	::string/*msg*/ refresh        ( bool rescue , bool refresh_ ) { return _refresh( rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ; }
+	::string/*msg*/ dynamic_refresh(::string const& startup_dir_s) { return _refresh( false  , true     , true /*dynamic*/ , startup_dir_s    ) ; }
 
 }

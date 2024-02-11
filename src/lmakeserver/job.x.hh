@@ -56,11 +56,11 @@ namespace Engine {
 		static ::umap<Job        ,Time::Pdate> _s_job_to_end_dates   ;  // end_dates of all jobs that have ended after the earliest start date mentioned above
 		static ::map <Time::Pdate,Job        > _s_end_date_to_jobs   ;  // .
 		// cxtors & casts
-		Job( Rule::SimpleMatch&& , Req={} , DepDepth lvl=0 ) ;          // plain Job, req is only for error reporting
 	public :
 		using JobBase::JobBase ;
+		Job( Rule::SimpleMatch&&          , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
 		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
-		Job( Rule    , ::string const& jn , Req={} , DepDepth lvl=0 ) ; // plain Job, match on name, for use when required from command line
+		Job( Rule    , ::string const& jn , Req={} , DepDepth lvl=0 ) ; // plain Job, match on name, used for repairing or when required from command line
 		//
 		Job( Special ,               Deps deps               ) ;        // Job used to represent a Req
 		Job( Special , Node target , Deps deps               ) ;        // special job
@@ -119,9 +119,9 @@ namespace Engine {
 		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
-		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlink={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void             report_start(                                                                                                                   ) const ;
-		void             started     ( bool report , ::vector<Node> const& report_unlink={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void             report_start(                                                                          ) const ;
+		void             started     ( bool report , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;

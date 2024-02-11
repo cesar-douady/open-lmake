@@ -16,33 +16,32 @@ using namespace Time ;
 ::string* g_lmake_dir     = nullptr ;
 ::string* g_startup_dir_s = nullptr ; // includes final /, relative to g_root_dir , dir from which command was launched
 ::string* g_root_dir      = nullptr ;
+::string* g_exe_name      = nullptr ;
 
 void crash_handler(int sig) {
 	if (sig==SIGABRT) crash(4,sig,"aborted"               ) ;
 	else              crash(2,sig,"caught ",strsignal(sig)) ;
 }
 
-void app_init( bool search_root , bool cd_root ) {
+void app_init(bool cd_root) {
 	sanitize(::cout) ;
 	sanitize(::cerr) ;
 	//
 	for( int sig=1 ; sig<NSIG ; sig++ ) if (is_sig_sync(sig)) set_sig_handler(sig,crash_handler) ; // catch all synchronous signals so as to generate a backtrace
 	//
-	try {
-		g_root_dir = new ::string{cwd()} ;
-		if (search_root) {
-			g_startup_dir_s = new ::string ;
+	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
+	if (!g_root_dir     ) {
+		try {
+			g_root_dir                        = new ::string{cwd()}          ;
 			tie(*g_root_dir,*g_startup_dir_s) = search_root_dir(*g_root_dir) ;
-		}
-	} catch (::string const& e) { exit(2,e) ; }
-	if (cd_root) {
-		SWEAR(search_root) ;                                                                       // it is meaningless to cd to root dir if we do not search it
-		if (::chdir(g_root_dir->c_str())!=0) exit(2,"cannot chdir to ",*g_root_dir) ;
+		} catch (::string const& e) { exit(2,e) ; }
+		if ( cd_root && +*g_startup_dir_s && ::chdir(g_root_dir->c_str())!=0 ) exit(2,"cannot chdir to ",*g_root_dir) ;
 	}
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
-	if (g_trace_file==nullptr) g_trace_file = new ::string{to_string(PrivateAdminDir,"/trace/",base_name(exe))} ;
-	/**/                       g_lmake_dir  = new ::string{dir_name(dir_name(exe))                            } ;
+	g_exe_name = new ::string{base_name(exe)} ;
+	if (!g_trace_file) g_trace_file = new ::string{to_string(PrivateAdminDir,"/trace/",*g_exe_name)} ;
+	/**/               g_lmake_dir  = new ::string{dir_name(dir_name(exe))                         } ;
 	//
 	Trace::s_start() ;
 	Trace trace("app_init",g_startup_dir_s?*g_startup_dir_s:""s) ;

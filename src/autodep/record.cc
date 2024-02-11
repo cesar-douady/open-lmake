@@ -166,7 +166,7 @@ int Record::Lnk::operator()( Record& r , int rc ) {
 }
 
 Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,true/*allow_tmp_map*/,c} {
-	r._report_guard(::move(real),::move(c)) ;
+	if (kind==Kind::Repo) r._report_guard(::move(real),::move(c)) ;
 }
 
 static inline bool _do_stat (int flags) { return flags&O_PATH                                                        ; }

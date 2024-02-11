@@ -1,3 +1,8 @@
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 # build command : cd docker ; docker build -f centos7.docker -t centos7 .
 
 FROM centos:7
@@ -7,8 +12,8 @@ RUN yum install -y devtoolset-11
 RUN yum install -y ed
 RUN yum install -y texinfo
 RUN yum install -y git
-RUN yum install -y python36
-RUN yum install -y python36-devel
+RUN yum install -y python3
+RUN yum install -y python3-devel
 RUN yum install -y autoconf
 RUN yum install -y automake
 RUN yum install -y epel-release
@@ -20,4 +25,5 @@ USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy
 ENV     HOME=/home/cdy
-CMD     scl enable devtoolset-11 bash
+#CMD     scl enable devtoolset-11 bash
+CMD     PATH=/opt/rh/devtoolset-11/root/usr/bin:$PATH bash

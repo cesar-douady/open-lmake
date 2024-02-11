@@ -304,18 +304,19 @@ class TarLmake(BaseRule) :
 	,	'LIB6'               : 'lib/lmake/utils.py'
 	,	'LIB7'               : 'lib/lmake_runtime.py'
 	,	'CLMAKE'             : 'lib/clmake.so'
+	,	'ALIGN_COMMENTS'     : 'bin/align_comments'
 	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
+	,	'LDBG'               : 'bin/ldebug'
 	,	'LDECODE'            : 'bin/ldecode'
 	,	'LDEPEND'            : 'bin/ldepend'
 	,	'LENCODE'            : 'bin/lencode'
-	,	'LTARGET'            : 'bin/ltarget'
-	,	'LMARK'              : 'bin/lmark'
 	,	'LFORGET'            : 'bin/lforget'
 	,	'LMAKE'              : 'bin/lmake'
-	,	'LDBG'               : 'bin/ldebug'
+	,	'LMARK'              : 'bin/lmark'
+	,	'LREPAIR'            : 'bin/lrepair'
 	,	'LSHOW'              : 'bin/lshow'
+	,	'LTARGET'            : 'bin/ltarget'
 	,	'XXHSUM'             : 'bin/xxhsum'
-	,	'ALIGN_COMMENTS'     : 'bin/align_comments'
 	,	'DOC'                : 'doc/lmake.html'
 	}
 	cmd = "tar -cz {' '.join(deps.values())}"
@@ -438,6 +439,11 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
+
+class Lrepair(Rule) :
+	targets = { 'TARGET' : 'bin/lrepair'      }
+	deps    = { 'SRC'    : '_bin/lmakeserver' }
+	cmd     = 'ln {SRC} {TARGET}'
 
 class LinkLdumpExe(LinkPythonAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump' }

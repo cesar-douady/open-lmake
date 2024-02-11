@@ -94,7 +94,7 @@ void print_end(JobRpcReq const& jrr) {
 
 int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(2,"usage : ldump_job file") ;
-	app_init(true/*search_root*/,true/*cd_root*/) ;
+	app_init() ;
 	//
 	IFStream job_stream{argv[1]} ;
 	try {

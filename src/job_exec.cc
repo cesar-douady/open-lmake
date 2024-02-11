@@ -187,8 +187,7 @@ Digest analyze( bool at_end , bool killed=false ) {
 			}
 			TargetDigest td { a , tflags , ad.write } ;
 			if      ( ad.unlink                        ) td.crc = Crc::None ;
-			else if ( !ad.write                        ) {}
-			else if ( killed || !tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag) ; td.date = fi.date ; } // no crc if killed nor non-official targets (for perf)
+			else if ( killed || !tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag) ; td.date = fi.date ; } // no crc if meaningless
 			else                                         res.crcs.emplace_back(res.targets.size()) ;                        // defer (parallel) crc computation
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
@@ -248,7 +247,7 @@ void live_out_cb(::string_view const& txt) {
 	live_out_buf = live_out_buf.substr(pos) ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs ) {
+void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , ::mutex* msg_mutex ) {
 	static ::atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc",targets->size(),crcs->size()) ;
@@ -260,21 +259,28 @@ trace((*crcs)[ci]);
 		Pdate                   before = Pdate::s_now()          ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
 		trace("crc_date",ci,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
+		if (!e.second.crc.valid()) {
+			::unique_lock lock{*msg_mutex} ;
+			append_to_string(*msg,"cannot compute crc for ",e.first) ;
+		}
 	}
 	trace("done",cnt) ;
 }
 
-void compute_crcs(Digest& digest) {
+::string compute_crcs(Digest& digest) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
 	if (n_threads>digest.crcs.size()) n_threads = digest.crcs.size()             ;
 	//
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
+	::string msg       ;
+	::mutex  msg_mutex ;
 	{	::vector<jthread> crc_threads ; crc_threads.reserve(n_threads) ;
 		for( size_t i=0 ; i<n_threads ; i++ )
-			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs ) ; // just constructing and destructing the threads will execute & join them
+			crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex ) ; // just constructing and destructing the threads will execute & join them
 	}
+	return msg ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -307,8 +313,9 @@ int main( int argc , char* argv[] ) {
 		default : FAIL(g_start_info.proc) ;
 	}
 	//
-	if (::chdir(g_start_info.autodep_env.root_dir.c_str())!=0) {
-		append_to_string(end_report.msg,"cannot chdir to root : ",g_start_info.autodep_env.root_dir) ;
+	g_root_dir = &g_start_info.autodep_env.root_dir ;
+	if (::chdir(g_root_dir->c_str())!=0) {
+		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
 		goto End ;
 	}
 	{	if (g_start_info.trace_n_jobs) {
@@ -376,7 +383,7 @@ int main( int argc , char* argv[] ) {
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
 		//
-		compute_crcs(digest) ;
+		end_report.msg += compute_crcs(digest) ;
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                                            // fast path : avoid listing targets & guards if reliable_dirs
 			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                               // protect against NFS strange notion of coherence while computing crcs

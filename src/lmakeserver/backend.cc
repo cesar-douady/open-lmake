@@ -196,10 +196,11 @@ namespace Backends {
 			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ;                    // fd is needed to reply
 			default : FAIL(jrr.proc) ;
 		}
-		Job                                        job               { jrr.job        } ;
+		Job                                        job               { jrr.job }           ;
 		JobExec                                    job_exec          ;
-		Rule                                       rule              = job->rule        ;
-		JobRpcReply                                reply             { JobProc::Start } ;
+		Rule                                       rule              = job->rule           ;
+		Rule::SimpleMatch                          match             = job->simple_match() ;
+		JobRpcReply                                reply             { JobProc::Start }    ;
 		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
 		StartCmdAttrs                              start_cmd_attrs   ;
 		::pair_ss/*script,call*/                   cmd               ;
@@ -225,7 +226,6 @@ namespace Backends {
 			set_nl(jrr.msg) ; jrr.msg += s_start(entry.tag,+job) ;
 			//                           ^^^^^^^^^^^^^^^^^^^^^^^
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-			Rule::SimpleMatch match = job->simple_match() ;
 			try {
 				start_none_attrs = rule->start_none_attrs.eval(match,rsrcs) ;
 			} catch (::string const& e) {
@@ -276,10 +276,10 @@ namespace Backends {
 					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,JobDigest(digest)) ) ) ;
 				}
 				if (step>0) job_exec->end_exec() ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg) ) ;
-				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                                          , ::move(msg    ) ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , ::move(job_exec) , false/*report_now*/ , ::move(start_stderr) , ::move(jrr.msg) ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)             , ::move(msg    ) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				return false ;
 			}
 			//
@@ -344,19 +344,21 @@ namespace Backends {
 		serialize(
 			OFStream(dir_guard(job->ancillary_file()))
 		,	JobInfoStart({
-				.eta          = eta
-			,	.submit_attrs = submit_attrs
-			,	.rsrcs        = ::move(rsrcs)
-			,	.host         = job_exec.host
-			,	.pre_start    = jrr
-			,	.start        = ::move(reply)
-			,	.stderr       = start_stderr
+				.rule_cmd_crc =        rule->cmd_crc
+			,	.stems        = ::move(match.stems  )
+			,	.eta          =        eta
+			,	.submit_attrs =        submit_attrs
+			,	.rsrcs        = ::move(rsrcs        )
+			,	.host         =        job_exec.host
+			,	.pre_start    =        jrr
+			,	.start        = ::move(reply        )
+			,	.stderr       =        start_stderr
 			})
 		) ;
 		bool report_now = Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( JobProc::Start , JobExec(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_stderr) , ::move(jrr.msg) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , report_now , ::move(start_stderr) , ::move(jrr.msg) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) _s_deferred_report_thread->emplace_at( job_exec.start_+start_none_attrs.start_delay , jrr.seq_id , ::move(job_exec) ) ;
 		return false/*keep_fd*/ ;
 	}
@@ -419,14 +421,14 @@ namespace Backends {
 			/**/                                               jrr.digest.status  = _s_release_start_entry(it,jrr.digest.status) ;
 		}
 		trace("info") ;
-		serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr) ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
-		job->end_exec() ;
 		for( auto& [dn,dd] : jrr.digest.deps ) {
 			if (!dd.is_date) continue ;                                             // fast path
 			Dep dep { Node(dn) , dd } ;
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
+		serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr) ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		job->end_exec() ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( JobProc::End , ::move(job_exec) , ::move(rsrcs) , ::move(jrr.digest) , ::move(jrr.msg) ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

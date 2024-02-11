@@ -264,7 +264,6 @@ namespace Engine {
 		JobProc        proc          = JobProc::None ;
 		JobExec        exec          = {}            ;
 		bool           report        = false         ; // if proc == Start | GiveUp
-		::vector<Node> report_unlink = {}            ; // if proc == Start
 		::string       txt           = {}            ; // if proc == Start | LiveOut
 		Req            req           = {}            ; // if proc == GiveUp
 		::vmap_ss      rsrcs         = {}            ; // if proc == End
@@ -298,9 +297,9 @@ namespace Engine {
 		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill   ) ; }
 		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close  ) ; }
 		//
-		EngineClosure( JP p , JE&& je , bool r , ::vector<Node>&& ru={} , ::string&& t={} , ::string&& bem={} ) :
-			kind { K::Job                                                                                                         }
-		,	job  { .proc=p , .exec=::move(je) , .report=r , .report_unlink=::move(ru) , .txt=::move(t) , .backend_msg=::move(bem) }
+		EngineClosure( JP p , JE&& je , bool r , ::string&& t={} , ::string&& bem={} ) :
+			kind { K::Job                                                                             }
+		,	job  { .proc=p , .exec=::move(je) , .report=r , .txt=::move(t) , .backend_msg=::move(bem) }
 		{ SWEAR(p==JP::Start) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::string&& t    ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=::move(t)     } { SWEAR( p==JP::LiveOut                      ) ; }

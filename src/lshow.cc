@@ -9,7 +9,7 @@
 #include "trace.hh"
 
 int main( int argc , char* argv[] ) {
-	app_init(true/*search_root*/,true/*cd_root*/) ;
+	app_init() ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax{{

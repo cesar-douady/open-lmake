@@ -54,7 +54,7 @@ static void _handle_int() {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	app_init(true/*search_root*/,true/*cd_root*/) ;
+	app_init() ;
 	//
 	ReqSyntax syntax{{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }

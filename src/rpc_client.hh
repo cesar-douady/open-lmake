@@ -91,8 +91,9 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 
-static constexpr char PrivateAdminDir[] = ADMIN_DIR "/lmake"  ;
-static constexpr char ServerMrkr     [] = ADMIN_DIR "/server" ;
+#define PRIVATE_ADMIN_SUBDIR "lmake"
+static constexpr char PrivateAdminDir[] = ADMIN_DIR "/" PRIVATE_ADMIN_SUBDIR ;
+static constexpr char ServerMrkr     [] = ADMIN_DIR "/server"                ;
 
 struct ReqOptions {
 	friend ::ostream& operator<<( ::ostream& , ReqOptions const& ) ;

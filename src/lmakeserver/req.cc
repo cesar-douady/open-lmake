@@ -397,10 +397,10 @@ namespace Engine {
 				}
 				audit_info( c , to_string(::setw(9),mk_snake(jr)," jobs : ",stats.ended(jr)) ) ;                                         // 9 is for "completed"
 			}
-		/**/                                   audit_info( Color::Note , to_string( "useful   time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
-		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun    time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed  time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup  dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
+		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
+		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup   dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;

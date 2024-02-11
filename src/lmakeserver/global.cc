@@ -363,14 +363,23 @@ namespace Engine {
 		return res.str() ;
 	}
 
+	static ::string _set_dir( ::string const& user_dir , ::string const& key , ::string const& file ) {
+		::string std_file = to_string(PrivateAdminDir,'/',file) ;
+		if (!user_dir) return std_file ;
+		::string special_file = to_string(user_dir,'/',key)                 ;
+		::string lnk_target   = mk_rel(special_file,dir_name(std_file)+'/') ;
+		if ( ::string t=read_lnk(std_file) ; +t ) swear_prod(t==lnk_target)               ;
+		else                                      lnk( dir_guard(std_file) , lnk_target ) ;
+		return special_file ;
+	}
 	void Config::open(bool dynamic) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		SWEAR(+key) ;                                                                                                                    // ensure no init problem
-		local_admin_dir  = +user_local_admin_dir  ? to_string(user_local_admin_dir ,'/',key,"-la" ) : PrivateAdminDir+"/local_admin"s  ; // add key and suffix to ensure different dirs
-		remote_admin_dir = +user_remote_admin_dir ? to_string(user_remote_admin_dir,'/',key,"-ra" ) : PrivateAdminDir+"/remote_admin"s ; // .
-		remote_tmp_dir   = +user_remote_tmp_dir   ? to_string(user_remote_tmp_dir  ,'/',key,"-tmp") : PrivateAdminDir+"/remote_tmp"s   ; // .
+		SWEAR(+key) ;                                                                                        // ensure no init problem
+		local_admin_dir  = _set_dir( user_local_admin_dir  , key+"-la" , "local_admin"s  ) ;                 // add key and suffix to ensure different dirs
+		remote_admin_dir = _set_dir( user_remote_admin_dir , key+"-ra" , "remote_admin"s ) ;                 // .
+		remote_tmp_dir   = _set_dir( user_remote_tmp_dir   , key+"-tmp", "remote_tmp"s   ) ;                 // .
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;

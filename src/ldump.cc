@@ -15,7 +15,7 @@ static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
 int main( int argc , char* /*argv*/[] ) {
 	//
 	if (argc!=1) exit(2,"must be called without arg") ;
-	app_init(true/*search_root*/,true/*cd_root*/) ;
+	app_init() ;
 	Py::init() ;
 	//
 	Persistent::new_config({}/*config*/,false/*dynamic*/) ;

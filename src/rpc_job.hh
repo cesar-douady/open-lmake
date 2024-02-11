@@ -799,6 +799,8 @@ struct JobServerRpcReq {
 struct JobInfoStart {
 	friend ::ostream& operator<<( ::ostream& , JobInfoStart const& ) ;
 	// data
+	Hash::Crc   rule_cmd_crc = {}         ;
+	::vector_s  stems        = {}         ;
 	Time::Pdate eta          = {}         ;
 	SubmitAttrs submit_attrs = {}         ;
 	::vmap_ss   rsrcs        = {}         ;

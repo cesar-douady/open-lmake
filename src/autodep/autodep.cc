@@ -22,7 +22,7 @@ ENUM( CmdFlag
 )
 
 int main( int argc , char* argv[] ) {
-	app_init(true/*search_root*/) ;
+	app_init(false/*cd_root*/) ;
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
 		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ptrace)" } }

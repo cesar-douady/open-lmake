@@ -173,6 +173,7 @@ LMAKE_SERVER_BIN_FILES = \
 	$(BIN)/lforget         \
 	$(BIN)/lmake           \
 	$(BIN)/lmark           \
+	$(BIN)/lrepair         \
 	$(BIN)/lshow           \
 	$(BIN)/xxhsum
 
@@ -399,6 +400,9 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+
+$(BIN)/lrepair : $(SBIN)/lmakeserver
+	rm -f $@ ; ln $< $@
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \

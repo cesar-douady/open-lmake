@@ -127,7 +127,7 @@ namespace Engine::Persistent {
 		template<class... A> JobBase( ::pair_ss const& name_sfx , DfltType , A&&... args ) : JobBase(name_sfx,false/*new*/,::forward<A>(args)...) {}
 		/**/                 JobBase( ::pair_ss const& name_sfx                          ) : JobBase(name_sfx,Dflt                              ) {}
 	private :
-		template<class... A> JobBase( ::pair_ss const& name_sfx , bool new_  , A&&... ) ;
+		template<class... A> JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... ) ;
 	public :
 		void pop() ;
 		// accesses
@@ -318,6 +318,7 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                   ) ;
 	void               invalidate_match(                                                          ) ;
 	void               invalidate_exec ( bool cmd_ok                                              ) ;
+	void               repair          ( ::string const& from_dir                                 ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;

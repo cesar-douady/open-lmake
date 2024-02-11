@@ -96,9 +96,15 @@ namespace Engine {
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , Target const ) ;
+		// statics
+		static bool s_is_sure(Tflags tflags) {
+			return tflags[Tflag::Target] && (tflags[Tflag::Static]||tflags[Tflag::Phony]) ;
+		}
 		// cxtors & casts
 		Target(                       ) = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
+		// accesses
+		bool is_sure() const { return s_is_sure(tflags) ; }
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data

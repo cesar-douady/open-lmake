@@ -285,10 +285,6 @@ items :
 * TOOLS
 ****************************************************************************************************
 
-*1 lrepair
-	- ensure ancillary file contains all necessary info to rebuild DB
-		- rule crc
-		- deps crc
 * consider gdb guis :
 	- apt install nemiver
 	- insight
