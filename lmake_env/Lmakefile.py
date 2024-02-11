@@ -57,8 +57,8 @@ def dir_guard(file) :
 
 class BaseRule(Rule) :
 	stems = {
-		'Dir'  : r'(.+?)'                # use non-greedy to be protected against dirs ending in .dir in tar file
-	,	'DirS' : r'(.+/|)'               # include trailing / or empty to designate top-level
+		'Dir'  : r'(.+?)'  # use non-greedy to be protected against dirs ending in .dir in tar file
+	,	'DirS' : r'(.+/|)' # include trailing / or empty to designate top-level
 	,	'File' : r'(.+)'
 	,	'Base' : r'([^/]+)'
 	,	'Ext'  : r'([^/]+)'
@@ -209,14 +209,14 @@ basic_opts_tab = {
 ,	'cxx' : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # .
 }
 for ext,basic_opts in basic_opts_tab.items() :
-	class Compile(Centos7Rule) :                                               # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
+	class Compile(Centos7Rule) :               # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
 		targets = { 'OBJ' : '{File}.o' }
 		deps    = {
 			'SRC'  : f'{{File}}.{ext}'
 		,	'OPTS' : '{File}.opts'
 		}
-		basic_opts = basic_opts                                                # capture value while iterating (w/o this line, basic_opts would be the final value)
+		basic_opts = basic_opts                # capture value while iterating (w/o this line, basic_opts would be the final value)
 		def cmd() :
 			add_flags = eval(open(OPTS).read())
 			seen_inc  = False
@@ -224,8 +224,8 @@ for ext,basic_opts in basic_opts_tab.items() :
 			mrkrs     = []
 			for x in add_flags :
 				if seen_inc and x[0]!='/' :
-					if not File.startswith(x+'/') :                            # if x is a dir of File, it necessarily exists
-						mrkrs.append(osp.join(x,'mrkr'))                       # gcc does not open includes from non-existent dirs
+					if not File.startswith(x+'/') :                                              # if x is a dir of File, it necessarily exists
+						mrkrs.append(osp.join(x,'mrkr'))                                         # gcc does not open includes from non-existent dirs
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
@@ -235,8 +235,9 @@ for ext,basic_opts in basic_opts_tab.items() :
 			,	*add_flags
 			,	'-o',OBJ , SRC
 			)
+			if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH'])) # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
 			for k,v in os.environ.items() : print(f'{k}={v}')
-			print(' '.join(cmd_line),flush=True)                               # in case of live out, we want to have the info early
+			print(' '.join(cmd_line),flush=True)                                                 # in case of live out, we want to have the info early
 			run( cmd_line , check=True )
 		n_tokens  = config.backends.local.cc
 		resources = pdict()
@@ -245,8 +246,8 @@ for ext,basic_opts in basic_opts_tab.items() :
 
 class GccRule(Centos7Rule) :
 	combine       = ('pre_opts','rev_post_opts')
-	pre_opts      = []                                                         # options before inputs & outputs
-	rev_post_opts = []                                                         # options after  inputs & outputs, combine appends at each level, but here we want to prepend
+	pre_opts      = []                           # options before inputs & outputs
+	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
 	def cmd() :
 		cmd_line = (
 			gcc , '-fdiagnostics-color=always'

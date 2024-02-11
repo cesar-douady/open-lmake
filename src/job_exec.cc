@@ -53,7 +53,7 @@ JobIdx                  g_job                    = 0/*garbage*/ ;
 ::atomic<bool>          g_killed                 = false        ; // written by thread S and read by main thread
 PatternDict<MatchFlags> g_match_dct              ;
 NfsGuard                g_nfs_guard              ;
-::uset_s                g_missing_static_targets ;
+::umap_s<bool/*phony*/> g_missing_static_targets ;
 
 void kill_thread_func(::stop_token stop) {
 	t_thread_key = 'K' ;
@@ -193,13 +193,13 @@ Digest analyze( bool at_end , bool killed=false ) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if ( tflags[Tflag::Static] && tflags[Tflag::Target] && !tflags[Tflag::Phony] ) g_missing_static_targets.erase(file) ;
+			if ( tflags[Tflag::Static] && tflags[Tflag::Target] ) g_missing_static_targets.erase(file) ;
 			trace("target",td,STR(ad.unlink),tflags,file) ;
 		}
 	}
-	for( ::string const& f : g_missing_static_targets ) {
+	for( auto const& [f,p] : g_missing_static_targets ) {
 		FileInfo fi{f} ;
-		append_to_string( res.msg , "missing static target", (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") , " : " , mk_file(f) , '\n' ) ;
+		if (!p) append_to_string( res.msg , "missing static target", (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") , " : " , mk_file(f) , '\n' ) ;
 		res.targets.emplace_back( f , TargetDigest({},{Tflag::Static,Tflag::Target}) ) ;                                    // report missing static targets as targets with no accesses
 	}
 	trace("done",res.msg,res.deps.size(),res.targets.size(),res.crcs.size()) ;
@@ -329,7 +329,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [p,flags ] : g_start_info.star_matches   ) g_match_dct.add( true /*star*/ , p , flags         ) ;
 		//
 		for( auto const& [t,flags ] : g_start_info.static_matches )
-			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] && !flags.tflags()[Tflag::Phony] ) g_missing_static_targets.insert(t) ;
+			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets[t] |= flags.tflags()[Tflag::Phony] ;
 		//
 		::map_ss cmd_env ;
 		try                       { cmd_env = prepare_env() ;        }

@@ -1,0 +1,27 @@
+# build command : cd docker ; docker build -f rocky8.docker -t rocky8 .
+
+FROM docker.io/rockylinux/rockylinux:8
+
+RUN dnf update -y
+RUN dnf clean all
+
+RUN dnf install -y ed
+RUN dnf install -y git
+RUN dnf install -y autoconf
+RUN dnf install -y automake
+RUN dnf install -y epel-release
+RUN dnf install -y gcc-toolset-11
+RUN dnf install -y python36
+RUN dnf install -y python36-devel
+RUN dnf install -y --enablerepo=powertools texinfo-tex
+RUN dnf install -y libseccomp
+
+#RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel
+
+RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+USER    1001:1001
+WORKDIR /home/cdy
+ENV     USER=cdy
+ENV     HOME=/home/cdy
+#CMD     scl enable devtoolset-11 bash
+CMD     PATH=/opt/rh/gcc-toolset-11/root/usr/bin:$PATH bash

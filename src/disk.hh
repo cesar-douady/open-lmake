@@ -239,8 +239,8 @@ namespace Disk {
 		bool operator+() const { return _ok     ; }
 		bool operator!() const { return !+*this ; }
 		// accesses
-		template<class T> T const& get(size_t offset=0) const { if (offset+sizeof(T)>sz) FAIL("object out of file");/*throw "object out of file"s*/ ; return *reinterpret_cast<T const*>(data+offset) ; }
-		template<class T> T      & get(size_t offset=0)       { if (offset+sizeof(T)>sz) FAIL("object out of file");/*throw "object out of file"s*/ ; return *reinterpret_cast<T      *>(data+offset) ; }
+		template<class T> T const& get(size_t ofs=0) const { if (ofs+sizeof(T)>sz) throw to_string("object @",ofs,"out of file of size ",sz) ; return *reinterpret_cast<T const*>(data+ofs) ; }
+		template<class T> T      & get(size_t ofs=0)       { if (ofs+sizeof(T)>sz) throw to_string("object @",ofs,"out of file of size ",sz) ; return *reinterpret_cast<T      *>(data+ofs) ; }
 		// data
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;

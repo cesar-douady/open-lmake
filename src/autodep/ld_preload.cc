@@ -4,8 +4,8 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <dlfcn.h>
-#include <link.h>       // dl related stuff
-#include <sys/auxv.h>   // getauxval
+#include <link.h>     // dl related stuff
+#include <sys/auxv.h> // getauxval
 
 #include "disk.hh"
 
@@ -24,29 +24,8 @@ struct Ctx {
 	int errno_ ;
 } ;
 
-struct Lock {
-	// s_mutex prevents several threads from recording deps simultaneously
-	// t_loop prevents recursion within a thread :
-	//   if a thread does access while processing an original access, this second access must not be recorded, it is for us, not for the user
-	//   in that case, Lock let it go, but then, t_busy will return true, which in turn will prevent recording
-	// t_loop must be thread local so as to distinguish which thread owns the mutex. Values can be :
-	// - 0 : thread is outside and must acquire the mutex to enter
-	// - 1 : thread is processing a user access and must record deps
-	// - 2 : thread has entered a recursive call and must not record deps
-	// statics
-	static bool t_busy() { return t_loop ; }                                  // same, before taking a 2nd lock
-	// static data
-	static              ::mutex s_mutex ;
-	static thread_local bool    t_loop  ;
-	// cxtors & casts
-	Lock () { SWEAR(!t_loop) ; t_loop = true  ; s_mutex.lock  () ; }
-	~Lock() { SWEAR( t_loop) ; t_loop = false ; s_mutex.unlock() ; }
-} ;
-::mutex           Lock::s_mutex ;
-bool thread_local Lock::t_loop  = false ;
-
 void* get_orig(const char* syscall) {
-	void* res = ::dlsym(RTLD_NEXT,syscall) ;                                   // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
+	void* res = ::dlsym(RTLD_NEXT,syscall) ;                   // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
 	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
 	return res ;
 }
@@ -108,11 +87,11 @@ struct Elf {
 } ;
 
 Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
+	if (file_map.sz<sizeof(Ehdr)) throw 2 ;                                                                           // file too small : stop analysis and ignore
 	//
 	Ehdr const& ehdr       = file_map.get<Ehdr>() ;
 	size_t      dyn_offset = 0/*garbage*/         ;
 	//
-	if ( file_map.sz                         <  sizeof(Ehdr)                                              ) throw 2 ; // file too small : stop analysis and ignore
 	if ( memcmp(ehdr.e_ident,ELFMAG,SELFMAG) != 0                                                         ) throw 3 ; // bad header     : .
 	if ( ehdr.e_ident[EI_CLASS]              != (Is64Bits                       ?ELFCLASS64 :ELFCLASS32 ) ) throw 4 ; // bad word width : .
 	if ( ehdr.e_ident[EI_DATA ]              != (::endian::native==::endian::big?ELFDATA2MSB:ELFDATA2MSB) ) throw 5 ; // bad endianness : .
@@ -125,7 +104,7 @@ Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
 			goto DoSection ;
 		}
 	}
-	return {} ; // no dynamic header
+	return {} ;                                                                                                       // no dynamic header
 DoSection :
 	size_t string_shdr_offset = ehdr.e_shoff + ehdr.e_shstrndx*ehdr.e_shentsize  ;
 	size_t string_offset      = file_map.get<Shdr>(string_shdr_offset).sh_offset ;
@@ -158,18 +137,18 @@ template<class T> T const& Elf::DynDigest::_s_vma_to_ref( size_t vma , FileMap c
 	const char* str_tab = nullptr ;
 	size_t      sz      = 0       ;
 	for( Dyn const* dyn=dyn_tab ; dyn->d_tag!=DT_NULL ; dyn++ ) {
-		if ( +file_map && dyn>&file_map.get<Dyn>(file_map.sz-sizeof(Dyn)) ) throw 6 ; // "bad dynamic table entry : stop analysis and ignore
+		if ( +file_map && dyn>&file_map.get<Dyn>(file_map.sz-sizeof(Dyn)) ) throw 6 ;           // "bad dynamic table entry : stop analysis and ignore
 		switch (dyn->d_tag) {
 			case DT_STRTAB : str_tab = &_s_vma_to_ref<char>(dyn->d_un.d_ptr,file_map) ; break ;
 			case DT_STRSZ  : sz      =                      dyn->d_un.d_val           ; break ; // for swear only
 			default : continue ;
 		}
 		if ( str_tab && sz ) {
-			if ( +file_map && str_tab+sz-1>&file_map.get<char>(file_map.sz-1) ) throw 7 ; // str tab too long
+			if ( +file_map && str_tab+sz-1>&file_map.get<char>(file_map.sz-1) ) throw 7 ;       // str tab too long
 			return {str_tab,sz} ;
 		}
 	}
-	throw 8 ; // cannot find dyn string table
+	throw 8 ;                                                                                   // cannot find dyn string table
 }
 
 Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
@@ -183,7 +162,7 @@ Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map ) {
 			case DT_NEEDED  : if (*s) neededs.push_back(s) ;  break ;
 			default : continue ;
 		}
-		if (s>=str_tab_end) throw 9 ; // dyn entry name outside string tab
+		if (s>=str_tab_end) throw 9 ;               // dyn entry name outside string tab
 	}
 	if ( runpath              ) rpath   = nullptr ; // DT_RPATH is not used if DT_RUNPATH is present
 	if ( rpath   && !*rpath   ) rpath   = nullptr ;
@@ -202,7 +181,7 @@ static ::string _mk_origin(::string const& exe) {
 	if (!txt) return {} ;
 	const char* ptr = ::strchrnul(txt,'$') ;
 	::string    res { txt , ptr }          ;
-	while (*ptr) {                                                           // INVARIANT : *ptr=='$', result must be res+ptr if no further substitution
+	while (*ptr) {                           // INVARIANT : *ptr=='$', result must be res+ptr if no further substitution
 		bool        brace = ptr[1]=='{' ;
 		const char* p1    = ptr+1+brace ;
 		if      ( ::memcmp(p1,"ORIGIN"  ,6)==0 && (!brace||p1[6]=='}') ) { res += _mk_origin(exe)                                         ; ptr = p1+6+brace ; }
@@ -231,7 +210,7 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 	if (+rpath          ) append_to_string( path , rpath           , ':' ) ;
 	if (+ld_library_path) append_to_string( path , ld_library_path , ':' ) ;
 	if (+runpath        ) append_to_string( path , runpath         , ':' ) ;
-	path += "/lib:/usr/lib:/lib64:/usr/lib64" ;                             // XXX : find a reliable way to get default directories
+	path += "/lib:/usr/lib:/lib64:/usr/lib64" ;                                                                            // XXX : find a reliable way to get default directories
 	//
 	for( size_t pos=0 ;;) {
 		size_t end = path.find(':',pos) ;
@@ -240,7 +219,7 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 		/**/            full_file += file                     ;
 		Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , false/*allow_tmp_map*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
-		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ;      // real may be a sym link in the system directories
+		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
 		if ( it->second==Yes && inserted ) { elf_deps( rr.real , false/*top*/ , comment+".dep" ) ; return rr ; }
 		if ( it->second==Yes             )                                                         return {} ;
 		if (end==Npos) break ;
@@ -251,11 +230,11 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 
 void Elf::elf_deps( ::string const& real , bool top , ::string&& comment ) {
 	try {
-		FileMap   file_map { Record::s_root_fd() , real } ; if (!file_map) return ;                           // real may be a sym link in system dirs
+		FileMap   file_map { Record::s_root_fd() , real } ; if (!file_map) return ;                                                          // real may be a sym link in system dirs
 		DynDigest digest   { file_map }                   ;
-		if (top) rpath = digest.rpath ;                                                                                                       // rpath applies to the whole search
+		if (top) rpath = digest.rpath ;                                                                                                      // rpath applies to the whole search
 		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,real) , s_expand(digest.runpath,real) , comment+".needed" ) ;
-	} catch (int) { return ; }                                                                                                                // bad file format, ignore
+	} catch (int) { return ; }                                                                                                               // bad file format, ignore
 }
 
 // capture LD_LIBRARY_PATH when first called : man dlopen says it must be captured at program start, but we capture it before any environment modif, should be ok
@@ -273,7 +252,7 @@ Record::Read search_elf( Record& r , const char* file , ::string&& comment="elf_
 
 void elf_deps( Record& r , ::string const& real , const char* ld_library_path , ::string&& comment="elf_deps" ) {
 	try                       { Elf(r,real,ld_library_path).elf_deps( real , true/*top*/ , ::move(comment) ) ; }
-	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(real)," : ",e) ; } // if we cannot report the dep, panic
+	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(real)," : ",e) ; }      // if we cannot report the dep, panic
 }
 
 #define LD_PRELOAD 1

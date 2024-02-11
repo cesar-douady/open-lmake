@@ -21,14 +21,6 @@ struct Ctx {
 	void restore_errno() {}                                                    // .
 } ;
 
-struct Lock {
-	static bool t_busy() { return false ; }                                    // no need for protection against recursive call as our accesses are not routed to us
-	static ::mutex s_mutex ;
-	Lock () { s_mutex.lock  () ; }
-	~Lock() { s_mutex.unlock() ; }
-} ;
-::mutex Lock::s_mutex ;
-
 struct SymEntry {
 	SymEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
 	void*         func        = nullptr          ;
@@ -115,6 +107,7 @@ Record::Read search_elf( Record& /*r*/ , const char*     /*file*/ ,             
 ,	{ "rmdir"               , { reinterpret_cast<void*>(Audited::rmdir               ) } } // necessary against NFS strange notion of coherence as this touches containing dir
 ,	{ "symlink"             , { reinterpret_cast<void*>(Audited::symlink             ) } }
 ,	{ "symlinkat"           , { reinterpret_cast<void*>(Audited::symlinkat           ) } }
+,	{ "syscall"             , { reinterpret_cast<void*>(Audited::syscall             ) } }
 ,	{ "system"              , { reinterpret_cast<void*>(Audited::system              ) } }
 ,	{ "truncate"            , { reinterpret_cast<void*>(Audited::truncate            ) } }
 ,	{ "truncate64"          , { reinterpret_cast<void*>(Audited::truncate64          ) } }

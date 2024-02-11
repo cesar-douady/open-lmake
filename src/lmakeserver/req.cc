@@ -30,15 +30,15 @@ namespace Engine {
 		SWEAR( +*this<=s_store.size() , +*this , s_store.size() ) ;
 		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
 		if (+*this>=s_store.size()) {
-			::unique_lock lock{s_reqs_mutex} ;                                 // emplace_back may reallocate
+			::unique_lock lock{s_reqs_mutex} ;                                          // emplace_back may reallocate
 			s_store.emplace_back() ;
 		}
 		ReqData& data = **this ;
 		//
-		for( int i=0 ;; i++ ) {                                                // try increasing resolution in file name until no conflict
+		for( int i=0 ;; i++ ) {                                                         // try increasing resolution in file name until no conflict
 			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)     ;
 			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
-			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }               // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
+			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                        // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
@@ -51,7 +51,7 @@ namespace Engine {
 		}
 		//
 		data.idx_by_start = s_n_reqs()           ;
-		data.idx_by_eta   = s_n_reqs()           ;                             // initially, eta is far future
+		data.idx_by_eta   = s_n_reqs()           ;                                      // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
 		data.options      = ecr.options          ;
@@ -102,7 +102,7 @@ namespace Engine {
 	void Req::close(bool close_backend) {
 		Trace trace("close",*this,STR(close_backend)) ;
 		SWEAR((*this)->is_open()) ;
-		if (!(*this)->zombie) kill() ;                                               // in case req is closed before being done
+		if (!(*this)->zombie) kill() ;                    // in case req is closed before being done
 		if (close_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
@@ -125,23 +125,23 @@ namespace Engine {
 	void Req::inc_rule_exec_time( Rule rule , Delay delta , Tokens1 tokens1 ) {
 			auto it = (*this)->ete_n_rules.find(rule) ;
 			if (it==(*this)->ete_n_rules.end()) return ;
-			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ;    // adjust req ete's that are computed after this exec_time, accounting for parallel execution
+			(*this)->ete += delta * it->second * (tokens1+1) / rule->n_tokens ; // adjust req ete's that are computed after this exec_time, accounting for parallel execution
 			_adjust_eta() ;
 	}
 	void Req::new_exec_time( JobData const& job , bool remove_old , bool add_new , Delay old_exec_time ) {
 		SWEAR( !job.rule->is_special() , job.rule->special ) ;
-		if ( !remove_old && !add_new ) return ;                                // nothing to do
+		if ( !remove_old && !add_new ) return ;                                                                                        // nothing to do
 		Delay delta ;
 		Rule  rule  = job.rule ;
-		if (remove_old) {                                                      // use old info
+		if (remove_old) {                                                                                                              // use old info
 			if (+old_exec_time) { delta -= old_exec_time   ;                                                                         }
 			else                { delta -= rule->exec_time ; SWEAR((*this)->ete_n_rules[rule]>0) ; (*this)->ete_n_rules[rule] -= 1 ; }
 		}
-		if (add_new) {                                                         // use new info
+		if (add_new) {                                                                                                                 // use new info
 			if (+job.exec_time) { delta += job.exec_time ;                                     }
 			else                { delta += rule->exec_time ; (*this)->ete_n_rules[rule] += 1 ; }
 		}
-		(*this)->ete += delta * (job.tokens1+1) / rule->n_tokens ;             // account for parallel execution when computing ete
+		(*this)->ete += delta * (job.tokens1+1) / rule->n_tokens ;                                                                     // account for parallel execution when computing ete
 		_adjust_eta() ;
 	}
 	void Req::_adjust_eta(bool push_self) {
@@ -153,19 +153,19 @@ namespace Engine {
 				Idx           idx_by_eta = (*this)->idx_by_eta ;
 				(*this)->eta = now + (*this)->ete ;
 				if (push_self) _s_reqs_by_eta.push_back(*this) ;
-				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                       // if eta is decreased
-					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
-					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ; // .
+				while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>(*this)->eta ) {                                             // if eta is decreased
+					( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ;                       // swap w/ prev entry
+					( _s_reqs_by_eta[idx_by_eta-1] = *this                        )->idx_by_eta = idx_by_eta-1 ;                       // .
 					changed = true ;
 				}
 				if (!changed)
-					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {            // if eta is increased
-						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
-						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ; // .
+					while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<(*this)->eta ) {                              // if eta is increased
+						( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ;                   // swap w/ next entry
+						( _s_reqs_by_eta[idx_by_eta+1] = *this                        )->idx_by_eta = idx_by_eta+1 ;                   // .
 						changed = true ;
 					}
 			}
-			if (changed) Backend::s_new_req_eta(+*this) ;                      // tell backends that req priority order has changed
+			if (changed) Backend::s_new_req_eta(+*this) ;                                                                              // tell backends that req priority order has changed
 	}
 
 	void Req::_report_cycle(Node node) {
@@ -179,9 +179,9 @@ namespace Engine {
 				d = d->dir() ;
 				goto Next ;
 			}
-			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )           // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )        // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
-			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {         // 2nd pass to find the loop
+			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {      // 2nd pass to find the loop
 				Job::ReqInfo const& cjri = j->c_req_info(*this) ;
 				if (cjri.done()          ) continue ;
 				if (cjri.speculative_deps) to_forget.push_back(d) ;
@@ -229,9 +229,8 @@ namespace Engine {
 			case NodeStatus::Src        : if (dep->crc==Crc::None        ) err = dep.frozen() ? "missing frozen" : "missing source" ; break ;
 			case NodeStatus::SrcDir     : if (dep.dflags[Dflag::Required]) err = "missing required"                                 ; break ;
 			case NodeStatus::Plain :
-				if      (dep->manual()>=Manual::Changed) err = "manual"      ;
-				else if (+cri.overwritten              ) err = "overwritten" ;
-				else if (!dep->conform_job_tgts(cri)   ) err = "not built"   ;    // if no better explanation found
+				if      (+cri.overwritten           ) err = "overwritten" ;
+				else if (!dep->conform_job_tgts(cri)) err = "not built"   ; // if no better explanation found
 				else
 					for( Job job : dep->conform_job_tgts(cri) )
 						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true ;
@@ -305,7 +304,7 @@ namespace Engine {
 		}
 	Done :
 		(*this)->audit_status(!job_err) ;
-		(*this)->audit_fd.detach() ;                  // ensure we send nothing anymore
+		(*this)->audit_fd.detach() ;      // ensure we send nothing anymore
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,*this) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -328,7 +327,7 @@ namespace Engine {
 			case NWatchers :                                                                // array becomes vector, complex
 				::array<Watcher,NWatchers> tmp = _watchers_a ;
 				_watchers_a.~array() ;
-				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;  // cannot put {} here or it is taken as an initializer list
+				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;               // cannot put {} here or it is taken as an initializer list
 				for( uint8_t i=0 ; i<NWatchers ; i++ ) ws[i] = tmp[i] ;
 				//vvvvvvvvvvvvvvvvvvvvv
 				ws[NWatchers] = watcher ;
@@ -339,11 +338,11 @@ namespace Engine {
 	}
 
 	void ReqInfo::wakeup_watchers() {
-		SWEAR(!waiting()) ;                                                    // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;                                           // copy watchers aside before calling them as during a call, we could become not done and be waited for again
+		SWEAR(!waiting()) ;                   // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;          // copy watchers aside before calling them as during a call, we could become not done and be waited for again
 		if (_n_watchers==VectorMrkr) {
 			watchers = ::move(*_watchers_v) ;
-			delete _watchers_v ;                                               // transform vector into array as there is no watchers any more
+			delete _watchers_v ;              // transform vector into array as there is no watchers any more
 		} else {
 			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
 		}
@@ -396,7 +395,7 @@ namespace Engine {
 					case JobReport::Done    : c = Color::Ok      ; break ;
 					default : ;
 				}
-				audit_info( c , to_string(::setw(9),mk_snake(jr)," jobs : ",stats.ended(jr)) ) ; // 9 is for "completed"
+				audit_info( c , to_string(::setw(9),mk_snake(jr)," jobs : ",stats.ended(jr)) ) ;                                         // 9 is for "completed"
 			}
 		/**/                                   audit_info( Color::Note , to_string( "useful   time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun    time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
@@ -417,7 +416,7 @@ namespace Engine {
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
 			size_t               pm          = 0                   ;
-			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			::sort( long_names_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;        // sort in discovery order
 			for( auto [n,_] :                 long_names_                                        ) pm = ::max( pm , n->name().size() ) ;
 			for( auto [n,_] : ::c_vector_view(long_names_,0,g_config.n_errs(long_names_.size())) ) audit_node( Color::Warning , "name too long" , n ) ;
 			if ( g_config.errs_overflow(long_names_.size())                                      ) audit_info( Color::Warning , "..."               ) ;
@@ -426,24 +425,24 @@ namespace Engine {
 		}
 		if (+frozen_jobs) {
 			::vmap<Job,JobIdx> frozen_jobs_ = mk_vmap(frozen_jobs) ;
-			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx> const& a , ::pair<Job,JobIdx> b ) { return a.second<b.second ; } ) ;           // sort in discovery order
 			size_t w = 0 ;
 			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule->name.size() ) ;
 			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , to_string("frozen ",::setw(w),j->rule->name) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
 			::vmap<Node,NodeIdx> frozen_nodes_ = mk_vmap(frozen_nodes) ;
-			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
 			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
 			::vmap<Node,NodeIdx> no_triggers_ = mk_vmap(no_triggers) ;
-			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			::sort( no_triggers_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;       // sort in discovery order
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ; // sort in discovery order
+			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;       // sort in discovery order
 			audit_info( Color::Warning ,
 				"These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n"
 				"Re-executing this lmake commands is strongly recommanded\n"
@@ -497,7 +496,7 @@ namespace Engine {
 			,	stats.cur  (JobLvl   ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
 			) } ;
 			OMsgBuf().send( audit_fd , rrr ) ;
-		} catch (::string const&) {}                                       // if client has disappeared, well, we cannot do much
+		} catch (::string const&) {}           // if client has disappeared, well, we cannot do much
 	}
 
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
@@ -510,9 +509,9 @@ namespace Engine {
 
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
 		::string                          name      = node->name() ;
-		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                                        // matching rules
-		RuleTgt                           art       ;                                                        // set if an anti-rule matches
-		RuleIdx                           n_missing = 0            ;                                         // number of rules missing deps
+		::vmap<RuleTgt,Rule::SimpleMatch> mrts      ;                                      // matching rules
+		RuleTgt                           art       ;                                      // set if an anti-rule matches
+		RuleIdx                           n_missing = 0            ;                       // number of rules missing deps
 		//
 		if (name.size()>g_config.path_max) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
@@ -529,14 +528,14 @@ namespace Engine {
 			return ;
 		}
 		//
-		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
+		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
 			if (!rt.pattern().match(name)) {            continue ; }
 			if (rt->is_anti()            ) { art = rt ; break    ; }
 			Rule::SimpleMatch m{rt,name} ;
 			mrts.emplace_back(rt,m) ;
-			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ;                 // do not pass *this as req to avoid generating error message at cxtor time
+			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ; // do not pass *this as req to avoid generating error message at cxtor time
 			try                     { rt->deps_attrs.eval(m) ; }
-			catch (::string const&) { continue ;               }                                           // do not consider rule if deps cannot be computed
+			catch (::string const&) { continue ;               }                           // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -544,8 +543,8 @@ namespace Engine {
 		else                                             audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
 		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                                                 // second pass to do report
-			JobTgt                      jt          { rt , name } ;                                        // do not pass *this as req to avoid generating error message at cxtor time
+		for( auto const& [rt,m] : mrts ) {                                                 // second pass to do report
+			JobTgt                      jt          { rt , name } ;                        // do not pass *this as req to avoid generating error message at cxtor time
 			::string                    reason      ;
 			Node                        missing_dep ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
@@ -553,7 +552,7 @@ namespace Engine {
 			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
 			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
 			{	::string missing_key ;
-				for( bool search_non_buildable : {true,false} )                                            // first search a non-buildable, if not found, search for non makable as deps have been made
+				for( bool search_non_buildable : {true,false} )                            // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,daf] : static_deps ) {
 						Node d{daf.first} ;
 						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
@@ -562,7 +561,7 @@ namespace Engine {
 						goto Found ;
 					}
 			Found :
-				SWEAR(+missing_dep) ;                                                                      // else why wouldn't it apply ?!?
+				SWEAR(+missing_dep) ;                                                      // else why wouldn't it apply ?!?
 				::string mdn = missing_dep->name()     ;
 				FileInfo fi  { nfs_guard.access(mdn) } ;
 				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;

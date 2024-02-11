@@ -57,6 +57,28 @@ extern "C" {
 	#endif
 }
 
+struct Lock {
+	// s_mutex prevents several threads from recording deps simultaneously
+	// t_loop prevents recursion within a thread :
+	//   if a thread does access while processing an original access, this second access must not be recorded, it is for us, not for the user
+	//   in that case, Lock let it go, but then, t_busy will return true, which in turn will prevent recording
+	// t_loop must be thread local so as to distinguish which thread owns the mutex. Values can be :
+	// - 0 : thread is outside and must acquire the mutex to enter
+	// - 1 : thread is processing a user access and must record deps
+	// - 2 : thread has entered a recursive call and must not record deps
+	// /!\ protection is also necessary for ld_audit despite our calls are not routed to us as libc may call itself, e.g. fork calls __libc_fork
+	// statics
+	static bool t_busy() { return t_loop ; } // same, before taking a 2nd lock
+	// static data
+	static              ::mutex s_mutex ;
+	static thread_local bool    t_loop  ;
+	// cxtors & casts
+	Lock () { SWEAR(!t_loop) ; t_loop = true  ; s_mutex.lock  () ; }
+	~Lock() { SWEAR( t_loop) ; t_loop = false ; s_mutex.unlock() ; }
+} ;
+::mutex           Lock::s_mutex ;
+bool thread_local Lock::t_loop  = false ;
+
 // User program may have global variables whose cxtor/dxtor do accesses.
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
 // To face this order problem, we declare our Audit as a static within a funciton which will be constructed upon first call.
@@ -350,8 +372,8 @@ static inline const char* nn(const char* p) { return p?p:"<>";}
 
 	// fork
 	// not recursively called by auditing code
-	pid_t fork       () NE { HEADER0(fork       ,()) ; return orig()   ; } // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated ...
-	pid_t __fork     () NE { HEADER0(__fork     ,()) ; return orig()   ; } //     ... imagine the lock is held by another thread while we fork => child will have dead lock                    ...
+	pid_t fork       () NE { HEADER0(fork       ,()) ; return orig()   ; } // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated   ...
+	pid_t __fork     () NE { HEADER0(__fork     ,()) ; return orig()   ; } //     ... if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread ...
 	pid_t __libc_fork() NE { HEADER0(__libc_fork,()) ; return orig()   ; } //     ... a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
 	pid_t vfork      () NE {                           return fork  () ; } // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
 	pid_t __vfork    () NE {                           return __fork() ; } // .
