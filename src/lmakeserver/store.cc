@@ -115,9 +115,13 @@ namespace Engine::Persistent {
 		//
 		if (rescue) {
 			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
-			chk()              ;                                                                                            // first verify we have a coherent store
-			invalidate_match() ;                                                                                            // then rely only on essential data that should be crash-safe
-			::cerr<<"seems ok"<<endl ;
+			try {
+				chk()              ;                                                                                        // first verify we have a coherent store
+				invalidate_match() ;                                                                                        // then rely only on essential data that should be crash-safe
+				::cerr<<"seems ok"<<endl ;
+			} catch (::string const&) {
+				exit(2,"failed to rescue, consider running lrepair") ;
+			}
 		}
 	}
 
@@ -536,7 +540,7 @@ namespace Engine::Persistent {
 			for( auto [n,t] : srcs ) srcs_stream << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
 		}
 		trace("done",srcs.size(),"srcs") ;
-		return +!old_srcs || +new_srcs_ ;
+		return +old_srcs || +new_srcs_ ;
 	}
 
 	void _set_exec_gen( RuleData& rd , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) {

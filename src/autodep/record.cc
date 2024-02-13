@@ -20,36 +20,41 @@ using namespace Time ;
 //
 
 bool Record::s_is_simple(const char* file) {
-	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return true  ;                                    // empty file is simple
-	if ( file[0]!='/') return false ;                                    // relative files are complex
+	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return true  ;                                     // empty file is simple
+	if ( file[0]!='/') return false ;                                     // relative files are complex, in particular we dont even know relative to hat (the dirfd arg is not passed in)
 	size_t top_sz = 0 ;
-	switch (file[1]) {                                                   // recognize simple and frequent top level system directories
-		case 'b' : if (strncmp(file+1,"bin/",4)==0) top_sz = 5 ; break ;
-		case 'd' : if (strncmp(file+1,"dev/",4)==0) top_sz = 5 ; break ;
-		case 'e' : if (strncmp(file+1,"etc/",4)==0) top_sz = 5 ; break ;
-		case 's' : if (strncmp(file+1,"sys/",4)==0) top_sz = 5 ; break ;
-		case 'u' : if (strncmp(file+1,"usr/",4)==0) top_sz = 5 ; break ;
-		case 'v' : if (strncmp(file+1,"var/",4)==0) top_sz = 5 ; break ;
+	switch (file[1]) {                                                    // recognize simple and frequent top level system directories
+		case 'b' : if (strncmp(file+1,"bin/" ,4)==0) top_sz = 5 ; break ;
+		case 'd' : if (strncmp(file+1,"dev/" ,4)==0) top_sz = 5 ; break ;
+		case 'e' : if (strncmp(file+1,"etc/" ,4)==0) top_sz = 5 ; break ;
+		case 's' : if (strncmp(file+1,"sys/" ,4)==0) top_sz = 5 ; break ;
+		case 'u' : if (strncmp(file+1,"usr/" ,4)==0) top_sz = 5 ; break ;
+		case 'v' : if (strncmp(file+1,"var/" ,4)==0) top_sz = 5 ; break ;
 		case 'l' :
-			if (strncmp(file+1,"lib",3)!=0) break ;
-			//
-			if      (strncmp(file+4,"/"  ,1)) top_sz = 5 ;
-			else if (strncmp(file+4,"32/",3)) top_sz = 7 ;
-			else if (strncmp(file+4,"64/",3)) top_sz = 7 ;
+			if      (strncmp(file+1,"lib",3)!=0) break ;                  // not in lib* => not simple
+			if      (strncmp(file+4,"/"  ,1)   ) top_sz = 5 ;             // in lib      => simple
+			else if (strncmp(file+4,"32/",3)   ) top_sz = 7 ;             // in lib32    => simple
+			else if (strncmp(file+4,"64/",3)   ) top_sz = 7 ;             // in lib64    => simple
+		break ;
+		case 'p' :                                      // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			if ( strncmp(file+1,"proc/",5)!=0 ) break ; // not in /proc      => not simple
+			if ( file[6]>='0' && file[6]<='9' ) break ; // in /proc/<pid>    => not simple
+			if ( strncmp(file+6,"self/",5)==0 ) break ; // not in /proc/self => not simple
+			top_sz = 6 ;
 		break ;
 		default  : ;
 	}
 	if (!top_sz) return false ;
 	int depth = 0 ;
-	for ( const char* p=file+top_sz ; *p ; p++ ) {                       // ensure we do not escape from top level dir
-		if (p[ 0]!='/') {                        continue ;     }        // not a dir boundary, go on
-		if (p[-1]=='/') {                        continue ;     }        // consecutive /'s, ignore
-		if (p[-1]!='.') { depth++ ;              continue ;     }        // plain dir  , e.g. foo  , go down
-		if (p[-2]=='/') {                        continue ;     }        // dot dir    ,             stay still
-		if (p[-2]!='.') { depth++ ;              continue ;     }        // plain dir  , e.g. foo. , go down
-		if (p[-2]=='/') { depth-- ; if (depth<0) return false ; }        // dot-dot dir,             go up and exit if we escape top level system dir
-		/**/            { depth++ ;              continue ;     }        // plain dir  , e.g. foo.., go down
+	for ( const char* p=file+top_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir
+		if (p[ 0]!='/')                          continue     ;   // not a dir boundary, go on
+		if (p[-1]=='/')                          continue     ;   // consecutive /'s, ignore
+		if (p[-1]!='.') { depth++ ;              continue     ; } // plain dir  , e.g. foo  , go down
+		if (p[-2]=='/')                          continue     ;   // dot dir    ,             stay still
+		if (p[-2]!='.') { depth++ ;              continue     ; } // plain dir  , e.g. foo. , go down
+		if (p[-2]=='/') { depth-- ; if (depth<0) return false ; } // dot-dot dir,             go up and exit if we escape top level system dir
+		/**/            { depth++ ;              continue     ; } // plain dir  , e.g. foo.., go down
 	}
 	return true ;
 }

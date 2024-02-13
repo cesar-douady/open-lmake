@@ -87,7 +87,7 @@ namespace Store {
 		/**/ void chk() const {
 			SLock lock{_mutex} ;
 			Base::chk() ;
-			SWEAR( size()==_side_car.size() , size() , _side_car.size() ) ;
+			throw_unless( size()==_side_car.size() , "side_car size differs from main size" ) ;
 		}
 	private :
 		bool _at_end      (         Idx idx ) const requires(HasBoth) { SWEAR( idx<=_side_car.size() , idx , _side_car.size() ) ; return idx==_side_car.size() ; }

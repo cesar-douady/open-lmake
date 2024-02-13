@@ -7,7 +7,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h>                  // fstatat
+#include <sys/stat.h>  // fstatat
 #include <sys/types.h>
 
 #include "config.hh"
@@ -20,14 +20,14 @@ namespace Disk {
 	using DiskSz = uint64_t    ;
 
 	ENUM(Access
-	,	Lnk        // file is accessed with readlink
-	,	Reg        // file is accessed with open
-	,	Stat       // file is accessed with stat like (read inode)
+	,	Lnk                                 // file is accessed with readlink
+	,	Reg                                 // file is accessed with open
+	,	Stat                                // file is accessed with stat like (read inode)
 	)
 	static constexpr char AccessChars[] = {
-		'L'                                                // Lnk
-	,	'R'                                                // Reg
-	,	'T'                                                // Stat
+		'L'                                 // Lnk
+	,	'R'                                 // Reg
+	,	'T'                                 // Stat
 	} ;
 	static_assert(::size(AccessChars)==+Access::N) ;
 	using Accesses = BitMap<Access> ;
@@ -36,7 +36,7 @@ namespace Disk {
 	ENUM_1( FileTag
 	,	None
 	,	Reg
-	,	Exe        // a regular file with exec permission
+	,	Exe // a regular file with exec permission
 	,	Lnk
 	,	Dir
 	,	Err
@@ -88,14 +88,14 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                         // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
-		~NfsGuard() { close() ; }                                              // ... uphill dirs must must be open/close to force reliable access to files and their inodes
+		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                   // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
+		~NfsGuard() { close() ; }                                        // ... uphill dirs must must be open/close to force reliable access to files and their inodes
 		//service
-		::string const& access(::string const& file) {                         // return file, must be called before any access to file or its inode if not sure it was produced locally
+		::string const& access(::string const& file) {                   // return file, must be called before any access to file or its inode if not sure it was produced locally
 			if ( !reliable_dirs && +file ) _access_dir(dir_name(file)) ;
 			return file ;
 		}
-		::string const& change(::string const& file) {                         // must be called before any modif to file or its inode if not sure it was produced locally
+		::string const& change(::string const& file) {                   // must be called before any modif to file or its inode if not sure it was produced locally
 			if ( !reliable_dirs && +file ) {
 				::string dir = dir_name(file) ;
 				_access_dir(dir) ;
@@ -104,14 +104,14 @@ namespace Disk {
 			return file ;
 		}
 		void close() {
-			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                        // cannot record dirs to stamp if reliable_dirs
-			for( ::string const& d : to_stamp_dirs ) _s_protect(d) ;           // close to force NFS close to open cohenrence, open is useless
+			SWEAR( !to_stamp_dirs || !reliable_dirs ) ;                  // cannot record dirs to stamp if reliable_dirs
+			for( ::string const& d : to_stamp_dirs ) _s_protect(d) ;     // close to force NFS close to open cohenrence, open is useless
 			to_stamp_dirs.clear() ;
 		}
 	private :
 		void _access_dir(::string const& dir) {
-			access(dir) ;                                                      // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs.insert(dir).second) _s_protect(dir) ;             // open to force NFS close to open coherence, close is useless
+			access(dir) ;                                                // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+			if (fetched_dirs.insert(dir).second) _s_protect(dir) ;       // open to force NFS close to open coherence, close is useless
 		}
 		// data
 	public :
@@ -187,12 +187,12 @@ namespace Disk {
 	static inline Ddate           file_date    ( ::string const& file , bool no_follow=true                                       ) { return file_date    (Fd::Cwd,file,no_follow           ) ; }
 
 	static inline ::string cwd() {
-		char* buf = ::getcwd(nullptr,0) ;
-		if (!buf) throw "cannot get cwd"s ;
-		::string res{buf} ;
-		::free(buf) ;
+		char buf[PATH_MAX] ;                 // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
+		char* cwd = ::getcwd(buf,PATH_MAX) ;
+		if (!cwd) throw "cannot get cwd"s ;
+		::string res{cwd} ;
 		SWEAR( res[0]=='/' , res[0] ) ;
-		if (res.size()==1) return {}  ;                                        // cwd contains components prefixed by /, if at root, it is logical for it to be empty
+		if (res.size()==1) return {}  ;      // cwd contains components prefixed by /, if at root, it is logical for it to be empty
 		else               return res ;
 	}
 
@@ -202,9 +202,9 @@ namespace Disk {
 	static inline bool is_lcl  (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ; }
 	static inline bool is_lcl_s(::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ; }
 	//
-	/**/          ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
-	/**/          ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
-	static inline ::string mk_abs( ::string const& file , ::string const& dir_s ) { // return file (passed as from dir_s       ) as absolute
+	/**/          ::string mk_lcl( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s origin) as seen from dir_s
+	/**/          ::string mk_glb( ::string const& file , ::string const& dir_s ) ;          // return file (passed as from dir_s       ) as seen from dir_s origin
+	static inline ::string mk_abs( ::string const& file , ::string const& dir_s ) {          // return file (passed as from dir_s       ) as absolute
 		SWEAR( is_abs_s(dir_s) , dir_s ) ;
 		return mk_glb(file,dir_s) ;
 	}
@@ -216,7 +216,7 @@ namespace Disk {
 	// manage strings containing file markers so as to be localized when displayed to user
 	// file format is : FileMrkr + file length + file
 	static constexpr char FileMrkr = 0 ;
-	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) ; // not meant to be used directly
+	::string _localize( ::string const& txt , ::string const& dir_s , size_t first_file ) ;  // not meant to be used directly
 	static inline ::string localize( ::string const& txt , ::string const& dir_s={} ) {
 		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return           txt            ; // fast path : avoid calling localize
 		else                                               return _localize(txt,dir_s,pos) ;
@@ -250,20 +250,20 @@ namespace Disk {
 	} ;
 
 	ENUM_1(Kind
-	,	Dep = SrcDirs                  // <=Dep means that file must be reported as a dep
+	,	Dep = SrcDirs // <=Dep means that file must be reported as a dep
 	,	Repo
-	,	SrcDirs                        // file has been found in source dirs
-	,	Root                           // file is the root dir
+	,	SrcDirs       // file has been found in source dirs
+	,	Root          // file is the root dir
 	,	Tmp
-	,	Proc                           // file is in /proc
+	,	Proc          // file is in /proc
 	,	Admin
-	,	Ext                            // all other cases
+	,	Ext           // all other cases
 	)
 
 	struct RealPathEnv {
 		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
-		LnkSupport lnk_support   = LnkSupport::Full ;                          // by default, be pessimistic
-		bool       reliable_dirs = false            ;                          // if true => dirs coherence is enforced when files are updated (unlike NFS)
+		LnkSupport lnk_support   = LnkSupport::Full ;                     // by default, be pessimistic
+		bool       reliable_dirs = false            ;                     // if true => dirs coherence is enforced when files are updated (unlike NFS)
 		::string   root_dir      = {}               ;
 		::string   tmp_dir       = {}               ;
 		::string   tmp_view      = {}               ;
@@ -275,12 +275,12 @@ namespace Disk {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
-			::string   real          = {}        ;         // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
-			::vector_s lnks          = {}        ;         // links followed to get to real
-			::string   last_lnk      = {}        ;         // last tried (and failed) link
-			Accesses   last_accesses = {}        ;         // Access::Lnk if file does not exist and !no_follow
-			Kind       kind          = Kind::Ext ;         // do not process awkard files
-			bool       mapped        = false     ;         // if true <=> tmp mapping has been used
+			::string   real          = {}        ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
+			::vector_s lnks          = {}        ; // links followed to get to real
+			::string   last_lnk      = {}        ; // last tried (and failed) link
+			Accesses   last_accesses = {}        ; // Access::Lnk if file does not exist and !no_follow
+			Kind       kind          = Kind::Ext ; // do not process awkard files
+			bool       mapped        = false     ; // if true <=> tmp mapping has been used
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp
@@ -329,7 +329,7 @@ namespace Disk {
 		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;                                  // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec(SolveReport&) ;                                                                                         // arg is updated to reflect last interpreter
 	private :
 		::string _find_src(::string const& real) const ;
 		// data
@@ -339,7 +339,7 @@ namespace Disk {
 		::string cwd_         ;
 	private :
 		::string   _admin_dir      ;
-		::vector_s _abs_src_dirs_s ;                                          // this is an absolute version of src_dirs
+		::vector_s _abs_src_dirs_s ;                                                                                                  // this is an absolute version of src_dirs
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

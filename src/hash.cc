@@ -48,9 +48,10 @@ namespace Hash {
 				}
 			} break ;
 			case FileTag::None :
-			case FileTag::Dir  : *this = None ; break ;                   // directories are deemed not to exist
+			case FileTag::Dir  : *this = None ; break ;                                                                    // directories are deemed not to exist
 			default : ;
 		}
+		if (file_date(filename)!=fi.date) *this = Crc(fi.tag)  ; // file was moving, crc is unreliable
 	}
 
 	Crc::operator ::string() const {
@@ -70,10 +71,17 @@ namespace Hash {
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = Accesses::All ;
-		if      ( !is_reg() && !other.is_reg() ) res = Access::Lnk ; // it is assumed errno has no semantic impact, so we can assume None & Reg are identical for Lnk accesses ...
-		else if ( !is_lnk() && !other.is_lnk() ) res = Access::Reg ; // ... and vice versa for Reg accesses
-		res |= Access::Stat ;                                        // XXX : suppress when there is a working paradigm with pyc files ...
-		return res ;                                                 // ... (python stats the py and accesses the pyc, but needs the py semantic, because deps on pyc are suppressed)
+		if (is_reg()) {
+			if      (other.is_reg()  ) res = ~Access::Lnk ; // regular accesses see modifications of regular files, stat accesses see file sizes
+			else if (other==Crc::None) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
+		} else if (is_lnk()) {
+			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
+			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
+		} else if (*this==Crc::None) {
+			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
+			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
+		}
+		return res ;
 	}
 
 	//
@@ -84,10 +92,10 @@ namespace Hash {
 	_Md5::_Md5() : _hash{0x67452301,0xefcdab89,0x98badcfe,0x10325476} , _cnt{0} {}
 
 	void _Md5::_update( const void* p , size_t sz ) {
-		FAIL() ;                                                                    // XXX : suppress md5 code altogether
+		FAIL() ;                                             // XXX : suppress md5 code altogether
 		const uint8_t* pi = static_cast<const uint8_t*>(p) ;
 		SWEAR(!_closed) ;
-		if (!sz) return ;                                                           // memcpy is declared with non-null pointers and p may be nullptr if sz==0, otherwise fast path
+		if (!sz) return ;                                    // memcpy is declared with non-null pointers and p may be nullptr if sz==0, otherwise fast path
 		// if first block is already partially filled, it must be handled specially
 		uint32_t offset = _cnt & (sizeof(_blk)-1) ;
 		_cnt += sz ;

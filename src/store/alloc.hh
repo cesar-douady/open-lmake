@@ -234,7 +234,7 @@ namespace Store {
 		for( uint8_t bucket = 0 ; bucket<BaseHdr::NFree ; bucket++ ) {
 			Sz sz = _s_sz(bucket) ;
 			for( Idx idx=_free(bucket) ; +idx ; idx=Base::at(idx).nxt ) {
-				SWEAR( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , idx , _s_sz(bucket) , size() ) ;
+				throw_unless( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , "free list out of range at ",idx ) ;
 				for( Sz i=0 ; i<sz ; i++ ) {
 					SWEAR(!free_map[+idx+i]) ;
 					free_map[+idx+i] = true ;

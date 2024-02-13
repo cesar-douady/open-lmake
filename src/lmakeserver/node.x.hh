@@ -32,7 +32,7 @@ namespace Engine {
 	,	SrcDir      //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
 	,	No          // <=No means node is not buildable
 	,	Maybe       //                                   buildability is data dependent (maybe converted to Yes by further analysis)
-	,	SubSrcDir   //                                   sub-file of a src (Src or DynSrc)
+	,	SubSrcDir   //                                   sub-file of a SrcDir
 	,	Yes         // >=Yes means node is buildable
 	,	DynSrc      //                                   match dependent
 	,	Src         //                                   match independent
@@ -233,10 +233,10 @@ namespace Engine {
 		bool           done      ( Req            r   , RunAction ra ) const ;
 		bool           done      ( Req            r                  ) const ;
 		//
-		bool     match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                     ; }
-		bool     has_actual_job    (         ) const {                          return is_plain() && +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
-		bool     has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job_tgt()==j                                ; }
-		bool     has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return is_plain() && actual_job_tgt()==jt                               ; }
+		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                     ; }
+		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
+		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job_tgt()==j                                ; }
+		bool has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return is_plain() && actual_job_tgt()==jt                               ; }
 		//
 		Manual manual        ( Ddate , bool empty                        ) const ;
 		Manual manual        (                  Disk::FileInfo const& fi ) const {                             return manual(fi.date,!fi.sz) ; }
@@ -245,6 +245,8 @@ namespace Engine {
 		Manual manual_refresh( JobData const& , Disk::FileInfo const& fi ) ;                                                                     // .
 		Manual manual_refresh( Req            r                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(r,fi)   ; }
 		Manual manual_refresh( JobData const& j                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(j,fi)   ; }
+		//
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -275,17 +277,7 @@ namespace Engine {
 			return false ;
 		}
 		//
-		bool is_src() const {
-			SWEAR(match_ok()) ;
-			switch (buildable) {
-				case Buildable::DynSrc :
-				case Buildable::Src    :
-				case Buildable::Decode :
-				case Buildable::Encode : return true  ;
-				default                : return false ;
-			}
-		}
-		bool is_anti() const {
+		bool is_src_anti() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
 				case Buildable::LongName  :
@@ -293,6 +285,10 @@ namespace Engine {
 				case Buildable::Anti      :
 				case Buildable::SrcDir    :
 				case Buildable::SubSrcDir :
+				case Buildable::DynSrc    :
+				case Buildable::Src       :
+				case Buildable::Decode    :
+				case Buildable::Encode    :
 				case Buildable::SubSrc    : return true  ;
 				default                   : return false ;
 			}

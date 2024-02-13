@@ -39,8 +39,8 @@ namespace Store {
 			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
 			// also, putting a constraint less than the natural constraint is undefined behavior
 			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
-			[[no_unique_address]] alignas(DataNv) alignas(HdrNv) HdrNv hdr ;     // no need to allocate space if header is empty
-			[[                 ]]                                Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+			[[no_unique_address]] alignas(DataNv) alignas(HdrNv) HdrNv hdr ;                                                 // no need to allocate space if header is empty
+			[[                 ]]                                Sz    sz  = 1 ;                                             // logical size, i.e. first non-allocated idx ==> account for unused idx 0
 
 		} ;
 		void expand(size_t) = delete ;
@@ -53,7 +53,7 @@ namespace Store {
 		static constexpr size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _offset0 + sizeof(DataNv)*idx ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
-			Base::expand(_offset(1)) ;                                            // 1 is the first used idx
+			Base::expand(_offset(1)) ;                                                                                    // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -99,7 +99,7 @@ namespace Store {
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
-			if (size()) SWEAR( _offset(size())<=Base::size , size() , Base::size ) ;
+			if (size()) throw_unless( _offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
 		void _clear() {
@@ -115,10 +115,10 @@ namespace Store {
 			{	ULock lock{_mutex} ;
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
-				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ; // ensure no arithmetic overflow before checking capacity
+				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ;                        // ensure no arithmetic overflow before checking capacity
 				Base::expand(_offset(new_sz)) ;
-				fence() ;                                                      // update state when it is legal to do so
-				_size() = new_sz ;                                             // once allocation is done, no reason to maintain lock
+				fence() ;                                                                                                 // update state when it is legal to do so
+				_size() = new_sz ;                                                                                        // once allocation is done, no reason to maintain lock
 			}
 			Idx res{old_sz} ;
 			new(&at(res)) Data(::forward<A>(args)...) ;

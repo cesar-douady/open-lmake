@@ -116,7 +116,7 @@ namespace Store {
 			//
 			void chk(Idx root) const {
 				Base::chk() ;
-				SWEAR(_is_black(root)) ;
+				throw_unless(_is_black(root),"root ",root," is not black") ;
 				_chk(root) ;
 			}
 		private :
@@ -194,9 +194,9 @@ namespace Store {
 			Idx         right       = _at(idx).subs(false)       ;
 			uint8_t     left_depth  = _chk(left ,seen,chk_color) ;
 			uint8_t     right_depth = _chk(right,seen,chk_color) ;
-			if ( chk_color && !black ) SWEAR(  _is_black(left)            &&  _is_black(right)             ) ;
-			/**/                       SWEAR( (!left||_at(left).key<key_) && (!right||_at(right).key>key_) ) ;
-			if ( chk_color           ) SWEAR(  left_depth                 ==  right_depth                  ) ;
+			if ( chk_color && !black ) throw_unless(  _is_black(left)            &&  _is_black(right)             ,"red ",idx," has a red son"   ) ;
+			/**/                       throw_unless( (!left||_at(left).key<key_) && (!right||_at(right).key>key_) ,idx," has a son out of range" ) ;
+			if ( chk_color           ) throw_unless(  left_depth                 ==  right_depth                  ,"tree is imbalanced at ",idx  ) ;
 			return left_depth+black ;
 		}
 	template<class Hdr,class Idx,class Key,class Data,bool BitIsKey>

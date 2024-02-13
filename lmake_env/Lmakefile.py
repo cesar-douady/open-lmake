@@ -208,6 +208,12 @@ basic_opts_tab = {
 ,	'cc'  : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # on some systems, we there is a warning type-limits
 ,	'cxx' : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # .
 }
+def run_gcc(target,*args) :
+		cmd_line = ( gcc , '-o' , target , '-fdiagnostics-color=always' , *args )
+		if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH'])) # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
+		for k,v in os.environ.items() : print(f'{k}={v}')
+		print(' '.join(cmd_line))
+		run( cmd_line , check=True )
 for ext,basic_opts in basic_opts_tab.items() :
 	class Compile(Centos7Rule) :               # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
@@ -229,16 +235,12 @@ for ext,basic_opts in basic_opts_tab.items() :
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
-			cmd_line = (
-				gcc , '-fdiagnostics-color=always' , '-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
+			run_gcc( OBJ
+			,	'-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	*basic_opts
 			,	*add_flags
-			,	'-o',OBJ , SRC
+			,	SRC
 			)
-			if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH'])) # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
-			for k,v in os.environ.items() : print(f'{k}={v}')
-			print(' '.join(cmd_line),flush=True)                                                 # in case of live out, we want to have the info early
-			run( cmd_line , check=True )
 		n_tokens  = config.backends.local.cc
 		resources = pdict()
 		if True             : resources.mem = '512M'
@@ -249,15 +251,11 @@ class GccRule(Centos7Rule) :
 	pre_opts      = []                           # options before inputs & outputs
 	rev_post_opts = []                           # options after  inputs & outputs, combine appends at each level, but here we want to prepend
 	def cmd() :
-		cmd_line = (
-			gcc , '-fdiagnostics-color=always'
+		run_gcc( TARGET
 		,	*pre_opts
-		,	'-o',TARGET
 		,	*deps.values()
 		,	*reversed(rev_post_opts)
 		)
-		print(' '.join(cmd_line))
-		run( cmd_line , check=True )
 
 class LinkO(GccRule) :
 	pre_opts = ('-r','-fPIC')

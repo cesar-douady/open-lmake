@@ -61,10 +61,8 @@ namespace Engine {
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
-				if      ( !add && !n.frozen()  ) throw "not frozen "          +mk_file(n->name()) ;
-				else if (  add && n->is_src () ) throw "cannot freeze source "+mk_file(n->name()) ;
-				else if (  add && n->is_anti() ) throw "cannot freeze anti "  +mk_file(n->name()) ;
-				else if (  add && n.frozen()   ) throw "already frozen "      +mk_file(n->name()) ;
+				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw to_string(n.frozen()?"already":"not"," frozen "             ,mk_file(nn)) ; }
+				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw to_string("cannot freeze ",is_target(nn)?"source":"anti",' ',mk_file(nn)) ; }
 				//
 				nodes.push_back(n) ;
 			} ;
@@ -77,7 +75,7 @@ namespace Engine {
 					t->set_buildable() ;
 					Job j = t->actual_job_tgt() ;
 					if      ( add && !j.active()                                        ) handle_node(t) ;
-					else if ( t->is_src() || t->is_anti()                               ) handle_node(t) ;
+					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
 						Job cj = t->conform_job_tgt() ;
@@ -318,7 +316,14 @@ R"({
 		//
 		for( auto [_,a] : pre_actions.first )
 			if (a.tag==FileActionTag::Uniquify) {
-				append_to_string( script , "uniquify() { if [ -f \"$1\" ] ; then mv \"$1\" \"$1.$$\" ; cp -p \"$1.$$\" \"$1\" ; rm -f \"$1.$$\" ; fi ; }\n" ) ;
+				append_to_string( script ,
+					"uniquify() {\n"
+					"\tif [ -f \"$1\" -a $(stat -c%h \"$1\" 2>/dev/null||echo 0) -gt 0 ] ; then\n"
+					"\t\techo warning : uniquify \"$1\"\n"
+					"\t\tmv \"$1\" \"$1.$$\" ; cp -p \"$1.$$\" \"$1\" ; rm -f \"$1.$$\"\n"
+					"\tfi\n"
+					"}\n"
+				) ;
 				break ;
 			}
 		for( auto [t,a] : pre_actions.first ) {
@@ -328,7 +333,7 @@ R"({
 				case FileActionTag::Mkdir    :   append_to_string(script,"mkdir -p ",tn,               '\n') ; break ;
 				case FileActionTag::Rmdir    :   append_to_string(script,"rmdir "   ,tn," 2>/dev/null",'\n') ; break ;
 				case FileActionTag::Unlink   : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
-				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
+				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
 				default : FAIL(a.tag) ;
 			}
 		}
@@ -402,8 +407,11 @@ R"({
 		Trace("target",target,jt) ;
 		return jt ;
 	NoJob :
-		audit( fd , ro , Color::Err  , "target not built"                                               ) ;
-		audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name()) , false/*as_is*/ , 1 ) ;
+		target->set_buildable() ;
+		if (!target->is_src_anti()) {
+			audit( fd , ro , Color::Err  , "target not built"                                               ) ;
+			audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name()) , false/*as_is*/ , 1 ) ;
+		}
 		return {} ;
 	}
 
@@ -425,8 +433,8 @@ R"({
 		if (job->rule->is_special()) throw to_string("cannot debug ",job->rule->name," jobs") ;
 		//
 		JobInfoStart report_start ;
-		try         { ::ifstream job_stream{job->ancillary_file() } ; deserialize(job_stream,report_start) ; }
-		catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ;                   }
+		try         { deserialize(IFStream(job->ancillary_file()),report_start) ;          }
+		catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ; }
 		//
 		JobRpcReply const& start       = report_start.start                     ;
 		bool               redirected  = +start.stdin || +start.stdout          ;
@@ -492,7 +500,7 @@ R"({
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule                  ;
-		::ifstream       job_stream   { job->ancillary_file() }    ;
+		IFStream         job_stream   { job->ancillary_file() }    ;
 		JobInfoStart     report_start ;
 		JobInfoEnd       report_end   ;
 		bool             has_start    = false                      ;
@@ -607,24 +615,24 @@ R"({
 									for( auto const& [k,v] : rs.start.env )
 										if (k=="TMPDIR") { tmp_dir = v==EnvPassMrkr ? "..." : v ; break ; }
 								//
-								if (+sa.reason                           ) push_entry("reason"     ,localize(reason_str(sa.reason),ro.startup_dir_s)) ;
-								if (rs.host!=NoSockAddr                  ) push_entry("host"       ,SockFd::s_host(rs.host)                         ) ;
+								if (+sa.reason         ) push_entry("reason",localize(reason_str(sa.reason),ro.startup_dir_s)) ;
+								if (rs.host!=NoSockAddr) push_entry("host"  ,SockFd::s_host(rs.host)                         ) ;
 								//
 								if (+rs.eta) {
-									if (porcelaine) push_entry("scheduling" ,to_string("( ",mk_py_str(rs.eta.str())," , ",double(sa.pressure)           ," )") , Color::None , true/*as_is*/ ) ;
-									else            push_entry("scheduling" ,to_string(               rs.eta.str() ," - ",       sa.pressure.short_str()     )                               ) ;
+									if (porcelaine) push_entry("scheduling",to_string("( ",mk_py_str(rs.eta.str())," , ",double(sa.pressure)           ," )"),Color::None,true/*as_is*/) ;
+									else            push_entry("scheduling",to_string(               rs.eta.str() ," - ",       sa.pressure.short_str()     )                          ) ;
 								}
 								//
-								if (+tmp_dir                             ) push_entry("tmp dir"    ,localize(mk_file(tmp_dir),ro.startup_dir_s)     ) ;
-								if (+rs.start.autodep_env.tmp_view       ) push_entry("tmp view"   ,rs.start.autodep_env.tmp_view                   ) ;
-								if ( sa.live_out                         ) push_entry("live_out"   ,"true"                                          ) ;
-								if (+rs.start.chroot                     ) push_entry("chroot"     ,rs.start.chroot                                 ) ;
-								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                             ) ;
-								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                          ) ;
-								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                          ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,mk_snake(rs.start.method)                       ) ;
-								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()                    ) ;
-								if (sa.tag!=BackendTag::Unknown          ) push_entry("backend"    ,mk_snake(sa.tag)                                ) ;
+								if (+tmp_dir                             ) push_entry("tmp dir"    ,localize(mk_file(tmp_dir),ro.startup_dir_s)) ;
+								if (+rs.start.autodep_env.tmp_view       ) push_entry("tmp view"   ,rs.start.autodep_env.tmp_view              ) ;
+								if ( sa.live_out                         ) push_entry("live_out"   ,"true"                                     ) ;
+								if (+rs.start.chroot                     ) push_entry("chroot"     ,rs.start.chroot                            ) ;
+								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                        ) ;
+								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                     ) ;
+								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                     ) ;
+								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,mk_snake(rs.start.method)                  ) ;
+								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()               ) ;
+								if (sa.tag!=BackendTag::Unknown          ) push_entry("backend"    ,mk_snake(sa.tag)                           ) ;
 							}
 							//
 							::map_ss required_rsrcs  ;
@@ -772,13 +780,36 @@ R"({
 			JobTgt jt ;
 			if (for_job) {
 				jt = _job_from_target(fd,ro,target) ;
-				if (!jt) { ok = false ; continue ; }
+				if ( !jt && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
 			}
 			switch (ro.key) {
+				case ReqKey::Info :
+					if (target->status()==NodeStatus::Plain) {
+						JobTgt cjt            = target->conform_job_tgt() ;
+						size_t w              = 0                         ;
+						bool   seen_candidate = false                     ;
+						for( JobTgt job_tgt : target->conform_job_tgts() ) {
+							/**/              w              = ::max(w,job_tgt->rule->name.size()) ;
+							if (job_tgt!=cjt) seen_candidate = true                                ;
+						}
+						for( JobTgt job_tgt : target->conform_job_tgts() ) {
+							if      (job_tgt==jt    ) continue ;
+							if      (!seen_candidate) audit( fd , ro , Color::Note , to_string("official job " ,::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ; // no need to align
+							else if (job_tgt==cjt   ) audit( fd , ro , Color::Note , to_string("official job  ",::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ; // align
+							else                      audit( fd , ro , Color::Note , to_string("job candidate ",::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ;
+						}
+					}
+					if (!jt) {
+						Node n = target ;
+						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
+						if (+n->asking) audit( fd , ro , to_string("required by : ",mk_file(Job(n->asking)->name())) ) ;
+						else            audit( fd , ro , to_string("required by : ",mk_file(    n         ->name())) ) ;
+						continue ;
+					}
+				[[fallthrough]] ;
 				case ReqKey::Cmd        :
 				case ReqKey::Env        :
 				case ReqKey::ExecScript :
-				case ReqKey::Info       :
 				case ReqKey::Stderr     :
 				case ReqKey::Stdout     :
 				case ReqKey::Targets    :
@@ -789,9 +820,7 @@ R"({
 					::string uphill_name = dir_name(target->name())   ;
 					double   prio        = -Infinity                  ;
 					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
-					for( JobTgt job_tgt : target->job_tgts() ) {
-						if (job_tgt->rule->prio<prio)                                break    ;
-						if (job_tgt==jt             ) { prio = job_tgt->rule->prio ; continue ; }       // actual job is output last as this is what user views first
+					for( JobTgt job_tgt : target->conform_job_tgts() ) {
 						bool hide = !job_tgt.produces(target) ;
 						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
 						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;

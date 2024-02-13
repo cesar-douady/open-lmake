@@ -239,7 +239,7 @@ struct Epoll {
 	void add_read (              Fd fd_ ) { add(false/*write*/,fd_  ) ; }
 	void add_write(              Fd fd_ ) { add(true /*write*/,fd_  ) ; }
 	void del(Fd fd_) {
-		int rc = epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
+		int rc = ::epoll_ctl( fd , EPOLL_CTL_DEL , fd_ , nullptr ) ;
 		swear_prod(rc==0,"cannot del ",fd_," from epoll ",fd," (",strerror(errno),')') ;
 		cnt-- ;
 	}

@@ -404,14 +404,15 @@ namespace Engine {
 		//
 		if (+up_to_dates) {
 			static ::string src_msg   = "file is a source"       ;
+			static ::string anti_msg  = "file is anti"           ;
 			static ::string plain_msg = "was already up to date" ;
 			size_t w = 0 ;
 			for( Node n : up_to_dates )
-				if      (n->is_src()                     ) w = ::max(w,src_msg  .size()) ;
-				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg.size()) ;
+				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg:anti_msg).size()) ;
+				else if (n->status()<=NodeStatus::Makable) w = ::max(w,plain_msg                              .size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src()                     ) audit_node( Color::Warning                     , to_string(::setw(w),src_msg  ," :") , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg," :") , n ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , to_string(::setw(w),is_target(n->name())?src_msg:anti_msg," :") , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , to_string(::setw(w),plain_msg                            ," :") , n ) ;
 		}
 		if (+long_names) {
 			::vmap<Node,NodeIdx> long_names_ = mk_vmap(long_names) ;
@@ -529,8 +530,8 @@ namespace Engine {
 		}
 		//
 		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
-			if (!rt.pattern().match(name)) {            continue ; }
-			if (rt->is_anti()            ) { art = rt ; break    ; }
+			if (!rt.pattern().match(name) )              continue ;
+			if (rt->special==Special::Anti) { art = rt ; break    ; }
 			Rule::SimpleMatch m{rt,name} ;
 			mrts.emplace_back(rt,m) ;
 			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ; // do not pass *this as req to avoid generating error message at cxtor time

@@ -168,27 +168,27 @@ namespace Engine {
 		_parse_target( str , [&](FileNameIdx,VarIdx s)->void { cb(s) ; } ) ;
 	}
 
-	template<class F> static void _mk_flags( ::string const& key , PyObject** p , ssize_t n , bool& is_top , BitMap<F>& flags ) {
+	template<class F,class EF> static void _mk_flags( ::string const& key , PyObject** p , ssize_t n , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags ) {
 		for( ssize_t i=0 ; i<n ; i++ ) {
 			if (PyUnicode_Check(p[i])) {
 				const char* flag_str = PyUnicode_AsUTF8(p[i]) ;
 				bool        neg      = flag_str[0]=='-'       ;
-				flag_str += neg ;
-				if      ( F f ; can_mk_enum<F>(flag_str) && (f=mk_enum<F>(flag_str),f<F::NRule) ) flags.set(f,!neg) ;
-				else if ( strcmp(flag_str,"top")==0 || strcmp(flag_str,"Top")==0                ) is_top = !neg ;
-				else                                                                              throw to_string("unexpected flag ",flag_str," for ",key) ;
+				flag_str += neg ;                                                                                                       // suppress initial - sign
+				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F::NRule     ) ) flags      .set(f ,!neg) ;
+				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<n_extra_flags) ) extra_flags.set(ef,!neg) ;
+				else                                                                                         throw to_string("unexpected flag ",flag_str," for ",key) ;
 			} else if (PySequence_Check(p[i])) {
 				PyObject* py_fast_dep = PySequence_Fast(p[i],"") ;
 				SWEAR(py_fast_dep) ;
 				PyObject** p2 = PySequence_Fast_ITEMS   (py_fast_dep) ;
 				ssize_t    n2 = PySequence_Fast_GET_SIZE(py_fast_dep) ;
-				_mk_flags( key , p2 , n2 , is_top , flags ) ;
+				_mk_flags( key , p2 , n2 , flags , extra_flags , n_extra_flags ) ;
 			} else {
 				throw to_string(key,"has a flag that is not a str") ;
 			}
 		}
 	}
-	template<class F> static ::string _split_flags( ::string const& key , PyObject* py , int hdr_sz , bool& is_top , BitMap<F>& flags ) {
+	template<class F,class EF> static ::string _split_flags( ::string const& key , PyObject* py , int hdr_sz , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=EF::N ) {
 		if ( PyUnicode_Check (py)) return PyUnicode_AsUTF8(py) ;
 		if (!PySequence_Check(py)) throw to_string(key," is neither a str nor a sequence") ;
 		PyObject* py_fast = PySequence_Fast(py,"") ;
@@ -197,7 +197,7 @@ namespace Engine {
 		PyObject** p = PySequence_Fast_ITEMS   (py_fast) ;
 		SWEAR(n>=hdr_sz,key,n) ;
 		SWEAR(PyUnicode_Check(p[0]),key) ;
-		_mk_flags(key,p+hdr_sz,n-hdr_sz,is_top,flags) ;
+		_mk_flags( key , p+hdr_sz , n-hdr_sz , flags , extra_flags , n_extra_flags ) ;
 		return PyUnicode_AsUTF8(p[0]) ;
 	}
 
@@ -357,13 +357,13 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx   n_unnamed  = 0                                                               ;
-			Dflags   df         { Dflag::Essential , Dflag::Static }                              ;
-			bool     is_top     = false                                                           ;
-			::string dep        = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , is_top , df ) ;
-			::string parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                 ;
+			VarIdx      n_unnamed  = 0                                                                               ;
+			Dflags      df         { Dflag::Essential , Dflag::Static }                                              ;
+			ExtraDflags edf        ;
+			::string    dep        = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
+			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                 ;
 			//
-			rd.add_cwd( parsed_dep , is_top ) ;
+			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
 			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
 			//
 			if (n_unnamed) {
@@ -400,11 +400,11 @@ namespace Engine {
 					Py_DECREF(py_key_str) ;
 					throw to_string("a dep has a non str key : ",key_str) ;
 				}
-				::string key    = PyUnicode_AsUTF8(py_key)                                        ;
-				Dflags   df     { Dflag::Essential , Dflag::Static }                              ;                // initial value
-				bool     is_top = false                                                           ;
-				::string dep    = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , is_top , df ) ;                // updates df
-				match.rule->add_cwd( dep , is_top ) ;
+				::string    key = PyUnicode_AsUTF8(py_key)                                                        ;
+				Dflags      df  { Dflag::Essential , Dflag::Static }                                              ;
+				ExtraDflags edf ;
+				::string    dep = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
+				match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 				_qualify_dep( key , dep , DepKind::Dep ) ;
 				::pair_s<AccDflags> e { dep , {a,df} } ;
 				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
@@ -715,12 +715,13 @@ namespace Engine {
 					MatchKind    kind               = mk_enum<MatchKind>(Py::String(pyseq_tkfs[1])) ;                  // targets are a tuple (target_pattern,kind,flags...)
 					bool         is_star            = false                                         ;
 					::set_s      missing_stems      ;
-					bool         is_top             = false                                         ;
 					bool         is_target          = kind!=MatchKind::DepFlags                     ;
 					bool         is_official_target = kind==MatchKind::Target                       ;
 					bool         is_stdout          = field=="<stdout>"                             ;
 					Tflags       tflags             ;
 					Dflags       dflags             ;
+					ExtraTflags  extra_tflags       ;
+					ExtraDflags  extra_dflags       ;
 					MatchFlags   flags              ;
 					//
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
@@ -747,8 +748,8 @@ namespace Engine {
 					if ( !is_star                       ) tflags |= Tflag::Static    ;
 					if (             is_official_target ) tflags |= Tflag::Target    ;
 					if ( !is_star && is_official_target ) tflags |= Tflag::Essential ;                                 // static targets are essential by default
-					if ( is_target                      ) { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , is_top , tflags ) ; flags = tflags ; }
-					else                                  { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , is_top , dflags ) ; flags = dflags ; }
+					if ( is_target                      ) { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
+					else                                  { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
 					if ( target.starts_with(root_dir_s)             ) throw to_string(mk_snake(kind)," must be relative to root dir : "         ,target) ;
 					if ( !is_lcl(target)                            ) throw to_string(mk_snake(kind)," must be local : "                        ,target) ;
@@ -758,6 +759,7 @@ namespace Engine {
 					if ( is_star                    && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")        ;
 					if ( is_star                    && is_stdout    ) throw           "stdout cannot be directed to a star target"s                      ;
 					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s              ;
+					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
 					// record

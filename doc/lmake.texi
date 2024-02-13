@@ -609,7 +609,6 @@ Each line is composed of 6 fields  separated by spaces :
 	@item @code{E} : dep is essential, i.e. dep is show in a future graphical tool.
 	@item @code{c} : dep is critical (cf @pxref{critical-deps}).
 	@item @code{e} : ignore errors on dep, i.e. job can be run even if this dep is built in error.
-	@item @code{i} : ignore dep, i.e. job is not rerun if dep is modified, implies ignore errors.
 	@item @code{r} : dep is required, i.e. job is in error if dep is not buildable. For static deps, job is not even tried if dep is not buildable (and another rule is used if possible).
 	@item @code{S} : dep is static.
 	@end itemize
@@ -846,13 +845,23 @@ and such checksums do not clash with regular files with the same content (a diff
 Also, the execute permission bit is also used to compute the checksum of regular files.
 @lmake does not handle security bits (read and write permissions), but the execute bit is a semantic bit (possibly in addition to security) and thus is managed by @lmake.
 
+@section @code{lrepair}
+
+Usage : @code{lrepair}
+
+@code{lrepair} is meant to repair internal @lmake book-keeping in case of catastrophic crash, either because of system failure or a bug in @lmake.
+Most of the time, @lmake does not need resort to heavy reparation as its internal book-keeping is fairly robust, but in some rare cases, this may be necessary.
+In such a case, @lmake will suggest the use of @code{lrepair}.
+In case of incoherent behavior, the user may decide to run @code{lrepair}.
+This process is pretty long, the goal being to avoid having to restart from a fresh repository, which may incur a severe cost in terms of compute power.
+
 @chapter Job Commands
 
 The commands listed hereafter are meant to be executed from within a job, not as standalone commands.
 
 @section @code{ldepend}
 
-Usage : @code{ldepend [--no-follow|-P] [--essential|-E] [--critical|-c] [--ignore-error|-e][--ignore|-i] [--no-required|-r] [--no-warning|-w] [--verbose|-v] files ...}
+Usage : @code{ldepend [-<short-option>|--<long-option>]... files ...}
 
 @code{ldepend} may be used to inform @lmake that some files must be deemed as read as if you called the @code{open} system call on each of them.
 To this extent, it is not that much different from @code{cat} (except performance wise, depend is of course much faster since @code{files} are not really accessed).
@@ -874,13 +883,14 @@ In addition to signaling an access, @code{ldepend} is used to set flag on the fi
 
 The following options are supported :
 @itemize @bullet
-@item @code{-v}|@code{--verbose}      : write lines composed of the crc and the name separated by a space for each required dependency.
-@item @code{-P}|@code{--no-follow}    : do not follow the last level symbolic link.
-@item @code{-E}|@code{--esential}     : passed dependencies will appear in the flow shown with a graphical tool.
-@item @code{-c}|@code{--critical}     : create critical deps (cf @pxref{critical-deps}).
-@item @code{-e}|@code{--ignore-error} : ignore the error status of the passed dependencies.
-@item @code{-i}|@code{--ignore}       : dep is ignored altogether.
-@item @code{-r}|@code{--no-required}  : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok)
+@item @code{-v}|@code{--verbose}          : write lines composed of the crc and the name separated by a space for each required dependency.
+@item @code{-P}|@code{--no-follow}        : do not follow the last level symbolic link.
+@item @code{-E}|@code{--esential}         : passed dependencies will appear in the flow shown with a graphical tool.
+@item @code{-c}|@code{--critical}         : create critical deps (cf @pxref{critical-deps}).
+@item @code{-e}|@code{--ignore-error}     : ignore the error status of the passed dependencies.
+@item @code{-i}|@code{--ignore}           : dep is ignored altogether.
+@item @code{-r}|@code{--no-required}      : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok).
+@item @code{-d}|@code{--stat-ignore-data} : if dep is accessed with a stat-like access, @lmake considers data have not been accessed, which decreases the number of rebuilds.
 @end itemize
 
 @section @code{lcheck_deps}
@@ -927,14 +937,15 @@ Also, it is possible to alter the target flags for these targets. Flags accumula
 
 The following options are supported :
 @itemize @bullet
-@item @code{-u} or @code{--unlink}       : report an unlink rather than writing.
-@item @code{-P} or @code{--no-follow}    : do not follow the last level symbolic link.
-@item @code{-E} or @code{--essential}    : show when generating user oriented graphs.
-@item @code{-i} or @code{--incremental}  : target is not unliked before job execution and read accesses to it are ignored.
-@item @code{-p} or @code{--phony}        : accept that target is not physically generated on disk.
-@item @code{-m} or @code{--manual-ok}    : overwriting manual modification is allowed (including if a source).
-@item @code{-u} or @code{--no-uniquify}  : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
-@item @code{-w} or @code{--no-warning}   : no warning is emitted if target is either uniquified or unlinked while generated by another job.
+@item @code{-u} or @code{--unlink}      : report an unlink rather than writing.
+@item @code{-P} or @code{--no-follow}   : do not follow the last level symbolic link.
+@item @code{-E} or @code{--essential}   : show when generating user oriented graphs.
+@item @code{-i} or @code{--incremental} : target is not unliked before job execution and read accesses to it are ignored.
+@item @code{-p} or @code{--phony}       : accept that target is not physically generated on disk.
+@item @code{-m} or @code{--manual-ok}   : overwriting manual modification is allowed (including if a source).
+@item @code{-u} or @code{--no-uniquify} : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
+@item @code{-w} or @code{--no-warning}  : no warning is emitted if target is either uniquified or unlinked while generated by another job.
+@item @code{-d} or @code{--read-is-dep} : if this flag is set and file is not an official target and is accessed read-only, althrough declared a target, it will be processed as a dep.
 @end itemize
 
 @section @code{ldecode}
@@ -1804,6 +1815,7 @@ During execution, @code{cmd} stdout will be redirected to this (necessarily uniq
 
 This attribute is identical to @code{targets} except that :
 @itemize @minus
+@item the @code{ReadIsDep} or @code{read_is_dep} flag is available that transform files accessed read-only into deps rather than targets.
 @item targets listed here do not trigger job execution, i.e. they do not participate to the rule selection process (cf @pxref{rule-selection}).
 @item it not compulsery to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.
 @end itemize
@@ -1841,8 +1853,8 @@ Flags may be arbitrarily nested into sub-@code{list}'s or sub-@code{tuple}'s.
 @headitem CamelCase Flag @tab snake_case Flag @tab Default @tab Description
 @item Essential          @tab essential       @tab Yes     @tab This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.
 @item Critical           @tab critical        @tab No      @tab This dep is critial (cf @pxref{critical-deps}).
-@item Ignore             @tab ignore          @tab No      @tab This dep is ignored
 @item IgnoreError        @tab ignore_error    @tab No      @tab This dep may be in error, job will be launched anyway.
+@item StatReadData       @tab stat_read_data  @tab No      @tab If this dep is accessed with a stat-like access, it is deemed to have accessed its content, which may increase the number of rebuilds.
 @item Top                @tab top             @tab No      @tab dep pattern is interpreted relative to the root directory of the repository, else it is relative to the @code{cwd} of the rule.
 @end multitable
 
@@ -1882,7 +1894,11 @@ During execution, @code{cmd} stdin will be redirected to this dependency, else i
 
 This attribute is used to define flags to deps when they are acquired during job execution.
 It does not declare a dep by itself.
-Syntactically, it follows the @code{target_flags} attribute except that specified flags are dep flags rather than target flags.
+Syntactically, it follows the @code{target_flags} attribute except that :
+@itemize @minus
+@item specified flags are dep flags rather than target flags.
+@item an additional flag @code{Ignore} or @code{ignore} is available to mean that files matching this pattern must not be deps if accessed as read.
+@end itemize
 
 @section @code{order}
 

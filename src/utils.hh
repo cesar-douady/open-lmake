@@ -494,6 +494,9 @@ template<class... A> [[noreturn]] static inline void fail( A const&... args [[ma
 	#endif
 }
 
+template<class... A> static inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw to_string(args...) ; }
+template<class... A> static inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw to_string(args...) ; }
+
 template<class... A> static inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;

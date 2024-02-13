@@ -106,7 +106,7 @@ namespace Engine::Makefiles {
 		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {             // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {              // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::ifstream deps_stream { _deps_file(action,new_) } ;
@@ -117,10 +117,10 @@ namespace Engine::Makefiles {
 				default  : FAIL(line[0]) ;
 			}
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                                                             // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                                              // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
-			n->set_buildable() ;                                                                                  // this is mandatory before is_src() or is_anti() can be called
-			if ( !n->is_src() && !n->is_anti()) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
+			n->set_buildable() ;                                                                                   // this is mandatory before is_src_anti() can be called
+			if ( !n->is_src_anti() ) throw to_string("dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
 	}
@@ -186,8 +186,8 @@ namespace Engine::Makefiles {
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
-		PyObject* eval_env = Py::eval_dict(true/*printed_expr*/) ;
-		PyObject* py_info = PyRun_String(content.c_str(),Py_eval_input,eval_env,eval_env) ;
+		PyObject* eval_env = Py::eval_dict(true/*printed_expr*/)                           ;
+		PyObject* py_info  = PyRun_String(content.c_str(),Py_eval_input,eval_env,eval_env) ;
 		Py_DECREF(eval_env) ;
 		SWEAR( py_info , "error while reading makefile digest :\n" , Py::err_str() ) ;
 		trace("done",Pdate::s_now()) ;
@@ -304,8 +304,8 @@ namespace Engine::Makefiles {
 			auto diff_config      = [&]( Config const& old , Config const& new_ )->void {
 				if ( !old.booted || !new_.booted         ) return ;                                    // only record diffs, i.e. when both exist
 				//
-				if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 				if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
+				if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 			} ;
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;

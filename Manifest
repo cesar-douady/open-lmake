@@ -167,6 +167,7 @@ unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py
 unit_tests/ignore.py
+unit_tests/jemalloc.py
 unit_tests/jobs.py
 unit_tests/link.py
 unit_tests/lmark.py

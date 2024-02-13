@@ -119,9 +119,9 @@ namespace Engine {
 		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
-		bool/*reported*/ report_start( ReqInfo&    , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void             report_start(                                                                          ) const ;
-		void             started     ( bool report , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlinks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void             report_start(                                                                                                                    ) const ;
+		void             started     ( bool report , ::vector<Node> const& report_unlinks={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;

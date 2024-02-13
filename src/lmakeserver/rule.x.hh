@@ -461,7 +461,6 @@ namespace Engine {
 	public :
 		::string pretty_str() const ;
 		// accesses
-		bool   is_anti     (         ) const { return special==Special::Anti                               ; }
 		bool   is_special  (         ) const { return special!=Special::Plain                              ; }
 		bool   user_defined(         ) const { return !allow_ext                                           ; } // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }

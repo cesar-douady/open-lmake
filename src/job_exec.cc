@@ -150,28 +150,38 @@ Digest analyze( bool at_end , bool killed=false ) {
 		Accesses            a  = ad.accesses ;
 		info.chk() ;
 		MatchFlags flags = g_match_dct.at(file) ;
-		if ( info.digest.idle() && flags.is_target!=Yes ) {
-			DepDigest dd = ad ;
-			if (flags.is_target==No) dd.dflags   |= flags.dflags()                                         ;
-			/**/                     dd.parallel  = info.parallel_id && info.parallel_id==prev_parallel_id ;
-			/**/                     dd.accesses  = a                                                      ;
-			if ( +dd.accesses && dd.is_date ) {                                                                             // try to transform date into crc as far as possible
-				if      ( !info.seen                               ) dd.crc(Crc::None) ;                                    // the whole job has been executed without seeing the file
-				else if ( !dd.date()                               ) dd.crc({}       ) ;                                    // file was not always present, this is a case of incoherence
-				else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                                    // file dates are incoherent from first access to end of job ...
-				else                                                                                                        // ... we do not know what we have read, not even the tag
-					switch (dfi.tag) {
-						case FileTag::Reg :
-						case FileTag::Exe :
-						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ;               // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-						default           :                                         dd.crc({}     ) ; break ;               // file is either awkward or has disappeared after having been seen
-					}
+		if (
+			info.digest.idle()
+		&&	(	flags.is_target!=Yes
+			||	( !flags.tflags()[Tflag::Target] && flags.extra_tflags()[ExtraTflag::ReadIsDep] )                           // reading an incremental target is processed according to ReadIsUpdate
+			)
+		) {
+			if ( flags.is_target!=No || !flags.extra_dflags()[ExtraDflag::Ignore] ) {
+				DepDigest dd = ad ;
+				if (flags.is_target==No) {
+					dd.dflags |= flags.dflags() ;
+					if ( a[Access::Stat] && flags.extra_dflags()[ExtraDflag::StatReadData] ) a = Accesses::All ;            // by default, stat access is deemed to have full visibility on file
+				}
+				dd.accesses  = a                                                      ;
+				dd.parallel  = info.parallel_id && info.parallel_id==prev_parallel_id ;
+				if ( +dd.accesses && dd.is_date ) {                                                                         // try to transform date into crc as far as possible
+					if      ( !info.seen                               ) dd.crc(Crc::None) ;                                // the whole job has been executed without seeing the file
+					else if ( !dd.date()                               ) dd.crc({}       ) ;                                // file was not always present, this is a case of incoherence
+					else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                                // file dates are incoherent from first access to end of job ...
+					else                                                                                                    // ... we do not know what we have read, not even the tag
+						switch (dfi.tag) {
+							case FileTag::Reg :
+							case FileTag::Exe :
+							case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ;           // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+							default           :                                         dd.crc({}     ) ; break ;           // file is either awkward or has disappeared after having been seen
+						}
+				}
+				prev_parallel_id = info.parallel_id ;
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				res.deps.emplace_back(file,dd) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				trace("dep   ",dd,file) ;
 			}
-			prev_parallel_id = info.parallel_id ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.deps.emplace_back(file,dd) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("dep   ",dd,file) ;
 		} else if (at_end) {                                                                                                // else we are handling chk_deps and we only care about deps
 			if (+a) {
 				if (ad.is_date) { if (!ad.date()         ) a = Accesses::None ; }                                           // we are only interested in read accesses that found a file
@@ -331,9 +341,9 @@ int main( int argc , char* argv[] ) {
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
 		//
-		for( auto const& [d,digest] : g_start_info.static_deps    ) g_match_dct.add( false/*star*/ , d , digest.dflags ) ;
-		for( auto const& [t,flags ] : g_start_info.static_matches ) g_match_dct.add( false/*star*/ , t , flags         ) ;
-		for( auto const& [p,flags ] : g_start_info.star_matches   ) g_match_dct.add( true /*star*/ , p , flags         ) ;
+		for( auto const& [d,digest] : g_start_info.static_deps    ) g_match_dct.add( false/*star*/ , d , {digest.dflags,{}} ) ;
+		for( auto const& [t,flags ] : g_start_info.static_matches ) g_match_dct.add( false/*star*/ , t , flags              ) ;
+		for( auto const& [p,flags ] : g_start_info.star_matches   ) g_match_dct.add( true /*star*/ , p , flags              ) ;
 		//
 		for( auto const& [t,flags ] : g_start_info.static_matches )
 			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets[t] |= flags.tflags()[Tflag::Phony] ;

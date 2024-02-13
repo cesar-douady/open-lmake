@@ -40,8 +40,7 @@ namespace Caches {
 		::string   expected_prev = Head              ;
 		size_t     total_sz      = 0                 ;
 		for( ::string entry=head.next ; entry!=Head ;) {
-			::ifstream here_stream { _lru_file(entry) } ; SWEAR(bool(here_stream),entry) ;
-			Lru here = deserialize<Lru>(here_stream) ;
+			auto here = deserialize<Lru>(IFStream(_lru_file(entry))) ;
 			//
 			SWEAR(seen.insert(entry).second,entry) ;
 			SWEAR(here.prev==expected_prev ,entry) ;
@@ -218,8 +217,7 @@ namespace Caches {
 				bool         critical = false ;
 				//
 				for( auto const& [dn,dd] : deps ) {
-					if ( critical && !dd.parallel ) break    ;        // if a critical dep needs reconstruction, do not proceed past parallel deps
-					if ( dd.dflags[Dflag::Ignore] ) continue ;
+					if ( critical && !dd.parallel ) break ;           // if a critical dep needs reconstruction, do not proceed past parallel deps
 					Node d{dn} ;
 					if (!d->done(req,RunAction::Status)) {
 						nds.insert(d) ;
@@ -267,8 +265,8 @@ namespace Caches {
 		try {
 			JobInfoStart report_start ;
 			JobInfoEnd   report_end   ;
-			{	LockedFd lock         { dfd , false/*exclusive*/ }      ;                            // because we read the data , shared is ok
-				IFStream is           { to_string(dir,'/',jn,"/data") } ;
+			{	LockedFd lock { dfd , false/*exclusive*/ }      ;                                    // because we read the data , shared is ok
+				IFStream is   { to_string(dir,'/',jn,"/data") } ;
 				deserialize(is,report_start) ;
 				deserialize(is,report_end  ) ;
 				// update some info

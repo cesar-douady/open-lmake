@@ -93,7 +93,7 @@ bool/*crashed*/ start_server(bool start) {
 }
 
 void record_targets(Job job) {
-	::string targets_file    = AdminDir+"/targets"s ;
+	::string   targets_file  = AdminDir+"/targets"s ;
 	::vector_s known_targets ;
 	{	::ifstream targets_stream { targets_file } ;
 		::string   target         ;
@@ -104,7 +104,7 @@ void record_targets(Job job) {
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
-	{	::ofstream targets_stream { dir_guard(targets_file) } ;
+	{	OFStream targets_stream { dir_guard(targets_file) } ;
 		for( ::string tn : known_targets ) if (+tn) targets_stream << tn << '\n' ;
 	}
 }
@@ -117,8 +117,8 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 	::umap<Fd,IMsgBuf> in_tab  ;
 	Epoll              epoll   { New }                                                 ;
 	//
-	epoll.add_read( _g_server_fd   , EventKind::Master ) ;
-	epoll.add_read( int_fd         , EventKind::Int    ) ;
+	epoll.add_read( _g_server_fd , EventKind::Master ) ;
+	epoll.add_read( int_fd       , EventKind::Int    ) ;
 	//
 	if ( Fd server_stop_fd=::inotify_init1(O_CLOEXEC) ; +server_stop_fd )
 		if (inotify_add_watch( server_stop_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 )
@@ -325,13 +325,13 @@ bool/*interrupted*/ engine_loop() {
 				JobExec         & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started     (job.report,job.txt,job.backend_msg  ) ; break ;
-					case JobProc::ReportStart : je.report_start(                                    ) ; break ;
-					case JobProc::LiveOut     : je.live_out    (job.txt                             ) ; break ;
-					case JobProc::GiveUp      : je.give_up     (job.req , job.report                ) ; break ;
-					case JobProc::End         : je.end         (job.rsrcs,job.digest,job.backend_msg) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started     (job.report,job.report_unlinks,job.txt,job.backend_msg) ; break ;
+					case JobProc::ReportStart : je.report_start(                                                     ) ; break ;
+					case JobProc::LiveOut     : je.live_out    (job.txt                                              ) ; break ;
+					case JobProc::GiveUp      : je.give_up     (job.req , job.report                                 ) ; break ;
+					case JobProc::End         : je.end         (job.rsrcs,job.digest,job.backend_msg                 ) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Dep> deps ; deps.reserve(job.digest.deps.size()) ;
@@ -358,10 +358,10 @@ int repair() {
 	if (!_g_server_running      ) exit(1,"server is already running") ;
 	if (is_reg(repair_mrkr)     ) unlink(AdminDir,true/*dir_ok*/) ;
 	if (is_dir(backup_admin_dir)) {
-		if      ( is_dir(AdminDir)                                ) exit(1,"cannot backup in already existing ",backup_admin_dir) ;
+		if      ( is_dir(AdminDir)                                ) exit(1,"backup already existing, consider : rm -r ",backup_admin_dir) ;
 	} else {
-		if      (!is_dir(PrivateAdminDir+"/local_admin/job_data"s)) exit(1,"nothing to repair"                                  ) ;
-		else if (::rename(AdminDir,backup_admin_dir.c_str())!=0   ) exit(2,"backup failed to ",backup_admin_dir                 ) ;
+		if      (!is_dir(PrivateAdminDir+"/local_admin/job_data"s)) exit(1,"nothing to repair"                                          ) ;
+		else if (::rename(AdminDir,backup_admin_dir.c_str())!=0   ) exit(2,"backup failed to ",backup_admin_dir                         ) ;
 	}
 	if ( AutoCloseFd fd=open_write(repair_mrkr) ; !fd ) exit(2,"cannot create ",repair_mrkr) ; // create marker
 	Persistent::writable = true ;

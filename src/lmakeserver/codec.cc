@@ -196,10 +196,10 @@ namespace Codec {
 		//
 		Node file_node{file} ;
 		file_node->set_buildable() ;
-		if (!file_node->is_src()) {
+		if (file_node->buildable!=Buildable::Src) {
 			for( ReqIdx r : reqs ) {
-				Req(r)->audit_node(Color::Err ,"encode/decode association file must be a source :",file_node  ) ;
-				Req(r)->audit_node(Color::Note,"consider : git add"                               ,file_node,1) ;
+				Req(r)->audit_node(Color::Err ,"encode/decode association file must be a plain source :",file_node  ) ;
+				Req(r)->audit_node(Color::Note,"consider : git add"                                     ,file_node,1) ;
 			}
 			return false/*ok*/ ;
 		}

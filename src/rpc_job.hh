@@ -44,7 +44,6 @@ ENUM_2( Dflag                          // flags for deps
 ,	Essential                          // show when generating user oriented graphs
 ,	Critical                           // if modified, ignore following deps
 ,	IgnoreError                        // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
-,	Ignore                             // do as if it is not a dep (except for user reports)
 ,	Required                           // dep must be buildable
 ,	Static                             // is static dep, for internal use only
 )
@@ -52,12 +51,25 @@ static constexpr char DflagChars[] = {
 	'E'                                // Essential
 ,	'c'                                // Critical
 ,	'e'                                // IgnoreError
-,	'i'                                // Ignore
 ,	'r'                                // Required
 ,	'S'                                // Static
 } ;
 static_assert(::size(DflagChars)==+Dflag::N) ;
 using Dflags = BitMap<Dflag> ;
+
+ENUM_1( ExtraDflag
+,	NDep = Ignore                          // number of ExtraDflag's allowed in rule definition
+,	Top
+,	Ignore
+,	StatReadData
+)
+static constexpr char ExtraDflagChars[] = {
+	'/'                                     // Top
+,	'd'                                     // StatReadData
+,	'i'                                     // Ignore
+} ;
+static_assert(::size(ExtraDflagChars)==+ExtraDflag::N) ;
+using ExtraDflags = BitMap<ExtraDflag> ;
 
 ENUM_2( Tflag                          // flags for targets
 ,	NRule = Static                     // number of Tflag's allowed in rule definition
@@ -83,6 +95,17 @@ static constexpr char TflagChars[] = {
 } ;
 static_assert(::size(TflagChars)==+Tflag::N) ;
 using Tflags = BitMap<Tflag> ;
+
+ENUM( ExtraTflag
+,	Top
+,	ReadIsDep                               // target is transform into dep if accessed read-only
+)
+static constexpr char ExtraTflagChars[] = {
+	'/'                                     // Top
+,	'd'                                     // ReadIsDep
+} ;
+static_assert(::size(ExtraDflagChars)==+ExtraDflag::N) ;
+using ExtraTflags = BitMap<ExtraTflag> ;
 
 ENUM( JobProc
 ,	None
@@ -462,19 +485,23 @@ struct JobRpcReq {
 struct MatchFlags {
 	friend ::ostream& operator<<( ::ostream& , MatchFlags const& ) ;
 	// cxtors & casts
-	MatchFlags(         ) = default ;
-	MatchFlags(Tflags tf) : is_target{Yes} , _tflags{tf} {}
-	MatchFlags(Dflags df) : is_target{No } , _dflags{df} {}
+	MatchFlags(                             ) = default ;
+	MatchFlags( Tflags tf , ExtraTflags etf ) : is_target{Yes} , _tflags{tf} , _extra_tflags{etf} {}
+	MatchFlags( Dflags df , ExtraDflags edf ) : is_target{No } , _dflags{df} , _extra_dflags{edf} {}
 	// accesses
-	bool   operator+() const {                         return is_target!=Maybe ; }
-	bool   operator!() const {                         return !+*this          ; }
-	Tflags tflags   () const { SWEAR(is_target==Yes) ; return _tflags          ; }
-	Dflags dflags   () const { SWEAR(is_target==No ) ; return _dflags          ; }
+	bool        operator+   () const {                         return is_target!=Maybe ; }
+	bool        operator!   () const {                         return !+*this          ; }
+	Tflags      tflags      () const { SWEAR(is_target==Yes) ; return _tflags          ; }
+	Dflags      dflags      () const { SWEAR(is_target==No ) ; return _dflags          ; }
+	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes) ; return _extra_tflags    ; }
+	ExtraDflags extra_dflags() const { SWEAR(is_target==No ) ; return _extra_dflags    ; }
 	// data
 	Bool3 is_target = Maybe ;
 private :
-	Tflags _tflags ; // if is_target
-	Dflags _dflags ; // if !is_target
+	Tflags      _tflags       ; // if  is_target
+	Dflags      _dflags       ; // if !is_target
+	ExtraTflags _extra_tflags ; // if  is_target
+	ExtraDflags _extra_dflags ; // if !is_target
 } ;
 
 ENUM_2( AutodepMethod
@@ -622,9 +649,11 @@ struct AccessDigest : DepDigest {                                      // order 
 	// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
 	void update( AccessDigest const& , AccessOrder ) ;
 	// data
-	Tflags tflags = {}    ;
-	bool   write  = false ;                                            // if true <=> files are written, possibly unlinked later
-	bool   unlink = false ;                                            // if true <=> files are unlinked at the end, possibly written before
+	Tflags      tflags       = {}    ;                                 // dflags are inherited from DepDigest
+	ExtraDflags extra_dflags = {}    ;
+	ExtraTflags extra_tflags = {}    ;
+	bool        write        = false ;                                 // if true <=> files are written, possibly unlinked later
+	bool        unlink       = false ;                                 // if true <=> files are unlinked at the end, possibly written before
 } ;
 
 struct JobExecRpcReq {

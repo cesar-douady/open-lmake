@@ -76,10 +76,12 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
-	/**/                             os << "SubmitAttrs("  ;
-	if (sa.tag!=BackendTag::Unknown) os << sa.tag    <<',' ;
-	if (sa.live_out                ) os << "live_out,"     ;
-	return                           os << sa.reason <<')' ;
+	/**/                              os << "SubmitAttrs("     ;
+	if ( sa.tag!=BackendTag::Unknown) os << sa.tag       <<',' ;
+	if ( sa.live_out                ) os << "live_out,"        ;
+	if ( sa.n_retries               ) os << sa.n_retries <<',' ;
+	if (+sa.pressure                ) os << sa.pressure  <<',' ;
+	return                            os << sa.reason    <<')' ;
 }
 
 //

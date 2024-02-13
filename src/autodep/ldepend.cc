@@ -13,49 +13,52 @@
 using namespace Disk ;
 
 ENUM(Key,None)
-ENUM_1(Flag
-,	NDyn = NoFollow
+ENUM(Flag
 ,	Essential
 ,	Critical
 ,	IgnoreError
-,	Ignore
 ,	NoRequired
+,	Ignore
+,	StatReadData
 ,	NoFollow
 ,	Verbose
 )
-static_assert(+Flag::NDyn==+Dflag::NDyn) ; // ensure we have not forgotten a flag
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax{{
 		{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links" } }
 	,	{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                   } }
 	//
-	,	{ Flag::Essential   , { .short_name=DflagChars[+Dflag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
-	,	{ Flag::Critical    , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                    } }
-	,	{ Flag::IgnoreError , { .short_name=DflagChars[+Dflag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"           } }
-	,	{ Flag::Ignore      , { .short_name=DflagChars[+Dflag::Ignore     ] , .has_arg=false , .doc="ignore dep"                              } }
-	,	{ Flag::NoRequired  , { .short_name=DflagChars[+Dflag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"        } }
+	,	{ Flag::Essential    , { .short_name=DflagChars     [+Dflag     ::Essential   ] , .has_arg=false , .doc="ask that deps be seen in graphical flow"         } }
+	,	{ Flag::Critical     , { .short_name=DflagChars     [+Dflag     ::Critical    ] , .has_arg=false , .doc="report critical deps"                            } }
+	,	{ Flag::IgnoreError  , { .short_name=DflagChars     [+Dflag     ::IgnoreError ] , .has_arg=false , .doc="accept that deps are in error"                   } }
+	,	{ Flag::NoRequired   , { .short_name=DflagChars     [+Dflag     ::Required    ] , .has_arg=false , .doc="accept that deps cannot be built"                } }
+	,	{ Flag::Ignore       , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore      ] , .has_arg=false , .doc="ignore dep"                                      } }
+	,	{ Flag::StatReadData , { .short_name=ExtraDflagChars[+ExtraDflag::StatReadData] , .has_arg=false , .doc="stat access sees only existence and type of dep" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	//
 	if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
 	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 	//
-	bool   verbose   = cmd_line.flags[Flag::Verbose ] ;
-	bool   no_follow = cmd_line.flags[Flag::NoFollow] ;
-	Dflags dflags    ;
-	if ( cmd_line.flags[Flag::Essential  ]) dflags |= Dflag::Essential   ;
-	if ( cmd_line.flags[Flag::Critical   ]) dflags |= Dflag::Critical    ;
-	if ( cmd_line.flags[Flag::IgnoreError]) dflags |= Dflag::IgnoreError ;
-	if ( cmd_line.flags[Flag::Ignore     ]) dflags |= Dflag::Ignore      ;
-	if (!cmd_line.flags[Flag::NoRequired ]) dflags |= Dflag::Required    ;
+	bool         verbose   = cmd_line.flags[Flag::Verbose ] ;
+	bool         no_follow = cmd_line.flags[Flag::NoFollow] ;
+	AccessDigest ad        ;
+	bool         err       = false                          ;
+	if ( cmd_line.flags[Flag::Essential   ]) ad.dflags       |= Dflag     ::Essential    ;
+	if ( cmd_line.flags[Flag::Critical    ]) ad.dflags       |= Dflag     ::Critical     ;
+	if ( cmd_line.flags[Flag::IgnoreError ]) ad.dflags       |= Dflag     ::IgnoreError  ;
+	if (!cmd_line.flags[Flag::NoRequired  ]) ad.dflags       |= Dflag     ::Required     ;
+	if ( cmd_line.flags[Flag::Ignore      ]) ad.extra_dflags |= ExtraDflag::Ignore       ;
+	if ( cmd_line.flags[Flag::StatReadData]) ad.extra_dflags |= ExtraDflag::StatReadData ;
+	//
+	ad.accesses = Accesses::All ;
 	//
 	if (verbose) {
-		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecRpcProc::DepInfos , ::copy(cmd_line.args) , {Accesses::All,dflags} , no_follow , true/*sync*/ , "ldepend" )) ;
+		JobExecRpcReply reply = Record(New).direct(JobExecRpcReq( JobExecRpcProc::DepInfos , ::copy(cmd_line.args) , ad , no_follow , true/*sync*/ , "ldepend" )) ;
 		//
 		SWEAR( reply.dep_infos.size()==cmd_line.args.size() , reply.dep_infos.size() , cmd_line.args.size() ) ;
 		//
-		bool err = false ;
 		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
 			switch (reply.dep_infos[i].first) {
 				case Yes   : ::cout << "ok  " ;              break ;
@@ -66,9 +69,8 @@ int main( int argc , char* argv[]) {
 			::cout << ::string(reply.dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 		}
 		//
-		return err ? 1 : 0 ;
 	} else {
-		Record(New).direct(JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , {Accesses::All,dflags} , no_follow , "ldepend" )) ;
-		return 0 ;
+		Record(New).direct(JobExecRpcReq( JobExecRpcProc::Access , ::move(cmd_line.args) , ad , no_follow , "ldepend" )) ;
 	}
+	return err ? 1 : 0 ;
 }

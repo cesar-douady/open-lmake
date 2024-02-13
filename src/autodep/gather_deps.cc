@@ -235,7 +235,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 			}
 			new_exec( PD::s_now() , args[0] ) ;
 			try {
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				child.spawn(
 					create_group , args
 				,	cstdin , cstdout , cstderr
@@ -243,7 +243,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 				,	chroot
 				,	cwd
 				) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} catch(::string const& e) {
 				if (cstderr==Child::Pipe) stderr = e ;
 				else                      cstderr.write(e) ;
@@ -277,7 +277,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		}
 		Fd reply_fd = server_cb(::move(jerr)) ;
 		trace("reply",reply_fd) ;
-		if (reply_fd) {
+		if (+reply_fd) {
 			epoll.add_read(reply_fd,Kind::ServerReply) ;
 			ServerReply& sr = server_replies[reply_fd] ;
 			if (sync_) sr.fd         = fd         ;

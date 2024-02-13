@@ -249,6 +249,7 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	namespace Audited
 #endif
 {
+
 	#define NE           noexcept
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
 	#define EXE(  mode ) bool((mode )&S_IXUSR            )
@@ -258,17 +259,15 @@ template<class T> static T get( pid_t , uint64_t val ) {
 		#define REXC(flags) false
 	#endif
 
-	#define ORIG(syscall) static decltype(::syscall)* orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall))
 	// cwd is implicitely accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
 	// hence we should use a shared lock when reading and an exclusive lock when chdir
 	// however, we have to ensure exclusivity for lnk cache, so we end up to exclusive access anyway, so simpler to lock exclusively here
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
-static inline const char* nn(const char* p) { return p?p:"<>";}
 	#define HEADER(syscall,cond,args) \
-		ORIG(syscall) ;                                    \
-		if ( Lock::t_busy() || (cond) ) return orig args ; \
+		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ; \
+		if ( Lock::t_busy() || (cond) ) return orig args ;                              \
 		Lock lock
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
@@ -304,7 +303,6 @@ static inline const char* nn(const char* p) { return p?p:"<>";}
 	int  close      (int  fd                   )    { HEADER0(close      ,(fd          )) ;                                  auditer().hide      (fd     ) ; return orig(fd          ) ; }
 	int  __close    (int  fd                   )    { HEADER0(__close    ,(fd          )) ;                                  auditer().hide      (fd     ) ; return orig(fd          ) ; }
 	int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) auditer().hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
-	void closefrom  (int  fd1                  ) NE { HEADER0(closefrom  ,(fd1         )) ;                                  auditer().hide_range(fd1    ) ; return orig(fd1         ) ; }
 
 	#ifdef LD_PRELOAD
 		// dlopen
@@ -536,8 +534,12 @@ static inline const char* nn(const char* p) { return p?p:"<>";}
 			va_end(lst) ;
 		}
 		SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
-		SyscallDescr const&      descr = s_tab[n]              ;
-		HEADER( syscall , !descr , (n,args[0],args[1],args[2],args[3],args[4],args[5]) ) ;
+		SyscallDescr      const& descr = s_tab[n]              ;
+		HEADER(
+			syscall
+		,	( !descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1]))) )
+		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
+		) ;
 		void* descr_ctx = nullptr ;
 		{
 			[[maybe_unused]] Ctx audit_ctx ;                                                     // save user errno when required

@@ -122,17 +122,17 @@ namespace Store {
 			// data
 			Idx      prev                        {}  ;
 		private :
-			uint16_t _sz1       :2               ;         // actual sz-1, counted in ItemSizeOf
+			uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
 			uint16_t _kind      :2               ;
 		public :
 			uint16_t used       :1               = 0 ;
-			uint16_t cmp_bit    :LogSizeOfChar+3 = 0 ;     // bits up to cmp_bit must match, and this bit indexes nxt to get next item
+			uint16_t cmp_bit    :LogSizeOfChar+3 = 0 ;                                                                // bits up to cmp_bit must match, and this bit indexes nxt to get next item
 			uint16_t chunk_sz   :7-LogSizeOfChar ;
-			uint16_t prev_is_eq :1               = 1 ;     // false if prev is Split and points to use through its nxt_if(false) side
-			// Char     chunk[whatever_fits] ;             // in reverse order so that adding or suppressing a prefix requires no copy
-			// CharUint cmp_val              ;             // if Split
-			// Idx      nxt  [n_nxt(kind())] ;             // if Split, indexed by is_eq
-			// Data     data ?               ;             // if used, data after or before nxt depending on which alignment is highest
+			uint16_t prev_is_eq :1               = 1 ;                                                                // false if prev is Split and points to use through its nxt_if(false) side
+			// Char     chunk[whatever_fits] ;                                                                        // in reverse order so that adding or suppressing a prefix requires no copy
+			// CharUint cmp_val              ;                                                                        // if Split
+			// Idx      nxt  [n_nxt(kind())] ;                                                                        // if Split, indexed by is_eq
+			// Data     data ?               ;                                                                        // if used, data after or before nxt depending on which alignment is highest
 		} ;
 
 		template<class Idx,class Char,class Data=void,bool Reverse=false> struct Item
@@ -171,18 +171,18 @@ namespace Store {
 			static constexpr ItemOfs ItemSizeOf =                                                                              // number of bytes in the smallest Item
 				round_up(
 					::max({
-						ItemOfs(MinSplitSizeOf)                                // empty Split items are typical small items
-					,	ItemOfs(sizeof(Idx)*4)                                 // a reasonable value
-					,	div_up(MinUsedSplitSizeOf,MaxSz)                       // ensure we have room to represent needed items in a maximum sized item
+						ItemOfs(MinSplitSizeOf)                                                                                // empty Split items are typical small items
+					,	ItemOfs(sizeof(Idx)*4)                                                                                 // a reasonable value
+					,	div_up(MinUsedSplitSizeOf,MaxSz)                                                                       // ensure we have room to represent needed items in a maximum sized item
 					})
 				,	::max({ alignof(Base) , alignof(Char) , alignof(CharUint) , alignof(Idx) , alignof(DataNv) })
 				)
 			;
-			static constexpr Sz   MinUsedSz = div_up( MinUsedSplitSizeOf  , ItemSizeOf )             ; // if used, we must be able to transform into a Split w/o moving
-			static constexpr bool NeedSzChk = ChunkOfs + MaxChunkSz*sizeof(Char) <  ItemSizeOf*MaxSz ; // largest Item is larger than max representable chunk
+			static constexpr Sz   MinUsedSz = div_up( MinUsedSplitSizeOf  , ItemSizeOf )             ;                         // if used, we must be able to transform into a Split w/o moving
+			static constexpr bool NeedSzChk = ChunkOfs + MaxChunkSz*sizeof(Char) <  ItemSizeOf*MaxSz ;                         // largest Item is larger than max representable chunk
 
-			static_assert( ItemSizeOf>sizeof(Base) ) ;                         // this is not a constraint, it must always hold
-			static_assert( DataSizeOf<=(1<<31)     ) ;                         // this is pretty comfortable, else, we must define ItemOfs as uint64_t
+			static_assert( ItemSizeOf>sizeof(Base) ) ; // this is not a constraint, it must always hold
+			static_assert( DataSizeOf<=(1<<31)     ) ; // this is pretty comfortable, else, we must define ItemOfs as uint64_t
 
 			static ChunkBit s_cmp_bit ( CharUint cmp_val , CharUint dvg_val )       { return ::countl_zero(CharUint(cmp_val^dvg_val))                              ; }
 			/**/   bool     dvg_before(                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) & (msb_msk(NBits<CharUint>-1-cmp_bit)<<1) ; }
@@ -228,18 +228,18 @@ namespace Store {
 			}
 			void prepend_from( Item const& from , ChunkIdx start ) {
 				chunk_sz += from.chunk_sz-start ;
-				fill_from( 0 , from.chunk_sz-start , from , start ) ;          // reverse order, prepending is just appending to chunk
+				fill_from( 0 , from.chunk_sz-start , from , start ) ; // reverse order, prepending is just appending to chunk
 			}
 			void append_from( Item const& from , ChunkIdx sz ) {
 				ChunkIdx prev_sz = chunk_sz ;
 				chunk_sz += sz ;
-				fill_from( 0       , prev_sz , *this , sz ) ;                  // reverse order,mv data as adjusting chunk_sz preserves end of chunk, not start of chunk
-				fill_from( prev_sz , sz      , from  , 0  ) ;                  // copy over from item
+				fill_from( 0       , prev_sz , *this , sz ) ;         // reverse order,mv data as adjusting chunk_sz preserves end of chunk, not start of chunk
+				fill_from( prev_sz , sz      , from  , 0  ) ;         // copy over from item
 			}
 			~Item() { _del_data() ; }
 			// accesses
-			Char const& chunk(ChunkIdx i) const { return _at<Char const>(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; } // in reverse order
-			Char      & chunk(ChunkIdx i)       { return _at<Char      >(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; } // .
+			Char const& chunk(ChunkIdx i) const { return _at<Char const>(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                  // in reverse order
+			Char      & chunk(ChunkIdx i)       { return _at<Char      >(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                  // .
 			//
 			CharUint const& cmp_val(          ) const                   { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint const>(_s_cmp_val_ofs(sz(),used      )) ; }
 			CharUint      & cmp_val(          )                         { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint      >(_s_cmp_val_ofs(sz(),used      )) ; }
@@ -250,8 +250,8 @@ namespace Store {
 			Idx      const& nxt    (          ) const                   { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true)                                         ; }
 			Idx           & nxt    (          )                         { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true)                                         ; }
 			CharUint dvg_char( ChunkIdx pos , CharUint dvg_val ) const {
-				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ;           // chunk is stored in reverse order
-				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit , cmp_val() , dvg_val , cmp_bit ) ; // cannot diverge past cmp_bit
+				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ;                                                             // chunk is stored in reverse order
+				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit , cmp_val() , dvg_val , cmp_bit ) ;                                                   // cannot diverge past cmp_bit
 				return cmp_val() ;
 			}
 			static constexpr ChunkIdx s_max_chunk_sz( Sz sz , Kind k , bool used ) {
@@ -275,38 +275,38 @@ namespace Store {
 			template<class T> T const& _at(size_t ofs) const { return *reinterpret_cast<const T*>(reinterpret_cast<char const*>(this)+ofs) ; }
 			//
 			static constexpr ItemOfs _s_end_ofs(Sz sz) { return ItemSizeOf*sz ; }
-			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) { // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;          // check no overlap with metadata
+			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) {                                                                    // data is after  nxt
+				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;                                                                             // check no overlap with metadata
 				return _s_end_ofs(sz) -  DataSizeOf ;
 			}
-			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {                    // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs , sz , k ) ; // check no overlap with metadata
+			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {                                                                       // data is before nxt
+				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs , sz , k ) ;                                                    // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( sizeof(Idx)*+k + DataSizeOf ) ;
 			}
-			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool u , bool is_eq ) requires(BigData) {      // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*u + sizeof(Idx)*2 ) + ChunkOfs , sz , u ) ; // check no overlap with metadata
+			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool u , bool is_eq ) requires(BigData) {                                                        // data is after  nxt
+				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*u + sizeof(Idx)*2 ) + ChunkOfs , sz , u ) ;                                                   // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( DataSizeOf*u + sizeof(Idx)*2 ) + sizeof(Idx)*is_eq ;
 			}
-			static ItemOfs _s_nxt_if_ofs( Sz sz , bool /*u*/ , bool is_eq ) requires(!BigData) { // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs , sz ) ;                       // check no overlap with metadata
+			static ItemOfs _s_nxt_if_ofs( Sz sz , bool /*u*/ , bool is_eq ) requires(!BigData) {                                                    // data is before nxt
+				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs , sz ) ;                                                                          // check no overlap with metadata
 				return _s_end_ofs(sz) -  sizeof(Idx)*2 + sizeof(Idx)*is_eq ;
 			}
 			static ItemOfs _s_cmp_val_ofs( Sz sz , bool u ) {
 				ItemOfs end_ofs = round_up( DataSizeOf*u + sizeof(Idx)*2 , CharSizeOf ) + CharSizeOf ;
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz ,end_ofs ) ;              // check no overlap with metadata
+				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz ,end_ofs ) ;                                                           // check no overlap with metadata
 				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(CharUint) ) ;
 			}
 			static constexpr ItemOfs _s_chunk_end_ofs( Sz sz , Kind k , bool u ) {
 				if (k==Kind::Split) return round_down( _s_cmp_val_ofs(sz,u) , alignof(Char) ) ;
-				ItemOfs end_ofs = DataSizeOf*u + sizeof(Idx)*+k ;                               // space for data, nxt & cmp_val
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;      // check no overlap with metadata
-				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(Char) ) ;                // align
+				ItemOfs end_ofs = DataSizeOf*u + sizeof(Idx)*+k ;                                                                                   // space for data, nxt & cmp_val
+				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                          // check no overlap with metadata
+				return round_down( _s_end_ofs(sz) -  end_ofs , alignof(Char) ) ;                                                                    // align
 			}
 			static constexpr bool _s_large_enough_empty( Sz sz , Kind k , bool u ) {
-				if (!u) return true ;                                                // an unused Split fits in a minimal item
+				if (!u) return true ;                                                                                                               // an unused Split fits in a minimal item
 				ItemOfs at_end = DataSizeOf + sizeof(Idx)*+k ;
 				if (k==Kind::Split) at_end  = round_up(at_end,CharSizeOf) + CharSizeOf ;
-				return _s_end_ofs(sz) >= ChunkOfs + sizeof(Char) + at_end ;              // used items must have a non-null chunk
+				return _s_end_ofs(sz) >= ChunkOfs + sizeof(Char) + at_end ;                                                                         // used items must have a non-null chunk
 			}
 			size_t _data_ofs   () const { SWEAR(used                         ) ; return _s_data_ofs   (sz(),kind()     ) ; }
 			size_t _nxt_ofs    () const { SWEAR(kind()!=Kind::Terminal       ) ; return _s_nxt_ofs    (sz(),kind(),used) ; }
@@ -320,7 +320,7 @@ namespace Store {
 			void _mk_up( CharUint cmp_val_=0 , CharUint dvg_val=0 ) {
 				if (!BigData) _mv_data(sz(),kind()+1) ;
 				kind(kind()+1) ;
-				nxt_if(*begin(Nxt(kind()))) = Idx() ;                          // init new nxt field
+				nxt_if(*begin(Nxt(kind()))) = Idx() ;                                                                                               // init new nxt field
 				if (kind()==Kind::Split) {
 					cmp_val() = cmp_val_                    ;
 					cmp_bit   = s_cmp_bit(cmp_val_,dvg_val) ;
@@ -364,10 +364,10 @@ namespace Store {
 				SWEAR(need_mk_min_sz()) ;
 				Sz min_sz_ = min_sz() ;
 				if (kind()==Kind::Split) _at<CharUint>(_s_cmp_val_ofs(min_sz_,used)) = cmp_val() ;
-				if (BigData) {                                                                                    // data is after nxt
+				if (BigData) {                                                                                                                      // data is after nxt
 					for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(min_sz_,used,is_eq)) = nxt_if(is_eq) ;
 					_mv_data(min_sz_,kind()) ;
-				} else {                                                                                          // data is before nxt
+				} else {                                                                                                                            // data is before nxt
 					_mv_data(min_sz_,kind()) ;
 					for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(min_sz_,used,is_eq)) = nxt_if(is_eq) ;
 				}
@@ -377,7 +377,7 @@ namespace Store {
 			}
 			void shorten_by(ChunkIdx start) {
 				SWEAR( start<=chunk_sz , start , chunk_sz ) ;
-				chunk_sz -= start ;                                            // because chunks are stored in reverse order, suppressing a prefix is merely adjusting the chunk_sz
+				chunk_sz -= start ;                           // because chunks are stored in reverse order, suppressing a prefix is merely adjusting the chunk_sz
 			}
 			// find diverging point and return status. chunk_pos is always updated, idx only if status is Dvg::Cont
 			Dvg find_dvg( Idx& idx/*out*/ , ChunkIdx& chunk_pos/*out*/ , VecView const& name , VecView const& psfx , size_t name_pos ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
@@ -452,7 +452,7 @@ namespace Store {
 			// data
 			NoVoid<H>           hdr       ;
 			uint8_t             n_saved=0 ;
-			::pair<I,SaveItem_> save[64]  ;                                    // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+			::pair<I,SaveItem_> save[64]  ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
 		} ;
 
 	}
@@ -598,12 +598,12 @@ namespace Store {
 		template<class... A> void init( ::string const&   name_ , bool writable_ , A&&... hdr_args ) {
 			Base::init( name_ , writable_ , ::forward<A>(hdr_args)... ) ;
 			// fix in case of crash during an operation
-			if (!writable_) { SWEAR(!_n_saved(),_n_saved()) ; return ; }       // cannot fix if not writable
+			if (!writable_) { SWEAR(!_n_saved(),_n_saved()) ; return ; } // cannot fix if not writable
 			for( uint8_t i=0 ; i<_n_saved() ; i++ ) {
 				auto const& [idx,save_item] = _save()[i] ;
 				save_item.restore(_at(idx)) ;
 			}
-			_commit() ;                                                        // until this point, nothing is commited and program may crash without impact
+			_commit() ;                                                  // until this point, nothing is commited and program may crash without impact
 		}
 
 		// data
@@ -673,7 +673,7 @@ namespace Store {
 		::pair<Idx,size_t/*pos*/> longest( Idx root , VecView const& n , VecView const& psfx={} ) const ; // longest existing prefix(!Reverse) / suffix(Reverse)
 		::pair<Idx,size_t/*pos*/> longest( Idx root , StrView const& n , StrView const& psfx={} ) const requires(IsStr) { return longest( root , VecView(n) , VecView(psfx) ) ; }
 		//
-		::vector<Idx> path             ( Idx              ) const ;            // path of existing items
+		::vector<Idx> path             ( Idx              ) const ;                                       // path of existing items
 		void          pop              ( Idx              ) ;
 		Idx           insert_shorten_by( Idx , size_t by  ) ;
 		Idx           insert_dir       ( Idx , Char   sep ) ;
@@ -714,7 +714,7 @@ namespace Store {
 			}
 		}
 		Idx _emplace( Kind k , CharUint cmp_val=0 , ChunkBit cmp_bit=0 ) {
-			Sz sz = Item::s_min_sz( k , false/*used*/ , 0/*chunk_sz*/ ) ;      // no name, cannot be used
+			Sz sz = Item::s_min_sz( k , false/*used*/ , 0/*chunk_sz*/ ) ;                              // no name, cannot be used
 			return Base::emplace( sz , sz , k , cmp_val , cmp_bit ) ;
 		}
 
@@ -769,13 +769,13 @@ namespace Store {
 		// from(is_eq)->... , 0->to ==> from(is_eq)->to , 0->...
 		template<bool BuF,bool BuOldNxt,bool BuT> void _mv_lnk_after( Idx from , bool is_eq , Idx to ) {
 			_unlnk_after<BuF  ,BuOldNxt>(from,is_eq   ) ;
-			_lnk        <false,BuT     >(from,is_eq,to) ;                      // from already backed up
+			_lnk        <false,BuT     >(from,is_eq,to) ; // from already backed up
 		}
 
 		// from(is_eq)->0 , ...->to ==> ...->0 , from(is_eq)->to
 		template<bool BuOldPrev,bool BuF,bool BuT> void _mv_lnk_before( Idx from , bool is_eq , Idx to ) {
 			_unlnk_before<BuOldPrev,BuT  >(           to) ;
-			_lnk         <BuF      ,false>(from,is_eq,to) ;                    // to already backed up
+			_lnk         <BuF      ,false>(from,is_eq,to) ; // to already backed up
 		}
 
 		// ...()->idx ==> ...()->0
@@ -794,16 +794,16 @@ namespace Store {
 			bool is_eq = item.prev_is_eq ;
 			Idx  nxt   = item.nxt()      ;
 			_unlnk_after<BuI   ,BuNxt>(idx)            ;
-			_pop_item   <BuPrev,false>(idx)            ;                       // idx already backed up
-			_lnk        <false ,false>(prev,is_eq,nxt) ;                       // prev & nxt already backup up
+			_pop_item   <BuPrev,false>(idx)            ; // idx already backed up
+			_lnk        <false ,false>(prev,is_eq,nxt) ; // prev & nxt already backup up
 			return prev ;
 		}
 
 		// before(before_is_eq)->after ==> before(before_is_eq)->idx(is_eq)->after
 		template<bool BuB,bool BuA> void _insert_between( Idx before , bool before_is_eq , Idx idx , bool is_eq , Idx after ) {
 			_unlnk<BuB   ,BuA >(before,before_is_eq,after) ;
-			_lnk  <false,false>(before,before_is_eq,idx  ) ;                   // before already backed up, idx was not in tree
-			_lnk  <false,false>(idx   ,is_eq       ,after) ;                   //                           .                  , after already backed up
+			_lnk  <false,false>(before,before_is_eq,idx  ) ; // before already backed up, idx was not in tree
+			_lnk  <false,false>(idx   ,is_eq       ,after) ; //                           .                  , after already backed up
 		}
 		// ...()->after ==> ...()->idx(is_eq)->after
 		template<bool BuPrev,bool BuA> void _insert_before( Idx idx , bool is_eq , Idx after ) {
@@ -854,7 +854,7 @@ namespace Store {
 		// backup if minimized
 		template<bool Bu_> bool/*minimized*/ _minimize_sz(Idx idx) {
 			Item& item   = _at(idx)  ;
-			if (!item.prev) return false ;                                     // root is not minimized as it must stay prepared to hold its max info w/o moving
+			if (!item.prev) return false ; // root is not minimized as it must stay prepared to hold its max info w/o moving
 			Sz old_sz = item.sz() ;
 			if (!item.need_mk_min_sz()) return false ;
 			_backup<Bu_>(idx) ;
@@ -868,7 +868,7 @@ namespace Store {
 		// backup if compressed
 		template<bool BuPrev_,bool BuI_,bool BuNxt_> ::pair<bool/*compressed*/,Idx/*new_idx*/> _compress_after(Idx idx) {
 			Item& item = _at(idx) ;
-			if (!item.prev                ) return {false,idx} ;               // root is not compressed as it must stay prepared to hold its max info w/o moving
+			if (!item.prev                ) return {false,idx} ;                                    // root is not compressed as it must stay prepared to hold its max info w/o moving
 			if (item.kind()!=Kind::Prefix ) return {false,idx} ;
 			if (item.used                 ) return {false,idx} ;
 			Idx   nxt      = item.nxt() ;
@@ -877,9 +877,9 @@ namespace Store {
 			_backup<BuNxt_>(nxt) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvv
 			nxt_item.prepend_from(item,0) ;
-			idx = _erase_prefix<BuPrev_,BuI_,false>(idx) ;                     // nxt already backed up
+			idx = _erase_prefix<BuPrev_,BuI_,false>(idx) ;                                          // nxt already backed up
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^i^^^^^^^^^^
-			if (+idx) _compress_after<true,false,false>(idx) ;                 // nxt may have some room for the new prev, idx & nxt already backed up, but new prev is not
+			if (+idx) _compress_after<true,false,false>(idx) ;                                      // nxt may have some room for the new prev, idx & nxt already backed up, but new prev is not
 			return {true,nxt} ;
 		}
 
@@ -902,15 +902,15 @@ namespace Store {
 				_backup<BuI_   >(idx      ) ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				prev_item.append_from(item,prefix_chunk_sz) ;
-				item.shorten_by(prefix_chunk_sz) ;                             // dont minimize idx as it will be done by caller
+				item.shorten_by(prefix_chunk_sz) ;               // dont minimize idx as it will be done by caller
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} else {
 				Idx prefix = _emplace( Kind::Prefix , false/*used*/ , idx , 0/*start*/ , prefix_chunk_sz ) ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				_insert_before<BuPrev_,BuI_>(prefix,true,idx) ;
-				item.shorten_by(prefix_chunk_sz) ;                             // dont minimize idx as it will be done by caller
+				item.shorten_by(prefix_chunk_sz) ;               // dont minimize idx as it will be done by caller
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				_compress_before<BuPrev2_,false,false>(prefix) ;               // should be useless but too difficult to prove. prev already backed up, prefix was not in tree
+				_compress_before<BuPrev2_,false,false>(prefix) ; // should be useless but too difficult to prove. prev already backed up, prefix was not in tree
 			}
 			return prefix_chunk_sz ;
 		}
@@ -927,16 +927,16 @@ namespace Store {
 			_backup<BuPrev>(item.prev) ;
 			/**/                 SWEAR( pos<item.chunk_sz , pos , item.chunk_sz ) ;
 			if (k==Kind::Prefix) SWEAR( pos>0                                   ) ;
-			pos -= _add_prefix<BuPrev2_,false,false>( idx , pos , Item::s_max_chunk_sz(k,used) ) ;               // prev & idx already backed up
+			pos -= _add_prefix<BuPrev2_,false,false>( idx , pos , Item::s_max_chunk_sz(k,used) ) ; // prev & idx already backed up
 			//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Idx dvg = _emplace( k , used , idx , 0/*start*/ , pos , cmp_val , Item::s_cmp_bit(cmp_val,dvg_val) ) ;
 			item.shorten_by(pos) ;
 			//^^^^^^^^^^^^^^^^^^
 			_insert_before<false,false>(dvg,true/*is_eq*/,idx) ;
 			bool compressed ;
-			::tie(compressed,idx) = _compress_after<false,false,BuNxt_>(idx) ; // idx already backed up
-			if (!compressed) _minimize_sz<false>(idx) ;                        // idx already backed up, minimize if it has not been merged
-			_compress_before<false,false,false>(dvg) ;                         // all already backed up
+			::tie(compressed,idx) = _compress_after<false,false,BuNxt_>(idx) ;                     // idx already backed up
+			if (!compressed) _minimize_sz<false>(idx) ;                                            // idx already backed up, minimize if it has not been merged
+			_compress_before<false,false,false>(dvg) ;                                             // all already backed up
 			return dvg ;
 		}
 
@@ -955,7 +955,7 @@ namespace Store {
 				//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				item.cmp_bit = cmp_bit ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_insert_after<false,BuNxt1_,BuNxt0_>( idx , true/*is_eq*/ , cpy ) ; // idx already backed up
+				_insert_after<false,BuNxt1_,BuNxt0_>( idx , true/*is_eq*/ , cpy ) ;                             // idx already backed up
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				return idx ;
 			}
@@ -965,15 +965,15 @@ namespace Store {
 				_add_prefix<BuPrev2_,BuPrev_,false>( idx , Item::s_max_chunk_sz(item.sz(),kind+1,item.used) ) ; // idx already backed up
 				if (kind==Kind::Prefix) item.mk_up(cmp_val,dvg_val) ;
 				else                    item.mk_up(               ) ;
-				_minimize_sz<false>(idx) ;                                     // idx already backed up
+				_minimize_sz<false>(idx) ;                                                                      // idx already backed up
 				return idx ;
 			}
-			SWEAR( +item.prev                ) ;                                               // root has is always may_mk_up_empty()
-			SWEAR( kind==Kind::Prefix , kind ) ;                                               // single char Terminal *must* be transformable into Prefix
-			SWEAR( item.used                 ) ;                                               // empty unused items are transformable into Split
+			SWEAR( +item.prev                ) ;                                                                // root has is always may_mk_up_empty()
+			SWEAR( kind==Kind::Prefix , kind ) ;                                                                // single char Terminal *must* be transformable into Prefix
+			SWEAR( item.used                 ) ;                                                                // empty unused items are transformable into Split
 			//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Idx new_idx = _emplace( Kind::Split , cmp_val , Item::s_cmp_bit(cmp_val,dvg_val) ) ;
-			_insert_after<false,BuNxt1_>( idx , true/*before_is_eq*/ , new_idx , true/*is_eq*/ ) ; // idx already backed up
+			_insert_after<false,BuNxt1_>( idx , true/*before_is_eq*/ , new_idx , true/*is_eq*/ ) ;              // idx already backed up
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return new_idx ;
 		}
@@ -997,9 +997,9 @@ namespace Store {
 		EnlargeItem :
 			{	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				Idx new_idx = _emplace( kind , true/*used*/ , idx , 0/*start*/ , chunk_sz ) ;
-				_mv<true,false,true,true>( idx , new_idx ) ;                                  // root cannot be here as with empty chunk it would be caught by previous case
+				_mv<true,false,true,true>( idx , new_idx ) ;                                   // root cannot be here as with empty chunk it would be caught by previous case
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				_compress_before<true,false,true>(new_idx) ;                   // prev already backed up
+				_compress_before<true,false,true>(new_idx) ;                                   // prev already backed up
 				_commit() ;
 				return new_idx ;
 			}
@@ -1008,11 +1008,11 @@ namespace Store {
 			_insert_after<false,true,true>( idx , true/*is_eq*/ , _emplace( Kind::Split , item.cmp_val() , item.cmp_bit ) ) ; // insert empty Split after
 			item.mk_down(true/*keep_is_eq*/) ;
 		InPlaceWithPrefix :
-			_add_prefix<true,true,false>( idx , Item::s_max_chunk_sz( item.sz() , item.kind() , true/*used*/ ) ) ; // item.kind may have changed, so cannot use kind
+			_add_prefix<true,true,false>( idx , Item::s_max_chunk_sz( item.sz() , item.kind() , true/*used*/ ) ) ;            // item.kind may have changed, so cannot use kind
 			//vvvvvvvvvvvvvvvvvvvvvvvv
 			item.mk_used(true/*used*/) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^
-			_minimize_sz<false>(idx) ;                                         // idx already backed up
+			_minimize_sz<false>(idx) ;                                                                                        // idx already backed up
 			_commit() ;
 			return idx ;
 		}
@@ -1036,15 +1036,15 @@ namespace Store {
 			size_t total_sz = Prefix::size(name,psfx) ;
 			SWEAR( pos<=total_sz , pos , total_sz ) ;
 			//                        vvvvvvvvvvvvvvvvvvv
-			if (pos==total_sz) return _cut(idx,chunk_pos) ;                    // new item is a prefix of an existing one
+			if (pos==total_sz) return _cut(idx,chunk_pos) ;                                                 // new item is a prefix of an existing one
 			//                        ^^^^^^^^^^^^^^^^^^^
 			//
-			if ( Idx prev = _at(idx).prev ; !chunk_pos && +prev && _at(prev).kind()==Kind::Prefix ) { // avoid inserting an empty Split after a Prefix, prefer to transform it in place
+			if ( Idx prev = _at(idx).prev ; !chunk_pos && +prev && _at(prev).kind()==Kind::Prefix ) {       // avoid inserting an empty Split after a Prefix, prefer to transform it in place
 				idx       = prev               ;
 				chunk_pos = _at(prev).chunk_sz ;
 			}
 			// create branch
-			Idx      branch   {} ;                                             // first item of the branch
+			Idx      branch   {} ;                                                                          // first item of the branch
 			Idx      prev_idx {} ;
 			CharUint dvg_val  = Prefix::rep(Prefix::char_at<Reverse>(name,psfx,pos)) ;
 			while ( pos+MaxTerminalChunkSz < total_sz ) {                                                   // create intermediate items
@@ -1054,20 +1054,20 @@ namespace Store {
 				//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				pos += chunk_sz ;
 				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (+branch) _lnk<false,false>( prev_idx , true , new_idx ) ;  // not in tree yet
+				if (+branch) _lnk<false,false>( prev_idx , true , new_idx ) ;                               // not in tree yet
 				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				else         branch = new_idx ;
 				prev_idx = new_idx ;
 			}
 			//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Idx new_idx = _emplace( Kind::Terminal , true/*used*/ , name , psfx , pos , total_sz-pos ) ; // create last item
-			if (+branch) _lnk<false,false>( prev_idx , true , new_idx ) ;                                // not in tree yet
+			Idx new_idx = _emplace( Kind::Terminal , true/*used*/ , name , psfx , pos , total_sz-pos ) ;    // create last item
+			if (+branch) _lnk<false,false>( prev_idx , true , new_idx ) ;                                   // not in tree yet
 			//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			else branch = new_idx ;
 			// link branch
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			idx = _branch<true,true,true,true,true>(idx,chunk_pos,dvg_val) ;
-			_lnk<false,false>( idx , _at(idx).kind()==Kind::Prefix , branch ) ; // idx already backed up, branch was not in tree
+			_lnk<false,false>( idx , _at(idx).kind()==Kind::Prefix , branch ) ;                             // idx already backed up, branch was not in tree
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			_commit() ;
 			return new_idx ;
@@ -1076,9 +1076,9 @@ namespace Store {
 		void _pop(Idx idx) {
 			Item* item = &_at(idx) ;
 			SWEAR(item->used) ;
-			if ( item->kind()==Kind::Terminal && +item->prev ) {               // root must remain as a Terminal even if unused
+			if ( item->kind()==Kind::Terminal && +item->prev ) {                      // root must remain as a Terminal even if unused
 				Idx nxt ;
-				do {                                                           // walk backward to suppress all items whose only purpose is to lead to Terminal
+				do {                                                                  // walk backward to suppress all items whose only purpose is to lead to Terminal
 					nxt  = idx        ;
 					idx  = item->prev ;
 					item = &_at(idx)  ;
@@ -1090,11 +1090,11 @@ namespace Store {
 				//                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// try compression forward & backward, so use | instead of ||
 				bool compressed ;
-				::tie(compressed,idx)  = _compress_after <true,false,false>(idx) ; // idx & nxt  already backed up
-				compressed            |= _compress_before<true,false,false>(idx) ; // idx & prev already backed up
-				if(!compressed) _minimize_sz<false>(idx) ;                         // idx already backed up
+				::tie(compressed,idx)  = _compress_after <true,false,false>(idx) ;    // idx & nxt  already backed up
+				compressed            |= _compress_before<true,false,false>(idx) ;    // idx & prev already backed up
+				if(!compressed) _minimize_sz<false>(idx) ;                            // idx already backed up
 				_commit() ;
-				while(nxt_item->kind()==Kind::Prefix) {                        // now that branch is out of the tree, walk forward to actually collect the items
+				while(nxt_item->kind()==Kind::Prefix) {                               // now that branch is out of the tree, walk forward to actually collect the items
 					nxt      = nxt_item->nxt() ;
 					nxt_item = &_at(nxt)       ;
 					//    vvvvvvvv
@@ -1107,9 +1107,9 @@ namespace Store {
 				item->mk_used(false) ;
 				// try compression forward & backward, so use | instead of ||
 				bool compressed ;
-				::tie(compressed,idx)  = _compress_after <true,false,true >(idx) ; // idx already backed up
-				compressed            |= _compress_before<true,false,false>(idx) ; // idx & prev already backed up
-				if(!compressed) _minimize_sz<false>(idx) ;                         // idx already backed up
+				::tie(compressed,idx)  = _compress_after <true,false,true >(idx) ;    // idx already backed up
+				compressed            |= _compress_before<true,false,false>(idx) ;    // idx & prev already backed up
+				if(!compressed) _minimize_sz<false>(idx) ;                            // idx already backed up
 				_commit() ;
 			}
 		}
@@ -1125,8 +1125,8 @@ namespace Store {
 				case Kind::Prefix   : _append_lst( idx_lst , item.nxt() ) ; break ;
 				case Kind::Split : {
 					bool zero_is_eq = !item.dvg_at(0) ;
-					_append_lst( idx_lst , item.nxt_if( zero_is_eq) ) ;        // output in increasing order
-					_append_lst( idx_lst , item.nxt_if(!zero_is_eq) ) ;        // .
+					_append_lst( idx_lst , item.nxt_if( zero_is_eq) ) ; // output in increasing order
+					_append_lst( idx_lst , item.nxt_if(!zero_is_eq) ) ; // .
 				} break ;
 				default : FAIL(item.kind()) ;
 			}
@@ -1138,21 +1138,21 @@ namespace Store {
 		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
 			VecStr<S> name ;
 			VecStr<S> psfx ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> name_path ;               // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> psfx_path ;               // .
+			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> name_path ; // when !Reverse, we must walk from root to idx but we gather pathes from idx back to root
+			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> psfx_path ; // .
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item     const& item     = _at(idx)      ;
 				ChunkIdx        chunk_sz = item.chunk_sz ;
 				if (psfx_sz>=chunk_sz) {
-					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ; // both psfx & chunk are stored in reverse order
+					if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , chunk_sz ) ;                   // both psfx & chunk are stored in reverse order
 					else         psfx_path.emplace_back(idx,chunk_sz) ;
 					psfx_sz -= chunk_sz ;
 				} else {
 					if (psfx_sz) {
-						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ; // both psfx & chunk are stored in reverse order
+						if (Reverse) Prefix::append( psfx , &item.chunk(chunk_sz-1) , psfx_sz ) ;                // both psfx & chunk are stored in reverse order
 						else         psfx_path.emplace_back(idx,psfx_sz) ;
 					}
-					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ; // both name & chunk are stored in reverse order
+					if (Reverse) Prefix::append( name , &item.chunk(chunk_sz-1-psfx_sz) , chunk_sz-psfx_sz ) ;   // both name & chunk are stored in reverse order
 					else         name_path.emplace_back(idx,chunk_sz-psfx_sz) ;
 					psfx_sz = 0 ;
 				}
@@ -1164,7 +1164,7 @@ namespace Store {
 				}
 				for( auto it=name_path.crbegin() ; it!=name_path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) name.push_back(item.chunk(i)) ; // chunk is stored in reverse order
+					for( int i=0 ; i<it->second ; i++ ) name.push_back(item.chunk(i)) ;                          // chunk is stored in reverse order
 				}
 			}
 			return { name , psfx } ;
@@ -1182,7 +1182,7 @@ namespace Store {
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
 			VecStr<S> res ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ;                    // when !Reverse, we must walk from root to idx but we gather path from idx back to root
+			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ; // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item     const& item     = _at(idx)      ;
 				ChunkIdx        chunk_sz = item.chunk_sz ;
@@ -1197,7 +1197,7 @@ namespace Store {
 			if (!Reverse) {
 				for( auto it=path.crbegin() ; it!=path.crend() ; it++ ) {
 					Item const& item = _at(it->first) ;
-					for( int i=0 ; i<it->second ; i++ ) res.push_back(ItemChar<S>(item.chunk(i))) ; // chunk is stored in reverse order
+					for( int i=0 ; i<it->second ; i++ ) res.push_back(ItemChar<S>(item.chunk(i))) ;                // chunk is stored in reverse order
 				}
 			}
 			return res ;
@@ -1207,12 +1207,12 @@ namespace Store {
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
 			VecStr<S>                                res  ;
-			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ;                    // when !Reverse, we must walk from root to idx but we gather path from idx back to root
+			::vector<pair<Idx,ChunkIdx/*chunk_sz*/>> path ;                                                     // when !Reverse, we must walk from root to idx but we gather path from idx back to root
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item     const& item         = _at(idx)                        ;
 				ChunkIdx        chunk_sz     = item.chunk_sz                   ;
 				ChunkIdx        min_chunk_sz = ::min(size_t(chunk_sz),psfx_sz) ;
-				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ; // both res & chunk are stored in reverse order
+				if (Reverse) Prefix::append( res , &item.chunk(chunk_sz-1) , min_chunk_sz ) ;                   // both res & chunk are stored in reverse order
 				else         path.emplace_back(idx,min_chunk_sz) ;
 				if (psfx_sz>chunk_sz) psfx_sz -= chunk_sz ;
 				else                  break ;
@@ -1297,11 +1297,11 @@ namespace Store {
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::insert_dir( Idx idx , Char sep ) {
 			ULock lock{_mutex}           ;
-			int   pos = -1/*not_found*/ ;                                      // ChunkIdx is unsigned and we need a signed type to simplify arithmetic
+			int   pos = -1/*not_found*/ ;              // ChunkIdx is unsigned and we need a signed type to simplify arithmetic
 			for(; +idx ; idx = _at(idx).prev ) {
 				Item const& item     = _at(idx)      ;
 				ChunkIdx    chunk_sz = item.chunk_sz ;
-				if (pos==0) {                                                  // found in last position on previous chunk, so we just have to output the usable chunk we find
+				if (pos==0) {                          // found in last position on previous chunk, so we just have to output the usable chunk we find
 					if (item.used) return idx       ;
 					if (chunk_sz ) return _use(idx) ;
 				} else {
@@ -1309,55 +1309,55 @@ namespace Store {
 					if (pos>0) return _cut(idx,pos) ;
 				}
 			}
-			return Idx() ;                                                     // sep not found
+			return Idx() ;                             // sep not found
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,class Char,class Data,bool Reverse>
 		typename MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::IdxSz MultiPrefixFile<AutoLock,Hdr,Idx,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
-			swear(+idx      ,"idx ",idx," is null"                     ) ;
-			swear(idx<size(),"idx ",idx," is out of range (",size(),')') ;
+			throw_unless(+idx      ,"idx ",idx," is null"                     ) ;
+			throw_unless(idx<size(),"idx ",idx," is out of range (",size(),')') ;
 			Item const& item = _at(idx)  ;
 			IdxSz       res  = item.used ;
 			// root may not be minimized as it must stay prepared to hold its info w/o moving
-			if (+item.prev) swear(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
-			else            swear(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
-			if (!item.prev) swear(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
+			if (+item.prev) throw_unless(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
+			else            throw_unless(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
+			if (!item.prev) throw_unless(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
 			for( bool is_eq : Nxt(item.kind()) ) {
 				Idx         nxt      = item.nxt_if(is_eq) ;
 				Item const& nxt_item = _at(nxt) ;
-				swear(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                          ) ;
-				swear(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'     ) ;
-				swear(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev      ) ;
-				swear(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq) ;
+				throw_unless(+nxt                      ,"item(",idx,").nxt(",is_eq,") is null"                          ) ;
+				throw_unless(nxt<size()                ,"item(",idx,").nxt(",is_eq,") is out of range (",size(),')'     ) ;
+				throw_unless(nxt_item.prev==idx        ,"item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev      ) ;
+				throw_unless(nxt_item.prev_is_eq==is_eq,"item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq) ;
 				if (item.kind()==Kind::Split) {
 					CharUint nxt_first ;
 					if ( nxt_item.kind()==Kind::Split && !nxt_item.chunk_sz ) {
-						swear(item.cmp_bit<nxt_item.cmp_bit,"item(",idx,").cmp_bit (",item.cmp_bit,") is not lower than .nxt(",is_eq,").cmp_bit (",nxt_item.cmp_bit,')') ;
+						throw_unless(item.cmp_bit<nxt_item.cmp_bit,"item(",idx,").cmp_bit (",item.cmp_bit,") is not lower than .nxt(",is_eq,").cmp_bit (",nxt_item.cmp_bit,')') ;
 						nxt_first = nxt_item.cmp_val() ;
 					} else {
 						nxt_first = Prefix::rep(nxt_item.chunk(0)) ;
 					}
-					if (is_eq) swear(Item::s_cmp_bit(item.cmp_val(),nxt_first)> item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
-					else       swear(Item::s_cmp_bit(item.cmp_val(),nxt_first)==item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
+					if (is_eq) throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)> item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
+					else       throw_unless(Item::s_cmp_bit(item.cmp_val(),nxt_first)==item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (",nxt_first,')') ;
 				}
 				if (recurse_forward) res += _chk(nxt,false/*recurse_backward*/,true/*recurse_forward*/) ;
 			}
 			if (+item.prev) {
 				Idx         prev      = item.prev ;
 				Item const& prev_item = _at(prev) ;
-				swear(prev_item.nxt_if(item.prev_is_eq)==idx,"item(",idx,").prev.nxt(",item.prev_is_eq,") is ",prev_item.nxt_if(item.prev_is_eq)) ;
+				throw_unless(prev_item.nxt_if(item.prev_is_eq)==idx,"item(",idx,").prev.nxt(",item.prev_is_eq,") is ",prev_item.nxt_if(item.prev_is_eq)) ;
 				CharUint first = Prefix::rep(item.chunk(0)) ;
 				switch (item.kind()) {
 					case Kind::Terminal :
-						swear(item.used    ,"item(",idx,") is Terminal and not used"    ) ; // unused Terminal is only accepted to represent an empty tree
-						swear(item.chunk_sz,"item(",idx,") is Terminal with empty chunk") ; // empty Terminal is only accepted to represent empty string at root as only element
+						throw_unless(item.used    ,"item(",idx,") is Terminal and not used"    ) ; // unused Terminal is only accepted to represent an empty tree
+						throw_unless(item.chunk_sz,"item(",idx,") is Terminal with empty chunk") ; // empty Terminal is only accepted to represent empty string at root as only element
 					break ;
 					case Kind::Prefix :
-						swear(item.chunk_sz,"item(",idx,") is Prefix with empty chunk") ; // empty Prefix is only accepted at root
+						throw_unless(item.chunk_sz,"item(",idx,") is Prefix with empty chunk") ;   // empty Prefix is only accepted at root
 						if (!item.used) {
 							Item const& nxt = _at(item.nxt()) ;
 							// should have been compressed, (as not root)
-							swear( item.chunk_sz + nxt.chunk_sz > nxt.max_chunk_sz() ,"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')') ;
+							throw_unless( item.chunk_sz+nxt.chunk_sz>nxt.max_chunk_sz() ,"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')' ) ;
 						}
 					break ;
 					case Kind::Split :
@@ -1365,18 +1365,18 @@ namespace Store {
 							Item const& prev_item = _at(prev) ;
 							first = item.cmp_val() ;
 							if (prev_item.kind()==Kind::Split)
-								swear(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
+								throw_unless(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
 						}
 					break ;
 					default : FAIL(item.kind()) ;
 				}
 				if (prev_item.kind()==Kind::Split) {
-					if (item.prev_is_eq) swear(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
-					else                 swear(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
+					if (item.prev_is_eq) throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
+					else                 throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
 				}
 				if (recurse_backward) res += _chk(prev,true/*recurse_backward*/,false/*recurse_forward*/) ;
 			} else {
-				swear(item.prev_is_eq,"item(",idx,") is root with !prev_is_eq") ;
+				throw_unless(item.prev_is_eq,"item(",idx,") is root with !prev_is_eq") ;
 			}
 			return res ;
 		}

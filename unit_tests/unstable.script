@@ -15,11 +15,11 @@ ut_launch -done 1          -changed 0                  -rc 0 lmake src1.4r.wait
 
 echo 2 > src1
 
-ut_launch -done 1 -rerun 3 -changed 1 -new 0 -dep_err 1 -rc 1 lmake src1.4r.wait &
+ut_launch -done 1 -rerun 3 -changed 2 -new 0 -dep_err 1 -rc 1 lmake src1.4r.wait &
 sleep 2
 echo >> src1
 wait %1
-ut_launch -done 1          -changed 1                   -rc 0 lmake src1.4r.wait
+ut_launch -done 1          -changed 0                   -rc 0 lmake src1.4r.wait
 
 echo 3 > src1
 

@@ -40,8 +40,8 @@ template<Serializable T> static inline T    deserialize( ::string const& s      
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>
 // /!\ : not ideal in terms of performances, but easy to use.
 // suppress calls to FAIL when necessary
-template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL();return serialize(a)== serialize(b) ; } // cannot define this for Serializable as it creates conflicts
-template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL();return serialize(a)<=>serialize(b) ; } // .
+template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL();return serialize(a)== serialize(b) ; }        // cannot define this for Serializable as it creates conflicts
+template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL();return serialize(a)<=>serialize(b) ; }        // .
 namespace std {
 	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL();return hash<::string>()(serialize(x)) ; } } ; // .
 }
@@ -49,7 +49,7 @@ namespace std {
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
 	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
 	static void s_serdes( ::ostream& os , T const& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; }    // force compilation error to ensure we do not partially serialize a large class
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto const& [a,b,c,d,e,f,g,h,i,j,k] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j,k) ; }
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto const& [a,b,c,d,e,f,g,h,i,j  ] = x ; serdes(os,a,b,c,d,e,f,g,h,i,j  ) ; }
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto const& [a,b,c,d,e,f,g,h,i    ] = x ; serdes(os,a,b,c,d,e,f,g,h,i    ) ; }
@@ -63,7 +63,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 		else if constexpr (requires{T{U()                                            };}) { auto const& [a                    ] = x ; serdes(os,a                    ) ; }
 	}
 	static void s_serdes( ::istream& is , T& x ) {
-		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; } // force compilation error to ensure we do not partially serialize a large class
+		if      constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()};}) { U(0) ; }    // force compilation error to ensure we do not partially serialize a large class
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U(),U()    };}) { auto& [a,b,c,d,e,f,g,h,i,j,k] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j,k) ; }
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U(),U()        };}) { auto& [a,b,c,d,e,f,g,h,i,j  ] = x ; serdes(is,a,b,c,d,e,f,g,h,i,j  ) ; }
 		else if constexpr (requires{T{U(),U(),U(),U(),U(),U(),U(),U(),U()            };}) { auto& [a,b,c,d,e,f,g,h,i    ] = x ; serdes(is,a,b,c,d,e,f,g,h,i    ) ; }
@@ -142,9 +142,9 @@ struct MsgBuf {
 	}
 protected :
 	// data
-	Len      _len       = 0     ;      // data sent/received so far, reading : may also apply to len accumulated in buf
-	::string _buf       ;              // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
-	bool     _data_pass = false ;      // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
+	Len      _len       = 0     ; // data sent/received so far, reading : may also apply to len accumulated in buf
+	::string _buf       ;         // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
+	bool     _data_pass = false ; // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
 } ;
 
 struct IMsgBuf : MsgBuf {
@@ -156,7 +156,7 @@ struct IMsgBuf : MsgBuf {
 		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 	// cxtors & casts
-	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                   // prepare to receive len
+	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                                      // prepare to receive len
 	// services
 	template<class T> T receive(Fd fd) {
 		T res ;
@@ -167,7 +167,7 @@ struct IMsgBuf : MsgBuf {
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) throw to_string("cannot receive over fd ",fd) ;
 		_len += cnt ;
-		if (_len<_buf.size()) return false/*complete*/ ;                       // _buf is still partial
+		if (_len<_buf.size()) return false/*complete*/ ;                          // _buf is still partial
 		if (_data_pass) {
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res = deserialize<T>(IStringStream(::move(_buf))) ;
@@ -191,7 +191,7 @@ struct OMsgBuf : MsgBuf {
 	template<class T> static ::string s_send(T const& x) {
 		::string res = serialize(::pair<Len,T>(0,x)) ; SWEAR(res.size()>=sizeof(Len)) ; // directly serialize in res to avoid copy : serialize a pair with length+data
 		Len      len = res.size()-sizeof(Len)        ;
-		::memcpy( res.data() , &len , sizeof(Len) ) ;                          // overwrite len
+		::memcpy( res.data() , &len , sizeof(Len) ) ;                                   // overwrite len
 		return res ;
 	}
 	// services
@@ -210,7 +210,7 @@ struct OMsgBuf : MsgBuf {
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) throw to_string("cannot send over ",fd) ;
 		_len += cnt ;
-		if (_len<_buf.size()) {              return false/*complete*/ ; }      // _buf is still partial
+		if (_len<_buf.size()) {              return false/*complete*/ ; }               // _buf is still partial
 		else                  { *this = {} ; return true /*complete*/ ; }
 	}
 } ;
