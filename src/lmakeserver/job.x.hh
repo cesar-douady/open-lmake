@@ -17,12 +17,6 @@ namespace Engine {
 
 	static constexpr uint8_t JobNGuardBits = 2 ; // one to define JobTgt, the other to put it in a CrunchVector
 
-
-}
-#endif
-#ifdef STRUCT_DEF
-namespace Engine {
-
 	ENUM( AncillaryTag
 	,	Backend
 	,	Data
@@ -31,11 +25,20 @@ namespace Engine {
 	)
 
 	ENUM_1( JobMakeAction
-	,	Dec = Wakeup      // if >=Dec => n_wait must be decremented
 	,	None              //                                         trigger analysis from dependent
-	,	Wakeup            //                                         a watched dep is available
 	,	End               // if >=End => job is ended,               job has completed
 	,	GiveUp            //                                         job has completed and no further analysis
+	,	Wakeup            //                                         a watched dep is available
+	)
+
+	ENUM( JobStep // must be in chronological order
+	,	None      // no analysis done yet (not in stats)
+	,	Dep       // analyzing deps
+	,	Queued    // waiting for execution
+	,	Exec      // executing
+	,	Done      // done execution
+	,	End       // job execution just ended (not in stats)
+	,	Hit       // cache hit
 	)
 
 	ENUM( SpecialStep // ordered by increasing importance
@@ -43,6 +46,11 @@ namespace Engine {
 	,	Ok
 	,	Err
 	)
+
+}
+#endif
+#ifdef STRUCT_DEF
+namespace Engine {
 
 	struct Job : JobBase {
 		friend ::ostream& operator<<( ::ostream& , Job const ) ;
@@ -153,34 +161,37 @@ namespace Engine {
 
 	struct JobReqInfo : ReqInfo {                                        // watchers of Job's are Node's
 		friend ::ostream& operator<<( ::ostream& , JobReqInfo const& ) ;
-		using Lvl        = JobLvl        ;
+		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
 		using ReqInfo::ReqInfo ;
 		// accesses
 		bool running() const {
-			switch (lvl) {
-				case Lvl::Queued :
-				case Lvl::Exec   : return true  ;
-				default          : return false ;
+			switch (step) {
+				case Step::Queued :
+				case Step::Exec   : return true  ;
+				default           : return false ;
 			}
 		}
 		// services
 		void update( RunAction , MakeAction , JobData const& ) ;
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { ReqInfo::add_watcher(watcher,watcher_req_info) ; }
 		void chk() const {
-			switch (lvl) {
-				case Lvl::None   : SWEAR(n_wait==0) ; break ;            // not started yet, cannot wait anything
-				case Lvl::Done   : SWEAR(n_wait==0) ; break ;            // done, cannot wait anything anymore
-				case Lvl::Queued :
-				case Lvl::Exec   : SWEAR(n_wait==1) ; break ;            // if running, we are waiting for job execution
-				default          : SWEAR(n_wait> 0) ; break ;            // we must be waiting something if not Done nor None
+			switch (step) {
+				case Step::None   : SWEAR(n_wait==0) ; break ;           // not started yet, cannot wait anything
+				case Step::Dep    : SWEAR(n_wait> 0) ; break ;           // we must be waiting something if analysing Dep
+				case Step::Queued :                                      // if running, we are waiting for job execution
+				case Step::Exec   : SWEAR(n_wait==1) ; break ;           // .
+				case Step::Done   :                                      // done, cannot wait anything anymore
+				case Step::End    :
+				case Step::Hit    : SWEAR(n_wait==0) ; break ;
+				default : FAIL(step) ;
 			}
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
 		NodeIdx      dep_lvl            = 0                     ;        // ~20<=32 bits
-		Lvl          lvl             :3 = Lvl         ::None    ;        //       3 bits
+		Step         step            :3 = Step        ::None    ;        //       3 bits
 		JobReasonTag force           :5 = JobReasonTag::None    ;        //       5 bits
 		BackendTag   backend         :2 = BackendTag  ::Unknown ;        //       2 bits
 		bool         start_reported  :1 = false                 ;        //       1 bit , if true <=> start message has been reported to user
@@ -465,30 +476,35 @@ namespace Engine {
 		SWEAR(run_action!=RunAction::Dsk) ;                                                                // Dsk is only for Node's
 		Bool3 ok = is_ok(job.status) ;
 		if ( ok==Maybe && action>=RunAction::Status ) run_action = RunAction::Run ;
-		if (make_action>=MakeAction::Dec) {
+		if (make_action==MakeAction::Wakeup) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
 		}
 		if (run_action>action) {                                                                           // increasing action requires to reset checks
-			lvl     = lvl & Lvl::Dep ;
-			dep_lvl = 0              ;
-			action  = run_action     ;
+			SWEAR(!running()) ;                                                                            // else, we must decrease n_wait
+			step    = step & Step::Dep ;
+			dep_lvl = 0                ;
+			action  = run_action       ;
 		}
-		if (n_wait) {
-			SWEAR( make_action<MakeAction::End , make_action ) ;
-		} else if (
-			( req->zombie                              )                                                   // zombie's need not check anything
-		||	( make_action==MakeAction::GiveUp          )                                                   // if not started, no further analysis
-		||	( action==RunAction::Makable && job.sure() )                                                   // no need to check deps, they are guaranteed ok if sure
-		) {
-			done_ = done_ | action ;
-		} else if (make_action==MakeAction::End) {
-			lvl     = lvl & Lvl::Dep ;                                                                     // we just ran, reset analysis
-			dep_lvl = 0              ;
-			action  = run_action     ;                                                                     // we just ran, we are allowed to decrease action
+		if (!n_wait) {
+			if (
+				( req->zombie                              )                                               // zombie's need not check anything
+			||	( make_action==MakeAction::GiveUp          )                                               // if not started, no further analysis
+			||	( action==RunAction::Makable && job.sure() )                                               // no need to check deps, they are guaranteed ok if sure
+			) {
+				done_ = done_ | action ;
+			} else if (make_action==MakeAction::End) {
+				SWEAR(!running()) ;                                                                        // else, we must decrease n_wait
+				step    = step & Step::Dep ;                                                               // we just ran, reset analysis
+				dep_lvl = 0                ;
+				action  = run_action       ;                                                               // we just ran, we are allowed to decrease action
+			}
 		}
-		if (done(action)) lvl = Lvl::Done ;
-		SWEAR(lvl!=Lvl::End) ;
+		if (done(action)) {
+			SWEAR(!running()) ;                                                                            // else, we must decrease n_wait
+			step = Step::Done ;
+		}
+		SWEAR(step!=Step::End) ;
 	}
 
 }

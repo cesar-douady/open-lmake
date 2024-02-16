@@ -11,11 +11,11 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_trace_file = nullptr ;     // pointer to avoid init/fini order hazards, relative to admin dir
+::string* g_trace_file = nullptr ; // pointer to avoid init/fini order hazards, relative to admin dir
 
 bool              Trace::s_backup_trace = false        ;
-::atomic<size_t>  Trace::s_sz           = 100<<20      ;   // limit to reasonable value until overridden
-Channels          Trace::s_channels     = DfltChannels ;   // by default, trace default channel
+::atomic<size_t>  Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
+Channels          Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
 #ifndef NO_TRACE
 
@@ -30,7 +30,7 @@ Channels          Trace::s_channels     = DfltChannels ;   // by default, trace 
 
 	void Trace::s_start(Channels cs) {
 		if ( !g_trace_file || !*g_trace_file ) return ;
-		t_thread_key = '=' ;                                                   // called from main thread
+		t_thread_key = '=' ;                            // called from main thread
 		s_channels   = cs  ;
 		dir_guard(*g_trace_file) ;
 		_s_open() ;
@@ -46,18 +46,19 @@ Channels          Trace::s_channels     = DfltChannels ;   // by default, trace 
 		_s_open() ;
 	}
 	void Trace::_s_open() {
-		if (!s_sz      ) return ;                                              // no room to trace
-		if (!s_channels) return ;                                              // nothing to trace
+		if (!s_sz      ) return ;           // no room to trace
+		if (!s_channels) return ;           // nothing to trace
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
 			for( char c : "54321"s ) { ::string old = to_string(*g_trace_file,'.',c) ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                                       if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
+		::unlink(g_trace_file->c_str()) ;   // avoid write clashes if trace is still being written by another process
 		Fd fd = open_write(*g_trace_file) ;
 		fd.no_std() ;
 		_s_pos = 0 ;
-		_s_fd = fd ;                                                           // ensure _s_fd is updated once everything is ok as tracing may be called from other threads while being initialized
+		_s_fd = fd ;                        // ensure _s_fd is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 #endif

@@ -44,8 +44,8 @@ namespace Engine {
 	::ostream& operator<<( ::ostream& os , Config::Backend const& be ) {
 		os << "Backend(" ;
 		if (be.configured) {
-			if (be.addr!=NoSockAddr) os << ::hex<<be.addr<<::dec <<',' ;
-			/**/                     os << be.dct                      ;
+			if (+be.ifce) os << ::hex<<be.ifce<<::dec <<',' ;
+			/**/          os << be.dct                      ;
 		}
 		return os <<')' ;
 	}
@@ -80,25 +80,15 @@ namespace Engine {
 		if (!found_tag) throw "tag not found"s ;
 	}
 
-	ConfigDynamic::Backend::Backend( Py::Mapping const& py_map , bool is_local ) : configured{true} {
+	ConfigDynamic::Backend::Backend(Py::Mapping const& py_map) : configured{true} {
 		::string field ;
 		try {
-			bool found_addr = false ;
 			for( auto const& [py_k,py_v] : Py::Mapping(py_map) ) {
 				field = Py::String(py_k) ;
 				::string v = py_v.ptr()==Py_True ? "1"s : py_v.ptr()==Py_False ? "0"s : ::string(py_v.str()) ;
-				if (field=="interface") {
-					if (is_local) throw "interface is not supported for local backends"s ;
-					found_addr = true ;
-					try {
-						addr = ServerSockFd::s_addr(v) ;
-						continue ;
-					} catch (::string const&) {} // if we cannot interpret interface, leave decision to backend what to do
-				}
-				dct.emplace_back(field,v) ;
+				if (field=="interface") ifce = v ;
+				else                    dct.emplace_back(field,v) ;
 			}
-			field = "interface" ;
-			if ( !found_addr && !is_local ) addr = ServerSockFd::s_addr(host()) ;
 		} catch(::string const& e) {
 			throw to_string("while processing ",field,e) ;
 		}
@@ -189,7 +179,7 @@ namespace Engine {
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				if (!bbe                          ) continue ;                                                                  // not implemented
 				if (!py_backends.hasKey(fields[1])) continue ;                                                                  // not configured
-				try                       { backends[+t] = Backend( Py::Mapping(py_backends[fields[1]]) , bbe->is_local() ) ; }
+				try                       { backends[+t] = Backend( Py::Mapping(py_backends[fields[1]]) ) ;                   }
 				catch (::string const& e) { ::cerr<<"Warning : backend "<<fields[1]<<" could not be configured : "<<e<<endl ; }
 			}
 			fields.pop_back() ;
@@ -344,9 +334,9 @@ namespace Engine {
 			size_t w = 9 ;                                                   // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
 			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()) ;
-			if (be.addr!=NoSockAddr)          res <<"\t\t\t"<< ::setw(w)<<"interface" <<" : "<< ServerSockFd::s_addr_str(be.addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k           <<" : "<< v                                 <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< ::setw(w)<<k <<" : "<< v <<'\n' ;
+			if (+be.ifce)                     res <<"\t\t\t"<< indent<'\t'>(be.ifce,3)  <<'\n' ;
 		}
 		//
 		if (trace!=TraceConfig()) {
@@ -391,18 +381,6 @@ namespace Engine {
 		if (dynamic) return ;
 		//
 		Caches::Cache::s_config(caches) ;
-		// check non-local backends have non-local addresses
-		for( BackendTag t : BackendTag::N ) {
-			if (!Backends::Backend::s_ready(t)) continue ;                                                   // backend is not supposed to be used
-			Backend           const& be  = backends[+t]                 ;
-			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
-			if (bbe->is_local()    ) continue ;
-			if (be.addr!=NoSockAddr) continue ;                                                              // backend has an address
-			::string ifce ; for( auto const& [k,v] : be.dct ) { if (k=="interface") { ifce = v ; break ; } }
-			::string ts   = mk_snake(t) ;
-			if (+ifce) throw to_string("bad interface ",ifce," for backend ",ts) ;
-			else       throw to_string("cannot find host address. Consider adding in Lmakefile.py : lmake.config.backends.",ts,".interface = <something that works>") ;
-		}
 	}
 
 	//

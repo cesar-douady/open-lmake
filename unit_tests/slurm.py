@@ -8,6 +8,8 @@ import lmake
 if 'slurm' in lmake.backends :
 	if __name__!='__main__' :
 
+		import socket
+
 		from lmake.rules import Rule,PyRule
 
 		lmake.manifest = (
@@ -16,7 +18,7 @@ if 'slurm' in lmake.backends :
 		,	'world'
 		)
 
-		lmake.config.backends.slurm = {}
+		lmake.config.backends.slurm = { 'interface' : socket.gethostname() } # check that interface is interpreted w/o crash
 
 		class Cat(Rule) :
 			stems = {
@@ -27,7 +29,7 @@ if 'slurm' in lmake.backends :
 				'FIRST'  : '{File1}'
 			,	'SECOND' : '{File2}'
 			}
-			backend = 'slurm'
+			backend   = 'slurm'
 			resources = {'mem':'20M'}
 
 		class CatSh(Cat) :
@@ -47,6 +49,6 @@ if 'slurm' in lmake.backends :
 		print('hello',file=open('hello','w'))
 		print('world',file=open('world','w'))
 
-		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )       # check targets are out of date
-		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 )       # check targets are up to date
-		ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         )       # check reconvergence
+		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
+		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
+		ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence

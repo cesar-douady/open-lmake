@@ -401,7 +401,6 @@ int main( int argc , char** argv ) {
 	}
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
-	g_root_dir = new ::string{cwd()} ;
 	//
 	Fd int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                              // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv

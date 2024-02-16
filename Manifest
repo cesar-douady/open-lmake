@@ -42,6 +42,7 @@ src/app.cc
 src/app.hh
 src/autodep/autodep.cc
 src/autodep/clmake.cc
+src/autodep/clmake2.cc
 src/autodep/env.cc
 src/autodep/env.hh
 src/autodep/gather_deps.cc

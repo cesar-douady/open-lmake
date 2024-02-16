@@ -168,7 +168,8 @@ namespace Backends {
 		::vector_s acquire_cmd_line( Tag , JobIdx , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs const& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
 		/**/                                                                                                             // ... operator| of the submit/add_pressure corresponding values for the job
 		// data
-		::string config_err ;
+		in_addr_t addr       = NoSockAddr ;
+		::string  config_err ;
 	} ;
 
 }

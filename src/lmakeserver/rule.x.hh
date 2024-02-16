@@ -199,12 +199,12 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
 		void update(                       PyObject* py_dct                           ) {
 			using namespace Attrs ;
-			acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
-			acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
-			acquire_env     ( env         , py_dct , "env"         ) ;
-			acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
-			acquire_from_dct( tmp         , py_dct , "tmp"         ) ;
-			acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
+			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
+			Attrs::acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
+			Attrs::acquire_env     ( env         , py_dct , "env"         ) ;
+			Attrs::acquire_from_dct( ignore_stat , py_dct , "ignore_stat" ) ;
+			Attrs::acquire_from_dct( tmp         , py_dct , "tmp"         ) ;
+			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                                                                                                // stabilize cmd crc
 		}
 		void chk(AutodepMethod method) {
@@ -254,14 +254,16 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
 		void update(                       PyObject* py_dct                           ) {
+			Attrs::acquire_from_dct( method  , py_dct , "autodep"                        ) ;
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_env     ( env     , py_dct , "env"                ) ;
+			Attrs::acquire_env     ( env     , py_dct , "env"                            ) ;
 			if (timeout<Delay()) throw "timeout must be positive or null (no timeout if null)"s ;
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
 		// data
-		Time::Delay timeout ;                                                                     // if 0 <=> no timeout, maximum time allocated to job execution in s
-		::vmap_ss   env     ;
+		AutodepMethod method  = AutodepMethod::Dflt ;
+		Time::Delay   timeout ;                                                                   // if 0 <=> no timeout, maximum time allocated to job execution in s
+		::vmap_ss     env     ;
 	} ;
 
 	// used at start time, participate to nothing
@@ -271,20 +273,18 @@ namespace Engine {
 		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
 		void update(                       PyObject* py_dct                           ) {
 			using namespace Attrs ;
-			acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
-			acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
-			acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
-			acquire_from_dct( method      , py_dct , "autodep"                            ) ;
-			acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
-			acquire_env     ( env         , py_dct , "env"                                ) ;
-			::sort(env) ;                                                                     // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
+			Attrs::acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
+			Attrs::acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( kill_sigs   , py_dct , "kill_sigs"                          ) ;
+			Attrs::acquire_from_dct( n_retries   , py_dct , "n_retries"                          ) ;
+			Attrs::acquire_env     ( env         , py_dct , "env"                                ) ;
+			::sort(env) ;                                                                            // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
-		bool              keep_tmp    = false               ;
-		Time::Delay       start_delay ;                                                       // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs   ;                                                       // signals to use to kill job (tried in sequence, 1s apart from each other)
-		AutodepMethod     method      = AutodepMethod::Dflt ;
-		uint8_t           n_retries   = 0                   ;                                 // max number of retry if job is lost
+		bool              keep_tmp    = false ;
+		Time::Delay       start_delay ;                                                              // job duration above which a start message is generated
+		::vector<uint8_t> kill_sigs   ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint8_t           n_retries   = 0     ;                                                      // max number of retry if job is lost
 		::vmap_ss         env         ;
 	} ;
 
@@ -787,7 +787,6 @@ namespace Engine {
 		glbs = Py::eval_dict(true/*printed_expr*/) ;
 		Py_INCREF(glbs) ;                                                               // .
 		if (+glbs_str) {
-			//
 			PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
 			if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
 			Py_DECREF(val) ;

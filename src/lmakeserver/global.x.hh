@@ -149,18 +149,18 @@ namespace Engine {
 			using Tag = BackendTag ;
 			// cxtors & casts
 			Backend() = default ;
-			Backend( Py::Mapping const& py_map , bool is_local ) ;
+			Backend(Py::Mapping const& py_map) ;
 			// services
 			bool operator==(Backend const&) const = default ;
 			template<IsStream T> void serdes(T& s) {
-				::serdes(s,addr      ) ;
+				::serdes(s,ifce      ) ;
 				::serdes(s,dct       ) ;
 				::serdes(s,configured) ;
 			}
 			// data
-			in_addr_t addr       = NoSockAddr ;
+			::string  ifce       ;
 			::vmap_ss dct        ;
-			bool      configured = false      ;
+			bool      configured = false ;
 		} ;
 
 		struct Console {
@@ -182,9 +182,9 @@ namespace Engine {
 		Console                                                                  console               ;
 		::map_s<size_t>                                                          static_n_tokenss      ;
 		::map_s<size_t>                                                          dyn_n_tokenss         ;
-		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {} ;    // precision of standard resources
+		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {}    ; // precision of standard resources
 		::array<Backend,+BackendTag::N>                                          backends              ;         // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {} ;
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {}    ;
 	} ;
 
 	ENUM( ConfigDiff

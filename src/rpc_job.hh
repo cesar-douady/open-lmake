@@ -58,7 +58,7 @@ static_assert(::size(DflagChars)==+Dflag::N) ;
 using Dflags = BitMap<Dflag> ;
 
 ENUM_1( ExtraDflag
-,	NDep = Ignore                          // number of ExtraDflag's allowed in rule definition
+,	NDep = Ignore                           // number of ExtraDflag's allowed in rule definition
 ,	Top
 ,	Ignore
 ,	StatReadData
@@ -232,7 +232,7 @@ static inline Status mk_err(Status s) {
 static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
 static const ::string EnvDynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed env variables
 
-static constexpr char QuarantineDirS[] = ADMIN_DIR "/quarantine" ;
+static constexpr char QuarantineDirS[] = ADMIN_DIR "/quarantine/" ;
 
 struct AccDflags {
 	// services
@@ -343,8 +343,11 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else                          return _crc ==other._crc  ;
 	}
 	// accesses
+	#pragma GCC diagnostic push                                                     // gcc-11 is lost with union management
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
 	Ddate date() const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date ; }
+	#pragma GCC diagnostic pop
 	//
 	void crc (Crc   c) { is_date = false ; _crc  = c  ; }
 	void date(Ddate d) { is_date = true  ; _date = d  ; }
@@ -661,6 +664,7 @@ struct JobExecRpcReq {
 	// make short lines
 	using Access   = Disk::Access   ;
 	using Accesses = Disk::Accesses ;
+	using AD       = AccessDigest   ;
 	using P        = JobExecRpcProc ;
 	using PD       = Time::Pdate    ;
 	using DD       = Time::Ddate    ;
@@ -676,29 +680,33 @@ public :
 	JobExecRpcReq( P p , bool s , ::string&& t ) : proc{p} , sync{s} , txt{::move(t)} { SWEAR( p==P::Tmp || p==P::Trace || p==P::Panic ) ; }
 	JobExecRpcReq( P p ,          ::string&& t ) : proc{p} ,           txt{::move(t)} { SWEAR( p==P::Tmp || p==P::Trace || p==P::Panic ) ; }
 	//
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , bool ad , AccessDigest const& d , bool nf , bool s , bool ok_ , ::string const& comment ) :
-		proc     { p          }
-	,	sync     { s          }
-	,	auto_date{ ad         }
-	,	no_follow{ nf         }
-	,	ok       { ok_        }
-	,	files    { ::move(fs) }
-	,	digest   { d          }
-	,	txt      { comment    }
-	{ SWEAR( p==P::Access || p==P::DepInfos ) ; } //!                                                                                                         auto_date  no_follow sync ok
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,           bool s , bool ok , ::string const& c ) : JobExecRpcReq{p,          ::move(fs) ,false  ,ad,false  ,s    ,ok   ,c} {}
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,           bool s ,           ::string const& c ) : JobExecRpcReq{p,          ::move(fs) ,false  ,ad,false  ,s    ,false,c} {}
-	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AccessDigest const& ad ,                              ::string const& c ) : JobExecRpcReq{p,          ::move(fs) ,false  ,ad,false  ,false,false,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf , bool s , bool ok , ::string const& c ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true   ,ad,nf     ,s    ,ok   ,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf , bool s ,           ::string const& c ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true   ,ad,nf     ,s    ,false,c} {}
-	JobExecRpcReq( P p , ::vector_s  && fs , AccessDigest const& ad , bool nf ,                    ::string const& c ) : JobExecRpcReq{p,_s_mk_mdd(::move(fs)),true   ,ad,nf     ,false,false,c} {}
+private :
+	JobExecRpcReq( P p , bool ad , ::string&& cwd_ , ::vmap_s<DD>&& fs , AccessDigest const& d , bool nf , bool s , bool ok_ , ::string const& comment ) :
+		proc     { p            }
+	,	sync     { s            }
+	,	auto_date{ ad           }
+	,	no_follow{ nf           }
+	,	ok       { ok_          }
+	,	cwd      { ::move(cwd_) }
+	,	files    { ::move(fs)   }
+	,	digest   { d            }
+	,	txt      { comment      }
+	{ SWEAR( p==P::Access || p==P::DepInfos ) ; }
+public : //!                                                                                                                  auto_date    cwd                              no_follow sync  ok
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AD const& ad ,           bool s , bool ok , ::string const& c ) : JobExecRpcReq{p,false  ,{}         ,          ::move(fs) ,ad,false  ,s    ,ok   ,c} {}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AD const& ad ,           bool s ,           ::string const& c ) : JobExecRpcReq{p,false  ,{}         ,          ::move(fs) ,ad,false  ,s    ,false,c} {}
+	JobExecRpcReq( P p , ::vmap_s<DD>&& fs , AD const& ad ,                              ::string const& c ) : JobExecRpcReq{p,false  ,{}         ,          ::move(fs) ,ad,false  ,false,false,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AD const& ad , bool nf , bool s , bool ok , ::string const& c ) : JobExecRpcReq{p,true   ,Disk::cwd(),_s_mk_mdd(::move(fs)),ad,nf     ,s    ,ok   ,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AD const& ad , bool nf , bool s ,           ::string const& c ) : JobExecRpcReq{p,true   ,Disk::cwd(),_s_mk_mdd(::move(fs)),ad,nf     ,s    ,false,c} {}
+	JobExecRpcReq( P p , ::vector_s  && fs , AD const& ad , bool nf ,                    ::string const& c ) : JobExecRpcReq{p,true   ,Disk::cwd(),_s_mk_mdd(::move(fs)),ad,nf     ,false,false,c} {}
 	//
-	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} , files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard  ) ; }
+	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} , files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
 	//
 	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& c ) :
 		proc      { p                }
 	,	sync      { true             }
 	,	auto_date { true             }
+	,	cwd       { Disk::cwd()      }
 	,	files     { {{::move(f),{}}} }                   // no need for date for codec
 	,	digest    { Access::Reg      }
 	,	txt       { code             }
@@ -709,6 +717,7 @@ public :
 	,	sync      { true             }
 	,	auto_date { true             }
 	,	min_len   { ml               }
+	,	cwd       { Disk::cwd()      }
 	,	files     { {{::move(f),{}}} }                   // no need for date for codec
 	,	digest    { Access::Reg      }
 	,	txt       { val              }
@@ -751,7 +760,7 @@ public :
 	bool         ok        = false                     ; // if proc==Access|Confirm, declare target (Access) or confirm access (Confirm)
 	uint8_t      min_len   = 0                         ; // if proc==Encode
 	PD           date      = PD::s_now()               ; // access date to reorder accesses during analysis
-	::string     cwd       = auto_date?Disk::cwd():""s ; // if auto_date, cwd to use to solve files
+	::string     cwd       ;                             // if auto_date, cwd to use to solve files
 	::vmap_s<DD> files     ;
 	AccessDigest digest    ;
 	::string     txt       ;                             // if proc==Access|Decode|Encode|Trace (comment for Access, code for Decode, value for Encode)

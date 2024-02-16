@@ -122,7 +122,6 @@ if __name__!='__main__' :
 		if step==1 : cmd = 'cat {HELLO} ; echo {bad}'
 		else       : cmd = 'cat {HELLO} ; echo {step}'
 
-
 else :
 
 	import ut
@@ -159,4 +158,4 @@ else :
 		ut.lmake( 'auto_mkdir.yes.ok'   , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
 		ut.lmake( 'cmd'                 , done=1-rc   , steady=0    , failed=rc , new=0      ,                rc=rc )
 		#
-		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2*rc , steady=0 , new=rc , rc=0 )
+		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , rc=rc )

@@ -132,7 +132,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {
-		return os<<"JRI(" << ri.req <<','<< ri.action <<','<< ri.speculate <<','<< ri.lvl<<':'<<ri.dep_lvl <<','<< ri.n_wait <<')' ;
+		return os<<"JRI(" << ri.req <<','<< ri.action <<','<< ri.speculate <<','<< ri.step<<':'<<ri.dep_lvl <<','<< ri.n_wait <<')' ;
 	}
 
 	//
@@ -347,10 +347,10 @@ namespace Engine {
 			ri.start_reported = false ;
 			if (report) report_start(ri,report_unlinks,stderr,msg) ;
 			//
-			if (ri.lvl==ReqInfo::Lvl::Queued) {
-				req->stats.cur(ReqInfo::Lvl::Queued)-- ;
-				req->stats.cur(ReqInfo::Lvl::Exec  )++ ;
-				ri.lvl = ReqInfo::Lvl::Exec ;
+			if (ri.step==JobStep::Queued) {
+				req->stats.cur(JobStep::Queued)-- ;
+				req->stats.cur(JobStep::Exec  )++ ;
+				ri.step = JobStep::Exec ;
 			}
 		}
 	}
@@ -544,16 +544,17 @@ namespace Engine {
 		}
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
-			switch (ri.lvl) {
-				case JobLvl::Queued :
-					req->stats.cur(ReqInfo::Lvl::Queued)-- ;
-					req->stats.cur(ReqInfo::Lvl::Exec  )++ ;
+			switch (ri.step) {
+				case JobStep::Queued :
+					req->stats.cur(JobStep::Queued)-- ;
+					req->stats.cur(JobStep::Exec  )++ ;
 				[[fallthrough]] ;
-				case JobLvl::Exec :
-					ri.lvl = JobLvl::End ;               // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+				case JobStep::Exec :
+					ri.n_wait-- ;
+					ri.step = JobStep::End ;             // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 				break ;
 				default :
-					FAIL(ri.lvl) ;
+					FAIL(ri.step) ;
 			}
 		}
 		bool      all_done   = true ;
@@ -691,11 +692,11 @@ namespace Engine {
 		Trace trace("set_pressure",idx(),ri,pressure) ;
 		Req         req          = ri.req                               ;
 		CoarseDelay dep_pressure = ri.pressure + best_exec_time().first ;
-		switch (ri.lvl) {
-			//                                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case ReqInfo::Lvl::Dep    : for( Dep const& d : deps.subvec(ri.dep_lvl) ) d->        set_pressure( d->req_info(req) ,                            dep_pressure  ) ; break ;
-			case ReqInfo::Lvl::Queued :                                               Backend::s_set_pressure( ri.backend       , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
-			//                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		switch (ri.step) {
+			//                                                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case JobStep::Dep    : for( Dep const& d : deps.subvec(ri.dep_lvl) ) d->        set_pressure( d->req_info(req) ,                            dep_pressure  ) ; break ;
+			case JobStep::Queued :                                               Backend::s_set_pressure( ri.backend       , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
+			//                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			default : ;
 		}
 	}
@@ -706,12 +707,12 @@ namespace Engine {
 	,	MissingStatic
 	)
 
-	static inline bool _inc_cur( Req req , JobLvl jl , int inc ) {
-		if (jl==JobLvl::None) return false ;
-		JobIdx& stat = req->stats.cur(jl==JobLvl::End?JobLvl::Exec:jl) ;
+	static inline bool _inc_cur( Req req , JobStep js , int inc ) {
+		if (js==JobStep::None) return false ;
+		JobIdx& stat = req->stats.cur(js==JobStep::End?JobStep::Exec:js) ;
 		if (inc<0) SWEAR( stat>=JobIdx(-inc) , stat , inc ) ;
 		stat += inc ;
-		return jl!=JobLvl::Done ;
+		return js!=JobStep::Done ;
 	}
 	JobReason JobData::make(
 		ReqInfo&           ri
@@ -723,9 +724,9 @@ namespace Engine {
 	,	CoarseDelay const* old_exec_time
 	,	bool               wakeup_watchers
 	) {
-		using Lvl = ReqInfo::Lvl ;
+		using Step = JobStep ;
 		SWEAR( reason.tag<JobReasonTag::Err , reason ) ;
-		Lvl  prev_lvl       = ri.lvl                               ;                                 // capture previous level before any update
+		Step prev_step      = ri.step                              ;                                 // capture previous level before any update
 		Req  req            = ri.req                               ;
 		bool stop_speculate = speculate<ri.speculate && +ri.action ;
 		if (+reason ) run_action = RunAction::Run ;                                                  // we already have a reason to run
@@ -739,7 +740,7 @@ namespace Engine {
 			bool    dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
 			bool    frozen_      = idx().frozen()                                                ;
 			//
-			Trace trace("Jmake",idx(),ri,prev_lvl,run_action,reason,asking_,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
+			Trace trace("Jmake",idx(),ri,prev_step,run_action,reason,asking_,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 			if (ri.done(ri.action)) goto Wakeup ;
 			for (;;) {                                                                               // loop in case analysis must be restarted (only in case of flash execution)
 				DepErr      err_          = DepErr::Ok /*garbage*/                       ;
@@ -753,8 +754,8 @@ namespace Engine {
 				if (make_action==MakeAction::End) { dep_action = RunAction::Dsk ; ri.dep_lvl = 0 ; } // if analysing end of job, we need to be certain of presence of all deps on disk
 				if (ri.action  ==RunAction::Run )   dep_action = RunAction::Dsk ;                    // if we must run the job , .
 				//
-				switch (ri.lvl) {
-					case Lvl::None :
+				switch (ri.step) {
+					case Step::None :
 						if ( ri.action>=RunAction::Status && !ri.force ) {                                                       // only once, not in case of analysis restart
 							if      ( rule->force                                           ) ri.force = JobReasonTag::Force   ;
 							else if ( frozen_                                               ) ri.force = JobReasonTag::Force   ; // ensure crc are updated, akin sources
@@ -764,9 +765,9 @@ namespace Engine {
 							else if ( req->options.flags[ReqFlag::ForgetOldErrors] && err() ) ri.force = JobReasonTag::OldErr  ;
 							else if ( !rsrcs_ok()                                           ) ri.force = JobReasonTag::Rsrcs   ;
 						}
-						ri.lvl = Lvl::Dep ;
+						ri.step = Step::Dep ;
 					[[fallthrough]] ;
-					case Lvl::Dep : {
+					case Step::Dep : {
 					RestartAnalysis :                                                           // restart analysis here when it is discovered we need deps to run the job
 						/**/   err_               = DepErr::Ok ;
 						/**/   modif              = false      ;
@@ -922,7 +923,7 @@ namespace Engine {
 						}
 						if (ri.waiting()) goto Wait ;
 					} break ;
-					default : FAIL(ri.lvl) ;
+					default : FAIL(ri.step) ;
 				}
 				if (sure) mk_sure() ;                                  // improve sure (sure is pessimistic)
 				switch (err_) {
@@ -938,13 +939,15 @@ namespace Engine {
 				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (ri.waiting()   ) goto Wait ;
 				if (!maybe_new_deps) goto Done ;                                          // if no new deps, we are done
-				make_action = MakeAction::End                                           ; // restart analysis as if called by end() (after ri.update()) as if flash execution, submit has called end()
-				ri.lvl      = Lvl       ::Dep                                           ; // .
+				SWEAR(!ri.running()) ;                                                    // else we must decrease n_wait
+				ri.step     = Step      ::Dep                                           ; // .
 				ri.action   = is_ok(status)==Maybe ? RunAction::Run : RunAction::Status ; // .
+				make_action = MakeAction::End                                           ; // restart analysis as if called by end() (after ri.update()) as if flash execution, submit has called end()
 				trace("restart_analysis",ri) ;
 			/*never exit*/ }
 		Done :
-			ri.lvl   = Lvl::Done            ;
+			SWEAR(!ri.running()) ;                                                        // else we must decrease n_wait
+			ri.step  = Step::Done           ;
 			ri.done_ = ri.done_ | ri.action ;
 		Wakeup :
 			if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req->zombie ) {
@@ -983,9 +986,9 @@ namespace Engine {
 		}
 	Wait :
 		if (stop_speculate) _propag_speculate(ri) ;
-		if ( !rule->is_special() && ri.lvl!=prev_lvl ) {
-			bool remove_old = _inc_cur(req,prev_lvl,-1) ;
-			bool add_new    = _inc_cur(req,ri.lvl  ,+1) ;
+		if ( !rule->is_special() && ri.step!=prev_step ) {
+			bool remove_old = _inc_cur(req,prev_step,-1) ;
+			bool add_new    = _inc_cur(req,ri.step  ,+1) ;
 			req.new_exec_time( *this , remove_old , add_new , old_exec_time?*old_exec_time:exec_time ) ;
 		}
 		return reason ;
@@ -1084,14 +1087,15 @@ namespace Engine {
 	}
 
 	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		using Lvl = ReqInfo::Lvl ;
+		using Step = JobStep ;
 		Req               req                = ri.req  ;
 		SubmitRsrcsAttrs  submit_rsrcs_attrs ;
 		SubmitNoneAttrs   submit_none_attrs  ;
 		CacheNoneAttrs    cache_none_attrs   ;
 		Rule::SimpleMatch match              { idx() } ;
 		Trace trace("submit_plain",idx(),ri,reason,pressure) ;
-		SWEAR(!ri.waiting()) ;
+		SWEAR(!ri.waiting(),ri) ;
+		SWEAR(!ri.running(),ri) ;
 		try {
 			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval(idx(),match) ;
 		} catch (::string const& e) {
@@ -1121,8 +1125,8 @@ namespace Engine {
 			ReqInfo const& cri = c_req_info(r) ;
 			SWEAR( cri.backend==ri.backend , cri.backend , ri.backend ) ;
 			ri.n_wait++ ;
-			ri.lvl = cri.lvl ;                                                                                   // Exec or Queued, same as other reqs
-			if (ri.lvl==Lvl::Exec) req->audit_job(Color::Note,"started",idx()) ;
+			ri.step = cri.step ;                                                                                 // Exec or Queued, same as other reqs
+			if (ri.step==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
 			Backend::s_add_pressure( ri.backend , +idx() , +req , {.live_out=ri.live_out,.pressure=pressure} ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
 			trace("other_req",r,ri) ;
 			return false/*may_new_deps*/ ;
@@ -1154,7 +1158,7 @@ namespace Engine {
 						//
 						JobDigest digest = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
 						if (ri.live_out) je.live_out(ri,digest.stdout) ;
-						ri.lvl = Lvl::Hit ;
+						ri.step = Step::Hit ;
 						trace("hit_result") ;
 						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ; // no resources nor backend for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
@@ -1176,7 +1180,7 @@ namespace Engine {
 			}
 		}
 		ri.n_wait++ ;                                                                  // set before calling submit call back as in case of flash execution, we must be clean
-		ri.lvl = Lvl::Queued ;
+		ri.step = Step::Queued ;
 		try {
 			SubmitAttrs sa = {
 				.live_out  = ri.live_out
@@ -1189,7 +1193,8 @@ namespace Engine {
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			ri.n_wait-- ;                                                              // restore n_wait as we prepared to wait
-			status = Status::EarlyErr ;
+			ri.step = Step::End        ;
+			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , idx()     ) ;
 			req->audit_info( Color::Note , e                , 1 ) ;
 			trace("submit_err",ri) ;

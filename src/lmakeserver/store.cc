@@ -140,10 +140,6 @@ namespace Engine::Persistent {
 		/**/                                  _name_file     .chk(                    ) ; // commons
 	}
 
-	static bool _has_new_server_addr( Config const& old_config , Config const& new_config_ ) {
-		for( BackendTag t : BackendTag::N ) if (new_config_.backends[+t].addr!=old_config.backends[+t].addr) return true  ;
-		/**/                                                                                                 return false ;
-	}
 	void _save_config() {
 		serialize( OFStream(dir_guard(PrivateAdminDir+"/config_store"s)) , g_config ) ;
 		OFStream(AdminDir+"/config"s) << g_config.pretty_str() ;
@@ -151,12 +147,14 @@ namespace Engine::Persistent {
 
 	void _diff_config( Config const& old_config , bool dynamic ) {
 		Trace trace("_diff_config",old_config) ;
-		if (_has_new_server_addr(old_config,g_config)) {
-			if (dynamic) throw "cannot change server address while running"s ;
-			invalidate_exec(true /*cmd_ok*/) ;                                 // remote hosts may have been unreachable, do as if we have new resources
+		for( BackendTag t : BackendTag::N ) {
+			if (g_config.backends[+t].ifce==old_config.backends[+t].ifce) continue ;
+			if (dynamic                                                 ) throw "cannot change server address while running"s ; // remote hosts may have been unreachable do as if we have new resources
+			invalidate_exec(true/*cmd_ok*/) ;
+			break ;
 		}
 		//
-		if (g_config.path_max!=old_config.path_max) invalidate_match() ;       // we may discover new buildable nodes or vice versa
+		if (g_config.path_max!=old_config.path_max) invalidate_match() ;                                                        // we may discover new buildable nodes or vice versa
 	}
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {

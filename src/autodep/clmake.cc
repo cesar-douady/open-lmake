@@ -45,10 +45,18 @@ static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) 
 	}
 }
 
+static inline const char* py_as_string(PyObject* o) {
+	#if PY_MAJOR_VERSION<3
+		return PyString_AsString(o) ;
+	#else
+		return PyUnicode_AsUTF8(o) ;
+	#endif
+}
+
 static ::string _mk_str( PyObject* o , ::string const& arg_name={} ) {
 	/**/                                  if (!o) throw to_string("missing argument"       ,+arg_name?" ":"",arg_name          ) ;
 	PyObject* s   = PyObject_Str(o)     ; if (!s) throw to_string("cannot convert argument",+arg_name?" ":"",arg_name," to str") ;
-	::string  res = PyUnicode_AsUTF8(s) ;
+	::string  res = py_as_string(s) ;
 	Py_DECREF(s) ;
 	return res ;
 }
@@ -138,8 +146,8 @@ static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw
 		PyErr_SetString(PyExc_TypeError,"argument must be a str") ;
 		return nullptr ;
 	}
-	const char* be  = PyUnicode_AsUTF8(py_be) ;
-	BackendTag  tag = BackendTag::Unknown     ;
+	const char* be  = py_as_string(py_be) ;
+	BackendTag  tag = BackendTag::Unknown ;
 	try {
 		tag = mk_enum<BackendTag>(be) ;
 	} catch (::string const& e) {
@@ -300,21 +308,33 @@ static PyMethodDef funcs[] = {
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
 
-static struct PyModuleDef lmake_module = {
-	PyModuleDef_HEAD_INIT
-,	"lmake"
-,	nullptr
-,	-1
-,	funcs
-,	nullptr
-,	nullptr
-,	nullptr
-,	nullptr
-} ;
+#if PY_MAJOR_VERSION>=3
+	static struct PyModuleDef lmake_module = {
+		PyModuleDef_HEAD_INIT
+	,	"clmake"
+	,	nullptr
+	,	-1
+	,	funcs
+	,	nullptr
+	,	nullptr
+	,	nullptr
+	,	nullptr
+	} ;
+#endif
 
 #pragma GCC visibility push(default)
-PyMODINIT_FUNC PyInit_clmake() {
-	PyObject* mod = PyModule_Create(&lmake_module) ;
+PyMODINIT_FUNC
+#if PY_MAJOR_VERSION<3
+	initclmake2()
+#else
+	PyInit_clmake()
+#endif
+{
+	#if PY_MAJOR_VERSION<3
+		PyObject* mod = Py_InitModule("clmake2",funcs) ;
+	#else
+		PyObject* mod = PyModule_Create(&lmake_module) ;
+	#endif
 	//
 	if (has_env("LMAKE_AUTODEP_ENV")) {
 		_g_autodep_env = New ;
@@ -336,6 +356,8 @@ PyMODINIT_FUNC PyInit_clmake() {
 	PyObject_SetAttrString    ( mod , "crc_a_reg"      , PyLong_FromLong(+Crc::Reg    )    ) ;
 	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )    ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	return mod ;
+	#if PY_MAJOR_VERSION>=3
+		return mod ;
+	#endif
 }
 #pragma GCC visibility pop

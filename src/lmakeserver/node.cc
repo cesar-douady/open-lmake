@@ -163,7 +163,7 @@ namespace Engine {
 		JobTgtIter& operator++(int) {
 			_prev_prio = _cur_prio() ;
 			if (single) idx = node.job_tgts().size() ;
-			else        idx++                      ;
+			else        idx++ ;
 			return *this ;
 		}
 		JobTgt        operator* (   ) const { return node.job_tgts()[idx] ;                                  }
@@ -474,7 +474,8 @@ namespace Engine {
 				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
 			}
 			if (prod_idx!=NoIdx) goto DoWakeup ;                                                         // we have at least one done job, no need to investigate any further
-			ri.prio_idx = it.idx ;                                                                       // go on with next prio
+			if (ri.single) ri.single   = false  ;                                                        // if regenerating but job does not generate us, something strange happened, retry this prio
+			else           ri.prio_idx = it.idx ;                                                        // else go on with next prio
 		}
 	Make :
 		for(;;) {

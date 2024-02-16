@@ -1158,6 +1158,7 @@ namespace Engine {
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
+		/**/              entries.emplace_back( "autodep" , mk_snake(sra.method)    ) ;
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		/**/              res << _pretty_vmap(i,entries)                                 ;
 		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
@@ -1169,7 +1170,6 @@ namespace Engine {
 		if ( sna.keep_tmp   ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
 		if (+sna.start_delay) entries.emplace_back( "start_delay" ,              sna.start_delay.short_str() ) ;
 		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
-		/**/                  entries.emplace_back( "autodep"     , mk_snake    (sna.method     )            ) ;
 		/**/              res << _pretty_vmap(i,entries)                                         ;
 		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env     ) ;
 		if (+rd.dbg_info) res << indent("debug info :\n",i) << _pretty_vmap( i+1 , rd.dbg_info ) ;

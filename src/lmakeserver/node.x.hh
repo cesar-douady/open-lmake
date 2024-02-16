@@ -51,7 +51,6 @@ namespace Engine {
 	)
 
 	ENUM_1( NodeMakeAction
-	,	Dec = Wakeup       // >=Dec means n_wait must be decremented
 	,	None
 	,	Wakeup             // a job has completed
 	)
@@ -147,18 +146,9 @@ namespace Engine {
 #ifdef INFO_DEF
 namespace Engine {
 
-	ENUM( NodeLvl
-	,	None      // reserve value 0 as they are not counted in n_total
-	,	Zombie    // req is zombie but node not marked done yet
-	,	Uphill    // first level set at init, uphill directory
-	,	NoJob     // job candidates are exhausted
-	,	Plain     // >=PlainLvl means plain jobs starting at lvl-Lvl::Plain (all at same priority)
-	)
-
 	struct NodeReqInfo : ReqInfo {                                              // watchers of Node's are Job's
 		friend ::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) ;
 		//
-		using Lvl        = NodeLvl        ;
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
@@ -273,7 +263,7 @@ namespace Engine {
 		bool  running( ReqInfo const& cri ) const {
 			for( Job j : conform_job_tgts(cri) )
 				for( Req r : j->running_reqs() )
-					if (j->c_req_info(r).lvl==JobLvl::Exec) return true ;
+					if (j->c_req_info(r).step==JobStep::Exec) return true ;
 			return false ;
 		}
 		//
@@ -396,7 +386,7 @@ namespace Engine {
 
 	inline void NodeReqInfo::update( RunAction run_action , MakeAction make_action , NodeData const& node ) {
 		SWEAR(run_action!=RunAction::Run) ;                                                                   // Run is only for Job's
-		if (make_action>=MakeAction::Dec) {
+		if (make_action==MakeAction::Wakeup) {
 			SWEAR(n_wait) ;
 			n_wait-- ;
 		}
@@ -488,7 +478,7 @@ namespace Engine {
 
 	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Watcher asking , Bool3 speculate , MakeAction make_action ) {
 		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
-		if ( !(run_action>=RunAction::Dsk&&unlinked) && make_action<MakeAction::Dec && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
+		if ( !(run_action>=RunAction::Dsk&&unlinked) && make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
 		_make_raw(ri,run_action,asking,speculate,make_action) ;
 	}
 

@@ -6,50 +6,77 @@
 # /!\ must be Python2/Python3 compatible
 # /!\ this file must be able to accept that its own path is not in sys.path, it is read with exec, not with import
 
-deps = ()                                                                      # this is overwritten by calling script when debugging before calling hack_* functions
+deps = () # this is overwritten by calling script when debugging before calling hack_* functions
 
 Code = (lambda:None).__code__.__class__
 
 def load_modules() :
 	import sys
-	import importlib.util
 	import keyword
 	import os.path as osp
+	from importlib import import_module
+	#if sys.version_info<(3,6) : return                                            # importing user code implies importing lmake.rules code, which is written for Python3.6+
+	if sys.version_info.major<3 :
+		import re
+		is_id_re = re.compile(r'[a-zA-Z_]\w*\Z')
+		def is_id(x) :
+			return is_id_re.match(x) and not keyword.iskeyword(x)
+		def source_from_cache(pyc) :
+			assert pyc[-1]=='c'
+			return pyc[:-1]
+	elif sys.version_info<(3,4) :
+		def is_id(x) :
+			return x.isidentifier() and not keyword.iskeyword(x)
+		def source_from_cache(pyc) :
+			dir,base = ('/'+pyc).rsplit('/__pycache__/',1)                         # __pycache__ can be at the top level
+			if dir : dir = dir[1:]+'/'                                             # remove initial /, add a final /, if empty, these 2 operations cancel each other
+			base = base.split('.',1)[0]
+			return dir+base+'.py'
+	else :
+		def is_id(x) :
+			return x.isidentifier() and not keyword.iskeyword(x)
+		from importlib.util import source_from_cache
 	#
 	# load modules containing serialized functions and substitute corresponding code
 	# if we do not do that, breakpoints may be put at the wrong place
-	for f in lmake_func.func_lst :                                             # this lists all serialized functions
-		m  = importlib.import_module(f.__module__)
-		mf = m                                                                 # find function by doing a lookup with the qualified name, it is done for that
+	try :
+		for f in lmake_func.func_lst : import_module(f.__module__)                 # this lists all serialized functions, check they can be imported
+	except :
+		return                                                                     # do not pretend we are in original source code if we have trouble importing it
+	for f in lmake_func.func_lst :
+		m  = import_module(f.__module__)
+		mf = m                                                                     # find function by doing a lookup with the qualified name, it is done for that
 		for c in f.__qualname__.split('.') : mf = getattr(mf,c)
-		mf.__code__ = f.__code__                                               # substitute code to ensure breakpoints are put at the right place
+		try                   : mf.im_func.__code__ = f.__code__                   # substitute code to ensure breakpoints are put at the right place
+		except AttributeError : mf.        __code__ = f.__code__                   # .
 	#
 	# load all deps that look like imported modules so as to populate module list and ease setting breakpoints ahead of execution
 	# pre-condition path for speed as there may be 1000's of deps
 	path = sorted( (osp.abspath(p)+'/' for p in sys.path) , key=lambda x:-len(x) ) # longest first to have the best possible match when trying with startswith
 	for d in deps :
 		d = osp.abspath(d)
-		if     d.endswith('.pyc') : d = importlib.util.source_from_cache(d)
-		if not d.endswith('.py' ) : continue                                   # not an importable module
+		if     d.endswith('.pyc') : d = source_from_cache(d)
+		if not d.endswith('.py' ) : continue                                       # not an importable module
 		for p in path :
 			if not d.startswith(p) : continue
 			m = d[len(p):].split('/')
-			if not all( c.isidentifier() and not keyword.iskeyword(c) for c in m ) : break # no hope to find an alternative as we try longest first
-			try    : importlib.import_module('.'.join(m))
-			except : pass                                                      # this is a cosmetic improvement, no harm if we fail
-			break                                                              # found, go to next dep
+			if not all( is_id(c) for c in m ) : break                              # no hope to find an alternative as we try longest first
+			try    : import_module('.'.join(m))
+			except : pass                                                          # this is a cosmetic improvement, no harm if we fail
+			break                                                                  # found, go to next dep
 
 def run_pdb(dbg_dir,redirected,func,*args,**kwds) :
 	import pdb
+	import sys
+	import traceback
 	load_modules()
 	if redirected : debugger = pdb.Pdb(stdin=open('/dev/tty','r'),stdout=open('/dev/tty','w'))
 	else          : debugger = pdb.Pdb(                                                      )
 	try :
 		debugger.runcall(func,*args,**kwds)
 	except BaseException as e :
-		import traceback
-		traceback.print_exception(e)
-		debugger.interaction(None,e.__traceback__)
+		traceback.print_exc()
+		debugger.interaction(None,sys.exc_traceback)
 
 def run_vscode(dbg_dir,redirected,func,*args,**kwds) :
 	import json
@@ -93,7 +120,7 @@ def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 					kwargs.setdefault("stdin", tty_file)
 					kwargs.setdefault("stdout", tty_file)
 					kwargs.setdefault("term_size", term_size)
-					#tty_file.close()                                          # <======== This line is meaningless !!!
+					#tty_file.close()                         # <======== This line is meaningless !!!
 				from pudb.debugger import Debugger
 				dbg = Debugger(**kwargs)
 				return dbg
@@ -104,7 +131,7 @@ def run_pudb(dbg_dir,redirected,func,*args,**kwds) :
 		# hack pudb.debugger.DebuggerUI.__init__.pick_module.mod_exits !
 		# else the 'm' command shows a giant list of ininteresting modules
 		#
-		def mod_exists(mod) :                                                  # /!\ because we insert the code of this function in another environment, we cannot access globals here
+		def mod_exists(mod) :                                 # /!\ because we insert the code of this function in another environment, we cannot access globals here
 			import os
 			import os.path as osp
 			import importlib.util
@@ -201,9 +228,9 @@ def _replace_filename_firstlineno(code,filename,firstlineno) :
 		,	code.co_consts
 		,	code.co_names
 		,	code.co_varnames
-		,	filename                   # co_filename
+		,	filename         # co_filename
 		,	code.co_name
-		,	firstlineno                # co_firstlineno
+		,	firstlineno      # co_firstlineno
 		,	code.co_lnotab
 		,	code.co_freevars
 		,	code.co_cellvars

@@ -2083,7 +2083,11 @@ This is typically used to access some environment variables set by @code{slurm}.
 @end multitable
 
 This attribute defines the interpreter used to run the @code{cmd} if it is a @code{function}.
-At the end of the supplied executable and arguments, @code{'-c'} and the actual script is appended.
+At the end of the supplied executable and arguments, @code{'-c'} and the actual script is appended, unless the @code{use_script} attribut is set.
+In the later case, a file that contains the script is created and its name is passed as the last argument without a preceding @code{-c}.
+
+@lmake uses Python 3.6+ to read @file{Lmakefile.py}, but that being done, any interpreter can be used to execute @code{cmd}.
+In particular, Python2.7 and all revisions of Python3 are fully supported.
 
 @section @code{shell}
 

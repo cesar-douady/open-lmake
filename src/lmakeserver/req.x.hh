@@ -16,26 +16,16 @@ namespace Engine {
 	struct ReqData ;
 	struct ReqInfo ;
 
-	ENUM( RunAction                    // each action is included in the following one
-	,	None                           // when used as done_action, means not done at all
-	,	Makable                        // do whatever is necessary to assert if job can be run / node does exist (data dependent)
-	,	Status                         // check deps (no disk access except sources), run if possible & necessary
-	,	Dsk                            // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
-	,	Run                            // for Job  : force job to be run
-	)
-
-	ENUM( JobLvl   // must be in chronological order
-	,	None       // no analysis done yet (not in stats)
-	,	Dep        // analyzing deps
-	,	Hit        // cache hit
-	,	Queued     // waiting for execution
-	,	Exec       // executing
-	,	Done       // done execution
-	,	End        // job execution just ended (not in stats)
+	ENUM( RunAction // each action is included in the following one
+	,	None        // when used as done_action, means not done at all
+	,	Makable     // do whatever is necessary to assert if job can be run / node does exist (data dependent)
+	,	Status      // check deps (no disk access except sources), run if possible & necessary
+	,	Dsk         // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
+	,	Run         // for Job  : force job to be run
 	)
 
 	ENUM_1( JobReport
-	,	Useful = Failed                // <=Useful means job was usefully run
+	,	Useful = Failed // <=Useful means job was usefully run
 	,	Steady
 	,	Done
 	,	Failed
@@ -73,12 +63,12 @@ namespace Engine {
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
 		static SmallIds<ReqIdx > s_small_ids     ;
-		static ::vector<Req>     s_reqs_by_start ; // INVARIANT : ordered by item->start
+		static ::vector<Req>     s_reqs_by_start ;                                                       // INVARIANT : ordered by item->start
 		//
-		static ::mutex           s_reqs_mutex ;    // protects s_store, _s_reqs_by_eta as a whole
+		static ::mutex           s_reqs_mutex ;                                                          // protects s_store, _s_reqs_by_eta as a whole
 		static ::vector<ReqData> s_store      ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;      // INVARIANT : ordered by item->stats.eta
+		static ::vector<Req> _s_reqs_by_eta ;                                                            // INVARIANT : ordered by item->stats.eta
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -110,28 +100,28 @@ namespace Engine {
 
 	struct ReqStats {
 	private :
-		static bool   s_valid_cur(JobLvl i) {                         return i>JobLvl::None && i<=JobLvl::Done ; }
-		static size_t s_mk_idx   (JobLvl i) { SWEAR(s_valid_cur(i)) ; return +i-(+JobLvl::None+1) ;              }
+		static bool   s_valid_cur(JobStep i) {                         return i>JobStep::None && i<=JobStep::Done ; }
+		static size_t s_mk_idx   (JobStep i) { SWEAR(s_valid_cur(i)) ; return +i-(+JobStep::None+1) ;               }
 		//services
 	public :
-		JobIdx const& cur  (JobLvl    i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
-		JobIdx      & cur  (JobLvl    i)       { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
+		JobIdx const& cur  (JobStep   i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
+		JobIdx      & cur  (JobStep   i)       { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
 		JobIdx const& ended(JobReport i) const {                           return _ended[+i         ] ; }
 		JobIdx      & ended(JobReport i)       {                           return _ended[+i         ] ; }
 		//
-		JobIdx cur   () const { JobIdx res = 0 ; for( JobLvl    i : JobLvl::N    ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
+		JobIdx cur   () const { JobIdx res = 0 ; for( JobStep   i : JobStep  ::N ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
 		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
 		Time::Delay jobs_time[2/*useful*/] ;
 	private :
-		JobIdx _cur  [+JobLvl::Done+1-(+JobLvl::None+1)] = {} ;
-		JobIdx _ended[+JobReport::N                    ] = {} ;
+		JobIdx _cur  [+JobStep::Done+1-(+JobStep::None+1)] = {} ;
+		JobIdx _ended[+JobReport::N                      ] = {} ;
 	} ;
 
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		JobReport report      = JobReport::Unknown/*garbage*/ ;          // if not Hit, it is a rerun and this is the report to do if finally not a rerun
+		JobReport report      = JobReport::Unknown/*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
 		bool      modified    = false             /*garbage*/ ;
 		::string  backend_msg ;
 	} ;
@@ -152,7 +142,7 @@ namespace Engine {
 
 		struct WaitInc {
 			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<::numeric_limits<WatcherIdx>::max()) ; _ri.n_wait++ ; } // increment
-			~WaitInc(           )           { SWEAR(_ri.n_wait>::numeric_limits<WatcherIdx>::min()) ; _ri.n_wait-- ; } // restore
+			~WaitInc(           )           { SWEAR(_ri.n_wait>0                                  ) ; _ri.n_wait-- ; } // restore
 		private :
 			ReqInfo& _ri ;
 		} ;
@@ -216,7 +206,7 @@ namespace Engine {
 			::array <Watcher,NWatchers>  _watchers_a ;                                                //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
-	static_assert(sizeof(ReqInfo)==16) ;                                       // check expected size
+	static_assert(sizeof(ReqInfo)==16) ;                                                              // check expected size
 
 }
 #endif
@@ -230,16 +220,16 @@ namespace Engine {
 			typename T::ReqInfo dflt ;
 			using ::umap<T,typename T::ReqInfo>::umap ;
 		} ;
-		static constexpr size_t StepSz = 14 ;              // size of the field representing step in output
+		static constexpr size_t StepSz = 14 ;                // size of the field representing step in output
 		// static data
 	private :
-		static ::mutex _s_audit_mutex ;                    // should not be static, but if per ReqData, this would prevent ReqData from being movable
+		static ::mutex _s_audit_mutex ;                      // should not be static, but if per ReqData, this would prevent ReqData from being movable
 		// cxtors & casts
 	public :
 		void clear() ;
 		// accesses
-		bool   is_open  () const { return idx_by_start!=Idx(-1)                             ; }
-		JobIdx n_running() const { return stats.cur(JobLvl::Queued)+stats.cur(JobLvl::Exec) ; }
+		bool   is_open  () const { return idx_by_start!=Idx(-1)                               ; }
+		JobIdx n_running() const { return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		// services
 		void audit_summary(bool err) const ;
 		//
@@ -269,28 +259,28 @@ namespace Engine {
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
-		Job                  job            ;                                  // owned if job->rule->special==Special::Req
+		Job                  job            ;                // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
-		bool                 zombie         = false   ;                        // req has been killed, waiting to be closed when all jobs are actually killed
+		bool                 zombie         = false   ;      // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
-		Fd                   audit_fd       ;                                  // to report to user
-		OFStream mutable     log_stream     ;                                  // saved output
-		Job      mutable     last_info      ;                                  // used to identify last message to generate an info line in case of ambiguity
+		Fd                   audit_fd       ;                // to report to user
+		OFStream mutable     log_stream     ;                // saved output
+		Job      mutable     last_info      ;                // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Ddate                start_ddate    ;
 		Pdate                start_pdate    ;
-		Delay                ete            ;                                  // Estimated Time Enroute
-		Pdate                eta            ;                                  // Estimated Time of Arrival
-		::umap<Rule,JobIdx > ete_n_rules    ;                                  // number of jobs participating to stats.ete with exec_time from rule
+		Delay                ete            ;                // Estimated Time Enroute
+		Pdate                eta            ;                // Estimated Time of Arrival
+		::umap<Rule,JobIdx > ete_n_rules    ;                // number of jobs participating to stats.ete with exec_time from rule
 		// summary
-		::vector<Node>                        up_to_dates  ;                   // asked nodes already done when starting
-		::umap<Job ,                JobIdx  > frozen_jobs  ;                   // frozen     jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > frozen_nodes ;                   // frozen     nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > long_names   ;                   // nodes with name too long                          (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > no_triggers  ;                   // no-trigger nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > clash_nodes  ;                   // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
+		::vector<Node>                        up_to_dates  ; // asked nodes already done when starting
+		::umap<Job ,                JobIdx  > frozen_jobs  ; // frozen     jobs                                   (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > frozen_nodes ; // frozen     nodes                                  (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > long_names   ; // nodes with name too long                          (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > no_triggers  ; // no-trigger nodes                                  (value        is just for summary ordering purpose)
+		::umap<Node,                NodeIdx > clash_nodes  ; // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
 	} ;
 
 }

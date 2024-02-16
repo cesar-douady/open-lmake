@@ -238,11 +238,11 @@ namespace Backends {
 			tie(eta,keep_tmp) = entry.req_info() ;
 			keep_tmp |= start_none_attrs.keep_tmp ;
 			try {
-				deps_attrs        = rule->deps_attrs       .eval(match      ) ;                                                step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs) ; start_cmd_attrs.chk(start_none_attrs.method) ; step = 2 ;
-				cmd               = rule->cmd              .eval(match,rsrcs) ;                                                step = 3 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs) ;                                                step = 4 ;
-				pre_actions       = job->pre_actions( match , true/*mark_target_dirs*/ ) ;                                     step = 5 ;
+				deps_attrs        = rule->deps_attrs       .eval(match      ) ;                                                 step = 1 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs) ; start_cmd_attrs.chk(start_rsrcs_attrs.method) ; step = 2 ;
+				cmd               = rule->cmd              .eval(match,rsrcs) ;                                                 step = 3 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs) ;                                                 step = 4 ;
+				pre_actions       = job->pre_actions( match , true/*mark_target_dirs*/ ) ;                                      step = 5 ;
 			} catch (::string const& e) {
 				_s_small_ids.release(entry.conn.small_id) ;
 				job_exec = { job , New , New } ;                                   // job starts and ends, no host
@@ -309,7 +309,7 @@ namespace Backends {
 			reply.keep_tmp                  = keep_tmp                           ;
 			reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs) ;
 			reply.live_out                  = submit_attrs.live_out              ;
-			reply.method                    = start_none_attrs.method            ;
+			reply.method                    = start_rsrcs_attrs.method           ;
 			reply.network_delay             = g_config.network_delay             ;
 			reply.remote_admin_dir          = g_config.remote_admin_dir          ;
 			reply.small_id                  = small_id                           ;
@@ -573,11 +573,30 @@ namespace Backends {
 		//
 		::unique_lock lock{_s_mutex} ;
 		for( Tag t : Tag::N ) {
-			if (!s_tab[+t]            ) {                                                                                        trace("not_implemented",t  ) ; continue ; }
-			if (!config[+t].configured) {                                             s_tab[+t]->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; }
-			try                         { s_tab[+t]->config(config[+t].dct,dynamic) ; s_tab[+t]->config_err.clear()            ; trace("ready"          ,t  ) ;            }
-			catch (::string const& e)   { SWEAR(+e)                                 ; s_tab[+t]->config_err = e                ; trace("err"            ,t,e) ;            } // empty config_err ...
-		}                                                                                                                                                                    // ... means ready
+			Backend*               be  = s_tab [+t] ;
+			Config::Backend const& cfg = config[+t] ;
+			if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
+			if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; }
+			if (!be->is_local()) {
+				::string ifce ;
+				if (+cfg.ifce) {
+					Py::Gil   gil  ;
+					PyObject* glbs = Py::eval_dict()                                                   ;
+					PyObject* d    = PyRun_String( cfg.ifce.c_str() , Py_file_input , glbs , nullptr ) ;
+					if (!d) { Py_DECREF(glbs) ; throw to_string("bad interface for ",mk_snake(t),Py::err_str()) ; }
+					Py_DECREF(d) ;
+					PyObject* py_ifce = PyDict_GetItemString( glbs , "interface" ) ; SWEAR(py_ifce) ;
+					Py_DECREF(glbs) ;
+					if (!PyUnicode_Check(py_ifce)) throw to_string("interface for ",mk_snake(t)," must be a str") ;
+					ifce = PyUnicode_AsUTF8(py_ifce) ;
+				} else {
+					ifce = host() ;
+				}
+				be->addr = ServerSockFd::s_addr(ifce) ;
+			}
+			try                       { be->config(cfg.dct,dynamic) ; be->config_err.clear() ; trace("ready",t  ) ; }
+			catch (::string const& e) { SWEAR(+e)                   ; be->config_err = e     ; trace("err"  ,t,e) ; } // empty config_err means ready
+		}
 		job_start_thread.wait_started() ;
 		job_mngt_thread .wait_started() ;
 		job_end_thread  .wait_started() ;
@@ -600,9 +619,9 @@ namespace Backends {
 		trace("create_start_tab",job,entry) ;
 		::vector_s cmd_line {
 			s_executable
-		,	_s_job_start_thread->fd.service(g_config.backends[+tag].addr)
-		,	_s_job_mngt_thread ->fd.service(g_config.backends[+tag].addr)
-		,	_s_job_end_thread  ->fd.service(g_config.backends[+tag].addr)
+		,	_s_job_start_thread->fd.service(s_tab[+tag]->addr)
+		,	_s_job_mngt_thread ->fd.service(s_tab[+tag]->addr)
+		,	_s_job_end_thread  ->fd.service(s_tab[+tag]->addr)
 		,	::to_string(entry.conn.seq_id)
 		,	::to_string(job              )
 		} ;

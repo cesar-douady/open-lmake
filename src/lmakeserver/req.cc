@@ -492,9 +492,9 @@ namespace Engine {
 			,	                                                                    "done:"    , stats.ended(JobReport::Done  )+stats.ended(JobReport::Steady)
 			,	!g_config.caches || !stats.ended(JobReport::Hit) ? ""s : to_string(" hit:"     , stats.ended(JobReport::Hit   ))
 			,	stats.ended(JobReport::Rerun )==0                ? ""s : to_string(" rerun:"   , stats.ended(JobReport::Rerun ))
-			,	                                                                   " running:" , stats.cur  (JobLvl   ::Exec  )
-			,	stats.cur  (JobLvl   ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobLvl   ::Queued))
-			,	stats.cur  (JobLvl   ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobLvl   ::Dep   ))
+			,	                                                                   " running:" , stats.cur  (JobStep  ::Exec  )
+			,	stats.cur  (JobStep  ::Queued)==0                ? ""s : to_string(" queued:"  , stats.cur  (JobStep  ::Queued))
+			,	stats.cur  (JobStep  ::Dep   )==0                ? ""s : to_string(" waiting:" , stats.cur  (JobStep  ::Dep   ))
 			) } ;
 			OMsgBuf().send( audit_fd , rrr ) ;
 		} catch (::string const&) {}           // if client has disappeared, well, we cannot do much

@@ -429,6 +429,7 @@ class Handle :
 
 	def handle_start_rsrcs(self) :
 		self._init()
+		self._handle_val('autodep'                    )
 		self._handle_val('env'    ,'environ_resources')
 		self._handle_val('timeout'                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
@@ -439,7 +440,6 @@ class Handle :
 		self._handle_val('keep_tmp'                       )
 		self._handle_val('start_delay'                    )
 		self._handle_val('kill_sigs'                      )
-		self._handle_val('autodep'                        )
 		self._handle_val('n_retries'                      )
 		self._handle_val('env'        ,'environ_ancillary')
 		self.rule_rep.start_none_attrs = self._finalize()
@@ -546,9 +546,25 @@ def fmt_rule_chk(rule) :
 		print(f'\t{e.__class__.__name__} : {e}',file=sys.stderr)
 		sys.exit(2)
 
+def handle_config(config) :
+	if 'backends' not in config : return
+	bes = config['backends']
+	for be in bes.values() :
+		if 'interface' not in be : continue
+		code,ctx,names,dbg = serialize.get_expr(
+			be['interface']
+		,	ctx            = (module.__dict__,)
+		,	no_imports     = rule_modules
+		,	call_callables = True
+		)
+		be['interface'] = ctx+'interface = '+code
+
 rule_modules = { r.__module__    for r in lmake._rules      }
-rules        = [ fmt_rule_chk(r) for r in lmake._rules      ]
-rules        = [              r  for r in rules        if r ]
+
+handle_config(lmake.config)
+
+rules = [ fmt_rule_chk(r) for r in lmake._rules      ]
+rules = [              r  for r in rules        if r ]
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output

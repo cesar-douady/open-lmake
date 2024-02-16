@@ -12,23 +12,10 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* use same algo as in SimpleMatch::idx() to determine flags in job_exec
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve python2 support
-	- ldebug
-	- clmake.so
-* reimplement hierarchical repositories
-	- add a sub_repositories entry to config
-	- map priorities to RuleIdx
-	- ensure total prio of sub-rules
-		- add an AntiRule for files in sub-repo with prio between repo and sub-repo
-		- so as to ensure the sub-repo behaves as an autonomous repo
-	- handle cwd of rules
-	- devise a sound mechanism to read what must be read when reading makefiles
 * automatic versioning of internal info
 	- extend serdes to enumerate fields & types
 	- for data base
@@ -40,6 +27,15 @@ items :
 		- JobInfoStart
 		- JobInfoEnd
 		- find a way to identify LRU structure
+* reimplement hierarchical repositories
+	- add a sub_repositories entry to config
+	- map priorities to RuleIdx
+	- ensure total prio of sub-rules
+		- add an AntiRule for files in sub-repo with prio between repo and sub-repo
+		- so as to ensure the sub-repo behaves as an autonomous repo
+	- handle cwd of rules
+	- devise a sound mechanism to read what must be read when reading makefiles
+* generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
 ? mimic slurm killing procedure
 	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
@@ -60,12 +56,6 @@ items :
 
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
-* generate KPI's
-	- useful/useless created jobs
-	- number of non buildable nodes
-	- max number of resources slots in backend
-	- total number of deps
-	- total number of pressure updates
 * be more consise in console output
 	- and more precise in recorded log
 	- dates, justifications go to log while essential info is shown on screen
@@ -83,7 +73,6 @@ items :
 ****************************************************************************************************
 
 * add a warning when ids reach 15/16 of their limits
-* replace if (...) throw by throw_if or throw_unless
 * implement noexcept/except everywhere pertinent
 * use the Path struct instead of at/file
 	- everywhere applicable
@@ -91,21 +80,22 @@ items :
 	- keep only xxh
 	- superior on all metrics
 * get rid of pycxx
-! put in place a variant in Job::ReqInfo
-	- to ensure no infinite rerun loop
-	- for example the index of the first dep that triggered the rerun
-		- this should increase at each rerun
+	- implement our own package
 ! track disk accesses from server
 	- allow direct read of makefiles
 		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
 	- allow check that dynamic attributes only access what they are allowed to access
-! find a use case to ensure dates are correctly handled with NFS
+! put in place a variant in Job::ReqInfo
+	- to ensure no infinite rerun loop
+	- for example the index of the first dep that triggered the rerun
+		- this should increase at each rerun
+? replace if (...) throw by throw_if or throw_unless
+	? or vice versa
 ? if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
 	- check marker file existence in job_exec
 		- and retry job in that case rather than generating job in error
-? split utils.hh into several smaller files in utils directory
 ? implement class path_?? (x, n or s) in path.hh
 	- semantic : path w/ & w/o / at beginning and end
 	- implement mk_lcl, mk_glb, mk_rel, mk_abs, ...
@@ -194,11 +184,17 @@ items :
 	- should bring about 3x reduction in deps size
 	- targets can be compressed similarly when no flag
 * use precompiled headers
+* generate KPI's
+	- useful/useless created jobs
+	- number of non buildable nodes
+	- max number of resources slots in backend
+	- total number of deps
+	- total number of pressure updates
 * regexprs
 	- consider using PCRE2 instead of std::regex
 	- consider handling prefix/suffix apart
 		- most importantly sufixes
-		- maybe a pre-pass searching for infix is advisable
+		? maybe a pre-pass searching for infix is advisable
 * handle dir hierarchy in store
 	- provide a primitive to insert all dirs of a node at once
 	- much more efficient
@@ -211,11 +207,11 @@ items :
 * when rounding resources using config.backends.precisions
 	- round to prioritize jobs
 	- do not round for actual allocation
+* gprof
 ! trap close in autodep
 	- so as to know when a dep was last accessed
 	- and avoid too may overwrites
-	- must be very careful, e.g. mmap can access file after close
-* gprof
+	- must be very careful, e.g. mmap can access file after close, dup'ed file descriptors can be created, etc.
 ! manage HUGE pages in store
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
