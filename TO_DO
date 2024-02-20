@@ -79,8 +79,6 @@ items :
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
-* get rid of pycxx
-	- implement our own package
 ! track disk accesses from server
 	- allow direct read of makefiles
 		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)

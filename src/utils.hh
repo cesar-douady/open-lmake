@@ -634,7 +634,8 @@ template<class N,class D> static constexpr inline N div_down  (N n,D d) { return
 template<class N,class D> static constexpr inline N round_up  (N n,D d) { return round_down(n+d-1,d) ; }
 template<class N,class D> static constexpr inline N div_up    (N n,D d) { return div_down  (n+d-1,d) ; }
 
-static constexpr double Infinity = ::numeric_limits<double>::infinity() ;
+static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
+static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 //
 // stream formatting

@@ -5,7 +5,6 @@
 
 #include "disk.hh"
 #include "hash.hh"
-#include "pycxx.hh"
 #include "rpc_client.hh"
 #include "serialize.hh"
 
@@ -108,7 +107,7 @@ namespace Engine {
 			using Tag = CacheTag ;
 			// cxtors & casts
 			Cache() = default ;
-			Cache( Py::Mapping const& py_map ) ;
+			Cache( Py::Dict const& py_map ) ;
 			// services
 			bool operator==(Cache const&) const = default ;
 			template<IsStream T> void serdes(T& s) {
@@ -149,7 +148,7 @@ namespace Engine {
 			using Tag = BackendTag ;
 			// cxtors & casts
 			Backend() = default ;
-			Backend(Py::Mapping const& py_map) ;
+			Backend(Py::Dict const& py_map) ;
 			// services
 			bool operator==(Backend const&) const = default ;
 			template<IsStream T> void serdes(T& s) {
@@ -197,8 +196,8 @@ namespace Engine {
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
 		// cxtors & casts
-		Config(                         ) : booted{false} {} // if config comes from nowhere, it is not booted
-		Config(Py::Mapping const& py_map) ;
+		Config(                      ) : booted{false} {}    // if config comes from nowhere, it is not booted
+		Config(Py::Dict const& py_map) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,static_cast<ConfigClean  &>(*this)) ; // must always stay first field to ensure db_version is always understood

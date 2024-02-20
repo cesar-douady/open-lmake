@@ -9,6 +9,7 @@
 #include "core.hh"
 
 using namespace Disk   ;
+using namespace Py     ;
 using namespace Time   ;
 using namespace Engine ;
 
@@ -45,8 +46,6 @@ namespace Backends {
 	//
 	// Backend
 	//
-
-	ENUM( EventKind , Master , Stop , Slave )
 
 	::string                          Backend::s_executable              ;
 	Backend*                          Backend::s_tab  [+Tag::N]          ;
@@ -580,15 +579,13 @@ namespace Backends {
 			if (!be->is_local()) {
 				::string ifce ;
 				if (+cfg.ifce) {
-					Py::Gil   gil  ;
-					PyObject* glbs = Py::eval_dict()                                                   ;
-					PyObject* d    = PyRun_String( cfg.ifce.c_str() , Py_file_input , glbs , nullptr ) ;
-					if (!d) { Py_DECREF(glbs) ; throw to_string("bad interface for ",mk_snake(t),Py::err_str()) ; }
-					Py_DECREF(d) ;
-					PyObject* py_ifce = PyDict_GetItemString( glbs , "interface" ) ; SWEAR(py_ifce) ;
-					Py_DECREF(glbs) ;
-					if (!PyUnicode_Check(py_ifce)) throw to_string("interface for ",mk_snake(t)," must be a str") ;
-					ifce = PyUnicode_AsUTF8(py_ifce) ;
+					Gil gil ;
+					try {
+						Ptr<Dict> glbs = py_run(cfg.ifce) ;
+						ifce = (*glbs)["interface"].as_a<Str>() ;
+					} catch (::string const& e) {
+						throw to_string("bad interface for ",mk_snake(t),'\n',indent(e,1)) ;
+					}
 				} else {
 					ifce = host() ;
 				}

@@ -176,6 +176,7 @@ namespace Engine {
 		// services
 		void update( RunAction , MakeAction , JobData const& ) ;
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { ReqInfo::add_watcher(watcher,watcher_req_info) ; }
+		void mark_end() ;
 		void chk() const {
 			switch (step) {
 				case Step::None   : SWEAR(n_wait==0) ; break ;           // not started yet, cannot wait anything
@@ -506,6 +507,21 @@ namespace Engine {
 		}
 		SWEAR(step!=Step::End) ;
 	}
+
+	inline void JobReqInfo::mark_end() {
+		switch (step) {
+			case JobStep::Queued :
+				req->stats.cur(JobStep::Queued)-- ;
+				req->stats.cur(JobStep::Exec  )++ ;
+			[[fallthrough]] ;
+			case JobStep::Exec :
+				n_wait-- ;
+				step = JobStep::End ;                                // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+			break ;
+			default :
+				FAIL(step) ;
+		}
+		}
 
 }
 #endif

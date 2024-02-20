@@ -5,8 +5,9 @@
 
 #pragma once
 
+#include "py.hh" // /!\ must be first as Python.h must be first
+
 #include "config.hh"
-#include "pycxx.hh"
 #include "rpc_job.hh"
 
 #include "app.hh"

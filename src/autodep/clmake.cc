@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <Python.h>
+#include "py.hh" // /!\ must be first because Python.h must be first
 
 #include "lib.hh"
 #include "disk.hh"
@@ -15,6 +15,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Py   ;
 using namespace Time ;
 
 using Proc = JobExecRpcProc ;
@@ -26,247 +27,212 @@ static Record& record() {
 	return *s_res ;
 }
 
-static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t n_args = PyTuple_GET_SIZE(args) + (kw?PyDict_Size(kw):0) ;
-	if (n_args>1) { PyErr_SetString(PyExc_TypeError,"too many args") ; return nullptr ; }
-	bool verbose = false ;
-	if (n_args) {
-		PyObject* py_verbose = PyTuple_GET_SIZE(args) ? PyTuple_GET_ITEM(args,0) : PyDict_GetItemString(kw,"verbose") ;
-		if (!py_verbose) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
-		verbose = PyObject_IsTrue(py_verbose) ;
-	}
-	JobExecRpcReply reply = record().direct(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/)) ;
-	if (!verbose) Py_RETURN_NONE ;
+static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args = *from_py<Tuple const>(args)                  ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds)                  ;
+	size_t       n_args  = py_args.size() + (py_kwds?py_kwds->size():0) ;
+	if (n_args>1) return py_err_set(Exception::TypeErr,"too many args") ;
+	bool            verbose = +py_args ? +py_args[0] : !py_kwds ? false : !py_kwds->contains("verbose") ? false : +(*py_kwds)["verbose"] ;
+	JobExecRpcReply reply   = record().direct(JobExecRpcReq(Proc::ChkDeps,verbose/*sync*/))                                              ;
+	if (!verbose) return None.to_py_boost() ;
 	switch (reply.ok) {
-		case Yes   :                                                                   Py_RETURN_TRUE  ;
-		case Maybe : PyErr_SetString(PyExc_RuntimeError,"some deps are out-of-date") ; return nullptr  ;
-		case No    :                                                                   Py_RETURN_FALSE ;
+		case Yes   : return True .to_py_boost()                                           ;
+		case Maybe : return py_err_set(Exception::RuntimeErr,"some deps are out-of-date") ;
+		case No    : return False.to_py_boost()                                           ;
 		default : FAIL(reply.ok) ;
 	}
 }
 
-static inline const char* py_as_string(PyObject* o) {
-	#if PY_MAJOR_VERSION<3
-		return PyString_AsString(o) ;
-	#else
-		return PyUnicode_AsUTF8(o) ;
-	#endif
+static ::string _mk_str( Object const* o , ::string const& arg_name={} ) {
+	if (!o) throw to_string("missing argument",+arg_name?" ":"",arg_name) ;
+	return *o->str() ;
 }
 
-static ::string _mk_str( PyObject* o , ::string const& arg_name={} ) {
-	/**/                                  if (!o) throw to_string("missing argument"       ,+arg_name?" ":"",arg_name          ) ;
-	PyObject* s   = PyObject_Str(o)     ; if (!s) throw to_string("cannot convert argument",+arg_name?" ":"",arg_name," to str") ;
-	::string  res = py_as_string(s) ;
-	Py_DECREF(s) ;
-	return res ;
-}
-
-static uint8_t _mk_uint8( PyObject* o , uint8_t dflt , ::string const& arg_name={} ) {
+static uint8_t _mk_uint8( Object const* o , uint8_t dflt , ::string const& arg_name={} ) {
 	if (!o) return dflt ;
-	int  overflow = 0/*garbage*/                          ;
-	long val      = PyLong_AsLongAndOverflow(o,&overflow) ;
-	if ( overflow || val<0 || val>::numeric_limits<uint8_t>::max() ) throw to_string("overflow for argument",+arg_name?" ":"",arg_name) ;
-	return uint8_t(val) ;
+	try                       { return o->as_a<Int>() ;                                                    }
+	catch (::string const& e) { throw to_string("bad type/value for argument",+arg_name?" ":"",arg_name) ; }
 }
 
-static ::vector_s _get_files(PyObject* args) {
+static ::vector_s _get_files(Tuple const& py_args) {
 	::vector_s res  ;
-	ssize_t  n_args = PyTuple_GET_SIZE(args) ;
 	//
-	auto push = [&](PyObject* o)->void {
-		if (PyObject_IsTrue(o)) res.push_back(_mk_str(o)) ;
+	auto push = [&](Object const& o)->void {
+		if (+o) res.push_back(_mk_str(&o)) ;
 	} ;
 	//
-	if (n_args==1) {
-		args = PyTuple_GET_ITEM(args,0) ;
-		if      (PyTuple_Check(args)) { ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyTuple_GET_ITEM(args,i)) ; }
-		else if (PyList_Check (args)) { ssize_t n = PyList_Size (args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyList_GET_ITEM (args,i)) ; }
-		else                          {                                  res.reserve(1) ;                                push(                 args   ) ; }
+	if (py_args.size()==1) {
+		Object const& py_arg0 = py_args[0] ;
+		if (py_arg0.is_a<Sequence>()) { Sequence const& py_seq0 = py_arg0.as_a<Sequence>() ; res.reserve(py_seq0.size()) ; for( auto a : py_seq0 ) push(*a     ) ; }
+		else                          {                                                      res.reserve(1             ) ;                         push(py_arg0) ; }
 	} else {
-		/**/                            ssize_t n = PyTuple_Size(args) ; res.reserve(n) ; for( ssize_t i=0 ; i<n ; i++ ) push(PyTuple_GET_ITEM(args,i)) ;
+		/**/                                                                                 res.reserve(py_args.size()) ; for( auto a : py_args ) push(*a     ) ;
 	}
-	for( size_t i=0 ; i<res.size() ; i++ ) SWEAR(+res[i]) ;
+	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw to_string("argument ",i+1," is empty") ;
 	return res ;
 }
 
-static PyObject* _gather_arg( PyObject* args , ssize_t idx , PyObject* kwds , const char* kw , ssize_t& n_kwds ) {
-	if (idx<PyTuple_GET_SIZE(args)) return PyTuple_GET_ITEM(args,idx) ;
-	if (!kwds                     ) return nullptr                    ;
-	PyObject* item = PyDict_GetItemString(kwds,kw) ;
-	if (!item                     ) return nullptr                    ;
+static Object const* _gather_arg( Tuple const& py_args , size_t idx , Dict const* kwds , const char* kw , size_t& n_kwds ) {
+	if (idx<py_args.size() ) return &py_args[idx] ;
+	if (!kwds              ) return nullptr       ;
+	if (!kwds->contains(kw)) return nullptr       ;
 	n_kwds-- ;
-	return item ;
+	return &(*kwds)[kw] ;
 }
 
 static PyObject* decode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	ssize_t n_kwds = kwds ? PyDict_Size(kwds) : 0 ;
+	Tuple const& py_args = *from_py<Tuple const>(args)   ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
+	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file = _mk_str( _gather_arg( args , 0 , kwds , "file" , n_kwds ) , "file" ) ;
-		::string ctx  = _mk_str( _gather_arg( args , 1 , kwds , "ctx"  , n_kwds ) , "ctx"  ) ;
-		::string code = _mk_str( _gather_arg( args , 2 , kwds , "code" , n_kwds ) , "code" ) ;
+		::string file = _mk_str( _gather_arg( py_args , 0 , py_kwds , "file" , n_kwds ) , "file" ) ;
+		::string ctx  = _mk_str( _gather_arg( py_args , 1 , py_kwds , "ctx"  , n_kwds ) , "ctx"  ) ;
+		::string code = _mk_str( _gather_arg( py_args , 2 , py_kwds , "code" , n_kwds ) , "code" ) ;
 		//
 		if (n_kwds) throw "unexpected keyword arg"s ;
 		//
 		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::Decode , ::move(file) , ::move(code) , ::move(ctx) )) ;
 		if (reply.ok!=Yes) throw reply.txt ;
-		return PyUnicode_FromString(reply.txt.c_str()) ;
+		return Ptr<Str>(reply.txt)->to_py_boost() ;
 	} catch (::string const& e) {
-		if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError,e.c_str()) ;
-		return nullptr ;
+		return py_err_set(Exception::TypeErr,e) ;
 	}
 }
 
 static PyObject* encode( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	ssize_t n_kwds = kwds ? PyDict_Size(kwds) : 0 ;
+	Tuple const& py_args = *from_py<Tuple const>(args)   ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds)   ;
+	size_t       n_kwds  = py_kwds ? py_kwds->size() : 0 ;
 	try {
-		::string file    = _mk_str  ( _gather_arg( args , 0 , kwds , "file"    , n_kwds ) ,     "file"    ) ;
-		::string ctx     = _mk_str  ( _gather_arg( args , 1 , kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
-		::string val     = _mk_str  ( _gather_arg( args , 2 , kwds , "val"     , n_kwds ) ,     "code"    ) ;
-		uint8_t  min_len = _mk_uint8( _gather_arg( args , 3 , kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
+		::string file    = _mk_str  ( _gather_arg( py_args , 0 , py_kwds , "file"    , n_kwds ) ,     "file"    ) ;
+		::string ctx     = _mk_str  ( _gather_arg( py_args , 1 , py_kwds , "ctx"     , n_kwds ) ,     "ctx"     ) ;
+		::string val     = _mk_str  ( _gather_arg( py_args , 2 , py_kwds , "val"     , n_kwds ) ,     "code"    ) ;
+		uint8_t  min_len = _mk_uint8( _gather_arg( py_args , 3 , py_kwds , "min_len" , n_kwds ) , 1 , "min_len" ) ;
 		//
 		if (n_kwds                ) throw "unexpected keyword arg"s                                                                      ;
 		if (min_len>MaxCodecBits/4) throw to_string("min_len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits/4,')') ; // codes are output in hex, 4 bits/digit
 		//
 		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::Encode , ::move(file) , ::move(val) , ::move(ctx) , min_len )) ;
 		if (reply.ok!=Yes) throw reply.txt ;
-		return PyUnicode_FromString(reply.txt.c_str()) ;
+		return Ptr<Str>(reply.txt)->to_py_boost() ;
 	} catch (::string const& e) {
-		if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError,e.c_str()) ;
-		return nullptr ;
+		return py_err_set(Exception::TypeErr,e) ;
 	}
 }
 
-static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	if ( PyTuple_GET_SIZE(args)!=1 || kw ) {
-		PyErr_SetString(PyExc_TypeError,"expect exactly a single positional argument") ;
-		return nullptr ;
-	}
-	PyObject* py_be = PyTuple_GET_ITEM(args,0) ;
-	if (!PyUnicode_Check(py_be)) {
-		PyErr_SetString(PyExc_TypeError,"argument must be a str") ;
-		return nullptr ;
-	}
-	const char* be  = py_as_string(py_be) ;
-	BackendTag  tag = BackendTag::Unknown ;
-	try {
-		tag = mk_enum<BackendTag>(be) ;
-	} catch (::string const& e) {
-		PyErr_SetString(PyExc_ValueError,("unknown backend "s+be).c_str()) ;
-		return nullptr ;
-	}
-	switch (tag) {
-		case BackendTag::Local : Py_RETURN_TRUE                    ;
-		case BackendTag::Slurm : return PyBool_FromLong(HAS_SLURM) ;
+static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args = *from_py<Tuple const>(args) ;
+	if ( py_args.size()!=1 || kwds ) return py_err_set(Exception::TypeErr,"expect exactly a single positional argument") ;
+	::string   be  = py_args[0].as_a<Str>() ;
+	BackendTag tag = BackendTag::Unknown    ;
+	try                       { tag = mk_enum<BackendTag>(be) ;                                }
+	catch (::string const& e) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
+	switch (tag) {                                                                               // PER BACKEND
+		case BackendTag::Local : return            True       .to_py_boost() ;
+		case BackendTag::Slurm : return (HAS_SLURM?True:False).to_py_boost() ;
 		default : FAIL(tag) ;
 	} ;
 }
 
-static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	if (PyTuple_GET_SIZE(args)>1) {
-		PyErr_SetString(PyExc_TypeError,"expect at most a single argument") ;
-		return nullptr ;
+static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args = *from_py<Tuple const>(args) ;
+	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
+	if (py_args.size()>1) return py_err_set(Exception::TypeErr,"expect at most a single argument") ;
+	ssize_t n_kwds    = py_kwds ? py_kwds->size() : 0 ;
+	bool    no_follow = false                         ;
+	if (n_kwds) {
+		if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow = !(*py_kwds)["follow_symlinks"] ;          }
+		if (n_kwds                              )   return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
-	ssize_t n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool    no_follow = false                    ;
-	if (n_kw_args) {
-		if ( PyObject* py_v = PyDict_GetItemString(kw,"no_follow") ) { n_kw_args-- ; no_follow = PyObject_IsTrue(py_v) ;                            }
-		if ( n_kw_args                                             ) { PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ; return nullptr ; }
-	}
-	::vector_s views = _get_files(args) ;
+	::vector_s views = _get_files(py_args) ;
 	if (views.size()==0) views.push_back(cwd()) ;
 	SWEAR( views.size()==1 , views.size() ) ;
 	::string const& view = views[0] ;
-	if (!view) return PyUnicode_FromString("") ;
+	if (!view) return Ptr<Str>(""s)->to_py_boost() ;
 	//
 	RealPath::SolveReport solve_report = RealPath(_g_autodep_env).solve(view,no_follow) ;
 	//
 	switch (solve_report.kind) {
 		case Kind::Root :
-			return PyUnicode_FromString("") ;
+			return Ptr<Str>(""s)->to_py_boost() ;
 		case Kind::Repo :
 			try {
 				::string abs_path         = mk_abs(solve_report.real,_g_autodep_env.root_dir+'/') ;
-				::string abs_sub_root_dir = search_root_dir(abs_path).first                           ; abs_sub_root_dir += '/' ;
-				return PyUnicode_FromString( abs_sub_root_dir.c_str()+_g_autodep_env.root_dir.size()+1 ) ;
+				::string abs_sub_root_dir = search_root_dir(abs_path).first                       ; abs_sub_root_dir += '/' ;
+				return Ptr<Str>(abs_sub_root_dir.c_str()+_g_autodep_env.root_dir.size()+1)->to_py_boost() ;
 			} catch (::string const&e) {
-				PyErr_SetString(PyExc_ValueError,e.c_str()) ;
-				return nullptr ;
+				return py_err_set(Exception::ValueErr,e) ;
 			}
 		default :
-			PyErr_SetString(PyExc_ValueError,"cannot find sub root dir in repository") ;
-			return nullptr ;
+			return py_err_set(Exception::ValueErr,"cannot find sub root dir in repository") ;
 	}
 }
 
-static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t  n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool     verbose   = false                    ;
-	bool     no_follow = false                    ;
-	Accesses accesses  = Accesses::All            ;
-	Dflags   dflags    = Dflag::Required          ;
-	if (n_kw_args) {
-		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"verbose"           )) { n_kw_args-- ; verbose   =     PyObject_IsTrue(py_v)  ; }
-		/**/                           if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; no_follow =    !PyObject_IsTrue(py_v)  ; }
-		for( Access a  : Access::N   ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(a ).c_str())) { n_kw_args-- ; accesses.set(a ,PyObject_IsTrue(py_v)) ; }
-		for( Dflag  df : Dflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(df).c_str())) { n_kw_args-- ; dflags  .set(df,PyObject_IsTrue(py_v)) ; }
+static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args   = *from_py<Tuple const>(args)   ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)   ;
+	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0 ;
+	bool         verbose   = false                         ;
+	bool         no_follow = false                         ;
+	Accesses     accesses  = Accesses::All                 ;
+	Dflags       dflags    = Dflag::Required               ;
+	if (n_kwds) {
+		/**/                           if (py_kwds->contains("verbose"        )) { n_kwds-- ; verbose   =     +(*py_kwds)["verbose"        ]  ; }
+		/**/                           if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =    !+(*py_kwds)["follow_symlinks"]  ; }
+		for( Access a  : Access::N   ) if (py_kwds->contains(mk_snake(a )     )) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[mk_snake(a )     ]) ; }
+		for( Dflag  df : Dflag::NDyn ) if (py_kwds->contains(mk_snake(df)     )) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[mk_snake(df)     ]) ; }
 	}
-	if (n_kw_args) {
-		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;
-		return nullptr ;
-	}
+	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;
-	try                       { files = _get_files(args) ;                                    }
-	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
+	try                       { files = _get_files(py_args) ;             }
+	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
 	if (verbose) {
-		if (!files) return PyDict_New() ; // fast path : depend on no files
-		//
-		JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {accesses,dflags} , no_follow , true/*sync*/ , "depend" )) ;
-		//
-		SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
-		PyObject* res = PyDict_New() ;
-		for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
-			PyObject* v = PyTuple_New(2) ;
-			switch (reply.dep_infos[i].first) {
-				case Yes   : Py_INCREF(Py_True ) ; PyTuple_SET_ITEM(v,0,Py_True ) ; break ;
-				case Maybe : Py_INCREF(Py_None ) ; PyTuple_SET_ITEM(v,0,Py_None ) ; break ;
-				case No    : Py_INCREF(Py_False) ; PyTuple_SET_ITEM(v,0,Py_False) ; break ;
-				default : FAIL(reply.dep_infos[i].first) ;
+		Ptr<Dict> res { New } ;
+		if (+files) {           // fast path : else, depend on no files
+			//
+			JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {accesses,dflags} , no_follow , true/*sync*/ , "depend" )) ;
+			//
+			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
+			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
+				Object* py_ok ;
+				switch (reply.dep_infos[i].first) {
+					case Yes   : py_ok = &True  ; break ;
+					case Maybe : py_ok = &None  ; break ;
+					case No    : py_ok = &False ; break ;
+					default : FAIL(reply.dep_infos[i].first) ;
+				}
+				res->set_item( files[i] , *Ptr<Tuple>( *py_ok , *Ptr<Str>(::string(reply.dep_infos[i].second)) ) ) ;
 			}
-			// answer returned value, even if dep is out-of-date, as if crc turns out to be correct, the job will not be rerun
-			PyTuple_SET_ITEM( v , 1 , PyUnicode_FromString(::string(reply.dep_infos[i].second).c_str()) ) ;
-			PyDict_SetItemString( res , files[i].c_str() , v ) ;
-			Py_DECREF(v) ;
 		}
-		return res ;
+		return res->to_py_boost() ;
 	} else {
 		record().direct(JobExecRpcReq( Proc::Access , ::move(files) , {accesses,dflags} , no_follow , "depend" )) ;
-		Py_RETURN_NONE ;
+		return None.to_py_boost() ;
 	}
 }
 
-static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kw ) {
-	ssize_t      n_kw_args = kw ? PyDict_Size(kw) : 0 ;
-	bool         no_follow = false                    ;
+static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args   = *from_py<Tuple const>(args)   ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)   ;
+	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0 ;
+	bool         no_follow = false                         ;
 	AccessDigest ad        ;
-	if (n_kw_args) {
-		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"unlink"            )) { n_kw_args-- ; ad.unlink =      PyObject_IsTrue(py_v)  ; }
-		/**/                          if (PyObject* py_v = PyDict_GetItemString(kw,"follow_symlinks"   )) { n_kw_args-- ; no_follow =     !PyObject_IsTrue(py_v)  ; }
-		for( Tflag tf : Tflag::NDyn ) if (PyObject* py_v = PyDict_GetItemString(kw,mk_snake(tf).c_str())) { n_kw_args-- ; ad.tflags.set(tf,PyObject_IsTrue(py_v)) ; }
+	if (n_kwds) {
+		/**/                          if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlink =      +(*py_kwds)["unlink"         ]  ; }
+		/**/                          if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =     !+(*py_kwds)["follow_symlinks"]  ; }
+		for( Tflag tf : Tflag::NDyn ) if (py_kwds->contains(mk_snake(tf)     )) { n_kwds-- ; ad.tflags.set(tf,+(*py_kwds)[mk_snake(tf)     ]) ; }
 	}
-	if (n_kw_args) {
-		PyErr_SetString(PyExc_TypeError,"unexpected keyword arg") ;
-		return nullptr ;
-	}
+	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;
-	try                       { files = _get_files(args) ;                                    }
-	catch (::string const& e) { PyErr_SetString(PyExc_TypeError,e.c_str()) ; return nullptr ; }
+	try                       { files = _get_files(py_args) ;             }
+	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
 	ad.write = !ad.unlink ;
 	record().direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
 	record().direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlink*/ , true/*ok*/                                            )) ;
 	//
-	Py_RETURN_NONE ;
+	return None.to_py_boost() ;
 }
 
 static PyMethodDef funcs[] = {
@@ -308,20 +274,6 @@ static PyMethodDef funcs[] = {
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
 
-#if PY_MAJOR_VERSION>=3
-	static struct PyModuleDef lmake_module = {
-		PyModuleDef_HEAD_INIT
-	,	"clmake"
-	,	nullptr
-	,	-1
-	,	funcs
-	,	nullptr
-	,	nullptr
-	,	nullptr
-	,	nullptr
-	} ;
-#endif
-
 #pragma GCC visibility push(default)
 PyMODINIT_FUNC
 #if PY_MAJOR_VERSION<3
@@ -330,11 +282,7 @@ PyMODINIT_FUNC
 	PyInit_clmake()
 #endif
 {
-	#if PY_MAJOR_VERSION<3
-		PyObject* mod = Py_InitModule("clmake2",funcs) ;
-	#else
-		PyObject* mod = PyModule_Create(&lmake_module) ;
-	#endif
+	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
 	//
 	if (has_env("LMAKE_AUTODEP_ENV")) {
 		_g_autodep_env = New ;
@@ -342,22 +290,23 @@ PyMODINIT_FUNC
 		try                     { _g_autodep_env.root_dir = search_root_dir().first ; }
 		catch (::string const&) { _g_autodep_env.root_dir = cwd()                   ; }
 	}
-	PyObject* backends_py = PyTuple_New(1+HAS_SLURM) ;                             // PER_BACKEND : add an entry here
-	/**/           PyTuple_SET_ITEM(backends_py,0,PyUnicode_FromString("local")) ;
-	if (HAS_SLURM) PyTuple_SET_ITEM(backends_py,1,PyUnicode_FromString("slurm")) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	PyModule_AddStringConstant( mod , "root_dir"       , _g_autodep_env.root_dir.c_str()   ) ;
-	PyModule_AddObject        ( mod , "backends"       , backends_py                       ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_audit"   , HAS_LD_AUDIT ? Py_True : Py_False ) ;
-	PyObject_SetAttrString    ( mod , "has_ld_preload" ,                Py_True            ) ;
-	PyObject_SetAttrString    ( mod , "has_ptrace"     ,                Py_True            ) ;
-	PyObject_SetAttrString    ( mod , "no_crc"         , PyLong_FromLong(+Crc::Unknown)    ) ;
-	PyObject_SetAttrString    ( mod , "crc_a_link"     , PyLong_FromLong(+Crc::Lnk    )    ) ;
-	PyObject_SetAttrString    ( mod , "crc_a_reg"      , PyLong_FromLong(+Crc::Reg    )    ) ;
-	PyObject_SetAttrString    ( mod , "crc_no_file"    , PyLong_FromLong(+Crc::None   )    ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
+	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
+	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "root_dir"       , *Ptr<Str>(_g_autodep_env.root_dir.c_str()) ) ;
+	mod->set_attr( "backends"       , *py_bes                                    ) ;
+	mod->set_attr( "has_ld_audit"   , *Ptr<Bool>(bool(HAS_LD_AUDIT))             ) ;
+	mod->set_attr( "has_ld_preload" ,                True                        ) ;
+	mod->set_attr( "has_ptrace"     ,                True                        ) ;
+	mod->set_attr( "no_crc"         , *Ptr<Int>(+Crc::Unknown)                   ) ;
+	mod->set_attr( "crc_a_link"     , *Ptr<Int>(+Crc::Lnk    )                   ) ;
+	mod->set_attr( "crc_a_reg"      , *Ptr<Int>(+Crc::Reg    )                   ) ;
+	mod->set_attr( "crc_no_file"    , *Ptr<Int>(+Crc::None   )                   ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
-		return mod ;
+		return mod->to_py() ;
 	#endif
 }
 #pragma GCC visibility pop

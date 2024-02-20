@@ -15,7 +15,18 @@ using namespace Disk   ;
 using namespace Engine ;
 using namespace Time   ;
 
+ENUM( EventKind
+,	Master
+,	Slave
+,	Stop
+,	Std
+,	Int
+,	Watch
+)
+
 static ServerSockFd   _g_server_fd      ;
+static Fd             _g_int_fd         ;          // watch interrupts (^C and hang up)
+static Fd             _g_watch_fd       ;          // watch LMAKE/server
 static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
@@ -53,7 +64,7 @@ void report_server( Fd fd , bool running ) {
 bool/*crashed*/ start_server(bool start) {
 	bool  crashed = false    ;
 	pid_t pid     = getpid() ;
-	Trace trace("start_server",_g_host,pid) ;
+	Trace trace("start_server",_g_host,pid,STR(start)) ;
 	dir_guard(ServerMrkr) ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	if ( +mrkr.first && mrkr.first!=_g_host ) {
@@ -81,13 +92,14 @@ bool/*crashed*/ start_server(bool start) {
 		//^^^^^^^^^^^^^^^^^^^^^^
 		_g_server_running = true ;                 // while we link, pretend we run so cleanup can be done if necessary
 		fence() ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_g_server_running = ::link( tmp.c_str() , ServerMrkr )==0 ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
 		unlink(tmp) ;
 		trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
-	} {
-		_g_server_running = true ;                 // while we link, pretend we run so cleanup can be done if necessary
+	} else {
+		_g_server_running = true ;
 	}
 	return crashed ;
 }
@@ -109,20 +121,19 @@ void record_targets(Job job) {
 	}
 }
 
-void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
+void reqs_thread_func(::stop_token stop) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback    stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                      // transform request_stop into an event we wait for
-	::umap<Fd,IMsgBuf> in_tab  ;
-	Epoll              epoll   { New }                                                 ;
+	::stop_callback    stop_cb  { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                                 // transform request_stop into an event we wait for
+	::umap<Fd,IMsgBuf> in_tab   ;
+	Epoll              epoll    { New }                                                 ;
 	//
 	epoll.add_read( _g_server_fd , EventKind::Master ) ;
-	epoll.add_read( int_fd       , EventKind::Int    ) ;
+	epoll.add_read( _g_int_fd    , EventKind::Int    ) ;
 	//
-	if ( Fd server_stop_fd=::inotify_init1(O_CLOEXEC) ; +server_stop_fd )
-		if (inotify_add_watch( server_stop_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 )
-			epoll.add_read( server_stop_fd , EventKind::Int ) ;                                               // if server marker is touched by user, we do as we received a ^C
+	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 )
+			epoll.add_read( _g_watch_fd , EventKind::Watch ) ;                                                            // if server marker is touched by user, we do as we received a ^C
 	//
 	if (!_g_is_daemon) {
 		in_tab[Fd::Stdin] ;
@@ -146,15 +157,18 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 					SWEAR( !new_fd , new_fd ) ;
 					new_fd = true ;
 				break ;
-				case EventKind::Int : {
+				case EventKind::Int   :
+				case EventKind::Watch : {
 					if (stop.stop_requested()) {
 						trace("stop_requested") ;
 						goto Done ;
 					}
-					trace("int") ;
-					struct signalfd_siginfo _ ;
-					ssize_t cnt = ::read(int_fd,&_,sizeof(_)) ;
-					SWEAR( cnt==sizeof(_) , cnt ) ;
+					trace("int",kind) ;
+					switch (kind) {
+						case EventKind::Int   : { struct signalfd_siginfo event ; ssize_t cnt = ::read(_g_int_fd  ,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
+						case EventKind::Watch : { struct inotify_event    event ; ssize_t cnt = ::read(_g_watch_fd,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
+						default : FAIL(kind) ;
+					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace_urgent(GlobalProc::Int) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -172,9 +186,9 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					} else {
 						trace("close",fd) ;
-						epoll.del(fd) ;                                                                       // must precede close(fd)
+						epoll.del(fd) ;                                                                                   // must precede close(fd)
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , out_fd ) ;                        // this will close out_fd when done writing to it
+						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , out_fd ) ;                                    // this will close out_fd when done writing to it
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						in_tab.erase(fd) ;
 					}
@@ -183,19 +197,19 @@ void reqs_thread_func( ::stop_token stop , Fd int_fd ) {
 			}
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                                               // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                                                           // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = Fd(_g_server_fd.accept()) ;
 			trace("new_req",slave_fd) ;
-			in_tab[slave_fd] ;                                                                                // allocate entry
+			in_tab[slave_fd] ;                                                                                            // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ;
 			report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                            // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                                        // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -376,8 +390,8 @@ int repair() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init() ;                                                            // server is always launched at root
-	Py::init(true/*multi-thread*/) ;
+	app_init() ;                                                                            // server is always launched at root
+	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
 		FAIL(*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s) ;
@@ -402,7 +416,7 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	Fd int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                              // must be done before app_init so that all threads block the signal
+	_g_int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                              // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;
@@ -430,7 +444,7 @@ int main( int argc , char** argv ) {
 	}
 	Codec::Closure::s_init() ;
 	//
-	static ::jthread reqs_thread{ reqs_thread_func , int_fd } ;
+	static ::jthread reqs_thread { reqs_thread_func } ;
 	//
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;

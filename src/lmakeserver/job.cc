@@ -239,7 +239,9 @@ namespace Engine {
 	void JobExec::give_up( Req req , bool report ) {
 		Trace trace("give_up",*this,req) ;
 		if (+req) {
-			(*this)->make( (*this)->req_info(req) , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
+			ReqInfo& ri = (*this)->req_info(req) ;
+			ri.mark_end() ;
+			(*this)->make( ri , RunAction::None , {}/*reason*/ , {}/*asking*/ , Yes/*speculate*/ , MakeAction::GiveUp ) ;
 			if (report)
 				for( Req r : (*this)->running_reqs(false/*with_zombies*/) ) {
 					SWEAR(r!=req) ;
@@ -542,21 +544,7 @@ namespace Engine {
 			(*this)->exec_time = digest.stats.total ;
 			rule.new_job_exec_time( digest.stats.total , (*this)->tokens1 ) ;
 		}
-		for( Req req : running_reqs_ ) {
-			ReqInfo& ri = (*this)->req_info(req) ;
-			switch (ri.step) {
-				case JobStep::Queued :
-					req->stats.cur(JobStep::Queued)-- ;
-					req->stats.cur(JobStep::Exec  )++ ;
-				[[fallthrough]] ;
-				case JobStep::Exec :
-					ri.n_wait-- ;
-					ri.step = JobStep::End ;             // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
-				break ;
-				default :
-					FAIL(ri.step) ;
-			}
-		}
+		for( Req req : running_reqs_ ) (*this)->req_info(req).mark_end() ;
 		bool      all_done   = true ;
 		JobReason err_reason ;
 		for( Req req : running_reqs_ ) {

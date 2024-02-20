@@ -47,6 +47,7 @@ namespace Time {
 		//
 	public :
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
+		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=sec() , .tv_usec=usec_in_s() } ; return tv                          ; }
 //		constexpr explicit operator T       () const {                                                       return sec()                       ; }
 		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
 		constexpr explicit operator float   () const {                                                       return float (_val)/TicksPerSecond ; }

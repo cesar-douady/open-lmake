@@ -91,15 +91,14 @@ private :
 	::jthread _thread ;                // ensure _thread is last so other fields are constructed when it starts
 } ;
 
-ENUM(EventKind
-,	Std
+ENUM(ServerThreadEventKind
 ,	Master
 ,	Slave
-,	Int
 ,	Stop
 )
 template<class Req> struct ServerThread {
 	using Ddate = Time::Ddate ;
+	using EventKind = ServerThreadEventKind ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,Fd)> func ) {
 		static constexpr uint64_t One = 1 ;

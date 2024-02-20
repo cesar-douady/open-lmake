@@ -5,7 +5,6 @@
 
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
-#include "pycxx.hh"
 #include "re.hh"
 
 #include "store/prefix.hh"
@@ -89,31 +88,33 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                   bool/*updated*/ acquire( bool       & dst , PyObject* py_src                                                                                           ) ;
-		/**/                   bool/*updated*/ acquire( Time::Delay& dst , PyObject* py_src , Time::Delay min=Time::Delay::Lowest        , Time::Delay max=Time::Delay::Highest       ) ;
-		template<::integral I> bool/*updated*/ acquire( I          & dst , PyObject* py_src , I           min=::numeric_limits<I>::min() , I           max=::numeric_limits<I>::max() ) ;
-		template<StdEnum    E> bool/*updated*/ acquire( E          & dst , PyObject* py_src                                                                                           ) ;
+		/**/                   bool/*updated*/ acquire( bool       & dst , Py::Object const* py_src                                                                                           ) ;
+		/**/                   bool/*updated*/ acquire( Time::Delay& dst , Py::Object const* py_src , Time::Delay min=Time::Delay::Lowest        , Time::Delay max=Time::Delay::Highest       ) ;
+		template<::integral I> bool/*updated*/ acquire( I          & dst , Py::Object const* py_src , I           min=::numeric_limits<I>::min() , I           max=::numeric_limits<I>::max() ) ;
+		template<StdEnum    E> bool/*updated*/ acquire( E          & dst , Py::Object const* py_src                                                                                           ) ;
 		//
-		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , PyObject* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) ;
+		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) ;
 		//
-		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key ) {
+		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key ) {
 			try {
-				if      constexpr (IsOneOf<T,::string            >) {                       return acquire<         Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
-				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       return acquire<::string,Env>( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
-				else                                                { static_assert(!Env) ; return acquire              ( dst , PyDict_GetItemString(py_dct,key.c_str()) ) ; }
+				if      constexpr (IsOneOf<T,::string            >) {                       if (py_dct.contains(key)) return acquire<         Env>( dst , &py_dct[key] ) ; else return false ; }
+				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       if (py_dct.contains(key)) return acquire<::string,Env>( dst , &py_dct[key] ) ; else return false ; }
+				else                                                { static_assert(!Env) ; if (py_dct.contains(key)) return acquire              ( dst , &py_dct[key] ) ; else return false ; }
 			} catch (::string const& e) {
 				throw to_string("while processing ",key," : ",e) ;
 			}
 		}
-		template<class T> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key , T min ) {
-				return acquire( dst , PyDict_GetItemString(py_dct,key.c_str()) , min ) ;
+		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min ) {
+				if (py_dct.contains(key)) return acquire( dst , &py_dct[key] , min ) ;
+				else                      return false                              ;
 		}
-		template<class T> bool/*update*/ acquire_from_dct( T& dst , PyObject* py_dct , ::string const& key , T min , T max ) {
-				return acquire( dst , PyDict_GetItemString(py_dct,key.c_str()) , min , max ) ;
+		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min , T max ) {
+				if (py_dct.contains(key)) return acquire( dst , &py_dct[key] , min , max ) ;
+				else                      return false                                    ;
 		}
-		static inline void acquire_env( ::vmap_ss& dst , PyObject* py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
+		static inline void acquire_env( ::vmap_ss& dst , Py::Dict const& py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
 		//
 		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) ;
 	} ;
@@ -126,18 +127,18 @@ namespace Engine {
 			Dflags   dflags  ;
 		} ;
 		// services
-		void init( bool is_dynamic , PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		// data
-		bool              full_dynamic = false ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys
-		::vmap_s<DepSpec> deps         ;
+		bool              full_dynamic = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
+		::vmap_s<DepSpec> deps         ;        // ... if full_dynamic, we are not initialized, so be ready by default
 	} ;
 
 	// used at match time, but participate in nothing
 	struct CreateNoneAttrs {
 		static constexpr const char* Msg = "create ancillary attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			size_t tokens = 0/*garbage*/ ;
 			Attrs::acquire_from_dct( tokens , py_dct , "job_tokens" ) ;
 			if      (tokens==0                              ) tokens1 = 0                                ;
@@ -153,8 +154,8 @@ namespace Engine {
 		static constexpr const char* Msg = "submit resources attributes" ;
 		static void s_canon(::vmap_ss& rsrcs) ;                            // round and cannonicalize standard resources
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) {
 				::sort(rsrcs) ;                                            // stabilize rsrcs crc
@@ -171,8 +172,8 @@ namespace Engine {
 	struct SubmitNoneAttrs {
 		static constexpr const char* Msg = "submit ancillary attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( n_retries , py_dct , "n_retries" ) ;
 		}
 		// data
@@ -183,8 +184,8 @@ namespace Engine {
 	struct CacheNoneAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( key , py_dct , "key" ) ;
 			if ( +key && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
@@ -196,8 +197,8 @@ namespace Engine {
 	struct StartCmdAttrs {
 		static constexpr const char* Msg = "execution command attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( auto_mkdir  , py_dct , "auto_mkdir"  ) ;
 			Attrs::acquire_from_dct( chroot      , py_dct , "chroot"      ) ;
@@ -237,8 +238,8 @@ namespace Engine {
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		void update(                       PyObject* py_dct                                      ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void update(                       Py::Dict const& py_dct                                      ) {
 			Attrs::acquire_from_dct( cmd , py_dct , "cmd" ) ;
 		}
 		// data
@@ -246,14 +247,14 @@ namespace Engine {
 		::string decorator ;
 	} ;
 	namespace Attrs {
-		bool/*updated*/ acquire( DbgEntry& dst , PyObject* py_src ) ;
+		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
 	}
 
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( method  , py_dct , "autodep"                        ) ;
 			Attrs::acquire_from_dct( timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_env     ( env     , py_dct , "env"                            ) ;
@@ -270,8 +271,8 @@ namespace Engine {
 	struct StartNoneAttrs {
 		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( keep_tmp    , py_dct , "keep_tmp"                           ) ;
 			Attrs::acquire_from_dct( start_delay , py_dct , "start_delay" , Time::Delay()/*min*/ ) ;
@@ -292,8 +293,8 @@ namespace Engine {
 	struct EndCmdAttrs {
 		static constexpr const char* Msg = "end command attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( allow_stderr , py_dct , "allow_stderr" ) ;
 		}
 		// data
@@ -304,8 +305,8 @@ namespace Engine {
 	struct EndNoneAttrs {
 		static constexpr const char* Msg = "end ancillary attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& ) { update(py_src) ; }
-		void update(                       PyObject* py_dct                           ) {
+		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update(                       Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len" , size_t(1) ) ;
 		}
 		// data
@@ -318,11 +319,11 @@ namespace Engine {
 	// the part of the Dynamic struct which is stored on disk
 	template<class T> struct DynamicDsk {
 		// statics
-		static bool     s_is_dynamic(PyObject*        ) ;
+		static bool     s_is_dynamic(Py::Tuple const& ) ;
 		static ::string s_exc_msg   (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
-		template<class... A> DynamicDsk( PyObject* , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
+		template<class... A> DynamicDsk( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,is_dynamic) ;
@@ -346,21 +347,21 @@ namespace Engine {
 		using Base::code_str   ;
 		using Base::ctx        ;
 		// statics
-		static bool s_is_dynamic(PyObject*) ;
+		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{src.glbs} , code{src.code} { Py_XINCREF(glbs)   ; Py_XINCREF(code)   ; }       // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{src.glbs} , code{src.code} { src.glbs = nullptr ; src.code = nullptr ; }       // .
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                  // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                  // .
 		Dynamic& operator=(Dynamic const& src) {                                                                                                         // .
 			Base::operator=(src) ;
-			Py_XDECREF(glbs) ; glbs = src.glbs ; Py_XINCREF(glbs) ;
-			Py_XDECREF(code) ; code = src.code ; Py_XINCREF(code) ;
+			glbs = src.glbs ;
+			code = src.code ;
 			return *this ;
 		}
 		Dynamic& operator=(Dynamic&& src) {                                                                                                              // .
 			Base::operator=(::move(src)) ;
-			Py_XDECREF(glbs) ; glbs = src.glbs ; src.glbs = nullptr ;
-			Py_XDECREF(code) ; code = src.code ; src.code = nullptr ;
+			glbs = ::move(src.glbs) ;
+			code = ::move(src.code) ;
 			return *this ;
 		}
 		// services
@@ -378,17 +379,17 @@ namespace Engine {
 			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 	protected :
-		PyObject* _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
-		PyObject* _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {                                                     // cannot lazy evaluate w/o a job
+		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
+		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {                                           // cannot lazy evaluate w/o a job
 			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;
 		}
 		// data
 	private :
-		mutable ::mutex _glbs_mutex ; // ensure glbs is not used for several jobs simultaneously
+		mutable ::mutex _glbs_mutex ;    // ensure glbs is not used for several jobs simultaneously
 	public :
 		// not stored on disk
-		PyObject* glbs = nullptr ;    // if is_dynamic <=> dict to use as globals when executing code
-		PyObject* code = nullptr ;    // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
+		Py::Ptr<Py::Dict> mutable glbs ; // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
+		Py::Ptr<Py::Code>         code ; // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
 	struct DynamicDepsAttrs : Dynamic<DepsAttrs> {
@@ -638,64 +639,52 @@ namespace Engine {
 
 	namespace Attrs {
 
-		template<::integral I> bool/*updated*/ acquire( I& dst , PyObject* py_src , I min , I max ) {
-			if (!py_src        ) {           return false ; }
-			if (py_src==Py_None) { dst = 0 ; return true  ; }
+		template<::integral I> bool/*updated*/ acquire( I& dst , Py::Object const* py_src , I min , I max ) {
+			if (!py_src          ) {           return false ; }
+			if (*py_src==Py::None) { dst = 0 ; return true  ; }
 			//
-			PyObject* py_src_long = PyNumber_Long(py_src) ;
-			if (!py_src_long) throw "cannot convert to an int"s ;
-			int  ovrflw = 0                                             ;
-			long v      = PyLong_AsLongAndOverflow(py_src_long,&ovrflw) ;
-			Py_DECREF(py_src_long) ;
-			if (ovrflw              ) throw "overflow when converting to an int"s ;
-			if (::cmp_less   (v,min)) throw "underflow"s                          ;
-			if (::cmp_greater(v,max)) throw "overflow"s                           ;
+			long v = py_src->as_a<Py::Int>() ;
+			if (::cmp_less   (v,min)) throw "underflow"s ;
+			if (::cmp_greater(v,max)) throw "overflow"s  ;
 			dst = I(v) ;
 			return true ;
 		}
 
-		template<StdEnum E> bool/*updated*/ acquire( E& dst , PyObject* py_src ) {
-			if (!py_src        ) {                 return false ; }
-			if (py_src==Py_None) { dst = E::Dflt ; return true  ; }
+		template<StdEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
+			if (!py_src          ) {                 return false ; }
+			if (*py_src==Py::None) { dst = E::Dflt ; return true  ; }
 			//
-			if (!PyUnicode_Check(py_src)) throw "not a str"s ;
-			dst = mk_enum<E>(PyUnicode_AsUTF8(py_src)) ;
+			dst = mk_enum<E>(py_src->as_a<Py::Str>()) ;
 			return true ;
 		}
 
-		template<bool Env> bool/*updated*/ acquire( ::string& dst , PyObject* py_src ) {
-			if ( !py_src                 )                                               return false ;
-			if (  Env && py_src==Py_None ) {                          dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
-			if ( !Env && py_src==Py_None ) { if (!dst) return false ; dst = {}         ; return true  ; }
+		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
+			if ( !py_src                   )                                               return false ;
+			if (  Env && *py_src==Py::None ) {                          dst = EnvDynMrkr ; return true  ; } // special case environment variable to mark dynamic values
+			if ( !Env && *py_src==Py::None ) { if (!dst) return false ; dst = {}         ; return true  ; }
 			//
-			bool is_str = PyUnicode_Check(py_src) ;
-			if (!is_str) py_src = PyObject_Str(py_src) ;
-			if (!py_src) throw "cannot convert to str"s ;
-			if (Env) dst = env_encode(PyUnicode_AsUTF8(py_src)) ;                                         // for environment, replace occurrences of lmake & root absolute paths par markers ...
-			else     dst =            PyUnicode_AsUTF8(py_src)  ;                                         // ... so as to make repo rebust to moves of lmake or itself
-			if (!is_str) Py_DECREF(py_src) ;
+			if (Env) dst = env_encode(*py_src->str()) ;                                                     // for environment, replace occurrences of lmake & root absolute paths par markers ...
+			else     dst =            *py_src->str()  ;                                                     // ... so as to make repo rebust to moves of lmake or itself
 			return true ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , PyObject* py_src ) {
-			if (!py_src        )             return false ;
-			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
+		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
+			if (!py_src          )             return false ;
+			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
-			bool updated = false ;
-			if (!PySequence_Check(py_src)) throw "not a sequence"s ;
-			PyObject* fast_val = PySequence_Fast(py_src,"") ;
-			SWEAR(fast_val) ;
-			size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
-			PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
+			bool                updated = false                        ;
+			Py::Sequence const& py_seq  = py_src->as_a<Py::Sequence>() ;
+			size_t              n       = py_seq.size()                ;
 			if (n!=dst.size()) {
 				updated = true ;
 				dst.resize(n) ;
 			}
-			for( size_t i=0 ; i<n ; i++ ) {
-				if (p[i]==Py_None) continue ;
+			size_t i = 0 ;
+			for( auto py_item : py_seq ) {
+				if (*py_item==Py::None) continue ;
 				try {
-					if constexpr (Env) updated |= acquire<Env>(dst[i],p[i]) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
-					else               updated |= acquire     (dst[i],p[i]) ; // ... to make repo robust to moves of lmake or itself
+					if constexpr (Env) updated |= acquire<Env>(dst[i++],py_item) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               updated |= acquire     (dst[i++],py_item) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw to_string("for item ",i," : ",e) ;
 				}
@@ -703,21 +692,17 @@ namespace Engine {
 			return updated ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , PyObject* py_src ) {
-			if (!py_src        )             return false ;
-			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
+		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
+			if (!py_src          )             return false ;
+			if (*py_src==Py::None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
-			bool updated = false ;
-			::map_s<T> map = mk_map(dst) ;
-			if (!PyDict_Check(py_src)) throw "not a dict"s ;
-			PyObject*  py_key = nullptr/*garbage*/ ;
-			PyObject*  py_val = nullptr/*garbage*/ ;
-			ssize_t    pos    = 0                  ;
-			while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
-				if (!PyUnicode_Check(py_key)) throw "key is not a str"s ;
-				const char* key = PyUnicode_AsUTF8(py_key) ;
+			bool            updated = false                   ;
+			::map_s<T>      map     = mk_map(dst)             ;
+			Py::Dict const& py_map = py_src->as_a<Py::Dict>() ;
+			for( auto [py_key,py_val] : py_map ) {
+				::string key = py_key->template as_a<Py::Str>() ;
 				if constexpr (Env)
-					if (py_val==Py::g_ellipsis) {
+					if (*py_val==Py::Ellipsis) {
 						updated  = true        ;
 						map[key] = EnvPassMrkr ;                                    // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
 						continue ;
@@ -741,38 +726,34 @@ namespace Engine {
 	// Dynamic
 	//
 
-	template<class T> bool DynamicDsk<T>::s_is_dynamic(PyObject* py_src) {
-		SWEAR(PyTuple_Check(py_src)) ;
-		ssize_t sz = PyTuple_GET_SIZE(py_src) ;
+	template<class T> bool DynamicDsk<T>::s_is_dynamic(Py::Tuple const& py_src) {
+		ssize_t sz = py_src.size() ;
 		switch (sz) {
 			case 1  :
 				return false ;
 			case 2  :
-				SWEAR(PySequence_Check(PyTuple_GET_ITEM(py_src,1))) ;
+				SWEAR(py_src[1].is_a<Py::Sequence>()) ;
 				return false ;
 			case 4  :
-				SWEAR(PySequence_Check(PyTuple_GET_ITEM(py_src,1))) ;
-				SWEAR(PyUnicode_Check (PyTuple_GET_ITEM(py_src,2))) ;
-				SWEAR(PyUnicode_Check (PyTuple_GET_ITEM(py_src,3))) ;
+				SWEAR(py_src[1].is_a<Py::Sequence>()) ;
+				SWEAR(py_src[2].is_a<Py::Str     >()) ;
+				SWEAR(py_src[3].is_a<Py::Str     >()) ;
 				return true ;
 			default :
 				FAIL(sz) ;
 		}
 	}
 
-	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) :
-		is_dynamic{ s_is_dynamic(py_src)                                           }
-	,	glbs_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,2)) : "" }
-	,	code_str  { is_dynamic ? PyUnicode_AsUTF8(PyTuple_GET_ITEM(py_src,3)) : "" }
+	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) :
+		is_dynamic{ s_is_dynamic(py_src)                                   }
+	,	glbs_str  { is_dynamic ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
+	,	code_str  { is_dynamic ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
 	{
-		spec.init( is_dynamic , PyTuple_GET_ITEM(py_src,0) , var_idxs , ::forward<A>(args)... ) ;
-		if (PyTuple_GET_SIZE(py_src)<=1) return ;
-		PyObject* fast_val = PySequence_Fast(PyTuple_GET_ITEM(py_src,1),"") ;
-		SWEAR(fast_val) ;
-		size_t     n = size_t(PySequence_Fast_GET_SIZE(fast_val)) ;
-		PyObject** p =        PySequence_Fast_ITEMS   (fast_val)  ;
-		for( size_t i=0 ; i<n ; i++ ) {
-			CmdIdx ci = var_idxs.at(PyUnicode_AsUTF8(p[i])) ;
+		if (py_src[0]!=Py::None) spec.init( is_dynamic , &py_src[0].as_a<Py::Dict>() , var_idxs , ::forward<A>(args)... ) ;
+		if (py_src.size()<=1    ) return ;
+		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
+		for( auto item : py_src[1].as_a<Py::Sequence>() ) {
+			CmdIdx ci = var_idxs.at(item->as_a<Py::Str>()) ;
 			ctx.push_back(ci) ;
 		}
 		::sort(ctx) ; // stabilize crc's
@@ -781,16 +762,8 @@ namespace Engine {
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		code = Py_CompileString( code_str.c_str() , "<code>" , Py_eval_input ) ;
-		if (!code) throw to_string("cannot compile code :\n",indent(Py::err_str(),1)) ;
-		Py_INCREF(code) ;                                                               // avoid problems at finalization
-		glbs = Py::eval_dict(true/*printed_expr*/) ;
-		Py_INCREF(glbs) ;                                                               // .
-		if (+glbs_str) {
-			PyObject* val = PyRun_String(glbs_str.c_str(),Py_file_input,glbs,glbs) ;
-			if (!val) throw to_string("cannot compile context :\n",indent(Py::err_str(),1)) ;
-			Py_DECREF(val) ;
-		}
+		try { code = code_str             ; code->boost() ; } catch (::string const& e) { throw to_string("cannot compile code :\n"   ,indent(e,1)) ; }
+		try { glbs = Py::py_run(glbs_str) ; glbs->boost() ; } catch (::string const& e) { throw to_string("cannot compile context :\n",indent(e,1)) ; }
 	}
 
 	static inline void _eval( Job j , Rule::SimpleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
@@ -849,47 +822,39 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> PyObject* Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::vector_s to_del ;
 		eval_ctx( job , match , rsrcs
 		,	[&]( VarCmd , VarIdx , ::string const& key , ::string const& val ) -> void {
-				PyObject* py_str = PyUnicode_FromString(val.c_str()) ;
-				SWEAR(py_str) ;                                                                    // else, we are in trouble
-				swear(PyDict_SetItemString( glbs , key.c_str() , py_str )==0) ;                    // else, we are in trouble
-				Py_DECREF(py_str) ;                                                                // py_v is not stolen by PyDict_SetItemString
+				glbs->set_item(key,*Py::Ptr<Py::Str>(val)) ;
 				to_del.push_back(key) ;
 			}
 		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
-				PyObject* py_dct = PyDict_New() ; SWEAR(py_dct) ;
-				for( auto const& [k,v] : val ) {
-					PyObject* py_v = PyUnicode_FromString(v.c_str()) ;
-					SWEAR(py_v) ;                                                                  // else, we are in trouble
-					swear(PyDict_SetItemString( py_dct , k.c_str() , py_v )==0) ;                  // else, we are in trouble
-					Py_DECREF(py_v) ;                                                              // py_v is not stolen by PyDict_SetItemString
-				}
-				swear(PyDict_SetItemString( glbs , key.c_str() , py_dct )==0) ;                    // else, we are in trouble
-				Py_DECREF(py_dct) ;                                                                // py_v is not stolen by PyDict_SetItemString
+				Py::Ptr<Py::Dict> py_dct { New } ;
+				for( auto const& [k,v] : val ) py_dct->set_item(k,*Py::Ptr<Py::Str>(v)) ;
+				glbs->set_item(key,*py_dct) ;
 				to_del.push_back(key) ;
 			}
 		) ;
-		//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		PyObject* d = PyEval_EvalCode( code , glbs , nullptr ) ;
-		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( ::string const& key : to_del ) swear(PyDict_DelItemString( glbs , key.c_str() )==0) ; // else, we are in trouble, delete job-related info, just to avoid percolation to other jobs
-		//
-		if (!d) throw Py::err_str() ;
-		return d ;
+		Py::Ptr<Py::Object> res      ;
+		::string            err_str  ;
+		bool                seen_err = false ;
+		//                                vvvvvvvvvvvvvvvvv
+		try                       { res = code->eval(*glbs) ;       }
+		//                                ^^^^^^^^^^^^^^^^^
+		catch (::string const& e) { err_str = e ; seen_err = true ; }
+		for( ::string const& key : to_del ) glbs->del_item(key) ;     // delete job-related info, just to avoid percolation to other jobs, even in case of error
+		if (seen_err) throw err_str ;
+		return res ;
 	}
 
 	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
 		if (!is_dynamic) return spec ;
-		T         res = spec                        ;
-		Py::Gil   gil ;
-		PyObject* d   = _eval_code(job,match,rsrcs) ;
-		res.update(d) ;
-		Py_DECREF(d)  ;
+		T       res = spec ;
+		Py::Gil gil ;
+		res.update(_eval_code(job,match,rsrcs)->template as_a<Py::Dict>()) ;
 		return res  ;
 	}
 

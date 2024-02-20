@@ -10,7 +10,6 @@
 #include <sys/socket.h>
 
 #include "time.hh"
-#include "utils.hh"
 
 ::string host() ;
 
@@ -186,13 +185,13 @@ struct ClientSockFd : SockFd {
 	using SockFd::SockFd ;
 	template<class... A> ClientSockFd(A&&... args) { connect(::forward<A>(args)...) ; }
 	// services
-	void connect( in_addr_t       server , in_port_t port , int n_trials=1 ) ;
-	void connect( ::string const& server , in_port_t port , int n_trials=1 ) {
-		connect( s_addr(server) , port , n_trials ) ;
+	void connect( in_addr_t       server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) ;
+	void connect( ::string const& server , in_port_t port , int n_trials=1 , Time::Delay timeout={} ) {
+		connect( s_addr(server) , port , n_trials , timeout ) ;
 	}
-	void connect( ::string const& service , int n_trials=1 ) {
+	void connect( ::string const& service , int n_trials=1 , Time::Delay timeout={} ) {
 		::pair_s<in_port_t> host_port = s_host_port(service) ;
-		connect( host_port.first , host_port.second , n_trials ) ;
+		connect( host_port.first , host_port.second , n_trials , timeout ) ;
 	}
 } ;
 

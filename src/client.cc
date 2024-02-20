@@ -32,7 +32,7 @@ static void connect_to_server(bool refresh) {
 	bool     server_is_local = false          ;
 	pid_t    server_pid      = 0              ;
 	Pdate    now             = Pdate::s_now() ;
-	for ( int i=0 ; i<10 ; i++ ) {
+	for ( int i=0 ; i<3 ; i++ ) {
 		trace("try_old",i) ;
 		// try to connect to an existing server
 		{	::ifstream server_mrkr_stream { ServerMrkr } ;
@@ -47,7 +47,7 @@ static void connect_to_server(bool refresh) {
 					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
 					server_is_local = true                                                                                           ;
 				}
-				ClientSockFd req_fd{server_service} ;
+				ClientSockFd req_fd { server_service , 3/*n_trials*/ , Delay(3)/*timeout*/ } ;
 				if (server_ok(req_fd,"old")) {
 					g_server_fds = ::move(req_fd) ;
 					return ;
@@ -79,12 +79,9 @@ static void connect_to_server(bool refresh) {
 		now.sleep_until() ;
 	}
 	::string kill_server_msg ;
-	if (+server_service) {
-		::string server_host = SockFd::s_host(server_service) ;
-		if ( server_is_local) kill_server_msg = to_string("ssh ",SockFd::s_host(server_service),' ') ;
-	}
-	if (server_pid      ) kill_server_msg += to_string("kill ",server_pid       ) ;
-	if (+kill_server_msg) kill_server_msg  = to_string('\t',kill_server_msg,'\n') ;
+	if ( +server_service && !server_is_local ) kill_server_msg  = to_string("ssh ",SockFd::s_host(server_service),' ') ;
+	if ( server_pid                          ) kill_server_msg += to_string("kill ",server_pid       )                 ;
+	if ( +kill_server_msg                    ) kill_server_msg  = to_string('\t',kill_server_msg,'\n')                 ;
 	trace("cannot_connect",server_service,kill_server_msg) ;
 	exit(2
 	,	"cannot connect to server, consider :\n"

@@ -159,14 +159,6 @@ SRC       := src
 LMAKE_ENV := lmake_env
 STORE_LIB := $(SRC)/store
 
-# PYCXX
-PYCXX             := ext/pycxx-7.1.7.patched
-PYCXX_ROOT        := $(PYCXX)/pycxx-7.1.7
-PYCXX_HOME        := $(PYCXX_ROOT)/home
-PYCXX_LIB         := $(PYCXX_HOME)/lib
-PYCXX_CXX         := $(PYCXX_HOME)/share/python$(PYTHON_VERSION)/CXX
-PYCXX_INCLUDE_DIR := $(PYCXX_HOME)/include/python
-
 sys_config.h : sys_config
 	CC=$(CC) PYTHON=$(PYTHON) PYTHON_LD_LIBRARY_PATH=$(PYTHON_LD_LIBRARY_PATH) ./$< >$@ 2>$@.err
 
@@ -266,8 +258,6 @@ ALL : DFLT STORE_TEST $(DOC)/lmake.html
 %.inc_stamp : % # prepare a stamp to be included, so as to force availability of a file w/o actually including it
 	>$@
 
-EXT : $(PYCXX).test.stamp
-
 ext/%.dir.stamp : ext/%.tar.gz
 	@rm -rf $(@:%.stamp=%)
 	@mkdir -p $(@:%.stamp=%)
@@ -320,25 +310,6 @@ LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)
 LMAKE        : LMAKE_SERVER LMAKE_REMOTE
 
 #
-# PYCXX
-#
-
-$(PYCXX).install.stamp : $(PYCXX).stamp
-	rm -rf $(PYCXX_HOME)
-	cd $(PYCXX_ROOT) ; $(PYTHON) setup.py install --home=$(ROOT_DIR)/$(PYCXX_HOME)
-	mv $(PYCXX_CXX)/cxxextensions.c $(PYCXX_CXX)/cxxextensions.cxx                 # painful to provide compilation rules for both .c and .cxx
-	ln -s . $(PYCXX_CXX)/Src                                                       # support files include files starting with Src which is not installed
-	touch $@
-$(PYCXX_LIB)/%$(SAN).o : $(PYCXX).install.stamp
-	$(COMPILE) $(CXXFLAGS) $(SAN_FLAGS) -fPIC $(COMPILE_OPTIONS) -o $@ $(@:$(PYCXX_LIB)/%$(SAN).o=$(PYCXX_CXX)/%.cxx)
-$(PYCXX).test.stamp : $(PYCXX).stamp
-	cd $(@:%.test.stamp=%.patched) ; $(PYTHON) setup_makefile.py linux Makefile
-	cd $(@:%.test.stamp=%.patched) ; make clean ; make -j8 test
-	touch $@
-$(PYCXX_LIB)/pycxx$(SAN).o : $(patsubst %,$(PYCXX_LIB)/%$(SAN).o, cxxsupport cxx_extensions cxx_exceptions cxxextensions IndirectPythonInterface )
-	$(LINK_O) $(SAN_FLAGS) -fPIC -o $@ $^
-
-#
 # store
 #
 
@@ -368,39 +339,45 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process pycxx re rpc_client rpc_job serialize thread time trace utils )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process py re rpc_client rpc_job serialize thread time trace utils    )
 AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ptrace record                                                                                         )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                    )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x )
 BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                               )
 
-ALL_H         := sys_config.h $(PYCXX).install.stamp ext/xxhash.patched.h
+ALL_H         := sys_config.h ext/xxhash.patched.h
 ALL_TOP_H     := $(ALL_H) $(SLIB_H) $(AUTODEP_H)
 ALL_ENGINE_H  := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
 ALL_BACKEND_H := $(ALL_TOP_H) $(ENGINE_H) $(BACKEND_H)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-COMPILE_OPTIONS := $(PYTHON_COMPILE_OPTIONS) -I ext -I $(PYCXX_INCLUDE_DIR) -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
+COMPILE_OPTIONS_PY2 := $(PYTHON2_COMPILE_OPTIONS) -I ext -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
+COMPILE_OPTIONS     := $(PYTHON_COMPILE_OPTIONS)  -I ext -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
 
-$(BACKEND_LIB)/%.san.o : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
-$(BACKEND_LIB)/%.i     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(BACKEND_LIB)/%.s     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(BACKEND_LIB)/%.o     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
+$(BACKEND_LIB)/%.san.o : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.i     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.s     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.o     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
-$(ENGINE_LIB)/%.san.o  : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
-$(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(ENGINE_LIB)/%.s      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
+$(ENGINE_LIB)/%.san.o  : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.s      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
-$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
-$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
+$(SRC)/%_py2.san.o     : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.i         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.s         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
 
-%.san.o                : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
-%.i                    : %.cc                $(ALL_H)         ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-%.s                    : %.cc                $(ALL_H)         ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS) -o $@ $<
-%.o                    : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS) -o $@ $<
+$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+
+%.san.o                : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+%.i                    : %.cc                $(ALL_H)         ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+%.s                    : %.cc                $(ALL_H)         ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+%.o                    : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
 #
 # lmake
@@ -413,14 +390,10 @@ $(SRC)/autodep/ld_preload.% : $(SRC)/autodep/ld.cc $(SRC)/autodep/syscall.cc
 $(SRC)/autodep/ld_audit.%   : $(SRC)/autodep/ld.cc $(SRC)/autodep/syscall.cc
 $(SRC)/autodep/ptrace.%     :                      $(SRC)/autodep/syscall.cc
 
-$(SRC)/autodep/clmake2.% : $(SRC)/autodep/clmake.cc
-$(SRC)/autodep/clmake2.% : COMPILE_OPTIONS := $(PYTHON2_COMPILE_OPTIONS) -I ext -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
-
 $(SBIN)/lmakeserver : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
-	$(PYCXX_LIB)/pycxx$(SAN).o                                   \
 	$(SRC)/app$(SAN).o                                           \
-	$(SRC)/pycxx$(SAN).o                                         \
+	$(SRC)/py$(SAN).o                                            \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/trace$(SAN).o                                         \
@@ -452,9 +425,8 @@ $(BIN)/lrepair : $(SBIN)/lmakeserver
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
-	$(PYCXX_LIB)/pycxx$(SAN).o                  \
 	$(SRC)/app$(SAN).o                          \
-	$(SRC)/pycxx$(SAN).o                        \
+	$(SRC)/py$(SAN).o                           \
 	$(SRC)/rpc_client$(SAN).o                   \
 	$(SRC)/rpc_job$(SAN).o                      \
 	$(SRC)/trace$(SAN).o                        \
@@ -486,9 +458,8 @@ $(SBIN)/ldump_job : \
 
 $(SBIN)/job_exec : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
-	$(PYCXX_LIB)/pycxx$(SAN).o         \
 	$(SRC)/app$(SAN).o                 \
-	$(SRC)/pycxx$(SAN).o               \
+	$(SRC)/py$(SAN).o                  \
 	$(SRC)/rpc_job$(SAN).o             \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
@@ -657,20 +628,22 @@ $(SLIB)/ld_audit.so : \
 
 ifneq ($(PYTHON2),)
 $(LIB)/clmake2.so : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/rpc_job.o         \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
-	$(SRC)/autodep/clmake2.o
+	$(LMAKE_BASIC_OBJS)     \
+	$(SRC)/py_py2.o         \
+	$(SRC)/rpc_job.o        \
+	$(SRC)/autodep/env.o    \
+	$(SRC)/autodep/record.o \
+	$(SRC)/autodep/clmake_py2.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(PYTHON2_LINK_OPTIONS) $(LINK_LIB)
 endif
 
 $(LIB)/clmake.so : \
-	$(LMAKE_BASIC_OBJS)      \
-	$(SRC)/rpc_job.o         \
-	$(SRC)/autodep/env.o     \
-	$(SRC)/autodep/record.o  \
+	$(LMAKE_BASIC_OBJS)     \
+	$(SRC)/py.o             \
+	$(SRC)/rpc_job.o        \
+	$(SRC)/autodep/env.o    \
+	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)

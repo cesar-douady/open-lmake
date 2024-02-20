@@ -4,12 +4,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <ifaddrs.h>                   // struct ifaddrs, getifaddrs, freeifaddrs
-#include <netdb.h>                     // NI_NOFQDN, struct addrinfo, getnameinfo, getaddrinfo, freeaddrinfo
+#include <ifaddrs.h> // struct ifaddrs, getifaddrs, freeifaddrs
+#include <netdb.h>   // NI_NOFQDN, struct addrinfo, getnameinfo, getaddrinfo, freeaddrinfo
 
 #include "fd.hh"
-
-#include "time.hh"
 
 using namespace Time ;
 
@@ -41,13 +39,13 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 			time_t wait_max = ::numeric_limits<int>::max()/1000 - 1 ;
 			if ((wait_overflow=(wait_s>wait_max))) wait_s = wait_max ;
 			wait_ms  = wait_s                    * 1'000      ;
-			wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;                // protect against possible conversion to time_t which may be unsigned
+			wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;               // protect against possible conversion to time_t which may be unsigned
 		} else {
 			wait_ms = timeout_ns ? -1 : 0 ;
 		}
 		cnt_ = ::epoll_wait( fd , events.data() , cnt , wait_ms ) ;
 		switch (cnt_) {
-			case  0 : if (!wait_overflow)             return {}     ; break ;  // timeout
+			case  0 : if (!wait_overflow)             return {}     ; break ; // timeout
 			case -1 : SWEAR( errno==EINTR , errno ) ;                 break ;
 			default : events.resize(cnt_) ;           return events ;
 		}
@@ -69,8 +67,8 @@ ostream& operator<<( ostream& os , Epoll::Event const& e ) {
 	return buf ;
 }
 
-::string const& SockFd::s_host(in_addr_t a) {                                  // implement a cache as getnameinfo implies network access and can be rather long
-	static ::umap<in_addr_t,::string> s_tab{{NoSockAddr,""}} ;                 // pre-populate to return empty for local accesses
+::string const& SockFd::s_host(in_addr_t a) {                  // implement a cache as getnameinfo implies network access and can be rather long
+	static ::umap<in_addr_t,::string> s_tab{{NoSockAddr,""}} ; // pre-populate to return empty for local accesses
 	//
 	auto it = s_tab.find(a) ;
 	if (it==s_tab.end()) {
@@ -93,34 +91,50 @@ SlaveSockFd ServerSockFd::accept() {
 	return slave_fd ;
 }
 
-void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials ) {
+void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , Delay timeout ) {
 	if (!*this) init() ;
 	swear_prod(fd>=0,"cannot create socket") ;
-	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;            // else use adequate htons/htonl according to the sizes
+	static_assert( sizeof(in_port_t)==2 && sizeof(in_addr_t)==4 ) ;                            // else use adequate htons/htonl according to the sizes
 	struct sockaddr_in sa = s_sockaddr(server,port) ;
+	Pdate end      ;
+	bool  too_late = false ;
 	for( int i=n_trials ; i>0 ; i-- ) {
-		if ( ::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) return ;                   // success
-		if ( i>1                                                                      ) Delay(0.001).sleep_for() ; // wait a little bit before retrying if not last trial
+		if (+timeout) {
+			Pdate now = Pdate::s_now() ;
+			if (!end    )   end = now + timeout ;
+			if (now>=end) { too_late = true ; break ; }                                        // this cannot happen on first iteration, so we are guaranteed to try at least once
+			Pdate::TimeVal to ( end-now ) ;
+			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;
+		}
+		if ( ::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) {
+			if (+timeout) {
+				Pdate::TimeVal to {} ;
+				::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(Pdate::TimeVal) ) ; // restore no timeout
+			}
+			return ;                                                                           // success
+		}
+		if (i>1) Delay(0.001).sleep_for() ;                                                    // wait a little bit before retrying if not last trial
 	}
-	int en = errno ;                                                           // catch errno before any other syscall
+	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if (n_trials>1) throw to_string(strerror(en)," after ",n_trials," trials") ;
-	else            throw to_string(strerror(en)                             ) ;
+	if      (too_late  ) throw to_string(strerror(en)," after ",timeout.short_str()) ;
+	else if (n_trials>1) throw to_string(strerror(en)," after ",n_trials," trials" ) ;
+	else                 throw to_string(strerror(en)                              ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr  = 0     ;                                              // address being decoded
-		int       byte  = 0     ;                                              // ensure component is less than 256
-		int       n     = 0     ;                                              // ensure there are 4 components
-		bool      first = true  ;                                              // prevent empty components
-		bool      last  = false ;                                              // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr  = 0     ;                                                                       // address being decoded
+		int       byte  = 0     ;                                                                       // ensure component is less than 256
+		int       n     = 0     ;                                                                       // ensure there are 4 components
+		bool      first = true  ;                                                                       // prevent empty components
+		bool      last  = false ;                                                                       // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
 				if (n>=4 ) goto Next ;
 				if (first) goto Next ;
-				addr  = (addr<<8) | byte ;                                     // network order is big endian
+				addr  = (addr<<8) | byte ;                                                              // network order is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -160,7 +174,7 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		struct addrinfo* ai ;
 		int              rc  = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
 		if (rc!=0) throw to_string("cannot get addr of ",server," (",rc,')') ;
-		static_assert(sizeof(in_addr_t)==4) ;                                                 // else use adequate ntohl/ntohs
+		static_assert(sizeof(in_addr_t)==4) ;                                                           // else use adequate ntohl/ntohs
 		in_addr_t addr = ::ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ;
 		freeaddrinfo(ai) ;
 		return addr ;

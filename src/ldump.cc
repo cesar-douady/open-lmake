@@ -16,7 +16,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	if (argc!=1) exit(2,"must be called without arg") ;
 	app_init() ;
-	Py::init() ;
+	Py::init(*g_lmake_dir) ;
 	//
 	Persistent::new_config({}/*config*/,false/*dynamic*/) ;
 	//

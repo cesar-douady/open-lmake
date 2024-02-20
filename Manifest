@@ -31,8 +31,6 @@ docker/rocky9.docker
 docker/ubuntu20.docker
 docker/ubuntu22.docker
 ext/cxxopts.hpp
-ext/pycxx-7.1.7.patch_script
-ext/pycxx-7.1.7.tar.gz
 ext/xxhash.h
 ext/xxhash.patch_script
 lmake_env/Lmakefile.py
@@ -42,7 +40,6 @@ src/app.cc
 src/app.hh
 src/autodep/autodep.cc
 src/autodep/clmake.cc
-src/autodep/clmake2.cc
 src/autodep/env.cc
 src/autodep/env.hh
 src/autodep/gather_deps.cc
@@ -114,8 +111,8 @@ src/non_portable.cc
 src/non_portable.hh
 src/process.cc
 src/process.hh
-src/pycxx.cc
-src/pycxx.hh
+src/py.cc
+src/py.hh
 src/re.hh
 src/rpc_client.cc
 src/rpc_client.hh

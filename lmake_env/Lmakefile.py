@@ -204,9 +204,9 @@ class Marker(BaseRule) :
 		open(MRKR,'w')
 
 basic_opts_tab = {
-	'c'   : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing',                   '-std=c99'  )
-,	'cc'  : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # on some systems, we there is a warning type-limits
-,	'cxx' : ('-g','-O3','-Wall','-Wextra','-pedantic','-fno-strict-aliasing','-Wno-type-limits','-std=c++20') # .
+	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                   '-std=c99'  )
+,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-std=c++20') # on some systems, there is a warning type-limits
+,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-std=c++20') # .
 }
 def run_gcc(target,*args) :
 		cmd_line = ( gcc , '-o' , target , '-fdiagnostics-color=always' , *args )
@@ -269,16 +269,6 @@ class LinkExe(GccRule) :
 	rev_post_opts = ('-lstdc++','-lm')
 
 #
-# ext libraries
-#
-
-pycxx = 'pycxx-7.1.7'
-objs = ('cxxsupport','cxx_extensions','cxx_exceptions','cxxextensions','IndirectPythonInterface')
-class LinkPycxx(LinkO) :
-	targets = { 'TARGET' : 'ext/{Pycxx:pycxx-[0-9.]*}.patched_dir/{Pycxx}/pycxx.o' }
-	deps    = { f:f'ext/{{Pycxx}}.patched_dir/{{Pycxx}}/Src/{f}.o' for f in objs   }
-
-#
 # application
 #
 
@@ -337,11 +327,11 @@ class CpyLmakePy(BaseRule) :
 		sys.stdout.write(txt)
 
 opt_tab.update({
-	r'.*'                 : ( '-I'         , sysconfig.get_path("include")                                  )
-,	r'src/.*'             : ( '-iquote'    , f'ext_lnk/{pycxx}.patched_dir/{pycxx}' , '-iquote' , 'ext_lnk' )
-,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'              ,                       )
+	r'.*'                 : ( '-I'         , sysconfig.get_path("include")   )
+,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                       )
+,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     , )
 	# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'                                          )
+,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'           )
 })
 
 class Link(BaseRule) :
@@ -389,8 +379,7 @@ class LinkAutodep(LinkAutodepEnv) :
 
 class LinkPythonAppExe(LinkAppExe) :
 	deps = {
-		'PYCXX'  : f'ext/{pycxx}.patched_dir/{pycxx}/pycxx.o'
-	,	'PYCXX_' : 'src/pycxx.o'
+		'PY' : 'src/py.o'
 	}
 	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
 

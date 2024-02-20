@@ -12,9 +12,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN                                apt-get install -y build-essential ed git python2 python3-dev texinfo python3-numba
 RUN                                apt-get install -y libseccomp-dev
 
+# gcc
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends g++-11
+RUN apt-get update
+RUN apt-get install -y gdb # practical but not required
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 USER    1001:1001

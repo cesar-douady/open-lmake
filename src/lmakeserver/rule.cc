@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "pycxx.hh"
-
 #include "serialize.hh"
 
 #include "core.hh"
@@ -12,7 +10,9 @@
 namespace Engine {
 
 	using namespace Disk ;
+	using namespace Py   ;
 	using namespace Re   ;
+	using namespace Time ;
 
 	ENUM( StarAction
 	,	None
@@ -168,37 +168,31 @@ namespace Engine {
 		_parse_target( str , [&](FileNameIdx,VarIdx s)->void { cb(s) ; } ) ;
 	}
 
-	template<class F,class EF> static void _mk_flags( ::string const& key , PyObject** p , ssize_t n , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags ) {
-		for( ssize_t i=0 ; i<n ; i++ ) {
-			if (PyUnicode_Check(p[i])) {
-				const char* flag_str = PyUnicode_AsUTF8(p[i]) ;
-				bool        neg      = flag_str[0]=='-'       ;
-				flag_str += neg ;                                                                                                       // suppress initial - sign
+	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags ) {
+		for( auto item : py_seq ) {
+			if (n_skip>0) { n_skip-- ; continue ; }
+			if (item->is_a<Str>()) {
+				::string flag_str = item->as_a<Str>() ;
+				bool     neg      = flag_str[0]=='-'  ;
+				if (neg) flag_str = flag_str.substr(1) ; // suppress initial - sign
+				//
 				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F::NRule     ) ) flags      .set(f ,!neg) ;
 				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<n_extra_flags) ) extra_flags.set(ef,!neg) ;
 				else                                                                                         throw to_string("unexpected flag ",flag_str," for ",key) ;
-			} else if (PySequence_Check(p[i])) {
-				PyObject* py_fast_dep = PySequence_Fast(p[i],"") ;
-				SWEAR(py_fast_dep) ;
-				PyObject** p2 = PySequence_Fast_ITEMS   (py_fast_dep) ;
-				ssize_t    n2 = PySequence_Fast_GET_SIZE(py_fast_dep) ;
-				_mk_flags( key , p2 , n2 , flags , extra_flags , n_extra_flags ) ;
+			} else if (item->is_a<Sequence>()) {
+				_mk_flags( key , item->as_a<Sequence>() , 0 , flags , extra_flags , n_extra_flags ) ;
 			} else {
 				throw to_string(key,"has a flag that is not a str") ;
 			}
 		}
 	}
-	template<class F,class EF> static ::string _split_flags( ::string const& key , PyObject* py , int hdr_sz , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=EF::N ) {
-		if ( PyUnicode_Check (py)) return PyUnicode_AsUTF8(py) ;
-		if (!PySequence_Check(py)) throw to_string(key," is neither a str nor a sequence") ;
-		PyObject* py_fast = PySequence_Fast(py,"") ;
-		SWEAR(py_fast) ;
-		ssize_t    n = PySequence_Fast_GET_SIZE(py_fast) ;
-		PyObject** p = PySequence_Fast_ITEMS   (py_fast) ;
-		SWEAR(n>=hdr_sz,key,n) ;
-		SWEAR(PyUnicode_Check(p[0]),key) ;
-		_mk_flags( key , p+hdr_sz , n-hdr_sz , flags , extra_flags , n_extra_flags ) ;
-		return PyUnicode_AsUTF8(p[0]) ;
+	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=EF::N ) {
+		if (py.is_a<Str>()) return py.as_a<Str>() ;
+		Sequence const& py_seq = py.as_a<Sequence>() ;
+		SWEAR(py_seq.size()>=n_skip          ,key) ;
+		SWEAR(py_seq[0].is_a<Str>(),key) ;
+		_mk_flags( key , py_seq , n_skip , flags , extra_flags , n_extra_flags ) ;
+		return py_seq[0].as_a<Str>() ;
 	}
 
 	//
@@ -232,51 +226,37 @@ namespace Engine {
 
 	namespace Attrs {
 
-		bool/*updated*/ acquire( bool& dst , PyObject* py_src ) {
-			if (!py_src        ) {           return false ;                              }
-			if (py_src==Py_None) { if (!dst) return false ; dst = false ; return true  ; }
+		bool/*updated*/ acquire( bool& dst , Object const* py_src ) {
+			if (!py_src      ) {           return false ;                              }
+			if (*py_src==None) { if (!dst) return false ; dst = false ; return true  ; }
 			//
-			int v = PyObject_IsTrue(py_src) ;
-			if (v==-1) throw "cannot determine truth value"s ;
-			dst = v ;
+			dst = +*py_src ;
 			return true ;
 		}
 
-		bool/*updated*/ acquire( Delay& dst , PyObject* py_src , Delay min , Delay max ) {
-			if (!py_src        ) {           return false ;                           }
-			if (py_src==Py_None) { if (!dst) return false ; dst = {} ; return true  ; }
+		bool/*updated*/ acquire( Delay& dst , Object const* py_src , Delay min , Delay max ) {
+			if (!py_src      ) {           return false ;                           }
+			if (*py_src==None) { if (!dst) return false ; dst = {} ; return true  ; }
 			//
-			if (PyFloat_Check(py_src)) {
-				dst = Time::Delay(PyFloat_AsDouble(py_src)) ;
-			} else if (PyLong_Check(py_src)) {
-				long sd = PyLong_AsLong(py_src) ;
-				if ( sd==-1 && PyErr_Occurred() ) { PyErr_Clear() ; throw "overflow"s  ; }
-				dst = Delay(sd) ;
-				if ( dst<min                    )                   throw "underflow"s ;
-				if ( dst>max                    )                   throw "overflow"s  ;
-			} else if (PyUnicode_Check(py_src)) {
-				PyObject* f = PyFloat_FromString(py_src) ;
-				if (!f) throw "cannot convert to float"s ;
-				dst = Time::Delay(PyFloat_AsDouble(f)) ;
-				Py_DECREF(f) ;
-			} else {
-				throw "cannot convert to float"s ;
-			}
+			double d = 0 ;
+			if      (py_src->is_a<Float>()) d =             py_src->as_a<Float>()  ;
+			else if (py_src->is_a<Str  >()) d = *Ptr<Float>(py_src->as_a<Str  >()) ;
+			else                            throw "cannot convert to float"s ;
+			dst = Delay(d) ;
+			if (dst<min) throw "underflow"s ;
+			if (dst>max) throw "overflow"s  ;
 			return true ;
 		}
 
-		bool/*updated*/ acquire( DbgEntry& dst , PyObject* py_src ) {
-			if (!py_src        ) {                          return false ;                           }
-			if (py_src==Py_None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
+		bool/*updated*/ acquire( DbgEntry& dst , Object const* py_src ) {
+			if (!py_src      ) {                          return false ;                           }
+			if (*py_src==None) { if (!dst.first_line_no1) return false ; dst = {} ; return true  ; }
 			//
-			if (!PySequence_Check(py_src)) throw "not a sequence"s ;
-			PyObject* fast_val = PySequence_Fast(py_src,"")                 ; SWEAR(fast_val  ) ;
-			size_t     n       = size_t(PySequence_Fast_GET_SIZE(fast_val)) ; SWEAR(n==4    ,n) ;
-			PyObject** p       =        PySequence_Fast_ITEMS   (fast_val)  ;
-			acquire(dst.module        ,p[0]                 ) ;
-			acquire(dst.qual_name     ,p[1]                 ) ;
-			acquire(dst.filename      ,p[2]                 ) ;
-			acquire(dst.first_line_no1,p[3],size_t(1)/*min*/) ;
+			Sequence const& py_seq = py_src->as_a<Sequence>() ;
+			acquire(dst.module        ,&py_seq[0].as_a<Str>()                 ) ;
+			acquire(dst.qual_name     ,&py_seq[1].as_a<Str>()                 ) ;
+			acquire(dst.filename      ,&py_seq[2].as_a<Str>()                 ) ;
+			acquire(dst.first_line_no1,&py_seq[3].as_a<Int>(),size_t(1)/*min*/) ;
 			return true ;
 		}
 
@@ -342,26 +322,20 @@ namespace Engine {
 		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                              // normal case : interpreter is outside repo typically system python or bash
 		bad("outside repository and all source dirs must be suppressed") ;
 	}
-	void DepsAttrs::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dynamic = py_src==Py_None ;
-		if (full_dynamic) return ;
+	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+		full_dynamic = false ;                                                                                                                           // if full dynamic, we are not initialized
 		//
-		SWEAR(PyDict_Check(py_src)) ;
-		PyObject*  py_key = nullptr/*garbage*/ ;
-		PyObject*  py_val = nullptr/*garbage*/ ;
-		Py_ssize_t pos    = 0                  ;
-		while (PyDict_Next( py_src , &pos , &py_key , &py_val )) {
-			SWEAR(PyUnicode_Check(py_key)) ;
-			::string key = PyUnicode_AsUTF8(py_key) ;
-			if (py_val==Py_None) {
+		for( auto [py_key,py_val] : py_src->as_a<Dict>() ) {
+			::string key = py_key->template as_a<Str>() ;
+			if (*py_val==None) {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed  = 0                                                                               ;
-			Dflags      df         { Dflag::Essential , Dflag::Static }                                              ;
+			VarIdx      n_unnamed  = 0                                                                                ;
+			Dflags      df         { Dflag::Essential , Dflag::Static }                                               ;
 			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
-			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                 ;
+			::string    dep        = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
+			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                  ;
 			//
 			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
 			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
@@ -383,34 +357,22 @@ namespace Engine {
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , AccDflags(a,ds.dflags) ) ) ;
 		//
 		if (is_dynamic) {
-			Py::Gil   gil    ;
-			PyObject* py_dct = _eval_code(match) ;
+			Gil             gil      ;
+			Ptr<Dict>       py_dct   = _eval_code(match) ;
 			::map_s<VarIdx> dep_idxs ;
 			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-			PyObject*  py_key = nullptr/*garbage*/ ;
-			PyObject*  py_val = nullptr/*garbage*/ ;
-			Py_ssize_t pos    = 0                  ;
-			while (PyDict_Next( py_dct , &pos , &py_key , &py_val )) {
-				if (py_val==Py_None) continue ;
-				if (!PyUnicode_Check(py_key)) {
-					PyObject* py_key_str = PyObject_Str(py_key) ;
-					Py_DECREF(py_dct) ;
-					if (!py_key_str) throw "a dep has a non printable key"s ;
-					::string key_str = PyUnicode_AsUTF8(py_key_str) ;
-					Py_DECREF(py_key_str) ;
-					throw to_string("a dep has a non str key : ",key_str) ;
-				}
-				::string    key = PyUnicode_AsUTF8(py_key)                                                        ;
-				Dflags      df  { Dflag::Essential , Dflag::Static }                                              ;
+			for( auto [py_key,py_val] : *py_dct ) {
+				if (*py_val==None) continue ;
+				::string key = py_key->as_a<Str>() ;
+				Dflags      df  { Dflag::Essential , Dflag::Static }                                               ;
 				ExtraDflags edf ;
-				::string    dep = _split_flags( "dep "+key , py_val , 1/*hdr_sz*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
+				::string    dep = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
 				match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 				_qualify_dep( key , dep , DepKind::Dep ) ;
 				::pair_s<AccDflags> e { dep , {a,df} } ;
 				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
-				else                   {                                      res[dep_idxs.at(key)].second = e ; } // if not full_dynamic, all deps must be listed in spec
+				else                                                          res[dep_idxs.at(key)].second = e ;   // if not full_dynamic, all deps must be listed in spec
 			}
-			Py_DECREF(py_dct) ;
 		}
 		//
 		return res  ;
@@ -441,10 +403,10 @@ namespace Engine {
 	// Cmd
 	//
 
-	void Cmd::init( bool /*is_dynamic*/ , PyObject* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+	void Cmd::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		::string raw_cmd ;
-		Attrs::acquire_from_dct( raw_cmd   , py_src , "cmd"       ) ;
-		Attrs::acquire_from_dct( decorator , py_src , "decorator" ) ;
+		Attrs::acquire_from_dct( raw_cmd   , *py_src , "cmd"       ) ;
+		Attrs::acquire_from_dct( decorator , *py_src , "decorator" ) ;
 		if (rd.is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
@@ -458,11 +420,10 @@ namespace Engine {
 		Rule r = +job ? job->rule : match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
 			if (!is_dynamic) return {parse_fstr(spec.cmd,job,match/*lazy*/,rsrcs),{}} ;
-			Py::Gil   gil    ;
-			PyObject* cmd_py = _eval_code(job,match/*lazy*/,rsrcs) ;
-			::string  cmd    ;
-			Attrs::acquire(cmd,cmd_py) ;
-			Py_DECREF(cmd_py)  ;
+			Gil      gil    ;
+			Ptr<Str> py_cmd = _eval_code(job,match/*lazy*/,rsrcs) ;
+			::string cmd    ;
+			Attrs::acquire(cmd,py_cmd) ;
 			return {cmd,{}} ;
 		}
 		::string res ;
@@ -619,15 +580,15 @@ namespace Engine {
 			//
 			//
 			field = "__special__" ;
-			if (dct.hasKey(field)) {
-				special = mk_enum<Special>(Py::String(dct[field])) ;
+			if (dct.contains(field)) {
+				special = mk_enum<Special>(dct[field].as_a<Str>()) ;
 				if (special<=Special::Shared) throw to_string("unexpected value for __special__ attribute : ",special) ;
 			} else {
 				special = Special::Plain ;
 			}
-			field = "name" ; if (dct.hasKey(field)) name  = Py::String(dct[field]) ; else throw "not found"s ;
-			field = "prio" ; if (dct.hasKey(field)) prio  = Py::Float (dct[field]) ;
-			field = "cwd"  ; if (dct.hasKey(field)) cwd_s = Py::String(dct[field]) ;
+			field = "name" ; if (dct.contains(field)) name  = dct[field].as_a<Str  >() ; else throw "not found"s ;
+			field = "prio" ; if (dct.contains(field)) prio  = dct[field].as_a<Float>() ;
+			field = "cwd"  ; if (dct.contains(field)) cwd_s = dct[field].as_a<Str  >() ;
 			if (+cwd_s) {
 				if (cwd_s.back ()!='/') cwd_s += '/' ;
 				if (cwd_s.front()=='/') {
@@ -641,9 +602,9 @@ namespace Engine {
 			::umap_ss      stem_defs  ;
 			::map_s<Bool3> stem_stars ;                                                                // ordered so that stems are ordered, Maybe means stem is used both as static and star
 			field = "stems" ;
-			if (dct.hasKey(field))
-				for( auto const& [k,v] : Py::Dict(dct[field]) )
-					stem_defs.emplace( ::string(Py::String(k)) , ::string(Py::String(v)) ) ;
+			if (dct.contains(field))
+				for( auto [k,v] : dct[field].as_a<Dict>() )
+					stem_defs.emplace( ::string(k->as_a<Str>()) , ::string(v->as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
 			size_t unnamed_star_idx = 1 ;                                                                              // free running while walking over job_name + targets
@@ -658,20 +619,19 @@ namespace Engine {
 				}
 			} ;
 			field = "job_name" ;
-			if (!dct.hasKey(field)) throw "not found"s ;
-			job_name = Py::String(dct[field]) ;
+			if (!dct.contains(field)) throw "not found"s ;
+			job_name = dct[field].as_a<Str>() ;
 			_parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void { augment_stems(k,star,re,false/*star_only*/) ; }
 			) ;
 			field = "matches" ;
-			if (!dct.hasKey(field)) throw "not found"s ;
-			Py::Dict py_matches{dct[field]} ;
+			if (!dct.contains(field)) throw "not found"s ;
 			::string job_name_key ;
 			::string job_name_msg = "job_name" ;
-			for( auto const& [py_k,py_tkfs] : py_matches ) {
-				field = Py::String(py_k) ;
-				::string  target =                    Py::String(Py::Sequence(py_tkfs)[0])  ;                          // .
-				MatchKind kind   = mk_enum<MatchKind>(Py::String(Py::Sequence(py_tkfs)[1])) ;                          // targets are a tuple (target_pattern,kind,flags...)
+			for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
+				field = py_k->as_a<Str>() ;
+				::string  target =                    py_tkfs->as_a<Sequence>()[0].as_a<Str>()  ;                      // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs->as_a<Sequence>()[1].as_a<Str>()) ;                      // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					_parse_py( target , &unnamed_star_idx ,
@@ -708,21 +668,21 @@ namespace Engine {
 				::vmap_s<MatchEntry> static_matches[+MatchKind::N] ;                                                   // defer star matches so that static targets are put first
 				bool                 seen_top                      = false ;
 				bool                 seen_target                   = false ;
-				for( auto const& [py_k,py_tkfs] : Py::Dict(dct[field]) ) {                                             // targets are a tuple (target_pattern,flags...)
-					field = Py::String(py_k) ;
-					Py::Sequence pyseq_tkfs         { py_tkfs }                                     ;
-					::string     target             =                    Py::String(pyseq_tkfs[0])  ;                  // .
-					MatchKind    kind               = mk_enum<MatchKind>(Py::String(pyseq_tkfs[1])) ;                  // targets are a tuple (target_pattern,kind,flags...)
-					bool         is_star            = false                                         ;
-					::set_s      missing_stems      ;
-					bool         is_target          = kind!=MatchKind::DepFlags                     ;
-					bool         is_official_target = kind==MatchKind::Target                       ;
-					bool         is_stdout          = field=="<stdout>"                             ;
-					Tflags       tflags             ;
-					Dflags       dflags             ;
-					ExtraTflags  extra_tflags       ;
-					ExtraDflags  extra_dflags       ;
-					MatchFlags   flags              ;
+				for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                 // targets are a tuple (target_pattern,flags...)
+					field = py_k->as_a<Str>() ;
+					Sequence const& pyseq_tkfs         = py_tkfs->as_a<Sequence>()                     ;
+					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;               // .
+					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;               // targets are a tuple (target_pattern,kind,flags...)
+					bool            is_star            = false                                         ;
+					::set_s         missing_stems      ;
+					bool            is_target          = kind!=MatchKind::DepFlags                     ;
+					bool            is_official_target = kind==MatchKind::Target                       ;
+					bool            is_stdout          = field=="<stdout>"                             ;
+					Tflags          tflags             ;
+					Dflags          dflags             ;
+					ExtraTflags     extra_tflags       ;
+					ExtraDflags     extra_dflags       ;
+					MatchFlags      flags              ;
 					//
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
@@ -748,8 +708,8 @@ namespace Engine {
 					if ( !is_star                       ) tflags |= Tflag::Static    ;
 					if (             is_official_target ) tflags |= Tflag::Target    ;
 					if ( !is_star && is_official_target ) tflags |= Tflag::Essential ;                                 // static targets are essential by default
-					if ( is_target                      ) { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
-					else                                  { _split_flags( mk_snake(kind) , pyseq_tkfs.ptr() , 2/*hdr_sz*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
+					if ( is_target                      ) { _split_flags( mk_snake(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
+					else                                  { _split_flags( mk_snake(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
 					if ( target.starts_with(root_dir_s)             ) throw to_string(mk_snake(kind)," must be relative to root dir : "         ,target) ;
 					if ( !is_lcl(target)                            ) throw to_string(mk_snake(kind)," must be local : "                        ,target) ;
@@ -823,41 +783,41 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "interpreter" ; if (dct.hasKey(field)) Attrs::acquire( interpreter  ,            dct[field]       .ptr() ) ; if (!interpreter) throw "no interpreter found"s ;
-			field = "is_python"   ; if (dct.hasKey(field)) Attrs::acquire( is_python    ,            dct[field]       .ptr() ) ; else              throw "not found"s            ;
-			field = "n_tokens"    ; if (dct.hasKey(field)) Attrs::acquire( n_tokens_key , Py::Object(dct[field]).str().ptr() ) ;
+			field = "interpreter" ; if (dct.contains(field)) Attrs::acquire( interpreter  , &dct[field]       ) ; if (!interpreter) throw "no interpreter found"s ;
+			field = "is_python"   ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field]       ) ; else              throw "not found"s            ;
+			field = "n_tokens"    ; if (dct.contains(field)) Attrs::acquire( n_tokens_key ,  dct[field].str() ) ;
 			//
 			/**/                                          var_idxs["targets"        ] = {VarCmd::Targets,0 } ;
 			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = {VarCmd::Match  ,mi} ;
 			//
 			field = "deps" ;
-			if (dct.hasKey("deps_attrs")) deps_attrs = { Py::Object(dct["deps_attrs"]).ptr() , var_idxs , *this } ;
+			if (dct.contains("deps_attrs")) deps_attrs = { dct["deps_attrs"].as_a<Tuple>() , var_idxs , *this } ;
 			//
 			/**/                                                    var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d=0 ; d<deps_attrs.spec.deps.size() ; d++ ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "create_none_attrs"  ; if (dct.hasKey(field)) create_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "cache_none_attrs"   ; if (dct.hasKey(field)) cache_none_attrs   = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "submit_rsrcs_attrs" ; if (dct.hasKey(field)) submit_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs } ;
-			field = "submit_none_attrs"  ; if (dct.hasKey(field)) submit_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs } ;
+			field = "create_none_attrs"  ; if (dct.contains(field)) create_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
+			field = "cache_none_attrs"   ; if (dct.contains(field)) cache_none_attrs   = { dct[field].as_a<Tuple>() , var_idxs } ;
+			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
+			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
 			//
 			/**/                                                             var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r=0 ; r<submit_rsrcs_attrs.spec.rsrcs.size() ; r++ ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
-			field = "start_cmd_attrs"   ; if (dct.hasKey(field)) start_cmd_attrs   = { Py::Object(dct[field]).ptr() , var_idxs         } ;
-			field = "cmd"               ; if (dct.hasKey(field)) cmd               = { Py::Object(dct[field]).ptr() , var_idxs , *this } ; else throw "not found"s ;
-			field = "start_rsrcs_attrs" ; if (dct.hasKey(field)) start_rsrcs_attrs = { Py::Object(dct[field]).ptr() , var_idxs         } ;
-			field = "start_none_attrs"  ; if (dct.hasKey(field)) start_none_attrs  = { Py::Object(dct[field]).ptr() , var_idxs         } ;
-			field = "end_cmd_attrs"     ; if (dct.hasKey(field)) end_cmd_attrs     = { Py::Object(dct[field]).ptr() , var_idxs         } ;
-			field = "end_none_attrs"    ; if (dct.hasKey(field)) end_none_attrs    = { Py::Object(dct[field]).ptr() , var_idxs         } ;
+			field = "start_cmd_attrs"   ; if (dct.contains(field)) start_cmd_attrs   = { dct[field].as_a<Tuple>() , var_idxs         } ;
+			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , *this } ; else throw "not found"s ;
+			field = "start_rsrcs_attrs" ; if (dct.contains(field)) start_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs         } ;
+			field = "start_none_attrs"  ; if (dct.contains(field)) start_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs         } ;
+			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs         } ;
+			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			//
 			cmd_needs_deps = _get_cmd_needs_deps() ;
 			//
 			field = "dbg_info" ;
-			if (dct.hasKey(field)) Attrs::acquire( dbg_info , dct[field].ptr() ) ;
+			if (dct.contains(field)) Attrs::acquire( dbg_info , &dct[field] ) ;
 			//
-			field = "ete"   ; if (dct.hasKey(field)) exec_time = Delay(Py::Float (dct[field]))          ;
-			field = "force" ; if (dct.hasKey(field)) force     =       Py::Object(dct[field]).as_bool() ;
+			field = "ete"   ; if (dct.contains(field)) exec_time = Delay(dct[field].as_a<Float>()) ;
+			field = "force" ; if (dct.contains(field)) force     =      +dct[field]                ;
 			for( VarIdx mi=0 ; mi<n_static_targets ; mi++ ) {
 				if (matches[mi].first!="<stdout>") continue ;
 				stdout_idx = mi ;
@@ -870,7 +830,6 @@ namespace Engine {
 			}
 		}
 		catch(::string const& e) { throw to_string("while processing ",name,'.',field," :\n"  ,indent(e)     ) ; }
-		catch(Py::Exception & e) { throw to_string("while processing ",name,'.',field," :\n\t",e.errorValue()) ; }
 	}
 
 	TargetPattern RuleData::_mk_pattern( ::string const& target , bool for_name ) const {
