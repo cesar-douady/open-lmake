@@ -24,10 +24,9 @@
 
 struct GatherDeps {
 	friend ::ostream& operator<<( ::ostream& os , GatherDeps const& ad ) ;
-	using Accesses = Disk::Accesses ;
-	using Proc     = JobExecRpcProc ;
-	using Crc      = Hash::Crc      ;
-	using PD       = Time::Pdate    ;
+	using Proc = JobExecRpcProc ;
+	using Crc  = Hash::Crc      ;
+	using PD   = Time::Pdate    ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
@@ -100,7 +99,7 @@ private :
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
 	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
-		AccessDigest ad { Disk::Access::Reg , jrr.crc } ;
+		AccessDigest ad { Access::Reg , jrr.crc } ;
 		ad.crc(jrr.crc) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , ad , comment ) ;

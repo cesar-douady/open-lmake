@@ -273,8 +273,7 @@ static inline ::string to_string(const char*     s) { return  s  ; } // .
 static inline ::string to_string(char            c) { return {c} ; } // .
 static inline ::string to_string(                 ) { return {}  ; } // .
 
-using ::std::from_chars ;
-template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_chars( S const& txt , bool empty_ok=false , bool hex=false ) {
+template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
 	static constexpr bool IsBool = is_same_v<I,bool> ;
 	if ( empty_ok && !txt ) return 0 ;
 	::conditional_t<IsBool,size_t,I> res = 0/*garbage*/ ;
@@ -285,9 +284,9 @@ template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_ch
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
 	else                   return res ;
 }
-template<::integral I> static inline I from_chars( const char* txt , bool empty_ok=false , bool hex=false ) { return from_chars<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
+template<::integral I> static inline I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 //
-template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F from_chars( S const& txt , bool empty_ok=false ) {
+template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F from_string( S const& txt , bool empty_ok=false ) {
 	if ( empty_ok && !txt ) return 0 ;
 	F res = 0/*garbage*/ ;
 	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -296,7 +295,7 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F f
 	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
 	else                 return res ;
 }
-template<::floating_point F> static inline F from_chars( const char* txt , bool empty_ok=false ) { return from_chars<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
+template<::floating_point F> static inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
 
 ::string mk_py_str   ( ::string const&) ;
 ::string mk_shell_str( ::string const&) ;
@@ -391,24 +390,6 @@ static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_s
 		pos = end+1 ;                                 // after the sep
 	}
 	res.emplace_back(txt.substr(pos)) ;               // all the remaining as last component after n_sep sep's
-	return res ;
-}
-
-template<class... A> static inline ::string mk_snake(A const&... args) {
-	return mk_snake(to_string(args...)) ;
-}
-template<> inline ::string mk_snake<::string>(::string const& s) {
-	::string res           ; res.reserve(s.size()+2) ;             // 3 words is a reaonable pessimistic guess
-	bool     start_of_word = true ;
-	for( char c : s ) {
-		if (::isupper(c)) {
-			if (!start_of_word) res.push_back('_'         ) ;      // convert CamelCase to snake_case
-			/**/                res.push_back(::tolower(c)) ;
-		} else {
-			res.push_back(c) ;
-		}
-		start_of_word = !::isalnum(c) ;
-	}
 	return res ;
 }
 
@@ -519,6 +500,8 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 #define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
 #define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
 #define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
+
+#define DF default : FAIL() ; // for use at end of switch statements
 
 static inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
 	swear_prod(pid>1,"killing process ",pid) ;                                          // ensure no system wide catastrophe !
@@ -664,28 +647,111 @@ namespace std {
 // enum management
 //
 
-// use N as unknown val, efficient and practical
-// usage of iterator over E : for( E e : E::N ) {...}
-#define ENUM(   E ,                               ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N                    } ; _ENUM(E,#__VA_ARGS__)
-#define ENUM_1( E , eq1 ,                         ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1                } ; _ENUM(E,#__VA_ARGS__)
-#define ENUM_2( E , eq1 , eq2 ,                   ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1,eq2            } ; _ENUM(E,#__VA_ARGS__)
-#define ENUM_3( E , eq1 , eq2 , eq3 ,             ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1,eq2,eq3        } ; _ENUM(E,#__VA_ARGS__)
-#define ENUM_4( E , eq1 , eq2 , eq3 , eq4 ,       ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1,eq2,eq3,eq4    } ; _ENUM(E,#__VA_ARGS__)
-#define ENUM_5( E , eq1 , eq2 , eq3 , eq4 , eq5 , ... ) enum class E : uint8_t {__VA_ARGS__,N,Unknown=N,eq1,eq2,eq3,eq4,eq5} ; _ENUM(E,#__VA_ARGS__)
-#define _ENUM( E , vals_str ) \
-	[[maybe_unused]] static inline ::string const& _s_enum_name(E) { static ::string name_str = #E ; return name_str ; } \
-	[[maybe_unused]] static inline const char* _enum_name(E e) { \
-		static char        cvals[     ]            = vals_str                            ; \
-		static const char* tab  [+E::N]            = {}                                  ; \
-		static bool        inited [[maybe_unused]] = (_enum_split(tab,cvals,+E::N),true) ; \
-		return tab[+e] ;                                                                   \
-	} \
-	[[maybe_unused]] static inline ::ostream&      operator<<( ::ostream& os , E e ) { if (e<E::N) os << _enum_name(e) ; else os << "N+" << (e-E::N) ; return os ; } \
-	\
-	[[maybe_unused]] static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; } \
-	[[maybe_unused]] static inline EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
+// fine trick to count arguments with cpp
+#define _ENUM_N(...) _ENUM_N_(__VA_ARGS__, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define _ENUM_N_(                         _30,_29,_28,_27,_26,_25,_24,_23,_22,_21,_20,_19,_18,_17,_16,_15,_14,_13,_12,_11,_10,_9,_8,_7,_6,_5,_4,_3,_2,_1, n,...) n
 
-template<class E> concept StdEnum  = ::is_enum_v<E> && ::is_unsigned_v<underlying_type_t<E>> && requires() { E::N ; } ;
+template<class T> static constexpr bool IsStdEnum = false ; // unless specialized
+
+template<class T> concept StdEnum = IsStdEnum<T> ;
+
+template<size_t Sz> static constexpr ::array<char,Sz> _enum_split0(const char* comma_sep) {
+	::array<char,Sz> res ;
+	char* q   = res.data() ;
+	bool  sep = true       ;
+	for( const char* p=comma_sep ; *p ; p++ )
+		switch (*p) {
+			case ',' :
+			case ' ' : if (!sep) { *q++ = 0  ; sep = true  ; } break ; // one separator is enough
+			default  :             *q++ = *p ; sep = false ;
+		}
+	*q = 0 ;
+	return res ;
+}
+
+template<size_t Sz> static constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> const& camel0) { // at worst, snake inserts a _ before all chars, doubling the size
+	::array<char,Sz*2> res ;
+	char* q     = res.data() ;
+	bool  first = true       ;
+	for( char c : camel0 ) {
+		if ( 'A'<=c && c<='Z' ) { { if (!first) *q++ = '_' ; } *q++ = 'a'+(c-'A') ; }
+		else                                                   *q++ =      c      ;
+		first = !c ;
+	}
+	return res ;
+}
+
+template<size_t Sz,size_t VSz> static constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
+	::array<string_view,Sz> res  ;
+	const char*             item = vals.data() ;
+	for( size_t i=0 ; i<Sz ; i++ ) {
+		size_t len = 0 ; while (item[len]) len++ ;
+		res[i]  = {item,len} ;
+		item   += len+1      ; // point to the start of the next one (it will not be dereferenced at the end)
+	}
+	return res ;
+}
+
+template<StdEnum E> static constexpr uint8_t    N                  = 0 /*garbage*/ ;
+template<StdEnum E> static constexpr const char EnumName        [] = ""/*garbage*/ ;
+template<StdEnum E> static constexpr const char _EnumCamelsComma[] = ""/*garbage*/ ;
+
+template<StdEnum E> static constexpr E                                           All          = E(N<E>)                                                             ;
+template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)  > _EnumCamels0 = _enum_split0<     sizeof(_EnumCamelsComma<E>)>(_EnumCamelsComma<E>) ;
+template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)*2> _EnumSnakes0 = _enum_snake0                                  (_EnumCamels0    <E>) ;
+template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumCamels   = _enum_mk_tab<N<E>,sizeof(_EnumCamels0    <E>)>(_EnumCamels0    <E>) ;
+template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumSnakes   = _enum_mk_tab<N<E>,sizeof(_EnumSnakes0    <E>)>(_EnumSnakes0    <E>) ;
+
+template<StdEnum E> static inline ::ostream& operator<<( ::ostream& os , E e ) {
+	if (e<All<E>) return os << camel(e)        ;
+	else          return os << "N+"<<(+e-N<E>) ;
+}
+
+template<StdEnum E> ::string_view camel     (E e) { return          EnumCamels<E>[+e]        ; }
+template<StdEnum E> ::string_view snake     (E e) { return          EnumSnakes<E>[+e]        ; }
+template<StdEnum E> ::string      camel_str (E e) { return ::string(EnumCamels<E>[+e])       ; }
+template<StdEnum E> ::string      snake_str (E e) { return ::string(EnumSnakes<E>[+e])       ; }
+template<StdEnum E> const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
+template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
+
+template<StdEnum E> static inline ::umap_s<E> _mk_enum_tab() {
+	::umap_s<E> res ;
+	for( E e : All<E> ) {
+		res[camel_str(e)] = e ;
+		res[snake_str(e)] = e ;
+	}
+	return res ;
+}
+template<StdEnum E> static inline ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
+	static ::umap_s<E> const s_tab = _mk_enum_tab<E>() ;
+	auto it = s_tab.find(x) ;
+	if (it==s_tab.end()) return {{}        ,false/*ok*/} ;
+	else                 return {it->second,true /*ok*/} ;
+}
+
+template<StdEnum E> static inline bool can_mk_enum(::string const& x) {
+	return _mk_enum<E>(x).second ;
+}
+
+template<StdEnum E> static inline E mk_enum(::string const& x) {
+	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
+	if (!res.second) throw to_string("cannot make enum ",EnumName<E>," from ",x) ;
+	return res.first ;
+}
+
+// usage of iterator over E : for( E e : All<E> ) {...}
+#define ENUM(   E ,                               ... ) enum class E : uint8_t {__VA_ARGS__                    } ; _ENUM(E,__VA_ARGS__)
+#define ENUM_1( E , eq1 ,                         ... ) enum class E : uint8_t {__VA_ARGS__,eq1                } ; _ENUM(E,__VA_ARGS__)
+#define ENUM_2( E , eq1 , eq2 ,                   ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2            } ; _ENUM(E,__VA_ARGS__)
+#define ENUM_3( E , eq1 , eq2 , eq3 ,             ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2,eq3        } ; _ENUM(E,__VA_ARGS__)
+#define ENUM_4( E , eq1 , eq2 , eq3 , eq4 ,       ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2,eq3,eq4    } ; _ENUM(E,__VA_ARGS__)
+#define ENUM_5( E , eq1 , eq2 , eq3 , eq4 , eq5 , ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2,eq3,eq4,eq5} ; _ENUM(E,__VA_ARGS__)
+
+#define _ENUM(E,...) \
+	template<> constexpr bool       IsStdEnum       <E>   = true                 ; \
+	template<> constexpr uint8_t    N               <E>   = _ENUM_N(__VA_ARGS__) ; \
+	template<> constexpr const char EnumName        <E>[] = #E                   ; \
+	template<> constexpr const char _EnumCamelsComma<E>[] = #__VA_ARGS__         ;
 
 template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
@@ -703,10 +769,10 @@ template<StdEnum E> static inline constexpr E          operator++(E& e,int      
 template<StdEnum E> static inline constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
 template<StdEnum E> static inline constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
 //
-template<StdEnum E> static inline constexpr E  operator& (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::min(e,o) ; }
-template<StdEnum E> static inline constexpr E  operator| (E  e,E o) { SWEAR(e!=E::Unknown) ; SWEAR(o!=E::Unknown) ; return ::max(e,o) ; }
-template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o                                     ; return e          ; }
-template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o                                     ; return e          ; }
+template<StdEnum E> static inline constexpr E  operator& (E  e,E o) {           return ::min(e,o) ; }
+template<StdEnum E> static inline constexpr E  operator| (E  e,E o) {           return ::max(e,o) ; }
+template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o ; return e          ; }
+template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o ; return e          ; }
 //
 template<StdEnum E> static inline E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
 template<StdEnum E> static inline void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
@@ -714,7 +780,7 @@ template<StdEnum E> static inline void encode_enum( char* p , E e ) { encode_int
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
 	using Elem =       E     ;
-	using Val  = Uint<+E::N> ;
+	using Val  = Uint<N<E>>  ;
 	static const BitMap None ;
 	static const BitMap All  ;
 	// cxtors & casts
@@ -739,7 +805,7 @@ template<StdEnum E> struct BitMap {
 	constexpr bool    operator==( BitMap const&     ) const = default ;
 	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )      ;                 }
 	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )      ;                 }
-	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(+E::N)&~_val)  ;                 }
+	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val)   ;                 }
 	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)       ;                 }
 	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)       ;                 }
 	constexpr BitMap& operator&=( BitMap other      )       { *this = *this & other ; return *this ;                 }
@@ -755,42 +821,6 @@ template<StdEnum E> constexpr BitMap<E> BitMap<E>::None =  BitMap<E>() ;
 template<StdEnum E> constexpr BitMap<E> BitMap<E>::All  = ~BitMap<E>() ;
 //
 template<StdEnum E> static inline constexpr BitMap<E>   operator~(E e) { return ~BitMap<E>(e)  ; }
-
-static inline void _enum_split( const char** tab , char* str , size_t n ) {
-	const char* start = nullptr ;
-	size_t      i     = 0       ;
-	for( char* p=str ; *p ; p++ )
-		if ( is_space(*p) || *p==',' ) { if ( start) { tab[i++]=start ; *p=0 ; start = nullptr ; } }
-		else                           { if (!start) {                         start = p       ; } }
-	if (start) tab[i++] = start ;
-	SWEAR( i==n , i , n ) ;
-}
-
-template<StdEnum E> ::map_s<E> _mk_enum_tab() {
-	::map_s<E> res ;
-	for( E e : E::N ) {
-		::string s = _enum_name(e) ;
-		res[         s ] = e ;                                                       // CamelCase
-		res[mk_snake(s)] = e ;                                                       // snake_case
-	}
-	return res ;
-}
-template<StdEnum E> static inline ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
-	static map_s<E> const* s_tab = new ::map_s<E>{_mk_enum_tab<E>()} ;               // ensure table is never destroyed as we have no control of the order
-	auto it = s_tab->find(x) ;
-	if (it==s_tab->end()) return {{}        ,false/*ok*/} ;
-	else                  return {it->second,true /*ok*/} ;
-}
-
-template<StdEnum E> static inline bool can_mk_enum(::string const& x) {
-	return _mk_enum<E>(x).second ;
-}
-
-template<StdEnum E> static inline E mk_enum(::string const& x) {
-	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
-	if (!res.second) throw to_string("cannot make enum ",_s_enum_name(E())," from ",x) ;
-	return res.first ;
-}
 
 template<StdEnum E> static inline BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	BitMap<E> res ;
@@ -810,10 +840,13 @@ template<StdEnum E> struct EnumIterator {
 	E val ;
 } ;
 
+template<StdEnum E> static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
+template<StdEnum E> static inline EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
+
 template<StdEnum E> ::ostream& operator<<( ::ostream& os , BitMap<E> const bm ) {
 	os <<'(' ;
 	bool first = true ;
-	for( E e : E::N )
+	for( E e : All<E> )
 		if (bm[e]) {
 			if (first) { os <<      e ; first = false ; }
 			else       { os <<'|'<< e ;                 }
@@ -836,7 +869,7 @@ ENUM(Bool3
 static constexpr Bool3 No    = Bool3::No    ;
 static constexpr Bool3 Maybe = Bool3::Maybe ;
 static constexpr Bool3 Yes   = Bool3::Yes   ;
-static inline Bool3  operator~  ( Bool3  b             ) {                return Bool3(+Bool3::N-1-+b)                                               ; }
+static inline Bool3  operator~  ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
 static inline Bool3  operator!  ( Bool3  b             ) {                return ~b                                                                  ; }
 static inline Bool3  operator|  ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
 static inline Bool3  operator&  ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
@@ -977,7 +1010,7 @@ template<char Delimiter> ::pair_s<size_t/*end_pos*/> parse_printable( ::string c
 				case 'v'  : res += '\v' ; break/*switch*/ ;
 				case '\\' : res += '\\' ; break/*switch*/ ;
 				//
-				case 'x'  : res += char(from_chars<uint8_t>(::string_view(p+1,2),false/*empty_ok*/,true/*hex*/)) ; p += 2 ; break/*switch*/ ;
+				case 'x'  : res += char(from_string<uint8_t>(::string_view(p+1,2),false/*empty_ok*/,true/*hex*/)) ; p += 2 ; break/*switch*/ ;
 				//
 				default : throw "illegal \\ code"s ;
 			}
@@ -1047,6 +1080,5 @@ template<char U,::integral I> ::string to_string_with_units(I x) {
 		case 'T' : if (x&0x3ff) return to_string(x,'T') ; x >>= 10 ; [[fallthrough]] ;
 		case 'P' : if (x&0x3ff) return to_string(x,'P') ; x >>= 10 ; [[fallthrough]] ;
 		case 'E' :              return to_string(x,'E') ;
-		default  : FAIL(U) ;
-	}
+	DF}
 }

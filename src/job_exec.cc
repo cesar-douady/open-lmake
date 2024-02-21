@@ -71,7 +71,7 @@ void kill_job() {
 	static ::jthread kill_thread{kill_thread_func} ; // launch job killing procedure while continuing to behave normally
 }
 
-bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
+bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& ) {
 	Trace trace("handle_server_req",jsrr) ;
 	switch (jsrr.proc) {
 		case JobServerRpcProc::Heartbeat :
@@ -89,8 +89,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , Fd ) {
 			g_killed = true ;
 			if (jsrr.seq_id==g_seq_id) kill_job() ;    // else server is not sending its request to us
 		break ;
-		default : FAIL(jsrr.proc) ;
-	}
+	DF}
 	return false ;
 }
 
@@ -297,12 +296,12 @@ int main( int argc , char* argv[] ) {
 	//
 	Pdate start_overhead = Pdate::s_now() ;
 	//
-	swear_prod(argc==6,argc) ;                      // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx is_remote
-	g_service_start =                    argv[1]  ;
-	g_service_mngt  =                    argv[2]  ;
-	g_service_end   =                    argv[3]  ;
-	g_seq_id        = from_chars<SeqId >(argv[4]) ;
-	g_job           = from_chars<JobIdx>(argv[5]) ;
+	swear_prod(argc==6,argc) ;                       // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx is_remote
+	g_service_start =                     argv[1]  ;
+	g_service_mngt  =                     argv[2]  ;
+	g_service_end   =                     argv[3]  ;
+	g_seq_id        = from_string<SeqId >(argv[4]) ;
+	g_job           = from_string<JobIdx>(argv[5]) ;
 	//
 	ServerThread<JobServerRpcReq> server_thread{'S',handle_server_req} ;
 	//
@@ -320,8 +319,7 @@ int main( int argc , char* argv[] ) {
 	switch (g_start_info.proc) {
 		case JobProc::None  : return 0 ;      // server ask us to give up
 		case JobProc::Start : break    ;      // normal case
-		default : FAIL(g_start_info.proc) ;
-	}
+	DF}
 	//
 	g_root_dir = &g_start_info.autodep_env.root_dir ;
 	if (::chdir(g_root_dir->c_str())!=0) {

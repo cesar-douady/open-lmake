@@ -6,6 +6,53 @@
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
 #ifdef STRUCT_DECL
+
+ENUM( AncillaryTag
+,	Backend
+,	Data
+,	Dbg
+,	KeepTmp
+)
+
+ENUM_1( JobMakeAction
+,	None              //                           trigger analysis from dependent
+,	End               // if >=End => job is ended, job has completed
+,	GiveUp            //                           job has completed and no further analysis
+,	Wakeup            //                           a watched dep is available
+)
+
+ENUM( JobStep // must be in chronological order
+,	None      // no analysis done yet (not in stats)
+,	Dep       // analyzing deps
+,	Queued    // waiting for execution
+,	Exec      // executing
+,	Done      // done execution
+,	End       // job execution just ended (not in stats)
+,	Hit       // cache hit
+)
+
+ENUM( MissingAudit
+,	No
+,	Steady
+,	Modified
+)
+
+ENUM_1( RunStatus
+,	Err = TargetErr // >=Err means job is in error before even starting
+,	Complete        // job was run
+,	NoDep           // job was not run because of missing static dep
+,	NoFile          // job was not run because it is a missing file in a source dir
+,	TargetErr       // job was not run because of a manual static target
+,	DepErr          // job was not run because of dep error
+,	RsrcsErr        // job was not run because of resources could not be computed
+)
+
+ENUM( SpecialStep // ordered by increasing importance
+,	Idle
+,	Ok
+,	Err
+)
+
 namespace Engine {
 
 	struct Job        ;
@@ -17,39 +64,11 @@ namespace Engine {
 
 	static constexpr uint8_t JobNGuardBits = 2 ; // one to define JobTgt, the other to put it in a CrunchVector
 
-	ENUM( AncillaryTag
-	,	Backend
-	,	Data
-	,	Dbg
-	,	KeepTmp
-	)
-
-	ENUM_1( JobMakeAction
-	,	None              //                                         trigger analysis from dependent
-	,	End               // if >=End => job is ended,               job has completed
-	,	GiveUp            //                                         job has completed and no further analysis
-	,	Wakeup            //                                         a watched dep is available
-	)
-
-	ENUM( JobStep // must be in chronological order
-	,	None      // no analysis done yet (not in stats)
-	,	Dep       // analyzing deps
-	,	Queued    // waiting for execution
-	,	Exec      // executing
-	,	Done      // done execution
-	,	End       // job execution just ended (not in stats)
-	,	Hit       // cache hit
-	)
-
-	ENUM( SpecialStep // ordered by increasing importance
-	,	Idle
-	,	Ok
-	,	Err
-	)
-
 }
+
 #endif
 #ifdef STRUCT_DEF
+
 namespace Engine {
 
 	struct Job : JobBase {
@@ -155,8 +174,10 @@ namespace Engine {
 	} ;
 
 }
+
 #endif
 #ifdef INFO_DEF
+
 namespace Engine {
 
 	struct JobReqInfo : ReqInfo {                                        // watchers of Job's are Node's
@@ -186,35 +207,26 @@ namespace Engine {
 				case Step::Done   :                                      // done, cannot wait anything anymore
 				case Step::End    :
 				case Step::Hit    : SWEAR(n_wait==0) ; break ;
-				default : FAIL(step) ;
-			}
+			DF}
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		NodeIdx      dep_lvl            = 0                     ;        // ~20<=32 bits
-		Step         step            :3 = Step        ::None    ;        //       3 bits
-		JobReasonTag force           :5 = JobReasonTag::None    ;        //       5 bits
-		BackendTag   backend         :2 = BackendTag  ::Unknown ;        //       2 bits
-		bool         start_reported  :1 = false                 ;        //       1 bit , if true <=> start message has been reported to user
-		bool         speculative_deps:1 = false                 ;        //       1 bit , if true <=> job is waiting for speculative deps only
-		Bool3        speculate       :2 = Yes                   ;        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeIdx      dep_lvl            = 0     ;                        // ~20<=32 bits
+		Step         step            :3 = {}    ;                        //       3 bits
+		JobReasonTag force           :5 = {}    ;                        //       5 bits
+		BackendTag   backend         :2 = {}    ;                        //       2 bits
+		bool         start_reported  :1 = false ;                        //       1 bit , if true <=> start message has been reported to user
+		bool         speculative_deps:1 = false ;                        //       1 bit , if true <=> job is waiting for speculative deps only
+		Bool3        speculate       :2 = Yes   ;                        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error
 	} ;
 	static_assert(sizeof(JobReqInfo)==24) ;                              // check expected size
 
 }
+
 #endif
 #ifdef DATA_DEF
-namespace Engine {
 
-	ENUM_1( RunStatus
-	,	Err = TargetErr // >=Err means job is in error before even starting
-	,	Complete        // job was run
-	,	NoDep           // job was not run because of missing static dep
-	,	NoFile          // job was not run because it is a missing file in a source dir
-	,	TargetErr       // job was not run because of a manual static target
-	,	DepErr          // job was not run because of dep error
-	,	RsrcsErr        // job was not run because of resources could not be computed
-	)
+namespace Engine {
 
 	struct JobData : DataBase {
 		using Idx        = JobIdx        ;
@@ -223,17 +235,14 @@ namespace Engine {
 		// static data
 	private :
 		static ::shared_mutex              _s_target_dirs_mutex ;
-		static ::umap<Node,NodeIdx/*cnt*/> _s_target_dirs       ;                                            // dirs created for job execution that must not be deleted
-		static ::umap<Node,NodeIdx/*cnt*/> _s_hier_target_dirs  ;                                            // uphill hierarchy of _s_target_dirs
+		static ::umap<Node,NodeIdx/*cnt*/> _s_target_dirs       ; // dirs created for job execution that must not be deleted
+		static ::umap<Node,NodeIdx/*cnt*/> _s_hier_target_dirs  ; // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
 		JobData(                                  ) = default ;
-		JobData( Name n                           ) : DataBase{n}                       {}
-		JobData( Name n , Special sp , Deps ds={} ) : DataBase{n} , deps{ds} , rule{sp} {                    // special Job, all deps
-			SWEAR(sp!=Special::Unknown) ;
-			exec_gen = NExecGen ;                                                                            // special jobs are always exec_ok
-		}
-		JobData( Name n , Rule::SimpleMatch const& m , Deps sds ) : DataBase{n} , deps{sds} , rule{m.rule} { // plain Job, static targets and deps
+		JobData( Name n                           ) : DataBase{n}                                            {}
+		JobData( Name n , Special sp , Deps ds={} ) : DataBase{n} , deps{ds} , rule{sp} , exec_gen{NExecGen} {}                                 // special Job, all deps, always exec_ok
+		JobData( Name n , Rule::SimpleMatch const& m , Deps sds ) : DataBase{n} , deps{sds} , rule{m.rule} {                                    // plain Job, static targets and deps
 			SWEAR(!rule.is_shared()) ;
 			_reset_targets(m) ;
 		}
@@ -335,31 +344,27 @@ namespace Engine {
 		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
 	public :
-		//Name           name                     ;                                                         //     32 bits, inherited
-		Node             asking                   ;                                                         //     32 bits,        last target needing this job
-		Targets          targets                  ;                                                         //     32 bits, owned, for plain jobs
-		Deps             deps                     ;                                                         // 31<=32 bits, owned
-		Rule             rule                     ;                                                         //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                ;                                                         //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                   //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                   //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0                   ;                                   //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status:3             = RunStatus::Complete ; static_assert(+RunStatus::N< 8) ; //      3 bits
-		Status           status    :4             = Status   ::New      ; static_assert(+Status   ::N<16) ; //      4 bits
+		//Name           name                     ;                       //     32 bits, inherited
+		Node             asking                   ;                       //     32 bits,        last target needing this job
+		Targets          targets                  ;                       //     32 bits, owned, for plain jobs
+		Deps             deps                     ;                       // 31<=32 bits, owned
+		Rule             rule                     ;                       //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                ;                       //     16 bits,        for plain jobs
+		ExecGen          exec_gen  :NExecGenBits  = 0                   ; //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0                   ; //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0                   ; //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		RunStatus        run_status:3             = RunStatus::Complete ; //      3 bits
+		Status           status    :4             = Status   ::New      ; //      4 bits
 	private :
-		mutable bool     _sure     :1             = false               ;                                   //      1 bit
+		mutable bool     _sure     :1             = false               ; //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==24) ;                                                                    // check expected size
-
-	ENUM( MissingAudit
-	,	No
-	,	Steady
-	,	Modified
-	)
+	static_assert(sizeof(JobData)==24) ;                                  // check expected size
 
 }
+
 #endif
 #ifdef IMPL
+
 namespace Engine {
 
 	//
@@ -516,7 +521,7 @@ namespace Engine {
 			[[fallthrough]] ;
 			case JobStep::Exec :
 				n_wait-- ;
-				step = JobStep::End ;                                // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
+				step = JobStep::End ; // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
 			break ;
 			default :
 				FAIL(step) ;
@@ -524,4 +529,5 @@ namespace Engine {
 		}
 
 }
+
 #endif

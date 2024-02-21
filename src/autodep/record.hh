@@ -11,8 +11,6 @@
 #include "time.hh"
 
 struct Record {
-	using Access      = Disk::Access                                      ;
-	using Accesses    = Disk::Accesses                                    ;
 	using Crc         = Hash::Crc                                         ;
 	using Ddate       = Time::Ddate                                       ;
 	using SolveReport = Disk::RealPath::SolveReport                       ;
@@ -133,7 +131,6 @@ public :
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	struct Path {
-		using Kind = Disk::Kind ;
 		friend ::ostream& operator<<( ::ostream& , Path const& ) ;
 		// cxtors & casts
 		Path(                                             )                                          {                                  }
@@ -147,7 +144,7 @@ public :
 		Path& operator=(Path&& p) {
 			deallocate() ;
 			has_at      = p.has_at    ;
-			kind        = p.kind      ;
+			file_loc    = p.file_loc  ;
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
@@ -181,11 +178,11 @@ public :
 			allocated = false ;
 		}
 		// data
-		bool        has_at    = false         ;                                           // if false => at is not managed and may not be substituted any non-default value
-		bool        allocated = false         ;                                           // if true <=> file has been allocated and must be freed upon destruction
-		Kind        kind      = Kind::Unknown ;                                           // updated when analysis is done
-		Fd          at        = Fd::Cwd       ;                                           // at & file may be modified, but together, they always refer to the same file
-		const char* file      = ""            ;                                           // .
+		bool        has_at    = false            ;                                        // if false => at is not managed and may not be substituted any non-default value
+		bool        allocated = false            ;                                        // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc     file_loc  = FileLoc::Unknown ;                                        // updated when analysis is done
+		Fd          at        = Fd::Cwd          ;                                        // at & file may be modified, but together, they always refer to the same file
+		const char* file      = ""               ;                                        // .
 	} ;
 	struct Solve : Path {
 		// search (executable if asked so) file in path_var

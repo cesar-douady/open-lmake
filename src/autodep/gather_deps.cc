@@ -132,7 +132,7 @@ bool/*done*/ GatherDeps::kill(int sig) {
 		for( ::string const& proc_entry : lst_dir("/proc")  ) {
 			for( char c : proc_entry ) if (c>'9'||c<'0') goto NextProc ;
 			try {
-				pid_t child_pid = from_chars<pid_t>(proc_entry) ;
+				pid_t child_pid = from_string<pid_t>(proc_entry) ;
 				if (child_pid==ctl_pid) goto NextProc ;
 				if (create_group      ) child_pid = ::getpgid(child_pid) ;
 				if (child_pid<=1      ) goto NextProc ;                                                                 // no pgid available, ignore
@@ -165,11 +165,11 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 			for( ::string& lnk : sr.lnks )               _new_access(fd,jerr.date,::move(lnk       ) ,{Access::Lnk,file_date(lnk)},jerr.ok,"auto_date.lnk"     ) ; // cf Record::_solve for explanation
 			if ( !jerr.digest.accesses && +sr.last_lnk ) _new_access(fd,jerr.date,::move(sr.last_lnk),{Access::Lnk,Ddate()       },jerr.ok,"auto_date.last_lnk") ; // .
 			//
-			seen_tmp |= sr.kind==Kind::Tmp && jerr.digest.write ;
-			if (sr.kind>Kind::Repo) jerr.digest.write = false ;
-			if (sr.kind>Kind::Dep ) continue ;
-			if (+dd) files.emplace_back( sr.real , dd                 ) ;
-			else     files.emplace_back( sr.real , file_date(sr.real) ) ;
+			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write ;
+			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = false ;
+			if (sr.file_loc>FileLoc::Dep ) continue ;
+			if (+dd                      ) files.emplace_back( sr.real , dd                 ) ;
+			else                           files.emplace_back( sr.real , file_date(sr.real) ) ;
 		}
 		jerr.date      = Pdate::s_now() ; // ensure date is posterior to links encountered while solving
 		jerr.files     = ::move(files)  ;
@@ -370,8 +370,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 						case JobProc::Decode   :
 						case JobProc::Encode   : _codec(::move(it->second),jrr) ;                                     break ;
 						case JobProc::None     : kill_job_cb() ;                                                      break ; // server died
-						default : FAIL(jrr.proc) ;
-					}
+					DF}
 					//        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					if (+rfd) sync( rfd , JobExecRpcReply(jrr) ) ;
 					//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -400,13 +399,11 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 						case Proc::ChkDeps  : delayed_check_deps[fd] = ::move(jerr) ;            goto NoReply    ;            // if sync, reply is delayed as well
 						case Proc::Panic    : set_status(Status::Err,jerr.txt) ; kill_job_cb() ; [[fallthrough]] ;
 						case Proc::Trace    : trace(jerr.txt) ;                                  break           ;
-						default : FAIL(proc) ;
-					}
+					DF}
 					if (sync_) sync( fd , JobExecRpcReply(proc) ) ;
 				NoReply : ;
 				} break ;
-				default : FAIL(kind) ;
-			}
+			DF}
 		}
 	}
 	trace("done") ;

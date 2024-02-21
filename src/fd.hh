@@ -47,21 +47,15 @@ struct Fd {
 	Fd             dup   () const { return ::dup(fd) ;                  }
 	constexpr void close ()       { if (fd!=-1) ::close(fd) ; fd = -1 ; }
 	constexpr void detach()       {                           fd = -1 ; }
-	void no_std( int min_fd=Std.fd+1 ) {
-		if ( !*this || fd>=min_fd ) return ;
-		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , min_fd ) ;
-		swear_prod(new_fd>=min_fd,"cannot duplicate ",fd) ;
+	void no_std() {
+		if ( !*this || fd>Std.fd ) return ;
+		int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
+		swear_prod(new_fd>Std.fd,"cannot duplicate ",fd) ;
 		::close(fd) ;
 		fd = new_fd ;
 	}
-	in_addr_t peer_addr() {
-		static_assert(sizeof(in_addr_t)==4) ;                                  // else use adequate ntohs/ntohl according to the size
-		struct sockaddr_in peer_addr ;
-		socklen_t          len       = sizeof(peer_addr)                                                           ;
-		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
-		SWEAR( rc ==0                 , rc  ) ;
-		SWEAR( len==sizeof(peer_addr) , len ) ;
-		return ntohl(peer_addr.sin_addr.s_addr) ;
+	void cloexec(bool set=true) {
+		::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ;
 	}
 	// data
 	int fd = -1 ;
@@ -124,9 +118,9 @@ struct SockFd : AutoCloseFd {
 		return res ;
 	}
 	static ::string const&     s_host     (in_addr_t              ) ;
-	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                  ; }
-	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           from_chars<in_port_t>(service.c_str()+col+1)   ; }
-	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_chars<in_port_t>(service.c_str()+col+1) } ; }
+	static ::string            s_host     (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
+	static in_port_t           s_port     (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
+	static ::pair_s<in_port_t> s_host_port(::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
 	static in_addr_t           s_addr     (::string const& server ) ;
 	//
 	static ::string s_service( ::string const& host , in_port_t port ) { return to_string(host,':',port)         ; }
@@ -148,6 +142,15 @@ public :
 		no_std() ;
 	}
 	// services
+	in_addr_t peer_addr() const {
+		static_assert(sizeof(in_addr_t)==4) ;                                  // else use adequate ntohs/ntohl according to the size
+		struct sockaddr_in peer_addr ;
+		socklen_t          len       = sizeof(peer_addr)                                                           ;
+		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
+		SWEAR( rc ==0                 , rc  ) ;
+		SWEAR( len==sizeof(peer_addr) , len ) ;
+		return ntohl(peer_addr.sin_addr.s_addr) ;
+	}
 	in_port_t port() const {
 		struct sockaddr_in my_addr ;
 		socklen_t          len     = sizeof(my_addr)                                                           ;

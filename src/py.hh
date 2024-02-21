@@ -9,13 +9,13 @@
 
 #include "utils.hh"
 
-namespace Py {
+ENUM( Exception
+,	RuntimeErr
+,	TypeErr
+,	ValueErr
+)
 
-	ENUM( Exception
-	,	RuntimeErr
-	,	TypeErr
-	,	ValueErr
-	)
+namespace Py {
 
 	struct Gil {
 		Gil() : state{PyGILState_Ensure()} {}
@@ -67,7 +67,7 @@ namespace Py {
 		,	PyExc_TypeError              // TypeErr
 		,	PyExc_ValueError             // ValueErr
 		} ;
-		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==+Exception::N) ;
+		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==N<Exception>) ;
 		PyErr_SetString(s_exc_tab[+e],txt.c_str()) ;
 		return nullptr ;
 	}

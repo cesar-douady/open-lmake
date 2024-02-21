@@ -43,9 +43,9 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 	//
 	[[noreturn]] void usage(::string const& msg={}) const ;
 	// data
-	bool                       has_dflt_key = false ;
-	::array<KeySpec ,+Key ::N> keys         ;
-	::array<FlagSpec,+Flag::N> flags        ;
+	bool                      has_dflt_key = false ;
+	::array<KeySpec ,N<Key >> keys         ;
+	::array<FlagSpec,N<Flag>> flags        ;
 } ;
 
 template<StdEnum Key,StdEnum Flag> struct CmdLine {
@@ -63,17 +63,17 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 		return res ;
 	}
 	// data
-	::string            exe       ;
-	Key                 key       = Key::None ;
-	BitMap<Flag>        flags     ;
-	::array_s<+Flag::N> flag_args ;
-	::vector_s          args      ;
+	::string           exe       ;
+	Key                key       = Key::None ;
+	BitMap<Flag>       flags     ;
+	::array_s<N<Flag>> flag_args ;
+	::vector_s         args      ;
 } ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
-	size_t key_sz  = 0     ; for( Key  k : Key ::N ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , mk_snake(k).size() ) ;
-	size_t flag_sz = 0     ; for( Flag f : Flag::N ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , mk_snake(f).size() ) ;
-	bool   has_arg = false ; for( Flag e : Flag::N )                           has_arg |= flags[+e].has_arg                     ;
+	size_t key_sz  = 0     ; for( Key  k : All<Key > ) if (keys [+k].short_name) key_sz   = ::max( key_sz  , snake(k).size() ) ;
+	size_t flag_sz = 0     ; for( Flag f : All<Flag> ) if (flags[+f].short_name) flag_sz  = ::max( flag_sz , snake(f).size() ) ;
+	bool   has_arg = false ; for( Flag e : All<Flag> )                           has_arg |= flags[+e].has_arg                  ;
 	//
 	::cerr << ::left ;
 	//
@@ -85,18 +85,18 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	if (key_sz) {
 		if (has_dflt_key) ::cerr << "keys (at most 1) :\n" ;
 		else              ::cerr << "keys (exactly 1) :\n" ;
-		if (has_dflt_key)                              ::cerr << "<no key>"                            << setw(key_sz)<<""          <<" : "<< keys[0 ].doc <<'\n' ;
-		for( Key k : Key::N ) if (keys[+k].short_name) ::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<mk_snake(k) <<" : "<< keys[+k].doc <<'\n' ;
+		if (has_dflt_key)                                ::cerr << "<no key>"                            << setw(key_sz)<<""       <<" : "<< keys[0 ].doc <<'\n' ;
+		for( Key k : All<Key> ) if (keys[+k].short_name) ::cerr <<'-' << keys[+k].short_name << " or --" << setw(key_sz)<<snake(k) <<" : "<< keys[+k].doc <<'\n' ;
 	}
 	//
 	if (flag_sz) {
 		::cerr << "flags (0 or more) :\n"  ;
-		for( Flag f : Flag::N ) {
+		for( Flag f : All<Flag> ) {
 			if (!flags[+f].short_name) continue ;
-			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<mk_snake(f) ;
-			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                        ;
-			else if (has_arg          ) ::cerr << "      "                                                        ;
-			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                      ;
+			/**/                        ::cerr << '-'<<flags[+f].short_name<<" or --"<<setw(flag_sz)<<snake(f) ;
+			if      (flags[+f].has_arg) ::cerr << " <arg>"                                                     ;
+			else if (has_arg          ) ::cerr << "      "                                                     ;
+			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                   ;
 		}
 	}
 	exit(2) ;
@@ -106,8 +106,8 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ; for( Key  k : Key ::N ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ; for( Flag f : Flag::N ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ; for( Key  k : All<Key > ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ; for( Flag f : All<Flag> ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key    = false ;
 		bool force_args = false ;
@@ -127,10 +127,9 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				for( p=arg+2 ; *p && *p!='=' ; p++ ) option.push_back( *p=='-' ? '_' : *p ) ; // make snake case to use mk_enum while usual convention for options is to use '-'
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
-					SWEAR(k!=Key::Unknown) ;
 					if (syntax.keys[+k].short_name) {
-						if (has_key) throw to_string("cannot specify both --",option," and --",mk_snake(key)) ;
-						if (*p     ) throw to_string("unexpected value for option --",option                ) ;
+						if (has_key) throw to_string("cannot specify both --",option," and --",snake(key)) ;
+						if (*p     ) throw to_string("unexpected value for option --",option             ) ;
 						key     = k    ;
 						has_key = true ;
 						continue ;
@@ -138,7 +137,6 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				}
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
-					SWEAR(f!=Flag::Unknown) ;
 					if (syntax.flags[+f].short_name) {
 						if (syntax.flags[+f].has_arg) { if (*p!='=') throw to_string("no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
 						else                          { if (*p     ) throw to_string("unexpected value for option --",option) ;                       }
@@ -154,7 +152,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				for( p=arg+1 ; *p ; p++ ) {
 					if (key_map.contains(*p)) {
 						Key k = key_map.at(*p) ;
-						if (has_key) throw to_string("cannot specify both --",mk_snake(k)," and --",mk_snake(key)) ;
+						if (has_key) throw to_string("cannot specify both --",snake(k)," and --",snake(key)) ;
 						key     = k    ;
 						has_key = true ;
 					} else if (flag_map.contains(*p)) {

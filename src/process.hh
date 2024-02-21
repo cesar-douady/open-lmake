@@ -17,6 +17,7 @@ struct Pipe {
 	// cxtors & casts
 	Pipe(       ) = default ;
 	Pipe(NewType) { open() ; }
+	// services
 	void open() {
 		int fds[2] ;
 		swear_prod( ::pipe(fds)==0 , "cannot create pipes" ) ;
@@ -26,6 +27,10 @@ struct Pipe {
 	void close() {
 		read .close() ;
 		write.close() ;
+	}
+	void no_std() {
+		read .no_std() ;
+		write.no_std() ;
 	}
 	// data
 	Fd read  ;     // read  side of the pipe

@@ -16,6 +16,13 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+*1 track disk accesses from server
+	- allow direct read of makefiles
+		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
+	- allow check that dynamic attributes only access what they are allowed to access
+	- statically link python with auditing code in a dedicated .o
+		- so python accesses are tracked
+		- rest of accesses are not
 * automatic versioning of internal info
 	- extend serdes to enumerate fields & types
 	- for data base
@@ -79,10 +86,6 @@ items :
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
-! track disk accesses from server
-	- allow direct read of makefiles
-		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
-	- allow check that dynamic attributes only access what they are allowed to access
 ! put in place a variant in Job::ReqInfo
 	- to ensure no infinite rerun loop
 	- for example the index of the first dep that triggered the rerun
@@ -105,7 +108,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*2 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*3 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * support formulas
@@ -172,15 +175,8 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*1 implement deps compression
-	- store words (NodeIdx)
-	- MSB=1, no flag and crc=None, use a single word
-	- else if 2nd word does not look like a flag word (with a marker inside flag word), no flag and crc : use 3 words
-	- else if 2nd indicates no presence of crc, flag and crc=None, use 2 words
-	- else flag and crc, use 4 words
-	- there is marginal case where crc looks like flag, in this case use 4 words instead of 3 when no flag, not a drama, even with a 8 bits marker
-	- should bring about 3x reduction in deps size
-	- targets can be compressed similarly when no flag
+*2 ensure no req_info for non-buildable nodes
+* make deps be a sequence of non-buildable nodes followed by a buildable node
 * use precompiled headers
 * generate KPI's
 	- useful/useless created jobs
@@ -214,6 +210,15 @@ items :
 	- does not work straight forward
 	- may be use a giant map to reserve address space and allocate a growing map in there using HUGE pages
 	- need to do some trials
+? implement deps compression
+	- store words (NodeIdx)
+	- MSB=1, no flag and crc=None, use a single word
+	- else if 2nd word does not look like a flag word (with a marker inside flag word), no flag and crc : use 3 words
+	- else if 2nd indicates no presence of crc, flag and crc=None, use 2 words
+	- else flag and crc, use 4 words
+	- there is marginal case where crc looks like flag, in this case use 4 words instead of 3 when no flag, not a drama, even with a 8 bits marker
+	- should bring about 3x reduction in deps size
+	- targets can be compressed similarly when no flag
 ? record dep crcs in Job rather than in Dep
 	- store crc just before dep error parallel chunk
 	- dont store deps after first dep error parallel chunk as they are useless

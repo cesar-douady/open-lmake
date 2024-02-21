@@ -7,7 +7,7 @@
 namespace Engine {
 
 	using CmdFunc = bool (*)(EngineClosureReq const&) ;
-	extern CmdFunc g_cmd_tab[+ReqProc::N] ;
+	extern CmdFunc g_cmd_tab[N<ReqProc>] ;
 
 }
 #endif

@@ -79,7 +79,7 @@ int main( int argc , char* argv[] ) {
 	//
 	ReqCmdLine      cmd_line { syntax , int(args.size()) , args.data() } ;
 	::string const& n_jobs   = cmd_line.flag_args[+ReqFlag::Jobs]        ;
-	try                       { from_chars<JobIdx>(n_jobs,true/*empty_ok*/) ;                                       }
+	try                       { from_string<JobIdx>(n_jobs,true/*empty_ok*/) ;                                      }
 	catch (::string const& e) { syntax.usage(to_string("cannot understand max number of jobs (",e,") : ",n_jobs)) ; }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

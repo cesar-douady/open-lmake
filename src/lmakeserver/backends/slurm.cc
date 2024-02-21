@@ -150,9 +150,9 @@ namespace Backends::Slurm {
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_chars<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if(k=="repo_key"         ) { repo_key          =                      v  ; continue ; } break ;
-						case 'u' : if(k=="use_nice"         ) { use_nice          = from_chars<bool    >(v) ; continue ; } break ;
+						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
+						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
+						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
 						default : ;
 					}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw to_string("wrong value for entry "   ,k,": ",v) ; }
@@ -310,10 +310,10 @@ namespace Backends::Slurm {
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
 		for( auto&& [kn,v] : ::move(m) ) {
-			size_t           p    = kn.find(':')                                          ;
-			::string         k    = p==Npos ? kn :                      kn.substr(0  ,p)  ;
-			uint32_t         n    = p==Npos ? 0  : from_chars<uint32_t>(kn.substr(p+1  )) ;
-			RsrcsDataSingle& rsds = grow(*this,n)                                         ;
+			size_t           p    = kn.find(':')                                           ;
+			::string         k    = p==Npos ? kn :                       kn.substr(0  ,p)  ;
+			uint32_t         n    = p==Npos ? 0  : from_string<uint32_t>(kn.substr(p+1  )) ;
+			RsrcsDataSingle& rsds = grow(*this,n)                                          ;
 			//
 			auto chk_first = [&]()->void {
 				if (n) throw to_string(k," is only for 1st component of job, not component ",n) ;
@@ -339,7 +339,7 @@ namespace Backends::Slurm {
 				continue ;
 			}
 			//
-			throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+			throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
 
 		}
 		if (!(*this)[0].mem) throw "reserving memory is compulsery"s ;
@@ -655,16 +655,16 @@ namespace Backends::Slurm {
 			//
 			if ( size_t pos=spp.find(npd_mrkr) ; pos!=Npos ) {
 				pos += npd_mrkr.size() ;
-				res.nice_factor = from_chars<float>(spp.substr(pos,spp.find(',',pos))) ;
+				res.nice_factor = from_string<float>(spp.substr(pos,spp.find(',',pos))) ;
 			}
 		}
 		if (conf->licenses) {
 			trace("licenses",conf->licenses) ;
 			::vector_s rsrc_vec = split(conf->licenses,',') ;
 			for( ::string const& r : rsrc_vec ) {
-				size_t   p = r.find(':')                                     ;
-				::string k = r.substr(0,p)                                   ;
-				size_t   v = p==Npos ? 1 : from_chars<size_t>(r.substr(p+1)) ;
+				size_t   p = r.find(':')                                      ;
+				::string k = r.substr(0,p)                                    ;
+				size_t   v = p==Npos ? 1 : from_string<size_t>(r.substr(p+1)) ;
 				//
 				res.licenses.emplace(k,v) ;
 			}

@@ -23,8 +23,7 @@ namespace Caches {
 			switch (config.tag) {
 				case Tag::None : cache = new Cache    ; break ;                // base class Cache actually caches nothing
 				case Tag::Dir  : cache = new DirCache ; break ;                // PER_CACHE : add a case for each cache method
-				default : FAIL(config.tag) ;
-			}
+			DF}
 			cache->config(config) ;
 			s_tab.emplace(key,cache) ;
 		}

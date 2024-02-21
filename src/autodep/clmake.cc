@@ -39,8 +39,7 @@ static PyObject* chk_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwds 
 		case Yes   : return True .to_py_boost()                                           ;
 		case Maybe : return py_err_set(Exception::RuntimeErr,"some deps are out-of-date") ;
 		case No    : return False.to_py_boost()                                           ;
-		default : FAIL(reply.ok) ;
-	}
+	DF}
 }
 
 static ::string _mk_str( Object const* o , ::string const& arg_name={} ) {
@@ -124,14 +123,13 @@ static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	if ( py_args.size()!=1 || kwds ) return py_err_set(Exception::TypeErr,"expect exactly a single positional argument") ;
 	::string   be  = py_args[0].as_a<Str>() ;
-	BackendTag tag = BackendTag::Unknown    ;
+	BackendTag tag {}/*garbage*/            ;
 	try                       { tag = mk_enum<BackendTag>(be) ;                                }
 	catch (::string const& e) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
 	switch (tag) {                                                                               // PER BACKEND
 		case BackendTag::Local : return            True       .to_py_boost() ;
 		case BackendTag::Slurm : return (HAS_SLURM?True:False).to_py_boost() ;
-		default : FAIL(tag) ;
-	} ;
+	DF} ;
 }
 
 static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
@@ -152,10 +150,10 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	//
 	RealPath::SolveReport solve_report = RealPath(_g_autodep_env).solve(view,no_follow) ;
 	//
-	switch (solve_report.kind) {
-		case Kind::Root :
+	switch (solve_report.file_loc) {
+		case FileLoc::Root :
 			return Ptr<Str>(""s)->to_py_boost() ;
-		case Kind::Repo :
+		case FileLoc::Repo :
 			try {
 				::string abs_path         = mk_abs(solve_report.real,_g_autodep_env.root_dir+'/') ;
 				::string abs_sub_root_dir = search_root_dir(abs_path).first                       ; abs_sub_root_dir += '/' ;
@@ -177,10 +175,10 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Accesses     accesses  = Accesses::All                 ;
 	Dflags       dflags    = Dflag::Required               ;
 	if (n_kwds) {
-		/**/                           if (py_kwds->contains("verbose"        )) { n_kwds-- ; verbose   =     +(*py_kwds)["verbose"        ]  ; }
-		/**/                           if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =    !+(*py_kwds)["follow_symlinks"]  ; }
-		for( Access a  : Access::N   ) if (py_kwds->contains(mk_snake(a )     )) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[mk_snake(a )     ]) ; }
-		for( Dflag  df : Dflag::NDyn ) if (py_kwds->contains(mk_snake(df)     )) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[mk_snake(df)     ]) ; }
+		/**/                                                            if (py_kwds->contains("verbose"        )) { n_kwds-- ; verbose   =     +(*py_kwds)["verbose"        ]  ; }
+		/**/                                                            if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =    !+(*py_kwds)["follow_symlinks"]  ; }
+		for( Access a  : All<Access> ) { ::string sa  = snake_str(a ) ; if (py_kwds->contains(sa               )) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[sa               ]) ; } }
+		for( Dflag  df : Dflag::NDyn ) { ::string sdf = snake_str(df) ; if (py_kwds->contains(sdf              )) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[sdf              ]) ; } }
 	}
 	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;
@@ -195,12 +193,11 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 			//
 			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
 			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
-				Object* py_ok ;
+				Object* py_ok = nullptr/*garbage*/ ;
 				switch (reply.dep_infos[i].first) {
 					case Yes   : py_ok = &True  ; break ;
 					case Maybe : py_ok = &None  ; break ;
 					case No    : py_ok = &False ; break ;
-					default : FAIL(reply.dep_infos[i].first) ;
 				}
 				res->set_item( files[i] , *Ptr<Tuple>( *py_ok , *Ptr<Str>(::string(reply.dep_infos[i].second)) ) ) ;
 			}
@@ -219,9 +216,9 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	bool         no_follow = false                         ;
 	AccessDigest ad        ;
 	if (n_kwds) {
-		/**/                          if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlink =      +(*py_kwds)["unlink"         ]  ; }
-		/**/                          if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =     !+(*py_kwds)["follow_symlinks"]  ; }
-		for( Tflag tf : Tflag::NDyn ) if (py_kwds->contains(mk_snake(tf)     )) { n_kwds-- ; ad.tflags.set(tf,+(*py_kwds)[mk_snake(tf)     ]) ; }
+		/**/                                                           if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlink =      +(*py_kwds)["unlink"         ]  ; }
+		/**/                                                           if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =     !+(*py_kwds)["follow_symlinks"]  ; }
+		for( Tflag tf : Tflag::NDyn ) { ::string stf = snake_str(tf) ; if (py_kwds->contains(stf              )) { n_kwds-- ; ad.tflags.set(tf,+(*py_kwds)[stf              ]) ; } }
 	}
 	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;

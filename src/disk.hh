@@ -15,32 +15,46 @@
 #include "lib.hh"
 #include "time.hh"
 
+// ENUM macro does not work inside namespace's
+
+ENUM(Access
+,	Lnk                                 // file is accessed with readlink
+,	Reg                                 // file is accessed with open
+,	Stat                                // file is accessed with stat like (read inode)
+)
+static constexpr char AccessChars[] = {
+	'L'                                 // Lnk
+,	'R'                                 // Reg
+,	'T'                                 // Stat
+} ;
+static_assert(::size(AccessChars)==N<Access>) ;
+using Accesses = BitMap<Access> ;
+static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
+
+ENUM_1(FileLoc
+,	Dep = SrcDirs // <=Dep means that file must be reported as a dep
+,	Repo
+,	SrcDirs       // file has been found in source dirs
+,	Root          // file is the root dir
+,	Tmp
+,	Proc          // file is in /proc
+,	Admin
+,	Ext           // all other cases
+,	Unknown
+)
+
+ENUM( FileTag
+,	None
+,	Reg
+,	Exe // a regular file with exec permission
+,	Lnk
+,	Dir
+,	Err
+)
+
 namespace Disk {
 	using Ddate  = Time::Ddate ;
 	using DiskSz = uint64_t    ;
-
-	ENUM(Access
-	,	Lnk                                 // file is accessed with readlink
-	,	Reg                                 // file is accessed with open
-	,	Stat                                // file is accessed with stat like (read inode)
-	)
-	static constexpr char AccessChars[] = {
-		'L'                                 // Lnk
-	,	'R'                                 // Reg
-	,	'T'                                 // Stat
-	} ;
-	static_assert(::size(AccessChars)==+Access::N) ;
-	using Accesses = BitMap<Access> ;
-	static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
-
-	ENUM_1( FileTag
-	,	None
-	,	Reg
-	,	Exe // a regular file with exec permission
-	,	Lnk
-	,	Dir
-	,	Err
-	)
 
 	bool     is_canon (::string const&) ;
 	::string dir_name (::string const&) ;
@@ -249,17 +263,6 @@ namespace Disk {
 		bool        _ok = false ;
 	} ;
 
-	ENUM_1(Kind
-	,	Dep = SrcDirs // <=Dep means that file must be reported as a dep
-	,	Repo
-	,	SrcDirs       // file has been found in source dirs
-	,	Root          // file is the root dir
-	,	Tmp
-	,	Proc          // file is in /proc
-	,	Admin
-	,	Ext           // all other cases
-	)
-
 	struct RealPathEnv {
 		friend ::ostream& operator<<( ::ostream& , RealPathEnv const& ) ;
 		LnkSupport lnk_support   = LnkSupport::Full ;                     // by default, be pessimistic
@@ -275,12 +278,12 @@ namespace Disk {
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
-			::string   real          = {}        ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
-			::vector_s lnks          = {}        ; // links followed to get to real
-			::string   last_lnk      = {}        ; // last tried (and failed) link
-			Accesses   last_accesses = {}        ; // Access::Lnk if file does not exist and !no_follow
-			Kind       kind          = Kind::Ext ; // do not process awkard files
-			bool       mapped        = false     ; // if true <=> tmp mapping has been used
+			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
+			::vector_s lnks          = {}           ; // links followed to get to real
+			::string   last_lnk      = {}           ; // last tried (and failed) link
+			Accesses   last_accesses = {}           ; // Access::Lnk if file does not exist and !no_follow
+			FileLoc    file_loc      = FileLoc::Ext ; // do not process awkard files
+			bool       mapped        = false        ; // if true <=> tmp mapping has been used
 		} ;
 	private :
 		// helper class to help recognize when we are in repo or in tmp

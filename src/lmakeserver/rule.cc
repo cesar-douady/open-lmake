@@ -7,18 +7,24 @@
 
 #include "core.hh"
 
+ENUM( DepKind
+,	Dep
+,	Python
+,	Shell
+)
+
+ENUM( StarAction
+,	None
+,	Stop
+,	Err
+)
+
 namespace Engine {
 
 	using namespace Disk ;
 	using namespace Py   ;
 	using namespace Re   ;
 	using namespace Time ;
-
-	ENUM( StarAction
-	,	None
-	,	Stop
-	,	Err
-	)
 
 	static const ::string _g_specials = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f" ;
 	static ::string escape(::string const& s) {
@@ -120,8 +126,7 @@ namespace Engine {
 			case SeenStart :
 			case Key       :
 			case Re        : throw to_string("spurious { in ",str) ;
-			default : FAIL(state) ;
-		}
+		DF}
 	}
 	static inline void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
 		_parse_py( str , unnamed_star_idx , [](::string const&)->void{} , cb_stem ) ;
@@ -186,7 +191,7 @@ namespace Engine {
 			}
 		}
 	}
-	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=EF::N ) {
+	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=All<EF> ) {
 		if (py.is_a<Str>()) return py.as_a<Str>() ;
 		Sequence const& py_seq = py.as_a<Sequence>() ;
 		SWEAR(py_seq.size()>=n_skip          ,key) ;
@@ -289,21 +294,15 @@ namespace Engine {
 	// DepsAttrs
 	//
 
-	ENUM( DepKind
-	,	Dep
-	,	Python
-	,	Shell
-	)
-
-	static bool/*keep*/ _qualify_dep( ::string const& key , ::string const& dep , DepKind kind=DepKind::Unknown , ::string const& dep_for_msg={} ) {
+	static bool/*keep*/ _qualify_dep( ::string const& key , ::string const& dep , DepKind kind , ::string const& dep_for_msg={} ) {
 		::string dir_s          = dep.substr(0,dep.find(Rule::StemMrkr))          ;
 		size_t   dir_pos        = dir_s.rfind('/')                                ;
 		/**/     dir_s          = dir_pos==Npos ? ""s : dir_s.substr(0,dir_pos+1) ;
 		//
 		auto bad = [&] [[noreturn]] (::string const& msg) {
 			::string const& d = +dep_for_msg ? dep_for_msg : dep ;
-			if (kind==DepKind::Dep) throw to_string("dep ",key    ," (",d,") ",msg) ;
-			else                    throw to_string(mk_snake(kind)," (",d,") ",msg) ;
+			if (kind==DepKind::Dep) throw to_string("dep ",key ," (",d,") ",msg) ;
+			else                    throw to_string(snake(kind)," (",d,") ",msg) ;
 		} ;
 		auto bad_canon = [&] [[noreturn]] (::string const& dir_s) {
 			bad("must be canonical : "+dir_s+dep.substr(dir_pos+1)) ;
@@ -385,7 +384,7 @@ namespace Engine {
 	void SubmitRsrcsAttrs::s_canon(::vmap_ss& rsrcs) {
 		for ( auto& [k,v] : rsrcs ) {
 			/**/                                 if (!can_mk_enum<StdRsrc>(k)) continue ; // resource is not standard
-			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=mk_snake(r)          ) continue ; // .
+			StdRsrc  r   = mk_enum<StdRsrc>(k) ; if (k!=snake(r)             ) continue ; // .
 			uint64_t val = 0 /*garbage*/       ;
 			try                     { val = from_string_with_units<uint64_t>(v) ; }
 			catch (::string const&) { continue ;                                  }       // value is not recognized
@@ -500,8 +499,8 @@ namespace Engine {
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) {
 		if (s<=Special::Shared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && src_dir_s.back()=='/' , s , src_dir_s ) ; // ensure source dir ends with a /
-		special = s           ;
-		name    = mk_snake(s) ;
+		special = s        ;
+		name    = snake(s) ;
 		switch (s) {
 			case Special::Req      : force = true      ; break ;
 			case Special::Infinite : prio  = -Infinity ; break ;                               // -inf : it can appear after other rules
@@ -518,8 +517,7 @@ namespace Engine {
 				matches         .emplace_back("",MatchEntry(job_name)) ;
 				_compile() ;
 			break ;
-			default : FAIL(s) ;
-		}
+		DF}
 	}
 
 	::ostream& operator<<( ::ostream& os , RuleData const& rd ) {
@@ -607,7 +605,7 @@ namespace Engine {
 					stem_defs.emplace( ::string(k->as_a<Str>()) , ::string(v->as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
-			size_t unnamed_star_idx = 1 ;                                                                              // free running while walking over job_name + targets
+			size_t unnamed_star_idx = 1 ;                                                                                // free running while walking over job_name + targets
 			auto augment_stems = [&]( ::string const& k , bool star , ::string const* re , bool star_only ) -> void {
 				if (re) {
 					auto [it,inserted] = stem_defs.emplace(k,*re) ;
@@ -615,7 +613,7 @@ namespace Engine {
 				}
 				if ( !star_only || star ) {
 					auto [it,inserted] = stem_stars.emplace(k,No|star) ;
-					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                     // stem is used both as static and star
+					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                       // stem is used both as static and star
 				}
 			} ;
 			field = "job_name" ;
@@ -630,8 +628,8 @@ namespace Engine {
 			::string job_name_msg = "job_name" ;
 			for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
 				field = py_k->as_a<Str>() ;
-				::string  target =                    py_tkfs->as_a<Sequence>()[0].as_a<Str>()  ;                      // .
-				MatchKind kind   = mk_enum<MatchKind>(py_tkfs->as_a<Sequence>()[1].as_a<Str>()) ;                      // targets are a tuple (target_pattern,kind,flags...)
+				::string  target =                    py_tkfs->as_a<Sequence>()[0].as_a<Str>()  ;                        // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs->as_a<Sequence>()[1].as_a<Str>()) ;                        // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					_parse_py( target , &unnamed_star_idx ,
@@ -641,14 +639,14 @@ namespace Engine {
 						}
 					) ;
 				} else if (!job_name_key) {
-					job_name_key =                              field  ;
-					job_name_msg = to_string(mk_snake(kind),' ',field) ;
+					job_name_key =                           field  ;
+					job_name_msg = to_string(snake(kind),' ',field) ;
 				}
 			}
 			//
 			// gather job_name and targets
 			field            = "job_name" ;
-			unnamed_star_idx = 1          ;                                                                            // reset free running at each pass over job_name+targets
+			unnamed_star_idx = 1          ;                                                                              // reset free running at each pass over job_name+targets
 			VarIdx n_static_unnamed_stems = 0     ;
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
@@ -664,15 +662,15 @@ namespace Engine {
 			) ;
 			//
 			field = "matches" ;
-			{	::vmap_s<MatchEntry> star_matches                  ;                                                   // defer star matches so that static targets are put first
-				::vmap_s<MatchEntry> static_matches[+MatchKind::N] ;                                                   // defer star matches so that static targets are put first
-				bool                 seen_top                      = false ;
-				bool                 seen_target                   = false ;
-				for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                 // targets are a tuple (target_pattern,flags...)
+			{	::vmap_s<MatchEntry> star_matches                 ;                                                      // defer star matches so that static targets are put first
+				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                      // defer star matches so that static targets are put first
+				bool                 seen_top                     = false ;
+				bool                 seen_target                  = false ;
+				for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                   // targets are a tuple (target_pattern,flags...)
 					field = py_k->as_a<Str>() ;
 					Sequence const& pyseq_tkfs         = py_tkfs->as_a<Sequence>()                     ;
-					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;               // .
-					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;               // targets are a tuple (target_pattern,kind,flags...)
+					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;                 // .
+					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                 // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star            = false                                         ;
 					::set_s         missing_stems      ;
 					bool            is_target          = kind!=MatchKind::DepFlags                     ;
@@ -691,7 +689,7 @@ namespace Engine {
 						if (is_official_target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
 						_parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-								if (!stem_defs.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",mk_snake(kind)) ;
+								if (!stem_defs.contains(k)) throw to_string("found undefined ",stem_words(k,star,unnamed)," in ",snake(kind)) ;
 								//
 								if (star) {
 									is_star = true ;
@@ -699,7 +697,7 @@ namespace Engine {
 								}
 								auto it = stem_stars.find(k) ;
 								if ( it==stem_stars.end() || it->second==Yes )
-									throw to_string(stem_words(k,star,unnamed)," appears in ",mk_snake(kind)," but not in ",job_name_msg,", consider using ",k,'*') ;
+									throw to_string(stem_words(k,star,unnamed)," appears in ",snake(kind)," but not in ",job_name_msg,", consider using ",k,'*') ;
 								if (is_official_target)
 									missing_stems.erase(k) ;
 							}
@@ -707,18 +705,18 @@ namespace Engine {
 					}
 					if ( !is_star                       ) tflags |= Tflag::Static    ;
 					if (             is_official_target ) tflags |= Tflag::Target    ;
-					if ( !is_star && is_official_target ) tflags |= Tflag::Essential ;                                 // static targets are essential by default
-					if ( is_target                      ) { _split_flags( mk_snake(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
-					else                                  { _split_flags( mk_snake(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
+					if ( !is_star && is_official_target ) tflags |= Tflag::Essential ;                                   // static targets are essential by default
+					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
+					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)             ) throw to_string(mk_snake(kind)," must be relative to root dir : "         ,target) ;
-					if ( !is_lcl(target)                            ) throw to_string(mk_snake(kind)," must be local : "                        ,target) ;
-					if ( !is_canon(target)                          ) throw to_string(mk_snake(kind)," must be canonical : "                    ,target) ;
-					if ( +missing_stems                             ) throw to_string("missing stems ",missing_stems," in ",mk_snake(kind)," : ",target) ;
-					if ( !is_official_target        && is_special() ) throw           "flags are meaningless for source and anti-rules"s                 ;
-					if ( is_star                    && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")        ;
-					if ( is_star                    && is_stdout    ) throw           "stdout cannot be directed to a star target"s                      ;
-					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s              ;
+					if ( target.starts_with(root_dir_s)             ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
+					if ( !is_lcl(target)                            ) throw to_string(snake(kind)," must be local : "                        ,target) ;
+					if ( !is_canon(target)                          ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
+					if ( +missing_stems                             ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
+					if ( !is_official_target        && is_special() ) throw           "flags are meaningless for source and anti-rules"s              ;
+					if ( is_star                    && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
+					if ( is_star                    && is_stdout    ) throw           "stdout cannot be directed to a star target"s                   ;
+					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s           ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
@@ -727,19 +725,19 @@ namespace Engine {
 					if (field==job_name_key) add_cwd( job_name , is_top ) ;
 					(is_star?star_matches:static_matches[+kind]).emplace_back( field , MatchEntry(::move(target),flags) ) ;
 				}
-				SWEAR(+seen_target) ;                                                                                  // we should not have come up to here without a target
+				SWEAR(+seen_target) ;                                                                                    // we should not have come up to here without a target
 				if (!job_name_key) add_cwd( job_name , seen_top ) ;
-				n_static_targets = static_matches[+MatchKind::Target].size() ; static_assert(+MatchKind::Target==0) ;  // ensure offical static targets are first in matches
-				for( MatchKind k : MatchKind::N ) for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ; // put static first
+				n_static_targets = static_matches[+MatchKind::Target].size() ; static_assert(+MatchKind::Target==0) ;    // ensure offical static targets are first in matches
+				for( MatchKind k : All<MatchKind> ) for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ; // put static first
 				n_statics  = matches.size() ;
-				/**/                              for( auto& st : star_matches       ) matches.push_back(::move(st)) ; // then star
+				/**/                                for( auto& st : star_matches       ) matches.push_back(::move(st)) ; // then star
 			}
 			field = "" ;
 			if (matches.size()>=NoVar) throw to_string("too many targets, targets_flags and dep_flags ",matches.size()," >= ",NoVar) ;
 			::umap_s<VarIdx> stem_idxs ;
-			for( bool star : {false,true} ) {                                                                          // keep only useful stems and order them : static first, then star
+			for( bool star : {false,true} ) {                                                                            // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_stars ) {
-					if (v==(No|!star)) continue ;                                                                      // stems that are both static and start appear twice
+					if (v==(No|!star)) continue ;                                                                        // stems that are both static and start appear twice
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , stem_defs.at(k)      ) ;
 				}
@@ -757,7 +755,7 @@ namespace Engine {
 			::string mk_tgt ;
 			auto mk_fixed = [&]( ::string const& fixed                                                       )->void { mk_tgt += fixed ;                                   } ;
 			auto mk_stem  = [&]( ::string const& key , bool star , bool /*unnamed*/ , ::string const* /*re*/ )->void { _append_stem(mk_tgt,stem_idxs.at(key+" *"[star])) ; } ;
-			unnamed_star_idx = 1 ;                                                                                     // reset free running at each pass over job_name+targets
+			unnamed_star_idx = 1 ;                                                                                       // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
 			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 			::string new_job_name = ::move(mk_tgt) ;
@@ -778,7 +776,7 @@ namespace Engine {
 			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvvvvv
-			if (is_special()) return ;                                                                                 // if special, we have no dep, no execution, we only need essential info
+			if (is_special()) return ;                                                                                   // if special, we have no dep, no execution, we only need essential info
 			//^^^^^^^^^^^^^^^^^^^^^^^^
 			//
 			// acquire fields linked to job execution
@@ -912,8 +910,7 @@ namespace Engine {
 							case VarCmd::Match : res += rd.matches                      [i].first ; break ;
 							case VarCmd::Dep   : res += rd.deps_attrs.spec.deps         [i].first ; break ;
 							case VarCmd::Rsrc  : res += rd.submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
-							default : FAIL(vc) ;
-						}
+						DF}
 						res += '}' ;
 					} break ;
 					case '{' : res += "{{"     ; break ;
@@ -924,8 +921,8 @@ namespace Engine {
 			return res ;
 	}
 	static ::string _pretty_matches( RuleData const& rd , size_t i , ::vmap_s<RuleData::MatchEntry> const& matches ) {
-		auto kind = [&](RuleData::MatchEntry const& me)->::string {
-			return mk_snake(
+		auto kind = [&](RuleData::MatchEntry const& me)->::string_view {
+			return snake(
 				me.flags.is_target==No           ? MatchKind::DepFlags
 			:	me.flags.tflags()[Tflag::Target] ? MatchKind::Target
 			:	                                   MatchKind::TargetFlags
@@ -958,13 +955,13 @@ namespace Engine {
 			if (me.flags.is_target==No) {
 				for( Dflag df : Dflag::NRule ) {
 					if (!me.flags.dflags()[df]) continue ;
-					flags << (first?" : ":" , ") << mk_snake(df) ;
+					flags << (first?" : ":" , ") << snake(df) ;
 					first = false ;
 				}
 			} else {
 				for( Tflag tf : Tflag::NRule ) {
 					if (!me.flags.tflags()[tf]) continue ;
-					flags << (first?" : ":" , ") << mk_snake(tf) ;
+					flags << (first?" : ":" , ") << snake(tf) ;
 					first = false ;
 				}
 				if (me.flags.tflags()[Tflag::Target]) {
@@ -1044,7 +1041,7 @@ namespace Engine {
 				if (first) { flags += " : " ; first = false ; }
 				else       { flags += " , " ;                 }
 				//
-				flags += mk_snake(f) ;
+				flags += snake(f) ;
 			}
 			/**/        res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
 			if (+flags) res << ::setw(wd)<<patterns[k] << flags ;
@@ -1063,13 +1060,13 @@ namespace Engine {
 	}
 	static ::string _pretty( size_t i , SubmitRsrcsAttrs const& sra ) {
 		::vmap_ss entries ;
-		/**/                                 if (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , mk_snake (sra.backend) ) ;
-		for (auto const& [k,v] : sra.rsrcs ) if (+v                            ) entries.emplace_back( k           , v                    ) ;
+		/**/                                 if (sra.backend!=BackendTag::Local) entries.emplace_back( "<backend>" , snake(sra.backend) ) ;
+		for (auto const& [k,v] : sra.rsrcs ) if (+v                            ) entries.emplace_back( k           , v                  ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 	static ::string _pretty( size_t i , SubmitNoneAttrs const& sna ) {
 		::vmap_ss entries ;
-		if (sna.n_retries!=0) entries.emplace_back( "n_retries" , mk_snake (sna.n_retries) ) ;
+		if (sna.n_retries!=0) entries.emplace_back( "n_retries" , to_string(sna.n_retries) ) ;
 		return _pretty_vmap(i,entries) ;
 	}
 	static ::string _pretty_env( size_t i , ::vmap_ss const& m ) {
@@ -1117,10 +1114,13 @@ namespace Engine {
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		/**/              entries.emplace_back( "autodep" , mk_snake(sra.method)    ) ;
+		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Warray-bounds"                                      // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
-		/**/              res << _pretty_vmap(i,entries)                                 ;
-		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env ) ;
+		#pragma GCC diagnostic pop
+		/**/              res << _pretty_vmap(i,entries)                                  ;
+		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env )  ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , StartNoneAttrs const& sna , RuleData const& rd ) {
@@ -1212,8 +1212,7 @@ namespace Engine {
 			case VarCmd::Targets : res.push_back("targets"                             ) ; break ;
 			case VarCmd::Deps    : res.push_back("deps"                                ) ; break ;
 			case VarCmd::Rsrcs   : res.push_back("resources"                           ) ; break ;
-			default : FAIL(vc) ;
-		}
+		DF}
 		return res ;
 	}
 
@@ -1227,37 +1226,37 @@ namespace Engine {
 		{	::vector_s targets ;
 			for( auto const& [k,me] : matches )
 				if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
-					targets.push_back(me.pattern) ;                                       // keys and flags have no influence on matching
+					targets.push_back(me.pattern) ;                                // keys and flags have no influence on matching
 			Hash::Xxh h ;
 			/**/          h.update(special   ) ;
 			/**/          h.update(stems     ) ;
 			/**/          h.update(cwd_s     ) ;
-			if (!special) h.update(job_name  ) ;                                          // job_name has no effect for source & anti as it is only used to store jobs and there are none
+			if (!special) h.update(job_name  ) ;                                   // job_name has no effect for source & anti as it is only used to store jobs and there are none
 			/**/          h.update(targets   ) ;
 			/**/          h.update(allow_ext ) ;
-			if (!special) h.update(deps_attrs) ;                                          // no deps for source & anti
+			if (!special) h.update(deps_attrs) ;                                   // no deps for source & anti
 			//
-			if ( !special && _qualify_dep({},interpreter[0]) ) h.update(interpreter[0]) ; // no interpreter for source & anti
+			if ( !special && _qualify_dep({},interpreter[0],is_python?DepKind::Python:DepKind::Shell) ) h.update(interpreter[0]) ; // no interpreter for source & anti
 			//
 			match_crc = ::move(h).digest() ;
 		}
-		if (special) return ;                                                             // source & anti are only capable of matching
+		if (special) return ;                // source & anti are only capable of matching
 		{	Hash::Xxh h ;
 			h.update(match_crc      ) ;
-			h.update(matches        ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
+			h.update(matches        ) ;      // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force          ) ;
 			h.update(is_python      ) ;
 			h.update(interpreter    ) ;
 			h.update(start_cmd_attrs) ;
 			h.update(cmd            ) ;
 			h.update(end_cmd_attrs  ) ;
-			cmd_crc = ::move(h).digest() ;                                                // stand-alone : it guarantees rule uniqueness (contains match_crc)
+			cmd_crc = ::move(h).digest() ;   // stand-alone : it guarantees rule uniqueness (contains match_crc)
 		}
 		{	Hash::Xxh h ;
 			h.update(cmd_crc           ) ;
 			h.update(submit_rsrcs_attrs) ;
 			h.update(start_rsrcs_attrs ) ;
-			rsrcs_crc = ::move(h).digest() ;                                              // stand-alone : it guarantees rule uniqueness (contains cmd_crc)
+			rsrcs_crc = ::move(h).digest() ; // stand-alone : it guarantees rule uniqueness (contains cmd_crc)
 		}
 	}
 

@@ -18,6 +18,13 @@ using namespace Re   ;
 using namespace Time ;
 using namespace Py   ;
 
+ENUM( Reason // reason to re-read makefiles
+,	None     // must be first to be false
+,	Set
+,	Cleared
+,	Modified
+)
+
 namespace Engine::Makefiles {
 
 	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
@@ -40,7 +47,7 @@ namespace Engine::Makefiles {
 				else if ( src==".." || src.ends_with("/..")             ) reason =           " is a directory of the repo"                    ;
 				else if ( fi.tag!=FileTag::Dir                          ) reason =           " is not a directory"                            ;
 			} else {
-				if      ( sr.kind!=Kind::Repo                           ) reason =           " is not in repository"                          ;
+				if      ( sr.file_loc!=FileLoc::Repo                    ) reason =           " is not in repository"                          ;
 				else if ( sr.real!=src                                  ) reason = to_string(" canonical form is ",sr.real)                   ;
 				else if ( lnk_support==LnkSupport::None && !fi.is_reg() ) reason =           " is not a regular file"                         ;
 				else if ( lnk_support!=LnkSupport::None && !fi          ) reason =           " is not a regular file nor a symbolic link"     ;
@@ -87,8 +94,7 @@ namespace Engine::Makefiles {
 			switch (line[0]) {
 				case '+' : exists = true  ; break ;
 				case '!' : exists = false ; break ;
-				default  : FAIL(line[0]) ;
-			}
+			DF}
 			::string dep_name = line.substr(1)                 ;
 			FileInfo fi       { (nfs_guard.access(dep_name)) } ;
 			if      (  exists && !fi               ) reason = "removed"                                              ;
@@ -113,8 +119,7 @@ namespace Engine::Makefiles {
 			switch (line[0]) {
 				case '+' : break ;
 				case '!' : continue ;
-				default  : FAIL(line[0]) ;
-			}
+			DF}
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                                                  // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n{d} ;
@@ -205,13 +210,6 @@ namespace Engine::Makefiles {
 		//
 		return { "read config because "+reason , true/*done*/ } ;
 	}
-
-	ENUM( Reason // reason to re-read makefiles
-	,	None     // must be first to be false
-	,	Set
-	,	Cleared
-	,	Modified
-	)
 
 	// /!\ the 2 following functions are mostly identical, one for rules, the other for sources, but are difficult to share, modifications must be done in both simultaneously
 

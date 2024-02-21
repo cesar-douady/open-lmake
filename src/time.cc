@@ -83,9 +83,9 @@ namespace Time {
 				case '+' :
 				case '-' : {
 					end++ ;
-					const char* col = ::strchr(end,':')                               ;
-					int         h   =       from_chars<int>(end,true/*empty_ok*/)     ;
-					int         m   = col ? from_chars<int>(col,true/*empty_ok*/) : 0 ;
+					const char* col = ::strchr(end,':')                                ;
+					int         h   =       from_string<int>(end,true/*empty_ok*/)     ;
+					int         m   = col ? from_string<int>(col,true/*empty_ok*/) : 0 ;
 					if (*end=='+') _val += (h*3600+m*60)*TicksPerSecond ;
 					else           _val -= (h*3600+m*60)*TicksPerSecond ;
 				} break ;

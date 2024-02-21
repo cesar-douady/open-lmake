@@ -187,7 +187,7 @@ namespace Engine::Persistent {
 		static umap_s<RuleBase> s_by_name   ;
 		// cxtors & casts
 		using Base::Base ;
-		constexpr RuleBase(Special s ) : Base{RuleIdx(+s)} { SWEAR( +s && s!=Special::Unknown ) ; } // Special::0 is a marker that says not special
+		constexpr RuleBase(Special s ) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not special
 		void invalidate_old() ;
 		// accesses
 		RuleData      & data      ()       ;
@@ -312,11 +312,11 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( ::vmap_s<Disk::FileTag>&& srcs , ::vector_s&& src_dirs_s ) ;
-	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                                   ) ;
-	void               invalidate_match(                                                          ) ;
-	void               invalidate_exec ( bool cmd_ok                                              ) ;
-	void               repair          ( ::string const& from_dir                                 ) ;
+	bool/*invalidate*/ new_srcs        ( ::vmap_s<FileTag>&& srcs , ::vector_s&& src_dirs_s ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             ) ;
+	void               invalidate_match(                                                    ) ;
+	void               invalidate_exec ( bool cmd_ok                                        ) ;
+	void               repair          ( ::string const& from_dir                           ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;

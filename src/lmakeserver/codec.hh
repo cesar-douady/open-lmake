@@ -80,7 +80,7 @@ namespace Codec {
 		JobRpcReply decode() const ;
 		JobRpcReply encode() const ;
 		// data
-		JobProc proc = JobProc::Unknown ;
+		JobProc proc = {}/*garbage*/ ;
 	private :
 		uint8_t _min_len = 0/*garbage*/ ;
 	public :

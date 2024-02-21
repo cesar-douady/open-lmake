@@ -7,6 +7,8 @@
 
 #include "alloc.hh"
 
+ENUM( ItemKind , Terminal, Prefix , Split )
+
 namespace Store {
 
 	//
@@ -73,9 +75,8 @@ namespace Store {
 		template<class Char> using CharUint = typename CharRep<Char>::CharUint ;
 		template<class Char> CharUint<Char> rep(Char c) { return CharRep<Char>::s_rep(c) ; }
 
-		ENUM( Kind , Terminal, Prefix , Split )
 		struct Nxt {
-			Nxt(Kind k) : val(2-+k) {}
+			Nxt(ItemKind k) : val(2-+k) {}
 			uint8_t val ;
 		} ;
 		struct KindIterator {
@@ -88,8 +89,8 @@ namespace Store {
 			// data
 			uint8_t val ;
 		} ;
-		static inline KindIterator begin(Nxt n) { return n                   ; }
-		static inline KindIterator end  (Nxt  ) { return Nxt(Kind::Terminal) ; }
+		static inline KindIterator begin(Nxt n) { return n                       ; }
+		static inline KindIterator end  (Nxt  ) { return Nxt(ItemKind::Terminal) ; }
 
 		template<class Idx,class Char> struct ItemBase {
 			static_assert(IsTrivial<Char>) ;
@@ -105,7 +106,7 @@ namespace Store {
 			static constexpr Sz       MaxSz         = 4                                                             ; // number of ItemSizeOf in the largest Item
 			// cxtors
 			ItemBase() = default ;
-			ItemBase( Sz sz_ , Kind kind_ , bool used_ , ChunkIdx chunk_sz , size_t cmp_bit_=0 ) :
+			ItemBase( Sz sz_ , ItemKind kind_ , bool used_ , ChunkIdx chunk_sz , size_t cmp_bit_=0 ) :
 				_sz1    (sz_-1   )
 			,	_kind   (+kind_  )
 			,	used    (used_   )
@@ -114,11 +115,11 @@ namespace Store {
 			{	SWEAR(sz_>=1) ;
 			}
 			// accesses
-			Sz   sz     (      ) const { return _sz1+1 ;                }
-			void sz     (Sz sz_)       { SWEAR(sz_>=1) ; _sz1 = sz_-1 ; }
-			Sz   n_items(      ) const { return sz() ;                  }
-			Kind kind   (      ) const { return Kind(_kind) ;           }
-			void kind   (Kind k)       { _kind = +k ;                   }
+			Sz       sz     (          ) const { return _sz1+1 ;                }
+			void     sz     (Sz sz_    )       { SWEAR(sz_>=1) ; _sz1 = sz_-1 ; }
+			Sz       n_items(          ) const { return sz() ;                  }
+			ItemKind kind   (          ) const { return ItemKind(_kind) ;       }
+			void     kind   (ItemKind k)       { _kind = +k ;                   }
 			// data
 			Idx      prev                        {}  ;
 		private :
@@ -139,7 +140,7 @@ namespace Store {
 		:	             ItemBase<Idx,Char>
 		{	using Base = ItemBase<Idx,Char> ;
 			enum class Dvg  : uint8_t { Cont , Dvg , Long , Match , Short , Unused } ;
-			using Kind     = Prefix::Kind            ;
+			using Kind     = ItemKind                ;
 			using Nxt      = Prefix::Nxt             ;
 			using VecView  = Prefix::VecView<Char>   ;
 			using CharUint = typename Base::CharUint ;
@@ -405,6 +406,7 @@ namespace Store {
 		{	using Base  = ItemBase<Idx,Char> ;
 			using Item_ = Item<Idx,Char,Data,Reverse> ;
 			//
+			using Kind     = ItemKind                ;
 			using CharUint = typename Base::CharUint ;
 			static constexpr bool HasData = Item_::HasData ;
 			//
@@ -490,7 +492,7 @@ namespace Store {
 		static constexpr bool HasData = !is_void_v<Data> ;
 		static constexpr bool IsStr   = IsChar<Char>     ;
 		//
-		using Kind    = Prefix::Kind          ;
+		using Kind    = ItemKind              ;
 		using Nxt     = Prefix::Nxt           ;
 		using Vec     = Prefix::Vec    <Char> ;
 		using VecView = Prefix::VecView<Char> ;
@@ -1128,8 +1130,7 @@ namespace Store {
 					_append_lst( idx_lst , item.nxt_if( zero_is_eq) ) ; // output in increasing order
 					_append_lst( idx_lst , item.nxt_if(!zero_is_eq) ) ; // .
 				} break ;
-				default : FAIL(item.kind()) ;
-			}
+			DF}
 		}
 
 	// compute both name & suffix in a single pass
@@ -1368,8 +1369,7 @@ namespace Store {
 								throw_unless(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
 						}
 					break ;
-					default : FAIL(item.kind()) ;
-				}
+				DF}
 				if (prev_item.kind()==Kind::Split) {
 					if (item.prev_is_eq) throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
 					else                 throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;

@@ -174,7 +174,6 @@ template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int
 		if (it==g_syscall_tab->end()) goto Ignore ;
 		//
 		SymEntry const& entry = it->second ;
-		SWEAR(Record::s_autodep_env().lnk_support!=LnkSupport::Unknown) ;
 		if ( Record::s_autodep_env().lnk_support>=entry.lnk_support) goto Catch ;
 		if (!Record::s_autodep_env().ignore_stat                   ) goto Catch ; // we need to generate deps for stat-like accesses
 		goto Ignore ;

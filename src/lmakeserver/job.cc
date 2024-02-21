@@ -11,6 +11,12 @@
 
 using namespace Disk ;
 
+ENUM(DepErr
+,	Ok
+,	Err           // >=Err means error
+,	MissingStatic
+)
+
 namespace Engine {
 
 	::map <Pdate,Job  > Job::_s_start_date_to_jobs ;
@@ -38,7 +44,7 @@ namespace Engine {
 		//
 		// remove old_targets
 		for( Target t : targets ) {
-			FileActionTag fat = FileActionTag::Unknown/*garbage*/ ;
+			FileActionTag fat = {}/*garbage*/ ;
 			//
 			if      (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                       // nothing to wash
 			else if (t->unlinked                  ) fat = FileActionTag::None     ;                                                       // already unlinked somehow
@@ -71,8 +77,7 @@ namespace Engine {
 						}
 					}
 				break ;
-				default : FAIL(fa.tag) ;
-			}
+			DF}
 		NextTarget : ;
 		}
 		// make target dirs
@@ -621,31 +626,31 @@ namespace Engine {
 	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time) const {
 		using JR = JobReport ;
 		//
-		Req            req         = cri.req                   ;
-		JobData const& jd          = **this                    ;
-		Color          color       = Color::Unknown/*garbage*/ ;
-		JR             res         = JR   ::Unknown/*garbage*/ ; // report if not Rerun
-		JR             jr          = JR   ::Unknown/*garbage*/ ; // report to do now
-		::string       step        ;
-		bool           with_stderr = true                      ;
+		Req            req         = cri.req       ;
+		JobData const& jd          = **this        ;
+		Color          color       = {}/*garbage*/ ;
+		JR             res         = {}/*garbage*/ ; // report if not Rerun
+		JR             jr          = {}/*garbage*/ ; // report to do now
+		const char*    step        = nullptr       ;
+		bool           with_stderr = true          ;
 		//
-		if      (jd.run_status!=RunStatus::Complete) { res = JR::Failed    ; color = Color::Err     ;                       step = mk_snake(jd.run_status) ; }
-		else if (jd.status==Status::Killed         ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                  }
-		else if (is_lost(jd.status) && jd.err()    ) { res = JR::LostErr   ; color = Color::Err     ;                       step = "lost_err"              ; }
-		else if (is_lost(jd.status)                ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                  }
-		else if (req->zombie                       ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                  }
-		else if (jd.err()                          ) { res = JR::Failed    ; color = Color::Err     ;                                                        }
-		else if (modified                          ) { res = JR::Done      ; color = Color::Ok      ;                                                        }
-		else                                         { res = JR::Steady    ; color = Color::Ok      ;                                                        }
+		if      (jd.run_status!=RunStatus::Complete) { res = JR::Failed    ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
+		else if (jd.status==Status::Killed         ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
+		else if (is_lost(jd.status) && jd.err()    ) { res = JR::LostErr   ; color = Color::Err     ;                       step = "lost_err"                ; }
+		else if (is_lost(jd.status)                ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                    }
+		else if (req->zombie                       ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
+		else if (jd.err()                          ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
+		else if (modified                          ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
+		else                                         { res = JR::Steady    ; color = Color::Ok      ;                                                          }
 		if      (cri.done()                        )   jr  = res           ;
-		else                                         { jr  = JR::Rerun     ; color = Color::Note    ; with_stderr = false ; step = {}                      ; }
+		else                                         { jr  = JR::Rerun     ; color = Color::Note    ; with_stderr = false ; step = nullptr                   ; }
 		//
 		switch (color) {
 			case Color::Ok  : if (+stderr          ) color = Color::Warning      ; break ;
 			case Color::Err : if (cri.speculate!=No) color = Color::SpeculateErr ; break ;
 			default : ;
 		}
-		if (!step) step = mk_snake(jr) ;
+		if (!step) step = snake_cstr(jr) ;
 		Trace trace("audit_end",color,pfx,step,*this,cri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		req->audit_job(color,pfx+step,*this,true/*at_end*/,exec_time) ;
@@ -688,12 +693,6 @@ namespace Engine {
 			default : ;
 		}
 	}
-
-	ENUM(DepErr
-	,	Ok
-	,	Err           // >=Err means error
-	,	MissingStatic
-	)
 
 	static inline bool _inc_cur( Req req , JobStep js , int inc ) {
 		if (js==JobStep::None) return false ;
@@ -1040,7 +1039,7 @@ namespace Engine {
 					::string    tn       = t->name()                         ;
 					FileInfo    fi       { nfs_guard.access(tn) }            ;
 					bool        plain    = t->crc.valid() && t->crc.exists() ;
-					SpecialStep ss       = SpecialStep::Unknown              ;
+					SpecialStep ss       = {}/*garbage*/                     ;
 					if ( plain && +fi && fi.date==t->date() ) {
 						ss = SpecialStep::Idle ;
 					} else {
@@ -1069,8 +1068,7 @@ namespace Engine {
 				status = Status::Err ;
 				audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ;
 			break ;
-			default : FAIL(special) ;
-		}
+		DF}
 		return false/*may_new_dep*/ ;
 	}
 
@@ -1164,8 +1162,7 @@ namespace Engine {
 					return true/*maybe_new_deps*/ ;
 				case No :
 				break ;
-				default : FAIL(cache_match.hit) ;
-			}
+			DF}
 		}
 		ri.n_wait++ ;                                                                  // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step = Step::Queued ;
@@ -1204,8 +1201,7 @@ namespace Engine {
 			case SpecialStep::Idle :                                                                             break ;
 			case SpecialStep::Ok   : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
 			case SpecialStep::Err  : step_str = "failed"                                                       ; break ;
-			default : FAIL(step) ;
-		}
+		DF}
 		Color color =
 			status==Status::Ok && !frozen_ ? Color::HiddenOk
 		:	status>=Status::Err            ? Color::Err
@@ -1261,8 +1257,7 @@ namespace Engine {
 			case AncillaryTag::Data    : res = g_config.local_admin_dir + "/job_data" ; break ;
 			case AncillaryTag::Dbg     : res = AdminDir                 + "/debug"s   ; break ;
 			case AncillaryTag::KeepTmp : res = AdminDir                 + "/tmp"s     ; break ;
-			default : FAIL(tag) ;
-		}
+		DF}
 		res.reserve( res.size() + str.size() + str.size()/2 + 1 ) ;                                // 1.5*str.size() as there is a / for 2 digits + final _
 		for( i=skip_first ; i<str.size()-1 ; i+=2 ) { res.push_back('/') ; res.append(str,i,2) ; } // create a dir hierarchy with 100 files at each level
 		res.push_back('_') ;                                                                       // avoid name clashes with directories

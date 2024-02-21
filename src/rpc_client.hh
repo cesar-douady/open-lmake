@@ -46,8 +46,7 @@ static inline bool is_mark_glb(ReqKey key) {
 		case ReqKey::List   : return true  ;
 		case ReqKey::Add    :
 		case ReqKey::Delete : return false ;
-		default : FAIL(key) ;
-	}
+	DF}
 }
 
 ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
@@ -100,7 +99,7 @@ struct ReqOptions {
 	// cxtors & casts
 	ReqOptions() = default ;
 	//
-	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , ::array_s<+ReqFlag::N> const& fa={} ) :
+	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , ::array_s<N<ReqFlag>> const& fa={} ) :
 		startup_dir_s { sds }
 	,	reverse_video { rv  }
 	,	key           { k   }
@@ -123,11 +122,11 @@ struct ReqOptions {
 		::serdes(s,flag_args    ) ;
 	}
 	// data
-	::string               startup_dir_s ;
-	Bool3                  reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
-	ReqKey                 key           = ReqKey::None ;
-	ReqFlags               flags         ;
-	::array_s<+ReqFlag::N> flag_args     ;
+	::string              startup_dir_s ;
+	Bool3                 reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
+	ReqKey                key           = ReqKey::None ;
+	ReqFlags              flags         ;
+	::array_s<N<ReqFlag>> flag_args     ;
 } ;
 
 struct ReqRpcReq {
@@ -172,8 +171,7 @@ struct ReqRpcReply {
 			case Kind::None   :                   break ;
 			case Kind::Status : ::serdes(s,ok ) ; break ;
 			case Kind::Txt    : ::serdes(s,txt) ; break ;
-			default : FAIL(kind) ;
-		}
+		DF}
 	}
 	// data
 	Kind     kind = Kind::None ;

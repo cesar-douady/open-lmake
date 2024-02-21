@@ -40,7 +40,7 @@ static void connect_to_server(bool refresh) {
 			if (!server_mrkr_stream                          ) { trace("no_marker"  ) ; goto LaunchServer ; }
 			if (!::getline(server_mrkr_stream,server_service)) { trace("bad_marker1") ; goto LaunchServer ; }
 			if (!::getline(server_mrkr_stream,pid_str       )) { trace("bad_marker2") ; goto LaunchServer ; }
-			server_pid = from_chars<pid_t>(pid_str) ;
+			server_pid = from_string<pid_t>(pid_str) ;
 			trace("server",server_pid) ;
 			try {
 				if (host()==SockFd::s_host(server_service)) {
@@ -63,17 +63,29 @@ static void connect_to_server(bool refresh) {
 		,	"-d"/*no_daemon*/
 		,	"-c"+*g_startup_dir_s
 		} ;
-		if (!refresh) cmd_line.push_back("-r"/*no_refresh*/) ;
-		/**/          cmd_line.push_back("--"              ) ;                     // ensure no further option processing in case a file starts with a -
+		Pipe client_to_server{New} ; client_to_server.no_std() ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
+		Pipe server_to_client{New} ; server_to_client.no_std() ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
+		/**/          cmd_line.push_back(to_string("-i",int(client_to_server.read ))) ;
+		/**/          cmd_line.push_back(to_string("-o",int(server_to_client.write))) ;
+		if (!refresh) cmd_line.push_back(          "-r"                             ) ; // -r means no refresh
+		/**/          cmd_line.push_back(          "--"                             ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
-		Child server{ false/*as_group*/ , cmd_line , Child::Pipe , Child::Pipe } ;
-		//
-		if (server_ok(server.stdout,"new")) {
-			g_server_fds = AutoCloseFdPair{ server.stdout , server.stdin } ;
-			server.mk_daemon() ;
-			return ;
+		try {
+			Child server{ false/*as_group*/ , cmd_line } ;
+			client_to_server.read .close() ;
+			server_to_client.write.close() ;
+			//
+			if (server_ok(server_to_client.read,"new")) {
+				g_server_fds = AutoCloseFdPair{ server_to_client.read , client_to_server.write } ;
+				server.mk_daemon() ;
+				return ;
+			}
+			client_to_server.write.close() ;
+			server_to_client.read .close() ;
+			server.wait() ;                                                             // dont care about return code, we are going to relauch/reconnect anyway
+		} catch (::string const& e) {
+			exit(2,e) ;
 		}
-		server.wait() ;                                                        // dont care about return code, we are going to relauch/reconnect anyway
 		// retry if not successful, may be a race between several clients trying to connect to/launch servers
 		now += Delay(0.1) ;
 		now.sleep_until() ;
@@ -110,9 +122,9 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	::tcgetattr( in_fd , &old_attrs ) ;
 	//
 	new_attrs              = old_attrs       ;
-	new_attrs.c_lflag     &= ~ECHO & ~ICANON ;                                 // no echo (as they would appear on the terminal) & do not wait for \n that will never come
-	new_attrs.c_cc[VMIN ]  = 0               ;                                 // polling mode, blocking and timeout is managed with epoll as timeout here is not always enforced
-	new_attrs.c_cc[VTIME]  = 0               ;                                 // .
+	new_attrs.c_lflag     &= ~ECHO & ~ICANON ;                                    // no echo (as they would appear on the terminal) & do not wait for \n that will never come
+	new_attrs.c_cc[VMIN ]  = 0               ;                                    // polling mode, blocking and timeout is managed with epoll as timeout here is not always enforced
+	new_attrs.c_cc[VTIME]  = 0               ;                                    // .
 	//
 	try {
 		::tcsetattr( in_fd , TCSANOW , &new_attrs ) ;
@@ -120,9 +132,9 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 		// prefer to do manual I/O rather than going through getline & co (which should do the job) as all this part is quite tricky
 		//
 		//                   background      foreground
-		::string reqs[2] = { "\x1b]11;?\a" , "\x1b]10;?\a" } ;                 // sequence to ask for color
+		::string reqs[2] = { "\x1b]11;?\a" , "\x1b]10;?\a" } ;                    // sequence to ask for color
 		uint32_t lum [2] = { 0             , 0             } ;
-		Epoll    epoll   { New }                             ;                 // timeout set with ::tcsetattr does not always work, so use epoll for that, in case tty does not answer
+		Epoll    epoll   { New }                             ;                    // timeout set with ::tcsetattr does not always work, so use epoll for that, in case tty does not answer
 		epoll.add_read( in_fd , 0/*unused*/ ) ;
 		for( bool fg : {false,true}) {
 			::string reply ;
@@ -131,25 +143,25 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 			trace("sent",STR(fg),mk_printable(reqs[fg])) ;
 			for(;;) {
 				char                   c      = 0/*garbage*/                  ;
-				::vector<Epoll::Event> events = epoll.wait(500'000'000/*ns*/) ; // 500ms, normal reaction time is 20-50ms
+				::vector<Epoll::Event> events = epoll.wait(500'000'000/*ns*/) ;                        // 500ms, normal reaction time is 20-50ms
 				SWEAR( events.size()<=1 , events.size() ) ;
-				if (!events.size()       ) throw "timeout"s ;                  // there is a single fd, there may not be more than 1 event
+				if (!events.size()       ) throw "timeout"s ;                                          // there is a single fd, there may not be more than 1 event
 				SWEAR( events[0].fd()==in_fd , events[0].fd() , in_fd ) ;
-				if (::read(in_fd,&c,1)!=1) throw "cannot read reply"s ;        // this is the only possible fd
+				if (::read(in_fd,&c,1)!=1) throw "cannot read reply"s ;                                // this is the only possible fd
 				if (c=='\a'              ) break                      ;
 				reply.push_back(c) ;
 			}
 			trace("got",STR(fg),mk_printable(reply)) ;
-			size_t   pfx_len = reqs[fg].find(';')+1       ;                    // up to ;, including it
+			size_t   pfx_len = reqs[fg].find(';')+1       ;                                            // up to ;, including it
 			::string pfx     = reqs[fg].substr(0,pfx_len) ;
-			size_t   pos     = reply.find(pfx)            ;                    // ignore leading char's that may be sent as echo of user input just before executing command
-			if (pos==Npos                          ) throw "no ; in reply"s ;  // reply should have same format with ? substituted by actual values
-			if (reply.substr(pos  ,pfx_len)!=pfx   ) throw "bad prefix"s    ;  // .
-			if (reply.substr(pos+pfx_len,4)!="rgb:") throw "no rgb:"s       ;  // then rgb:
+			size_t   pos     = reply.find(pfx)            ;                                            // ignore leading char's that may be sent as echo of user input just before executing command
+			if (pos==Npos                          ) throw "no ; in reply"s ;                          // reply should have same format with ? substituted by actual values
+			if (reply.substr(pos  ,pfx_len)!=pfx   ) throw "bad prefix"s    ;                          // .
+			if (reply.substr(pos+pfx_len,4)!="rgb:") throw "no rgb:"s       ;                          // then rgb:
 			::vector_s t = split(reply.substr(pos+pfx_len+4),'/') ;
 			if (t.size()!=3                        ) throw "bad format"s    ;
 			//
-			for( size_t i=0 ; i<3 ; i++ ) lum[fg] += from_chars<uint32_t>(t[i],true/*empty_ok*/,16) ; // add all 3 components as a rough approximation of the luminance
+			for( size_t i=0 ; i<3 ; i++ ) lum[fg] += from_string<uint32_t>(t[i],true/*empty_ok*/,16) ; // add all 3 components as a rough approximation of the luminance
 		}
 		res = lum[true/*foreground*/]>lum[false/*foreground*/] ? Yes : No ;
 		trace("found",lum[0],lum[1],res) ;
@@ -187,11 +199,10 @@ Bool3/*ok*/ out_proc( ::ostream& os , ReqProc proc , bool refresh , ReqSyntax co
 				case ReqKind::None   : trace("none"               ) ; return Maybe            ;
 				case ReqKind::Status : trace("done",STR(report.ok)) ; return report.ok?Yes:No ;
 				case ReqKind::Txt    : os << report.txt << flush    ; break                   ;
-				default : FAIL(report.kind) ;
-			}
+			DF}
 		}
 	} catch(...) {
 		trace("disconnected") ;
-		return Maybe ;                                                         // input has been closed by peer before reporting a status
+		return Maybe ;          // input has been closed by peer before reporting a status
 	}
 }

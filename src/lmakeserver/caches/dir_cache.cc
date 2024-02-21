@@ -146,8 +146,7 @@ namespace Caches {
 				lnk( dst_at , dst_file , target ) ;
 			}
 			break ;
-			default : FAIL(fi.tag) ;
-		}
+		DF}
 	}
 	static inline void _copy(             ::string const& src_file , Fd dst_at , ::string const& dst_file , bool ud , bool ro ) { _copy( Fd::Cwd , src_file , dst_at  , dst_file , ud , ro ) ; }
 	static inline void _copy( Fd src_at , ::string const& src_file ,             ::string const& dst_file , bool ud , bool ro ) { _copy( src_at  , src_file , Fd::Cwd , dst_file , ud , ro ) ; }

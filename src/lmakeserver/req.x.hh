@@ -10,36 +10,39 @@
 #include "idxed.hh"
 
 #ifdef STRUCT_DECL
+
+ENUM( RunAction // each action is included in the following one
+,	None        // when used as done_action, means not done at all
+,	Makable     // do whatever is necessary to assert if job can be run / node does exist (data dependent)
+,	Status      // check deps (no disk access except sources), run if possible & necessary
+,	Dsk         // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
+,	Run         // for Job  : force job to be run
+)
+
+ENUM_1( JobReport
+,	Useful = Failed // <=Useful means job was usefully run
+,	Steady
+,	Done
+,	Failed
+,	Completed
+,	Killed
+,	Lost
+,	LostErr
+,	Rerun
+,	Hit
+)
+
 namespace Engine {
 
 	struct Req     ;
 	struct ReqData ;
 	struct ReqInfo ;
 
-	ENUM( RunAction // each action is included in the following one
-	,	None        // when used as done_action, means not done at all
-	,	Makable     // do whatever is necessary to assert if job can be run / node does exist (data dependent)
-	,	Status      // check deps (no disk access except sources), run if possible & necessary
-	,	Dsk         // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
-	,	Run         // for Job  : force job to be run
-	)
-
-	ENUM_1( JobReport
-	,	Useful = Failed // <=Useful means job was usefully run
-	,	Steady
-	,	Done
-	,	Failed
-	,	Completed
-	,	Killed
-	,	Lost
-	,	LostErr
-	,	Rerun
-	,	Hit
-	)
-
 }
+
 #endif
 #ifdef STRUCT_DEF
+
 namespace Engine {
 
 	template<class JN> concept IsWatcher = IsOneOf<JN,Job,Node> ;
@@ -109,26 +112,28 @@ namespace Engine {
 		JobIdx const& ended(JobReport i) const {                           return _ended[+i         ] ; }
 		JobIdx      & ended(JobReport i)       {                           return _ended[+i         ] ; }
 		//
-		JobIdx cur   () const { JobIdx res = 0 ; for( JobStep   i : JobStep  ::N ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
-		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : JobReport::N ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
+		JobIdx cur   () const { JobIdx res = 0 ; for( JobStep   i : All<JobStep  > ) if (s_valid_cur(i)      ) res+=cur  (i) ; return res ; }
+		JobIdx useful() const { JobIdx res = 0 ; for( JobReport i : All<JobReport> ) if (i<=JobReport::Useful) res+=ended(i) ; return res ; }
 		// data
 		Time::Delay jobs_time[2/*useful*/] ;
 	private :
 		JobIdx _cur  [+JobStep::Done+1-(+JobStep::None+1)] = {} ;
-		JobIdx _ended[+JobReport::N                      ] = {} ;
+		JobIdx _ended[N<JobReport>                       ] = {} ;
 	} ;
 
 	struct JobAudit {
 		friend ::ostream& operator<<( ::ostream& os , JobAudit const& ) ;
 		// data
-		JobReport report      = JobReport::Unknown/*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
-		bool      modified    = false             /*garbage*/ ;
+		JobReport report      = {}   /*garbage*/ ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
+		bool      modified    = false/*garbage*/ ;
 		::string  backend_msg ;
 	} ;
 
 }
+
 #endif
 #ifdef INFO_DEF
+
 namespace Engine {
 
 	using Watcher = Idxed2<Job,Node> ;
@@ -193,24 +198,26 @@ namespace Engine {
 			return propag ;
 		}
 		// data
-		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0               ;                                  // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
-		bool        live_out:1                   = false           ;                                  //       1 bit , if true <=> generate live output
-		CoarseDelay pressure                     ;                                                    //      16 bits, critical delay from end of job to end of req
-		Req         req                          ;                                                    //       8 bits
-		RunAction   action     :3                = RunAction::None ; static_assert(+RunAction::N<8) ; //       3 bits
-		RunAction   done_      :3                = RunAction::None ;                                  //       3 bits, if >=action => done for this action (non-buildable Node's are always done)
+		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0               ;                               // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		bool        live_out:1                   = false           ;                               //       1 bit , if true <=> generate live output
+		CoarseDelay pressure                     ;                                                 //      16 bits, critical delay from end of job to end of req
+		Req         req                          ;                                                 //       8 bits
+		RunAction   action     :3                = RunAction::None ;                               //       3 bits
+		RunAction   done_      :3                = RunAction::None ;                               //       3 bits, if >=action => done for this action (non-buildable Node's are always done)
 	private :
-		uint8_t _n_watchers:2                    = 0               ; static_assert(VectorMrkr   <4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:2                    = 0               ; static_assert(VectorMrkr<4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::vector<Watcher          >* _watchers_v ;                                                //      64 bits, if _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>  _watchers_a ;                                                //      64 bits, if _n_watchers< VectorMrkr
+			::vector<Watcher          >* _watchers_v ;                                             //      64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>  _watchers_a ;                                             //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
-	static_assert(sizeof(ReqInfo)==16) ;                                                              // check expected size
+	static_assert(sizeof(ReqInfo)==16) ;                                                           // check expected size
 
 }
+
 #endif
 #ifdef DATA_DEF
+
 namespace Engine {
 
 	struct ReqData {
@@ -284,8 +291,10 @@ namespace Engine {
 	} ;
 
 }
+
 #endif
 #ifdef IMPL
+
 namespace Engine {
 
 	//
@@ -311,4 +320,5 @@ namespace Engine {
 	inline void ReqData::audit_node( Color c , ::string const& p , Node n , DepDepth l ) const { audit_info( c , p , +n?n->name():""s , l )  ; }
 
 }
+
 #endif

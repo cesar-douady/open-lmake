@@ -9,6 +9,72 @@
 #include "serialize.hh"
 
 #ifdef STRUCT_DECL
+
+ENUM( CacheTag // PER_CACHE : add a tag for each cache method
+,	None
+,	Dir
+)
+
+ENUM( Color
+,	None
+,	HiddenNote
+,	HiddenOk
+,	Note
+,	Ok
+,	Warning
+,	SpeculateErr
+,	Err
+)
+
+ENUM( ConfigDiff
+,	None         // configs are identical
+,	Dynamic      // config can be updated while engine runs
+,	Static       // config can be updated when engine is steady
+,	Clean        // config cannot be updated (requires clean repo)
+)
+
+ENUM( EngineClosureKind
+,	Global
+,	Req
+,	Job
+)
+
+ENUM( GlobalProc
+,	None
+,	Int
+,	Wakeup
+)
+
+ENUM( JobEvent
+,	Submit     // job is submitted
+,	Add        // add a Req monitoring job
+,	Start      // job execution starts
+,	Done       // job done successfully
+,	Steady     // job done successfully
+,	Rerun      // job must rerun
+,	Killed     // job has been killed
+,	Del        // delete a Req monitoring job
+,	Err        // job done in error
+)
+
+ENUM( NodeEvent
+,	Done        // node was modified
+,	Steady      // node was remade w/o modification
+,	Uphill      // uphill dir was makable
+)
+
+ENUM( ReportBool
+,	No
+,	Yes
+,	Reported
+)
+
+ENUM( StdRsrc
+,	Cpu
+,	Mem
+,	Tmp
+)
+
 namespace Engine {
 
 	struct Config           ;
@@ -16,67 +82,11 @@ namespace Engine {
 	struct EngineClosureReq ;
 	struct EngineClosureJob ;
 
-	ENUM( CacheTag // PER_CACHE : add a tag for each cache method
-	,	None
-	,	Dir
-	)
-
-	ENUM( Color
-	,	None
-	,	HiddenNote
-	,	HiddenOk
-	,	Note
-	,	Ok
-	,	Warning
-	,	SpeculateErr
-	,	Err
-	)
-
-	ENUM( EngineClosureKind
-	,	Global
-	,	Req
-	,	Job
-	)
-
-	ENUM( GlobalProc
-	,	None
-	,	Int
-	,	Wakeup
-	)
-
-	ENUM( JobEvent
-	,	Submit     // job is submitted
-	,	Add        // add a Req monitoring job
-	,	Start      // job execution starts
-	,	Done       // job done successfully
-	,	Steady     // job done successfully
-	,	Rerun      // job must rerun
-	,	Killed     // job has been killed
-	,	Del        // delete a Req monitoring job
-	,	Err        // job done in error
-	)
-
-	ENUM( NodeEvent
-	,	Done        // node was modified
-	,	Steady      // node was remade w/o modification
-	,	Uphill      // uphill dir was makable
-	)
-
-	ENUM( ReportBool
-	,	No
-	,	Yes
-	,	Reported
-	)
-
-	ENUM( StdRsrc
-	,	Cpu
-	,	Mem
-	,	Tmp
-	)
-
 }
+
 #endif
 #ifdef STRUCT_DEF
+
 namespace Engine {
 
 	struct Version {
@@ -93,7 +103,7 @@ namespace Engine {
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		Version    db_version           ;                    // must always stay first so it is always understood, by default, db version does not match
-		Hash::Algo hash_algo            = Hash::Algo::Xxh  ;
+		Algo       hash_algo            = Algo::Xxh        ;
 		LnkSupport lnk_support          = LnkSupport::Full ;
 		::string   user_local_admin_dir ;
 		::string   key                  ;                    // random key to differentiate repo from other repos
@@ -174,24 +184,17 @@ namespace Engine {
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
-		size_t                                                                   max_err_lines         = 0     ; // unlimited
-		bool                                                                     reliable_dirs         = false ; // if true => dirs coherence is enforced when files are modified
-		::string                                                                 user_remote_admin_dir ;
-		::string                                                                 user_remote_tmp_dir   ;
-		Console                                                                  console               ;
-		::map_s<size_t>                                                          static_n_tokenss      ;
-		::map_s<size_t>                                                          dyn_n_tokenss         ;
-		::array<uint8_t,+StdRsrc::N>                                             rsrc_digits           = {}    ; // precision of standard resources
-		::array<Backend,+BackendTag::N>                                          backends              ;         // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,+Color::N> colors                = {}    ;
+		size_t                                                                  max_err_lines         = 0     ; // unlimited
+		bool                                                                    reliable_dirs         = false ; // if true => dirs coherence is enforced when files are modified
+		::string                                                                user_remote_admin_dir ;
+		::string                                                                user_remote_tmp_dir   ;
+		Console                                                                 console               ;
+		::map_s<size_t>                                                         static_n_tokenss      ;
+		::map_s<size_t>                                                         dyn_n_tokenss         ;
+		::array<uint8_t,N<StdRsrc>>                                             rsrc_digits           = {}    ; // precision of standard resources
+		::array<Backend,N<BackendTag>>                                          backends              ;         // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors                = {}    ;
 	} ;
-
-	ENUM( ConfigDiff
-	,	None         // configs are identical
-	,	Dynamic      // config can be updated while engine runs
-	,	Static       // config can be updated when engine is steady
-	,	Clean        // config cannot be updated (requires clean repo)
-	)
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
 		friend ::ostream& operator<<( ::ostream& , Config const& ) ;
@@ -235,8 +238,10 @@ namespace Engine {
 	/**/                 static inline ::string color_sfx( ReqOptions const& , Color  ) ;
 
 }
+
 #endif
 #ifdef DATA_DEF
+
 namespace Engine {
 
 	struct EngineClosureReq {
@@ -320,16 +325,14 @@ namespace Engine {
 				case K::Global : new(&global_proc) GlobalProc{::move(ec.global_proc)} ; break ;
 				case K::Req    : new(&req        ) Req_      {::move(ec.req        )} ; break ;
 				case K::Job    : new(&job        ) Job_      {::move(ec.job        )} ; break ;
-				default : FAIL(ec.kind) ;
-			}
+			DF}
 		}
 		~EngineClosure() {
 			switch (kind) {
 				case K::Global : global_proc.~GlobalProc() ; break ;
 				case K::Req    : req        .~Req_      () ; break ;
 				case K::Job    : job        .~Job_      () ; break ;
-				default : FAIL(kind) ;
-			}
+			DF}
 		}
 		EngineClosure& operator=(EngineClosure const&  ec) = delete ;
 		EngineClosure& operator=(EngineClosure      && ec) = delete ;
@@ -345,8 +348,10 @@ namespace Engine {
 	extern ThreadQueue<EngineClosure> g_engine_queue ;
 
 }
+
 #endif
 #ifdef IMPL
+
 namespace Engine {
 
 	static inline ::string reason_str(JobReason const& reason) {
@@ -372,4 +377,5 @@ namespace Engine {
 	}
 
 }
+
 #endif

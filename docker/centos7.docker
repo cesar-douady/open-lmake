@@ -25,5 +25,4 @@ USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy
 ENV     HOME=/home/cdy
-#CMD     scl enable devtoolset-11 bash
 CMD     PATH=/opt/rh/devtoolset-11/root/usr/bin:$PATH bash

@@ -88,7 +88,7 @@ public :
 	// data
 private :
 	Queue     _queue  ;
-	::jthread _thread ;                // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ; // ensure _thread is last so other fields are constructed when it starts
 } ;
 
 ENUM(ServerThreadEventKind
@@ -100,13 +100,13 @@ template<class Req> struct ServerThread {
 	using Ddate = Time::Ddate ;
 	using EventKind = ServerThreadEventKind ;
 private :
-	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,Fd)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func ) {
 		static constexpr uint64_t One = 1 ;
 		t_thread_key = key ;
 		AutoCloseFd        stop_fd = ::eventfd(0,O_CLOEXEC) ; stop_fd.no_std() ;
 		Epoll              epoll   { New }                  ;
 		::umap<Fd,IMsgBuf> slaves  ;
-		::stop_callback    stop_cb {                                           // transform request_stop into an event Epoll can wait for
+		::stop_callback    stop_cb {                                                                               // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&](){
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
@@ -122,7 +122,7 @@ private :
 		epoll.add_read(stop_fd ,EventKind::Stop  ) ;
 		for(;;) {
 			trace("wait") ;
-			::vector<Epoll::Event> events = epoll.wait() ;                     // wait for 1 event, no timeout
+			::vector<Epoll::Event> events = epoll.wait() ;                                                         // wait for 1 event, no timeout
 			for( Epoll::Event event : events ) {
 				EventKind kind = event.data<EventKind>() ;
 				Fd        efd  = event.fd()              ;
@@ -149,19 +149,22 @@ private :
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
-						epoll.del(efd) ;                                       // Func may trigger efd being closed by another thread, hence epoll.del must be done before
+						epoll.del(efd) ;                                 // Func may trigger efd being closed by another thread, hence epoll.del must be done before
 						slaves.erase(efd) ;
-						if (!func(::move(r),efd)) { efd.close() ; }            // close efd if not requested to keep it
+						SlaveSockFd ssfd { efd }            ;
+						bool        keep = false/*garbage*/ ;
+						keep=func(::move(r),ssfd) ;
+						if (keep) ssfd.detach() ; // dont close ssfd if requested to keep it
+						trace("called",STR(keep)) ;
 					} break ;
-					default : FAIL(kind) ;
-				}
+				DF}
 			}
 		}
 		trace("done") ;
 	}
 	// cxtors & casts
 public :
-	ServerThread(char key, ::function<bool/*keep_fd*/(Req&&,Fd)> func ,int backlog=0) : fd{New,backlog} , _thread{_s_thread_func,key,this,func} {}
+	ServerThread(char key, ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> func ,int backlog=0) : fd{New,backlog} , _thread{_s_thread_func,key,this,func} {}
 	// services
 	void wait_started() {
 		_ready.wait() ;
@@ -170,5 +173,5 @@ public :
 	ServerSockFd fd ;
 private :
 	::latch   _ready  {1} ;
-	::jthread _thread ;                // ensure _thread is last so other fields are constructed when it starts
+	::jthread _thread ;                                                  // ensure _thread is last so other fields are constructed when it starts
 } ;

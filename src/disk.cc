@@ -9,15 +9,17 @@
 
 using namespace filesystem ;
 
+// ENUM macro does not work inside namespace's
+ENUM( CanonState
+,	First
+,	Empty
+,	Dot
+,	DotDot
+,	Plain
+)
+
 namespace Disk {
 
-	ENUM( CanonState
-	,	First
-	,	Empty
-	,	Dot
-	,	DotDot
-	,	Plain
-	)
 	bool is_canon(::string const& name) {
 		bool       accept_dot_dot = true              ;
 		CanonState state          = CanonState::First ;
@@ -30,8 +32,7 @@ namespace Disk {
 						case CanonState::DotDot : if (!accept_dot_dot) return false ; break ;
 						case CanonState::First  :                                             // seen from /, First is like Plain
 						case CanonState::Plain  : accept_dot_dot = false ;            break ; // .. is only accepted as relative prefix
-						default : FAIL(state) ;
-					}
+					DF}
 					state = CanonState::Empty ;
 				break ;
 				case '.' :
@@ -41,8 +42,7 @@ namespace Disk {
 						case CanonState::Dot    : state = CanonState::DotDot ; break ;
 						case CanonState::DotDot : state = CanonState::Plain  ; break ;
 						case CanonState::Plain  :                              break ;
-						default : FAIL(state) ;
-					}
+					DF}
 				break ;
 				default :
 					state = CanonState::Plain ;
@@ -54,8 +54,7 @@ namespace Disk {
 			case CanonState::Dot    : return false ;
 			case CanonState::DotDot : return false ;
 			case CanonState::Plain  : return true  ;
-			default : FAIL(state) ;
-		}
+		DF}
 		return true ;
 	}
 
@@ -343,7 +342,7 @@ namespace Disk {
 	}
 
 	::ostream& operator<<( ::ostream& os , RealPath::SolveReport const& sr ) {
-		return os << "SolveReport(" << sr.real <<','<< sr.kind <<','<< sr.lnks <<')' ;
+		return os << "SolveReport(" << sr.real <<','<< sr.file_loc <<','<< sr.lnks <<')' ;
 	}
 
 	void RealPath::init( RealPathEnv const& rpe , ::string&& cwd , pid_t p ) {
@@ -455,8 +454,7 @@ namespace Disk {
 				case LnkSupport::None :                                 continue ;
 				case LnkSupport::File : if (last) goto HandleLnk ; else continue ;                                        // only handle sym links as last component
 				case LnkSupport::Full :           goto HandleLnk ;
-				default : FAIL(lnk_support) ;
-			}
+			DF}
 		HandleLnk :
 			if ( has_tmp_view && in_tmp ) { *nxt = read_lnk( tmp_dir + real.substr(tmp_view.size()) ) ; mapped = true ; } // XXX : optimize by leveraging dir fd computed on previous loop
 			else                          { *nxt = read_lnk( real                                   ) ;                 }
@@ -489,22 +487,22 @@ namespace Disk {
 		Accesses last_accesses ; if ( !exists && !no_follow ) last_accesses |= Access::Lnk ;     // if have accessed a component which is not protected by a sub-component, signal it
 		// admin is typically in repo, tmp might be, repo root is in_repo
 		if (in_tmp) {
-			if (has_tmp_view               ) return { tmp_dir + real.substr(tmp_view.size()) , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Tmp     , true/*mapped*/ } ;
-			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Tmp     , mapped         } ;
+			if (has_tmp_view               ) return { tmp_dir + real.substr(tmp_view.size()) , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Tmp     , true/*mapped*/ } ;
+			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Tmp     , mapped         } ;
 		}
 		if (in_proc ) {
-			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Proc    , mapped         } ;
+			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Proc    , mapped         } ;
 		}
 		if (in_admin) {
-			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Admin   , mapped         } ;
+			/**/                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Admin   , mapped         } ;
 		}
 		if (in_repo ) {
-			if (real.size()>root_dir.size()) return { real.substr(root_dir.size()+1)         , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Repo    , mapped         } ;
-			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Root    , mapped         } ;
+			if (real.size()>root_dir.size()) return { real.substr(root_dir.size()+1)         , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Repo    , mapped         } ;
+			else                             return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Root    , mapped         } ;
 		}
 		{	::string src = _find_src(real) ;
-			if (!src                       ) return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::Ext     , mapped         } ;
-			else                             return { ::move(src )                           , ::move(lnks) , ::move(last_lnk) , last_accesses , Kind::SrcDirs , mapped         } ;
+			if (!src                       ) return { ::move(real)                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::Ext     , mapped         } ;
+			else                             return { ::move(src )                           , ::move(lnks) , ::move(last_lnk) , last_accesses , FileLoc::SrcDirs , mapped         } ;
 		}
 	}
 
@@ -515,13 +513,13 @@ namespace Disk {
 		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			//
-			if (sr.kind>Kind::Dep && sr.kind!=Kind::Tmp) break ;                             // if we escaped from the repo, there is no more deps to gather
+			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
 			//
 			if (sr.mapped) throw to_string("executing ",mk_file(sr.real)," with mapped files along its interpreter path from ",tmp_view," to ",tmp_dir," would require to modify the file content") ;
 			//
 			::ifstream real_stream { mk_abs(sr.real,root_dir) } ;
 			Accesses   a           = Access::Reg                ;
-			if (sr.kind<=Kind::Dep) res.emplace_back(sr.real,sr.last_accesses|a) ;
+			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,sr.last_accesses|a) ;
 			//
 			char hdr[2] ;
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;

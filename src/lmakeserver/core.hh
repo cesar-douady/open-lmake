@@ -20,10 +20,7 @@
 #include "trace.hh"
 
 namespace Engine {
-	using Access      = Disk::Access      ;
-	using Accesses    = Disk::Accesses    ;
 	using FileInfo    = Disk::FileInfo    ;
-	using FileTag     = Disk::FileTag     ;
 	using Crc         = Hash::Crc         ;
 	using Delay       = Time::Delay       ;
 	using CoarseDelay = Time::CoarseDelay ;

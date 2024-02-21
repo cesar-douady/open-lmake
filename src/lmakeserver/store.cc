@@ -147,7 +147,7 @@ namespace Engine::Persistent {
 
 	void _diff_config( Config const& old_config , bool dynamic ) {
 		Trace trace("_diff_config",old_config) ;
-		for( BackendTag t : BackendTag::N ) {
+		for( BackendTag t : All<BackendTag> ) {
 			if (g_config.backends[+t].ifce==old_config.backends[+t].ifce) continue ;
 			if (dynamic                                                 ) throw "cannot change server address while running"s ; // remote hosts may have been unreachable do as if we have new resources
 			invalidate_exec(true/*cmd_ok*/) ;
@@ -174,13 +174,13 @@ namespace Engine::Persistent {
 		//
 		/**/                                                         Config old_config = g_config ;
 		if (             +d                                        ) g_config = ::move(config) ;
-		if (                                       g_config.booted ) g_config.open(dynamic)           ;
-		if (             +d                     && g_config.booted ) _save_config()                   ;
+		if (!g_config.booted) throw "no config available"s ;
+		/**/                                                         g_config.open(dynamic)           ;
+		if (             +d                                        ) _save_config()                   ;
 		if ( !dynamic                                              ) _init_srcs_rules(rescue)         ;
-		if (             +d                     && g_config.booted ) _diff_config(old_config,dynamic) ;
-		if (  dynamic &&                           g_config.booted ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
+		if (             +d                                        ) _diff_config(old_config,dynamic) ;
+		if (  dynamic                                              ) _compile_n_tokenss()             ; // recompute Rule::n_tokens as they refer to the config
 		trace("done",Pdate::s_now()) ;
-		if (!g_config.booted) throw "no config available"s ;                                            // we'd better have a config at the end
 	}
 
 	void repair(::string const& from_dir) {
@@ -242,9 +242,9 @@ namespace Engine::Persistent {
 
 	void _compile_rule_datas() {
 		::vector<Rule> rules = rule_lst() ;
-		RuleData::s_name_sz = "no_rule"s.size() ;                       // account for internal names
-		_rule_datas.clear() ;                                           // clearing before resize ensure all unused entries are clean
-		for( Special s : Special::N ) if ( +s && s<=Special::Shared ) {
+		RuleData::s_name_sz = "no_rule"s.size() ;                         // account for internal names
+		_rule_datas.clear() ;                                             // clearing before resize ensure all unused entries are clean
+		for( Special s : All<Special> ) if ( +s && s<=Special::Shared ) {
 			grow(_rule_datas,+s) = RuleData(s)                                               ;
 			RuleData::s_name_sz = ::max( RuleData::s_name_sz , _rule_datas[+s].name.size() ) ;
 		}
@@ -262,13 +262,13 @@ namespace Engine::Persistent {
 			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
-		if (pos==0) return StartMrkr+str   ;                            // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos) ;                            // suppress stem marker & stem idx
+		if (pos==0) return StartMrkr+str   ;                              // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos) ;                              // suppress stem marker & stem idx
 	}
 	// return prefix before first stem (empty if no stem)
 	static ::string _parse_pfx(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ;                       // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ;                         // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
 	struct Rt : RuleTgt {

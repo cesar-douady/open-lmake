@@ -37,11 +37,11 @@ static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { ServerMrkr } ;
 	::string   service            ;
 	::string   server_pid         ;
-	if (!server_mrkr_stream                      ) { return { {}                      , 0                             } ; }
-	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                             } ; }
-	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                             } ; }
-	try                                            { return { SockFd::s_host(service) , from_chars<pid_t>(server_pid) } ; }
-	catch (::string const&)                        { return { {}                      , 0                             } ; }
+	if (!server_mrkr_stream                      ) { return { {}                      , 0                              } ; }
+	if (!::getline(server_mrkr_stream,service   )) { return { {}                      , 0                              } ; }
+	if (!::getline(server_mrkr_stream,server_pid)) { return { {}                      , 0                              } ; }
+	try                                            { return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
+	catch (::string const&)                        { return { {}                      , 0                              } ; }
 }
 
 void server_cleanup() {
@@ -121,7 +121,7 @@ void record_targets(Job job) {
 	}
 }
 
-void reqs_thread_func(::stop_token stop) {
+void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("reqs_thread_func",STR(_g_is_daemon)) ;
 	//
@@ -136,8 +136,8 @@ void reqs_thread_func(::stop_token stop) {
 			epoll.add_read( _g_watch_fd , EventKind::Watch ) ;                                                            // if server marker is touched by user, we do as we received a ^C
 	//
 	if (!_g_is_daemon) {
-		in_tab[Fd::Stdin] ;
-		epoll.add_read(Fd::Stdin,EventKind::Std) ;
+		in_tab[in_fd] ;
+		epoll.add_read(in_fd,EventKind::Std) ;
 	}
 	//
 	for(;;) {
@@ -167,8 +167,7 @@ void reqs_thread_func(::stop_token stop) {
 					switch (kind) {
 						case EventKind::Int   : { struct signalfd_siginfo event ; ssize_t cnt = ::read(_g_int_fd  ,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
 						case EventKind::Watch : { struct inotify_event    event ; ssize_t cnt = ::read(_g_watch_fd,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
-						default : FAIL(kind) ;
-					}
+					DF}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace_urgent(GlobalProc::Int) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -178,18 +177,18 @@ void reqs_thread_func(::stop_token stop) {
 					ReqRpcReq rrr ;
 					try         { if (!in_tab.at(fd).receive_step(fd,rrr)) continue ; }
 					catch (...) { rrr.proc = ReqProc::None ;                          }
-					Fd out_fd = kind==EventKind::Std ? Fd::Stdout : fd ;
+					Fd ofd = kind==EventKind::Std ? out_fd : fd ;
 					trace("req",fd,rrr) ;
 					if (rrr.proc>=ReqProc::HasArgs) {
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( rrr.proc , fd , out_fd , rrr.files , rrr.options ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					} else {
 						trace("close",fd) ;
 						epoll.del(fd) ;                                                                                   // must precede close(fd)
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , out_fd ) ;                                    // this will close out_fd when done writing to it
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , ofd ) ;                                       // this will close ofd when done writing to it
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						in_tab.erase(fd) ;
 					}
 				} break ;
@@ -244,8 +243,7 @@ bool/*interrupted*/ engine_loop() {
 					case GlobalProc::Wakeup :
 						trace("wakeup") ;
 					break ;
-					default : FAIL(closure.global_proc) ;
-				}
+				DF}
 			} break ;
 			case EngineClosureKind::Req : {
 				EngineClosureReq& req           = closure.req               ;
@@ -331,8 +329,7 @@ bool/*interrupted*/ engine_loop() {
 						else                            shutdown(fds.second,SHUT_WR) ;     // receive side is still alive as Kill was not received yet
 						fd_tab.erase(fit) ;
 					} break ;
-					default : FAIL(req.proc) ;
-				}
+				DF}
 			} break ;
 			case EngineClosureKind::Job : {
 				EngineClosureJob& job = closure.job ;
@@ -355,11 +352,9 @@ bool/*interrupted*/ engine_loop() {
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						::close(job.reply_fd) ;
 					} break ;
-					default : FAIL(job.proc) ;
-				}
+				DF}
 			} break ;
-			default : FAIL(closure.kind) ;
-		}
+		DF}
 	}
 	trace("done") ;
 	return false ;
@@ -390,7 +385,7 @@ int repair() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init() ;                                                                            // server is always launched at root
+	app_init() ;                                                                        // server is always launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
@@ -399,14 +394,18 @@ int main( int argc , char** argv ) {
 	//
 	if (base_name(argv[0])=="lrepair") return repair() ;
 	//
-	bool refresh_ = true  ;
+	bool refresh_ = true       ;
+	Fd   in_fd    = Fd::Stdin  ;
+	Fd   out_fd   = Fd::Stdout ;
 	for( int i=1 ; i<argc ; i++ ) {
 		if (argv[i][0]!='-') goto Bad ;
 		switch (argv[i][1]) {
-			case 'c' : g_startup_dir_s = new ::string(argv[i]+2) ;                               break ;
-			case 'd' : _g_is_daemon    = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case 'r' : refresh_        = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case '-' :                                             if (argv[i][2]!=0) goto Bad ; break ;
+			case 'c' : g_startup_dir_s = new ::string(argv[i]+2)     ;                               break ;
+			case 'd' : _g_is_daemon    = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
+			case 'i' : in_fd           = from_string<int>(argv[i]+2) ;                               break ;
+			case 'o' : out_fd          = from_string<int>(argv[i]+2) ;                               break ;
+			case 'r' : refresh_        = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
+			case '-' :                                                 if (argv[i][2]!=0) goto Bad ; break ;
 			default : exit(2,"unrecognized option : ",argv[i]) ;
 		}
 		continue ;
@@ -416,7 +415,7 @@ int main( int argc , char** argv ) {
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
 	//
-	_g_int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                              // must be done before app_init so that all threads block the signal
+	_g_int_fd = open_sig_fd({SIGINT,SIGHUP}) ;                                          // must be done before app_init so that all threads block the signal
 	//          vvvvvvvvvvvvvvv
 	Persistent::writable = true ;
 	Codec     ::writable = true ;
@@ -427,7 +426,7 @@ int main( int argc , char** argv ) {
 	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv
 	bool crashed = start_server(true/*start*/) ;
 	//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (!_g_is_daemon     ) report_server(Fd::Stdout,_g_server_running/*server_running*/) ; // inform lmake we did not start
+	if (!_g_is_daemon     ) report_server(out_fd,_g_server_running/*server_running*/) ; // inform lmake we did not start
 	if (!_g_server_running) return 0 ;
 	try {
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvv
@@ -435,7 +434,7 @@ int main( int argc , char** argv ) {
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (+msg  ) ::cerr << ensure_nl(msg) ;
 	} catch (::string const& e) { exit(2,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                                     // once we have reported we have started, lmake will send us a message to kill us
+	if (!_g_is_daemon) ::setpgid(0,0) ;                                                 // once we have reported we have started, lmake will send us a message to kill us
 	//
 	{	::string v ;
 		Trace::s_channels = g_config.trace.channels ;
@@ -444,12 +443,12 @@ int main( int argc , char** argv ) {
 	}
 	Codec::Closure::s_init() ;
 	//
-	static ::jthread reqs_thread { reqs_thread_func } ;
+	static ::jthread reqs_thread { reqs_thread_func , in_fd , out_fd } ;
 	//
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                        // cleanup
+	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                    // cleanup
 	//
 	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;

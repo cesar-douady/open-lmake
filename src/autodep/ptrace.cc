@@ -116,8 +116,7 @@ void AutodepPtrace::_init(pid_t cp) {
 
 void AutodepPtrace::s_prepare_child() {
 	AutodepEnv const& ade = Record::s_autodep_env(*s_autodep_env) ;
-	SWEAR( !ade.tmp_view                        , ade.tmp_view ) ;                // cannot support directory mapping as there is no way to allocate memory in the traced process
-	SWEAR( ade.lnk_support!=LnkSupport::Unknown )                ;
+	SWEAR( !ade.tmp_view , ade.tmp_view ) ;                                       // cannot support directory mapping as there is no way to allocate memory in the traced process
 	#if HAS_SECCOMP
 		// prepare seccomp filter
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs

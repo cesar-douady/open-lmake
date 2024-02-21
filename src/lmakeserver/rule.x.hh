@@ -15,6 +15,34 @@
 
 #ifdef STRUCT_DECL
 
+ENUM( VarCmd
+,	Stems   , Stem
+,	Targets , Match
+,	Deps    , Dep
+,	Rsrcs   , Rsrc
+)
+
+ENUM_1( EnvFlag
+,	Dflt = Rsrc
+//
+,	None // ignore variable
+,	Rsrc // consider variable as a resource : upon modification, rebuild job if it was in error
+,	Cmd  // consider variable as a cmd      : upon modification, rebuild job
+)
+
+ENUM_2( Special
+,	Shared  = Infinite // <=Shared means there is a single such rule
+,	HasJobs = Plain    // <=HasJobs means jobs can refer to this rule
+//
+,	None               // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
+,	Req
+,	Infinite
+,	Plain
+// ordered by decreasing matching priority within each prio
+,	Anti
+,	GenericSrc
+)
+
 namespace Engine {
 
 	struct Rule     ;
@@ -22,37 +50,11 @@ namespace Engine {
 
 	struct RuleTgt ;
 
-	ENUM( VarCmd
-	,	Stems   , Stem
-	,	Targets , Match
-	,	Deps    , Dep
-	,	Rsrcs   , Rsrc
-	)
-
-	ENUM_1( EnvFlag
-	,	Dflt = Rsrc
-	//
-	,	None // ignore variable
-	,	Rsrc // consider variable as a resource : upon modification, rebuild job if it was in error
-	,	Cmd  // consider variable as a cmd      : upon modification, rebuild job
-	)
-
-	ENUM_2( Special
-	,	Shared  = Infinite // <=Shared means there is a single such rule
-	,	HasJobs = Plain    // <=HasJobs means jobs can refer to this rule
-	//
-	,	None               // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
-	,	Req
-	,	Infinite
-	,	Plain
-	// ordered by decreasing matching priority within each prio
-	,	Anti
-	,	GenericSrc
-	)
-
 }
+
 #endif
 #ifdef STRUCT_DEF
+
 namespace Engine {
 
 	struct CmdIdx {
@@ -82,8 +84,10 @@ namespace Engine {
 	} ;
 
 }
+
 #endif
 #ifdef DATA_DEF
+
 namespace Engine {
 
 	namespace Attrs {
@@ -612,8 +616,10 @@ namespace Engine {
 	} ;
 
 }
+
 #endif
 #ifdef IMPL
+
 namespace Engine {
 
 	//
@@ -790,8 +796,7 @@ namespace Engine {
 				case VarCmd::Targets : for( VarIdx j=0 ; j<r->n_static_targets; j++ ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
 				case VarCmd::Deps    : for( auto const& [k,daf] : deps()            ) dct.emplace_back(k                  ,daf.first   ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
 				case VarCmd::Rsrcs   :                                                                                                     cb_dct(vc,i,"resources",rsrcs_) ; break ;
-				default : FAIL(vc) ;
-			}
+			DF}
 		}
 	}
 

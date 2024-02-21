@@ -67,7 +67,7 @@ namespace Engine {
 		if (sc.max_err_lines       ) os <<",EL" << sc.max_err_lines          ;
 		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
 		if (+sc.caches             ) os <<','   << sc.caches                 ;
-		for( Tag t : Tag::N        ) os <<','   << t <<':'<< sc.backends[+t] ;
+		for( Tag t : All<Tag>      ) os <<','   << t <<':'<< sc.backends[+t] ;
 		return os<<')' ;
 	}
 
@@ -164,8 +164,8 @@ namespace Engine {
 			if (py_backends.contains(fields[1])) {
 				Dict const&    py_precs = py_backends[fields[1]].as_a<Dict>() ;
 				fields.emplace_back() ;
-				for( StdRsrc r : StdRsrc::N ) {
-					fields[2] = mk_snake(r) ;
+				for( StdRsrc r : All<StdRsrc> ) {
+					fields[2] = snake(r) ;
 					if (!py_precs.contains(fields[2])) continue ;
 					unsigned long prec = py_precs[fields[2]].as_a<Int>() ;
 					if (prec==0                ) continue ;
@@ -175,8 +175,8 @@ namespace Engine {
 				}
 				fields.pop_back() ;
 			}
-			for( BackendTag t : BackendTag::N ) {
-				fields[1] = mk_snake(t) ;
+			for( BackendTag t : All<BackendTag> ) {
+				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				if (!bbe                            ) continue ;                                                                // not implemented
 				if (!py_backends.contains(fields[1])) continue ;                                                                // not configured
@@ -199,8 +199,8 @@ namespace Engine {
 			if (!py_map.contains(fields[0])) throw "not found"s ;
 			Dict const& py_colors = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			for( Color c{1} ; c<Color::N ; c++ ) {
-				fields[1] = mk_snake(c) ;
+			for( Color c{1} ; c<All<Color> ; c++ ) {
+				fields[1] = snake(c) ;
 				if (!py_colors.contains(fields[1])) throw "not found"s ;
 				Sequence const& py_c1 = py_colors[fields[1]].as_a<Sequence>() ;
 				if (py_c1.size()!=2) throw to_string("size is ",py_c1.size(),"!=2") ;
@@ -235,7 +235,7 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : BackendTag::N ) {
+			for( BackendTag t : All<BackendTag> ) {
 				if (!backends[+t].configured         ) continue        ;
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
@@ -257,8 +257,8 @@ namespace Engine {
 		//
 		res << "clean :\n" ;
 		/**/                       res << "\tdb_version      : " << db_version.major<<'.'<<db_version.minor <<'\n' ;
-		if (hash_algo!=Algo::Xxh ) res << "\thash_algo       : " << mk_snake(hash_algo    )                 <<'\n' ;
-		/**/                       res << "\tlink_support    : " << mk_snake(lnk_support  )                 <<'\n' ;
+		if (hash_algo!=Algo::Xxh ) res << "\thash_algo       : " << snake(hash_algo  )                      <<'\n' ;
+		/**/                       res << "\tlink_support    : " << snake(lnk_support)                      <<'\n' ;
 		/**/                       res << "\tkey             : " << key                                     <<'\n' ;
 		if (+user_local_admin_dir) res << "\tlocal_admin_dir : " << user_local_admin_dir                    <<'\n' ;
 		//
@@ -298,10 +298,10 @@ namespace Engine {
 		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		//
-		bool has_digits = false ; for( StdRsrc r : StdRsrc::N ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
+		bool has_digits = false ; for( StdRsrc r : All<StdRsrc> ) { if (rsrc_digits[+r]) has_digits = true ; break ; }
 		if (has_digits) {
 			res << "\tresource precisions :\n" ;
-			for( StdRsrc r : StdRsrc::N ) if (rsrc_digits[+r]) res << to_string("\t\t",mk_snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
+			for( StdRsrc r : All<StdRsrc> ) if (rsrc_digits[+r]) res << to_string("\t\t",snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
 		}
 		//
 		res << "\tn_tokens :\n" ;
@@ -317,16 +317,16 @@ namespace Engine {
 		for( auto const& [k,v] : dyn_n_tokenss    )                                 res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : BackendTag::N ) {
+		for( BackendTag t : All<BackendTag> ) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 			if (!bbe                          ) continue ;                   // not implemented
 			if (!be.configured                ) continue ;                   // not configured
 			if (!Backends::Backend::s_ready(t)) {
-				res <<"\t\t"<< mk_snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
+				res <<"\t\t"<< snake(t) <<" : "<< Backends::Backend::s_config_err(t) ;
 				continue ;
 			}
-			res <<"\t\t"<< mk_snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
+			res <<"\t\t"<< snake(t) <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t w = 9 ;                                                   // room for interface
 			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()) ;
@@ -341,9 +341,9 @@ namespace Engine {
 			if (trace.sz      !=TraceConfig().sz      )   res << "\t\tsize     : " << trace.sz     << '\n' ;
 			if (trace.n_jobs  !=TraceConfig().n_jobs  )   res << "\t\tn_jobs   : " << trace.n_jobs << '\n' ;
 			if (trace.channels!=TraceConfig().channels) {
-				/**/                                                 res << "\t\tchannels :" ;
-				for( Channel c : Channel::N ) if (trace.channels[c]) res <<' '<< mk_snake(c) ;
-				/**/                                                 res << '\n'             ;
+				/**/                                                   res << "\t\tchannels :" ;
+				for( Channel c : All<Channel> ) if (trace.channels[c]) res <<' '<< snake(c)    ;
+				/**/                                                   res << '\n'             ;
 			}
 		}
 		//
@@ -370,10 +370,10 @@ namespace Engine {
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;
-		for( BackendTag t : BackendTag::N )
+		for( BackendTag t : All<BackendTag> )
 			if (Backends::Backend::s_ready(t))
 				for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
-					if (v) dyn_n_tokenss[to_string(mk_snake(t),'.',k)] = v ;                 // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+					if (v) dyn_n_tokenss[to_string(snake(t),'.',k)] = v ;                    // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//
@@ -394,8 +394,7 @@ namespace Engine {
 			case ReqProc::Show   : os << ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
 			case ReqProc::Kill   : os << ecr.in_fd  <<','<< ecr.out_fd                                        ; break ;
 			case ReqProc::Close  : os << ecr.req                                                              ; break ;
-			default : FAIL(ecr.proc) ;
-		}
+		DF}
 		return os << ')' ;
 	}
 
@@ -408,8 +407,7 @@ namespace Engine {
 			case JobProc::ReportStart :                                  break ;
 			case JobProc::End         : os <<','<< ecj.digest          ; break ;
 			case JobProc::ChkDeps     : os <<','<< ecj.digest.deps     ; break ;
-			default : FAIL(ecj.proc) ;
-		}
+		DF}
 		return os << ')' ;
 	}
 
@@ -419,20 +417,19 @@ namespace Engine {
 			case EngineClosure::Kind::Global : os << ec.global_proc ; break ;
 			case EngineClosure::Kind::Job    : os << ec.job         ; break ;
 			case EngineClosure::Kind::Req    : os << ec.req         ; break ;
-			default : FAIL(ec.kind) ;
-		}
+		DF}
 		return os << ')' ;
 	}
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
 		RealPath       real_path {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                            // typically, there is no bads
+		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                                   // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                            // we may refer to a symbolic link
-			if (rp.kind==Kind::Repo) { targets.emplace_back(rp.real) ;                                                      }
-			else                     { append_to_string( err_str , _audit_indent(mk_rel(target,startup_dir_s),1) , '\n' ) ; }
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                   // we may refer to a symbolic link
+			if (rp.file_loc==FileLoc::Repo) { targets.emplace_back(rp.real) ;                                                      }
+			else                            { append_to_string( err_str , _audit_indent(mk_rel(target,startup_dir_s),1) , '\n' ) ; }
 		}
 		//
 		if (+err_str) throw to_string("files are outside repo :\n",err_str) ;

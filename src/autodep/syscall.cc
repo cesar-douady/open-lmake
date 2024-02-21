@@ -76,8 +76,7 @@ template<bool At,int FlagArg> static inline bool flag() {
 	switch (FlagArg) {
 		case FlagAlways : return true   ;
 		case FlagNever  : return false  ;
-		default         : FAIL(FlagArg) ;
-	}
+	DF}
 }
 
 // chdir

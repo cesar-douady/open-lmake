@@ -14,9 +14,8 @@ namespace Hash {
 
 	::ostream& operator<<( ::ostream& os , Crc const crc ) {
 		CrcSpecial special{crc} ;
-		if      (special==CrcSpecial::Plain   ) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
-		else if (special==CrcSpecial::Unknown_) return os << "Crc(Unknown)"                                          ;
-		else                                    return os << "Crc("<<special<<')'                                    ;
+		if (special==CrcSpecial::Plain  ) return os << "Crc("<<::string(crc)<<','<<(crc.is_lnk()?'L':'R')<<')' ;
+		else                              return os << "Crc("<<special<<')'                                    ;
 	}
 
 	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
@@ -28,24 +27,18 @@ namespace Hash {
 				} else {
 					FileMap map{filename} ;
 					if (!map) return ;
-					switch (algo) {
-						//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+					switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
 						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
 						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-						//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
-						default : FAIL(algo) ;
-					}
+					DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 				}
 			break ;
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(filename) ;
-				switch (algo) {
-					//                                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+				switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
 					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
 					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // .
-					//                                   ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
-					default : FAIL(algo) ;
-				}
+				DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 			} break ;
 			case FileTag::None :
 			case FileTag::Dir  : *this = None ; break ;                                                                    // directories are deemed not to exist
@@ -254,8 +247,7 @@ namespace Hash {
 			case FileTag::Reg :                 XXH3_64bits_reset           ( &_state                                         ) ; break ;
 			case FileTag::Lnk : _s_init_lnk() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
 			case FileTag::Exe : _s_init_exe() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
-			default : FAIL(tag) ;
-		}
+		DF}
 	}
 
 	void _Xxh::_update ( const void* p , size_t sz )    { XXH3_64bits_update( &_state , p , sz ) ;          }

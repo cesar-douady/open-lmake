@@ -25,10 +25,9 @@
 ::ostream& operator<<( ::ostream& os , ReqRpcReply const& rrr ) {
 	os << "ReqRpcReply("<<rrr.kind ;
 	switch (rrr.kind) {
-		case ReqKind::None      :                               break ;
-		case ReqKind::Status    : os << (rrr.ok?",ok":",err") ; break ;
-		case ReqKind::Txt       : os <<','<< rrr.txt          ; break ;
-		default : FAIL(rrr.kind) ;
-	}
+		case ReqKind::None   :                               break ;
+		case ReqKind::Status : os << (rrr.ok?",ok":",err") ; break ;
+		case ReqKind::Txt    : os <<','<< rrr.txt          ; break ;
+	DF}
 	return os << ')' ;
 }

@@ -66,8 +66,7 @@ AutodepEnv::operator ::string() const {
 		case LnkSupport::None : res += 'n' ; break ;
 		case LnkSupport::File : res += 'f' ; break ;
 		case LnkSupport::Full : res += 'a' ; break ;
-		default : FAIL(lnk_support) ;
-	}
+	DF}
 	// source dirs
 	res += ':' ;
 	bool first = true ;

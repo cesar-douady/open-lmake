@@ -57,8 +57,7 @@ namespace Codec {
 		switch (buildable) {
 			case Buildable::Decode : if (mk_new) node->codec_val () = txt ; else node->codec_val ().assign(txt) ; break ;
 			case Buildable::Encode : if (mk_new) node->codec_code() = txt ; else node->codec_code().assign(txt) ; break ;
-			default : FAIL(buildable) ;
-		}
+		DF}
 		Trace trace("_create_node",node,crc,Closure::s_tab.at(file).log_date) ;
 		node->crc = crc ;
 	}
@@ -80,8 +79,7 @@ namespace Codec {
 			case Buildable::Unknown : return false                                          ;
 			case Buildable::Decode  :
 			case Buildable::Encode  : return node->date()==Closure::s_tab.at(file).log_date ;
-			default : FAIL(node->buildable) ;
-		}
+		DF}
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
@@ -158,7 +156,7 @@ namespace Codec {
 					} else {
 						uint8_t d ; for ( d=code.size() ; d>=1 && '0'<=code[d-1] && code[d-1]<='9' ; d-- ) ;
 						for( size_t inc=1 ; inc<codes.size() ; inc++ ) {
-							new_code = to_string( code.substr(0,d) , from_chars<size_t>(code.substr(d),true/*empty_ok*/)+inc ) ;
+							new_code = to_string( code.substr(0,d) , from_string<size_t>(code.substr(d),true/*empty_ok*/)+inc ) ;
 							if (!codes.contains(new_code)) goto NewCode ;
 						}
 						FAIL("cannot find new code from",code) ;
@@ -284,8 +282,7 @@ namespace Codec {
 		switch (cc.proc) {
 			case JobProc::Decode : OMsgBuf().send( cc.reply_fd , cc.decode() ) ; break ;
 			case JobProc::Encode : OMsgBuf().send( cc.reply_fd , cc.encode() ) ; break ;
-			default : FAIL(cc.proc) ;
-		}
+		DF}
 		::close(cc.reply_fd) ;
 	}
 

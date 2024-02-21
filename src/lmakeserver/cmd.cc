@@ -18,8 +18,7 @@ namespace Engine {
 			case ReqKey::List   : return true  ;
 			case ReqKey::Add    :
 			case ReqKey::Delete : return false ;
-			default : FAIL(key) ;
-		}
+		DF}
 	}
 
 	static bool/*ok*/ _freeze(EngineClosureReq const& ecr) {
@@ -334,8 +333,7 @@ R"({
 				case FileActionTag::Rmdir    :   append_to_string(script,"rmdir "   ,tn," 2>/dev/null",'\n') ; break ;
 				case FileActionTag::Unlink   : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
-				default : FAIL(a.tag) ;
-			}
+			DF}
 		}
 		//
 		::string tmp_dir ;
@@ -376,9 +374,9 @@ R"({
 			}
 			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                // in addition of dbg, autodep may be needed for functional reasons
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
-				if      ( dbg )                    append_to_string( script , "-s " , mk_snake(ade.lnk_support)  , ' ' ) ;
+				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
 				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ; // dont care about deps
-				/**/                               append_to_string( script , "-m " , mk_snake(start.method   )  , ' ' ) ;
+				/**/                               append_to_string( script , "-m " , snake(start.method   )     , ' ' ) ;
 				if      ( !dbg                   ) append_to_string( script , "-o " , "/dev/null"                , ' ' ) ;
 				else if ( +dbg_dir               ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
 				if      ( ade.auto_mkdir         ) append_to_string( script , "-d"                               , ' ' ) ;
@@ -486,8 +484,7 @@ R"({
 					audit( ecr.out_fd , ro , Color::Note , to_string("refresh ",r->name) , true/*as_is*/ ) ;
 				}
 			break ;
-			default : FAIL(ro.key) ;
-		}
+		DF}
 		return ok ;
 	}
 
@@ -527,11 +524,10 @@ R"({
 						case ReqKey::Cmd        :
 						case ReqKey::ExecScript :
 						case ReqKey::Stdout     :
-							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                            , lvl   ) ;
-							audit    ( fd , ro , Color::Err , "no "+mk_snake(ro.key)+" available" , true/*as_is*/ , lvl+1 ) ;
+							_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job                                    , lvl   ) ;
+							audit    ( fd , ro , Color::Err , to_string("no ",snake(ro.key)," available") , true/*as_is*/ , lvl+1 ) ;
 						break ;
-						default : FAIL(ro.key) ;
-					}
+					DF}
 				} else {
 					JobRpcReq   const& pre_start  = report_start.pre_start        ;
 					JobRpcReply const& start      = report_start.start            ;
@@ -630,9 +626,9 @@ R"({
 								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                        ) ;
 								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                     ) ;
 								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                     ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,mk_snake(rs.start.method)                  ) ;
+								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,snake_str(rs.start.method)                 ) ;
 								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()               ) ;
-								if (sa.tag!=BackendTag::Unknown          ) push_entry("backend"    ,mk_snake(sa.tag)                           ) ;
+								if (sa.tag!=BackendTag::Local            ) push_entry("backend"    ,snake_str(sa.tag)                          ) ;
 							}
 							//
 							::map_ss required_rsrcs  ;
@@ -727,8 +723,7 @@ R"({
 								}
 							}
 						} break ;
-						default : FAIL(ro.key) ;
-					}
+					DF}
 				}
 			} break ;
 			case ReqKey::Deps :
@@ -739,16 +734,16 @@ R"({
 				for( auto const& [tn,td] : digest.targets ) {
 					Node t { tn } ;
 					::string flags_str ;
-					/**/                       flags_str += t->crc==Crc::None ? '!'                : '-'                ;
-					/**/                       flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
-					/**/                       flags_str += ' '                                                         ;
-					for( Tflag tf : Tflag::N ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-'                           ;
+					/**/                         flags_str += t->crc==Crc::None ? '!'                : '-'                ;
+					/**/                         flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
+					/**/                         flags_str += ' '                                                         ;
+					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-'                           ;
 					//
 					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}
 			} break ;
 			default :
-				throw to_string("cannot show ",mk_snake(ro.key)," for job ",mk_file(job->name())) ;
+				throw to_string("cannot show ",snake(ro.key)," for job ",mk_file(job->name())) ;
 		}
 	}
 
@@ -835,15 +830,14 @@ R"({
 							break ;
 						}
 				break ;
-				default : FAIL(ro.key) ;
-			}
+			DF}
 		}
 		if (porcelaine) audit( fd , ro , "}" , true/*as_is*/ ) ;
 		trace(STR(ok)) ;
 		return ok ;
 	}
 
-	CmdFunc g_cmd_tab[+ReqProc::N] ;
+	CmdFunc g_cmd_tab[N<ReqProc>] ;
 	static bool _inited = (                  // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
 		g_cmd_tab[+ReqProc::Debug ] = _debug
 	,	g_cmd_tab[+ReqProc::Forget] = _forget

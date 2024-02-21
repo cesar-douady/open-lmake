@@ -317,8 +317,7 @@ namespace Backends {
 					if constexpr (::is_same_v<RsrcsData,RsrcsDataAsk>) rsrcs_ask = rsrcs ;                // only process jobs with same resources if possible
 					else                                               FAIL("cannot convert resources") ; // if possible
 				break ;
-				default : FAIL(go) ;
-			}
+			DF}
 			//
 			::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>> err_jobs ;
 			for( auto [req,eta] : Req::s_etas() ) {                            // /!\ it is forbidden to dereference req without taking Req::s_reqs_mutex first

@@ -18,11 +18,24 @@
 #include "disk.hh"
 #include "serialize.hh"
 
-namespace Hash {
+// ENUM macro does not work inside namespace's
 
-	using Access   = Disk::Access   ;
-	using Accesses = Disk::Accesses ;
-	using FileTag  = Disk::FileTag  ;
+ENUM(Algo
+,	Md5
+,	Xxh
+)
+
+ENUM_1( CrcSpecial
+,	Valid = None   // >=Valid means value represent file content, >Val means that in addition, file exists
+,	Unknown        // file is completely unknown
+,	Lnk            // file is a link pointing to an unknown location
+,	Reg            // file is regular with unknown content
+,	None           // file does not exist or is a dir
+,	Empty          // file is the regular empty file
+,	Plain
+)
+
+namespace Hash {
 
 	struct _Md5 ;
 	struct _Xxh ;
@@ -32,28 +45,13 @@ namespace Hash {
 	using Md5 = _Cooked<_Md5> ;
 	using Xxh = _Cooked<_Xxh> ;
 
-	ENUM(Algo
-	,	Md5
-	,	Xxh
-	)
-
 	//
 	// Crc
 	//
 
-	ENUM_1( CrcSpecial
-	,	Valid = None                   // >=Valid means value represent file content, >Val means that in addition, file exists
-	,	Unknown_                       // file is completely unknown
-	,	Lnk                            // file is a link pointing to an unknown location
-	,	Reg                            // file is regular with unknown content
-	,	None                           // file does not exist or is a dir
-	,	Empty                          // file is the regular empty file
-	,	Plain
-	)
-
 	struct Crc {
 		friend ::ostream& operator<<( ::ostream& , Crc const ) ;
-		static constexpr uint8_t NChkBits = 8 ;                                // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8 ;                  // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr uint64_t ChkMsk = ~lsb_msk<uint64_t>(NChkBits) ;
 
@@ -104,13 +102,13 @@ namespace Hash {
 		constexpr bool              is_lnk     (                ) const { return _plain() ?   _val&0x1  : *this==Lnk               ; }
 		constexpr bool              is_reg     (                ) const { return _plain() ? !(_val&0x1) : *this==Reg||*this==Empty ; }
 	private :
-		constexpr bool _plain() const { return _val>=+CrcSpecial::N ; }
+		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		// services
 	public :
 		bool     match        ( Crc other , Accesses a=Accesses::All ) const { return !( diff_accesses(other) & a ) ; } ;
 		Accesses diff_accesses( Crc other                            ) const ;
 	private :
-		uint64_t _val = +CrcSpecial::Unknown_ ;
+		uint64_t _val = +CrcSpecial::Unknown ;
 	} ;
 
 	//
@@ -142,7 +140,7 @@ namespace Hash {
 		_Md5(FileTag tag) : is_lnk{tag==FileTag::Lnk} { if (tag!=FileTag::Reg) _salt = to_string(tag) ; }
 		// services
 		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
+		Crc  digest (                           ) && ; // context is no more usable once digest has been asked
 	private :
 		void     _update64(const uint32_t _data[BlkSz]) ;
 		void     _update64(                           ) { _update64(_blk) ;                         }
@@ -151,7 +149,7 @@ namespace Hash {
 	public :
 		bool is_lnk = false ;
 	private :
-		alignas(uint64_t) uint32_t _hash[HashSz] ;         // alignment to allow direct appending of _cnt<<3 (message length in bits)
+		alignas(uint64_t) uint32_t _hash[HashSz] ;     // alignment to allow direct appending of _cnt<<3 (message length in bits)
 		uint32_t                   _blk [BlkSz ] ;
 		uint64_t                   _cnt          ;
 		::string                   _salt         ;
@@ -174,7 +172,7 @@ namespace Hash {
 		_Xxh(FileTag) ;
 		// services
 		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) && ;                         // context is no more usable once digest has been asked
+		Crc  digest (                           ) && ; // context is no more usable once digest has been asked
 		// data
 	public :
 		bool is_lnk = false ;
@@ -209,11 +207,11 @@ namespace Hash {
 	// implementation
 	//
 
-	constexpr Crc Crc::Unknown{CrcSpecial::Unknown_} ;
-	constexpr Crc Crc::Lnk    {CrcSpecial::Lnk     } ;
-	constexpr Crc Crc::Reg    {CrcSpecial::Reg     } ;
-	constexpr Crc Crc::None   {CrcSpecial::None    } ;
-	constexpr Crc Crc::Empty  {CrcSpecial::Empty   } ;
+	constexpr Crc Crc::Unknown{CrcSpecial::Unknown} ;
+	constexpr Crc Crc::Lnk    {CrcSpecial::Lnk    } ;
+	constexpr Crc Crc::Reg    {CrcSpecial::Reg    } ;
+	constexpr Crc Crc::None   {CrcSpecial::None   } ;
+	constexpr Crc Crc::Empty  {CrcSpecial::Empty  } ;
 
 }
 // must be outside Engine namespace as it specializes std::hash

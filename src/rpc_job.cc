@@ -21,7 +21,7 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Hash::Algo ha ) {
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
 	::uset_s   keep_dirs ;
 	::vector_s unlinks   ;
 	::string   msg       ;
@@ -55,8 +55,7 @@ using namespace Hash ;
 					try                     { rmdir(nfs_guard.change(f)) ;                                                        }
 					catch (::string const&) { for( ::string d=f ; +d ; d = dir_name(d) ) if (!keep_dirs.insert(d).second) break ; } // if a dir cannot rmdir'ed, no need to try those uphill
 			break ;
-			default : FAIL(a) ;
-		}
+		DF}
 	}
 	return {unlinks,{msg,ok}} ;
 }
@@ -124,8 +123,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 			proc        = P::DepInfos ;
 			digest.deps = ::move(ds) ;
 		} break ;
-		default : FAIL(jerr.proc) ;
-	}
+	DF}
 }
 
 //
@@ -138,8 +136,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 		case Yes   : os << "target," << mf.tflags() ; break ;
 		case No    : os << "dep,"    << mf.dflags() ; break ;
 		case Maybe :                                  break ;
-		default : FAIL(mf.is_target) ;
-	}
+	DF}
 	return os << ')' ;
 }
 
@@ -244,8 +241,7 @@ void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
 		case JobExecRpcProc::DepInfos : os <<','<< jerr.dep_infos           ; break ;
 		case JobExecRpcProc::Decode   :
 		case JobExecRpcProc::Encode   : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
-		default : FAIL(jerr.proc) ;
-	}
+	DF}
 	return os << ')' ;
 }
 
@@ -256,8 +252,7 @@ JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
 		case JobProc::DepInfos :                        proc = Proc::DepInfos ; dep_infos = jrr.dep_infos ;                 break ;
 		case JobProc::Decode   :                        proc = Proc::Decode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
 		case JobProc::Encode   :                        proc = Proc::Encode   ; ok        = jrr.ok        ; txt = jrr.txt ; break ;
-		default : FAIL(jrr.proc) ;
-	}
+	DF}
 }
 
 //

@@ -33,7 +33,7 @@ int main( int argc , char* argv[]) {
 	uint8_t min_len = 1 ;
 	try {
 		if (cmd_line.flags[Flag::MinLen]) {
-			min_len = from_chars<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
+			min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;
 			if (min_len>MaxCodecBits) throw to_string("min len (",min_len,") cannot be larger max allowed code bits (",MaxCodecBits,')') ;
 		}
 	} catch (::string const& e) {

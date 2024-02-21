@@ -62,8 +62,8 @@ namespace Engine {
 		//
 		bool close_backend = false ;
 		try {
-			JobIdx n_jobs = from_chars<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
-			if (ecr.as_job()) data.job = ecr.job()                                               ;
+			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
+			if (ecr.as_job()) data.job = ecr.job()                                                             ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,Dflag::Static) ) ;
 			Backend::s_open_req( +*this , n_jobs ) ;
 			close_backend = true ;
@@ -239,8 +239,7 @@ namespace Engine {
 				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
 				else if (dep.dflags[Dflag::Required]   ) err = "missing"  ;
 			break ;
-			default : FAIL(dep->status()) ;
-		}
+		DF}
 		if (err) return (*this)->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
 		else     return false                                                                         ;
 	}
@@ -384,7 +383,7 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		for( JobReport jr : JobReport::N )
+		for( JobReport jr : All<JobReport> )
 			if ( stats.ended(jr) || jr==JobReport::Done ) {
 				Color c = Color::Note ;
 				switch (jr) {
@@ -395,7 +394,7 @@ namespace Engine {
 					case JobReport::Done    : c = Color::Ok      ; break ;
 					default : ;
 				}
-				audit_info( c , to_string(::setw(9),mk_snake(jr)," jobs : ",stats.ended(jr)) ) ;                                         // 9 is for "completed"
+				audit_info( c , to_string(::setw(9),snake(jr)," jobs : ",stats.ended(jr)) ) ;                                            // 9 is for "completed"
 			}
 		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;

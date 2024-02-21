@@ -64,8 +64,7 @@ int main( int argc , char* argv[]) {
 				case Yes   : ::cout << "ok  " ;              break ;
 				case Maybe : ::cout << "??? " ; err = true ; break ;
 				case No    : ::cout << "err " ; err = true ; break ;
-				default : FAIL(reply.dep_infos[i].first) ;
-			}
+			DF}
 			::cout << ::string(reply.dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 		}
 		//

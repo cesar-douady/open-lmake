@@ -82,8 +82,7 @@ namespace Engine {
 						}
 					}
 				} break ;
-				default : FAIL(ri.manual) ;
-			}
+			DF}
 		}
 		return ri.manual ;
 	}
@@ -197,8 +196,7 @@ namespace Engine {
 				case Special::GenericSrc : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynSrc  ;
 				case Special::Anti       : rule_tgts() = ::vector<RuleTgt>({rt}) ; return Buildable::DynAnti ;
 				case Special::Plain      : rule_tgts().shorten_by(n_skip) ;        return Buildable::Maybe   ; // no special rule applies
-				default : FAIL(rt->special) ;
-			}
+			DF}
 		}
 		rule_tgts().clear() ;
 		return Buildable::Maybe ;                                                                              // node may be buildable from dir
@@ -282,8 +280,7 @@ namespace Engine {
 						case Buildable::SrcDir    :
 						case Buildable::SubSrcDir : buildable = Buildable::SubSrcDir ; goto Return ;
 						//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						default : FAIL(dir()->buildable) ;
-					}
+					DF}
 				}
 				//                    vvvvvvvvvvvvvvvvvvvvvvvvv
 				if (!is_lcl(name_)) { buildable = Buildable::No ; goto Return ; }
@@ -390,8 +387,7 @@ namespace Engine {
 				if (dir()->crc.is_lnk()) status(NodeStatus::Transcient) ;                               // our dir is a link, we are transcient
 				else                     status(NodeStatus::Uphill    ) ;                               // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
-			default : FAIL(dir()->buildable) ;
-		}
+		DF}
 	Src :
 		{	bool modified = refresh_src_anti( status()!=NodeStatus::None , {req} , lazy_name() ) ;
 			if (crc     !=Crc::None       ) status(NodeStatus::Src) ;                                   // overwrite status if it was pre-set to None
@@ -526,12 +522,10 @@ namespace Engine {
 										case Manual::Unlinked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 										case Manual::Empty    :
 										case Manual::Modif    : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
-										default : FAIL(manual_wash(ri,true/*lazy*/)) ;
-									}
+									DF}
 							}
 						break ;
-						default : FAIL(ri.action) ;
-					}
+					DF}
 					Job::ReqInfo& jri = jt->req_info(req) ;
 					if (ri.live_out) jri.live_out = ri.live_out ;                                                            // transmit user request to job for last level live output
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -623,8 +617,7 @@ namespace Engine {
 			case FileTag::Err  : buildable = Buildable::Src    ;                    break ; // Err means no crc update
 			case FileTag::Dir  : buildable = Buildable::SrcDir ; crc_ = Crc::None ; break ;
 			case FileTag::None : buildable = Buildable::Anti   ; crc_ = Crc::None ; break ;
-			default : FAIL(tag) ;
-		}
+		DF}
 		fence() ;
 		rule_tgts     ().clear() ;
 		job_tgts      ().clear() ;
@@ -708,14 +701,14 @@ namespace Engine {
 	}
 
 	::string Dep::accesses_str() const {
-		::string res ; res.reserve(+Access::N) ;
-		for( Access a : Access::N ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ;
+		::string res ; res.reserve(N<Access>) ;
+		for( Access a : All<Access> ) res.push_back( accesses[a] ? AccessChars[+a] : '-' ) ;
 		return res ;
 	}
 
 	::string Dep::dflags_str() const {
-		::string res ; res.reserve(+Dflag::N) ;
-		for( Dflag df : Dflag::N ) res.push_back( dflags[df] ? DflagChars[+df] : '-' ) ;
+		::string res ; res.reserve(N<Dflag>) ;
+		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df] : '-' ) ;
 		return res ;
 	}
 

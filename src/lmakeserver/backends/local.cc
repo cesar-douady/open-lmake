@@ -219,7 +219,7 @@ namespace Backends::Local {
 		resize(idxs.size()) ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
 			try        { (*this)[it->second] = from_string_rsrc<Rsrc>(k,v) ;                                     }
 			catch(...) { throw to_string("cannot convert resource ",k," from ",v," to a ",typeid(Rsrc).name()) ; }
@@ -228,9 +228,9 @@ namespace Backends::Local {
 
 	inline RsrcsDataAsk::RsrcsDataAsk( ::vmap_ss && m , ::umap_s<size_t> const& idxs ) {
 		resize(idxs.size()) ;
-		for( auto && [k,v] : ::move(m) ) {
+		for( auto&& [k,v] : ::move(m) ) {
 			auto it = idxs.find(k) ;
-			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",mk_snake(MyTag)) ;
+			if (it==idxs.end()) throw to_string("no resource ",k," for backend ",snake(MyTag)) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
 			RsrcAsk& entry = (*this)[it->second] ;
 			try {

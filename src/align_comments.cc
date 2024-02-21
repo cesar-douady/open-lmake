@@ -153,9 +153,9 @@ void optimize( ::vector<Line>& lines) {
 
 int main( int argc , char* argv[] ) {
 	if ( argc<4 || argc>5 ) exit(2,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
-	g_tab_width    = from_chars<size_t>(argv[1]) ;
-	g_max_line_sz  = from_chars<size_t>(argv[2]) ;
-	g_comment_sign =                    argv[3]  ;
+	g_tab_width    = from_string<size_t>(argv[1]) ;
+	g_max_line_sz  = from_string<size_t>(argv[2]) ;
+	g_comment_sign =                     argv[3]  ;
 	//
 	::vector<Line> lines = get_lines(argc==5?argv[4]:nullptr) ;
 	if (!lines) return 0 ;

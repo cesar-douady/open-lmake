@@ -48,7 +48,7 @@ namespace Backends {
 	//
 
 	::string                          Backend::s_executable              ;
-	Backend*                          Backend::s_tab  [+Tag::N]          ;
+	Backend*                          Backend::s_tab[N<Tag>]             ;
 	::mutex                           Backend::_s_mutex                  ;
 	::mutex                           Backend::_s_starting_job_mutex     ;
 	::atomic<JobIdx>                  Backend::_s_starting_job           ;
@@ -82,8 +82,8 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,ji,ri,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,ri) ) {
-			SWEAR(+tag<+Tag::N) ;                                                               // prevent compiler array bound warning in next statement
-			if (!s_tab[+tag]) throw to_string("backend ",mk_snake(tag)," is not implemented") ;
+			SWEAR(+tag<N<Tag>) ;                                                             // prevent compiler array bound warning in next statement
+			if (!s_tab[+tag]) throw to_string("backend ",snake(tag)," is not implemented") ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() ) ;
 			tag   = Tag::Local                                                            ;
 			trace("local",rsrcs) ;
@@ -119,7 +119,7 @@ namespace Backends {
 	void Backend::s_launch() {
 		::unique_lock lock{_s_mutex} ;
 		Trace trace(BeChnl,"s_launch") ;
-		for( Tag t : Tag::N ) {
+		for( Tag t : All<Tag> ) {
 			if (!s_ready(t)) continue ;
 			try {
 				s_tab[+t]->launch() ;
@@ -189,12 +189,11 @@ namespace Backends {
 		return status ;
 	}
 
-	bool/*keep_fd*/ Backend::_s_handle_job_start( JobRpcReq&& jrr , Fd fd ) {
+	bool/*keep_fd*/ Backend::_s_handle_job_start( JobRpcReq&& jrr , SlaveSockFd const& fd ) {
 		switch (jrr.proc) {
 			case JobProc::None  : return false ;                                   // if connection is lost, ignore it
 			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ;                    // fd is needed to reply
-			default : FAIL(jrr.proc) ;
-		}
+		DF}
 		Job                                        job               { jrr.job }           ;
 		JobExec                                    job_exec          ;
 		Rule                                       rule              = job->rule           ;
@@ -255,8 +254,7 @@ namespace Backends {
 					case 2 : msg = rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
 					case 3 : msg = rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
 					case 4 : msg = "cannot wash targets"                                    ; break ;
-					default : FAIL(step) ;
-				}
+				DF}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				s_end( tag , +job , Status::EarlyErr ) ;                           // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -362,7 +360,7 @@ namespace Backends {
 		return false/*keep_fd*/ ;
 	}
 
-	bool/*keep_fd*/ Backend::_s_handle_job_mngt( JobRpcReq&& jrr , Fd fd ) {
+	bool/*keep_fd*/ Backend::_s_handle_job_mngt( JobRpcReq&& jrr , SlaveSockFd const& fd ) {
 		switch (jrr.proc) {
 			case JobProc::None     : return false ;                // if connection is lost, ignore it
 			case JobProc::ChkDeps  :
@@ -370,8 +368,7 @@ namespace Backends {
 			case JobProc::Decode   :
 			case JobProc::Encode   : SWEAR(+fd,jrr.proc) ; break ; // fd is needed to reply
 			case JobProc::LiveOut  :                       break ; // no reply
-			default : FAIL(jrr.proc) ;
-		}
+		DF}
 		Job job { jrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jrr) ;
 		{	::unique_lock lock { _s_mutex } ;                      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
@@ -379,23 +376,22 @@ namespace Backends {
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
 			trace("entry",job,entry) ;
-			switch (jrr.proc) {
-				case JobProc::ChkDeps  :                           //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv         keep_fd
+			switch (jrr.proc) { //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv         keep_fd
+				case JobProc::ChkDeps  :
 				case JobProc::DepInfos : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.digest.deps)          , fd ) ; return true  ;
 				case JobProc::LiveOut  : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.msg)                       ) ; return false ;
 				case JobProc::Decode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) ,               entry.reqs , fd ) ; return true  ;
 				case JobProc::Encode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) , jrr.min_len , entry.reqs , fd ) ; return true  ;
-				default : FAIL(jrr.proc) ;                         //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			}
+				//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			DF}
 		}
 	}
 
-	bool/*keep_fd*/ Backend::_s_handle_job_end( JobRpcReq&& jrr , Fd ) {
+	bool/*keep_fd*/ Backend::_s_handle_job_end( JobRpcReq&& jrr , SlaveSockFd const& ) {
 		switch (jrr.proc) {
 			case JobProc::None : return false ;                                     // if connection is lost, ignore it
 			case JobProc::End  : break ;                                            // no reply
-			default : FAIL(jrr.proc) ;
-		}
+		DF}
 		Job       job      { jrr.job } ;
 		JobExec   job_exec ;
 		::vmap_ss rsrcs    ;
@@ -440,7 +436,7 @@ namespace Backends {
 		Req                                         req       { ri } ;
 		::vmap<JobIdx,pair<StartEntry::Conn,Pdate>> to_wakeup ;
 		{	::unique_lock lock { _s_mutex } ;                                                                       // lock for minimal time
-			for( Tag t : Tag::N )
+			for( Tag t : All<Tag> )
 				if (s_ready(t))
 					for( JobIdx j : s_tab[+t]->kill_waiting_jobs(ri) ) {
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -491,8 +487,8 @@ namespace Backends {
 		Pdate  last_wrap_around = Pdate::s_now() ;
 		//
 		StartEntry::Conn         conn         ;
-		::pair_s<HeartbeatState> lost_report  = {{},HeartbeatState::Unknown} /*garbage*/ ;
-		Status                   status       = Status::Unknown              /*garbage*/ ;
+		::pair_s<HeartbeatState> lost_report  = {}         /*garbage*/ ;
+		Status                   status       = Status::New/*garbage*/ ;
 		Pdate                    eta          ;
 		::vmap_ss                rsrcs        ;
 		SubmitAttrs              submit_attrs ;
@@ -560,7 +556,7 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	void Backend::s_config( ::array<Config::Backend,+Tag::N> const& config , bool dynamic ) {
+	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
 		static ::jthread      heartbeat_thread      {    _s_heartbeat_thread_func                 } ;
 		static JobExecThread  job_start_thread      {'S',_s_handle_job_start      ,1000/*backlog*/} ; _s_job_start_thread       = &job_start_thread       ;
 		static JobExecThread  job_mngt_thread       {'M',_s_handle_job_mngt       ,1000/*backlog*/} ; _s_job_mngt_thread        = &job_mngt_thread        ;
@@ -571,7 +567,7 @@ namespace Backends {
 		if (!dynamic) s_executable = *g_lmake_dir+"/_bin/job_exec" ;
 		//
 		::unique_lock lock{_s_mutex} ;
-		for( Tag t : Tag::N ) {
+		for( Tag t : All<Tag> ) {
 			Backend*               be  = s_tab [+t] ;
 			Config::Backend const& cfg = config[+t] ;
 			if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
@@ -584,7 +580,7 @@ namespace Backends {
 						Ptr<Dict> glbs = py_run(cfg.ifce) ;
 						ifce = (*glbs)["interface"].as_a<Str>() ;
 					} catch (::string const& e) {
-						throw to_string("bad interface for ",mk_snake(t),'\n',indent(e,1)) ;
+						throw to_string("bad interface for ",snake(t),'\n',indent(e,1)) ;
 					}
 				} else {
 					ifce = host() ;

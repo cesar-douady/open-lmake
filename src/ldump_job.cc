@@ -24,7 +24,7 @@ template<class A> void _print_attrs(::vmap_s<A> const& m) {
 void print_submit_attrs(SubmitAttrs const& sa) {
 	::cout << "--submit attrs--\n" ;
 	//
-	::cout << "backend  : "  << mk_snake(sa.tag)        <<'\n' ;
+	::cout << "backend  : "  << snake(sa.tag)           <<'\n' ;
 	::cout << "pressure : "  << sa.pressure.short_str() <<'\n' ;
 	::cout << "live_out : "  << sa.live_out             <<'\n' ;
 	::cout << "reason   : "  << sa.reason               <<'\n' ;

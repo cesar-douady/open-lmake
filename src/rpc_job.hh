@@ -18,12 +18,13 @@ ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local
 ,	Local
 ,	Slurm
+,	Unknown
 )
 
 ENUM_1( FileActionTag
 ,	HasFile = Uniquify // <=HasFile means action acts on file
-,	Src                // file is src, no action
 ,	None               // no action, just check integrity
+,	Src                // file is src, no action
 ,	Unlink
 ,	Uniquify
 ,	Mkdir
@@ -31,11 +32,11 @@ ENUM_1( FileActionTag
 )
 struct FileAction {
 	friend ::ostream& operator<<( ::ostream& , FileAction const& ) ;
-	FileActionTag tag  = FileActionTag::Unknown ;
+	FileActionTag tag  = {} ;
 	Hash::Crc     crc  ;
 	Disk::Ddate   date ;
 } ;
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Hash::Algo ) ;
+::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Algo ) ;
 
 ENUM_2( Dflag                          // flags for deps
 ,	NRule = Required                   // number of Dflag's allowed in rule definition
@@ -54,7 +55,7 @@ static constexpr char DflagChars[] = {
 ,	'r'                                // Required
 ,	'S'                                // Static
 } ;
-static_assert(::size(DflagChars)==+Dflag::N) ;
+static_assert(::size(DflagChars)==N<Dflag>) ;
 using Dflags = BitMap<Dflag> ;
 
 ENUM_1( ExtraDflag
@@ -68,7 +69,7 @@ static constexpr char ExtraDflagChars[] = {
 ,	'd'                                     // StatReadData
 ,	'i'                                     // Ignore
 } ;
-static_assert(::size(ExtraDflagChars)==+ExtraDflag::N) ;
+static_assert(::size(ExtraDflagChars)==N<ExtraDflag>) ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 
 ENUM_2( Tflag                          // flags for targets
@@ -93,7 +94,7 @@ static constexpr char TflagChars[] = {
 ,	'S'                                // Static
 ,	'T'                                // Target
 } ;
-static_assert(::size(TflagChars)==+Tflag::N) ;
+static_assert(::size(TflagChars)==N<Tflag>) ;
 using Tflags = BitMap<Tflag> ;
 
 ENUM( ExtraTflag
@@ -104,7 +105,7 @@ static constexpr char ExtraTflagChars[] = {
 	'/'                                     // Top
 ,	'd'                                     // ReadIsDep
 } ;
-static_assert(::size(ExtraDflagChars)==+ExtraDflag::N) ;
+static_assert(::size(ExtraDflagChars)==N<ExtraDflag>) ;
 using ExtraTflags = BitMap<ExtraTflag> ;
 
 ENUM( JobProc
@@ -177,7 +178,7 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"required dep missing"                          // DepMissingRequired
 ,	"dep has been overwritten"                      // DepOverwritten
 } ;
-static_assert(::size(JobReasonTagStrs)==+JobReasonTag::N) ;
+static_assert(::size(JobReasonTagStrs)==N<JobReasonTag>) ;
 
 ENUM( MatchKind
 ,	Target
@@ -216,8 +217,7 @@ static inline Bool3 is_ok  (Status s) {
 		case Status::Garbage      : return Maybe ;
 		case Status::Ok           : return Yes   ;
 		case Status::Err          : return No    ;
-		default : FAIL(s) ;
-	}
+	DF}
 }
 static inline Status mk_err(Status s) {
 	switch (s) {
@@ -225,8 +225,7 @@ static inline Status mk_err(Status s) {
 		case Status::EarlyLost : return Status::EarlyLostErr ;
 		case Status::LateLost  : return Status::LateLostErr  ;
 		case Status::Ok        : return Status::Err          ;
-		default : FAIL(s) ;
-	}
+	DF}
 }
 
 static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
@@ -239,8 +238,8 @@ struct AccDflags {
 	AccDflags  operator| (AccDflags other) const { return { accesses|other.accesses , dflags|other.dflags } ; }
 	AccDflags& operator|=(AccDflags other)       { *this = *this | other ; return *this ;                     }
 	// data
-	Disk::Accesses accesses ;
-	Dflags         dflags   ;
+	Accesses accesses ;
+	Dflags   dflags   ;
 } ;
 
 struct JobReason {
@@ -318,10 +317,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Base = NoVoid<B> ;
 	static constexpr bool HasBase = !::is_same_v<B,void> ;
 	//
-	using Accesses = Disk::Accesses ;
-	using Tag      = Disk::FileTag  ;
-	using Crc      = Hash::Crc      ;
-	using Ddate    = Time::Ddate    ;
+	using Tag   = FileTag     ;
+	using Crc   = Hash::Crc   ;
+	using Ddate = Time::Ddate ;
 	//cxtors & casts
 	DepDigestBase(                                                 bool p=false ) :                                       parallel{p} , _crc{} {           }
 	DepDigestBase(          Accesses a ,           Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
@@ -343,7 +341,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else                          return _crc ==other._crc  ;
 	}
 	// accesses
-	#pragma GCC diagnostic push                                                     // gcc-11 is lost with union management
+	#pragma GCC diagnostic push                                                  // gcc-11 is lost with union management
 	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
 	Ddate date() const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date ; }
@@ -359,26 +357,25 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	// services
 	void tag(Tag tag) {
 		SWEAR(is_date) ;
-		if (!_date) { crc(Crc::None) ; return ; }                                   // even if file appears, the whole job has been executed seeing the file as absent
+		if (!_date) { crc(Crc::None) ; return ; }                                // even if file appears, the whole job has been executed seeing the file as absent
 		switch (tag) {
-			case Tag::Reg     :
-			case Tag::Exe     :
-			case Tag::Lnk     : if (!Crc::s_sense(accesses,tag)) crc(tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-			case Tag::None    :
-			case Tag::Dir     : if (+_date                     ) crc({} ) ; break ;
-			case Tag::Err     :
-			case Tag::Unknown :                                  crc({} ) ; break ; // if we dont know what we access, we cannot know the crc
+			case Tag::Reg  :
+			case Tag::Exe  :
+			case Tag::Lnk  : if (!Crc::s_sense(accesses,tag)) crc(tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			case Tag::None :
+			case Tag::Dir  : if (+_date                     ) crc({} ) ; break ;
+			case Tag::Err  :                                  crc({} ) ; break ; // if we dont know what we access, we cannot know the crc
 		}
 	}
 	// data
-	Dflags   dflags     ;                                                           //   6< 8 bits
-	Accesses accesses   ;                                                           //   3< 8 bits
-	bool     parallel:1 = false ;                                                   //      1 bit
-	bool     is_date :1 = false ;                                                   //      1 bit
+	Dflags   dflags     ;                                                        //   6< 8 bits
+	Accesses accesses   ;                                                        //   3< 8 bits
+	bool     parallel:1 = false ;                                                //      1 bit
+	bool     is_date :1 = false ;                                                //      1 bit
 private :
 	union {
-		Crc   _crc  ;                                                               // ~46<64 bits
-		Ddate _date ;                                                               // ~45<64 bits
+		Crc   _crc  ;                                                            // ~46<64 bits
+		Ddate _date ;                                                            // ~45<64 bits
 	} ;
 } ;
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
@@ -398,14 +395,13 @@ static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, 
 
 struct TargetDigest {
 	friend ::ostream& operator<<( ::ostream& , TargetDigest const& ) ;
-	using Accesses = Disk::Accesses ;
-	using Crc      = Hash::Crc      ;
+	using Crc = Hash::Crc ;
 	// data
-	Accesses    accesses = {}                      ; // how target was accessed before it was written
-	Tflags      tflags   = {}                      ;
-	bool        write    = false       /*garbage*/ ; // if true <=> file was written (and possibly further unlinked)
-	Crc         crc      = Crc::Unknown/*garbage*/ ; // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
-	Time::Ddate date     = {}                      ;
+	Accesses    accesses = {}               ; // how target was accessed before it was written
+	Tflags      tflags   = {}               ;
+	bool        write    = false/*garbage*/ ; // if true <=> file was written (and possibly further unlinked)
+	Crc         crc      = {}   /*garbage*/ ; // if None <=> file was unlinked, if Unknown <=> file is idle (not written, not unlinked)
+	Time::Ddate date     = {}               ;
 } ;
 
 struct JobDigest {
@@ -470,8 +466,7 @@ struct JobRpcReq {
 				::serdes(s,digest) ;
 				::serdes(s,msg   ) ;
 			break ;
-			default : FAIL(proc) ;
-		}
+		DF}
 	}
 	// data
 	P         proc    = P::None ;
@@ -518,9 +513,8 @@ ENUM_2( AutodepMethod
 
 struct JobRpcReply {
 	friend ::ostream& operator<<( ::ostream& , JobRpcReply const& ) ;
-	using Accesses = Disk::Accesses ;
-	using Crc      = Hash::Crc      ;
-	using Proc     = JobProc        ;
+	using Crc  = Hash::Crc ;
+	using Proc = JobProc   ;
 	// cxtors & casts
 	JobRpcReply(                                                                      ) = default ;
 	JobRpcReply( Proc p                                                               ) : proc{p}                                           {                                                       }
@@ -568,8 +562,7 @@ struct JobRpcReply {
 				::serdes(s,trace_n_jobs    ) ;
 				::serdes(s,use_script      ) ;
 			break ;
-			default : FAIL(proc) ;
-		}
+		DF}
 	}
 	// data
 	Proc                      proc             = Proc::None          ;
@@ -579,7 +572,7 @@ struct JobRpcReply {
 	::pair_ss/*script,call*/  cmd              ;                       // proc == Start
 	::string                  cwd_s            ;                       // proc == Start
 	::vmap_ss                 env              ;                       // proc == Start
-	Hash::Algo                hash_algo        = Hash::Algo::Unknown ; // proc == Start
+	Algo                      hash_algo        = Algo::Xxh           ; // proc == Start
 	::vector_s                interpreter      ;                       // proc == Start                 , actual interpreter used to execute cmd
 	bool                      keep_tmp         = false               ; // proc == Start
 	vector<uint8_t>           kill_sigs        ;                       // proc == Start
@@ -662,12 +655,10 @@ struct AccessDigest : DepDigest {                                      // order 
 struct JobExecRpcReq {
 	friend ::ostream& operator<<( ::ostream& , JobExecRpcReq const& ) ;
 	// make short lines
-	using Access   = Disk::Access   ;
-	using Accesses = Disk::Accesses ;
-	using AD       = AccessDigest   ;
-	using P        = JobExecRpcProc ;
-	using PD       = Time::Pdate    ;
-	using DD       = Time::Ddate    ;
+	using AD = AccessDigest   ;
+	using P  = JobExecRpcProc ;
+	using PD = Time::Pdate    ;
+	using DD = Time::Ddate    ;
 	// statics
 private :
 	static ::vmap_s<DD> _s_mk_mdd(::vector_s&& fs) { ::vmap_s<DD> res ; for( ::string& f : fs ) res.emplace_back(::move(f),DD()) ; return res ; }
@@ -792,8 +783,7 @@ struct JobExecRpcReply {
 				::serdes(s,ok ) ;
 				::serdes(s,txt) ;
 			break ;
-			default : FAIL(proc) ;
-		}
+		DF}
 	}
 	// data
 	Proc                            proc      = Proc::None ;
@@ -825,13 +815,12 @@ struct JobServerRpcReq {
 		switch (proc) {
 			case Proc::Heartbeat : ::serdes(s,job) ;                          break ;
 			case Proc::Kill      : if (::is_base_of_v<::istream,S>) job = 0 ; break ;
-			default : FAIL(proc) ;
-		}
+		DF}
 	}
 	// data
-	Proc   proc   = Proc::Unknown ;
-	SeqId  seq_id = 0             ;
-	JobIdx job    = 0             ;
+	Proc   proc   = {} ;
+	SeqId  seq_id = 0  ;
+	JobIdx job    = 0  ;
 } ;
 
 struct JobInfoStart {
