@@ -12,9 +12,10 @@
 #include <unistd.h>
 
 #include "disk.hh"
-#include "record.hh"
 
 #include "gather_deps.hh"
+#include "record.hh"
+#include "syscall_tab.hh"
 
 // compiled with flag -fvisibility=hidden : this is good for perf and with LD_PRELOAD, we do not polute application namespace
 
@@ -57,27 +58,8 @@ extern "C" {
 	#endif
 }
 
-struct Lock {
-	// s_mutex prevents several threads from recording deps simultaneously
-	// t_loop prevents recursion within a thread :
-	//   if a thread does access while processing an original access, this second access must not be recorded, it is for us, not for the user
-	//   in that case, Lock let it go, but then, t_busy will return true, which in turn will prevent recording
-	// t_loop must be thread local so as to distinguish which thread owns the mutex. Values can be :
-	// - 0 : thread is outside and must acquire the mutex to enter
-	// - 1 : thread is processing a user access and must record deps
-	// - 2 : thread has entered a recursive call and must not record deps
-	// /!\ protection is also necessary for ld_audit despite our calls are not routed to us as libc may call itself, e.g. fork calls __libc_fork
-	// statics
-	static bool t_busy() { return t_loop ; } // same, before taking a 2nd lock
-	// static data
-	static              ::mutex s_mutex ;
-	static thread_local bool    t_loop  ;
-	// cxtors & casts
-	Lock () { SWEAR(!t_loop) ; t_loop = true  ; s_mutex.lock  () ; }
-	~Lock() { SWEAR( t_loop) ; t_loop = false ; s_mutex.unlock() ; }
-} ;
-::mutex           Lock::s_mutex ;
-bool thread_local Lock::t_loop  = false ;
+static              ::mutex _g_mutex ;         // ensure exclusivity between threads
+static thread_local bool    _t_loop  = false ; // prevent recursion within a thread
 
 // User program may have global variables whose cxtor/dxtor do accesses.
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
@@ -88,7 +70,20 @@ static Record& auditer() {
 	return *s_res ;
 }
 
-template<class Action,int NP> struct AuditAction : Ctx,Action {
+#ifdef LD_PRELOAD_JEMALLOC
+	// ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop
+	static bool _g_started                     = false                                 ;
+	static bool _g_auto_start [[maybe_unused]] = ( free(malloc(1)) , _g_started=true ) ; // start recording when global cxtors are called
+	static inline bool started() { return _g_started ; }
+#else
+#ifdef LD_PRELOAD_SERVER
+	static inline bool started() { return Record::s_active() ; } // no auto-start for server
+#else
+	static inline bool started() { return true ; }
+#endif
+#endif
+
+template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	// cxtors & casts
 	// errno must be protected from our auditing actions in cxtor and operator()
 	// more specifically, errno must be the original one before the actual call to libc
@@ -102,18 +97,18 @@ template<class Action,int NP> struct AuditAction : Ctx,Action {
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditer(),res) ; }
 } ;
 //                                          n paths
-using ChDir   = AuditAction<Record::ChDir  ,1      > ;
-using Chmod   = AuditAction<Record::Chmod  ,1      > ;
-using Mkdir   = AuditAction<Record::Mkdir  ,1      > ;
+using Chdir   = AuditAction<Record::Chdir          > ;
+using Chmod   = AuditAction<Record::Chmod          > ;
+using Mkdir   = AuditAction<Record::Mkdir          > ;
 using Lnk     = AuditAction<Record::Lnk    ,2      > ;
-using Open    = AuditAction<Record::Open   ,1      > ;
-using Read    = AuditAction<Record::Read   ,1      > ;
-using ReadLnk = AuditAction<Record::ReadLnk,1      > ;
+using Open    = AuditAction<Record::Open           > ;
+using Read    = AuditAction<Record::Read           > ;
+using Readlnk = AuditAction<Record::Readlnk        > ;
 using Rename  = AuditAction<Record::Rename ,2      > ;
-using Solve   = AuditAction<Record::Solve  ,1      > ;
-using Stat    = AuditAction<Record::Stat   ,1      > ;
-using Symlnk  = AuditAction<Record::Symlnk ,1      > ;
-using Unlink  = AuditAction<Record::Unlink ,1      > ;
+using Solve   = AuditAction<Record::Solve          > ;
+using Stat    = AuditAction<Record::Stat           > ;
+using Symlnk  = AuditAction<Record::Symlnk         > ;
+using Unlnk   = AuditAction<Record::Unlnk          > ;
 
 //
 // Exec
@@ -222,30 +217,16 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 } ;
 
 //
-// SyscallDescr
-//
-
-static ::string get_str( pid_t , uint64_t val ) { return reinterpret_cast<const char*>(val) ; }
-
-template<class T> static T get( pid_t , uint64_t val ) {
-	T res ;
-	::memcpy( &res , reinterpret_cast<void const*>(val) , sizeof(T) ) ;
-	return res ;
-}
-
-#include "syscall.cc"
-
-//
 // Audited
 //
 
 #ifdef LD_PRELOAD
-	// for this case, we want to hide libc functions so as to substitute the auditing functions to the regular functions
+	// for ld_preload, we want to hide libc functions so as to substitute the auditing functions to the regular functions
 	#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
 	extern "C"
 #endif
 #ifdef LD_AUDIT
-	// for this, we want to use private functions so auditing code can freely call the libc without having to deal with errno
+	// for ld_audit, we want to use private functions so auditing code can freely call the libc without having to deal with errno
 	namespace Audited
 #endif
 {
@@ -259,20 +240,31 @@ template<class T> static T get( pid_t , uint64_t val ) {
 		#define REXC(flags) false
 	#endif
 
-	// cwd is implicitely accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
+	// cwd is implicitly accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
 	// hence we should use a shared lock when reading and an exclusive lock when chdir
 	// however, we have to ensure exclusivity for lnk cache, so we end up to exclusive access anyway, so simpler to lock exclusively here
+	// no malloc must be performed before cond is checked to allow jemalloc accesses to be filtered, hence auditer() (which allocates a Record) is done after
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
 	#define HEADER(syscall,cond,args) \
 		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ; \
-		if ( Lock::t_busy() || (cond) ) return orig args ;                              \
-		Lock lock
+		if ( _t_loop || !started() ) return orig args ;                                 \
+		Save sav{_t_loop,true} ;                                                        \
+		if (cond) return orig args ;                                                    \
+		::unique_lock lock{_g_mutex}
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
 	#define HEADER1(syscall,path,       args) HEADER( syscall , Record::s_is_simple(path )                               , args )
 	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
+	// macro for syscall that are forbidden in server
+	#define HEADER0_NOT_IN_SERVER(syscall,args) \
+		HEADER( syscall , false , args ) ;                                \
+		if (Record::s_static_report) {                                    \
+			*Record::s_deps_err += #syscall " is forbidden in server\n" ; \
+			errno = ENOSYS ;                                              \
+			return -1 ;                                                   \
+		}
 
 	#define CC   const char
 	#define P(r)                                  r.at,r.file
@@ -284,8 +276,8 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	// chdir
 	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; ChDir r{pth   } ; return r(orig(F(r))) ; }
-	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; ChDir r{Fd(fd)} ; return r(orig(A(r))) ; }
+	int chdir (CC* pth) NE { HEADER0_NOT_IN_SERVER(chdir ,(pth)) ; Chdir r{pth   } ; return r(orig(F(r))) ; }
+	int fchdir(int fd ) NE { HEADER0_NOT_IN_SERVER(fchdir,(fd )) ; Chdir r{Fd(fd)} ; return r(orig(A(r))) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
@@ -332,11 +324,11 @@ template<class T> static T get( pid_t , uint64_t val ) {
 
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
-	// exec may not support tmp mapping if it is involved along the interpreter path                              no_follow
-	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0(execv  ,(pth,argv     )) ; Exec  r{pth,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
-	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execve ,(pth,argv,envp)) ; Exec  r{pth,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
-	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,(pth,argv     )) ; Execp r{pth,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
-	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,(pth,argv,envp)) ; Execp r{pth,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
+	// exec may not support tmp mapping if it is involved along the interpreter path                                            no_follow
+	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0_NOT_IN_SERVER(execv  ,(pth,argv     )) ; Exec  r{pth,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
+	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0_NOT_IN_SERVER(execve ,(pth,argv,envp)) ; Exec  r{pth,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
+	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0_NOT_IN_SERVER(execvp ,(pth,argv     )) ; Execp r{pth,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
+	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0_NOT_IN_SERVER(execvpe,(pth,argv,envp)) ; Execp r{pth,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
 	//
 	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
 		HEADER1(execveat,pth,(dfd,pth,argv,envp,flgs)) ;
@@ -370,22 +362,28 @@ template<class T> static T get( pid_t , uint64_t val ) {
 
 	// fork
 	// not recursively called by auditing code
-	pid_t fork       () NE { HEADER0(fork       ,()) ; return orig()   ; } // /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated   ...
-	pid_t __fork     () NE { HEADER0(__fork     ,()) ; return orig()   ; } //     ... if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread ...
-	pid_t __libc_fork() NE { HEADER0(__libc_fork,()) ; return orig()   ; } //     ... a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
-	pid_t vfork      () NE {                           return fork  () ; } // mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
-	pid_t __vfork    () NE {                           return __fork() ; } // .
+	// /!\ lock is not strictly necessary, but we must beware of interaction between lock & fork : locks are duplicated
+	//     if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread
+	//     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
+	// vfork is mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
+	pid_t fork       () NE { HEADER0_NOT_IN_SERVER(fork       ,()) ; return orig()   ; }
+	pid_t __fork     () NE { HEADER0_NOT_IN_SERVER(__fork     ,()) ; return orig()   ; }
+	pid_t __libc_fork() NE { HEADER0_NOT_IN_SERVER(__libc_fork,()) ; return orig()   ; }
+	pid_t vfork      () NE {                                         return fork  () ; }
+	pid_t __vfork    () NE {                                         return __fork() ; }
+	#undef NOT_IN_SERVER
 	//
 	int system(CC* cmd) { HEADER0(system,(cmd)) ; return orig(cmd) ; }     // cf fork for explanation as this syscall does fork
 
 	// getcwd
 	// cf man 3 getcwd (Linux)
-	//                                                                                                                            buf_sz   sz        allocated
-	char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; return fix_cwd( orig(buf,sz) , sz       , 0 , buf?No:sz?Maybe:Yes ).first ; }
-	char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; return fix_cwd( orig(      ) , PATH_MAX , 0 , Yes                 ).first ; }
+	// call auditer() to ensure proper initialization
+	//                                                                                                                                        buf_sz   sz        allocated
+	char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; auditer() ; return fix_cwd( orig(buf,sz) , sz       , 0 , buf?No:sz?Maybe:Yes ).first ; }
+	char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; auditer() ; return fix_cwd( orig(      ) , PATH_MAX , 0 , Yes                 ).first ; }
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-	char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; return fix_cwd( orig(buf   ) , PATH_MAX , 0                       ).first ; }
+	char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; auditer() ; return fix_cwd( orig(buf   ) , PATH_MAX , 0                       ).first ; }
 	#pragma GCC diagnostic pop
 
 	// link
@@ -442,14 +440,10 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	#undef O_CWT
 
 	// readlink
-	ssize_t readlink        (      CC* p,char* b,size_t sz           ) NE { HEADER1(readlink        ,p,(  p,b,sz    )) ; ReadLnk r{   p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
-	ssize_t __readlink_chk  (      CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk  ,p,(  p,b,sz,bsz)) ; ReadLnk r{   p ,b,sz} ; return r(orig(F(r),b,sz,bsz)) ; }
-	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; ReadLnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
-	ssize_t readlinkat(int d,CC* p,char* b,size_t sz) NE {
-		HEADER1(readlinkat,p,(d,p,b,sz)) ;
-		ReadLnk r{{d,p},b,sz} ;
-		return r(orig(P(r),b,sz)) ;
-	}
+	ssize_t readlink        (      CC* p,char* b,size_t sz           ) NE { HEADER1(readlink        ,p,(  p,b,sz    )) ; Readlnk r{   p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
+	ssize_t __readlink_chk  (      CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk  ,p,(  p,b,sz,bsz)) ; Readlnk r{   p ,b,sz} ; return r(orig(F(r),b,sz,bsz)) ; }
+	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
+	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz    )) ; }
 
 	// rename                                                                                                                 exchange
 	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false  ,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
@@ -457,7 +451,7 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f),"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
 	// rmdir
-	int rmdir(CC* p) NE { HEADER1(rmdir,p,(p)) ; Unlink r{p,true/*rmdir*/,"rmdir"} ; return r(orig(F(r))) ; }
+	int rmdir(CC* p) NE { HEADER1(rmdir,p,(p)) ; Unlnk r{p,true/*rmdir*/,"rmdir"} ; return r(orig(F(r))) ; }
 
 	// symlink
 	int symlink  (CC* target,        CC* pth) NE { HEADER1(symlink  ,pth,(target,    pth)) ; Symlnk r{     pth ,"symlink"  } ; return r(orig(target,F(r))) ; }
@@ -468,8 +462,8 @@ template<class T> static T get( pid_t , uint64_t val ) {
 	int truncate64(CC* pth,off_t len) NE { HEADER1(truncate64,pth,(pth,len)) ; Open r{pth,len?O_RDWR:O_WRONLY,"truncate64"} ; return r(orig(F(r),len)) ; }
 
 	// unlink
-	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlink r{     pth ,false/*rmdir*/         ,"unlink"  } ; return r(orig(F(r)     )) ; }
-	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlink r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
+	int unlink  (        CC* pth         ) NE { HEADER1(unlink  ,pth,(    pth     )) ; Unlnk r{     pth ,false/*rmdir*/         ,"unlink"  } ; return r(orig(F(r)     )) ; }
+	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlnk r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
 	//                                                                                         no_follow read  allow_tmp_map
@@ -533,8 +527,8 @@ template<class T> static T get( pid_t , uint64_t val ) {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
-		SyscallDescr      const& descr = s_tab[n]              ;
+		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab(false/*for_ptrace*/) ;
+		SyscallDescr      const& descr = tab[n]                                   ;
 		HEADER(
 			syscall
 		,	( !descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1]))) )

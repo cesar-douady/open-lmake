@@ -23,7 +23,7 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		autodep     = 'ld_preload'
+		autodep     = 'ld_preload_jemalloc'
 		environ_cmd = { 'LD_PRELOAD':'libjemalloc.so' }
 
 	class CatSh(Cat) :

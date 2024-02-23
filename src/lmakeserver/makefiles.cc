@@ -28,7 +28,8 @@ ENUM( Reason // reason to re-read makefiles
 namespace Engine::Makefiles {
 
 	static ::pair<vmap_s<FileTag>/*srcs*/,vector_s/*src_dirs_s*/> _gather_srcs( Sequence const& py_srcs , LnkSupport lnk_support , NfsGuard& nfs_guard ) {
-		RealPath          real_path  {{ .lnk_support=lnk_support , .root_dir=*g_root_dir }} ;
+		RealPathEnv       rpe        { .lnk_support=lnk_support , .root_dir=*g_root_dir } ;
+		RealPath          real_path  { rpe }                                              ;
 		::vmap_s<FileTag> srcs       ;
 		::vector_s        src_dirs_s ;
 		for( Str const* py_src : py_srcs ) {
@@ -47,7 +48,7 @@ namespace Engine::Makefiles {
 				else if ( src==".." || src.ends_with("/..")             ) reason =           " is a directory of the repo"                    ;
 				else if ( fi.tag!=FileTag::Dir                          ) reason =           " is not a directory"                            ;
 			} else {
-				if      ( sr.file_loc!=FileLoc::Repo                    ) reason =           " is not in repository"                          ;
+				if      ( sr.file_loc!=FileLoc::Repo                    ) reason =           " is not in repo"                                ;
 				else if ( sr.real!=src                                  ) reason = to_string(" canonical form is ",sr.real)                   ;
 				else if ( lnk_support==LnkSupport::None && !fi.is_reg() ) reason =           " is not a regular file"                         ;
 				else if ( lnk_support!=LnkSupport::None && !fi          ) reason =           " is not a regular file nor a symbolic link"     ;
@@ -162,9 +163,11 @@ namespace Engine::Makefiles {
 		//
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ;  // dir_s is \1, module is \3, matches both python 2 & 3
 		//
-		GatherDeps gather_deps { New }                                                                        ; gather_deps.autodep_env.src_dirs_s = {"/"} ;
+		GatherDeps gather_deps { New }                                                                        ;
 		::string   data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
 		::vector_s cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
+		gather_deps.autodep_env.src_dirs_s = {"/"}       ;
+		gather_deps.autodep_env.root_dir   = *g_root_dir ;
 		Trace trace("_read_makefiles",action,module,Pdate::s_now()) ;
 		//
 		::string sav_ld_library_path ;

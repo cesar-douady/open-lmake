@@ -10,7 +10,7 @@ cat <<"EOF" >>Lmakefile.py
 class NewDep(BaseRule) :
 	target = 'new_dir/dep{Digit}'
 	cmd    = 'echo dep{Digit}'
-class ChDir(BaseRule) :
+class Chdir(BaseRule) :
 	target = 'chdir{Digit}'
 	cmd = multi_strip('''
 		cd new_dir
@@ -21,6 +21,6 @@ EOF
 
 ut_launch -failed 2 -rc 1 lmake chdir1
 
-echo 'ChDir.auto_mkdir = True' >> Lmakefile.py
+echo 'Chdir.auto_mkdir = True' >> Lmakefile.py
 
 ut_launch -may_rerun 1 -done 3 lmake chdir1

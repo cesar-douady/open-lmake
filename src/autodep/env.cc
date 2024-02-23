@@ -8,11 +8,12 @@
 using namespace Disk ;
 
 ::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
-	/**/                         os << "AutodepEnv(" << static_cast<RealPathEnv const&>(ade) ;
-	/**/                         os <<','<< ade.service                                      ;
-	if ( ade.auto_mkdir        ) os <<",auto_mkdir"                                          ;
-	if ( ade.ignore_stat       ) os <<",ignore_stat"                                         ;
-	return                       os <<')'                                                    ;
+	/**/                         os << "AutodepEnv(" << ade.active               ;
+	/**/                         os <<','<< static_cast<RealPathEnv const&>(ade) ;
+	/**/                         os <<','<< ade.service                          ;
+	if ( ade.auto_mkdir        ) os <<",auto_mkdir"                              ;
+	if ( ade.ignore_stat       ) os <<",ignore_stat"                             ;
+	return                       os <<')'                                        ;
 }
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
@@ -48,6 +49,8 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	{ SWEAR(env[pos]=='"',env) ; tie(tmp_dir ,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
 	{ SWEAR(env[pos]=='"',env) ; tie(tmp_view,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=':') goto Fail ; pos++/*:*/ ; }
 	{ SWEAR(env[pos]=='"',env) ; tie(root_dir,pos) = parse_printable<'"'>(env,pos+1/*initial"*/) ; pos ++/*final"*/ ; if (env[pos]!=0  ) goto Fail ; pos++/*:*/ ; }
+	//
+	active = true ;
 	return ;
 Fail :
 	fail_prod("bad autodep env format at pos",pos,":",env) ;

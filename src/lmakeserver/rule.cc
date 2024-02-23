@@ -351,27 +351,29 @@ namespace Engine {
 	}
 
 	::vmap_s<pair_s<AccDflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
-		Accesses a = match.rule->cmd_needs_deps ? Accesses::All : Accesses::None ;
 		::vmap_s<pair_s<AccDflags>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , AccDflags(a,ds.dflags) ) ) ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , AccDflags({},ds.dflags) ) ) ;
 		//
 		if (is_dynamic) {
-			Gil             gil      ;
-			Ptr<Dict>       py_dct   = _eval_code(match) ;
-			::map_s<VarIdx> dep_idxs ;
-			for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-			for( auto [py_key,py_val] : *py_dct ) {
-				if (*py_val==None) continue ;
-				::string key = py_key->as_a<Str>() ;
-				Dflags      df  { Dflag::Essential , Dflag::Static }                                               ;
-				ExtraDflags edf ;
-				::string    dep = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
-				match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
-				_qualify_dep( key , dep , DepKind::Dep ) ;
-				::pair_s<AccDflags> e { dep , {a,df} } ;
-				if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
-				else                                                          res[dep_idxs.at(key)].second = e ;   // if not full_dynamic, all deps must be listed in spec
-			}
+			try {
+				Gil         gil    ;
+				Ptr<Object> py_obj = _eval_code(match) ;
+				//
+				::map_s<VarIdx> dep_idxs ;
+				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
+				for( auto [py_key,py_val] : py_obj->as_a<Dict>() ) {
+					if (*py_val==None) continue ;
+					::string key = py_key->as_a<Str>() ;
+					Dflags      df  { Dflag::Essential , Dflag::Static }                                               ;
+					ExtraDflags edf ;
+					::string    dep = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
+					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
+					_qualify_dep( key , dep , DepKind::Dep ) ;
+					::pair_s<AccDflags> e { dep , {{},df} } ;
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
+					else                                                          res[dep_idxs.at(key)].second = e ;   // if not full_dynamic, all deps must be listed in spec
+				}
+			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
 		}
 		//
 		return res  ;
@@ -415,14 +417,14 @@ namespace Engine {
 		}
 	}
 
-	::pair_ss/*script,call*/ DynamicCmd::eval( Job job , Rule::SimpleMatch& match/*lazy*/ , ::vmap_ss const& rsrcs ) const {
-		Rule r = +job ? job->rule : match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+	pair_ss/*script,call*/ DynamicCmd::eval( Rule::SimpleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<Accesses>* deps ) const {
+		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
-			if (!is_dynamic) return {parse_fstr(spec.cmd,job,match/*lazy*/,rsrcs),{}} ;
-			Gil      gil    ;
-			Ptr<Str> py_cmd = _eval_code(job,match/*lazy*/,rsrcs) ;
-			::string cmd    ;
-			Attrs::acquire(cmd,py_cmd) ;
+			if (!is_dynamic) return {parse_fstr(spec.cmd,match,rsrcs),{}} ;
+			Gil         gil    ;
+			Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
+			::string    cmd    ;
+			Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
 			return {cmd,{}} ;
 		}
 		::string res ;
@@ -438,7 +440,7 @@ namespace Engine {
 			append_to_string(res,'\t',mk_py_str(k)," : (",mk_py_str(v.module),',',mk_py_str(v.qual_name),',',mk_py_str(v.filename),',',v.first_line_no1,")\n") ;
 		}
 		res += "}\n" ;
-		eval_ctx( job , match/*lazy*/ , rsrcs
+		eval_ctx( match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				if ( vc!=VarCmd::Match || i<r->n_statics ) {
 					append_to_string(res,key," = ",mk_py_str(val),'\n') ;
@@ -450,8 +452,8 @@ namespace Engine {
 				,	[&](VarIdx s)->::string {
 						::string k = r->stems[s].first ;
 						if ( k.front()=='<' and k.back()=='>' ) k = k.substr(1,k.size()-2) ;
-						if ( s>=r->n_static_stems             ) { args.push_back(k) ;                          return to_string('{',k,'}') ; }
-						else                                    { if (!match) match = Rule::SimpleMatch(job) ; return match.stems[s]       ; } // solve lazy evaluation
+						if ( s>=r->n_static_stems             ) { args.push_back(k) ; return to_string('{',k,'}') ; }
+						else                                                          return match.stems[s]       ;
 					}
 				) ;
 				append_to_string(res,"def ",key,'(') ;
@@ -571,6 +573,7 @@ namespace Engine {
 	}
 	void RuleData::_acquire_py(Py::Dict const& dct) {
 		static ::string root_dir_s = *g_root_dir+'/' ;
+		Gil      gil   ;
 		::string field ;
 		try {
 			//
@@ -808,8 +811,6 @@ namespace Engine {
 			field = "start_none_attrs"  ; if (dct.contains(field)) start_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs         } ;
-			//
-			cmd_needs_deps = _get_cmd_needs_deps() ;
 			//
 			field = "dbg_info" ;
 			if (dct.contains(field)) Attrs::acquire( dbg_info , &dct[field] ) ;

@@ -57,17 +57,16 @@ namespace Engine {
 	}
 
 	::ostream& operator<<( ::ostream& os , Config const& sc ) {
-		using Tag = BackendTag ;
 		os << "Config("
 			/**/ << sc.db_version.major <<'.'<< sc.db_version.minor
 			<<','<< sc.hash_algo
 			<<','<< sc.lnk_support
 		;
-		if (sc.max_dep_depth       ) os <<",MD" << sc.max_dep_depth          ;
-		if (sc.max_err_lines       ) os <<",EL" << sc.max_err_lines          ;
-		if (sc.path_max!=size_t(-1)) os <<",PM" << sc.path_max               ;
-		if (+sc.caches             ) os <<','   << sc.caches                 ;
-		for( Tag t : All<Tag>      ) os <<','   << t <<':'<< sc.backends[+t] ;
+		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
+		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
+		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
+		if (+sc.caches             )                  os <<','   << sc.caches                 ;
+		for( BackendTag t : All<BackendTag> ) if (+t) os <<','   << t <<':'<< sc.backends[+t] ;
 		return os<<')' ;
 	}
 
@@ -175,7 +174,7 @@ namespace Engine {
 				}
 				fields.pop_back() ;
 			}
-			for( BackendTag t : All<BackendTag> ) {
+			for( BackendTag t : All<BackendTag> ) if (+t) {
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 				if (!bbe                            ) continue ;                                                                // not implemented
@@ -235,7 +234,7 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : All<BackendTag> ) {
+			for( BackendTag t : All<BackendTag> ) if (+t) {
 				if (!backends[+t].configured         ) continue        ;
 				if (!Backends::Backend::s_ready   (t)) continue        ;
 				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
@@ -317,7 +316,7 @@ namespace Engine {
 		for( auto const& [k,v] : dyn_n_tokenss    )                                 res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : All<BackendTag> ) {
+		for( BackendTag t : All<BackendTag> ) if (+t) {
 			Backend           const& be  = backends[+t]                 ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
 			if (!bbe                          ) continue ;                   // not implemented
@@ -370,10 +369,9 @@ namespace Engine {
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
 		dyn_n_tokenss.clear() ;
-		for( BackendTag t : All<BackendTag> )
-			if (Backends::Backend::s_ready(t))
-				for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
-					if (v) dyn_n_tokenss[to_string(snake(t),'.',k)] = v ;                    // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
+		for( BackendTag t : All<BackendTag> ) if (Backends::Backend::s_ready(t))
+			for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
+				if (v) dyn_n_tokenss[to_string(snake(t),'.',k)] = v ;                        // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//
@@ -423,8 +421,9 @@ namespace Engine {
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!as_job()) ;
-		RealPath       real_path {{ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }} ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                                                   // typically, there is no bads
+		RealPathEnv    rpe       { .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir } ;
+		RealPath       real_path { rpe }                                                       ;
+		::vector<Node> targets   ; targets.reserve(files.size())                               ;                                     // typically, there is no bads
 		::string       err_str   ;
 		for( ::string const& target : files ) {
 			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                   // we may refer to a symbolic link

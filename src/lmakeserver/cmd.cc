@@ -300,7 +300,7 @@ R"({
 		}
 		Rule::SimpleMatch match = j->simple_match() ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ; // necessary for pre_actions()
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                       // necessary for pre_actions()
 		//
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn*/> pre_actions = j->pre_actions(match)         ;
 		::string                                           script      = "#!/bin/bash\n"               ;
@@ -331,7 +331,7 @@ R"({
 				case FileActionTag::None     :                                                                 break ;
 				case FileActionTag::Mkdir    :   append_to_string(script,"mkdir -p ",tn,               '\n') ; break ;
 				case FileActionTag::Rmdir    :   append_to_string(script,"rmdir "   ,tn," 2>/dev/null",'\n') ; break ;
-				case FileActionTag::Unlink   : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
+				case FileActionTag::Unlnk    : { ::string c = "rm -f "   +tn ; if (warn.contains(t)) append_to_string(script,"echo warning : ",c,">&2 ;") ; append_to_string(script,c,'\n') ; } break ;
 				case FileActionTag::Uniquify : { ::string c = "uniquify "+tn ;                                                                              append_to_string(script,c,'\n') ; } break ;
 			DF}
 		}
@@ -372,10 +372,10 @@ R"({
 				if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                           ," \\\n") ;
 				else                append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::copy(v)))," \\\n") ;
 			}
-			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                // in addition of dbg, autodep may be needed for functional reasons
+			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                    // in addition of dbg, autodep may be needed for functional reasons
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
-				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ; // dont care about deps
+				else                               append_to_string( script , "-s " , "none"                     , ' ' ) ;     // dont care about deps
 				/**/                               append_to_string( script , "-m " , snake(start.method   )     , ' ' ) ;
 				if      ( !dbg                   ) append_to_string( script , "-o " , "/dev/null"                , ' ' ) ;
 				else if ( +dbg_dir               ) append_to_string( script , "-o " , dbg_dir,"/accesses"        , ' ' ) ;
@@ -635,8 +635,8 @@ R"({
 							::map_ss allocated_rsrcs = mk_map(report_start.rsrcs) ;
 							try {
 								Rule::SimpleMatch match ;
-								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match).rsrcs) ;
-							} catch(::string const&) {}
+								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<Accesses>())).rsrcs) ; // dont care about deps
+							} catch(::pair_ss const&) {}
 							//
 							if (has_end) {
 								push_entry( "end date" , digest.end_date.str()                                                                                                ) ;

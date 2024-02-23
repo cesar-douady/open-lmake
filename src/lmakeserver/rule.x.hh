@@ -7,6 +7,8 @@
 
 #include "re.hh"
 
+#include "autodep/record.hh"
+
 #include "store/prefix.hh"
 #include "store/vector.hh"
 #include "store/struct.hh"
@@ -212,7 +214,7 @@ namespace Engine {
 			Attrs::acquire_from_dct( use_script  , py_dct , "use_script"  ) ;
 			::sort(env) ;                                                                                                                                // stabilize cmd crc
 		}
-		void chk(AutodepMethod method) {
+		void chk(AutodepMethod method) {                                                                                                                 // PER_AUTODEP_METHOD : handle case
 			switch (method) {
 				case AutodepMethod::None    :                                                                                                            // cannot map if not spying
 				case AutodepMethod::Ptrace  : if (+tmp         ) throw to_string("cannot map tmp directory from ",tmp," with autodep=",method) ; break ; // cannot alloc mem in traced child ...
@@ -354,15 +356,15 @@ namespace Engine {
 		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                  // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                  // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                         // .
+		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                            // mutex is not copiable
+		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                            // .
+		Dynamic& operator=(Dynamic const& src) {                                                                                                   // .
 			Base::operator=(src) ;
 			glbs = src.glbs ;
 			code = src.code ;
 			return *this ;
 		}
-		Dynamic& operator=(Dynamic&& src) {                                                                                                              // .
+		Dynamic& operator=(Dynamic&& src) {                                                                                                        // .
 			Base::operator=(::move(src)) ;
 			glbs = ::move(src.glbs) ;
 			code = ::move(src.code) ;
@@ -371,21 +373,24 @@ namespace Engine {
 		// services
 		void compile() ;
 		//
-		T eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                                                                   // SimpleMatch is lazy evaluated from Job
-		T eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ; } // cannot lazy evaluate w/o a job
+		// SimpleMatch is lazy evaluated from Job (when there is one)
+		T eval( Job   , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<Accesses>* deps=nullptr ) const ;
+		T eval(         Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<Accesses>* deps=nullptr ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ; }
+		T eval( Job j , Rule::SimpleMatch      & m ,                             ::vmap_s<Accesses>* deps         ) const { return eval( j  ,                                m  , {}    , deps ) ; }
+		T eval(         Rule::SimpleMatch const& m ,                             ::vmap_s<Accesses>* deps         ) const { return eval( {} , const_cast<Rule::SimpleMatch&>(m) , {}    , deps ) ; }
 		//
-		void eval_ctx( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ;       // SimpleMatch is lazy evaluated from Job
+		void eval_ctx( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ; // SimpleMatch is lazy evaluated from Job
 		void eval_ctx(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
-			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                              // cannot lazy evaluate w/o a job
+			return eval_ctx( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                        // cannot lazy evaluate w/o a job
 		}
-		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                               // SimpleMatch is lazy evaluated from Job
+		::string parse_fstr( ::string const& fstr , Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;                         // SimpleMatch is lazy evaluated from Job
 		::string parse_fstr( ::string const& fstr ,       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
-			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
+			return parse_fstr( fstr , {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                                           // cannot lazy evaluate w/o a job
 		}
 	protected :
-		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ;
-		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {                                           // cannot lazy evaluate w/o a job
-			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;
+		Py::Ptr<Py::Object> _eval_code( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<Accesses>* deps=nullptr ) const ;
+		Py::Ptr<Py::Object> _eval_code(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<Accesses>* deps=nullptr ) const {  // cannot lazy evaluate w/o a job
+			return _eval_code( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs , deps ) ;
 		}
 		// data
 	private :
@@ -412,15 +417,13 @@ namespace Engine {
 		using Base = Dynamic<Cmd> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                        // only copy disk backed-up part, in particular mutex is not copied
-		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                        // .
-		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; }        // .
-		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; }        // .
+		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                 // only copy disk backed-up part, in particular mutex is not copied
+		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                 // .
+		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return *this ; } // .
+		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::pair_ss/*script,call*/ eval( Job , Rule::SimpleMatch      &   , ::vmap_ss const& rsrcs={} ) const ; // SimpleMatch is lazy evaluated from Job
-		::pair_ss/*script,call*/ eval(       Rule::SimpleMatch const& m , ::vmap_ss const& rsrcs={} ) const {
-			return eval( {} , const_cast<Rule::SimpleMatch&>(m) , rsrcs ) ;                                   // m cannot be lazy evaluated w/o a job
-		}
+		// SimpleMatch is lazy evaluated from Job (when there is one)
+		::pair_ss/*script,call*/ eval( Rule::SimpleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<Accesses>* deps=nullptr ) const ;
 	} ;
 
 	struct TargetPattern {
@@ -484,15 +487,6 @@ namespace Engine {
 			if (!( top || !file || !cwd_s )) file.insert(0,cwd_s) ;
 		}
 	private :
-		bool _get_cmd_needs_deps() const {                // if deps are needed for cmd computation, then static deps are deemed to be read as accesses are not recorded and we need to be pessimistic
-			return
-				submit_rsrcs_attrs.is_dynamic
-			||	start_cmd_attrs   .is_dynamic
-			||	cmd               .is_dynamic
-			||	start_rsrcs_attrs .is_dynamic
-			||	end_cmd_attrs     .is_dynamic
-			;
-		}
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
 		void          _set_crcs  (                                 ) ;
 		TargetPattern _mk_pattern( ::string const& , bool for_name ) const ;
@@ -526,11 +520,10 @@ namespace Engine {
 		bool                      is_python          = false ;
 		bool                      force              = false ;
 		// derived data
-		bool             cmd_needs_deps   = false ;
-		VarIdx           n_static_stems   = 0     ;
-		VarIdx           n_static_targets = 0     ;       // number of official static targets
-		VarIdx           n_statics        = 0     ;
-		size_t           n_tokens         = 1     ;
+		VarIdx n_static_stems   = 0 ;
+		VarIdx n_static_targets = 0 ;                     // number of official static targets
+		VarIdx n_statics        = 0 ;
+		size_t n_tokens         = 1 ;
 		// management data
 		ExecGen cmd_gen   = 1 ;                           // cmd generation, must be >0 as 0 means !cmd_ok
 		ExecGen rsrcs_gen = 1 ;                           // for a given cmd, resources generation, must be >=cmd_gen
@@ -755,6 +748,7 @@ namespace Engine {
 	,	glbs_str  { is_dynamic ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
 	,	code_str  { is_dynamic ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
 	{
+		Py::Gil gil ;
 		if (py_src[0]!=Py::None) spec.init( is_dynamic , &py_src[0].as_a<Py::Dict>() , var_idxs , ::forward<A>(args)... ) ;
 		if (py_src.size()<=1    ) return ;
 		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
@@ -827,7 +821,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<Accesses>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		::vector_s to_del ;
@@ -844,23 +838,26 @@ namespace Engine {
 			}
 		) ;
 		Py::Ptr<Py::Object> res      ;
-		::string            err_str  ;
+		::string            err      ;
 		bool                seen_err = false ;
+		Record::Lock lock{deps} ;
 		//                                vvvvvvvvvvvvvvvvv
-		try                       { res = code->eval(*glbs) ;       }
+		try                       { res = code->eval(*glbs) ;   }
 		//                                ^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { err_str = e ; seen_err = true ; }
-		for( ::string const& key : to_del ) glbs->del_item(key) ;     // delete job-related info, just to avoid percolation to other jobs, even in case of error
-		if (seen_err) throw err_str ;
+		catch (::string const& e) { err = e ; seen_err = true ; }
+		for( ::string const& key : to_del ) glbs->del_item(key) ;        // delete job-related info, just to avoid percolation to other jobs, even in case of error
+		if ( +lock.err || seen_err ) throw ::pair(lock.err/*msg*/,err) ;
 		return res ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<Accesses>* deps ) const {
 		if (!is_dynamic) return spec ;
-		T       res = spec ;
-		Py::Gil gil ;
-		res.update(_eval_code(job,match,rsrcs)->template as_a<Py::Dict>()) ;
-		return res  ;
+		T                   res    = spec                                     ;
+		Py::Gil             gil    ;
+		Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
+		try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
+		catch (::string const& e) { throw ::pair_ss(e,{}) ;                         }
+		return res ;
 	}
 
 	//
@@ -879,7 +876,6 @@ namespace Engine {
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
-		::serdes(s,cmd_needs_deps  ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
 		::serdes(s,n_statics       ) ;

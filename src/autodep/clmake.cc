@@ -124,9 +124,9 @@ static PyObject* has_backend( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	if ( py_args.size()!=1 || kwds ) return py_err_set(Exception::TypeErr,"expect exactly a single positional argument") ;
 	::string   be  = py_args[0].as_a<Str>() ;
 	BackendTag tag {}/*garbage*/            ;
-	try                       { tag = mk_enum<BackendTag>(be) ;                                }
-	catch (::string const& e) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
-	switch (tag) {                                                                               // PER BACKEND
+	try                     { tag = mk_enum<BackendTag>(be) ; if (!tag) throw ""s ;          }
+	catch (::string const&) { return py_err_set(Exception::ValueErr,"unknown backend "+be) ; }
+	switch (tag) {                                                                             // PER BACKEND
 		case BackendTag::Local : return            True       .to_py_boost() ;
 		case BackendTag::Slurm : return (HAS_SLURM?True:False).to_py_boost() ;
 	DF} ;
@@ -216,7 +216,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	bool         no_follow = false                         ;
 	AccessDigest ad        ;
 	if (n_kwds) {
-		/**/                                                           if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlink =      +(*py_kwds)["unlink"         ]  ; }
+		/**/                                                           if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlnk  =      +(*py_kwds)["unlink"         ]  ; }
 		/**/                                                           if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =     !+(*py_kwds)["follow_symlinks"]  ; }
 		for( Tflag tf : Tflag::NDyn ) { ::string stf = snake_str(tf) ; if (py_kwds->contains(stf              )) { n_kwds-- ; ad.tflags.set(tf,+(*py_kwds)[stf              ]) ; } }
 	}
@@ -225,9 +225,9 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	ad.write = !ad.unlink ;
+	ad.write = !ad.unlnk ;
 	record().direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
-	record().direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlink*/ , true/*ok*/                                            )) ;
+	record().direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlnk*/ , true/*ok*/                                             )) ;
 	//
 	return None.to_py_boost() ;
 }
@@ -290,17 +290,18 @@ PyMODINIT_FUNC
 	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
 	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
 	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "root_dir"       , *Ptr<Str>(_g_autodep_env.root_dir.c_str()) ) ;
-	mod->set_attr( "backends"       , *py_bes                                    ) ;
-	mod->set_attr( "has_ld_audit"   , *Ptr<Bool>(bool(HAS_LD_AUDIT))             ) ;
-	mod->set_attr( "has_ld_preload" ,                True                        ) ;
-	mod->set_attr( "has_ptrace"     ,                True                        ) ;
-	mod->set_attr( "no_crc"         , *Ptr<Int>(+Crc::Unknown)                   ) ;
-	mod->set_attr( "crc_a_link"     , *Ptr<Int>(+Crc::Lnk    )                   ) ;
-	mod->set_attr( "crc_a_reg"      , *Ptr<Int>(+Crc::Reg    )                   ) ;
-	mod->set_attr( "crc_no_file"    , *Ptr<Int>(+Crc::None   )                   ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "root_dir"                , *Ptr<Str>(_g_autodep_env.root_dir.c_str()) ) ;
+	mod->set_attr( "backends"                , *py_bes                                    ) ;
+	mod->set_attr( "has_ld_audit"            , *Ptr<Bool>(bool(HAS_LD_AUDIT))             ) ;
+	mod->set_attr( "has_ld_preload"          ,                True                        ) ;
+	mod->set_attr( "has_ld_preload_jemalloc" ,                True                        ) ;
+	mod->set_attr( "has_ptrace"              ,                True                        ) ;
+	mod->set_attr( "no_crc"                  , *Ptr<Int>(+Crc::Unknown)                   ) ;
+	mod->set_attr( "crc_a_link"              , *Ptr<Int>(+Crc::Lnk    )                   ) ;
+	mod->set_attr( "crc_a_reg"               , *Ptr<Int>(+Crc::Reg    )                   ) ;
+	mod->set_attr( "crc_no_file"             , *Ptr<Int>(+Crc::None   )                   ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	mod->boost() ;
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;

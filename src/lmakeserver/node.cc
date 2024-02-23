@@ -57,13 +57,13 @@ namespace Engine {
 			ri.manual = manual_refresh(req) ;
 			switch (ri.manual) {
 				case Manual::Ok       :
-				case Manual::Unlinked : break ;
+				case Manual::Unlnked : break ;
 				case Manual::Empty :
 					if (!dangling) {
-						Trace trace("manual_wash","unlink",idx()) ;
-						unlink(name()) ;
+						Trace trace("manual_wash","unlnk",idx()) ;
+						unlnk(name()) ;
 						req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
-						ri.manual = Manual::Unlinked ;
+						ri.manual = Manual::Unlnked ;
 						break ;
 					}
 				[[fallthrough]] ;
@@ -76,7 +76,7 @@ namespace Engine {
 						::string n = name() ;
 						if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
 							req->audit_node( Color::Warning , "quarantined" , idx() ) ;
-							ri.manual = Manual::Unlinked ;
+							ri.manual = Manual::Unlnked ;
 						} else {
 							req->audit_node( Color::Err , "failed to quarantine" , idx() ) ;
 						}
@@ -407,7 +407,7 @@ namespace Engine {
 			trace("no_src",crc,crc_) ;
 			if (crc==crc_) goto Done ;                                                                        // node is not polluted
 			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && manual_wash(ri,true/*lazy*/)==Manual::Ok ) { // if already unlinked, no need to unlink it again
-				unlink(lazy_name(),true/*dir_ok*/) ;                                                          // wash pollution if not manual
+				unlnk(lazy_name(),true/*dir_ok*/) ;                                                           // wash pollution if not manual
 				req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 			}
 			refresh( crc_ , Ddate() ) ;                                                                       // if not physically unlinked, node will be manual
@@ -452,7 +452,7 @@ namespace Engine {
 		} else {
 			// check if we need to regenerate node
 			if (ri.done(ri.action)) {
-				if (!unlinked                   ) goto Wakeup ;                                          // no need to regenerate
+				if (!unlnked                    ) goto Wakeup ;                                          // no need to regenerate
 				if (ri.action<=RunAction::Status) goto Wakeup ;                                          // no need for the file on disk
 				if (status()!=NodeStatus::Plain ) goto Wakeup ;                                          // no hope to regenerate, proceed as a done target
 				ri.done_    = RunAction::Status ;                                                        // regenerate
@@ -514,14 +514,14 @@ namespace Engine {
 							if (jt.produces(idx())) {
 								if      (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
 								else if (!has_actual_job(jt)              ) reason = {JobReasonTag::PollutedTarget,+idx()} ;
-								else if (unlinked                         ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
+								else if (unlnked                          ) reason = {JobReasonTag::NoTarget      ,+idx()} ;
 								else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
 								else                                                                                         // ... and checking may modify it
 									switch (manual_wash(ri,true/*lazy*/)) {
-										case Manual::Ok       :                                                  break ;
-										case Manual::Unlinked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
-										case Manual::Empty    :
-										case Manual::Modif    : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
+										case Manual::Ok      :                                                  break ;
+										case Manual::Unlnked : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
+										case Manual::Empty   :
+										case Manual::Modif   : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;
 									DF}
 							}
 						break ;
@@ -637,8 +637,8 @@ namespace Engine {
 			else                                 date() = date_ ;
 		}
 		//
-		if (unlinked) trace("!unlinked") ;
-		unlinked = false ;                                                                                   // dont care whether file exists, it has been generated according to its job
+		if (unlnked) trace("!unlnked") ;
+		unlnked = false ;                                                                                    // dont care whether file exists, it has been generated according to its job
 		if (modified)
 			for( Req r : reqs() )
 				if ( Node::ReqInfo& ri=req_info(r) ; ri.done() ) { trace("overwrite",*this) ; ri.reset() ; } // target is not done any more

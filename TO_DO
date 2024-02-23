@@ -16,13 +16,6 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-*1 track disk accesses from server
-	- allow direct read of makefiles
-		- avoid serialization of rule_rep (but still need serialization of attributes as makefiles are not read at each lmake)
-	- allow check that dynamic attributes only access what they are allowed to access
-	- statically link python with auditing code in a dedicated .o
-		- so python accesses are tracked
-		- rest of accesses are not
 * automatic versioning of internal info
 	- extend serdes to enumerate fields & types
 	- for data base

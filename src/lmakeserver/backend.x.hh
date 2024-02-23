@@ -94,11 +94,11 @@ namespace Backends {
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void s_open_req    (                    ReqIdx , JobIdx n_jobs                          ) ;
-		static void s_close_req   (                    ReqIdx                                          ) ;
-		static void s_submit      ( Tag   , JobIdx   , ReqIdx , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
-		static void s_add_pressure( Tag   , JobIdx   , ReqIdx , SubmitAttrs const&                     ) ;
-		static void s_set_pressure( Tag   , JobIdx   , ReqIdx , SubmitAttrs const&                     ) ;
+		static void s_open_req    (                ReqIdx , JobIdx n_jobs                          ) ;
+		static void s_close_req   (                ReqIdx                                          ) ;
+		static void s_submit      ( Tag , JobIdx , ReqIdx , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
+		static void s_add_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                     ) ;
+		static void s_set_pressure( Tag , JobIdx , ReqIdx , SubmitAttrs const&                     ) ;
 		//
 		static void s_kill_all   (          ) {              _s_kill_req(   ) ; }
 		static void s_kill_req   (ReqIdx req) { SWEAR(req) ; _s_kill_req(req) ; }
@@ -184,17 +184,17 @@ namespace Backends {
 
 namespace Backends {
 
-	inline bool             Backend::s_is_local  (Tag t) { return               s_tab[+t]->is_local()  ; }
-	inline bool             Backend::s_ready     (Tag t) { return s_tab[+t] && !s_tab[+t]->config_err  ; }
-	inline ::string const&  Backend::s_config_err(Tag t) { return               s_tab[+t]->config_err  ; }
-	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return               s_tab[+t]->n_tokenss() ; }
+	inline bool             Backend::s_is_local  (Tag t) { return                     s_tab[+t]->is_local()  ; }
+	inline bool             Backend::s_ready     (Tag t) { return +t && s_tab[+t] && !s_tab[+t]->config_err  ; }
+	inline ::string const&  Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err  ; }
+	inline ::vmap_s<size_t> Backend::s_n_tokenss (Tag t) { return                     s_tab[+t]->n_tokenss() ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
-	#define UL ::unique_lock
-	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
-	inline void Backend::s_close_req  (ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
-	inline void Backend::s_new_req_eta(ReqIdx r          ) { UL lock{_s_mutex} ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
-	#undef UL
+	#define LOCK ::unique_lock lock{_s_mutex}
+	inline void Backend::s_open_req   (ReqIdx r,JobIdx nj) { LOCK ; Trace trace(BeChnl,"s_open_req"   ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->open_req   (r,nj) ; }
+	inline void Backend::s_close_req  (ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_close_req"  ,r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->close_req  (r   ) ; }
+	inline void Backend::s_new_req_eta(ReqIdx r          ) { LOCK ; Trace trace(BeChnl,"s_new_req_eta",r) ; for( Tag t : All<Tag> ) if (s_ready(t)) s_tab[+t]->new_req_eta(r   ) ; }
+	#undef LOCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }
 	inline ::pair_s<bool/*retry*/>  Backend::s_end      ( Tag t , JobIdx j , Status s ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_end"      ,t,j) ; return s_tab[+t]->end      (j,s) ; }

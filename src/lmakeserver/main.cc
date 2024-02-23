@@ -8,6 +8,8 @@
 #include "disk.hh"
 #include "rpc_client.hh"
 
+#include "autodep/record.hh"
+
 #include "makefiles.hh"
 #include "core.hh"
 
@@ -31,7 +33,6 @@ static bool           _g_is_daemon      = true   ;
 static ::atomic<bool> _g_done           = false  ;
 static bool           _g_server_running = false  ;
 static ::string       _g_host           = host() ;
-static RealPath       _g_real_path      ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { ServerMrkr } ;
@@ -51,7 +52,7 @@ void server_cleanup() {
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
 	if (mrkr!=::pair_s(_g_host,pid)) return ;              // not our file, dont touch it
-	unlink(ServerMrkr) ;
+	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }
 
@@ -76,7 +77,7 @@ bool/*crashed*/ start_server(bool start) {
 			trace("already_existing",mrkr) ;
 			return false/*unused*/ ;
 		}
-		unlink(ServerMrkr) ;                       // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(ServerMrkr) ;                        // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		crashed = true ;
 		trace("vanished",mrkr) ;
 	}
@@ -96,7 +97,7 @@ bool/*crashed*/ start_server(bool start) {
 		_g_server_running = ::link( tmp.c_str() , ServerMrkr )==0 ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
-		unlink(tmp) ;
+		unlnk(tmp) ;
 		trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
 	} else {
 		_g_server_running = true ;
@@ -336,17 +337,17 @@ bool/*interrupted*/ engine_loop() {
 				JobExec         & je  = job.exec    ;
 				trace("job",job.proc,je) ;
 				switch (job.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobProc::Start       : je.started     (job.report,job.report_unlinks,job.txt,job.backend_msg) ; break ;
-					case JobProc::ReportStart : je.report_start(                                                     ) ; break ;
-					case JobProc::LiveOut     : je.live_out    (job.txt                                              ) ; break ;
-					case JobProc::GiveUp      : je.give_up     (job.req , job.report                                 ) ; break ;
-					case JobProc::End         : je.end         (job.rsrcs,job.digest,job.backend_msg                 ) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobProc::Start       : je.started     (job.report,job.report_unlnks,job.txt,job.backend_msg) ; break ;
+					case JobProc::ReportStart : je.report_start(                                                    ) ; break ;
+					case JobProc::LiveOut     : je.live_out    (job.txt                                             ) ; break ;
+					case JobProc::GiveUp      : je.give_up     (job.req , job.report                                ) ; break ;
+					case JobProc::End         : je.end         (job.rsrcs,job.digest,::move(job.backend_msg)        ) ; break ;
+					//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobProc::ChkDeps     :
 					case JobProc::DepInfos    : {
 						::vector<Dep> deps ; deps.reserve(job.digest.deps.size()) ;
-						for( auto [dn,dd] : job.digest.deps ) deps.emplace_back(Node(dn),dd) ;
+						for( auto const& [dn,dd] : job.digest.deps ) deps.emplace_back(Node(dn),dd) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						OMsgBuf().send( job.reply_fd , je.job_info(job.proc,deps) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -360,39 +361,18 @@ bool/*interrupted*/ engine_loop() {
 	return false ;
 }
 
-int repair() {
-	::string backup_admin_dir = AdminDir+".bck"s       ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
-	::string repair_mrkr      = AdminDir+"/repairing"s ;
-	start_server(false/*start*/) ;
-	if (!_g_server_running      ) exit(1,"server is already running") ;
-	if (is_reg(repair_mrkr)     ) unlink(AdminDir,true/*dir_ok*/) ;
-	if (is_dir(backup_admin_dir)) {
-		if      ( is_dir(AdminDir)                                ) exit(1,"backup already existing, consider : rm -r ",backup_admin_dir) ;
-	} else {
-		if      (!is_dir(PrivateAdminDir+"/local_admin/job_data"s)) exit(1,"nothing to repair"                                          ) ;
-		else if (::rename(AdminDir,backup_admin_dir.c_str())!=0   ) exit(2,"backup failed to ",backup_admin_dir                         ) ;
-	}
-	if ( AutoCloseFd fd=open_write(repair_mrkr) ; !fd ) exit(2,"cannot create ",repair_mrkr) ; // create marker
-	Persistent::writable = true ;
-	try {
-		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
-		if (+msg) ::cerr << ensure_nl(msg) ;
-	} catch (::string const& e) { exit(2,e) ; }
-	Persistent::repair(to_string(backup_admin_dir,'/',PRIVATE_ADMIN_SUBDIR,"/local_admin/job_data")) ;
-	unlink(repair_mrkr) ;
-	return 0 ;
-}
-
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	app_init() ;                                                                        // server is always launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
+	AutodepEnv ade ;
+	ade.root_dir = *g_root_dir ;
+	Record::s_static_report = true ;
+	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
-		FAIL(*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s) ;
+		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;
 	}
-	//
-	if (base_name(argv[0])=="lrepair") return repair() ;
 	//
 	bool refresh_ = true       ;
 	Fd   in_fd    = Fd::Stdin  ;
@@ -420,7 +400,6 @@ int main( int argc , char** argv ) {
 	Persistent::writable = true ;
 	Codec     ::writable = true ;
 	//          ^^^^^^^^^^^^^^^
-	_g_real_path.init({ .lnk_support=g_config.lnk_support , .root_dir=*g_root_dir }) ;
 	Trace trace("main",getpid(),*g_lmake_dir,*g_root_dir) ;
 	for( int i=0 ; i<argc ; i++ ) trace("arg",i,argv[i]) ;
 	//             vvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -448,7 +427,7 @@ int main( int argc , char** argv ) {
 	//                 vvvvvvvvvvvvv
 	bool interrupted = engine_loop() ;
 	//                 ^^^^^^^^^^^^^
-	unlink(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                    // cleanup
+	unlnk(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                     // cleanup
 	//
 	trace("exit",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;

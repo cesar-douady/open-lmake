@@ -2124,8 +2124,8 @@ At the end of the supplied executable and arguments, @code{'-c'} and the actual 
 
 Whether @code{cmd} is a @code{str} or a @code{function}, the following environment variable are automatically set, if not explicitly set by the @code{environ} attribute :
 @itemize @minus
-@item @code{LD_AUDIT}          : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
-@item @code{LD_PRELOAD}        : A variable necessary for the autodep mechanism of @lmake if the @code{autodep} attribute is set to @code{'ld_preload'} (cf @pxref{autodep}).
+@item @code{LD_AUDIT}          : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_audit'} (cf @pxref{autodep}).
+@item @code{LD_PRELOAD}        : A variable necessary for autodep if the @code{autodep} attribute is set to @code{'ld_preload'} or @code{'ld_preload_jemalloc'} (cf @pxref{autodep}).
 @item @code{LMAKE_AUTODEP_ENV} : A variable necessary for the autodep mechanism of @lmake, it must stay present and untouched (cf @pxref{autodep}).
 @item @code{PWD}               : The initial directory in which @code{cmd} is run, as provided by the @code{cwd} attribute (often the root of the repository).
 @item @code{ROOT_DIR}          : The root of the repository.
@@ -2244,7 +2244,7 @@ This attribute specifies the backend to use to launch jobs (cf @pxref{backends})
 @item Type
 @tab @code{str}
 @item Constraint
-@tab One of @code{'none'}, @code{'ld_preload'}, @code{'ld_audit'} or @code{'ptrace'}
+@tab One of @code{'none'}, @code{'ld_preload'}, @code{'ld_preload_jemalloc'}, @code{'ld_audit'} or @code{'ptrace'}
 @item Default
 @tab @code{'ld_audit'} if supported else @code{'ld_preload'}
 @item Dynamic
@@ -2787,7 +2787,7 @@ From this information @lmake can determine if accesses were within the constrain
 Several methods are available to spy jobs.
 Not all methods are supported on all systems, though.
 
-In all cases, the environment variable @code{LMAKE_AUTO_DEP_ENV} must remain in the environment untouched for the autodep mechanis to work correctly.
+In all cases, the environment variable @code{LMAKE_AUTO_DEP_ENV} must remain in the environment untouched for the autodep mechanism to work correctly.
 
 @subsection @code{'None'} or @code{'none'}
 
@@ -2811,10 +2811,17 @@ This requires @file{libc.so} to be dynamically linked.
 This method is very performant.
 
 The main advantage is that this method is available even on rather old versions of Linux.
-The main inconvenient is that it is somewhat invasive and there are cases of incompatibilities (e.g. the use of the @code{jemalloc} package).
+The main inconvenient is that it is somewhat invasive and there are cases of incompatibilities (e.g. sometimes the use of the @code{jemalloc} package depending on its configuration).
 Also, it will not run correctly if some commands have the @file{libc} statically linked and this will go undetected.
 
-This method is recommanded on systems that lack the rtld-audit capability.
+This method is recommanded on systems that lack the rtld-audit capability when jobs do not use @code{jemalloc}.
+
+@subsection @code{'LdPreloadJemalloc'} or @code{'ld_preload_jemalloc'}
+
+This method is very similar to the previous method except it fully support @code{'jemalloc'}.
+The drawback, though, is that it may miss a few dependencies, in some rare occasions, in case accesses are made before @code{main()} is called.
+
+This method is recommanded on systems that lack the rtld-audit capability when jobs use @code{jemalloc}.
 
 @subsection @code{'LdAudit'} or @code{'ld_audit'}
 

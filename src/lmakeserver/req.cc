@@ -43,7 +43,7 @@ namespace Engine {
 			::string last = AdminDir+"/last_output"s ;
 			//
 			data.log_stream.open(log_file) ;
-			try         { unlink(last) ; lnk(last,lcl_log_file) ;                     }
+			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                      }
 			catch (...) { exit(2,"cannot create symlink ",last," to ",lcl_log_file) ; }
 			data.start_ddate = file_date(log_file) ;                                    // use log_file as a date marker
 			data.start_pdate = Pdate::s_now()      ;
@@ -534,8 +534,8 @@ namespace Engine {
 			Rule::SimpleMatch m{rt,name} ;
 			mrts.emplace_back(rt,m) ;
 			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ; // do not pass *this as req to avoid generating error message at cxtor time
-			try                     { rt->deps_attrs.eval(m) ; }
-			catch (::string const&) { continue ;               }                           // do not consider rule if deps cannot be computed
+			try                      { rt->deps_attrs.eval(m) ; }
+			catch (::pair_ss const&) { continue ;               }                          // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		}
 		//
@@ -548,9 +548,9 @@ namespace Engine {
 			::string                    reason      ;
 			Node                        missing_dep ;
 			::vmap_s<pair_s<AccDflags>> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                      ; goto Report ; }
-			try                                            { static_deps = rt->deps_attrs.eval(m)                     ;               }
-			catch (::string const& e)                      { reason      = to_string("cannot compute its deps :\n",e) ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                                                 ; goto Report ; }
+			try                                            { static_deps = rt->deps_attrs.eval(m)                                                ;               }
+			catch (::pair_ss const& msg_err)               { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
 			{	::string missing_key ;
 				for( bool search_non_buildable : {true,false} )                            // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,daf] : static_deps ) {

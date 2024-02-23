@@ -95,9 +95,9 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 
 ::pair_s<bool/*ok*/> wash(Pdate start) {
 	Trace trace("wash",start,g_start_info.pre_actions) ;
-	::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
-	trace("unlinks",actions) ;
-	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlink(start,f) ;
+	::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
+	trace("unlnks",actions) ;
+	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlnk(start,f) ;
 	else                             trace(actions.second) ;
 	return actions.second ;
 }
@@ -124,7 +124,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 	Trace trace("prepare_env",res) ;
 	//
 	try {
-		unlink_inside(g_start_info.autodep_env.tmp_dir) ;                                                    // ensure tmp dir is clean
+		unlnk_inside(g_start_info.autodep_env.tmp_dir) ;                                                     // ensure tmp dir is clean
 	} catch (::string const&) {
 		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; }                              // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;      }
@@ -187,22 +187,22 @@ Digest analyze( bool at_end , bool killed=false ) {
 				else            { if (ad.crc()==Crc::None) a = Accesses::None ; }                                           // .
 			}
 			Tflags tflags ;
-			if      ( flags.is_target==Yes                 ) tflags = ad.tflags | flags.tflags() ;
-			else if ( !flags && (info.target_ok|ad.unlink) ) tflags = ad.tflags                  ;                          // it is allowed to write then unlink anywhere without declaration
+			if      ( flags.is_target==Yes                ) tflags = ad.tflags | flags.tflags() ;
+			else if ( !flags && (info.target_ok|ad.unlnk) ) tflags = ad.tflags                  ;                           // it is allowed to write then unlink anywhere without declaration
 			else {
 				SWEAR(!info.digest.idle()) ;                                                                                // else it should be a dep
-				trace("bad access",STR(ad.unlink),flags.is_target) ;
-				append_to_string( res.msg , "unexpected " , ad.unlink?"unlink":"write to" , ' ' , flags.is_target==No?"dep ":"" , mk_file(file) , '\n' ) ;
+				trace("bad access",STR(ad.unlnk),flags.is_target) ;
+				append_to_string( res.msg , "unexpected " , ad.unlnk?"unlink":"write to" , ' ' , flags.is_target==No?"dep ":"" , mk_file(file) , '\n' ) ;
 			}
 			TargetDigest td { a , tflags , ad.write } ;
-			if      ( ad.unlink                        ) td.crc = Crc::None ;
+			if      ( ad.unlnk                         ) td.crc = Crc::None ;
 			else if ( killed || !tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag) ; td.date = fi.date ; } // no crc if meaningless
 			else                                         res.crcs.emplace_back(res.targets.size()) ;                        // defer (parallel) crc computation
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( tflags[Tflag::Static] && tflags[Tflag::Target] ) g_missing_static_targets.erase(file) ;
-			trace("target",td,STR(ad.unlink),tflags,file) ;
+			trace("target",td,STR(ad.unlnk),tflags,file) ;
 		}
 	}
 	for( auto const& [f,p] : g_missing_static_targets ) {
@@ -317,8 +317,8 @@ int main( int argc , char* argv[] ) {
 	g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 	//
 	switch (g_start_info.proc) {
-		case JobProc::None  : return 0 ;      // server ask us to give up
-		case JobProc::Start : break    ;      // normal case
+		case JobProc::None  : return 0 ; // server ask us to give up
+		case JobProc::Start : break    ; // normal case
 	DF}
 	//
 	g_root_dir = &g_start_info.autodep_env.root_dir ;
@@ -329,8 +329,8 @@ int main( int argc , char* argv[] ) {
 	{	if (g_start_info.trace_n_jobs) {
 			g_trace_file = new ::string{to_string(g_start_info.remote_admin_dir,"/job_trace/",g_seq_id%g_start_info.trace_n_jobs)} ;
 			//
-			Trace::s_sz = 10<<20 ;            // this is more than enough
-			::unlink(g_trace_file->c_str()) ; // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+			Trace::s_sz = 10<<20 ;       // this is more than enough
+			unlnk(*g_trace_file) ;       // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 		}
 		app_init() ;
 		//
@@ -400,7 +400,7 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
-			try { unlink_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
+			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                   // cleaning is done at job start any way, so no harm
 		//
 		switch (status) {
 			case Status::Ok :
@@ -409,10 +409,10 @@ int main( int argc , char* argv[] ) {
 					end_report.msg += digest.msg ;
 					status = Status::Err ;
 				} else if (!g_gather_deps.all_confirmed()) {
-					trace("!confirmed",g_gather_deps.to_confirm_write,g_gather_deps.to_confirm_unlink) ;
+					trace("!confirmed",g_gather_deps.to_confirm_write,g_gather_deps.to_confirm_unlnk) ;
 					status = Status::LateLostErr ;
-					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_write  ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed write to ",mk_file(f),'\n') ;
-					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_unlink ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed unlink "  ,mk_file(f),'\n') ;
+					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_write ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed write to ",mk_file(f),'\n') ;
+					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_unlnk ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed unlink "  ,mk_file(f),'\n') ;
 				}
 			break ;
 			case Status::LateLost :

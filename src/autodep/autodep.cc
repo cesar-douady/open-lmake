@@ -25,12 +25,12 @@ int main( int argc , char* argv[] ) {
 	app_init(false/*cd_root*/) ;
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax{{
-		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ptrace)" } }
-	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                             } }
-	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                  } }
-	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full)"               } }
-	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                     } }
-	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which $TMPDIR is viewed when running job"             } }
+		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)" } } // PER_AUTODEP_METHOD : doc
+	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                                                  } }
+	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                       } }
+	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full)"                                    } }
+	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                          } }
+	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which $TMPDIR is viewed when running job"                                  } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line{syntax,argc,argv} ;
 	//
@@ -67,7 +67,7 @@ int main( int argc , char* argv[] ) {
 		if (ai.digest.idle()) continue ;
 		deps_stream << ( +ai.digest.accesses ? '<' : ' ' ) ;
 		deps_stream << ( ai.digest.write     ? '>' : ' ' ) ;
-		deps_stream << ( ai.digest.unlink    ? '!' : ' ' ) ;
+		deps_stream << ( ai.digest.unlnk     ? '!' : ' ' ) ;
 		deps_stream << target << '\n'                      ;
 	}
 	deps_stream << "deps :\n" ;

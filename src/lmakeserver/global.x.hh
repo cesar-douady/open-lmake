@@ -265,16 +265,16 @@ namespace Engine {
 
 	struct EngineClosureJob {
 		friend ::ostream& operator<<( ::ostream& , EngineClosureJob const& ) ;
-		JobProc        proc           = JobProc::None ;
-		JobExec        exec           = {}            ;
-		bool           report         = false         ; // if proc == Start | GiveUp
-		::vector<Node> report_unlinks = {}            ; // if proc == Start
-		::string       txt            = {}            ; // if proc == Start | LiveOut
-		Req            req            = {}            ; // if proc == GiveUp
-		::vmap_ss      rsrcs          = {}            ; // if proc == End
-		JobDigest      digest         = {}            ; // if proc == End
-		::string       backend_msg    = {}            ; // if proc == End
-		Fd             reply_fd       = {}            ; // if proc == ChkDeps
+		JobProc        proc          = JobProc::None ;
+		JobExec        exec          = {}            ;
+		bool           report        = false         ; // if proc == Start | GiveUp
+		::vector<Node> report_unlnks = {}            ; // if proc == Start
+		::string       txt           = {}            ; // if proc == Start | LiveOut
+		Req            req           = {}            ; // if proc == GiveUp
+		::vmap_ss      rsrcs         = {}            ; // if proc == End
+		JobDigest      digest        = {}            ; // if proc == End
+		::string       backend_msg   = {}            ; // if proc == End
+		Fd             reply_fd      = {}            ; // if proc == ChkDeps
 	} ;
 
 	struct EngineClosure {
@@ -303,8 +303,8 @@ namespace Engine {
 		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close  ) ; }
 		//
 		EngineClosure( JP p , JE&& je , bool r , ::vector<Node>&& rus={} , ::string&& t={} , ::string&& bem={} ) :
-			kind { K::Job                                                                                                           }
-		,	job  { .proc=p , .exec=::move(je) , .report=r , .report_unlinks=::move(rus) , .txt=::move(t) , .backend_msg=::move(bem) }
+			kind { K::Job                                                                                                          }
+		,	job  { .proc=p , .exec=::move(je) , .report=r , .report_unlnks=::move(rus) , .txt=::move(t) , .backend_msg=::move(bem) }
 		{ SWEAR(p==JP::Start) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::string&& t    ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.txt=::move(t)     } { SWEAR( p==JP::LiveOut                      ) ; }
@@ -312,8 +312,8 @@ namespace Engine {
 		EngineClosure( JP p , JE&& je                   ) : kind{K::Job} , job{.proc=p,.exec=::move(je)                    } { SWEAR( p==JP::GiveUp || p==JP::ReportStart ) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_ss&& r , JD&& jd , ::string&& bem={}  ) :
-			kind { K::Job                                                                                       }
-		,	job  { .proc=p , .exec=::move(je) , .rsrcs=::move(r) , .digest=::move(jd) ,.backend_msg=::move(bem) }
+			kind { K::Job                                                                                        }
+		,	job  { .proc=p , .exec=::move(je) , .rsrcs=::move(r) , .digest=::move(jd) , .backend_msg=::move(bem) }
 		{ SWEAR(p==JP::End) ; }
 		//
 		EngineClosure( JP p , JE&& je , ::vmap_s<DepDigest>&& dds , Fd rfd ) : kind{K::Job} , job{.proc=p,.exec=::move(je),.digest={.deps{::move(dds)}},.reply_fd=rfd} {

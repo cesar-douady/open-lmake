@@ -22,7 +22,7 @@ if __name__!='__main__' :
 			ln -s /tmp/a          {LNK}
 			ln -s $ROOT_DIR/{LNK} /tmp/b
 			cd $TMPDIR
-			sleep 1                    # ensure one will overwrite the other in cas of clash
+			sleep 1      # ensure one will overwrite the other in cas of clash
 			echo $TMPDIR
 			pwd
 			echo {N} > a
@@ -35,11 +35,11 @@ if __name__!='__main__' :
 	class Ref(Base) :
 		target = 'ref{N}'
 		cmd = multi_strip('''
-			echo /tmp                  # echo $TMPDIR
-			echo /tmp                  # pwd
-			echo {N}                   # cat a
-			echo {N}                   # cat LNK
-			echo {N}                   # cat /tmp/b
+			echo /tmp         # echo $TMPDIR
+			echo /tmp         # pwd
+			echo {N}          # cat a
+			echo {N}          # cat LNK
+			echo {N}          # cat /tmp/b
 		''')
 
 	class Cmp(Base) :
@@ -85,5 +85,5 @@ else :
 
 	import ut
 
-	ut.lmake( 'ok1','ok2' , done=6 )   # check target is out of date
+	ut.lmake( 'ok1','ok2' , done=6 ) # check target is out of date
 	ut.lmake( 'test.chk'  , done=3 )

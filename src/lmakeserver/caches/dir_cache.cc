@@ -101,7 +101,7 @@ namespace Caches {
 			auto here = deserialize<Lru>(IFStream(_lru_file(head.prev))) ;
 			SWEAR( here.next==expected_next , here.next , expected_next ) ;
 			SWEAR( head.sz  >=here.sz       , head.sz   , here.sz       ) ; // total size contains this entry
-			unlink(dir_fd,head.prev,true/*dir_ok*/) ;
+			unlnk(dir_fd,head.prev,true/*dir_ok*/) ;
 			expected_next  = head.prev         ;
 			head.sz       -= here.sz           ;
 			head.prev      = ::move(here.prev) ;
@@ -123,9 +123,9 @@ namespace Caches {
 		serialize( OFStream(dir_guard(head_file)) , head ) ;
 	}
 
-	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlink_dst , bool mk_read_only ) {
+	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
 		FileInfo fi{src_at,src_file} ;
-		if (unlink_dst) unlink(dst_at,dst_file)                                        ;
+		if (unlnk_dst) unlnk(dst_at,dst_file)                                        ;
 		else            SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
 		switch (fi.tag) {
 			case FileTag::None : break ;
@@ -264,12 +264,12 @@ namespace Caches {
 		try {
 			JobInfoStart report_start ;
 			JobInfoEnd   report_end   ;
-			{	LockedFd lock { dfd , false/*exclusive*/ }      ;                                    // because we read the data , shared is ok
+			{	LockedFd lock { dfd , false/*exclusive*/ }      ;                                   // because we read the data , shared is ok
 				IFStream is   { to_string(dir,'/',jn,"/data") } ;
 				deserialize(is,report_start) ;
 				deserialize(is,report_end  ) ;
 				// update some info
-				report_start.pre_start.job = +job ;                                                  // id is not stored in cache
+				report_start.pre_start.job = +job ;                                                 // id is not stored in cache
 				report_start.submit_attrs.reason = reason ;
 				//
 				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
@@ -277,8 +277,8 @@ namespace Caches {
 					::string const& tn    = entry.first                       ;
 					copied.push_back(tn) ;
 					nfs_guard.change(tn) ;
-					_copy( dfd , to_string(ti) , tn , true/*unlink_dst*/ , false/*mk_read_only*/ ) ;
-					entry.second.date = file_date(tn) ;                                              // target date is not stored in cache
+					_copy( dfd , to_string(ti) , tn , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
+					entry.second.date = file_date(tn) ;                                             // target date is not stored in cache
 				}
 				copied.push_back(job->ancillary_file()) ;
 				OFStream os { dir_guard(copied.back()) } ;
@@ -287,14 +287,14 @@ namespace Caches {
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
-			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;                                     // because we manipulate LRU, need exclusive
+			{	LockedFd lock2 { dir_fd , true /*exclusive*/ } ;                                    // because we manipulate LRU, need exclusive
 				Sz sz_ = _lru_remove(jn) ;
 				_lru_first(jn,sz_) ;
 				trace("done",sz_) ;
 			}
 			return report_end.end.digest ;
 		} catch(::string const& e) {
-			for( ::string const& f : copied ) unlink(f) ;                                            // clean up partial job
+			for( ::string const& f : copied ) unlnk(f) ;                                            // clean up partial job
 			trace("failed") ;
 			throw e ;
 		}
@@ -336,7 +336,7 @@ namespace Caches {
 		//
 		Sz old_sz = _lru_remove(jn) ;
 		Sz new_sz = 0               ;
-		unlink_inside(dfd) ;
+		unlnk_inside(dfd) ;
 		//
 		bool made_room = false ;
 		try {
@@ -351,10 +351,10 @@ namespace Caches {
 			_mk_room(old_sz,new_sz) ;
 			made_room = true ;
 			for( NodeIdx ti=0 ; ti<digest.targets.size() ; ti++ )
-				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlink_dst*/ , true/*mk_read_only*/ ) ;
+				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlink_inside(dfd) ;                                                                     // clean up in case of partial execution
+			unlnk_inside(dfd) ;                                                                      // clean up in case of partial execution
 			_mk_room( made_room?new_sz:old_sz , 0 ) ;                                                // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}

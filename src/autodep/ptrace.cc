@@ -7,23 +7,11 @@
 #include <linux/sched.h>
 
 #include "disk.hh"
+
 #include "record.hh"
+#include "syscall_tab.hh"
 
 #include "ptrace.hh"
-
-#include <sys/ptrace.h>
-#if HAS_PTRACE_GET_SYSCALL_INFO        // must be after utils.hh include, use portable calls if implemented
-	#include <linux/ptrace.h>          // for struct ptrace_syscall_info, must be after sys/ptrace.h to avoid stupid request macro definitions
-	#if MUST_UNDEF_PTRACE_MACROS       // must be after utils.hh include
-		#undef PTRACE_CONT             // /!\ stupid linux/ptrace.h defines ptrace requests as macros while ptrace expects an enum on some systems
-		#undef PTRACE_GET_SYSCALL_INFO // .
-		#undef PTRACE_PEEKDATA         // .
-		#undef PTRACE_POKEDATA         // .
-		#undef PTRACE_SETOPTIONS       // .
-		#undef PTRACE_SYSCALL          // .
-		#undef PTRACE_TRACEME          // .
-	#endif
-#endif
 
 #if HAS_SECCOMP          // must be after utils.hh include
 	#include <seccomp.h>
@@ -32,47 +20,6 @@
 AutodepEnv* AutodepPtrace::s_autodep_env = nullptr  ;
 
 using namespace Disk ;
-
-static ::string get_str( pid_t pid , uint64_t val ) {
-	if (!pid) return {reinterpret_cast<const char*>(val)} ;
-	::string res ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = val%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
-		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
-		val += sizeof(long)-offset ;
-	}
-}
-
-static ::string get_str( pid_t pid , uint64_t val , size_t len ) {
-	if (!pid) return {reinterpret_cast<const char*>(val),len} ;
-	::string res ; res.reserve(len) ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = val%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
-		if (errno) throw 0 ;
-		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
-		if (offset+len<=sizeof(long)) { res.append( buf+offset , len                 ) ; return res ; }
-		/**/                            res.append( buf+offset , sizeof(long)-offset ) ;
-		val += sizeof(long)-offset ;
-		len -= sizeof(long)-offset ;
-	}
-}
-
-template<class T> static T get( pid_t pid , uint64_t val ) {
-	T res ;
-	if (pid) ::memcpy( &res , get_str(pid,val,sizeof(T)).data()  , sizeof(T) ) ;
-	else     ::memcpy( &res , reinterpret_cast<void const*>(val) , sizeof(T) ) ;
-	return res ;
-}
-
-#define PTRACE
-#include "syscall.cc"
 
 // When tracing a child, initially, the child will run till first signal and only then will follow the specified seccomp filter.
 // If a traced system call (as per the seccomp filter) is done before, it will fail.
@@ -122,9 +69,9 @@ void AutodepPtrace::s_prepare_child() {
 		bool ignore_stat = ade.ignore_stat && ade.lnk_support!=LnkSupport::Full ; // if full link support, we need to analyze uphill dirs
 		scmp_filter_ctx scmp = seccomp_init(SCMP_ACT_ALLOW) ;
 		SWEAR(scmp) ;
-		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
 		for( long syscall=0 ; syscall<SyscallDescr::NSyscalls ; syscall++ ) {
-			SyscallDescr const& entry = s_tab[syscall] ;
+			SyscallDescr const& entry = tab[syscall] ;
 			if ( !entry                            ) continue ;                   // entry is not allocated
 			if ( !entry.data_access && ignore_stat ) continue ;                   // non stat-like access are always needed
 			//
@@ -153,7 +100,7 @@ void AutodepPtrace::s_prepare_child() {
 			default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                         // ignore other events
 		}
 	DoSyscall :
-		{	static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab() ;
+		{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
 			sig = 0 ;
 			#if HAS_PTRACE_GET_SYSCALL_INFO                                                          // use portable calls if implemented
 				struct ptrace_syscall_info syscall_info ;
@@ -172,7 +119,7 @@ void AutodepPtrace::s_prepare_child() {
 					int syscall = np_ptrace_get_syscall(pid) ;                                       // use non-portable calls if portable accesses are not implemented
 				#endif
 				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
-				SyscallDescr const& descr = s_tab[syscall] ;
+				SyscallDescr const& descr = tab[syscall] ;
 				if (HAS_SECCOMP) SWEAR(+descr,"should not be awaken for nothing") ;
 				if (+descr) {
 					info.idx = syscall ;
@@ -206,7 +153,7 @@ void AutodepPtrace::s_prepare_child() {
 					#else
 						int64_t res = np_ptrace_get_res(pid) ;                                                              // use non-portable calls if portable accesses are not implemented
 					#endif
-					int64_t new_res = s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
+					int64_t new_res = tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
 					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ; // there is no such cases for now, if it arises, new_res must be reported
 					info.ctx = nullptr ;                                                                                    // ctx is used to retain some info between syscall entry and exit
 				}

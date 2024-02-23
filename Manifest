@@ -48,6 +48,8 @@ src/autodep/lcheck_deps.cc
 src/autodep/ld.cc
 src/autodep/ld_audit.cc
 src/autodep/ld_preload.cc
+src/autodep/ld_preload_jemalloc.cc
+src/autodep/ld_preload_server.cc
 src/autodep/ldecode.cc
 src/autodep/ldepend.cc
 src/autodep/lencode.cc
@@ -56,7 +58,8 @@ src/autodep/ptrace.cc
 src/autodep/ptrace.hh
 src/autodep/record.cc
 src/autodep/record.hh
-src/autodep/syscall.cc
+src/autodep/syscall_tab.cc
+src/autodep/syscall_tab.hh
 src/client.cc
 src/client.hh
 src/config.hh
@@ -106,6 +109,7 @@ src/lmakeserver/rule.x.hh
 src/lmakeserver/store.cc
 src/lmakeserver/store.x.hh
 src/lmark.cc
+src/lrepair.cc
 src/lshow.cc
 src/non_portable.cc
 src/non_portable.hh
@@ -155,6 +159,7 @@ unit_tests/cycle.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
 unit_tests/dup.py
+unit_tests/dyn_accesses.py
 unit_tests/dynamic.py
 unit_tests/dynamic_py.py
 unit_tests/force.py

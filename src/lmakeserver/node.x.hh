@@ -32,7 +32,7 @@ ENUM( Buildable
 ENUM_1( Manual
 ,	Changed = Empty // >=Changed means that job is sensitive to new content
 ,	Ok              // file is as recorded
-,	Unlinked        // file has been unlinked
+,	Unlnked         // file has been unlinked
 ,	Empty           // file is modified but is empty
 ,	Modif           // file is modified and may contain user sensitive info
 ,	Unknown
@@ -297,7 +297,7 @@ namespace Engine {
 		// services
 		bool read(Accesses a) const {                                                           // return true <= file was perceived different from non-existent, assuming access provided in a
 			if (crc==Crc::None ) return false          ;                                        // file does not exist, cannot perceive difference
-			if (unlinked       ) return false          ;                                        // file did not exist despite a non-None crc
+			if (unlnked        ) return false          ;                                        // file did not exist despite a non-None crc
 			if (a[Access::Stat]) return true           ;                                        // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
@@ -379,7 +379,7 @@ namespace Engine {
 	public :
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      unlinked :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
+		bool      unlnked  :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
 	private :
 		RuleIdx _conform_idx = -+NodeStatus::Unknown ;           //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 	} ;
@@ -443,14 +443,14 @@ namespace Engine {
 	inline Manual NodeData::manual(Ddate d,bool empty) const {
 		Manual res = {}/*garbage*/ ;
 		if (crc==Crc::None) {
-			if      (!d       ) return Manual::Ok       ;
-			else if (empty    ) res =  Manual::Empty    ;
-			else                res =  Manual::Modif    ;
+			if      (!d       ) return Manual::Ok      ;
+			else if (empty    ) res =  Manual::Empty   ;
+			else                res =  Manual::Modif   ;
 		} else {
-			if      (!d       ) res =  Manual::Unlinked ;
-			else if (d==date()) return Manual::Ok       ;
-			else if (empty    ) res =  Manual::Empty    ;
-			else                res =  Manual::Modif    ;
+			if      (!d       ) res =  Manual::Unlnked ;
+			else if (d==date()) return Manual::Ok      ;
+			else if (empty    ) res =  Manual::Empty   ;
+			else                res =  Manual::Modif   ;
 		}
 		//
 		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res,STR(empty)) ;
@@ -490,17 +490,17 @@ namespace Engine {
 
 	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Watcher asking , Bool3 speculate , MakeAction make_action ) {
 		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
-		if ( !(run_action>=RunAction::Dsk&&unlinked) && make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
+		if ( !(run_action>=RunAction::Dsk&&unlnked) && make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
 		_make_raw(ri,run_action,asking,speculate,make_action) ;
 	}
 
 	inline void NodeData::refresh() {
 		FileInfo fi = Disk::FileInfo{name()} ;
 		switch (manual(fi)) {
-			case Manual::Ok       :                                  break ;
-			case Manual::Unlinked : refresh( Crc::None , Ddate() ) ; break ;
-			case Manual::Empty    :
-			case Manual::Modif    : refresh( {}        , fi.date ) ; break ;
+			case Manual::Ok      :                                  break ;
+			case Manual::Unlnked : refresh( Crc::None , Ddate() ) ; break ;
+			case Manual::Empty   :
+			case Manual::Modif   : refresh( {}        , fi.date ) ; break ;
 		DF}
 	}
 

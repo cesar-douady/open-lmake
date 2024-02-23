@@ -144,13 +144,13 @@ namespace Disk {
 	// deep list files within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
 	::vector_s walk( Fd at , ::string const& file , ::string const& prefix={} ) ;
 	//
-	int/*n_dirs*/ mkdir        ( Fd at , ::string const& dir     ,             bool multi=true , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
-	int/*n_dirs*/ mkdir        ( Fd at , ::string const& dir     , NfsGuard& , bool multi=true , bool unlink_ok=false ) ; // if unlink <=> unlink any file on the path if necessary to make dir
-	void          dir_guard    ( Fd at , ::string const& file                                                         ) ;
-	void          unlink_inside( Fd at , ::string const& dir ={}                                                      ) ;
-	bool/*done*/  unlink       ( Fd at , ::string const& file    , bool dir_ok=false                                  ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool/*done*/  uniquify     ( Fd at , ::string const& file                                                         ) ;
-	void          rmdir        ( Fd at , ::string const& dir                                                          ) ;
+	int/*n_dirs*/ mkdir       ( Fd at , ::string const& dir     ,             bool multi=true , bool unlnk_ok=false ) ; // if unlnk <=> unlink any file on the path if necessary to make dir
+	int/*n_dirs*/ mkdir       ( Fd at , ::string const& dir     , NfsGuard& , bool multi=true , bool unlnk_ok=false ) ; // if unlnk <=> unlink any file on the path if necessary to make dir
+	void          dir_guard   ( Fd at , ::string const& file                                                        ) ;
+	void          unlnk_inside( Fd at , ::string const& dir ={}                                                     ) ;
+	bool/*done*/  unlnk       ( Fd at , ::string const& file    , bool dir_ok=false                                 ) ; // if dir_ok <=> unlink whole dir if it is one
+	bool/*done*/  uniquify    ( Fd at , ::string const& file                                                        ) ;
+	void          rmdir       ( Fd at , ::string const& dir                                                         ) ;
 	//
 	static inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -181,24 +181,24 @@ namespace Disk {
 	static inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag==FileTag::Exe ; }
 	static inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date              ; }
 
-	static inline ::vector_s      lst_dir      ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir      (Fd::Cwd,dir ,prefix              ) ; }
-	static inline ::vector_s      walk         ( ::string const& file , ::string const& prefix={}                                 ) { return walk         (Fd::Cwd,file,prefix              ) ; }
-	static inline int/*n_dirs*/   mkdir        ( ::string const& dir  ,                bool multi=true , bool unlink_ok=false     ) { return mkdir        (Fd::Cwd,dir ,   multi,unlink_ok  ) ; }
-	static inline int/*n_dirs*/   mkdir        ( ::string const& dir  , NfsGuard& ng , bool multi=true , bool unlink_ok=false     ) { return mkdir        (Fd::Cwd,dir ,ng,multi,unlink_ok  ) ; }
-	static inline ::string const& dir_guard    ( ::string const& file                                                             ) {        dir_guard    (Fd::Cwd,file) ; return file ;        }
-	static inline void            unlink_inside( ::string const& dir                                                              ) {        unlink_inside(Fd::Cwd,dir                      ) ; }
-	static inline bool/*done*/    unlink       ( ::string const& file , bool dir_ok=false                                         ) { return unlink       (Fd::Cwd,file,dir_ok              ) ; }
-	static inline bool/*done*/    uniquify     ( ::string const& file                                                             ) { return uniquify     (Fd::Cwd,file                     ) ; }
-	static inline void            rmdir        ( ::string const& file                                                             ) {        rmdir        (Fd::Cwd,file                     ) ; }
-	static inline void            lnk          ( ::string const& file , ::string const& target                                    ) {        lnk          (Fd::Cwd,file,target              ) ; }
-	static inline Fd              open_read    ( ::string const& file                                                             ) { return open_read    (Fd::Cwd,file                     ) ; }
-	static inline Fd              open_write   ( ::string const& file , bool append=false , bool exe=false , bool read_only=false ) { return open_write   (Fd::Cwd,file,append,exe,read_only) ; }
-	static inline ::string        read_lnk     ( ::string const& file                                                             ) { return read_lnk     (Fd::Cwd,file                     ) ; }
-	static inline bool            is_reg       ( ::string const& file , bool no_follow=true                                       ) { return is_reg       (Fd::Cwd,file,no_follow           ) ; }
-	static inline bool            is_dir       ( ::string const& file , bool no_follow=true                                       ) { return is_dir       (Fd::Cwd,file,no_follow           ) ; }
-	static inline bool            is_target    ( ::string const& file , bool no_follow=true                                       ) { return is_target    (Fd::Cwd,file,no_follow           ) ; }
-	static inline bool            is_exe       ( ::string const& file , bool no_follow=true                                       ) { return is_exe       (Fd::Cwd,file,no_follow           ) ; }
-	static inline Ddate           file_date    ( ::string const& file , bool no_follow=true                                       ) { return file_date    (Fd::Cwd,file,no_follow           ) ; }
+	static inline ::vector_s      lst_dir     ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir     (Fd::Cwd,dir ,prefix              ) ; }
+	static inline ::vector_s      walk        ( ::string const& file , ::string const& prefix={}                                 ) { return walk        (Fd::Cwd,file,prefix              ) ; }
+	static inline int/*n_dirs*/   mkdir       ( ::string const& dir  ,                bool multi=true , bool unlnk_ok=false      ) { return mkdir       (Fd::Cwd,dir ,   multi,unlnk_ok   ) ; }
+	static inline int/*n_dirs*/   mkdir       ( ::string const& dir  , NfsGuard& ng , bool multi=true , bool unlnk_ok=false      ) { return mkdir       (Fd::Cwd,dir ,ng,multi,unlnk_ok   ) ; }
+	static inline ::string const& dir_guard   ( ::string const& file                                                             ) {        dir_guard   (Fd::Cwd,file) ; return file ;        }
+	static inline void            unlnk_inside( ::string const& dir                                                              ) {        unlnk_inside(Fd::Cwd,dir                      ) ; }
+	static inline bool/*done*/    unlnk       ( ::string const& file , bool dir_ok=false                                         ) { return unlnk       (Fd::Cwd,file,dir_ok              ) ; }
+	static inline bool/*done*/    uniquify    ( ::string const& file                                                             ) { return uniquify    (Fd::Cwd,file                     ) ; }
+	static inline void            rmdir       ( ::string const& file                                                             ) {        rmdir       (Fd::Cwd,file                     ) ; }
+	static inline void            lnk         ( ::string const& file , ::string const& target                                    ) {        lnk         (Fd::Cwd,file,target              ) ; }
+	static inline Fd              open_read   ( ::string const& file                                                             ) { return open_read   (Fd::Cwd,file                     ) ; }
+	static inline Fd              open_write  ( ::string const& file , bool append=false , bool exe=false , bool read_only=false ) { return open_write  (Fd::Cwd,file,append,exe,read_only) ; }
+	static inline ::string        read_lnk    ( ::string const& file                                                             ) { return read_lnk    (Fd::Cwd,file                     ) ; }
+	static inline bool            is_reg      ( ::string const& file , bool no_follow=true                                       ) { return is_reg      (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_dir      ( ::string const& file , bool no_follow=true                                       ) { return is_dir      (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_target   ( ::string const& file , bool no_follow=true                                       ) { return is_target   (Fd::Cwd,file,no_follow           ) ; }
+	static inline bool            is_exe      ( ::string const& file , bool no_follow=true                                       ) { return is_exe      (Fd::Cwd,file,no_follow           ) ; }
+	static inline Ddate           file_date   ( ::string const& file , bool no_follow=true                                       ) { return file_date   (Fd::Cwd,file,no_follow           ) ; }
 
 	static inline ::string cwd() {
 		char buf[PATH_MAX] ;                 // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
@@ -274,7 +274,8 @@ namespace Disk {
 	} ;
 
 	// XXX : avoid duplicating RealPathEnv by storing a pointer to it here rather than inheritance, which requires to cleanly separate global part (in RealPathEnv) and specific part (in RealPath)
-	struct RealPath : RealPathEnv {
+	struct RealPath {
+		friend ::ostream& operator<<( ::ostream& , RealPath const& ) ;
 		struct SolveReport {
 			friend ::ostream& operator<<( ::ostream& , SolveReport const& ) ;
 			// data
@@ -289,7 +290,8 @@ namespace Disk {
 		// helper class to help recognize when we are in repo or in tmp
 		struct _Dvg {
 			_Dvg( ::string const& domain , ::string const& chk ) { update(domain,chk) ; }
-			operator bool() const { return ok ; }
+			bool operator +() const { return ok      ; }
+			bool operator !() const { return !+*this ; }
 			// udpate after domain & chk have been lengthened or shortened, but not modified internally
 			void update( ::string const& domain , ::string const& chk ) {
 				size_t start = dvg ;;
@@ -332,17 +334,24 @@ namespace Disk {
 		SolveReport solve(         ::string const& file , bool no_follow=false ) { return solve(Fd::Cwd,         file ,no_follow) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve(at     ,         {}   ,no_follow) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;                                                                                         // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec (SolveReport&  ) ;                                                                                      // arg is updated to reflect last interpreter
+		void             chdir(::string&& dir) {                                                                                      // dir is in disk space, i.e. mapped in case of tmp mapping
+			SWEAR(is_abs(dir),dir) ;
+			if ( has_tmp_view && dir.starts_with(_env->tmp_dir) ) cwd_ = *_tmp_view + (dir.c_str()+_env->tmp_dir.size()) ;
+			else                                                  cwd_ = ::move(dir)                                     ;
+		}
 	private :
 		::string _find_src(::string const& real) const ;
 		// data
 	public :
 		pid_t    pid          = 0                ;
 		bool     has_tmp_view = false/*garbage*/ ;
-		::string cwd_         ;
+		::string cwd_         ;                                                                                                       // in view space, i.e. not mapped in case of tmp mapping
 	private :
-		::string   _admin_dir      ;
-		::vector_s _abs_src_dirs_s ;                                                                                                  // this is an absolute version of src_dirs
+		RealPathEnv const* _env            ;
+		::string    const* _tmp_view       ;
+		::string           _admin_dir      ;
+		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

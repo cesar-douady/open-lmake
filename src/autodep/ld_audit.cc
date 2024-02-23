@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <link.h>  // all dynamic link related
+#include <link.h> // all dynamic link related
 
 #include "record.hh"
 
@@ -17,14 +17,14 @@ void* get_libc_handle() {
 }
 
 struct Ctx {
-	void save_errno   () {}                                                    // our errno is not the same as user errno, so nothing to do
-	void restore_errno() {}                                                    // .
+	void save_errno   () {} // our errno is not the same as user errno, so nothing to do
+	void restore_errno() {} // .
 } ;
 
 struct SymEntry {
 	SymEntry( void* f , LnkSupport ls=LnkSupport::None ) : func{f} , lnk_support{ls} {}
 	void*         func        = nullptr          ;
-	LnkSupport    lnk_support = LnkSupport::None ;         // above this level of link support, we need to catch this syscall
+	LnkSupport    lnk_support = LnkSupport::None ; // above this level of link support, we need to catch this syscall
 	mutable void* orig        = nullptr          ;
 } ;
 extern ::umap_s<SymEntry> const* const g_syscall_tab ;
@@ -32,7 +32,7 @@ extern ::umap_s<SymEntry> const* const g_syscall_tab ;
 void* get_orig(const char* syscall) {
 	if (!g_libc_name) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
 	SymEntry const& entry = g_syscall_tab->at(syscall) ;
-	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ;             // may be not initialized if syscall was routed to another syscall // XXX : why get_libc_handle() does not work ?
+	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ; // may be not initialized if syscall was routed to another syscall
 	return entry.orig ;
 }
 
@@ -150,7 +150,7 @@ Record::Read search_elf( Record& /*r*/ , const char*     /*file*/ ,             
 static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name) {
 	// search for string (.*/)?libc.so(.<number>)*
 	static const char LibC      [] = "libc.so"       ;
-	static const char LibPthread[] = "libpthread.so" ;                         // some systems redefine entries such as open in libpthread
+	static const char LibPthread[] = "libpthread.so" ; // some systems redefine entries such as open in libpthread
 	//
 	bool          is_libc = false/*garbage*/       ;
 	::string_view name    { c_name }               ;
@@ -166,9 +166,9 @@ Qualify :
 
 template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	//
-	auditer() ;                                                                // force Audit static init
-	if (g_force_orig) goto Ignore ;                                            // avoid recursion loop
-	if (*def_cook   ) goto Ignore ;                                            // cookie is used to identify libc (when cookie==0)
+	auditer() ;                                                                   // force Audit static init
+	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop
+	if (*def_cook   ) goto Ignore ;                                               // cookie is used to identify libc (when cookie==0)
 	//
 	{	auto it = g_syscall_tab->find(sym_name) ;
 		if (it==g_syscall_tab->end()) goto Ignore ;
@@ -203,7 +203,7 @@ extern "C" {
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ;                       // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = map->l_name ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;

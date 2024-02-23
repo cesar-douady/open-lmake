@@ -184,14 +184,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 	//
 	if (env) swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	else     swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
-	autodep_env.service  = master_fd.service(addr) ;
-	autodep_env.root_dir = *g_root_dir             ;
+	autodep_env.service = master_fd.service(addr) ;
+	autodep_env.active  = true                    ;
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	{	::unique_lock lock{_pid_mutex} ;
 		if (killed) return Status::Killed ;                                    // dont start if we are already killed before starting
-		if (method==AutodepMethod::Ptrace) {
+		if (method==AutodepMethod::Ptrace) {                                   // PER_AUTODEP_METHOD : handle case
 			// XXX : splitting responsibility is no more necessary. Can directly report child termination from within autodep_ptrace.process using same ifce as _child_wait_thread_func
 			// we split the responsability into 2 processes :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
@@ -223,13 +223,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 				fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
 			}
 		} else {
-			if (method>=AutodepMethod::Ld) {
-				bool     is_audit = method==AutodepMethod::LdAudit ;
-				::string env_var  ;
+			if (method>=AutodepMethod::Ld) {                                                                                                                  // PER_AUTODEP_METHOD : handle case
+				::string env_var ;
 				//
-				if (is_audit) { env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"   ; }
-				else          { env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so" ; }
-				//
+				switch (method) {                                                                                                                             // PER_AUTODEP_METHOD : handle case
+					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_audit.so"            ; break ;
+					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload.so"          ; break ;
+					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; add_env[env_var] = *g_lmake_dir+"/_lib/ld_preload_jemalloc.so" ; break ;
+				DF}
 				if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
 				else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }
 			}
@@ -255,7 +256,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 	}
 	//
 	Fd                                child_fd           = ::eventfd(0,EFD_CLOEXEC)                                    ;
-	::jthread                         wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ; // thread dedicated to wating child
+	::jthread                         wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ;                                      // thread dedicated to wating child
 	Epoll                             epoll              { New }                                                       ;
 	Status                            status             = Status::New                                                 ;
 	PD                                end                ;

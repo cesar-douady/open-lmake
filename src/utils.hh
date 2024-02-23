@@ -336,8 +336,12 @@ template<class T> static inline void _append_to_string( ::string& dst , T&&     
 /**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
 /**/              static inline void _append_to_string( ::string& dst , const char*     s ) { dst +=                        s   ; } // .
 /**/              static inline void _append_to_string( ::string& dst , char            c ) { dst +=                        c   ; } // .
-template<class... A> void append_to_string( ::string& dst , A const&... args ) {
-	[[maybe_unused]] bool _[] = { false , (_append_to_string(dst,args),false)... } ;
+template<class... A> void append_to_string( ::string& dst , A&&... args ) {
+	[[maybe_unused]] bool _[] = { false , (_append_to_string(dst,::forward<A>(args)),false)... } ;
+}
+template<class... A> void append_line_to_string( ::string& dst , A&&... args ) {
+	set_nl(dst) ;
+	append_to_string(dst,::forward<A>(args)...) ;
 }
 
 template<char C='\t',size_t N=1> static inline ::string indent( ::string const& s , size_t i=1 ) {

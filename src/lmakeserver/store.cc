@@ -159,7 +159,7 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate::s_now(),STR(dynamic),STR(rescue)) ;
-		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlink_ok*/ ) ;
+		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlnk_ok*/ ) ;
 		if ( !dynamic                                              ) _init_config() ;
 		else                                                         SWEAR(g_config.booted,g_config) ;  // we must update something
 		if (                                       g_config.booted ) config.key = g_config.key ;

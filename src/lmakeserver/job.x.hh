@@ -146,16 +146,16 @@ namespace Engine {
 		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
 		// services
 		// called in main thread after start
-		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlinks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void             report_start(                                                                                                                    ) const ;
-		void             started     ( bool report , ::vector<Node> const& report_unlinks={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		void             report_start(                                                                                                                   ) const ;
+		void             started     ( bool report , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
 		//
-		JobRpcReply      job_info( JobProc , ::vector<Dep> const& deps                                     ) const ; // answer to requests from job execution
-		bool/*modified*/ end     ( ::vmap_ss const& rsrcs , JobDigest const& , ::string const& backend_msg ) ;       // hit indicates that result is from a cache hit
-		void             give_up ( Req={} , bool report=true                                               ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobRpcReply      job_info( JobProc , ::vector<Dep> const& deps                                ) const ; // answer to requests from job execution
+		bool/*modified*/ end     ( ::vmap_ss const& rsrcs , JobDigest const& , ::string&& backend_msg ) ;       // hit indicates that result is from a cache hit
+		void             give_up ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ::string const& pfx , ReqInfo const&     , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
@@ -291,7 +291,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
 		// services
-		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlink*/> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
+		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlnk*/> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//

@@ -16,16 +16,16 @@
 
 ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local
+,	Unknown        // must be first
 ,	Local
 ,	Slurm
-,	Unknown
 )
 
 ENUM_1( FileActionTag
 ,	HasFile = Uniquify // <=HasFile means action acts on file
 ,	None               // no action, just check integrity
 ,	Src                // file is src, no action
-,	Unlink
+,	Unlnk
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
@@ -36,7 +36,7 @@ struct FileAction {
 	Hash::Crc     crc  ;
 	Disk::Ddate   date ;
 } ;
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Algo ) ;
+::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Algo ) ;
 
 ENUM_2( Dflag                          // flags for deps
 ,	NRule = Required                   // number of Dflag's allowed in rule definition
@@ -276,10 +276,10 @@ struct SubmitAttrs {
 	friend ::ostream& operator<<( ::ostream& , SubmitAttrs const& ) ;
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
-		if      (      tag==BackendTag::Unknown) tag = other.tag ;
-		else if (other.tag!=BackendTag::Unknown) SWEAR(tag==other.tag,tag,other.tag) ;
-		SWEAR( !n_retries || !other.n_retries || n_retries==other.n_retries , n_retries , other.n_retries ) ; // n_retries does not depend on req, but may not always be present
-		n_retries  = ::max(n_retries,other.n_retries) ;
+		// tag, deps and n_retries are independent of req but may not always be present
+		if      ( tag==BackendTag::Unknown) tag       = other.tag       ; else if ( other.tag!=BackendTag::Unknown) SWEAR(tag      ==other.tag      ,tag      ,other.tag      ) ;
+		if      (!deps                    ) deps      = other.deps      ; else if (+other.deps                    ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
+		if      (!n_retries               ) n_retries = other.n_retries ; else if ( other.n_retries               ) SWEAR(n_retries==other.n_retries,n_retries,other.n_retries) ;
 		pressure   = ::max(pressure ,other.pressure ) ;
 		live_out  |= other.live_out                   ;
 		reason    |= other.reason                     ;
@@ -291,11 +291,12 @@ struct SubmitAttrs {
 		return res ;
 	}
 	// data
-	BackendTag        tag       = BackendTag::Unknown ;
-	bool              live_out  = false               ;
-	uint8_t           n_retries = 0                   ;
-	Time::CoarseDelay pressure  = {}                  ;
-	JobReason         reason    = {}                  ;
+	BackendTag         tag       = BackendTag::Unknown ;
+	bool               live_out  = false               ;
+	uint8_t            n_retries = 0                   ;
+	Time::CoarseDelay  pressure  = {}                  ;
+	::vmap_s<Accesses> deps      = {}                  ;
+	JobReason          reason    = {}                  ;
 } ;
 
 struct JobStats {
@@ -502,13 +503,14 @@ private :
 	ExtraDflags _extra_dflags ; // if !is_target
 } ;
 
-ENUM_2( AutodepMethod
+ENUM_2( AutodepMethod               // PER_AUTODEP_METHOD : add entry here
 ,	Ld   = LdAudit                  // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 ,	Dflt = AutodepMethod::LdPreload // by default, use  a compromize between speed an reliability, might sense HAS_LD_AUDIT and HAS_SECCOMP if necessary
 ,	None
 ,	Ptrace
 ,	LdAudit
 ,	LdPreload
+,	LdPreloadJemalloc
 )
 
 struct JobRpcReply {
@@ -628,7 +630,7 @@ struct AccessDigest : DepDigest {                                      // order 
 	using DepDigest::DepDigest ;
 	template<class B2> AccessDigest(DepDigestBase<B2> const& dd) : DepDigest{dd} {}
 	// accesses
-	bool idle     () const { return !write && !unlink    ; }
+	bool idle     () const { return !write && !unlnk     ; }
 	bool operator+() const { return +accesses || !idle() ; }           // true if some access of some sort is done
 	bool operator!() const { return +!+*this             ; }
 	// services
@@ -649,7 +651,7 @@ struct AccessDigest : DepDigest {                                      // order 
 	ExtraDflags extra_dflags = {}    ;
 	ExtraTflags extra_tflags = {}    ;
 	bool        write        = false ;                                 // if true <=> files are written, possibly unlinked later
-	bool        unlink       = false ;                                 // if true <=> files are unlinked at the end, possibly written before
+	bool        unlnk        = false ;                                 // if true <=> files are unlinked at the end, possibly written before
 } ;
 
 struct JobExecRpcReq {
@@ -665,7 +667,7 @@ private :
 	// cxtors & casts
 public :
 	JobExecRpcReq(                             ) = default ;
-	JobExecRpcReq( P p , bool u , bool ok_     ) : proc{p} , unlink{u} , ok{ok_}      { SWEAR( p==P::Confirm                           ) ; }
+	JobExecRpcReq( P p , bool u , bool ok_     ) : proc{p} , unlnk{u} , ok{ok_}       { SWEAR( p==P::Confirm                           ) ; }
 	JobExecRpcReq( P p , bool s                ) : proc{p} , sync{s}                  { SWEAR( p<P::HasFiles && p!=P::Confirm          ) ; }
 	JobExecRpcReq( P p                         ) : proc{p}                            { SWEAR( p<P::HasFiles && p!=P::Confirm          ) ; }
 	JobExecRpcReq( P p , bool s , ::string&& t ) : proc{p} , sync{s} , txt{::move(t)} { SWEAR( p==P::Tmp || p==P::Trace || p==P::Panic ) ; }
@@ -730,7 +732,7 @@ public :
 			}
 		}
 		switch (proc) {
-			case P::Confirm  : ::serdes(s,unlink ) ; ::serdes(s,ok ) ; break           ;
+			case P::Confirm  : ::serdes(s,unlnk  ) ; ::serdes(s,ok ) ; break           ;
 			case P::Guard    :
 			case P::Tmp      :
 			case P::Trace    :
@@ -747,7 +749,7 @@ public :
 	bool         sync      = false                     ;
 	bool         auto_date = false                     ; // if proc>=HasFiles, if true <=> files must be solved and dates added by probing disk
 	bool         no_follow = false                     ; // if auto_date, whether links should not be followed
-	bool         unlink    = false                     ; // if proc==       Confirm
+	bool         unlnk     = false                     ; // if proc==       Confirm
 	bool         ok        = false                     ; // if proc==Access|Confirm, declare target (Access) or confirm access (Confirm)
 	uint8_t      min_len   = 0                         ; // if proc==Encode
 	PD           date      = PD::s_now()               ; // access date to reorder accesses during analysis

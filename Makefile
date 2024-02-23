@@ -211,14 +211,15 @@ LMAKE_SERVER_FILES := \
 	$(LMAKE_SERVER_BIN_FILES)
 
 LMAKE_REMOTE_FILES := \
-	$(SBIN)/job_exec      \
-	$(SLIB)/ld_audit.so   \
-	$(SLIB)/ld_preload.so \
-	$(BIN)/lcheck_deps    \
-	$(BIN)/ldecode        \
-	$(BIN)/lencode        \
-	$(BIN)/ldepend        \
-	$(BIN)/ltarget        \
+	$(SBIN)/job_exec               \
+	$(SLIB)/ld_audit.so            \
+	$(SLIB)/ld_preload.so          \
+	$(SLIB)/ld_preload_jemalloc.so \
+	$(BIN)/lcheck_deps             \
+	$(BIN)/ldecode                 \
+	$(BIN)/lencode                 \
+	$(BIN)/ldepend                 \
+	$(BIN)/ltarget                 \
 	$(LIB)/clmake.so
 ifneq ($(PYTHON2),)
 LMAKE_REMOTE_FILES := $(LMAKE_REMOTE_FILES) $(LIB)/clmake2.so
@@ -340,7 +341,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 #
 
 SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process py re rpc_client rpc_job serialize thread time trace utils    )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ptrace record                                                                                         )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ptrace record syscall_tab                                                                             )
 STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                    )
 ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x )
 BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                               )
@@ -386,9 +387,10 @@ $(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
-$(SRC)/autodep/ld_preload.% : $(SRC)/autodep/ld.cc $(SRC)/autodep/syscall.cc
-$(SRC)/autodep/ld_audit.%   : $(SRC)/autodep/ld.cc $(SRC)/autodep/syscall.cc
-$(SRC)/autodep/ptrace.%     :                      $(SRC)/autodep/syscall.cc
+$(SRC)/autodep/ld_preload.o              : $(SRC)/autodep/ld.cc
+$(SRC)/autodep/ld_preload_jemalloc.o     : $(SRC)/autodep/ld.cc
+$(SRC)/autodep/ld_preload_server$(SAN).o : $(SRC)/autodep/ld.cc
+$(SRC)/autodep/ld_audit.o                : $(SRC)/autodep/ld.cc
 
 $(SBIN)/lmakeserver : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
@@ -397,11 +399,13 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/trace$(SAN).o                                         \
+	$(SRC)/autodep/ld_preload_server$(SAN).o                     \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather_deps$(SAN).o                           \
 	$(SRC)/autodep/ptrace$(SAN).o                                \
 	$(SRC)/autodep/record$(SAN).o                                \
+	$(SRC)/autodep/syscall_tab$(SAN).o                           \
 	$(SRC)/lmakeserver/backend$(SAN).o                           \
 	                  $(SRC)/lmakeserver/backends/local$(SAN).o  \
 	$(if $(HAS_SLURM),$(SRC)/lmakeserver/backends/slurm$(SAN).o) \
@@ -420,8 +424,33 @@ $(SBIN)/lmakeserver : \
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
-$(BIN)/lrepair : $(SBIN)/lmakeserver
-	rm -f $@ ; ln $< $@
+$(BIN)/lrepair : \
+	$(LMAKE_BASIC_SAN_OBJS)                     \
+	$(SRC)/app$(SAN).o                          \
+	$(SRC)/py$(SAN).o                           \
+	$(SRC)/rpc_client$(SAN).o                   \
+	$(SRC)/rpc_job$(SAN).o                      \
+	$(SRC)/trace$(SAN).o                        \
+	$(SRC)/autodep/env$(SAN).o                  \
+	$(SRC)/autodep/gather_deps$(SAN).o          \
+	$(SRC)/autodep/ptrace$(SAN).o               \
+	$(SRC)/autodep/record$(SAN).o               \
+	$(SRC)/autodep/syscall_tab$(SAN).o          \
+	$(SRC)/store/file$(SAN).o                   \
+	$(SRC)/lmakeserver/backend$(SAN).o          \
+	$(SRC)/lmakeserver/cache$(SAN).o            \
+	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
+	$(SRC)/lmakeserver/codec$(SAN).o            \
+	$(SRC)/lmakeserver/global$(SAN).o           \
+	$(SRC)/lmakeserver/job$(SAN).o              \
+	$(SRC)/lmakeserver/makefiles$(SAN).o        \
+	$(SRC)/lmakeserver/node$(SAN).o             \
+	$(SRC)/lmakeserver/req$(SAN).o              \
+	$(SRC)/lmakeserver/rule$(SAN).o             \
+	$(SRC)/lmakeserver/store$(SAN).o            \
+	$(SRC)/lrepair$(SAN).o
+	mkdir -p $(BIN)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -431,6 +460,7 @@ $(SBIN)/ldump : \
 	$(SRC)/rpc_job$(SAN).o                      \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
+	$(SRC)/autodep/record$(SAN).o               \
 	$(SRC)/store/file$(SAN).o                   \
 	$(SRC)/lmakeserver/backend$(SAN).o          \
 	$(SRC)/lmakeserver/cache$(SAN).o            \
@@ -466,6 +496,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
+	$(SRC)/autodep/syscall_tab$(SAN).o \
 	$(SRC)/job_exec$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
@@ -527,7 +558,7 @@ $(BIN)/lmark : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/xxhsum : \
-	$(LMAKE_BASIC_SAN_OBJS)   \
+	$(LMAKE_BASIC_SAN_OBJS) \
 	$(SRC)/xxhsum.o
 	mkdir -p $(BIN)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
@@ -541,6 +572,7 @@ $(BIN)/autodep : \
 	$(SRC)/autodep/gather_deps$(SAN).o \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
+	$(SRC)/autodep/syscall_tab$(SAN).o \
 	$(SRC)/autodep/autodep$(SAN).o
 	mkdir -p $(@D)
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
@@ -609,19 +641,31 @@ $(BIN)/lcheck_deps : \
 # remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
 $(SLIB)/ld_preload.so : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/rpc_job.o        \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/record.o      \
+	$(SRC)/autodep/syscall_tab.o \
 	$(SRC)/autodep/ld_preload.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
+$(SLIB)/ld_preload_jemalloc.so : \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/record.o      \
+	$(SRC)/autodep/syscall_tab.o \
+	$(SRC)/autodep/ld_preload_jemalloc.o
+	mkdir -p $(@D)
+	$(LINK_SO) -o $@ $^ $(LINK_LIB)
+
 $(SLIB)/ld_audit.so : \
-	$(LMAKE_BASIC_OBJS)     \
-	$(SRC)/rpc_job.o        \
-	$(SRC)/autodep/env.o    \
-	$(SRC)/autodep/record.o \
+	$(LMAKE_BASIC_OBJS)          \
+	$(SRC)/rpc_job.o             \
+	$(SRC)/autodep/env.o         \
+	$(SRC)/autodep/record.o      \
+	$(SRC)/autodep/syscall_tab.o \
 	$(SRC)/autodep/ld_audit.o
 	mkdir -p $(@D)
 	$(LINK_SO) -o $@ $^ $(LINK_LIB)

@@ -5,6 +5,20 @@
 
 #pragma once
 
+#include <sys/ptrace.h>
+#if HAS_PTRACE_GET_SYSCALL_INFO        // must be after utils.hh include, use portable calls if implemented
+	#include <linux/ptrace.h>          // for struct ptrace_syscall_info, must be after sys/ptrace.h to avoid stupid request macro definitions
+	#if MUST_UNDEF_PTRACE_MACROS       // must be after utils.hh include
+		#undef PTRACE_CONT             // /!\ stupid linux/ptrace.h defines ptrace requests as macros while ptrace expects an enum on some systems
+		#undef PTRACE_GET_SYSCALL_INFO // .
+		#undef PTRACE_PEEKDATA         // .
+		#undef PTRACE_POKEDATA         // .
+		#undef PTRACE_SETOPTIONS       // .
+		#undef PTRACE_SYSCALL          // .
+		#undef PTRACE_TRACEME          // .
+	#endif
+#endif
+
 #include "gather_deps.hh"
 #include "record.hh"
 

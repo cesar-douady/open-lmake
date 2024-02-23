@@ -17,73 +17,102 @@ struct Record {
 	using Proc        = JobExecRpcProc                                    ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
+	//
+	struct Lock {
+		// static data
+	private :
+		static ::mutex _s_mutex ;
+		// cxtors & casts
+	public :
+		Lock (                                ) = default ;
+		Lock (::vmap_s<Accesses>* deps=nullptr) : lock{_s_mutex} , sav{_s_autodep_env->active,true} {
+			SWEAR( !s_deps && !s_deps_err ) ;
+			s_deps     = deps ;
+			s_deps_err = &err ;
+		}
+		~Lock() {
+			s_deps     = nullptr ;
+			s_deps_err = nullptr ;
+		}
+		// data
+		::unique_lock<::mutex> lock ;
+		Save<bool>             sav  ;
+		::string               err  ;
+	} ;
 	// statics
-	static bool s_is_simple   (const char*) ;
-	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ; }
+	static bool s_active           (           ) { return _s_autodep_env && _s_autodep_env->active ;          }
+	static bool s_is_simple        (const char*) ;
+	static bool s_has_tmp_view     (           ) { SWEAR(_s_autodep_env) ; return +_s_autodep_env->tmp_view ; }
 	//
 	static Fd s_root_fd() {
+		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = Disk::open_read(s_autodep_env().root_dir) ; _s_root_fd.no_std() ; // avoid poluting standard descriptors
+			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ;                                  // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
 	}
-	// analyze flags in such a way that it works with all possible representations of O_RDONLY, O_WRITEONLY and O_RDWR : could be e.g. 0,1,2 or 1,2,3 or 1,2,4
 	static AutodepEnv const& s_autodep_env() {
+		SWEAR(_s_autodep_env) ;
+		return *_s_autodep_env ;
+	}
+	static AutodepEnv const& s_autodep_env(NewType) {
 		if (!_s_autodep_env) _s_autodep_env = new AutodepEnv{New} ;
 		return *_s_autodep_env ;
 	}
-	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
-		SWEAR( !_s_autodep_env , _s_autodep_env ) ;
+	static AutodepEnv const& s_autodep_env( AutodepEnv const& ade ) {
+		SWEAR(!_s_autodep_env) ;
 		_s_autodep_env = new AutodepEnv{ade} ;
 		return *_s_autodep_env ;
 	}
-private :
 	// static data
-	static Fd          _s_root_fd     ;
+	static bool                s_static_report ;                                                                            // if true <=> report deps to s_deps instead of through report_fd() socket
+	static ::vmap_s<Accesses>* s_deps          ;
+	static ::string          * s_deps_err      ;
+private :
 	static AutodepEnv* _s_autodep_env ;
+	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root directory
 	// cxtors & casts
 public :
 	Record(                       ) = default ;
-	Record( NewType , pid_t pid=0 ) : _real_path{s_autodep_env(),pid} , _running{true}  {}
+	Record( NewType , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {}
 	// accesses
-	bool operator+() const { return _running ; }
-	bool operator!() const { return !+*this  ; }
 	// services
 	Fd report_fd() const {
 		if (!_report_fd) {
 			// establish connection with server
-			::string const& service = s_autodep_env().service ;
+			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
-			else                     _report_fd = ClientSockFd(service) ;
-			_report_fd.no_std() ;                                                          // avoid poluting standard descriptors
+			else                     _report_fd = ClientSockFd(service)                                                   ;
+			_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
 			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _report_fd ;
 	}
-	void hide(int fd) const {                                                              // guaranteed syscall free, so no need for caller to protect errno
+	void hide(int fd) const {                                                                                               // guaranteed syscall free, so no need for caller to protect errno
 		if (_s_root_fd.fd==fd) _s_root_fd.detach() ;
 		if (_report_fd.fd==fd) _report_fd.detach() ;
 	}
-	void hide_range( int min , int max=~0u ) const {                                       // guaranteed syscall free, so no need for caller to protect errno
+	void hide_range( int min , int max=~0u ) const {                                                                        // guaranteed syscall free, so no need for caller to protect errno
 		if ( _s_root_fd  .fd>=min && _s_root_fd  .fd<=max ) _s_root_fd  .detach() ;
 		if ( _report_fd.fd>=min && _report_fd.fd<=max ) _report_fd.detach() ;
 	}
 private :
-	void            _report   ( JobExecRpcReq const& jerr ) const { OMsgBuf().send(report_fd(),jerr) ;                       }
-	JobExecRpcReply _get_reply(                           ) const { return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ; }
+	void            _static_report(JobExecRpcReq&& jerr) const ;
+	void            _report       (JobExecRpcReq&& jerr) const { if (s_static_report) _static_report(::move(jerr)) ; else        OMsgBuf().send                    (report_fd(),jerr) ; }
+	JobExecRpcReply _get_reply    (                    ) const { if (s_static_report) return {}                    ; else return IMsgBuf().receive<JobExecRpcReply>(report_fd()     ) ; }
 	//
-	void _report_access( JobExecRpcReq const& jerr ) const ;
-	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , bool unlink , ::string&& c={} ) const {
+	void _report_access( JobExecRpcReq&& jerr                                                             ) const ;
+	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , bool unlnk , ::string&& c={} ) const {
 		AccessDigest ad { a } ;
-		ad.write  = write  ;
-		ad.unlink = unlink ;
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , ad , ::move(c) ) ) ;
+		ad.write = write ;
+		ad.unlnk = unlnk ;
+		_report_access(JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , ad , ::move(c) )) ;
 	}
 	void _report_guard( ::string&& f , ::string&& c={} ) const {
 		_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
 	}
-	// for modifying accesses (_report_update, _report_target, _report_unlink, _report_targets) :
+	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
 	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
 	// so the choice is to manage Maybe :
@@ -91,34 +120,34 @@ private :
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
-	//                                                                                                                         write  unlink
+	//                                                                                                                         write   unlnk
 	void _report_update( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const { _report_access( ::move(f) , dd , a , true  , false , ::move(c) ) ; }
 	void _report_dep   ( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const { _report_access( ::move(f) , dd , a , false , false , ::move(c) ) ; }
 	// for user code, do not seggregate between access kind as long as we cannot guarantee errno has not been looked at (keep Access for future evolution)
-	void _report_update( ::string&& f , Accesses , ::string&& c={} ) const { _report_update( ::move(f) , Disk::file_date(s_root_fd(),f) , Accesses::All , ::move(c) ) ; }
-	void _report_dep   ( ::string&& f , Accesses , ::string&& c={} ) const { _report_dep   ( ::move(f) , Disk::file_date(s_root_fd(),f) , Accesses::All , ::move(c) ) ; }
+	void _report_update( ::string&& f , Accesses a , ::string&& c={} ) const { _report_update( ::move(f) , Disk::file_date(s_root_fd(),f) , StrictUserAccesses?Accesses::All:a , ::move(c) ) ; }
+	void _report_dep   ( ::string&& f , Accesses a , ::string&& c={} ) const { _report_dep   ( ::move(f) , Disk::file_date(s_root_fd(),f) , StrictUserAccesses?Accesses::All:a , ::move(c) ) ; }
 	//
-	void _report_confirm( bool unlink , bool ok ) const { _report(JobExecRpcReq( JobExecRpcProc::Confirm , unlink , ok )) ; }
+	void _report_confirm( bool unlnk , bool ok ) const { _report(JobExecRpcReq( JobExecRpcProc::Confirm , unlnk , ok )) ; }
 	//
 	void _report_deps( ::vmap_s<Ddate>&& fs , Accesses a , bool u , ::string&& c={} ) const {
 		AccessDigest ad { a } ;
-		ad.unlink = u ;
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , ad , ::move(c) ) ) ;
+		ad.unlnk = u ;
+		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , ad , ::move(c) )) ;
 	}
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<Ddate> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
 		_report_deps( ::move(fds) , a , u , ::move(c) ) ;
 	}
-	//                                                                                           Ddate Accesses  write  unlink
+	//                                                                                           Ddate Accesses  write   unlnk
 	void _report_target ( ::string  && f  , ::string&& c={} ) const { _report_access( ::move(f) , {}  , {}     , true  , false , ::move(c) ) ; }
-	void _report_unlink ( ::string  && f  , ::string&& c={} ) const { _report_access( ::move(f) , {}  , {}     , false , true  , ::move(c) ) ; }
+	void _report_unlnk  ( ::string  && f  , ::string&& c={} ) const { _report_access( ::move(f) , {}  , {}     , false , true  , ::move(c) ) ; }
 	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		AccessDigest  ad  ;
 		vmap_s<Ddate> mdd ;
 		ad.write = true ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),Ddate()) ;
-		_report_access( JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , ad , ::move(c) ) ) ;
+		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , ad , ::move(c) )) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
@@ -199,10 +228,10 @@ public :
 		::string real     ;
 		Accesses accesses ;
 	} ;
-	struct ChDir : Solve {
+	struct Chdir : Solve {
 		// cxtors & casts
-		ChDir() = default ;
-		ChDir( Record& , Path&& , ::string&& comment={}) ;
+		Chdir() = default ;
+		Chdir( Record& , Path&& , ::string&& comment={}) ;
 		// services
 		int operator()( Record& , int rc , pid_t pid=0 ) ;
 	} ;
@@ -245,12 +274,12 @@ public :
 		Read() = default ;
 		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment="read" ) ;
 	} ;
-	struct ReadLnk : Solve {
+	struct Readlnk : Solve {
 		// cxtors & casts
-		ReadLnk() = default ;
+		Readlnk() = default ;
 		// buf and sz are only used when mapping tmp
-		ReadLnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment="read_lnk" ) ;
-		ReadLnk( Record& r , Path&& p ,                         ::string&& c      ="read_lnk" ) : ReadLnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {}
+		Readlnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment="read_lnk" ) ;
+		Readlnk( Record& r , Path&& p ,                         ::string&& c      ="read_lnk" ) : Readlnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {}
 		// services
 		ssize_t operator()( Record& r , ssize_t len=0 ) ;
 		// data
@@ -264,10 +293,10 @@ public :
 		// services
 		int operator()( Record& , int rc ) ;                                              // if file is updated and did not exist, its date must be capture before the actual syscall
 		// data
-		Solve src         ;
-		Solve dst         ;
-		bool  has_unlinks ;
-		bool  has_writes  ;
+		Solve src        ;
+		Solve dst        ;
+		bool  has_unlnks ;
+		bool  has_writes ;
 	} ;
 	struct Stat : Solve {
 		// cxtors & casts
@@ -285,22 +314,20 @@ public :
 		int operator()( Record& , int rc ) ;
 		// data
 	} ;
-	struct Unlink : Solve {
+	struct Unlnk : Solve {
 		// cxtors & casts
-		Unlink() = default ;
-		Unlink( Record& , Path&& , bool remove_dir=false , ::string&& comment="unlink" ) ;
+		Unlnk() = default ;
+		Unlnk( Record& , Path&& , bool remove_dir=false , ::string&& comment="unlnk" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
 	} ;
 	//
-	void chdir(const char* dir) { swear(Disk::is_abs(dir),"dir should be absolute : ",dir) ; _real_path.cwd_ = dir ; }
+	void chdir(const char* dir) { _real_path.chdir(dir) ; }
 	//
 private :
 	SolveReport _solve( Path& , bool no_follow , bool read , ::string const& comment={} ) ;
 	// data
 	Disk::RealPath                                                _real_path    ;
-	bool                                                          _tmp_mapped   = false ; // set when tmp_map is actually used to solve a file
-	bool                                                          _running      = false ;
 	mutable Fd                                                    _report_fd    ;
 	mutable bool                                                  _tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
 	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> _access_cache ;         // map file to read accesses

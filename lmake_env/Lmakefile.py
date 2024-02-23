@@ -275,37 +275,38 @@ class LinkExe(GccRule) :
 class TarLmake(BaseRule) :
 	target = 'lmake.tar.gz'
 	deps = {
-		'SERIALIZE'          : '_lib/serialize.py'
-	,	'READ_MAKEFILES_PY'  : '_lib/read_makefiles.py'
-	,	'LD_AUDIT'           : '_lib/ld_audit.so'
-	,	'LD_PRELOAD'         : '_lib/ld_preload.so'
-	,	'AUTODEP'            : '_bin/autodep'
-	,	'JOB_EXEC'           : '_bin/job_exec'
-	,	'LDUMP'              : '_bin/ldump'
-	,	'LDUMP_JOB'          : '_bin/ldump_job'
-	,	'LMAKESERVER'        : '_bin/lmakeserver'
-	,	'LIB1'               : 'lib/lmake/__init__.py'
-	,	'LIB2'               : 'lib/lmake/auto_sources.py'
-	,	'LIB3'               : 'lib/lmake/import_machinery.py'
-	,	'LIB4'               : 'lib/lmake/rules.py'
-	,	'LIB5'               : 'lib/lmake/sources.py'
-	,	'LIB6'               : 'lib/lmake/utils.py'
-	,	'LIB7'               : 'lib/lmake_runtime.py'
-	,	'CLMAKE'             : 'lib/clmake.so'
-	,	'ALIGN_COMMENTS'     : 'bin/align_comments'
-	,	'LCHECK_DEPS'        : 'bin/lcheck_deps'
-	,	'LDBG'               : 'bin/ldebug'
-	,	'LDECODE'            : 'bin/ldecode'
-	,	'LDEPEND'            : 'bin/ldepend'
-	,	'LENCODE'            : 'bin/lencode'
-	,	'LFORGET'            : 'bin/lforget'
-	,	'LMAKE'              : 'bin/lmake'
-	,	'LMARK'              : 'bin/lmark'
-	,	'LREPAIR'            : 'bin/lrepair'
-	,	'LSHOW'              : 'bin/lshow'
-	,	'LTARGET'            : 'bin/ltarget'
-	,	'XXHSUM'             : 'bin/xxhsum'
-	,	'DOC'                : 'doc/lmake.html'
+		'SERIALIZE'           : '_lib/serialize.py'
+	,	'READ_MAKEFILES_PY'   : '_lib/read_makefiles.py'
+	,	'LD_AUDIT'            : '_lib/ld_audit.so'
+	,	'LD_PRELOAD'          : '_lib/ld_preload.so'
+	,	'LD_PRELOAD_JEMALLOC' : '_lib/ld_preload_jemalloc.so'
+	,	'AUTODEP'             : '_bin/autodep'
+	,	'JOB_EXEC'            : '_bin/job_exec'
+	,	'LDUMP'               : '_bin/ldump'
+	,	'LDUMP_JOB'           : '_bin/ldump_job'
+	,	'LMAKESERVER'         : '_bin/lmakeserver'
+	,	'LIB1'                : 'lib/lmake/__init__.py'
+	,	'LIB2'                : 'lib/lmake/auto_sources.py'
+	,	'LIB3'                : 'lib/lmake/import_machinery.py'
+	,	'LIB4'                : 'lib/lmake/rules.py'
+	,	'LIB5'                : 'lib/lmake/sources.py'
+	,	'LIB6'                : 'lib/lmake/utils.py'
+	,	'LIB7'                : 'lib/lmake_runtime.py'
+	,	'CLMAKE'              : 'lib/clmake.so'
+	,	'ALIGN_COMMENTS'      : 'bin/align_comments'
+	,	'LCHECK_DEPS'         : 'bin/lcheck_deps'
+	,	'LDBG'                : 'bin/ldebug'
+	,	'LDECODE'             : 'bin/ldecode'
+	,	'LDEPEND'             : 'bin/ldepend'
+	,	'LENCODE'             : 'bin/lencode'
+	,	'LFORGET'             : 'bin/lforget'
+	,	'LMAKE'               : 'bin/lmake'
+	,	'LMARK'               : 'bin/lmark'
+	,	'LREPAIR'             : 'bin/lrepair'
+	,	'LSHOW'               : 'bin/lshow'
+	,	'LTARGET'             : 'bin/ltarget'
+	,	'XXHSUM'              : 'bin/xxhsum'
+	,	'DOC'                 : 'doc/lmake.html'
 	}
 	cmd = "tar -cz {' '.join(deps.values())}"
 
@@ -363,13 +364,16 @@ class LinkClientAppExe(LinkAppExe) :
 	}
 
 class LinkAutodepEnv(Link) :
-	deps = { 'ENV' : 'src/autodep/env.o' }
+	deps = {
+		'ENV'    : 'src/autodep/env.o'
+	,	'RECORD' : 'src/autodep/record.o'
+	}
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
 		'GATHER_DEPS' : 'src/autodep/gather_deps.o'
 	,	'PTRACE'      : 'src/autodep/ptrace.o'
-	,	'RECORD'      : 'src/autodep/record.o'
+	,	'SYSCALL'     : 'src/autodep/syscall_tab.o'
 	,	'RPC_JOB'     : 'src/rpc_job.o'
 	,	'RPC_CLIENT'  : None
 	}
@@ -384,11 +388,10 @@ class LinkPythonAppExe(LinkAppExe) :
 	rev_post_opts = ( f"-L{sysconfig.get_config_var('LIBDIR')}" , f"-l{sysconfig.get_config_var('LDLIBRARY')[3:-3]}" )
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
-	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload}.so' }
+	targets = { 'TARGET' : '_lib/ld_{Method:audit|preload|preload_jemalloc}.so' }
 	deps = {
-		'LIB'    : None
-	,	'RECORD' : 'src/autodep/record.o'
-	,	'LD'     : 'src/autodep/ld_{Method}.o'
+		'LIB' : None
+	,	'LD'  : 'src/autodep/ld_{Method}.o'
 	}
 
 class LinkClmakeSo(LinkLibSo,LinkAutodep) :
@@ -410,6 +413,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
+	,	'LD_PRELOAD' : 'src/autodep/ld_preload_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'

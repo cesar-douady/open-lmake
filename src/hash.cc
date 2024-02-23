@@ -65,14 +65,14 @@ namespace Hash {
 		// qualify the accesses that can perceive the difference
 		Accesses res = Accesses::All ;
 		if (is_reg()) {
-			if      (other.is_reg()  ) res = ~Access::Lnk ; // regular accesses see modifications of regular files, stat accesses see file sizes
-			else if (other==Crc::None) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
+			if      (other.is_reg()  ) res = StrictUserAccesses?~Access::Lnk:Accesses(Access::Reg) ; // regular accesses see modifications of regular files, stat accesses may see file sizes
+			else if (other==Crc::None) res = ~Access::Lnk                                          ; // readlink accesses cannot see the difference between no file and a regular file
 		} else if (is_lnk()) {
-			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
-			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
+			if      (other.is_lnk()  ) res =  Access::Lnk                                          ; // only readlink accesses see modifications of links
+			else if (other==Crc::None) res = ~Access::Reg                                          ; // regular accesses cannot see the difference between no file and a link
 		} else if (*this==Crc::None) {
-			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
-			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
+			if      (other.is_reg()  ) res = ~Access::Lnk                                          ; // readlink accesses cannot see the difference between no file and a regular file
+			else if (other.is_lnk()  ) res = ~Access::Reg                                          ; // regular  accesses cannot see the difference between no file and a link
 		}
 		return res ;
 	}

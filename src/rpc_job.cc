@@ -21,9 +21,9 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair<vector_s/*unlinks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
+::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
 	::uset_s   keep_dirs ;
-	::vector_s unlinks   ;
+	::vector_s unlnks    ;
 	::string   msg       ;
 	bool       ok        = true ;
 	//
@@ -34,7 +34,7 @@ using namespace Hash ;
 			case FileActionTag::None     :                                                                                     break ;
 			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
 			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                break ;
-			case FileActionTag::Unlink   : {
+			case FileActionTag::Unlnk    : {
 				FileInfo fi { nfs_guard.access(f) } ;
 				if (+fi) {
 					bool done = true/*garbage*/ ;
@@ -43,10 +43,10 @@ using namespace Hash ;
 						if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
 						else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
 					} else {
-						done = unlink(nfs_guard.change(f)) ;
+						done = unlnk(nfs_guard.change(f)) ;
 						if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
 					}
-					if (done) unlinks.push_back(f) ;
+					if (done) unlnks.push_back(f) ;
 					else      ok = false ;
 				}
 			} break ;
@@ -57,7 +57,7 @@ using namespace Hash ;
 			break ;
 		DF}
 	}
-	return {unlinks,{msg,ok}} ;
+	return {unlnks,{msg,ok}} ;
 }
 
 //
@@ -75,12 +75,15 @@ using namespace Hash ;
 //
 
 ::ostream& operator<<( ::ostream& os , SubmitAttrs const& sa ) {
-	/**/                              os << "SubmitAttrs("     ;
-	if ( sa.tag!=BackendTag::Unknown) os << sa.tag       <<',' ;
-	if ( sa.live_out                ) os << "live_out,"        ;
-	if ( sa.n_retries               ) os << sa.n_retries <<',' ;
-	if (+sa.pressure                ) os << sa.pressure  <<',' ;
-	return                            os << sa.reason    <<')' ;
+	const char* sep = "" ;
+	/**/                 os << "SubmitAttrs("          ;
+	if (+sa.tag      ) { os <<      sa.tag       <<',' ; sep = "," ; }
+	if ( sa.live_out ) { os <<sep<< "live_out,"        ; sep = "," ; }
+	if ( sa.n_retries) { os <<sep<< sa.n_retries <<',' ; sep = "," ; }
+	if (+sa.pressure ) { os <<sep<< sa.pressure  <<',' ; sep = "," ; }
+	if (+sa.deps     ) { os <<sep<< sa.deps      <<',' ; sep = "," ; }
+	if (+sa.reason   )   os <<sep<< sa.reason    <<',' ;
+	return               os <<')'                      ;
 }
 
 //
@@ -180,12 +183,12 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 //
 
 ::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
-	/**/             os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
-	if (+ad.tflags ) os <<","<< ad.tflags                                       ;
-	if (+ad.dflags ) os <<","<< ad.dflags                                       ;
-	if ( ad.write  ) os <<",write"                                              ;
-	if ( ad.unlink ) os <<",unlink"                                             ;
-	return           os <<')'                                                   ;
+	/**/            os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
+	if (+ad.tflags) os <<","<< ad.tflags                                       ;
+	if (+ad.dflags) os <<","<< ad.dflags                                       ;
+	if ( ad.write ) os <<",write"                                              ;
+	if ( ad.unlnk ) os <<",unlnk"                                              ;
+	return          os <<')'                                                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -224,8 +227,8 @@ void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
 	dflags |= ad.dflags ;
 	//
 	if (!ad.idle()) {
-		if ( idle() || order==AccessOrder::After ) unlink = ( unlink && !ad.write ) || ad.unlink ;
-		/**/                                       write  =   write                 || ad.write  ;
+		if ( idle() || order==AccessOrder::After ) unlnk = ( unlnk && !ad.write ) || ad.unlnk ;
+		/**/                                       write =   write                || ad.write ;
 	}
 }
 

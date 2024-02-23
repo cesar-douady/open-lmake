@@ -43,7 +43,7 @@ int main( int argc , char* argv[]) {
 	AccessDigest ad        ;
 	bool         no_follow = cmd_line.flags[Flag::NoFollow] ;
 	//
-	ad.unlink = cmd_line.flags[Flag::Unlink] ;
+	ad.unlnk = cmd_line.flags[Flag::Unlink] ;
 	//
 	if (cmd_line.flags[Flag::Essential  ]) ad.tflags       |= Tflag     ::Essential   ;
 	if (cmd_line.flags[Flag::Incremental]) ad.tflags       |= Tflag     ::Incremental ;
@@ -53,10 +53,10 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoWarning  ]) ad.tflags       |= Tflag     ::NoWarning   ;
 	if (cmd_line.flags[Flag::ReadIsDep  ]) ad.extra_tflags |= ExtraTflag::ReadIsDep   ;
 	//
-	ad.write = !ad.unlink ;
+	ad.write = !ad.unlnk ;
 	Record record{New} ;
 	record.direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(cmd_line.args) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
-	record.direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlink*/ , true/*ok*/                                                    )) ;
+	record.direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlnk*/ , true/*ok*/                                                     )) ;
 	//
 	return 0 ;
 }

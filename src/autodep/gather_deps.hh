@@ -64,7 +64,7 @@ public :
 		master_fd.listen() ;
 	}
 	// accesses
-	bool all_confirmed() const { return !to_confirm_write && !to_confirm_unlink ; }
+	bool all_confirmed() const { return !to_confirm_write && !to_confirm_unlnk ; }
 	// services
 private :
 	void _fix_auto_date( Fd , JobExecRpcReq& jerr) ;                                                                                                             // Fd for trace purpose only
@@ -76,8 +76,8 @@ private :
 	//
 	void _new_accesses( Fd fd , JobExecRpcReq&& jerr , bool confirmed=false ) {
 		if ( !confirmed && !jerr.digest.idle() ) {
-			if (jerr.digest.write ) { bool inserted = to_confirm_write .emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
-			if (jerr.digest.unlink) { bool inserted = to_confirm_unlink.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
+			if (jerr.digest.write) { bool inserted = to_confirm_write.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
+			if (jerr.digest.unlnk) { bool inserted = to_confirm_unlnk.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
 			return ;
 		}
 		parallel_id++ ;
@@ -88,7 +88,7 @@ private :
 	}
 	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
 		Trace trace("_confirm",fd,STR(jerr.ok)) ;
-		::umap<Fd,JobExecRpcReq>& to_confirm = jerr.unlink ? to_confirm_unlink : to_confirm_write ;
+		::umap<Fd,JobExecRpcReq>& to_confirm = jerr.unlnk ? to_confirm_unlnk : to_confirm_write ;
 		auto it = to_confirm.find(fd) ;
 		SWEAR(it!=to_confirm.end(),fd) ;
 		if (jerr.ok) _new_accesses( fd , ::move(it->second) , true/*confirmed*/ ) ;
@@ -111,9 +111,9 @@ public :
 		ad.write = true ;
 		_new_access(pd,::copy(t),ad,c) ;
 	}
-	void new_unlink( PD pd , ::string const& t , ::string const& c="s_unlink" ) {
+	void new_unlnk( PD pd , ::string const& t , ::string const& c="s_unlnk" ) {
 		AccessDigest ad ;
-		ad.unlink = true ;
+		ad.unlnk = true ;
 		_new_access(pd,::copy(t),ad,c) ;
 	}
 	void new_guard (::string const& f) { guards.insert(f) ; }
@@ -123,43 +123,43 @@ public :
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                                   // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                                  // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig=-1) ;                                                                                      // is sig==-1, use best effort to kill job
+	bool/*done*/ kill(int sig=-1) ;                                                                                     // is sig==-1, use best effort to kill job
 	//
-	void reorder() ;                                                                                                     // reorder accesses by first read access
+	void reorder() ;                                                                                                    // reorder accesses by first read access
 	// data
-	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb         = [](JobExecRpcReq     &&)->Fd     { return {} ; } ; // function to contact server when necessary, return error by default
-	::function<void       (::string_view const&)> live_out_cb       = [](::string_view const&)->void   {             } ; // function to report live output, dont report by default
-	::function<void       (                    )> kill_job_cb       = [](                    )->void   {             } ; // function to kill job
-	ServerSockFd                                  master_fd         ;
-	in_addr_t                                     addr              = NoSockAddr                                       ; // local addr to which we can be contacted by running job
-	::atomic<bool>                                create_group      = false                                            ; // if true <=> process is launched in its own group
-	AutodepMethod                                 method            = AutodepMethod::Dflt                              ;
-	AutodepEnv                                    autodep_env       ;
-	Time::Delay                                   timeout           ;
-	pid_t                                         pid               = -1                                               ; // pid to kill
-	bool                                          killed            = false                                            ; // do not start as child is supposed to be already killed
-	::vector<uint8_t>                             kill_sigs         ;                                                    // signals used to kill job
-	::string                                      chroot            ;
-	::string                                      cwd               ;
-	 ::map_ss const*                              env               = nullptr                                          ;
-	vmap_s<AccessInfo>                            accesses          ;
-	umap_s<NodeIdx   >                            access_map        ;
-	uset_s                                        guards            ;                                                    // dir creation/deletion that must be guarded against NFS
-	NodeIdx                                       parallel_id       = 0                                                ; // id to identify parallel deps
-	bool                                          seen_tmp          = false                                            ;
-	int                                           wstatus           = 0/*garbage*/                                     ;
-	Fd                                            child_stdout      ;                                                    // fd used to gather stdout
-	Fd                                            child_stderr      ;                                                    // fd used to gather stderr
-	::string                                      stdout            ;                                                    // contains child stdout if child_stdout==Pipe
-	::string                                      stderr            ;                                                    // contains child stderr if child_stderr==Pipe
-	::string                                      msg               ;                                                    // contains error messages not from job
-	::umap<Fd,JobExecRpcReq>                      to_confirm_write  ;
-	::umap<Fd,JobExecRpcReq>                      to_confirm_unlink ;
+	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb        = [](JobExecRpcReq     &&)->Fd     { return {} ; } ; // function to contact server when necessary, return error by default
+	::function<void       (::string_view const&)> live_out_cb      = [](::string_view const&)->void   {             } ; // function to report live output, dont report by default
+	::function<void       (                    )> kill_job_cb      = [](                    )->void   {             } ; // function to kill job
+	ServerSockFd                                  master_fd        ;
+	in_addr_t                                     addr             = NoSockAddr                                       ; // local addr to which we can be contacted by running job
+	::atomic<bool>                                create_group     = false                                            ; // if true <=> process is launched in its own group
+	AutodepMethod                                 method           = AutodepMethod::Dflt                              ;
+	AutodepEnv                                    autodep_env      ;
+	Time::Delay                                   timeout          ;
+	pid_t                                         pid              = -1                                               ; // pid to kill
+	bool                                          killed           = false                                            ; // do not start as child is supposed to be already killed
+	::vector<uint8_t>                             kill_sigs        ;                                                    // signals used to kill job
+	::string                                      chroot           ;
+	::string                                      cwd              ;
+	 ::map_ss const*                              env              = nullptr                                          ;
+	vmap_s<AccessInfo>                            accesses         ;
+	umap_s<NodeIdx   >                            access_map       ;
+	uset_s                                        guards           ;                                                    // dir creation/deletion that must be guarded against NFS
+	NodeIdx                                       parallel_id      = 0                                                ; // id to identify parallel deps
+	bool                                          seen_tmp         = false                                            ;
+	int                                           wstatus          = 0/*garbage*/                                     ;
+	Fd                                            child_stdout     ;                                                    // fd used to gather stdout
+	Fd                                            child_stderr     ;                                                    // fd used to gather stderr
+	::string                                      stdout           ;                                                    // contains child stdout if child_stdout==Pipe
+	::string                                      stderr           ;                                                    // contains child stderr if child_stderr==Pipe
+	::string                                      msg              ;                                                    // contains error messages not from job
+	::umap<Fd,JobExecRpcReq>                      to_confirm_write ;
+	::umap<Fd,JobExecRpcReq>                      to_confirm_unlnk ;
 private :
 	mutable ::mutex _pid_mutex ;
 } ;
