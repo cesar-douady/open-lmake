@@ -101,7 +101,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*3 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+* implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * support formulas
@@ -118,8 +118,6 @@ items :
 	- record a map file:crc under git
 	- err if generated crc does not match recorded crc
 	- implement "lref file crc" to record/update map
-* allow dynamic attribute functions to have inherited values (passing inherited value as argument)
-	- maybe not strictly necessary, but this is what is done for cmd
 ! support direct rebuild of deps
 	- specify a target flag 'direct' for use by pattern
 	- specify a dep    flag 'direct' for dynamic use (through ldepend)
@@ -130,9 +128,8 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
-! record deps during attribute computation
-	- when dynamic
-	- requires spying accesses in server
+? allow dynamic attribute functions to have inherited values (passing inherited value as argument)
+	- maybe not strictly necessary, but this is what is done for cmd
 ? implement a compilation rule py->pyc
 	- and use python -B
 	- what about the numerous retries this approach implies ?
@@ -168,9 +165,8 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-*2 ensure no req_info for non-buildable nodes
+* no req_info for non-buildable nodes
 * make deps be a sequence of non-buildable nodes followed by a buildable node
-* use precompiled headers
 * generate KPI's
 	- useful/useless created jobs
 	- number of non buildable nodes

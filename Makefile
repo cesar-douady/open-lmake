@@ -106,9 +106,7 @@ COMMA := ,
 .DEFAULT_GOAL := DFLT
 
 SAN           := $(if $(SAN_FLAGS),.san,)
-PREPROCESS    := $(CC)             -E                     -ftabstop=4
-ASSEMBLE      := $(CC)             -S                     -ftabstop=4
-COMPILE       := $(CC) $(COVERAGE) -c -fvisibility=hidden -ftabstop=4 -ftemplate-backtrace-limit=0
+COMPILE       := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0
 LINK_LIB_PATH := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                            # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
 LINK_LIB_PATH := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                            # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
 LINK_LIB_PATH := $(subst :, ,$(LINK_LIB_PATH))                                                                       # e.g. : /usr/lib/x /a/b /c /a/b/c/..
@@ -340,11 +338,11 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process py re rpc_client rpc_job serialize thread time trace utils    )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ptrace record syscall_tab                                                                             )
-STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                    )
-ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec core core.x global.x idxed job.x makefiles node.x req.x rule.x store.x )
-BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                               )
+SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process py re rpc_client rpc_job serialize thread time trace utils )
+AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ld_server ptrace record syscall_tab                                                                )
+STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                 )
+ENGINE_H  := $(patsubst %, $(ENGINE_LIB)/%.hh  , backend.x cache.x caches/dir_cache cmd.x codec global.x idxed job.x makefiles node.x req.x rule.x store.x          )
+BACKEND_H := $(patsubst %, $(BACKEND_LIB)/%.hh , generic                                                                                                            )
 
 ALL_H         := sys_config.h ext/xxhash.patched.h
 ALL_TOP_H     := $(ALL_H) $(SLIB_H) $(AUTODEP_H)
@@ -355,30 +353,35 @@ ALL_BACKEND_H := $(ALL_TOP_H) $(ENGINE_H) $(BACKEND_H)
 COMPILE_OPTIONS_PY2 := $(PYTHON2_COMPILE_OPTIONS) -I ext -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
 COMPILE_OPTIONS     := $(PYTHON_COMPILE_OPTIONS)  -I ext -I $(SRC) -I $(ENGINE_LIB) -I. -idirafter /usr/include/linux
 
-$(BACKEND_LIB)/%.san.o : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(BACKEND_LIB)/%.i     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(BACKEND_LIB)/%.s     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(BACKEND_LIB)/%.o     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H) ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.san.o : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.i     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.s     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(BACKEND_LIB)/%.o     : $(BACKEND_LIB)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
-$(ENGINE_LIB)/%.san.o  : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(ENGINE_LIB)/%.s      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H)  ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.san.o  : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H) $(ENGINE_LIB)/core.hh.gch ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.i      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H) $(ENGINE_LIB)/core.hh.gch ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.s      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H) $(ENGINE_LIB)/core.hh.gch ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(ENGINE_LIB)/%.o      : $(ENGINE_LIB)/%.cc  $(ALL_ENGINE_H) $(ENGINE_LIB)/core.hh.gch ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
-$(SRC)/%_py2.san.o     : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.i         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.s         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.san.o     : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.i         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.s         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
+$(SRC)/%_py2.o         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
 
-$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
 
-%.san.o                : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-%.i                    : %.cc                $(ALL_H)         ; $(PREPROCESS) $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-%.s                    : %.cc                $(ALL_H)         ; $(ASSEMBLE)   $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-%.o                    : %.cc                $(ALL_H)         ; $(COMPILE)    $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+%.san.o                : %.cc                $(ALL_H)                                  ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+%.i                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+%.s                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
+%.o                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+
+
+$(BACKEND_LIB)/%.hh.gch : $(BACKEND_LIB)/%.hh $(ALL_BACKEND_H) ; $(COMPILE) $(CXXFLAGS) -frtti -fPIC  $(COMPILE_OPTIONS) -x c++-header -o $@ $<
+$(ENGINE_LIB)/%.hh.gch  : $(ENGINE_LIB)/%.hh  $(ALL_ENGINE_H)  ; $(COMPILE) $(CXXFLAGS) -frtti -fPIC  $(COMPILE_OPTIONS) -x c++-header -o $@ $<
+$(SRC)/%.hh.gch         : $(SRC)/%.hh         $(ALL_TOP_H)     ; $(COMPILE) $(CXXFLAGS) -frtti -fPIC  $(COMPILE_OPTIONS) -x c++-header -o $@ $<
 
 #
 # lmake
@@ -387,10 +390,10 @@ $(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)     ; $(COMPILE)    $(
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 LIB_SECCOMP := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
-$(SRC)/autodep/ld_preload.o              : $(SRC)/autodep/ld.cc
-$(SRC)/autodep/ld_preload_jemalloc.o     : $(SRC)/autodep/ld.cc
-$(SRC)/autodep/ld_preload_server$(SAN).o : $(SRC)/autodep/ld.cc
-$(SRC)/autodep/ld_audit.o                : $(SRC)/autodep/ld.cc
+$(SRC)/autodep/ld_preload.o          : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
+$(SRC)/autodep/ld_preload_jemalloc.o : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
+$(SRC)/autodep/ld_server$(SAN).o     : $(SRC)/autodep/ld_common.x.cc $(SRC)/autodep/ld.x.cc
+$(SRC)/autodep/ld_audit.o            : $(SRC)/autodep/ld_common.x.cc
 
 $(SBIN)/lmakeserver : \
 	$(LMAKE_BASIC_SAN_OBJS)                                      \
@@ -399,10 +402,10 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/rpc_client$(SAN).o                                    \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/trace$(SAN).o                                         \
-	$(SRC)/autodep/ld_preload_server$(SAN).o                     \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/env$(SAN).o                                   \
 	$(SRC)/autodep/gather_deps$(SAN).o                           \
+	$(SRC)/autodep/ld_server$(SAN).o                             \
 	$(SRC)/autodep/ptrace$(SAN).o                                \
 	$(SRC)/autodep/record$(SAN).o                                \
 	$(SRC)/autodep/syscall_tab$(SAN).o                           \
@@ -433,6 +436,7 @@ $(BIN)/lrepair : \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
 	$(SRC)/autodep/gather_deps$(SAN).o          \
+	$(SRC)/autodep/ld_server$(SAN).o            \
 	$(SRC)/autodep/ptrace$(SAN).o               \
 	$(SRC)/autodep/record$(SAN).o               \
 	$(SRC)/autodep/syscall_tab$(SAN).o          \
@@ -460,7 +464,9 @@ $(SBIN)/ldump : \
 	$(SRC)/rpc_job$(SAN).o                      \
 	$(SRC)/trace$(SAN).o                        \
 	$(SRC)/autodep/env$(SAN).o                  \
+	$(SRC)/autodep/ld_server$(SAN).o            \
 	$(SRC)/autodep/record$(SAN).o               \
+	$(SRC)/autodep/syscall_tab$(SAN).o          \
 	$(SRC)/store/file$(SAN).o                   \
 	$(SRC)/lmakeserver/backend$(SAN).o          \
 	$(SRC)/lmakeserver/cache$(SAN).o            \

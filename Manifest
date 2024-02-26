@@ -45,11 +45,13 @@ src/autodep/env.hh
 src/autodep/gather_deps.cc
 src/autodep/gather_deps.hh
 src/autodep/lcheck_deps.cc
-src/autodep/ld.cc
+src/autodep/ld.x.cc
 src/autodep/ld_audit.cc
+src/autodep/ld_common.x.cc
 src/autodep/ld_preload.cc
 src/autodep/ld_preload_jemalloc.cc
-src/autodep/ld_preload_server.cc
+src/autodep/ld_server.cc
+src/autodep/ld_server.hh
 src/autodep/ldecode.cc
 src/autodep/ldepend.cc
 src/autodep/lencode.cc

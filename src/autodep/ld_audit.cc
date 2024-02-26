@@ -42,8 +42,10 @@ void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us a
 void         elf_deps  ( Record& /*r*/ , ::string const& /*real*/ , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
 Record::Read search_elf( Record& /*r*/ , const char*     /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
+static inline bool started() { return true ; }
+
 #define LD_AUDIT 1
-#include "ld.cc"
+#include "ld_common.x.cc"
 
 ::umap_s<SymEntry> const* const g_syscall_tab = new ::umap_s<SymEntry>{
 	{ "chdir"               , { reinterpret_cast<void*>(Audited::chdir               ) } }

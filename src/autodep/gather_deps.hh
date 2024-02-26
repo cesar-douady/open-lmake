@@ -60,9 +60,8 @@ struct GatherDeps {
 public :
 	GatherDeps(       ) = default ;
 	GatherDeps(NewType) { init() ; }
-	void init() {
-		master_fd.listen() ;
-	}
+	//
+	void init() { master_fd.listen() ; }
 	// accesses
 	bool all_confirmed() const { return !to_confirm_write && !to_confirm_unlnk ; }
 	// services

@@ -3,9 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "serialize.hh"
-
 #include "core.hh"
+
+#include "serialize.hh"
 
 ENUM( DepKind
 ,	Dep
@@ -1115,9 +1115,9 @@ namespace Engine {
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
-		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Warray-bounds"                                      // gcc -O3 complains about array bounds with a completely incoherent message (looks like a bug)
+		/**/              entries.emplace_back( "autodep" , snake(sra.method)       ) ;
 		if (+sra.timeout) entries.emplace_back( "timeout" , sra.timeout.short_str() ) ;
 		#pragma GCC diagnostic pop
 		/**/              res << _pretty_vmap(i,entries)                                  ;

@@ -19,8 +19,6 @@ using namespace Time ;
 // Record
 //
 
-::mutex Record::Lock::_s_mutex ;
-//
 ::vmap_s<Accesses>* Record::s_deps          = nullptr ;
 ::string          * Record::s_deps_err      = nullptr ;
 bool                Record::s_static_report = false   ;

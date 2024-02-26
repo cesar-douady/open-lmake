@@ -70,19 +70,6 @@ static Record& auditer() {
 	return *s_res ;
 }
 
-#ifdef LD_PRELOAD_JEMALLOC
-	// ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop
-	static bool _g_started                     = false                                 ;
-	static bool _g_auto_start [[maybe_unused]] = ( free(malloc(1)) , _g_started=true ) ; // start recording when global cxtors are called
-	static inline bool started() { return _g_started ; }
-#else
-#ifdef LD_PRELOAD_SERVER
-	static inline bool started() { return Record::s_active() ; } // no auto-start for server
-#else
-	static inline bool started() { return true ; }
-#endif
-#endif
-
 template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	// cxtors & casts
 	// errno must be protected from our auditing actions in cxtor and operator()
@@ -248,10 +235,10 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
 	#define HEADER(syscall,cond,args) \
-		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ; \
-		if ( _t_loop || !started() ) return orig args ;                                 \
-		Save sav{_t_loop,true} ;                                                        \
-		if (cond) return orig args ;                                                    \
+		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ;                                                    \
+		if ( _t_loop || !started() ) return orig args ;                                                                                    \
+		Save sav{_t_loop,true} ;                                                                                                           \
+		if ( !auditer().s_active() || (cond) ) return orig args ;  /*auditer() must be called protected by _t_loop and before s_active()*/ \
 		::unique_lock lock{_g_mutex}
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )

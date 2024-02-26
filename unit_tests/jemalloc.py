@@ -41,8 +41,11 @@ else :
 	import os
 	import subprocess as sp
 
+	sav = os.environ.get('LD_PRELOAD')
 	os.environ['LD_PRELOAD'] = 'libjemalloc.so'
 	has_jemalloc             = not sp.run(('/usr/bin/echo',),check=True,stderr=sp.PIPE).stderr
+	if sav is None : del os.environ['LD_PRELOAD']
+	else           :     os.environ['LD_PRELOAD'] = sav
 
 	if has_jemalloc :
 

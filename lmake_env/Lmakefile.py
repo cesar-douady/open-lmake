@@ -365,14 +365,15 @@ class LinkClientAppExe(LinkAppExe) :
 
 class LinkAutodepEnv(Link) :
 	deps = {
-		'ENV'    : 'src/autodep/env.o'
-	,	'RECORD' : 'src/autodep/record.o'
+		'ENV' : 'src/autodep/env.o'
 	}
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
 		'GATHER_DEPS' : 'src/autodep/gather_deps.o'
+	,	'LD'          : 'src/autodep/ld_server.o'
 	,	'PTRACE'      : 'src/autodep/ptrace.o'
+	,	'RECORD'      : 'src/autodep/record.o'
 	,	'SYSCALL'     : 'src/autodep/syscall_tab.o'
 	,	'RPC_JOB'     : 'src/rpc_job.o'
 	,	'RPC_CLIENT'  : None
@@ -413,7 +414,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
-	,	'LD_PRELOAD' : 'src/autodep/ld_preload_server.o'
+	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
@@ -436,7 +437,7 @@ class Lrepair(Rule) :
 	deps    = { 'SRC'    : '_bin/lmakeserver' }
 	cmd     = 'ln {SRC} {TARGET}'
 
-class LinkLdumpExe(LinkPythonAppExe,LinkAutodepEnv) :
+class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	targets = { 'TARGET' : '_bin/ldump' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'

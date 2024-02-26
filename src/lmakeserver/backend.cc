@@ -3,10 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "config.hh"
+#include "core.hh"
 
 #include "codec.hh"
-#include "core.hh"
 
 using namespace Disk   ;
 using namespace Py     ;
@@ -236,11 +235,16 @@ namespace Backends {
 			tie(eta,keep_tmp) = entry.req_info() ;
 			keep_tmp |= start_none_attrs.keep_tmp ;
 			try {
-				deps_attrs        = rule->deps_attrs       .eval(match            ) ;                                                 step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; start_cmd_attrs.chk(start_rsrcs_attrs.method) ; step = 2 ;
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ;                                                 step = 3 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ;                                                 step = 4 ;
-				pre_actions       = job->pre_actions( match , true/*mark_target_dirs*/ ) ;                                            step = 5 ;
+				deps_attrs        = rule->deps_attrs       .eval(match            ) ; step = 1 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
+				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 3 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 4 ;
+				//
+				try                       { start_cmd_attrs.chk(start_rsrcs_attrs.method) ; }
+				catch (::string const& e) { throw ::pair_ss/*msg,err*/(e,{}) ;              }
+				step = 5 ;
+				//
+				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 6 ;
 				if (+deps) {
 					::umap_s<VarIdx> static_dep_idxes ; for( VarIdx i=0 ; i<deps_attrs.size() ; i++ ) static_dep_idxes[deps_attrs[i].second.first] = i ;
 					for( auto const& [d,a] : deps )
@@ -251,18 +255,18 @@ namespace Backends {
 				_s_small_ids.release(entry.conn.small_id) ;
 				job_exec = { job , New , New } ;                                                           // job starts and ends, no host
 				Tag tag = entry.tag ;                                                                      // record tag before releasing entry
-				start_msg_err.first  += msg_err.first  ;
-				start_msg_err.second += msg_err.second ;
-				::string msg = msg_err.first ;
+				append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
+				append_line_to_string(start_msg_err.second , msg_err.second ) ;
 				trace("release_start_tab",job_exec,entry,step,msg_err) ;
 				_s_release_start_entry(it) ;
 				switch (step) {
-					case 0 : start_msg_err.first += rule->deps_attrs       .s_exc_msg(false/*using_static*/) ; break ;
-					case 1 : start_msg_err.first += rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
-					case 2 : start_msg_err.first += rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
-					case 3 : start_msg_err.first += rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
-					case 4 : start_msg_err.first += "cannot wash targets"                                    ; break ;
-					case 5 :                                                                                   break ;
+					case 0 : append_line_to_string( start_msg_err.first , rule->deps_attrs       .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 2 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 3 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
+					case 4 :                                                                                                           break ;
+					case 5 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
+					case 6 :                                                                                                           break ;
 				DF}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				s_end( tag , +job , Status::EarlyErr ) ;                                                   // dont care about backend, job is dead for other reasons

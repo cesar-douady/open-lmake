@@ -3,17 +3,17 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
+// included in 5 passes
 
 #include "re.hh"
+#include "rpc_job.hh"
 
+#include "autodep/ld_server.hh"
 #include "autodep/record.hh"
 
 #include "store/prefix.hh"
-#include "store/vector.hh"
 #include "store/struct.hh"
-
-#include "rpc_job.hh"
+#include "store/vector.hh"
 
 #ifdef STRUCT_DECL
 
@@ -268,7 +268,7 @@ namespace Engine {
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
 		// data
-		AutodepMethod method  = AutodepMethod::Dflt ;
+		AutodepMethod method  = {} ;
 		Time::Delay   timeout ;                                                                   // if 0 <=> no timeout, maximum time allocated to job execution in s
 		::vmap_ss     env     ;
 	} ;
@@ -839,8 +839,8 @@ namespace Engine {
 		) ;
 		Py::Ptr<Py::Object> res      ;
 		::string            err      ;
-		bool                seen_err = false ;
-		Record::Lock lock{deps} ;
+		bool                seen_err = false  ;
+		AutodepLock         lock     { deps } ;
 		//                                vvvvvvvvvvvvvvvvv
 		try                       { res = code->eval(*glbs) ;   }
 		//                                ^^^^^^^^^^^^^^^^^

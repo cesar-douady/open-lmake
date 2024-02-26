@@ -26,7 +26,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,service                         ) ;
 	}
 	// data
-	bool     active      = false ;
+	bool     active      = true  ;
 	bool     auto_mkdir  = false ; // if true <=> auto mkdir in case of chdir
 	bool     ignore_stat = false ; // if true <=> stat-like syscalls do not trigger dependencies
 	::string service     ;

@@ -3,5 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#define LD_PRELOAD_SERVER
-#include "ld_preload.cc"
+#include "ld_server.hh"
+
+thread_local bool    AutodepLock::t_active = false ;
+/**/         ::mutex AutodepLock::_s_mutex ;
+
+static inline bool started() { return AutodepLock::t_active ; } // no auto-start for server
+
+#include "ld.x.cc"

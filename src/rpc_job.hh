@@ -503,9 +503,9 @@ private :
 	ExtraDflags _extra_dflags ; // if !is_target
 } ;
 
-ENUM_2( AutodepMethod               // PER_AUTODEP_METHOD : add entry here
-,	Ld   = LdAudit                  // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
-,	Dflt = AutodepMethod::LdPreload // by default, use  a compromize between speed an reliability, might sense HAS_LD_AUDIT and HAS_SECCOMP if necessary
+ENUM_2( AutodepMethod                     // PER_AUTODEP_METHOD : add entry here
+,	Ld   = LdAudit                        // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+,	Dflt = HAS_LD_AUDIT?LdAudit:LdPreload // by default, use  a compromize between speed an reliability
 ,	None
 ,	Ptrace
 ,	LdAudit
@@ -567,35 +567,35 @@ struct JobRpcReply {
 		DF}
 	}
 	// data
-	Proc                      proc             = Proc::None          ;
-	in_addr_t                 addr             = 0                   ; // proc == Start                 , the address at which server and subproccesses can contact job_exec
-	AutodepEnv                autodep_env      ;                       // proc == Start
-	::string                  chroot           ;                       // proc == Start
-	::pair_ss/*script,call*/  cmd              ;                       // proc == Start
-	::string                  cwd_s            ;                       // proc == Start
-	::vmap_ss                 env              ;                       // proc == Start
-	Algo                      hash_algo        = Algo::Xxh           ; // proc == Start
-	::vector_s                interpreter      ;                       // proc == Start                 , actual interpreter used to execute cmd
-	bool                      keep_tmp         = false               ; // proc == Start
-	vector<uint8_t>           kill_sigs        ;                       // proc == Start
-	bool                      live_out         = false               ; // proc == Start
-	AutodepMethod             method           = AutodepMethod::Dflt ; // proc == Start
-	Time::Delay               network_delay    ;                       // proc == Start
-	::vmap_s<FileAction>      pre_actions      ;                       // proc == Start
-	::string                  remote_admin_dir ;                       // proc == Start
-	SmallId                   small_id         = 0                   ; // proc == Start
-	::vmap_s<MatchFlags>      star_matches     ;                       // proc == Start                 , maps regexprs to flags
-	::vmap_s<DepDigest>       static_deps      ;                       // proc == Start
-	::vmap_s<MatchFlags>      static_matches   ;                       // proc == Start
-	::string                  stdin            ;                       // proc == Start
-	::string                  stdout           ;                       // proc == Start
-	Time::Delay               timeout          ;                       // proc == Start
-	JobIdx                    trace_n_jobs     = 0                   ; // proc == Start
-	bool                      use_script       = false               ; // proc == Start
-	::vector<pair<Bool3,Crc>> dep_infos        ;                       // proc == DepInfos
-	Bool3                     ok               = Maybe               ; // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
-	::string                  txt              ;                       // proc ==         Decode|Encode , value for Decode, code for Encode
-	Crc                       crc              ;                       // proc ==         Decode|Encode , crc of txt
+	Proc                      proc             = Proc::None    ;
+	in_addr_t                 addr             = 0             ; // proc == Start                 , the address at which server and subproccesses can contact job_exec
+	AutodepEnv                autodep_env      ;                 // proc == Start
+	::string                  chroot           ;                 // proc == Start
+	::pair_ss/*script,call*/  cmd              ;                 // proc == Start
+	::string                  cwd_s            ;                 // proc == Start
+	::vmap_ss                 env              ;                 // proc == Start
+	Algo                      hash_algo        = Algo::Xxh     ; // proc == Start
+	::vector_s                interpreter      ;                 // proc == Start                 , actual interpreter used to execute cmd
+	bool                      keep_tmp         = false         ; // proc == Start
+	vector<uint8_t>           kill_sigs        ;                 // proc == Start
+	bool                      live_out         = false         ; // proc == Start
+	AutodepMethod             method           = {}/*garbage*/ ; // proc == Start
+	Time::Delay               network_delay    ;                 // proc == Start
+	::vmap_s<FileAction>      pre_actions      ;                 // proc == Start
+	::string                  remote_admin_dir ;                 // proc == Start
+	SmallId                   small_id         = 0             ; // proc == Start
+	::vmap_s<MatchFlags>      star_matches     ;                 // proc == Start                 , maps regexprs to flags
+	::vmap_s<DepDigest>       static_deps      ;                 // proc == Start
+	::vmap_s<MatchFlags>      static_matches   ;                 // proc == Start
+	::string                  stdin            ;                 // proc == Start
+	::string                  stdout           ;                 // proc == Start
+	Time::Delay               timeout          ;                 // proc == Start
+	JobIdx                    trace_n_jobs     = 0             ; // proc == Start
+	bool                      use_script       = false         ; // proc == Start
+	::vector<pair<Bool3,Crc>> dep_infos        ;                 // proc == DepInfos
+	Bool3                     ok               = Maybe         ; // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	::string                  txt              ;                 // proc ==         Decode|Encode , value for Decode, code for Encode
+	Crc                       crc              ;                 // proc ==         Decode|Encode , crc of txt
 } ;
 
 ENUM_1( JobExecRpcProc

@@ -3,13 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "disk.hh"
+#include "core.hh"
+
 #include "re.hh"
-#include "time.hh"
 
 #include "autodep/gather_deps.hh"
-
-#include "core.hh"
 
 #include "makefiles.hh"
 
@@ -176,9 +174,9 @@ namespace Engine::Makefiles {
 			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PYTHON_LD_LIBRARY_PATH) ) ;
 			else                      set_env( "LD_LIBRARY_PATH" ,                                   PYTHON_LD_LIBRARY_PATH  ) ;
 		}
-		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ , Fd::Stderr/*stdout*/ ) ; // redirect stdout to stderr as our stdout may be used to communicate with client
-		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ ) ; // redirect stdout to stderr as our stdout may be used to communicate with client
+		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (PYTHON_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
 		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather_deps.msg?" : ":"" , localize(gather_deps.msg) ) ;

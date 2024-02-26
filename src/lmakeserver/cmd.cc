@@ -3,9 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <linux/binfmts.h>
-
 #include "core.hh"
+
+#include <linux/binfmts.h>
 #include <regex>
 
 using namespace Disk ;
@@ -626,7 +626,7 @@ R"({
 								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                        ) ;
 								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                     ) ;
 								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                     ) ;
-								if ( rs.start.method!=AutodepMethod::Dflt) push_entry("autodep"    ,snake_str(rs.start.method)                 ) ;
+								/**/                                       push_entry("autodep"    ,snake_str(rs.start.method)                 ) ;
 								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()               ) ;
 								if (sa.tag!=BackendTag::Local            ) push_entry("backend"    ,snake_str(sa.tag)                          ) ;
 							}

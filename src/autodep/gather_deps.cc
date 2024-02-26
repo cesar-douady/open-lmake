@@ -185,7 +185,6 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 	if (env) swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	else     swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	autodep_env.service = master_fd.service(addr) ;
-	autodep_env.active  = true                    ;
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work

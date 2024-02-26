@@ -28,23 +28,23 @@ int main( int argc , char* argv[] ) {
 		{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)" } } // PER_AUTODEP_METHOD : doc
 	,	{ CmdFlag::AutoMkdir     , { .short_name='d' , .has_arg=false , .doc="automatically create dir upon chdir"                                                  } }
 	,	{ CmdFlag::IgnoreStat    , { .short_name='i' , .has_arg=false , .doc="stat-like syscalls do not trigger dependencies"                                       } }
-	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full)"                                    } }
+	,	{ CmdFlag::LinkSupport   , { .short_name='s' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output file"                                                                          } }
 	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which $TMPDIR is viewed when running job"                                  } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line{syntax,argc,argv} ;
 	//
-	if (!( cmd_line.flags[CmdFlag::AutodepMethod] && cmd_line.flags[CmdFlag::LinkSupport] )) syntax.usage("must have both autodep-method and link-support options") ;
+	if (!cmd_line.flags[CmdFlag::AutodepMethod]) syntax.usage("must have both autodep-method and link-support options") ;
 	//
 	GatherDeps gather_deps { New } ;
 	//
 	try {
-		gather_deps.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		gather_deps.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
-		gather_deps.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
-		gather_deps.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
-		gather_deps.autodep_env.root_dir    = *g_root_dir                                                         ;
-		gather_deps.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
+		/**/                                      gather_deps.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		/**/                                      gather_deps.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
+		/**/                                      gather_deps.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
+		if (cmd_line.flags[CmdFlag::LinkSupport]) gather_deps.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
+		/**/                                      gather_deps.autodep_env.root_dir    = *g_root_dir                                                         ;
+		/**/                                      gather_deps.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
 		if (cmd_line.flags[CmdFlag::TmpView]) {
 			gather_deps.autodep_env.tmp_view = cmd_line.flag_args[+CmdFlag::TmpView]   ;
 			set_env( "TMPDIR"                , cmd_line.flag_args[+CmdFlag::TmpView] ) ;

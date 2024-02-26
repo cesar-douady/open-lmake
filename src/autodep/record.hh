@@ -17,32 +17,10 @@ struct Record {
 	using Proc        = JobExecRpcProc                                    ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
-	//
-	struct Lock {
-		// static data
-	private :
-		static ::mutex _s_mutex ;
-		// cxtors & casts
-	public :
-		Lock (                                ) = default ;
-		Lock (::vmap_s<Accesses>* deps=nullptr) : lock{_s_mutex} , sav{_s_autodep_env->active,true} {
-			SWEAR( !s_deps && !s_deps_err ) ;
-			s_deps     = deps ;
-			s_deps_err = &err ;
-		}
-		~Lock() {
-			s_deps     = nullptr ;
-			s_deps_err = nullptr ;
-		}
-		// data
-		::unique_lock<::mutex> lock ;
-		Save<bool>             sav  ;
-		::string               err  ;
-	} ;
 	// statics
-	static bool s_active           (           ) { return _s_autodep_env && _s_autodep_env->active ;          }
-	static bool s_is_simple        (const char*) ;
-	static bool s_has_tmp_view     (           ) { SWEAR(_s_autodep_env) ; return +_s_autodep_env->tmp_view ; }
+	static bool s_is_simple   (const char*) ;
+	static bool s_active      (           ) { SWEAR(_s_autodep_env) ; return  _s_autodep_env->active   ; }
+	static bool s_has_tmp_view(           ) { SWEAR(_s_autodep_env) ; return +_s_autodep_env->tmp_view ; }
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
@@ -52,19 +30,9 @@ struct Record {
 		}
 		return _s_root_fd ;
 	}
-	static AutodepEnv const& s_autodep_env() {
-		SWEAR(_s_autodep_env) ;
-		return *_s_autodep_env ;
-	}
-	static AutodepEnv const& s_autodep_env(NewType) {
-		if (!_s_autodep_env) _s_autodep_env = new AutodepEnv{New} ;
-		return *_s_autodep_env ;
-	}
-	static AutodepEnv const& s_autodep_env( AutodepEnv const& ade ) {
-		SWEAR(!_s_autodep_env) ;
-		_s_autodep_env = new AutodepEnv{ade} ;
-		return *_s_autodep_env ;
-	}
+	static AutodepEnv const& s_autodep_env(                     ) { SWEAR( _s_autodep_env) ;                                        return *_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) { SWEAR(!_s_autodep_env) ; _s_autodep_env = new AutodepEnv{ade} ; return *_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env(NewType              ) { if   (!_s_autodep_env)   _s_autodep_env = new AutodepEnv{New} ; return *_s_autodep_env ; }
 	// static data
 	static bool                s_static_report ;                                                                            // if true <=> report deps to s_deps instead of through report_fd() socket
 	static ::vmap_s<Accesses>* s_deps          ;
