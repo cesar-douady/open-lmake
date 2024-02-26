@@ -10,6 +10,8 @@
 
 namespace Py {
 
+	::recursive_mutex Gil::_s_mutex ;
+
 	//
 	// functions
 	//
@@ -25,16 +27,19 @@ namespace Py {
 		PyObject* tb  = nullptr ;
 	} ;
 
-	void init( ::string const& lmake_dir , bool multi_thread ) {
+	void init( ::string const& lmake_dir , bool ) {
 		static bool once=false ; if (once) return ; else once = true ;
+		//
 		Py_IgnoreEnvironmentFlag = true ;                              // favor repeatability
 		Py_NoUserSiteDirectory   = true ;                              // .
 		Py_DontWriteBytecodeFlag = true ;                              // be as non-intrusive as possible
 		Py_InitializeEx(0) ;                                           // skip initialization of signal handlers
+		//
+		py_get_sys("implementation").set_attr("cache_tag",None) ;      // avoid pyc management
+		//
 		List& py_path = py_get_sys<List>("path") ;
 		py_path.prepend( *Ptr<Str>(lmake_dir+"/lib") ) ;
 		py_path.append ( *Ptr<Str>("."             ) ) ;
-		if (multi_thread) /*PyThreadState**/ PyEval_SaveThread() ;
 	}
 
 	// divert stderr to a pipe, call PyErr_Print and restore stderr

@@ -42,35 +42,6 @@ long np_ptrace_get_syscall(int pid) {
 	#endif
 }
 
-void np_ptrace_clear_syscall(int pid) {
-	static constexpr uint64_t SycallNoOp = -1 ;                                // this will produce an error, but actually does nothing
-	errno = 0 ;
-	struct ::user_regs_struct regs ;
-	#ifdef __x86_64__
-		ptrace( PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-		regs.orig_rax = SycallNoOp ;
-		ptrace( PTRACE_SETREGS , pid , nullptr/*addr*/ , &regs ) ;
-		if (errno) throw 0 ;
-	#elif __aarch64__ || __arm__
-		long          rc  ;
-		struct iovec  iov ;
-		iov.iov_base = &regs ;
-		iov.iov_len  = 9 * sizeof(unsigned long long) ;                        // read/write only 9 registers
-		rc  = ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		if ( rc==-1 || errno ) throw 0 ;
-		#if __arm__
-			regs.r7       = SycallNoOp ;
-		#elif __aarch64__
-			regs.regs[8]  = SycallNoOp ;
-		#endif
-		rc = ptrace( PTRACE_SETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		if ( rc==-1 || errno ) throw 0 ;
-	#else
-		#error "np_clear_syscall not implemented for this architecture"        // if situation arises, please provide the adequate code using x86_64 case as a template
-	#endif
-}
-
 ::array<uint64_t,6> np_ptrace_get_args(int pid) {
 	struct ::user_regs_struct regs ;
 	::array<uint64_t,6>       res  ;

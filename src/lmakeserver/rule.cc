@@ -784,9 +784,9 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "interpreter" ; if (dct.contains(field)) Attrs::acquire( interpreter  , &dct[field]       ) ; if (!interpreter) throw "no interpreter found"s ;
-			field = "is_python"   ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field]       ) ; else              throw "not found"s            ;
-			field = "n_tokens"    ; if (dct.contains(field)) Attrs::acquire( n_tokens_key ,  dct[field].str() ) ;
+			field = "interpreter" ; if (dct.contains(field)) Attrs::acquire( interpreter , &dct[field] ) ; if (!interpreter) throw "no interpreter found"s ;
+			field = "is_python"   ; if (dct.contains(field)) Attrs::acquire( is_python   , &dct[field] ) ; else              throw "not found"s            ;
+			field = "n_tokens"    ; if (dct.contains(field)) Attrs::acquire( n_tokens    , &dct[field] ) ;
 			//
 			/**/                                          var_idxs["targets"        ] = {VarCmd::Targets,0 } ;
 			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = {VarCmd::Match  ,mi} ;
@@ -1178,9 +1178,9 @@ namespace Engine {
 		if (!is_special()) {
 			::string i ; for( ::string const& c : interpreter ) append_to_string( i , +i?" ":"" , c ) ;
 			//
-			if (force        ) entries.emplace_back( "force"       , to_string(force                         ) ) ;
-			if (+n_tokens_key) entries.emplace_back( "n_tokens"    , to_string(n_tokens_key," (",n_tokens,')') ) ;
-			/**/               entries.emplace_back( "interpreter" , i                                         ) ;
+			if (force      ) entries.emplace_back( "force"       , to_string(force   ) ) ;
+			if (n_tokens!=1) entries.emplace_back( "n_tokens"    , to_string(n_tokens) ) ;
+			/**/             entries.emplace_back( "interpreter" , i                   ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;

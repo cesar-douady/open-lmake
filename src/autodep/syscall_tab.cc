@@ -81,13 +81,12 @@ template<bool At,int FlagArg> static inline bool flag() {
 }
 
 // chdir
-template<bool At,bool Path> static inline bool/*skip_syscall*/ _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
+template<bool At,bool Path> static inline void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
 	try {
 		static_assert(At!=Path) ;
 		if (Path) { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} ) ; ctx = cd ; _update<At>(args+0,*cd) ; }
 		else      { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } ) ; ctx = cd ;                           }
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (!ctx) return res ;
@@ -98,13 +97,12 @@ static inline int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , in
 }
 
 // chmod
-template<bool At,bool Path,int FlagArg> bool/*skip_syscall*/ static inline _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,bool Path,int FlagArg> void static inline _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = cm ;
 		_update<At>(args+0,*cm) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
@@ -116,20 +114,18 @@ static inline int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_
 
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
-template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> static inline void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Exec e{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,e) ;
 	} catch (int) {}
-	return false ;
 }
 
 // getcwd
 // getcwd is only necessary if tmp is mapped (not in table with ptrace)
-static inline bool/*skip_syscall*/ _entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args[6] , const char* /*comment*/ ) {
+static inline void _entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args[6] , const char* /*comment*/ ) {
 	size_t* sz = new size_t{args[1]} ;
 	ctx = sz ;
-	return false ;
 }
 static inline int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res ) {
 	if (!res                     ) return res ;                                              // in case of error, man getcwd says buffer is undefined => nothing to do
@@ -143,14 +139,13 @@ static inline int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int
 }
 
 // hard link
-template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> static inline void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = l ;
 		_update<At>(args+0,l->src) ;
 		_update<At>(args+2,l->dst) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
 	if (!ctx) return res ;
@@ -161,23 +156,21 @@ static inline int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, 
 }
 
 // mkdir
-template<bool At> static inline bool/*skip_syscall*/ _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> static inline void _entry_mkdir( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Mkdir m{ r , _path<At>(pid,args+0) , comment } ;
 		_update<At>(args+0,m) ;
 	} catch (int) {}
-	return false ;
 }
 
 // open
-template<bool At> static inline bool/*skip_syscall*/ _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> static inline void _entry_open( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Open* o = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , comment ) ;
 		ctx = o ;
 		_update<At>(args+0,*o) ;
 	}
 	catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
 	if (!ctx) return res ;
@@ -188,13 +181,12 @@ static inline int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ ,
 }
 
 // read_lnk
-template<bool At> static inline bool/*skip_syscall*/ _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> static inline void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Readlnk* rl = new Record::Readlnk( r , _path<At>(pid,args+0) , comment ) ;
 		ctx = rl ;
 		_update<At>(args+0,*rl) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (!ctx) return res ;
@@ -206,7 +198,7 @@ static inline int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid ,
 }
 
 // rename
-template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> static inline void _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		#ifdef RENAME_EXCHANGE
 			bool exchange = flag<At,FlagArg>(args,RENAME_EXCHANGE) ;
@@ -218,7 +210,6 @@ template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_rename( 
 		_update<At>(args+0,rn->src) ;
 		_update<At>(args+2,rn->dst) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
 	if (!ctx) return res ;
@@ -229,13 +220,12 @@ static inline int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/
 }
 
 // symlink
-template<bool At> static inline bool/*skip_syscall*/ _entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At> static inline void _entry_sym_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Symlnk* sl = new Record::Symlnk( r , _path<At>(pid,args+1) , comment ) ;
 		ctx = sl ;
 		_update<At>(args+1,*sl) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
@@ -246,14 +236,13 @@ static inline int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int6
 }
 
 // unlink
-template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_unlnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> static inline void _entry_unlnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		bool rmdir = flag<At,FlagArg>(args,AT_REMOVEDIR) ;
 		Record::Unlnk* u = new Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , comment ) ;
 		if (!rmdir) ctx = u ;                                                                   // rmdir calls us without exit, and we must not set ctx in that case
 		_update<At>(args+0,*u) ;
 	} catch (int) {}
-	return false ;
 }
 static inline int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (!ctx) return res ;
@@ -264,13 +253,12 @@ static inline int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_
 }
 
 // access
-template<bool At,int FlagArg> static inline bool/*skip_syscall*/ _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+template<bool At,int FlagArg> static inline void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		Record::Stat s{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,s) ;
 		s(r) ;
 	} catch (int) {}
-	return false ;
 }
 
 // XXX : find a way to put one entry per line instead of 3 lines(would be much more readable)

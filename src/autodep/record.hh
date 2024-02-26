@@ -25,7 +25,7 @@ struct Record {
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
 		if (!_s_root_fd) {
-			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ;                                  // avoid poluting standard descriptors
+			_s_root_fd = Disk::open_read(_s_autodep_env->root_dir) ; _s_root_fd.no_std() ; // avoid poluting standard descriptors
 			SWEAR(+_s_root_fd) ;
 		}
 		return _s_root_fd ;
@@ -34,12 +34,12 @@ struct Record {
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) { SWEAR(!_s_autodep_env) ; _s_autodep_env = new AutodepEnv{ade} ; return *_s_autodep_env ; }
 	static AutodepEnv const& s_autodep_env(NewType              ) { if   (!_s_autodep_env)   _s_autodep_env = new AutodepEnv{New} ; return *_s_autodep_env ; }
 	// static data
-	static bool                s_static_report ;                                                                            // if true <=> report deps to s_deps instead of through report_fd() socket
+	static bool                s_static_report ;                                           // if true <=> report deps to s_deps instead of through report_fd() socket
 	static ::vmap_s<Accesses>* s_deps          ;
 	static ::string          * s_deps_err      ;
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root directory
+	static Fd          _s_root_fd     ;                                                    // a file descriptor to repo root directory
 	// cxtors & casts
 public :
 	Record(                       ) = default ;
@@ -52,18 +52,18 @@ public :
 			::string const& service = _s_autodep_env->service ;
 			if (service.back()==':') _report_fd = Disk::open_write( service.substr(0,service.size()-1) , true/*append*/ ) ;
 			else                     _report_fd = ClientSockFd(service)                                                   ;
-			_report_fd.no_std() ;                                                                                           // avoid poluting standard descriptors
+			_report_fd.no_std() ;                                                                                                                            // avoid poluting standard descriptors
 			swear_prod(+_report_fd,"cannot connect to job_exec through ",service) ;
 		}
 		return _report_fd ;
 	}
-	void hide(int fd) const {                                                                                               // guaranteed syscall free, so no need for caller to protect errno
+	void hide(int fd) const {
 		if (_s_root_fd.fd==fd) _s_root_fd.detach() ;
 		if (_report_fd.fd==fd) _report_fd.detach() ;
 	}
-	void hide_range( int min , int max=~0u ) const {                                                                        // guaranteed syscall free, so no need for caller to protect errno
-		if ( _s_root_fd  .fd>=min && _s_root_fd  .fd<=max ) _s_root_fd  .detach() ;
-		if ( _report_fd.fd>=min && _report_fd.fd<=max ) _report_fd.detach() ;
+	void hide( uint min , uint max ) const {
+		if ( _s_root_fd.fd>=0 &&  uint(_s_root_fd.fd)>=min && uint(_s_root_fd.fd)<=max ) _s_root_fd.detach() ;
+		if ( _report_fd.fd>=0 &&  uint(_report_fd.fd)>=min && uint(_report_fd.fd)<=max ) _report_fd.detach() ;
 	}
 private :
 	void            _static_report(JobExecRpcReq&& jerr) const ;
@@ -127,29 +127,30 @@ public :
 	template<class... A>              void report_trace(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;           }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
-	struct Path {
-		friend ::ostream& operator<<( ::ostream& , Path const& ) ;
+	template<bool Writable=false> struct _Path {
+		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
-		Path(                                             )                                          {                                  }
-		Path( Fd a                                        ) : has_at{true} , at{a}                   {                                  }
-		Path(        const char*     f , bool steal=true  ) :                        file{f        } { if (!steal) allocate(        ) ; }
-		Path( Fd a , const char*     f , bool steal=true  ) : has_at{true} , at{a} , file{f        } { if (!steal) allocate(        ) ; }
-		Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
-		Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
+		_Path(                                             )                                          {                                  }
+		_Path( Fd a                                        ) : has_at{true} , at{a}                   {                                  }
+		_Path(        Char*           f , bool steal=true  ) :                        file{f        } { if (!steal) allocate(        ) ; }
+		_Path( Fd a , Char*           f , bool steal=true  ) : has_at{true} , at{a} , file{f        } { if (!steal) allocate(        ) ; }
+		_Path(        ::string const& f , bool steal=false ) :                        file{f.c_str()} { if (!steal) allocate(f.size()) ; }
+		_Path( Fd a , ::string const& f , bool steal=false ) : has_at{true} , at{a} , file{f.c_str()} { if (!steal) allocate(f.size()) ; }
 		//
-		Path(Path && p) { *this = ::move(p) ; }
-		Path& operator=(Path&& p) {
+		_Path(_Path && p) { *this = ::move(p) ; }
+		_Path& operator=(_Path&& p) {
 			deallocate() ;
 			has_at      = p.has_at    ;
 			file_loc    = p.file_loc  ;
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
+			p.file      = nullptr     ;                                                   // safer to avoid dangling pointers
 			p.allocated = false       ;                                                   // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
-		~Path() { deallocate() ; }
+		~_Path() { deallocate() ; }
 		// services
 		void deallocate() { if (allocated) delete[] file ; }
 		//
@@ -166,25 +167,21 @@ public :
 			at        = at_  ;
 			allocated = true ;
 		}
-		void share(const char* file_) { share(Fd::Cwd,file_) ; }
-		void share( Fd at_ , const char* file_ ) {
-			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
-			deallocate() ;
-			file      = file_ ;
-			at        = at_   ;
-			allocated = false ;
-		}
 		// data
-		bool        has_at    = false            ;                                        // if false => at is not managed and may not be substituted any non-default value
-		bool        allocated = false            ;                                        // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc     file_loc  = FileLoc::Unknown ;                                        // updated when analysis is done
-		Fd          at        = Fd::Cwd          ;                                        // at & file may be modified, but together, they always refer to the same file
-		const char* file      = ""               ;                                        // .
+		bool    has_at    = false            ;                                            // if false => at is not managed and may not be substituted any non-default value
+		bool    allocated = false            ;                                            // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ;                                            // updated when analysis is done
+		Fd      at        = Fd::Cwd          ;                                            // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ;                                            // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ;
-	struct Solve : Path {
+	using Path  = _Path<false/*Writable*/> ;
+	using WPath = _Path<true /*Writable*/> ;
+	template<bool Writable=false> struct _Solve : _Path<Writable> {
+		using Base = _Path<Writable> ;
+		using Base::file ;
 		// search (executable if asked so) file in path_var
-		Solve()= default ;
-		Solve( Record& r , Path&& path , bool no_follow , bool read , bool allow_tmp_map , ::string const& c={} ) : Path{::move(path)} {
+		_Solve()= default ;
+		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool allow_tmp_map , ::string const& c={} ) : Base{::move(path)} {
 			SolveReport sr = r._solve( *this , no_follow , read , c ) ;
 			if ( sr.mapped && !allow_tmp_map ) r.report_panic("cannot use tmp mapping to map ",file," to ",sr.real) ;
 			real     = ::move(sr.real)  ;
@@ -196,6 +193,8 @@ public :
 		::string real     ;
 		Accesses accesses ;
 	} ;
+	using Solve  = _Solve<false/*Writable*/> ;
+	using WSolve = _Solve<true /*Writable*/> ;
 	struct Chdir : Solve {
 		// cxtors & casts
 		Chdir() = default ;
@@ -209,6 +208,18 @@ public :
 		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string&& comment="chmod" ) ;
 		// services
 		int operator()( Record& , int rc ) ;
+	} ;
+	struct Hide {
+		Hide( Record&            ) {              }                                       // in case nothing to hide, just to ensure invariants
+		Hide( Record& r , int fd ) { r.hide(fd) ; }
+		#if HAS_CLOSE_RANGE
+			#ifdef CLOSE_RANGE_CLOEXEC
+				Hide( Record& r , uint fd1 , uint fd2 , int flgs ) { if (!(flgs&CLOSE_RANGE_CLOEXEC)) r.hide(int(fd1),int(fd2)) ; }
+			#else
+				Hide( Record& r , uint fd1 , uint fd2 , int      ) {                                  r.hide(int(fd1),int(fd2)) ; }
+			#endif
+		#endif
+		template<class T> T operator()( Record& , T rc ) { return rc ; }
 	} ;
 	struct Exec : Solve {
 		// cxtors & casts
@@ -293,10 +304,27 @@ public :
 	void chdir(const char* dir) { _real_path.chdir(dir) ; }
 	//
 private :
-	SolveReport _solve( Path& , bool no_follow , bool read , ::string const& comment={} ) ;
+	template<bool W> SolveReport _solve( _Path<W>& , bool no_follow , bool read , ::string const& comment={} ) ;
 	// data
 	Disk::RealPath                                                _real_path    ;
 	mutable Fd                                                    _report_fd    ;
 	mutable bool                                                  _tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
 	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> _access_cache ;         // map file to read accesses
 } ;
+
+template<bool W> Record::SolveReport Record::_solve( _Path<W>& path , bool no_follow , bool read , ::string const& comment ) {
+	using namespace Disk ;
+	using namespace Time ;
+	if (!path.file) return {} ;
+	SolveReport sr = _real_path.solve(path.at,path.file,no_follow) ;
+	for( ::string& lnk : sr.lnks ) _report_dep( ::move(lnk        ) , file_date(s_root_fd(),lnk) , Access::Lnk , comment+".lnk" ) ; // lnk exists
+	if ( !read && +sr.last_lnk   ) _report_dep( ::move(sr.last_lnk) , Ddate()                    , Access::Lnk , comment+".lst" ) ; // sr.lastlnk does not exist and we have not looked ...
+	sr.lnks.clear() ;                                                                                                               // ... at errno so we can report an unseen dep
+	if ( sr.mapped && path.file && path.file[0] ) {                                                                                 // else path is ok as it is
+		if      (is_abs(sr.real)) { if (+sr.real) path.allocate(sr.real) ; else path.allocate("/") ;   }                            // dont share real with file as real may be moved
+		else if (path.has_at    )   path.allocate( s_root_fd() , sr.real                           ) ;
+		else                        path.allocate( to_string(s_autodep_env().root_dir,'/',sr.real) ) ;
+	}
+	path.file_loc = sr.file_loc ;
+	return sr ;
+}

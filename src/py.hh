@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include <Python.h> // /!\ must be included first
+#include <Python.h> // /!\ must be included first because doc says so (else it does not work)
 
 #include "utils.hh"
+#include "trace.hh"
 
 ENUM( Exception
 ,	RuntimeErr
@@ -18,10 +19,15 @@ ENUM( Exception
 namespace Py {
 
 	struct Gil {
-		Gil() : state{PyGILState_Ensure()} {}
-		~Gil() { PyGILState_Release(state) ; }
+	private :
+		static ::recursive_mutex _s_mutex ;
+		// cxtors & casts
+	public :
+		Gil () : lock{_s_mutex} { trace("acquired") ; }
+		~Gil()                  { trace("released") ; }
 		// data
-		PyGILState_STATE state ;
+		Trace                          trace { "Gil" } ;
+		::unique_lock<recursive_mutex> lock            ;
 	} ;
 
 	struct Object       ;

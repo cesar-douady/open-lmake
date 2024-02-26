@@ -41,8 +41,8 @@ namespace Codec {
 		static QueueThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
 		g_codec_queue = &s_queue ;
 		//
-		Persistent::val_file .init(CodecPfx+"/vals"s ,writable) ;
-		Persistent::code_file.init(CodecPfx+"/codes"s,writable) ;
+		Persistent::val_file .init(to_string(CodecPfx,"/vals" ),writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
+		Persistent::code_file.init(to_string(CodecPfx,"/codes"),writable) ; // .
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {

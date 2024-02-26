@@ -11,6 +11,7 @@
 
 #include "autodep/record.hh"
 
+#include "cmd.hh"
 #include "makefiles.hh"
 
 using namespace Disk   ;

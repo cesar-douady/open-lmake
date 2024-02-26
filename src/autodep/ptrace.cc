@@ -132,9 +132,8 @@ void AutodepPtrace::s_prepare_child() {
 						uint64_t *          args      = arg_array.data()        ;                    // we need a variable to hold the data while we pass the pointer
 					#endif
 					SWEAR(!info.ctx,syscall) ;                                                       // ensure following SWEAR on info.ctx is pertinent
-					bool skip = descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
-					if (skip) np_ptrace_clear_syscall(pid) ;
-					info.has_exit_proc = descr.exit && !skip ;
+					descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
+					info.has_exit_proc = descr.exit ;
 					if (!info.has_exit_proc) SWEAR(!info.ctx,syscall) ;                              // no need for a context if we are not called at exit
 				} else {
 					info.has_exit_proc = false ;

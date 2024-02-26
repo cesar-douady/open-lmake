@@ -493,43 +493,42 @@ namespace Engine {
 		// user data
 	public :
 		Special              special    = Special::None ;
-		Prio                 prio       = 0             ; // the priority of the rule
-		::string             name       ;                 // the short message associated with the rule
-		::vmap_ss            stems      ;                 // stems are ordered : statics then stars, stems used as both static and star appear twice
-		::string             cwd_s      ;                 // cwd in which to interpret targets & deps and execute cmd (with ending /)
-		::string             job_name   ;                 // used to show in user messages (not all fields are actually used)
-		::vmap_s<MatchEntry> matches    ;                 // keep star user order, static entries first in MatchKind order
-		VarIdx               stdout_idx = NoVar         ; // index of target used as stdout
-		VarIdx               stdin_idx  = NoVar         ; // index of dep used as stdin
-		bool                 allow_ext  = false         ; // if true <=> rule may match outside repo
+		Prio                 prio       = 0             ;      // the priority of the rule
+		::string             name       ;                      // the short message associated with the rule
+		::vmap_ss            stems      ;                      // stems are ordered : statics then stars, stems used as both static and star appear twice
+		::string             cwd_s      ;                      // cwd in which to interpret targets & deps and execute cmd (with ending /)
+		::string             job_name   ;                      // used to show in user messages (not all fields are actually used)
+		::vmap_s<MatchEntry> matches    ;                      // keep star user order, static entries first in MatchKind order
+		VarIdx               stdout_idx = NoVar         ;      // index of target used as stdout
+		VarIdx               stdin_idx  = NoVar         ;      // index of dep used as stdin
+		bool                 allow_ext  = false         ;      // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicDepsAttrs          deps_attrs         ;    // in match crc, evaluated at job creation time
-		Dynamic<CreateNoneAttrs > create_none_attrs  ;    // in no    crc, evaluated at job creation time
-		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;    // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
-		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;    // in rsrcs crc, evaluated at submit time
-		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;    // in no    crc, evaluated at submit time
-		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;    // in cmd   crc, evaluated before execution
-		DynamicCmd                cmd                ;    // in cmd   crc, evaluated before execution
-		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;    // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneAttrs  > start_none_attrs   ;    // in no    crc, evaluated before execution
-		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;    // in cmd   crc, evaluated after  execution
-		Dynamic<EndNoneAttrs    > end_none_attrs     ;    // in no    crc, evaluated after  execution
-		::vmap_s<DbgEntry>        dbg_info           ;    // in no    crc, contains info to debug cmd that must not appear in cmd crc
-		::string                  n_tokens_key       ;    // in no    crc, contains the key in config.n_tokenss to determine n_tokens
+		DynamicDepsAttrs          deps_attrs         ;         // in match crc, evaluated at job creation time
+		Dynamic<CreateNoneAttrs > create_none_attrs  ;         // in no    crc, evaluated at job creation time
+		Dynamic<CacheNoneAttrs  > cache_none_attrs   ;         // in no    crc, evaluated twice : at submit time to look for a hit and after execution to upload result
+		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;         // in rsrcs crc, evaluated at submit time
+		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;         // in no    crc, evaluated at submit time
+		Dynamic<StartCmdAttrs   > start_cmd_attrs    ;         // in cmd   crc, evaluated before execution
+		DynamicCmd                cmd                ;         // in cmd   crc, evaluated before execution
+		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;         // in rsrcs crc, evaluated before execution
+		Dynamic<StartNoneAttrs  > start_none_attrs   ;         // in no    crc, evaluated before execution
+		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;         // in cmd   crc, evaluated after  execution
+		Dynamic<EndNoneAttrs    > end_none_attrs     ;         // in no    crc, evaluated after  execution
+		::vmap_s<DbgEntry>        dbg_info           ;         // in no    crc, contains info to debug cmd that must not appear in cmd crc
+		size_t                    n_tokens           = 1     ; // in no    crc, contains the number of tokens to determine parallelism to use for ETA computation
 		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
 		bool                      force              = false ;
 		// derived data
 		VarIdx n_static_stems   = 0 ;
-		VarIdx n_static_targets = 0 ;                     // number of official static targets
+		VarIdx n_static_targets = 0 ;                          // number of official static targets
 		VarIdx n_statics        = 0 ;
-		size_t n_tokens         = 1 ;
 		// management data
-		ExecGen cmd_gen   = 1 ;                           // cmd generation, must be >0 as 0 means !cmd_ok
-		ExecGen rsrcs_gen = 1 ;                           // for a given cmd, resources generation, must be >=cmd_gen
+		ExecGen cmd_gen   = 1 ;                                // cmd generation, must be >0 as 0 means !cmd_ok
+		ExecGen rsrcs_gen = 1 ;                                // for a given cmd, resources generation, must be >=cmd_gen
 		// stats
-		mutable Delay  exec_time    = {} ;                // average exec_time
-		mutable JobIdx stats_weight = 0  ;                // number of jobs used to compute average
+		mutable Delay  exec_time    = {} ;                     // average exec_time
+		mutable JobIdx stats_weight = 0  ;                     // number of jobs used to compute average
 		// not stored on disk
 		::vector<VarIdx>        stem_mark_counts ;
 		/**/     TargetPattern  job_name_pattern ;
@@ -892,7 +891,7 @@ namespace Engine {
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
 			::serdes(s,dbg_info          ) ;
-			::serdes(s,n_tokens_key      ) ;
+			::serdes(s,n_tokens          ) ;
 			::serdes(s,interpreter       ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;

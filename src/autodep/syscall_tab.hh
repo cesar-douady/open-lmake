@@ -16,7 +16,7 @@ struct SyscallDescr {
 	constexpr bool operator+() const { return prio    ; } // prio=0 means entry is not allocated
 	constexpr bool operator!() const { return !+*this ; }
 	// data
-	bool/*skip*/   (*entry)( void*& , Record& , pid_t , uint64_t args[6] , const char* comment ) = nullptr ;
+	void           (*entry)( void*& , Record& , pid_t , uint64_t args[6] , const char* comment ) = nullptr ;
 	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                            ) = nullptr ;
 	int            filter                                                                        = 0       ; // argument to filter on when known to require no processing
 	uint8_t        prio                                                                          = 0       ; // prio for libseccomp (0 means entry is not allocated)

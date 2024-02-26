@@ -14,27 +14,23 @@ if __name__!='__main__' :
 	,	'world'
 	)
 
-	class Cat(Rule) :
-		stems = {
-			'File1' : r'.*'
-		,	'File2' : r'.*'
-		}
-		deps = {
-			'FIRST'  : '{File1}'
-		,	'SECOND' : '{File2}'
-		}
+	class Cpy(Rule) :
+		stems       = { 'File' : r'.*' }
 		autodep     = 'ld_preload_jemalloc'
 		environ_cmd = { 'LD_PRELOAD':'libjemalloc.so' }
 
-	class CatSh(Cat) :
-		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
+	class Auto(Rule) :
+		target = r'auto{D:\d+}'
+		cmd = 'echo {D}'
 
-	class CatPy(Cat,PyRule) :
-		target = '{File1}+{File2}_py'
+	class CpySh(Cpy) :
+		target = '{File}_sh'
+		cmd    = 'cat {File}'
+
+	class CpyPy(Cpy,PyRule) :
+		target = '{File}_py'
 		def cmd() :
-			print(open(FIRST ).read(),end='')
-			print(open(SECOND).read(),end='')
+			print(open(File).read(),end='')
 
 else :
 
@@ -54,4 +50,4 @@ else :
 		print('hello',file=open('hello','w'))
 		print('world',file=open('world','w'))
 
-		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )           # check no crash
+		ut.lmake( 'auto1_sh' , 'auto2_py' , may_rerun=2 , done=4 , new=1 ) # check deps are acquired

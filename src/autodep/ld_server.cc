@@ -10,4 +10,5 @@ thread_local bool    AutodepLock::t_active = false ;
 
 static inline bool started() { return AutodepLock::t_active ; } // no auto-start for server
 
+#define IN_SERVER
 #include "ld.x.cc"

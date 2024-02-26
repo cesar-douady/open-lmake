@@ -20,7 +20,9 @@ __pycache__
 
 # compiled files
 *.i
+*.s
 *.o
+*.hh.gch
 *.so
 /ext/**.patched*
 *.stamp

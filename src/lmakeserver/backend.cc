@@ -218,9 +218,9 @@ namespace Backends {
 			if (!entry.useful()) { trace("useless") ; return false ; }                                     // no Req found, job has been cancelled but start message still arrives, give up
 			submit_attrs = ::move(entry.submit_attrs) ;
 			rsrcs        =        entry.rsrcs         ;
-			//                           vvvvvvvvvvvvvvvvvvvvvvv
-			set_nl(jrr.msg) ; jrr.msg += s_start(entry.tag,+job) ;
-			//                           ^^^^^^^^^^^^^^^^^^^^^^^
+			//                               vvvvvvvvvvvvvvvvvvvvvvv
+			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
+			//                               ^^^^^^^^^^^^^^^^^^^^^^^
 			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 			try {
 				start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&::ref(::vmap_s<Accesses>())) ; // ignore deps of start_none_attrs as this is not critical (no impact on targets)

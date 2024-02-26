@@ -264,7 +264,7 @@ class Compile(Rule) :
 	stems   = @{ 'File' : r'.*'         @}
 	targets = @{ 'OBJ'  : '@{File@}.o'  @}
 	deps    = @{ 'SRC'  : '@{File@}.cc' @}
-	cmd     = 'gcc -c -o $OBJ $SRC'
+	cmd     = 'gcc -c -o @{OBJ@} @{SRC@}'
 @end group
 @end example
 
@@ -333,8 +333,8 @@ The @code{cmd} attribute can be either a @code{str} or a function.
 
 If it is a @code{str}, it contains a shell script that will be executed when the rule is triggered
 (the shell can be customized and defaults to the default system shell, usually @file{/bin/bash}).
-Before execution, its environment will be augmented with the definitions of stems, targets and dependencies (and a few others that will be described later).
-Static targets are defined as their associated file name, star targets are defined as regular expressions (following the Python 3.6+ syntax).
+Before execution, it is interpreted as a Python f-string, i.e. everything between @code{@{@}} is interpreted as a Pyhton expression and the corresponding value is substituted.
+During this process, the stems, targets and deps have their definition from the current job.
 This way, scripts are easy to write and read.
 
 It can also be a function and our example rule could have been written as :
@@ -384,7 +384,7 @@ class Base(Rule) :
 class Compile(Base) :
 	targets = @{ 'OBJ' : '@{File@}.o'  @}
 	deps    = @{ 'SRC' : '@{File@}.cc' @}
-	cmd     = 'gcc -c -o $OBJ $SRC'
+	cmd     = 'gcc -c -o @{OBJ@} @{SRC@}'
 
 class LinkHelloWorld(Rule) :
 	targets = @{ 'EXE' : 'hello_world' @}
@@ -393,12 +393,12 @@ class LinkHelloWorld(Rule) :
 	,	'HELLO'       : 'hello.o'
 	,	'WORLD'       : 'world.o'
 	@}
-	cmd = 'gcc -o $EXE $HELLO_WORLD $HELLO $WORLD'
+	cmd = 'gcc -o @{EXE@} @{HELLO_WORLD@} @{HELLO@} @{WORLD@}'
 
 class Run(Base) :
 	target = '@{File@}.out'
 	deps   = @{ 'EXE' : '@{File@}' @}
-	cmd    = '$EXE'
+	cmd    = '@{EXE@}'
 
 class Check(Base) :
 	target = '@{File@}.ok'
@@ -3232,7 +3232,7 @@ class Mrkr(lmake.Rule) :
 class Gcc(lmake.Rule) :
 	targets = @{ 'OBJ' : '@{File:.+@}.o' @}
 	deps    = @{ 'SRC' : '@{File:.+@}.c' @}
-	cmd     = 'ldepend a/mrkr b/mrkr c/mrkr ; gcc -Ia -Ib -Ic -c -o $OBJ $SRC'
+	cmd     = 'ldepend a/mrkr b/mrkr c/mrkr ; gcc -Ia -Ib -Ic -c -o @{OBJ@} @{SRC@}'
 @end group
 @end example
 

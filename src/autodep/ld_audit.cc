@@ -195,17 +195,17 @@ extern "C" {
 	}
 
 	unsigned int la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
-		auditer() ;                                                                                       // force Audit static init
+		auditer() ;                                                                                                                 // force Audit static init
 		if ( !map->l_name || !*map->l_name ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                     // linux-vdso.so is listed, but is not a real file
-			Read(map->l_name,false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objopen") ;
+		if (!::string_view(map->l_name).starts_with("linux-vdso.so"))                                                               // linux-vdso.so is listed, but is not a real file
+			Read(static_cast<const char*>(map->l_name),false/*no_follow*/,false/*keep_real*/,false/*allow_tmp_map*/,"la_objopen") ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ;                       // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = map->l_name ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;

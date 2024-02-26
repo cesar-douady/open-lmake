@@ -19,6 +19,7 @@ using Caches::Cache ;
 
 #endif
 #ifdef DATA_DEF
+
 namespace Caches {
 
 	struct Cache {
@@ -48,4 +49,5 @@ namespace Caches {
 	} ;
 
 }
+
 #endif

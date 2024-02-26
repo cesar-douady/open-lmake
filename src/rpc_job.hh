@@ -329,9 +329,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	DepDigestBase( Base b , Accesses a ,           Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
 	DepDigestBase( Base b , Accesses a , Crc   c , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
 	DepDigestBase( Base b , Accesses a , Ddate d , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
-	//
-	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} { crc_date(dd) ; }
-	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} { crc_date(dd) ; }
+	// initializing _crc in all caes (which crc_date does not do) is important to please compiler (gcc-11 -O3)
+	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
+	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	//
 	bool operator==(DepDigestBase const& other) const {
 		if (dflags  !=other.dflags  ) return false              ;
@@ -342,14 +342,11 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else                          return _crc ==other._crc  ;
 	}
 	// accesses
-	#pragma GCC diagnostic push                                                  // gcc-11 is lost with union management
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
 	Ddate date() const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date ; }
-	#pragma GCC diagnostic pop
 	//
-	void crc (Crc   c) { is_date = false ; _crc  = c  ; }
-	void date(Ddate d) { is_date = true  ; _date = d  ; }
+	void crc (Crc   c) { is_date = false ; _crc  = c ; }
+	void date(Ddate d) { is_date = true  ; _date = d ; }
 	template<class B2> void crc_date(DepDigestBase<B2> const& dd) {
 		if (!dd.accesses) return ;
 		if ( dd.is_date ) date(dd.date()) ;

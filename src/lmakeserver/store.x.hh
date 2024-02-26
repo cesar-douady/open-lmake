@@ -312,11 +312,11 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( ::vmap_s<FileTag>&& srcs , ::vector_s&& src_dirs_s ) ;
-	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             ) ;
-	void               invalidate_match(                                                    ) ;
-	void               invalidate_exec ( bool cmd_ok                                        ) ;
-	void               repair          ( ::string const& from_dir                           ) ;
+	bool/*invalidate*/ new_srcs        ( ::vmap_s<FileTag>&& srcs , ::vector_s&& src_dirs_s , bool dynamic ) ;
+	bool/*invalidate*/ new_rules       ( ::umap<Crc,RuleData>&&                             , bool dynamic ) ;
+	void               invalidate_match(                                                                   ) ;
+	void               invalidate_exec ( bool cmd_ok                                                       ) ;
+	void               repair          ( ::string const& from_dir                                          ) ;
 	//
 	NodeFile::Lst  node_lst() ;
 	JobFile ::Lst  job_lst () ;
@@ -324,20 +324,6 @@ namespace Engine::Persistent {
 	//
 	void chk() ;
 	//
-	void _init_config       (                                                                              ) ;
-	void _diff_config       ( Config const& old_config , bool dynamic                                      ) ;
-	void _save_config       (                                                                              ) ;
-	void _init_srcs_rules   ( bool rescue=false                                                            ) ;
-	void _new_max_dep_depth ( DepDepth                                                                     ) ;
-	void _save_rules        (                                                                              ) ;
-	void _compile_rule_datas(                                                                              ) ;
-	void _compile_psfxs     (                                                                              ) ;
-	void _compile_srcs      (                                                                              ) ;
-	void _compile_rules     (                                                                              ) ;
-	void _compile_n_tokenss (                                                                              ) ;
-	void _invalidate_exec   ( ::vector<pair<bool,ExecGen>> const& keep_cmd_gens                            ) ;
-	void _collect_old_rules (                                                                              ) ;
-	void _set_exec_gen      ( RuleData& , ::pair<bool,ExecGen>& keep_cmd_gen , bool cmd_ok , bool rsrcs_ok ) ;
 
 	//
 	// JobNode

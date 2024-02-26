@@ -10,8 +10,9 @@ from os        import getcwd
 from os.path   import abspath,dirname,relpath
 import re
 
-lmake_dir = dirname(dirname(__file__))
-root_dir  = getcwd()
+lmake_dir  = dirname(dirname(__file__))
+root_dir   = getcwd()
+in_repo_re = fr'({re.escape(root_dir)}/|[^/]).*'
 
 sys.implementation.cache_tag = None                                               # dont read pyc files as our rudimentary dependency mechanism will not handle them properly
 sys.dont_write_bytecode      = True                                               # and dont generate them
@@ -330,7 +331,7 @@ class Handle :
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
 		,	ctx            = ( self.per_job , self.aggregate_per_job , *self.glbs )
-		,	no_imports     = rule_modules
+		,	no_imports     = in_repo_re                                             # non-static deps are forbidden, transport all local modules by value
 		,	call_callables = True
 		)
 		return ( static_val , tuple(names) , ctx , code )
@@ -554,12 +555,11 @@ def handle_config(config) :
 		code,ctx,names,dbg = serialize.get_expr(
 			be['interface']
 		,	ctx            = (module.__dict__,)
-		,	no_imports     = rule_modules
 		,	call_callables = True
 		)
 		be['interface'] = ctx+'interface = '+code
 
-rule_modules = { r.__module__    for r in lmake._rules      }
+rule_modules = { r.__module__ for r in lmake._rules }
 
 handle_config(lmake.config)
 

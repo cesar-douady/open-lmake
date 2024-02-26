@@ -104,20 +104,11 @@ items :
 * implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-* support formulas
-	- in n_tokens
-		- to automatically depend on config update
-	- in target_flags & dep_flags
-		- full f-string based on stems & targets
 * result cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
 	- use link instead of copy
 	- warning : only when mtime is used instead of ctime
-* implement a ref/check mechanism
-	- record a map file:crc under git
-	- err if generated crc does not match recorded crc
-	- implement "lref file crc" to record/update map
 ! support direct rebuild of deps
 	- specify a target flag 'direct' for use by pattern
 	- specify a dep    flag 'direct' for dynamic use (through ldepend)
@@ -128,6 +119,10 @@ items :
 		- while suspended, consider resources to be freed
 		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 		- then resume participates to allocation competition
+? implement a ref/check mechanism
+	- record a map file:crc under git
+	- err if generated crc does not match recorded crc
+	- implement "lref file crc" to record/update map
 ? allow dynamic attribute functions to have inherited values (passing inherited value as argument)
 	- maybe not strictly necessary, but this is what is done for cmd
 ? implement a compilation rule py->pyc

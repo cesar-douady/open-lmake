@@ -17,7 +17,6 @@ static constexpr char NpErrnoSymbolName[] = "__errno_location" ;               /
 
 int np_get_fd(std::filebuf& fb) ;
 
-long                np_ptrace_get_syscall  (int pid) ;
-void                np_ptrace_clear_syscall(int pid) ;
-::array<uint64_t,6> np_ptrace_get_args     (int pid) ;
-int64_t             np_ptrace_get_res      (int pid) ;
+long                np_ptrace_get_syscall(int pid) ;
+::array<uint64_t,6> np_ptrace_get_args   (int pid) ;
+int64_t             np_ptrace_get_res    (int pid) ;

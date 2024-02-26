@@ -12,21 +12,21 @@ import re
 import sys
 import types
 
-class f_str(str) : pass                                                        # used as a marker to generate an f-string as source
+class f_str(str) : pass # used as a marker to generate an f-string as source
 
-__all__ = ('get_src','get_code_ctx')                                           # everything else is private
+__all__ = ('get_src','get_code_ctx') # everything else is private
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 
 _Code = (lambda:None).__code__.__class__
 
-def get_src(*args,no_imports=(),ctx=(),force=False,decorator=None,root_dir=None) :
+def get_src(*args,no_imports=None,ctx=(),force=False,decorator=None,root_dir=None) :
 	'''
 		get a source text that reproduce args :
-		- args must be composed of named objects such as functions or classes or dicts mapping names to values.
-		- no_imports is a list of modules or module names that must not be imported in the resulting source.
-		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
-		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
+		- args must be composed of named objects such as functions or classes or dicts mapping names to values
+		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
+		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
+		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
 		- if decorator is true, use it to decorate all generated functions
 		- if root_dir is provided, source filename debug info are reported relative to this directory
 		The return value is (source,names) where :
@@ -42,13 +42,13 @@ def get_src(*args,no_imports=(),ctx=(),force=False,decorator=None,root_dir=None)
 			s.val_src(None,a,force=force)
 	return s.get_src()
 
-def get_expr(expr,*,no_imports=(),ctx=(),force=False,call_callables=False) :
+def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 	'''
 		get an expression text that reproduce expr :
 		- expr can be any object
-		- no_imports is a list of modules or module names that must not be imported in the resulting source.
-		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated.
-		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though.
+		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
+		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
+		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
 		The return value is (source,ctx,names) where :
 			- source is the source text that reproduces expr as an expression
 			- ctx is as ource text that reproduces the environment in which to evaluate source
@@ -58,11 +58,11 @@ def get_expr(expr,*,no_imports=(),ctx=(),force=False,call_callables=False) :
 	src = s.expr_src(expr,force=force,call_callables=call_callables)
 	return (src,*s.get_src())
 
-def get_code_ctx(*args,no_imports=(),ctx=()) :
+def get_code_ctx(*args,no_imports=None,ctx=()) :
 	'''
 		get a source text that provides the necessary context to evaluate args :
 		- args must be composed of code objects
-		- no_imports is a list of modules or module names that must not be imported in the resulting source
+		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		the return value is (source,names) where :
 			- source is the source text that provides the necessary context to evaluate args
@@ -80,9 +80,9 @@ def _mk_f_string(s) :
 	if '"'   not in s and '\n' not in s : return 'f"'  +s+'"'
 	if "'''" not in s and s[-1]!="'"    : return "f'''"+s+"'''"
 	if '"""' not in s and s[-1]!='"'    : return 'f"""'+s+'"""'
-	if "'''" not in s and s[-1]=="'"    : return "f'''"+s[:-1]+"\\''''"           # this \ is certainly outside {}, hence f-string is still valid
-	if '"""' not in s and s[-1]=='"'    : return 'f"""'+s[:-1]+'\\""""'           # .
-	else                                : return 'f'+repr(s)                      # hope that repr will not insert \ within {}
+	if "'''" not in s and s[-1]=="'"    : return "f'''"+s[:-1]+"\\''''" # this \ is certainly outside {}, hence f-string is still valid
+	if '"""' not in s and s[-1]=='"'    : return 'f"""'+s[:-1]+'\\""""' # .
+	else                                : return 'f'+repr(s)            # hope that repr will not insert \ within {}
 
 end_liness = {}
 srcs       = {}
@@ -93,18 +93,18 @@ def _analyze(filename) :
 	for start_lineno in range(len(lines)) :
 		start_line = lines[start_lineno]
 		def_pos    = start_line.find('def')
-		if def_pos==-1 : continue                                              # not function def here
+		if def_pos==-1 : continue                                                                                   # not function def here
 		prefix = start_line[:def_pos]
-		if prefix and not prefix.isspace() : continue                          # if def is not at start of line : not a function def either
+		if prefix and not prefix.isspace() : continue                                                               # if def is not at start of line : not a function def either
 		if start_lineno>0 :
 			prev_line = lines[start_lineno-1]
 			if prev_line and not prev_line.isspace() and prev_line.startswith(prefix) and prev_line[def_pos]=='@' :
-				file_end_lines[start_lineno] = None                            # cannot handle decorators in serializer as we generally cannot reproduce the object
+				file_end_lines[start_lineno] = None                                                                 # cannot handle decorators in serializer as we generally cannot reproduce the object
 		candidate = None
-		for lineno in range(start_lineno+1,len(lines)) :                       # XXX : handle misaligned (), [] & {} and multi-lines '''string''' & """string"""
+		for lineno in range(start_lineno+1,len(lines)) :                                                            # XXX : handle misaligned (), [] & {} and multi-lines '''string''' & """string"""
 			line = lines[lineno]
 			if comment_re.match(line) :
-				if not candidate : candidate = lineno                          # manage to exclude comment lines at end of funcs
+				if not candidate : candidate = lineno                                                               # manage to exclude comment lines at end of funcs
 				continue
 			if line.startswith(prefix) and line[def_pos].isspace() :
 				candidate = None
@@ -116,7 +116,7 @@ def _analyze(filename) :
 		file_end_lines[start_lineno] = end_lineno
 
 class Serialize :
-	InSet = object()                                                           # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
+	InSet = object()                                                 # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
 	def __init__(self,no_imports,ctx,decorator=None,root_dir=None) :
 		self.seen            = {}
 		self.src             = []
@@ -125,16 +125,26 @@ class Serialize :
 		self.decorator       = decorator
 		self.root_dir        = root_dir
 		self.debug_info      = {}
-		if isinstance(no_imports,str) : self.by_values =    {no_imports}
-		else                          : self.by_values = set(no_imports)
+		if not no_imports :
+			self.no_imports_proc = lambda m : False
+		elif isinstance(no_imports,str) :
+			no_imports_re = re.compile(no_imports)
+			def no_imports_proc(mod_name) :
+				try    : return no_imports_re.fullmatch(sys.modules[mod_name].__file__)
+				except : return False
+			self.no_imports_proc = no_imports_proc
+		elif isinstance(no_imports,set) :
+			self.no_imports_proc = no_imports.__contains__
+		else :
+			raise TypeError(f'cannot understand {no_imports}')
 
 	@staticmethod
 	def has_repr(val,avoid=None) :
 		try :
-			if avoid is None : avoid = set()                                   # avoid is used to detect loops : loops have no repr (i.e. the repr output does not represent to object)
+			if avoid is None : avoid = set()                            # avoid is used to detect loops : loops have no repr (i.e. the repr output does not represent to object)
 			cls = val.__class__
 			if val in (None,...)                         : return True
-			if cls is f_str                              : return False        # cannot use a simple repr call to generate an f-string
+			if cls is f_str                              : return False # cannot use a simple repr call to generate an f-string
 			if cls in (bool,int,float,complex,str,bytes) : return True
 			val_id = id(val)
 			if val_id in avoid : raise RuntimeError()
@@ -148,7 +158,7 @@ class Serialize :
 			else         : raise
 
 	def get_src(self) :
-		if len(self.src) and len(self.src[-1]) : self.src.append('')                     # ensure there is \n at the end
+		if len(self.src) and len(self.src[-1]) : self.src.append('') # ensure there is \n at the end
 		return (
 			'\n'.join(self.src)
 		,	{k for k,v in self.seen.items() if v is self.InSet}
@@ -163,14 +173,14 @@ class Serialize :
 	def get_glbs(code) :
 		'recursively find func globals'
 		# for global references, we need to inspect code as code.co_names contains much more
-		def gather_codes(code) :                                               # gather all code objects as there may be function defs within a function
+		def gather_codes(code) :                                  # gather all code objects as there may be function defs within a function
 			if code in codes : return
 			codes[code] = None
 			for c in code.co_consts :
 				if isinstance(c,types.CodeType) : gather_codes(c)
-		codes = {}                                                             # use dict to retain order so order is stable
+		codes = {}                                                # use dict to retain order so order is stable
 		gather_codes(code)
-		glb_names = {}                                                         # use dict to retain order so order is stable
+		glb_names = {}                                            # use dict to retain order so order is stable
 		for c in codes :
 			for i in dis.Bytecode(c) :
 				if i.opname in Serialize.have_name : glb_names[i.argval] = None
@@ -188,7 +198,7 @@ class Serialize :
 		if isinstance(val,types.ModuleType) :
 			if name==val.__name__ : self.src.append(f'import {val.__name__}'          )
 			else                  : self.src.append(f'import {val.__name__} as {name}')
-		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
+		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__) and not force :
 			if '.' in val.__qualname__ :
 				# use {name} to temporarily hold the module as it is guaranteed to be an available name
 				self.src.append(f'import {val.__module__} as {name} ; {name} = {name}.{val.__qualname__}')
@@ -206,9 +216,9 @@ class Serialize :
 			return val.__name__
 		sfx = ''
 		if call_callables and callable(val) :
-			inspect.signature(val).bind()                                                                                     # check val can be called with no argument
-			sfx = '()'                                                                                                        # call val if possible and required
-		if hasattr(val,'__module__') and hasattr(val,'__qualname__') and val.__module__ not in self.by_values and not force :
+			inspect.signature(val).bind()                                                                                          # check val can be called with no argument
+			sfx = '()'                                                                                                             # call val if possible and required
+		if hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__ ) and not force :
 			self.src.append(f'import {val.__module__}')
 			return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
@@ -228,7 +238,7 @@ class Serialize :
 				raise SyntaxError(f'{e} : {val!r}')
 			for glb_var in self.get_glbs(cfs) : self.gather_ctx(glb_var)
 			return fs
-		if val.__class__.__module__ not in self.by_values :
+		if  not self.no_imports_proc(val.__class__.__module__) :
 			# by default, use the broadest serializer available : pickle
 			# inconvenient is that the resulting source is everything but readable
 			# protocol 0 is the least unreadable, though, so use it
@@ -266,8 +276,8 @@ class Serialize :
 		_analyze(filename)
 		file_src       = srcs      [filename]
 		file_end_lines = end_liness[filename]
-		first_line_no1 = code.co_firstlineno                                   # first line is 1
-		first_line_no0 = first_line_no1-1                                      # first line is 0
+		first_line_no1 = code.co_firstlineno                                                                 # first line is 1
+		first_line_no0 = first_line_no1-1                                                                    # first line is 0
 		end_line_no    = file_end_lines.get(first_line_no0)
 		if first_line_no0>0 and file_src[first_line_no0-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
 		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'

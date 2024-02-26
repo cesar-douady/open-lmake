@@ -25,7 +25,7 @@ struct Ctx {
 } ;
 
 void* get_orig(const char* syscall) {
-	void* res = ::dlsym(RTLD_NEXT,syscall) ;                   // with CentOS-7, dlopen is in libdl, not in libc, but we want to track it
+	void* res = ::dlsym(RTLD_NEXT,syscall) ;
 	swear_prod(res,"cannot find symbol ",syscall," in libc") ;
 	return res ;
 }

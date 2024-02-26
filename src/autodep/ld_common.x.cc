@@ -53,9 +53,6 @@ extern "C" {
 	extern int  faccessat2 ( int dirfd , const char* pth , int mod , int flgs                                 ) noexcept ;
 	extern int  renameat2  ( int odfd  , const char* op  , int ndfd , const char* np , uint flgs              ) noexcept ;
 	extern int  statx      ( int dirfd , const char* pth , int flgs , uint msk , struct statx* buf            ) noexcept ;
-	#ifndef CLOSE_RANGE_CLOEXEC
-		#define CLOSE_RANGE_CLOEXEC 0 // if not defined, close_range is not going to be used and we do not need this flag, just allow compilation
-	#endif
 }
 
 static              ::mutex _g_mutex ;         // ensure exclusivity between threads
@@ -78,7 +75,8 @@ template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	// Ctx contains save_errno in its cxtor and restore_errno in its dxtor
 	// so here, errno must be restored at the end of cxtor and saved at the beginning of operator()
 	template<class... A> AuditAction(                                    A&&... args) requires(NP==0) : Action{auditer(),                      ::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NP==1) : Action{auditer(),::move(p ),           ::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(char*          p  ,                 A&&... args) requires(NP==1) : Action{auditer(),Record::WPath(p)     ,::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(Record::Path&& p  ,                 A&&... args) requires(NP==1) : Action{auditer(),::move(p )           ,::forward<A>(args)... } { restore_errno() ; }
 	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NP==2) : Action{auditer(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
 	// services
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditer(),res) ; }
@@ -86,6 +84,7 @@ template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 //                                          n paths
 using Chdir   = AuditAction<Record::Chdir          > ;
 using Chmod   = AuditAction<Record::Chmod          > ;
+using Hide    = AuditAction<Record::Hide   ,0      > ;
 using Mkdir   = AuditAction<Record::Mkdir          > ;
 using Lnk     = AuditAction<Record::Lnk    ,2      > ;
 using Open    = AuditAction<Record::Open           > ;
@@ -96,6 +95,24 @@ using Solve   = AuditAction<Record::Solve          > ;
 using Stat    = AuditAction<Record::Stat           > ;
 using Symlnk  = AuditAction<Record::Symlnk         > ;
 using Unlnk   = AuditAction<Record::Unlnk          > ;
+using WSolve  = AuditAction<Record::WSolve         > ;
+
+#ifdef LD_PRELOAD
+
+	//
+	// Dlopen
+	//
+
+	struct _Dlopen : Record::Read {
+		using Base = Record::Read ;
+		// cxtors & casts
+		_Dlopen() = default ;
+		_Dlopen( Record& r , const char* file , ::string&& c="dlopen" ) : Base{search_elf(r,file,::move(c))} {}
+		// services
+	} ;
+	using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
+
+#endif
 
 //
 // Exec
@@ -114,7 +131,7 @@ struct _Exec : Record::Exec {
 		else      elf_deps( r , real , nullptr     , c+".dep" ) ;                      // /!\ dont add LlpeSz to nullptr
 	}
 } ;
-using Exec = AuditAction<_Exec,1/*NP*/> ;
+using Exec = AuditAction<_Exec> ;
 
 struct _Execp : _Exec {
 	using Base = _Exec ;
@@ -154,29 +171,12 @@ struct _Execp : _Exec {
 } ;
 using Execp = AuditAction<_Execp,0/*NP*/> ;
 
-#ifdef LD_PRELOAD
-
-	//
-	// Dlopen
-	//
-
-		struct _Dlopen : Record::Read {
-			using Base = Record::Read ;
-			// cxtors & casts
-			_Dlopen() = default ;
-			_Dlopen( Record& r , const char* file , ::string&& c="dlopen" ) : Base{search_elf(r,file,::move(c))} {}
-			// services
-		} ;
-		using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
-
-#endif
-
 //
 // Fopen
 //
 
-struct Fopen : AuditAction<Record::Open,1/*NP*/> {
-	using Base = AuditAction<Record::Open,1/*NP*/> ;
+struct Fopen : AuditAction<Record::Open> {
+	using Base = AuditAction<Record::Open> ;
 	static int mk_flags(const char* mode) {
 		bool a = false ;
 		bool c = false ;
@@ -204,6 +204,36 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 } ;
 
 //
+// Getcwd
+//
+
+struct Getcwd : Hide {
+	Getcwd( size_t sz_ , Bool3 a ) : sz{sz_} , allocated{a} {}
+	char* operator()(char* res) { return fix_cwd( res , sz/*buf_sz*/ , 0/*sz*/ , allocated ).first ; }
+	// data
+	size_t sz        = 0 /*garbage*/ ;
+	Bool3  allocated = No/*garbage*/ ;
+} ;
+
+//
+// Mkstemp
+//
+
+struct Mkstemp : WSolve {
+	using Base = AuditAction<Record::WSolve> ;
+	Mkstemp( char* t , int sl=0 ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*allow_tmp_map*/ } , tmpl{t} , sfx_len{sl} {}
+	int operator()(int fd) {
+		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
+		if (file!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , file+strlen(file)-sfx_len-6 , 6 ) ;
+		if (fd>=0     ) Record::Open(auditer(),file,O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW,"mkstemp")(auditer(),fd) ;
+		return Base::operator()(fd) ;
+	}
+	// data
+	char* tmpl    = nullptr/*garbage*/ ;
+	int   sfx_len = 0      /*garbage*/ ;
+} ;
+
+//
 // Audited
 //
 
@@ -221,11 +251,6 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	#define NE           noexcept
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
 	#define EXE(  mode ) bool((mode )&S_IXUSR            )
-	#ifdef RENAME_EXCHANGE
-		#define REXC(flags) bool((flags)&RENAME_EXCHANGE)
-	#else
-		#define REXC(flags) false
-	#endif
 
 	// cwd is implicitly accessed by mostly all syscalls, so we have to ensure mutual exclusion as cwd could change between actual access and path resolution in audit
 	// hence we should use a shared lock when reading and an exclusive lock when chdir
@@ -234,37 +259,38 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HEADER1(unlink,path,(path))
+	#define ORIG(syscall) \
+		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ;
 	#define HEADER(syscall,cond,args) \
-		static auto orig = reinterpret_cast<decltype(::syscall)*>(get_orig(#syscall)) ;                                                    \
-		if ( _t_loop || !started() ) return orig args ;                                                                                    \
-		Save sav{_t_loop,true} ;                                                                                                           \
-		if ( !auditer().s_active() || (cond) ) return orig args ;  /*auditer() must be called protected by _t_loop and before s_active()*/ \
+		ORIG(syscall) ;                                 \
+		if ( _t_loop || !started() ) return orig args ; \
+		Save sav{_t_loop,true} ;                        \
+		if (cond) return orig args ;                    \
 		::unique_lock lock{_g_mutex}
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HEADER0(syscall,            args) HEADER( syscall , false                                                    , args )
 	#define HEADER1(syscall,path,       args) HEADER( syscall , Record::s_is_simple(path )                               , args )
 	#define HEADER2(syscall,path1,path2,args) HEADER( syscall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
 	// macro for syscall that are forbidden in server
-	#define HEADER0_NOT_IN_SERVER(syscall,args) \
-		HEADER( syscall , false , args ) ;                                \
-		if (Record::s_static_report) {                                    \
-			*Record::s_deps_err += #syscall " is forbidden in server\n" ; \
-			errno = ENOSYS ;                                              \
-			return -1 ;                                                   \
-		}
+	#ifdef IN_SERVER
+	#define NO_SERVER(syscall) \
+		*Record::s_deps_err += #syscall " is forbidden in server\n" ; \
+		errno = ENOSYS ;                                              \
+		return -1
+	#else
+		#define NO_SERVER(syscall)
+	#endif
 
 	#define CC   const char
 	#define P(r)                                  r.at,r.file
 	#define A(r) (SWEAR(!r.file||!*r.file,r.file),r.at       )
 	#define F(r)                                  r.file
 
-	static constexpr int Cwd = Fd::Cwd ;
-
 	// chdir
-	// chdir cannot be simple as we must tell Record of the new cwd, which implies a modification
+	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* pth) NE { HEADER0_NOT_IN_SERVER(chdir ,(pth)) ; Chdir r{pth   } ; return r(orig(F(r))) ; }
-	int fchdir(int fd ) NE { HEADER0_NOT_IN_SERVER(fchdir,(fd )) ; Chdir r{Fd(fd)} ; return r(orig(A(r))) ; }
+	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; NO_SERVER(chdir ) ; Chdir r{pth   } ; return r(orig(F(r))) ; }
+	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd)} ; return r(orig(A(r))) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
@@ -274,56 +300,58 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	int fchmod  (int fd ,        mode_t mod          ) NE { HEADER0(fchmod  ,    (fd     ,mod     )) ; Chmod r{Fd(fd)   ,EXE(mod),false      ,"fchmod"  } ; return r(orig(A(r),mod     )) ; }
 	int fchmodat(int dfd,CC* pth,mode_t mod, int flgs) NE { HEADER1(fchmodat,pth,(dfd,pth,mod,flgs)) ; Chmod r{{dfd,pth},EXE(mod),ASLNF(flgs),"fchmodat"} ; return r(orig(P(r),mod,flgs)) ; }
 
-	// close
-	// close cannot be simple as we must call hide, which may make modifications
-	// /!\ : close can be recursively called by auditing code
-	// in case close is called with one our our fd's, we must hide somewhere else
-	// Record::s_hide & s_hide_range are guaranteed syscall free, so no need to protect against errno
-	int  close      (int  fd                   )    { HEADER0(close      ,(fd          )) ;                                  auditer().hide      (fd     ) ; return orig(fd          ) ; }
-	int  __close    (int  fd                   )    { HEADER0(__close    ,(fd          )) ;                                  auditer().hide      (fd     ) ; return orig(fd          ) ; }
-	int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; if (!(flgs&CLOSE_RANGE_CLOEXEC)) auditer().hide_range(fd1,fd2) ; return orig(fd1,fd2,flgs) ; }
+	#ifndef IN_SERVER
+		// close
+		// close must be tracked as we must call hide
+		// in case close is called with one our our fd's, we must hide somewhere else (unless in server)
+		// note that although hide calls no syscall, auditer() can and we must manage errno
+		int  close  (int fd ) { HEADER0(close  ,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
+		int  __close(int fd ) { HEADER0(__close,(fd)) ; Hide r{fd} ; return r(orig(fd)) ; }
+		#if HAS_CLOSE_RANGE
+			int  close_range(uint fd1,uint fd2,int flgs) NE { HEADER0(close_range,(fd1,fd2,flgs)) ; Hide r{fd1,fd2,flgs} ; return r(orig(fd1,fd2,flgs)) ; }
+		#endif
+	#endif
 
 	#ifdef LD_PRELOAD
 		// dlopen
-		// dlopen cannot be simple as we do not know which file will be accessed
-		// not recursively called by auditing code
 		// not necessary with ld_audit as auditing mechanism provides a reliable way of finding indirect deps
 		void* dlopen (          CC* pth,int fs) NE { HEADER(dlopen ,!pth||!*pth,(   pth,fs)) ; Dlopen r{pth,"dlopen" } ; return r(orig(   pth,fs)) ; } // we do not support tmp mapping for indirect ...
-		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,pth,fs)) ; } // ... deps, so we can path pth to orig
+		void* dlmopen(Lmid_t lm,CC* pth,int fs) NE { HEADER(dlmopen,!pth||!*pth,(lm,pth,fs)) ; Dlopen r{pth,"dlmopen"} ; return r(orig(lm,pth,fs)) ; } // ... deps, so we can pass pth to orig
 	#endif
 
-	// dup2
-	// /!\ : dup2/3 can be recursively called by auditing code
-	// in case dup2/3 is called with one our fd's, we must hide somewhere else
-	// Record::s_hide is guaranteed syscall free, so no need to protect against errno
-	int dup2  (int oldfd,int newfd         ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; auditer().hide(newfd) ; return orig(oldfd,newfd     ) ; }
-	int dup3  (int oldfd,int newfd,int flgs) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; auditer().hide(newfd) ; return orig(oldfd,newfd,flgs) ; }
-	int __dup2(int oldfd,int newfd         ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; auditer().hide(newfd) ; return orig(oldfd,newfd     ) ; }
+	#ifndef IN_SERVER
+		// dup2
+		// in case dup2/3 is called with one our fd's, we must hide somewhere else (unless in server)
+		int dup2  (int oldfd,int newfd         ) NE { HEADER0(dup2  ,(oldfd,newfd     )) ; Hide r{newfd} ; return r(orig(oldfd,newfd     )) ; }
+		int dup3  (int oldfd,int newfd,int flgs) NE { HEADER0(dup3  ,(oldfd,newfd,flgs)) ; Hide r{newfd} ; return r(orig(oldfd,newfd,flgs)) ; }
+		int __dup2(int oldfd,int newfd         ) NE { HEADER0(__dup2,(oldfd,newfd     )) ; Hide r{newfd} ; return r(orig(oldfd,newfd     )) ; }
+	#endif
 
 	#ifdef LD_PRELOAD
 		// env
 		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
-		int setenv  (const char *name , const char *value , int overwrite) { HEADER0(setenv  ,(name,value,overwrite)) ; get_ld_library_path() ; return orig(name,value,overwrite) ; }
-		int unsetenv(const char *name                                    ) { HEADER0(unsetenv,(name                )) ; get_ld_library_path() ; return orig(name                ) ; }
-		int putenv  (char *string                                        ) { HEADER0(putenv  ,(string              )) ; get_ld_library_path() ; return orig(string              ) ; }
+		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; get_ld_library_path() ; return orig(name,value,overwrite) ; }
+		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; get_ld_library_path() ; return orig(name                ) ; }
+		int putenv  (char *string                                        ) { ORIG(putenv  ) ; get_ld_library_path() ; return orig(string              ) ; }
 	#endif
 
 	// execv
 	// execv*p cannot be simple as we do not know which file will be accessed
-	// exec may not support tmp mapping if it is involved along the interpreter path                                            no_follow
-	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0_NOT_IN_SERVER(execv  ,(pth,argv     )) ; Exec  r{pth,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
-	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0_NOT_IN_SERVER(execve ,(pth,argv,envp)) ; Exec  r{pth,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
-	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0_NOT_IN_SERVER(execvp ,(pth,argv     )) ; Execp r{pth,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
-	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0_NOT_IN_SERVER(execvpe,(pth,argv,envp)) ; Execp r{pth,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
+	// exec may not support tmp mapping if it is involved along the interpreter path                                                       no_follow
+	int execv  (CC* pth,char* const argv[]                   ) NE { HEADER0(execv  ,(pth,argv     )) ; NO_SERVER(execv  ) ; Exec  r{pth,false  ,environ,"execv"  } ; return r(orig(F(r),argv     )) ; }
+	int execve (CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execve ,(pth,argv,envp)) ; NO_SERVER(execve ) ; Exec  r{pth,false  ,envp   ,"execve" } ; return r(orig(F(r),argv,envp)) ; }
+	int execvp (CC* pth,char* const argv[]                   ) NE { HEADER0(execvp ,(pth,argv     )) ; NO_SERVER(execvp ) ; Execp r{pth,        environ,"execvp" } ; return r(orig(F(r),argv     )) ; }
+	int execvpe(CC* pth,char* const argv[],char* const envp[]) NE { HEADER0(execvpe,(pth,argv,envp)) ; NO_SERVER(execvpe) ; Execp r{pth,        envp   ,"execvpe"} ; return r(orig(F(r),argv,envp)) ; }
 	//
 	int execveat( int dfd , CC* pth , char* const argv[] , char *const envp[] , int flgs ) NE {
 		HEADER1(execveat,pth,(dfd,pth,argv,envp,flgs)) ;
+		NO_SERVER(execveat) ;
 		Exec r { {dfd,pth} , ASLNF(flgs) , envp , "execveat" } ;
 		return r(orig(dfd,pth,argv,envp,flgs)) ;
 	}
 	// execl
-	#define MK_ARGS(end_action) \
+	#define MK_ARGS(end_action,value) \
 		char*   cur         = const_cast<char*>(arg)            ;            \
 		va_list arg_cnt_lst ; va_start(arg_cnt_lst,arg        ) ;            \
 		va_list args_lst    ; va_copy (args_lst   ,arg_cnt_lst) ;            \
@@ -332,12 +360,15 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 		char** args = new char*[arg_cnt+1] ;                                 \
 		args[0] = const_cast<char*>(arg) ;                                   \
 		for( int i=1 ; i<=arg_cnt ; i++ ) args[i] = va_arg(args_lst,char*) ; \
-		end_action                                                           \
+		end_action          ;                                                \
 		va_end(arg_cnt_lst) ;                                                \
-		va_end(args_lst   )
-	int execl (CC* pth,CC* arg,...) NE { MK_ARGS(                                               ) ; int rc = execv (pth,args     ) ; delete[] args ; return rc ; }
-	int execle(CC* pth,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) ; ) ; int rc = execve(pth,args,envp) ; delete[] args ; return rc ; }
-	int execlp(CC* pth,CC* arg,...) NE { MK_ARGS(                                               ) ; int rc = execvp(pth,args     ) ; delete[] args ; return rc ; }
+		va_end(args_lst   ) ;                                                \
+		int rc = value      ;                                                \
+		delete[] args ;                                                      \
+		return rc
+	int execl (CC* pth,CC* arg,...) NE { MK_ARGS(                                             , execv (pth,args     ) ) ; }
+	int execle(CC* pth,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) , execve(pth,args,envp) ) ; }
+	int execlp(CC* pth,CC* arg,...) NE { MK_ARGS(                                             , execvp(pth,args     ) ) ; }
 	#undef MK_ARGS
 
 	// fopen
@@ -353,25 +384,26 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	//     if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread
 	//     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
 	// vfork is mapped to fork as vfork prevents most actions before following exec and we need a clean semantic to instrument exec
-	pid_t fork       () NE { HEADER0_NOT_IN_SERVER(fork       ,()) ; return orig()   ; }
-	pid_t __fork     () NE { HEADER0_NOT_IN_SERVER(__fork     ,()) ; return orig()   ; }
-	pid_t __libc_fork() NE { HEADER0_NOT_IN_SERVER(__libc_fork,()) ; return orig()   ; }
-	pid_t vfork      () NE {                                         return fork  () ; }
-	pid_t __vfork    () NE {                                         return __fork() ; }
-	#undef NOT_IN_SERVER
+	pid_t fork       () NE { HEADER0(fork       ,()) ; NO_SERVER(fork       ) ; return orig()   ; }
+	pid_t __fork     () NE { HEADER0(__fork     ,()) ; NO_SERVER(__fork     ) ; return orig()   ; }
+	pid_t __libc_fork() NE { HEADER0(__libc_fork,()) ; NO_SERVER(__libc_fork) ; return orig()   ; }
+	pid_t vfork      () NE {                                                    return fork  () ; }
+	pid_t __vfork    () NE {                                                    return __fork() ; }
 	//
-	int system(CC* cmd) { HEADER0(system,(cmd)) ; return orig(cmd) ; }     // cf fork for explanation as this syscall does fork
+	int system(CC* cmd) { HEADER0(system,(cmd)) ; return orig(cmd) ; } // cf fork for explanation as this syscall does fork
 
-	// getcwd
-	// cf man 3 getcwd (Linux)
-	// call auditer() to ensure proper initialization
-	//                                                                                                                                        buf_sz   sz        allocated
-	char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; auditer() ; return fix_cwd( orig(buf,sz) , sz       , 0 , buf?No:sz?Maybe:Yes ).first ; }
-	char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; auditer() ; return fix_cwd( orig(      ) , PATH_MAX , 0 , Yes                 ).first ; }
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-	char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; auditer() ; return fix_cwd( orig(buf   ) , PATH_MAX , 0                       ).first ; }
-	#pragma GCC diagnostic pop
+	#ifndef IN_SERVER
+		// getcwd
+		// cf man 3 getcwd (Linux)
+		// needed for tmp mapping (not available in server)
+		// nothing to hide, but calling Hide guarantees all invariants (in particular errno management and auditer initialization)
+		char* getcwd              (char* buf,size_t sz) NE { HEADER0(getcwd              ,(buf,sz)) ; Getcwd r{sz      ,buf?No:sz?Maybe:Yes} ; return r(orig(buf,sz)) ; }
+		char* get_current_dir_name(                   ) NE { HEADER0(get_current_dir_name,(      )) ; Getcwd r{PATH_MAX,Yes                } ; return r(orig(      )) ; }
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+		char* getwd               (char* buf          ) NE { HEADER0(getwd               ,(buf   )) ; Getcwd r{PATH_MAX,No                 } ; return r(orig(buf   )) ; }
+		#pragma GCC diagnostic pop
+	#endif
 
 	// link
 	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false/*no_follow*/ } ; return r(orig(F(r.src),F(r.dst)  )) ; }
@@ -382,41 +414,31 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p}} ; return r(orig(P(r),m)) ; }
 
 	// mkstemp
-	#define O_CWT (O_CREAT|O_WRONLY|O_TRUNC)
-	// in case of success, tmpl is modified to contain the file that was actually opened
-	#define MKSTEMP(syscall,tmpl,sfx_len,args) \
-		HEADER0(syscall,args) ;                                                                     \
-		Solve r  { tmpl , true/*no_follow*/ , false/*read*/ , true/*allow_tmp_map*/ } ;             \
-		int   fd = r(orig args)               ;                                                     \
-		if (F(r)!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , F(r)+strlen(F(r))-sfx_len-6 , 6 ) ; \
-		if (fd>=0     ) Record::Open(auditer(),F(r),O_CWT|O_NOFOLLOW,"mkstemp")(auditer(),fd) ;     \
-		return fd
-	int mkstemp    (char* tmpl                     ) { MKSTEMP( mkstemp     , tmpl , 0       , (tmpl             ) ) ; }
-	int mkostemp   (char* tmpl,int flgs            ) { MKSTEMP( mkostemp    , tmpl , 0       , (tmpl,flgs        ) ) ; }
-	int mkstemps   (char* tmpl,         int sfx_len) { MKSTEMP( mkstemps    , tmpl , sfx_len , (tmpl,     sfx_len) ) ; }
-	int mkostemps  (char* tmpl,int flgs,int sfx_len) { MKSTEMP( mkostemps   , tmpl , sfx_len , (tmpl,flgs,sfx_len) ) ; }
-	int mkstemp64  (char* tmpl                     ) { MKSTEMP( mkstemp64   , tmpl , 0       , (tmpl             ) ) ; }
-	int mkostemp64 (char* tmpl,int flgs            ) { MKSTEMP( mkostemp64  , tmpl , 0       , (tmpl,flgs        ) ) ; }
-	int mkstemps64 (char* tmpl,         int sfx_len) { MKSTEMP( mkstemps64  , tmpl , sfx_len , (tmpl,     sfx_len) ) ; }
-	int mkostemps64(char* tmpl,int flgs,int sfx_len) { MKSTEMP( mkostemps64 , tmpl , sfx_len , (tmpl,flgs,sfx_len) ) ; }
-	#undef MKSTEMP
+	int mkstemp    (char* tmpl                     ) { HEADER0(mkstemp    ,(tmpl             )) ; Mkstemp r{tmpl        } ; return r(orig(F(r)             )) ; }
+	int mkostemp   (char* tmpl,int flgs            ) { HEADER0(mkostemp   ,(tmpl,flgs        )) ; Mkstemp r{tmpl        } ; return r(orig(F(r),flgs        )) ; }
+	int mkstemps   (char* tmpl,         int sfx_len) { HEADER0(mkstemps   ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),     sfx_len)) ; }
+	int mkostemps  (char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps  ,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),flgs,sfx_len)) ; }
+	int mkstemp64  (char* tmpl                     ) { HEADER0(mkstemp64  ,(tmpl             )) ; Mkstemp r{tmpl        } ; return r(orig(F(r)             )) ; }
+	int mkostemp64 (char* tmpl,int flgs            ) { HEADER0(mkostemp64 ,(tmpl,flgs        )) ; Mkstemp r{tmpl        } ; return r(orig(F(r),flgs        )) ; }
+	int mkstemps64 (char* tmpl,         int sfx_len) { HEADER0(mkstemps64 ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),     sfx_len)) ; }
+	int mkostemps64(char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps64,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),flgs,sfx_len)) ; }
 
 	// open
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
-	int open             (      CC* p,int f , ...) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f    ,"open"             } ; return r(orig(F(r),f,m)) ; }
-	int __open           (      CC* p,int f , ...) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open"           } ; return r(orig(F(r),f,m)) ; }
-	int __open_nocancel  (      CC* p,int f , ...) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open_nocancel"  } ; return r(orig(F(r),f,m)) ; }
-	int __open_2         (      CC* p,int f      ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f    ,"__open_2"         } ; return r(orig(F(r),f  )) ; }
-	int open64           (      CC* p,int f , ...) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f    ,"open64"           } ; return r(orig(F(r),f,m)) ; }
-	int __open64         (      CC* p,int f , ...) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64"         } ; return r(orig(F(r),f,m)) ; }
-	int __open64_nocancel(      CC* p,int f , ...) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f    ,"__open64_nocancel"} ; return r(orig(F(r),f,m)) ; }
-	int __open64_2       (      CC* p,int f      ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f    ,"__open64_2"       } ; return r(orig(F(r),f  )) ; }
-	int openat           (int d,CC* p,int f , ...) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat"           } ; return r(orig(P(r),f,m)) ; }
-	int __openat_2       (int d,CC* p,int f      ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat_2"       } ; return r(orig(P(r),f  )) ; }
-	int openat64         (int d,CC* p,int f , ...) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f    ,"openat64"         } ; return r(orig(P(r),f,m)) ; }
-	int __openat64_2     (int d,CC* p,int f      ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f    ,"__openat64_2"     } ; return r(orig(P(r),f  )) ; }
-	int creat            (      CC* p,mode_t m   ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat"            } ; return r(orig(F(r),  m)) ; }
-	int creat64          (      CC* p,mode_t m   ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,O_CWT,"creat64"          } ; return r(orig(F(r),  m)) ; }
+	int open             (      CC* p,int f , ...) { MOD ; HEADER1(open             ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open"             } ; return r(orig(F(r),f,m)) ; }
+	int __open           (      CC* p,int f , ...) { MOD ; HEADER1(__open           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open"           } ; return r(orig(F(r),f,m)) ; }
+	int __open_nocancel  (      CC* p,int f , ...) { MOD ; HEADER1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open_nocancel"  } ; return r(orig(F(r),f,m)) ; }
+	int __open_2         (      CC* p,int f      ) {       HEADER1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open_2"         } ; return r(orig(F(r),f  )) ; }
+	int open64           (      CC* p,int f , ...) { MOD ; HEADER1(open64           ,p,(  p,f,m)) ; Open r{   p ,f                         ,"open64"           } ; return r(orig(F(r),f,m)) ; }
+	int __open64         (      CC* p,int f , ...) { MOD ; HEADER1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64"         } ; return r(orig(F(r),f,m)) ; }
+	int __open64_nocancel(      CC* p,int f , ...) { MOD ; HEADER1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f                         ,"__open64_nocancel"} ; return r(orig(F(r),f,m)) ; }
+	int __open64_2       (      CC* p,int f      ) {       HEADER1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f                         ,"__open64_2"       } ; return r(orig(F(r),f  )) ; }
+	int openat           (int d,CC* p,int f , ...) { MOD ; HEADER1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat"           } ; return r(orig(P(r),f,m)) ; }
+	int __openat_2       (int d,CC* p,int f      ) {       HEADER1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat_2"       } ; return r(orig(P(r),f  )) ; }
+	int openat64         (int d,CC* p,int f , ...) { MOD ; HEADER1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,"openat64"         } ; return r(orig(P(r),f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f      ) {       HEADER1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f                         ,"__openat64_2"     } ; return r(orig(P(r),f  )) ; }
+	int creat            (      CC* p,mode_t m   ) {       HEADER1(creat            ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat"            } ; return r(orig(F(r),  m)) ; }
+	int creat64          (      CC* p,mode_t m   ) {       HEADER1(creat64          ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),"creat64"          } ; return r(orig(F(r),  m)) ; }
 	#undef MOD
 	//
 	int name_to_handle_at( int dfd , CC* pth , struct ::file_handle *h , int *mount_id , int flgs ) NE {
@@ -424,7 +446,6 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 		Open r{{dfd,pth},flgs,"name_to_handle_at"} ;
 		return r(orig(P(r),h,mount_id,flgs)) ;
 	}
-	#undef O_CWT
 
 	// readlink
 	ssize_t readlink        (      CC* p,char* b,size_t sz           ) NE { HEADER1(readlink        ,p,(  p,b,sz    )) ; Readlnk r{   p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
@@ -432,10 +453,16 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
 	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz    )) ; }
 
-	// rename                                                                                                                 exchange
+	// rename
+	#ifdef RENAME_EXCHANGE
+		#define REXC(flags) bool((flags)&RENAME_EXCHANGE)
+	#else
+		#define REXC(flags) false
+	#endif //!                                                                                                                exchange
 	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false  ,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
 	int renameat (int od,CC* op,int nd,CC* np       ) NE { HEADER2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},false  ,"renameat" } ; return r(orig(P(r.src),P(r.dst)  )) ; }
 	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f),"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	#undef REXC
 
 	// rmdir
 	int rmdir(CC* p) NE { HEADER1(rmdir,p,(p)) ; Unlnk r{p,true/*rmdir*/,"rmdir"} ; return r(orig(F(r))) ; }
@@ -503,7 +530,7 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	// - so filter on s_tab must be done before locking (in HEADER)
 	// - this requires that s_tab does no memory allocation as memory allocation may call brk
 	// - hence it is a ::array, not a ::umap (which would be simpler)
-	long syscall( long n , ... ) {                                                               // XXX : support, or at least detect tmp mapping
+	long syscall( long n , ... ) {                                               // XXX : support, or at least detect tmp mapping
 		uint64_t args[6] ;
 		{	va_list lst ; va_start(lst,n) ;
 			args[0] = va_arg(lst,uint64_t) ;
@@ -522,23 +549,21 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void* descr_ctx = nullptr ;
-		{
-			[[maybe_unused]] Ctx audit_ctx ;                                                     // save user errno when required
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			bool skip = descr.entry( descr_ctx , auditer() , 0/*pid*/ , args , descr.comment ) ; // may modify args if tmp is mapped
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			//
-			if (skip) return -1 ;                                                                // return an error, as it is done in the ptrace case
-		}
+		Ctx audit_ctx ;                                                          // save user errno when required
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		descr.entry( descr_ctx , auditer() , 0/*pid*/ , args , descr.comment ) ; // may modify args if tmp is mapped
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		audit_ctx.restore_errno() ;
 		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
 		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		[[maybe_unused]] Ctx audit_ctx ;                                                         // save user errno when required
+		audit_ctx.save_errno() ;
 		//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		return descr.exit( descr_ctx , auditer() , 0/*pid*/ , res ) ;
 		//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
+	#undef NO_SERVER
 	#undef HEADER2
 	#undef HEADER1
 	#undef HEADER0
@@ -547,7 +572,6 @@ struct Fopen : AuditAction<Record::Open,1/*NP*/> {
 	#undef ORIG
 
 	#undef EXE
-	#undef REXC
 	#undef ASLNF
 	#undef NE
 

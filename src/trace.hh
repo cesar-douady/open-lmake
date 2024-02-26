@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "fd.hh"
 #include "time.hh"
 
 #define STR(x) Trace::str((x),#x)

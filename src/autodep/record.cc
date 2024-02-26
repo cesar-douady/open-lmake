@@ -12,8 +12,8 @@
 using namespace Disk ;
 using namespace Time ;
 
-// /!\ : doing any call to libc during static initialization leads to incoherent results
-// so, do  dynamic init for all static variables
+// /!\ : doing call to libc during static initialization may lead impredictably to incoherent results as we may be called very early in the init process
+// so, do dynamic init for all static variables
 
 //
 // Record
@@ -107,21 +107,6 @@ void Record::_report_access( JobExecRpcReq&& jerr ) const {
 	_report(::move(jerr)) ;
 }
 
-Record::SolveReport Record::_solve( Path& path , bool no_follow , bool read , ::string const& comment ) {
-	if (!path.file) return {} ;
-	SolveReport sr = _real_path.solve(path.at,path.file,no_follow) ;
-	for( ::string& lnk : sr.lnks ) _report_dep( ::move(lnk        ) , file_date(s_root_fd(),lnk) , Access::Lnk , comment+".lnk" ) ; // lnk exists
-	if ( !read && +sr.last_lnk   ) _report_dep( ::move(sr.last_lnk) , Ddate()                    , Access::Lnk , comment+".lst" ) ; // sr.lastlnk does not exist and we have not looked at errno ...
-	sr.lnks.clear() ;                                                                                                               // ... so we can report an unseen dep
-	if ( sr.mapped && path.file && path.file[0] ) {                                                                                 // else path is ok as it is
-		if      (is_abs(sr.real)) { if (+sr.real) path.allocate(sr.real) ; else path.share("/") ;      }                            // dont share real with file as real may be moved
-		else if (path.has_at    )   path.allocate( s_root_fd() , sr.real                           ) ;
-		else                        path.allocate( to_string(s_autodep_env().root_dir,'/',sr.real) ) ;
-	}
-	path.file_loc = sr.file_loc ;
-	return sr ;
-}
-
 JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
 	if (s_active()) {
 		bool sync = jerr.sync ; // save before moving jerr
@@ -134,11 +119,6 @@ JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
 		if ( jerr.sync && jerr.proc==JobExecRpcProc::DepInfos) return { jerr.proc , ::vector<pair<Bool3/*ok*/,Hash::Crc>>(jerr.files.size(),{Yes,{}}) } ;
 		else                                                   return {                                                                               } ;
 	}
-}
-
-::ostream& operator<<( ::ostream& os , Record::Path const& p ) {
-	if (p.at!=Fd::Cwd) os <<'@'<< p.at.fd <<':'         ;
-	return             os << p.file <<':' << p.file_loc ;
 }
 
 Record::Chdir::Chdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,true/*allow_tmp_map*/,c} {
