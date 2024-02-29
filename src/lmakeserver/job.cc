@@ -170,8 +170,8 @@ namespace Engine {
 	Job::Job( Rule::SimpleMatch&& match , Req req , DepDepth lvl ) {
 		Trace trace("Job",match,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
-		Rule                rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		::vmap_s<pair_s<AccDflags>> dep_names ;
+		Rule                     rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
+		::vmap_s<pair_s<Dflags>> dep_names ;
 		try {
 			dep_names = rule->deps_attrs.eval(match) ;
 		} catch (::pair_ss const& msg_err) {
@@ -182,17 +182,17 @@ namespace Engine {
 			}
 			return ;
 		}
-		::vmap<Node,AccDflags> deps ; deps.reserve(dep_names.size()) ;
+		::vmap<Node,Dflags> deps ; deps.reserve(dep_names.size()) ;
 		::umap<Node,VarIdx   > dis ;
-		for( auto const& [k,dnaf] : dep_names ) {
-			auto const& [dn,af] = dnaf ;
+		for( auto const& [k,dndf] : dep_names ) {
+			auto const& [dn,df] = dndf ;
 			Node d{dn} ;
 			//vvvvvvvvvvvvvvvvvvv
 			d->set_buildable(lvl) ;
 			//^^^^^^^^^^^^^^^^^^^
 			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
-			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok ) deps.emplace_back(d,af) ;
-			else                                                  deps[it->second].second |= af ; // uniquify deps by combining accesses and flags
+			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok ) deps.emplace_back(d,df) ;
+			else                                                  deps[it->second].second |= df ; // uniquify deps by combining accesses and flags
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//           args for store           args for JobData
@@ -262,7 +262,7 @@ namespace Engine {
 	JobRpcReply JobExec::job_info( JobProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = (*this)->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_info",proc,deps.size()) ;
-		if (!reqs) return proc ;                                     // if job is not running, it is too late
+		if (!reqs) return proc ;                                  // if job is not running, it is too late
 		//
 		switch (proc) {
 			case JobProc::DepInfos : {
@@ -270,40 +270,31 @@ namespace Engine {
 				for( Dep const& dep : deps ) {
 					Bool3 dep_ok = Yes ;
 					for( Req req : reqs ) {
-						// we need to compute crc if it can be done immediately, as is done in make
-						// or there is a risk that the job is not rerun if dep is remade steady and leave a bad crc leak to the job
 						NodeReqInfo& dri = dep->req_info(req) ;
-						Node(dep)->make( dri , RunAction::Status ) ; // XXX : avoid actually launching jobs if it is behind a critical modif
+						Node(dep)->make( dri , RunAction::Status ) ;
 						trace("dep_info",dep,req,dri) ;
-						if (dri.waiting()) {
-							dep_ok = Maybe ;
-							break ;
-						}
-						dep_ok &= dep->ok(dri,dep.accesses) ;
+						if (dri.waiting()                ) { dep_ok = Maybe ; break ; }
+						if (dep->ok(dri,dep.accesses)==No) { dep_ok = No    ; break ; }
 					}
 					res.emplace_back(dep_ok,dep->crc) ;
 				}
 				return {proc,res} ;
 			}
-			case JobProc::ChkDeps : {
-				bool ok = true ;
+			case JobProc::ChkDeps :
 				for( Dep const& dep : deps ) {
 					for( Req req : reqs ) {
 						// we do not need dep for our purpose, but it will soon be necessary, it is simpler just to call plain make()
-						// use Dsk as we promess file is available
 						NodeReqInfo& dri = dep->req_info(req) ;
-						Node(dep)->make( dri , RunAction::Dsk ) ;    // XXX : avoid actually launching jobs if it is behind a critical modif
+						Node(dep)->make( dri , RunAction::Dsk ) ; // use Dsk as we promess file is available
 						// if dep is waiting for any req, stop analysis as we dont know what we want to rebuild after
 						// and there is no loss of parallelism as we do not wait for completion before doing a full analysis in make()
-						if (dri.waiting()) { trace("waiting",dep) ; return {proc,Maybe} ; }
-						bool dep_ok = dep->ok(dri,dep.accesses)!=No ;
-						ok &= dep_ok ;
-						trace("chk_dep",dep,req,STR(dep_ok)) ;
+						if (dri.waiting()                 ) { trace("waiting",dep,req) ; return {proc,Maybe} ; }
+						if (dep->ok(dri,dep.accesses)==No ) { trace("bad"    ,dep,req) ; return {proc,No   } ; }
+						/**/                                  trace("ok"     ,dep,req) ;
 					}
 				}
-				trace("done",STR(ok)) ;
-				return {proc,No|ok} ;
-			}
+				trace("done") ;
+				return {proc,No} ;
 			default : FAIL(proc) ;
 		}
 	}
@@ -398,13 +389,13 @@ namespace Engine {
 		//
 		if ( status<=Status::Garbage && ok!=No )
 			switch (status) {
-				case Status::EarlyLost :
-				case Status::LateLost  : local_reason = JobReasonTag::Lost    ; break ;
-				case Status::Killed    : local_reason = JobReasonTag::Killed  ; break ;
-				case Status::ChkDeps   : local_reason = JobReasonTag::ChkDeps ; break ;
-				case Status::Garbage   : local_reason = JobReasonTag::Garbage ; break ;
-				default : FAIL(status) ;
-			}
+				case Status::EarlyLost    :
+				case Status::LateLost     : local_reason = JobReasonTag::Lost    ; break ;
+				case Status::Killed       : local_reason = JobReasonTag::Killed  ; break ;
+				case Status::EarlyChkDeps :
+				case Status::ChkDeps      : local_reason = JobReasonTag::ChkDeps ; break ;
+				case Status::Garbage      : local_reason = JobReasonTag::Garbage ; break ;
+			DF}
 		//
 		(*this)->status = ::min(status,Status::Garbage) ; // ensure we cannot appear up to date while working on data
 		fence() ;
@@ -1074,43 +1065,15 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
 		using Step = JobStep ;
-		Req                req                = ri.req  ;
-		Rule::SimpleMatch  match              { idx() } ;
-		SubmitRsrcsAttrs   submit_rsrcs_attrs ;
-		SubmitNoneAttrs    submit_none_attrs  ;
-		CacheNoneAttrs     cache_none_attrs   ;
-		::vmap_s<Accesses> deps               ;
+		Req                 req                = ri.req  ;
+		Rule::SimpleMatch   match              { idx() } ;
+		::vmap_s<DepDigest> deps               ;
 		Trace trace("submit_plain",idx(),ri,reason,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;
-		try {
-			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval( idx() , match , &deps ) ;
-		} catch (::pair_ss const& msg_err) {
-			req->audit_job   ( Color::Err  , "failed" , idx()                                                                               ) ;
-			req->audit_stderr( ensure_nl(rule->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
-			run_status = RunStatus::RsrcsErr ;
-			trace("no_rsrcs",ri) ;
-			return false/*may_new_deps*/ ;
-		}
-		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-		try {
-			submit_none_attrs = rule->submit_none_attrs.eval( idx() , match , &::ref(::vmap_s<Accesses>()) ) ;   // dont care about dependencies as these attributes have no impact on result
-		} catch (::pair_ss const& msg_err) {
-			submit_none_attrs = rule->submit_none_attrs.spec ;
-			req->audit_job(Color::Note,"no_dynamic",idx()) ;
-			req->audit_stderr( ensure_nl(rule->submit_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
-		}
-		try {
-			cache_none_attrs = rule->cache_none_attrs.eval( idx() , match , &::ref(::vmap_s<Accesses>()) ) ;     // dont care about dependencies as these attributes have no impact on result
-		} catch (::pair_ss const& msg_err) {
-			cache_none_attrs = rule->cache_none_attrs.spec ;
-			req->audit_job(Color::Note,"no_dynamic",idx()) ;
-			req->audit_stderr( ensure_nl(rule->cache_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
-		}
-		ri.backend = submit_rsrcs_attrs.backend ;
 		for( Req r : running_reqs(false/*with_zombies*/) ) if (r!=req) {
 			ReqInfo const& cri = c_req_info(r) ;
-			SWEAR( cri.backend==ri.backend , cri.backend , ri.backend ) ;
+			ri.backend = cri.backend ;
 			ri.n_wait++ ;
 			ri.step = cri.step ;                                                                                 // Exec or Queued, same as other reqs
 			if (ri.step==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
@@ -1119,8 +1082,16 @@ namespace Engine {
 			return false/*may_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ;                                   // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
-		//
+		for( Node t : targets ) t->set_buildable() ; // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
+		CacheNoneAttrs cache_none_attrs ;
+		try {
+			cache_none_attrs = rule->cache_none_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ;   // dont care about dependencies as these attributes have no impact on result
+		} catch (::pair_ss const& msg_err) {
+			cache_none_attrs = rule->cache_none_attrs.spec ;
+			req->audit_job(Color::Note,"no_dynamic",idx()) ;
+			req->audit_stderr( ensure_nl(rule->cache_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
+		}
 		if (+cache_none_attrs.key) {
 			Cache*       cache       = Cache::s_tab.at(cache_none_attrs.key) ;
 			Cache::Match cache_match = cache->match(idx(),req)               ;
@@ -1128,7 +1099,7 @@ namespace Engine {
 			switch (cache_match.hit) {
 				case Yes :
 					try {
-						JobExec  je        { idx() , New , New }      ;                // job starts and ends, no host
+						JobExec  je        { idx() , New , New }      ;                                         // job starts and ends, no host
 						NfsGuard nfs_guard { g_config.reliable_dirs } ;
 						//
 						vmap<Node,FileAction> fas     = pre_actions(match).first ;
@@ -1147,16 +1118,16 @@ namespace Engine {
 						if (ri.live_out) je.live_out(ri,digest.stdout) ;
 						ri.step = Step::Hit ;
 						trace("hit_result") ;
-						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ; // no resources nor backend for cached jobs
+						bool modified = je.end({}/*rsrcs*/,digest,{}/*backend_msg*/) ;                          // no resources nor backend for cached jobs
 						req->stats.ended(JobReport::Hit)++ ;
 						req->missing_audits[idx()] = { JobReport::Hit , modified , {} } ;
 						return true/*maybe_new_deps*/ ;
-					} catch (::string const&) {}                                       // if we cant download result, it is like a miss
+					} catch (::string const&) {}                                                                // if we cant download result, it is like a miss
 				break ;
 				case Maybe :
 					for( Node d : cache_match.new_deps ) {
 						Node::ReqInfo& dri = d->req_info(req) ;
-						d->make( dri , RunAction::Status ) ;
+						d->make(dri) ;
 						if (dri.waiting()) d->add_watcher(dri,idx(),ri,pressure) ;
 					}
 					trace("hit_deps") ;
@@ -1165,8 +1136,40 @@ namespace Engine {
 				break ;
 			DF}
 		}
-		ri.n_wait++ ;                                                                  // set before calling submit call back as in case of flash execution, we must be clean
-		ri.step = Step::Queued ;
+		//
+		SubmitRsrcsAttrs submit_rsrcs_attrs ;
+		try {
+			submit_rsrcs_attrs = rule->submit_rsrcs_attrs.eval( idx() , match , &deps ) ;
+		} catch (::pair_ss const& msg_err) {
+			req->audit_job   ( Color::Err  , "failed" , idx()                                                                               ) ;
+			req->audit_stderr( ensure_nl(rule->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
+			run_status = RunStatus::RsrcsErr ;
+			trace("no_rsrcs",ri) ;
+			return false/*may_new_deps*/ ;
+		}
+		for( auto const& [dn,dd] : deps ) {
+			Node           d   { dn }             ;
+			Node::ReqInfo& dri = d->req_info(req) ;
+			d->make(dri) ;
+			if (dri.waiting()) d->add_watcher(dri,idx(),ri,pressure) ;
+		}
+		if (ri.waiting()) {
+			trace("waiting_rsrcs") ;
+			return true/*maybe_new_deps*/ ;
+		}
+		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
+		SubmitNoneAttrs submit_none_attrs ;
+		try {
+			submit_none_attrs = rule->submit_none_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ; // dont care about dependencies as these attributes have no impact on result
+		} catch (::pair_ss const& msg_err) {
+			submit_none_attrs = rule->submit_none_attrs.spec ;
+			req->audit_job(Color::Note,"no_dynamic",idx()) ;
+			req->audit_stderr( ensure_nl(rule->submit_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , -1 , 1 ) ;
+		}
+		//
+		ri.n_wait++ ;                                                                                           // set before calling submit call back as in case of flash execution, we must be clean
+		ri.step    = Step::Queued               ;
+		ri.backend = submit_rsrcs_attrs.backend ;
 		try {
 			SubmitAttrs sa = {
 				.live_out  = ri.live_out
@@ -1179,7 +1182,7 @@ namespace Engine {
 			Backend::s_submit( ri.backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			ri.n_wait-- ;                                                              // restore n_wait as we prepared to wait
+			ri.n_wait-- ;                                                                                       // restore n_wait as we prepared to wait
 			ri.step = Step::End        ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , idx()     ) ;

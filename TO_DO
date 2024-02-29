@@ -54,6 +54,9 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* report env variables chosen in job_exec
+	- for lshow -i
+	- for ldebug
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
 * be more consise in console output
@@ -101,6 +104,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* support hidden deps in attribut computation
 * implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
@@ -246,8 +250,9 @@ items :
 * TESTS
 ****************************************************************************************************
 
-* add a unit test for dynamic config update
-* add a unit test for sub-Lmakefile.py
+* add a TU for scp
+* add a TU for dynamic config update
+* add a TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
 * add a unit_test to validate n_retries

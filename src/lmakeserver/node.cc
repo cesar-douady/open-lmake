@@ -88,7 +88,7 @@ namespace Engine {
 		for( Job job : conform_job_tgts(ri) ) job->set_pressure(job->req_info(ri.req),ri.pressure) ; // go through current analysis level as this is where we may have deps we are waiting for
 	}
 
-	bool/*modified*/ NodeData::refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs_ , ::string const& name_ ) {
+	bool/*modified*/ NodeData::refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs_ , ::string const& name_ ) { // reqss_ are for reporting only
 		bool        prev_ok   = crc.valid() && crc.exists() ;
 		bool        frozen    = idx().frozen()              ;
 		const char* msg       = frozen ? "frozen" : "src"   ;
@@ -104,7 +104,7 @@ namespace Engine {
 			if ( crc.valid() && crc.exists() && fi.date==date() ) return false/*updated*/ ;
 			Crc   crc_  = Crc::Reg ;
 			Ddate date_ ;
-			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(date_,name_,g_config.hash_algo) ; // ensure file is stable when computing crc
+			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(date_,name_,g_config.hash_algo) ;                           // ensure file is stable when computing crc
 			Accesses mismatch = crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvvvv
 			refresh( crc_ , date_ ) ;

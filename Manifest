@@ -157,6 +157,7 @@ unit_tests/codec.py
 unit_tests/conflict.py
 unit_tests/conflict2.py
 unit_tests/critical.py
+unit_tests/cwd.py
 unit_tests/cycle.py
 unit_tests/depend.py
 unit_tests/depend_verbose.py
@@ -164,6 +165,7 @@ unit_tests/dup.py
 unit_tests/dyn_accesses.py
 unit_tests/dynamic.py
 unit_tests/dynamic_py.py
+unit_tests/escape.py
 unit_tests/force.py
 unit_tests/generic_sources.py
 unit_tests/git.py
@@ -176,6 +178,8 @@ unit_tests/jemalloc.py
 unit_tests/jobs.py
 unit_tests/link.py
 unit_tests/lmark.py
+unit_tests/mandelbrot.py
+unit_tests/mandelbrot.zip
 unit_tests/misc1.py
 unit_tests/misc2.py
 unit_tests/modules.py

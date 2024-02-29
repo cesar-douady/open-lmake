@@ -154,8 +154,8 @@ else :
 		ut.lmake( 'max_stderr_len.2'    , done=rc     , steady=1-rc , failed=0  , new=0      ,                rc=0  )
 		ut.lmake( 'allow_stderr.no'     , done=0      , steady=0    , failed=1  , new=0      ,                rc=1  )
 		ut.lmake( 'allow_stderr.yes'    , done=0      , steady=1-rc , failed=rc , new=0      ,                rc=rc )
-		ut.lmake( 'auto_mkdir.no.ok'    , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
-		ut.lmake( 'auto_mkdir.yes.ok'   , done=2-rc*2 , steady=0    , failed=rc , new=rc     ,                rc=rc )
-		ut.lmake( 'cmd'                 , done=1-rc   , steady=0    , failed=rc , new=0      ,                rc=rc )
+		ut.lmake( 'auto_mkdir.no.ok'    , done=2-rc*2 , steady=0    , failed=rc , new=rc     , rerun=rc     , rc=rc )        # Python error reporting accesses source files interpreted as hidden deps
+		ut.lmake( 'auto_mkdir.yes.ok'   , done=2-rc*2 , steady=0    , failed=rc , new=rc     , rerun=rc     , rc=rc )        # .
+		ut.lmake( 'cmd'                 , done=1-rc   , steady=0    , failed=rc , new=0      , rerun=rc     , rc=rc )        # .
 		#
-		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , rc=rc )
+		for ad in autodeps : ut.lmake( f'autodep.{ad}.ok' , done=2-rc*2 , steady=0 , failed=rc , new=rc , rerun=rc , rc=rc ) # .

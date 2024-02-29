@@ -186,38 +186,42 @@ ENUM( MatchKind
 ,	DepFlags
 )
 
-ENUM_2( Status           // result of job execution
-,	Early = EarlyLostErr // <=Early means output has not been modified
-,	Async = Killed       // <=Async means job was interrupted asynchronously
-,	New                  // job was never run
-,	Manual               // job was not started because some targets were manual
-,	EarlyErr             // job was not started because of error
-,	EarlyLost            // job was lost before starting     , retry
-,	EarlyLostErr         // job was lost before starting     , do not retry
-,	LateLost             // job was lost after having started, retry
-,	LateLostErr          // job was lost after having started, do not retry
-,	Killed               // job was killed
-,	ChkDeps              // dep check failed
-,	Garbage              // <=Garbage means job has not run reliably
-,	Ok                   // job execution ended successfully
-,	Err                  // job execution ended in error
+ENUM_2( Status                           // result of job execution
+,	Early = EarlyLostErr                 // <=Early means output has not been modified
+,	Async = Killed                       // <=Async means job was interrupted asynchronously
+,	New                                  // job was never run
+,	Manual                               // job was not started because some targets were manual
+,	EarlyChkDeps                         // dep check failed before job actually started
+,	EarlyErr                             // job was not started because of error
+,	EarlyLost                            // job was lost before starting     , retry
+,	EarlyLostErr                         // job was lost before starting     , do not retry
+,	LateLost                             // job was lost after having started, retry
+,	LateLostErr                          // job was lost after having started, do not retry
+,	Killed                               // job was killed
+,	ChkDeps                              // dep check failed
+,	Garbage                              // <=Garbage means job has not run reliably
+,	Ok                                   // job execution ended successfully
+,	Err                                  // job execution ended in error
 )
 static inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
 static inline Bool3 is_ok  (Status s) {
-	switch (s) {
-		case Status::New          : return Maybe ;
-		case Status::Manual       : return No    ;
-		case Status::EarlyErr     : return No    ;
-		case Status::EarlyLost    : return Maybe ;
-		case Status::EarlyLostErr : return No    ;
-		case Status::LateLost     : return Maybe ;
-		case Status::LateLostErr  : return No    ;
-		case Status::Killed       :
-		case Status::ChkDeps      :
-		case Status::Garbage      : return Maybe ;
-		case Status::Ok           : return Yes   ;
-		case Status::Err          : return No    ;
-	DF}
+	static constexpr Bool3 IsOkTab[] = {
+		Maybe                            // New
+	,	No                               // Manual
+	,	Maybe                            // EarlyChkDeps
+	,	No                               // EarlyErr
+	,	Maybe                            // EarlyLost
+	,	No                               // EarlyLostEr
+	,	Maybe                            // LateLost
+	,	No                               // LateLostErr
+	,	Maybe                            // Killed
+	,	Maybe                            // ChkDeps
+	,	Maybe                            // Garbage
+	,	Yes                              // Ok
+	,	No                               // Err
+	} ;
+	static_assert(sizeof(IsOkTab)==N<Status>) ;
+	return IsOkTab[+s] ;
 }
 static inline Status mk_err(Status s) {
 	switch (s) {
@@ -272,33 +276,6 @@ struct JobReason {
 	NodeIdx node = 0                  ;
 } ;
 
-struct SubmitAttrs {
-	friend ::ostream& operator<<( ::ostream& , SubmitAttrs const& ) ;
-	// services
-	SubmitAttrs& operator|=(SubmitAttrs const& other) {
-		// tag, deps and n_retries are independent of req but may not always be present
-		if      ( tag==BackendTag::Unknown) tag       = other.tag       ; else if ( other.tag!=BackendTag::Unknown) SWEAR(tag      ==other.tag      ,tag      ,other.tag      ) ;
-		if      (!deps                    ) deps      = other.deps      ; else if (+other.deps                    ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
-		if      (!n_retries               ) n_retries = other.n_retries ; else if ( other.n_retries               ) SWEAR(n_retries==other.n_retries,n_retries,other.n_retries) ;
-		pressure   = ::max(pressure ,other.pressure ) ;
-		live_out  |= other.live_out                   ;
-		reason    |= other.reason                     ;
-		return *this ;
-	}
-	SubmitAttrs operator|(SubmitAttrs const& other) const {
-		SubmitAttrs res = *this ;
-		res |= other ;
-		return res ;
-	}
-	// data
-	BackendTag         tag       = BackendTag::Unknown ;
-	bool               live_out  = false               ;
-	uint8_t            n_retries = 0                   ;
-	Time::CoarseDelay  pressure  = {}                  ;
-	::vmap_s<Accesses> deps      = {}                  ;
-	JobReason          reason    = {}                  ;
-} ;
-
 struct JobStats {
 	using Delay = Time::Delay ;
 	// data
@@ -329,17 +306,18 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	DepDigestBase( Base b , Accesses a ,           Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
 	DepDigestBase( Base b , Accesses a , Crc   c , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
 	DepDigestBase( Base b , Accesses a , Ddate d , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
-	// initializing _crc in all caes (which crc_date does not do) is important to please compiler (gcc-11 -O3)
+	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
 	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	//
 	bool operator==(DepDigestBase const& other) const {
-		if (dflags  !=other.dflags  ) return false              ;
-		if (accesses!=other.accesses) return false              ;
-		if (parallel!=other.parallel) return false              ;
-		if (is_date !=other.is_date ) return false              ;
-		if (is_date                 ) return _date==other._date ;
-		else                          return _crc ==other._crc  ;
+		if constexpr (HasBase) if (Base::operator!=(other) ) return false              ;
+		/**/                   if (dflags  !=other.dflags  ) return false              ;
+		/**/                   if (accesses!=other.accesses) return false              ;
+		/**/                   if (parallel!=other.parallel) return false              ;
+		/**/                   if (is_date !=other.is_date ) return false              ;
+		/**/                   if (is_date                 ) return _date==other._date ;
+		/**/                   else                          return _crc ==other._crc  ;
 	}
 	// accesses
 	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
@@ -353,6 +331,21 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else              crc (dd.crc ()) ;
 	}
 	// services
+	DepDigestBase& operator|=(DepDigestBase const& other) {                      // assumes other has been accessed after us
+		if constexpr (HasBase) SWEAR(Base::operator==(other),other) ;
+		if (+accesses) {
+			SWEAR(is_date==other.is_date,is_date) ;                              // else, cannot make fusion
+			if (is_date) { if (date()!=other.date()) crc({}) ; }                 // destroy info if digests disagree
+			else         { if (crc ()!=other.crc ()) crc({}) ; }                 // .
+			// parallel is kept untouched as we are the first access
+		} else {
+			crc_date(other) ;
+			parallel = other.parallel ;
+		}
+		dflags   |= other.dflags   ;
+		accesses |= other.accesses ;
+		return *this ;
+	}
 	void tag(Tag tag) {
 		SWEAR(is_date) ;
 		if (!_date) { crc(Crc::None) ; return ; }                                // even if file appears, the whole job has been executed seeing the file as absent
@@ -461,21 +454,23 @@ struct JobRpcReq {
 				::serdes(s,ctx ) ;
 			break ;
 			case P::End :
-				::serdes(s,digest) ;
-				::serdes(s,msg   ) ;
+				::serdes(s,digest     ) ;
+				::serdes(s,dynamic_env) ;
+				::serdes(s,msg        ) ;
 			break ;
 		DF}
 	}
 	// data
-	P         proc    = P::None ;
-	SI        seq_id  = 0       ;
-	JI        job     = 0       ;
-	in_port_t port    = 0       ; // if proc == Start
-	JobDigest digest  ;           // if proc ==         ChkDeps | DepInfos |                              End
-	::string  msg     ;           // if proc == Start |                      LiveOut  | Decode | Encode | End
-	::string  file    ;           // if proc ==                                         Decode | Encode
-	::string  ctx     ;           // if proc ==                                         Decode | Encode
-	uint8_t   min_len ;           // if proc ==                                                  Encode
+	P         proc        = P::None ;
+	SI        seq_id      = 0       ;
+	JI        job         = 0       ;
+	in_port_t port        = 0       ; // if proc == Start
+	JobDigest digest      ;           // if proc ==         ChkDeps | DepInfos |                              End
+	::vmap_ss dynamic_env ;           // if proc ==                                                           End env variables computed in job_exec
+	::string  msg         ;           // if proc == Start |                      LiveOut  | Decode | Encode | End
+	::string  file        ;           // if proc ==                                         Decode | Encode
+	::string  ctx         ;           // if proc ==                                         Decode | Encode
+	uint8_t   min_len     ;           // if proc ==                                                  Encode
 } ;
 
 struct MatchFlags {
@@ -541,6 +536,7 @@ struct JobRpcReply {
 				::serdes(s,chroot          ) ;
 				::serdes(s,cmd             ) ;
 				::serdes(s,cwd_s           ) ;
+				::serdes(s,deps            ) ;
 				::serdes(s,env             ) ;
 				::serdes(s,hash_algo       ) ;
 				::serdes(s,interpreter     ) ;
@@ -553,7 +549,6 @@ struct JobRpcReply {
 				::serdes(s,remote_admin_dir) ;
 				::serdes(s,small_id        ) ;
 				::serdes(s,star_matches    ) ;
-				::serdes(s,static_deps     ) ;
 				::serdes(s,static_matches  ) ;
 				::serdes(s,stdin           ) ;
 				::serdes(s,stdout          ) ;
@@ -570,6 +565,7 @@ struct JobRpcReply {
 	::string                  chroot           ;                 // proc == Start
 	::pair_ss/*script,call*/  cmd              ;                 // proc == Start
 	::string                  cwd_s            ;                 // proc == Start
+	::vmap_s<DepDigest>       deps             ;                 // proc == Start                 , deps already accessed (always includes static deps)
 	::vmap_ss                 env              ;                 // proc == Start
 	Algo                      hash_algo        = Algo::Xxh     ; // proc == Start
 	::vector_s                interpreter      ;                 // proc == Start                 , actual interpreter used to execute cmd
@@ -582,7 +578,6 @@ struct JobRpcReply {
 	::string                  remote_admin_dir ;                 // proc == Start
 	SmallId                   small_id         = 0             ; // proc == Start
 	::vmap_s<MatchFlags>      star_matches     ;                 // proc == Start                 , maps regexprs to flags
-	::vmap_s<DepDigest>       static_deps      ;                 // proc == Start
 	::vmap_s<MatchFlags>      static_matches   ;                 // proc == Start
 	::string                  stdin            ;                 // proc == Start
 	::string                  stdout           ;                 // proc == Start
@@ -820,6 +815,33 @@ struct JobServerRpcReq {
 	Proc   proc   = {} ;
 	SeqId  seq_id = 0  ;
 	JobIdx job    = 0  ;
+} ;
+
+struct SubmitAttrs {
+	friend ::ostream& operator<<( ::ostream& , SubmitAttrs const& ) ;
+	// services
+	SubmitAttrs& operator|=(SubmitAttrs const& other) {
+		// tag, deps and n_retries are independent of req but may not always be present
+		if      ( tag==BackendTag::Unknown) tag       = other.tag       ; else if ( other.tag!=BackendTag::Unknown) SWEAR(tag      ==other.tag      ,tag      ,other.tag      ) ;
+		if      (!deps                    ) deps      = other.deps      ; else if (+other.deps                    ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
+		if      (!n_retries               ) n_retries = other.n_retries ; else if ( other.n_retries               ) SWEAR(n_retries==other.n_retries,n_retries,other.n_retries) ;
+		pressure   = ::max(pressure ,other.pressure ) ;
+		live_out  |= other.live_out                   ;
+		reason    |= other.reason                     ;
+		return *this ;
+	}
+	SubmitAttrs operator|(SubmitAttrs const& other) const {
+		SubmitAttrs res = *this ;
+		res |= other ;
+		return res ;
+	}
+	// data
+	BackendTag          tag       = {}    ;
+	bool                live_out  = false ;
+	uint8_t             n_retries = 0     ;
+	Time::CoarseDelay   pressure  = {}    ;
+	::vmap_s<DepDigest> deps      = {}    ;
+	JobReason           reason    = {}    ;
 } ;
 
 struct JobInfoStart {

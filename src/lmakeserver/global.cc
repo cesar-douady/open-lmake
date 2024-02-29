@@ -73,10 +73,10 @@ namespace Engine {
 	ConfigStatic::Cache::Cache(Dict const& py_map) {
 		::string field     ;
 		bool     found_tag = false ;
-		for( auto [k,v] : py_map ) {
-			field = k->as_a<Str>() ;
-			if (field=="tag") { tag = mk_enum<Tag>(v->as_a<Str>()) ; found_tag = true ; }
-			else                dct.emplace_back(field,*v->str())   ;
+		for( auto const& [py_k,py_v] : py_map ) {
+			field = py_k.as_a<Str>() ;
+			if (field=="tag") { tag = mk_enum<Tag>(py_v.as_a<Str>()) ; found_tag = true ; }
+			else                dct.emplace_back(field,*py_v.str()) ;
 		}
 		if (!found_tag) throw "tag not found"s ;
 	}
@@ -84,9 +84,9 @@ namespace Engine {
 	ConfigDynamic::Backend::Backend(Dict const& py_map) : configured{true} {
 		::string field ;
 		try {
-			for( auto [py_k,py_v] : py_map ) {
-				field = py_k->as_a<Str>() ;
-				::string v = *py_v==True ? "1"s : *py_v==False ? "0"s : ::string(*py_v->str()) ;
+			for( auto const& [py_k,py_v] : py_map ) {
+				field = py_k.as_a<Str>() ;
+				::string v = py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ;
 				if (field=="interface") ifce = v ;
 				else                    dct.emplace_back(field,v) ;
 			}
@@ -146,15 +146,6 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			//
-			fields[0] = "n_tokens_tab" ;
-			if (py_map.contains(fields[0])) {
-				for( auto [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
-					fields[1] = py_key->as_a<Str>() ;
-					size_t v = py_val->as_a<Int>() ;
-					if (v) static_n_tokenss[fields[1]] = v ; // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
-				}
-			}
-			//
 			fields[0] = "backends" ;
 			if (!py_map.contains(fields[0])) throw "not found"s ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
@@ -187,9 +178,9 @@ namespace Engine {
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
-				for( auto [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
-					fields[1] = py_key->as_a<Str>() ;
-					caches[fields[1]] = Cache(py_val->as_a<Dict>()) ;
+				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
+					fields[1] = py_key.as_a<Str>() ;
+					caches[fields[1]] = Cache(py_val.as_a<Dict>()) ;
 				}
 				fields.pop_back() ;
 			}
@@ -229,7 +220,7 @@ namespace Engine {
 				fields[1] = "n_jobs"   ; if (py_trace.contains(fields[1])) trace.n_jobs = py_trace[fields[1]].as_a<Int>()                              ;
 				fields[1] = "channels" ; if (py_trace.contains(fields[1])) {
 					trace.channels = {} ;
-					for( auto py_c : py_trace[fields[1]].as_a<Sequence>() ) trace.channels |= mk_enum<Channel>(py_c->as_a<Str>()) ;
+					for( Object const& py_c : py_trace[fields[1]].as_a<Sequence>() ) trace.channels |= mk_enum<Channel>(py_c.as_a<Str>()) ;
 				}
 				fields.pop_back() ;
 			}
@@ -303,18 +294,6 @@ namespace Engine {
 			for( StdRsrc r : All<StdRsrc> ) if (rsrc_digits[+r]) res << to_string("\t\t",snake(r)," : ",1<<rsrc_digits[+r],'\n') ;
 		}
 		//
-		res << "\tn_tokens :\n" ;
-		size_t wk = 0 ;
-		size_t wv = 0 ;
-		for( ::map_s<size_t> const& tab : {static_n_tokenss,dyn_n_tokenss} ) {
-			for( auto const& [k,v] : tab ) {
-				wk = ::max( wk , k           .size() ) ;
-				wv = ::max( wv , to_string(v).size() ) ;
-			}
-		}
-		for( auto const& [k,v] : static_n_tokenss ) if (!dyn_n_tokenss.contains(k)) res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
-		for( auto const& [k,v] : dyn_n_tokenss    )                                 res << "\t\t" << ::setw(wk)<<k <<" : "<< ::right<<::setw(wv)<<v<<::left <<'\n' ;
-		//
 		res << "\tbackends :\n" ;
 		for( BackendTag t : All<BackendTag> ) if (+t) {
 			Backend           const& be  = backends[+t]                 ;
@@ -368,10 +347,6 @@ namespace Engine {
 		remote_tmp_dir   = _set_dir( user_remote_tmp_dir   , key+"-tmp", "remote_tmp"s   ) ; // .
 		//
 		Backends::Backend::s_config(backends,dynamic) ;
-		dyn_n_tokenss.clear() ;
-		for( BackendTag t : All<BackendTag> ) if (Backends::Backend::s_ready(t))
-			for( auto const& [k,v] : Backends::Backend::s_n_tokenss(t) )
-				if (v) dyn_n_tokenss[to_string(snake(t),'.',k)] = v ;                        // n_tokens cannot be zero as it is used as a divisor when computing rule ETA's
 		//
 		if (dynamic) return ;
 		//

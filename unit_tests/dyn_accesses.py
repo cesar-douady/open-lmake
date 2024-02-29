@@ -43,7 +43,7 @@ else :
 	print(2       ,file=open('two','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('deps','resources',new=1,no_deps=1,failed=1,rc=1)
+	ut.lmake('deps','resources',new=2,no_deps=1,rerun=1,steady=1,rc=1) # resources can have dynamic deps
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake('deps','resources',done=2)
+	ut.lmake('deps','resources',done=1)

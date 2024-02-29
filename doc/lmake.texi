@@ -1309,14 +1309,6 @@ Most of the time, this is suitable so the user rarely has to bother with sources
 The primary goal is to decouple loading configuration and load sources as @lmake tracks dependencies for each of them separately.
 This is both more performant (when there are a lot of sources) and allows dynamic modification of the configuration (for fields that support dynamic updates).
 
-@item @code{n_tokens}
-@tab @code{@{@}}
-@tab Dynamic
-@tab Specify values to be used when referenced by the @code{n_tokens} attributes or rules.
-It must be a @code{dict} mapping @code{str} keys to @code{int}.
-This @code{dict} is automatically augmented with resources provided by backends.
-Such automatic entries are keyed <backend>.<resource>, for example @code{local.cpu}.
-
 @item @code{reliable_dirs}
 @tab @code{False} unless only local backend is used
 @tab Static
@@ -2409,9 +2401,9 @@ It is only used to estimate the ETA (cf @pxref{eta-estimation}).
 @item Inheritance
 @tab Python
 @item Type
-@tab @code{str}
+@tab @code{int}
 @item Constraint
-@tab >=1 if it represents an integer
+@tab >=1
 @item Default
 @tab @code{1}
 @item Dynamic
@@ -2422,14 +2414,8 @@ This attribute indicates to @lmake a quantity of abstract resources used to esti
 
 It is only used to estimate the ETA (cf @pxref{eta-estimation}).
 
-It may be :
-@itemize @minus
-@item an integer whose value is at least @code{1}.
-@item the name of an entry in @code{config.n_tokens}.
-If this entry is dynamically updated while @lmake is running, the new value is dynamically taken into account.
-This is the main purpose of using this indirection rather than directly a number.
-Note that such entries can take the form <backend>.<resource> to refer to a particular resource.
-@end itemize
+Note that although this field is static, it may be modified while @lmake is running and new value will be taken into account as soon as a new @lmake command is launched.
+It is thus possible to refer to backend resources.
 
 @section @code{start_delay}
 

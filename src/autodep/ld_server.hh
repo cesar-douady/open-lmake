@@ -14,8 +14,8 @@ private :
     static ::mutex _s_mutex ;
     // cxtors & casts
 public :
-    AutodepLock (                                ) = default ;
-    AutodepLock (::vmap_s<Accesses>* deps=nullptr) : lock{_s_mutex} {
+    AutodepLock (                                 ) = default ;
+    AutodepLock (::vmap_s<DepDigest>* deps=nullptr) : lock{_s_mutex} {
         SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
         Record::s_deps     = deps ;
         Record::s_deps_err = &err ;

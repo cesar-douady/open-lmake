@@ -34,9 +34,9 @@ struct Record {
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) { SWEAR(!_s_autodep_env) ; _s_autodep_env = new AutodepEnv{ade} ; return *_s_autodep_env ; }
 	static AutodepEnv const& s_autodep_env(NewType              ) { if   (!_s_autodep_env)   _s_autodep_env = new AutodepEnv{New} ; return *_s_autodep_env ; }
 	// static data
-	static bool                s_static_report ;                                           // if true <=> report deps to s_deps instead of through report_fd() socket
-	static ::vmap_s<Accesses>* s_deps          ;
-	static ::string          * s_deps_err      ;
+	static bool                 s_static_report ;                                          // if true <=> report deps to s_deps instead of through report_fd() socket
+	static ::vmap_s<DepDigest>* s_deps          ;
+	static ::string           * s_deps_err      ;
 private :
 	static AutodepEnv* _s_autodep_env ;
 	static Fd          _s_root_fd     ;                                                    // a file descriptor to repo root directory

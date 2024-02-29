@@ -5,6 +5,10 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
+#if HAS_MEMFD
+	#include <sys/mman.h>
+#endif
+
 #include "process.hh"
 #include "thread.hh"
 
@@ -30,22 +34,21 @@ namespace Py {
 	void init( ::string const& lmake_dir , bool ) {
 		static bool once=false ; if (once) return ; else once = true ;
 		//
-		Py_IgnoreEnvironmentFlag = true ;                              // favor repeatability
-		Py_NoUserSiteDirectory   = true ;                              // .
-		Py_DontWriteBytecodeFlag = true ;                              // be as non-intrusive as possible
-		Py_InitializeEx(0) ;                                           // skip initialization of signal handlers
+		Py_IgnoreEnvironmentFlag = true ;                         // favor repeatability
+		Py_NoUserSiteDirectory   = true ;                         // .
+		Py_DontWriteBytecodeFlag = true ;                         // be as non-intrusive as possible
+		Py_InitializeEx(0) ;                                      // skip initialization of signal handlers
 		//
-		py_get_sys("implementation").set_attr("cache_tag",None) ;      // avoid pyc management
+		py_get_sys("implementation").set_attr("cache_tag",None) ; // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
 		py_path.prepend( *Ptr<Str>(lmake_dir+"/lib") ) ;
 		py_path.append ( *Ptr<Str>("."             ) ) ;
 	}
 
-	// divert stderr to a pipe, call PyErr_Print and restore stderr
-	// this would be simpler by using memfd_create if it was available on CentOS7
+	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr
 	::string py_err_str_clear() {
-		static bool s_busy = false ; // avoid recursion loop : fall back to printing error string if we cannot gather it
+		static bool s_busy = false ;                                           // avoid recursion loop : fall back to printing error string if we cannot gather it
 		if (s_busy) {
 			PyErr_Print() ;
 			return {} ;
@@ -55,33 +58,44 @@ namespace Py {
 		::string      res          ;
 		Object&       py_stderr    = py_get_sys("stderr")        ;
 		Ptr<Callable> py_flush     ;
-		Pipe          fds          { New }                       ;
-		Fd            stderr_save  = Fd::Stderr.dup()            ;
+		AutoCloseFd   stderr_save  = Fd::Stderr.dup()            ;
 		int           stderr_flags = ::fcntl(Fd::Stderr,F_GETFD) ;
 		//
-		auto gather_thread_func = [&]()->void {
+		#if HAS_MEMFD
+			AutoCloseFd  write_fd = ::memfd_create("back_trace",MFD_CLOEXEC) ; // name is for debug purpose only
+			AutoCloseFd& read_fd  = write_fd                                 ;
+		#else                                                                  // if memfd is not available, divert to a pipe and read in parallel
+			Pipe fds { New } ;
+			AutoCloseFd write_fd = fds.write ;
+			AutoCloseFd read_fd  = fds.read  ;
+		#endif
+		auto read_all = [&]()->void {
 			char    buf[256] ;
 			ssize_t c        ;
-			while ( (c=read(fds.read,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
+			while ( (c=read(read_fd,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
 		} ;
 		// flush stderr buffer as we will directly manipulate the file descriptor
-		{	SaveExc sav_exc { New } ;                                           // flush cannot be called if exception is set
+		{	SaveExc sav_exc { New } ;                                          // flush cannot be called if exception is set
 			py_flush = py_stderr.get_attr<Callable>("flush") ;
-			try { py_flush->call() ; } catch (::string const&) { py_err_clear() ; }
+			try { py_flush->call() ; } catch (::string const&) {}              // if we cant flush, we'll have what we have, this does not justify the burden of an error in an error
 		}
-		::close(Fd::Stderr) ;
-		::dup2(fds.write,Fd::Stderr) ;
-		fds.write.close() ;
-		{	::jthread gather { gather_thread_func } ;
-			PyErr_Print() ;                                                         // clears exception
+		::dup2(write_fd,Fd::Stderr) ;
+		write_fd.close() ;
+		{
+			#if !HAS_MEMFD
+				::jthread gather { read_all } ;
+			#endif
+			PyErr_Print() ;                                                    // clears exception
 			// flush again stderr buffer as we will again directly manipulate the file descriptor
-			try { py_flush->call() ; } catch (::string const&) { py_err_clear() ; } // exception has been cleared, no need to save and restore
+			try { py_flush->call() ; } catch (::string const&) {}              // if we cant flush, we'll have what we have, this does not justify the burden of an error in an error
 			::close(Fd::Stderr) ;
 		}
-		::dup2 (stderr_save,Fd::Stderr                     ) ;                      // restore stderr
-		::fcntl(            Fd::Stderr,F_SETFD,stderr_flags) ;                      // restore flags
-		stderr_save.close() ;
-		fds.read   .close() ;
+		#if HAS_MEMFD
+			::lseek( read_fd , 0 , SEEK_SET ) ;                                // rewind to read error message
+			read_all() ;
+		#endif
+		::dup2 (stderr_save,Fd::Stderr                     ) ;                 // restore stderr
+		::fcntl(            Fd::Stderr,F_SETFD,stderr_flags) ;                 // restore flags
 		return res ;
 	}
 

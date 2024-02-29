@@ -544,17 +544,17 @@ namespace Engine {
 		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
 		for( auto const& [rt,m] : mrts ) {                                                 // second pass to do report
-			JobTgt                      jt          { rt , name } ;                        // do not pass *this as req to avoid generating error message at cxtor time
-			::string                    reason      ;
-			Node                        missing_dep ;
-			::vmap_s<pair_s<AccDflags>> static_deps ;
+			JobTgt                   jt          { rt , name } ;                           // do not pass *this as req to avoid generating error message at cxtor time
+			::string                 reason      ;
+			Node                     missing_dep ;
+			::vmap_s<pair_s<Dflags>> static_deps ;
 			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                                                 ; goto Report ; }
 			try                                            { static_deps = rt->deps_attrs.eval(m)                                                ;               }
 			catch (::pair_ss const& msg_err)               { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
 			{	::string missing_key ;
 				for( bool search_non_buildable : {true,false} )                            // first search a non-buildable, if not found, search for non makable as deps have been made
-					for( auto const& [k,daf] : static_deps ) {
-						Node d{daf.first} ;
+					for( auto const& [k,df] : static_deps ) {
+						Node d{df.first} ;
 						if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 						missing_key = k ;
 						missing_dep = d ;

@@ -117,8 +117,8 @@ public :
 	}
 	void new_guard (::string const& f) { guards.insert(f) ; }
 	//
-	void new_static_deps( PD , ::vmap_s<DepDigest>&& static_deps , ::string const& stdin={}       ) ;
-	void new_exec       ( PD , ::string const& exe               , ::string const&      ="s_exec" ) ;
+	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
+	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
 
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {

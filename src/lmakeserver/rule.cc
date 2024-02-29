@@ -19,6 +19,12 @@ ENUM( StarAction
 ,	Err
 )
 
+ENUM( Escape
+,	None
+,	Re
+,	Fstr
+)
+
 namespace Engine {
 
 	using namespace Disk ;
@@ -26,12 +32,22 @@ namespace Engine {
 	using namespace Re   ;
 	using namespace Time ;
 
-	static const ::string _g_specials = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f" ;
-	static ::string escape(::string const& s) {
-		::string res ; res.reserve(s.size()+(s.size()>>4)) ;     // take a little margin for escapes
+	static const ::string _g_re_specials = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f" ;
+	static ::string _re_escape(::string const& s) {
+		::string res ; res.reserve(s.size()+(s.size()>>4)) ;        // take a little margin for escapes
 		for( char c : s ) {
-			if (_g_specials.find(c)!=Npos) res.push_back('\\') ; // escape specials
-			res.push_back(c) ;
+			if (_g_re_specials.find(c)!=Npos) res.push_back('\\') ; // escape specials
+			/**/                              res.push_back(c   ) ;
+		}
+		return res ;
+	}
+
+	static const ::string _g_fstr_specials = "{}" ;
+	static ::string _fstr_escape(::string const& s) {
+		::string res ; res.reserve(s.size()+(s.size()>>4)) ;       // take a little margin for escapes
+		for( char c : s ) {
+			if (_g_fstr_specials.find(c)!=Npos) res.push_back(c) ; // double specials
+			/**/                                res.push_back(c) ;
 		}
 		return res ;
 	}
@@ -137,8 +153,8 @@ namespace Engine {
 
 	// star stems are represented by a StemMrkr followed by the stem idx
 	// cb is called on each stem found
-	// return str with stems substituted with the return value of cb and special characters outside stems escaped if escape==true
-	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , bool escape=false , VarIdx stop_above=Rule::NoVar ) {
+	// return str with stems substituted with the return value of cb and special characters outside stems escaped as asked
+	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , Escape escape=Escape::None , VarIdx stop_above=Rule::NoVar ) {
 		::string res ;
 		for( size_t i=0 ; i<str.size() ; i++ ) {
 			char c = str[i] ;
@@ -147,14 +163,18 @@ namespace Engine {
 				if (stem>=stop_above) return res ;
 				res += cb(res.size(),stem) ;
 			} else {
-				if ( escape && _g_specials.find(c)!=Npos ) res += '\\' ;
-				/**/                                       res += c    ;
+				switch (escape) {
+					case Escape::None :                                                   break ;
+					case Escape::Re   : if (_g_re_specials  .find(c)!=Npos) res += '\\' ; break ; // escape specials
+					case Escape::Fstr : if (_g_fstr_specials.find(c)!=Npos) res += c    ; break ; // double specials
+				DF}
+				res += c ;
 			}
 		}
 		return res ;
 	}
 	// provide shortcut when pos is unused
-	static inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb , bool escape=false , VarIdx stop_above=-1 ) {
+	static inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb , Escape escape=Escape::None , VarIdx stop_above=-1 ) {
 		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb(s) ; } , escape , stop_above ) ;
 	}
 
@@ -174,18 +194,18 @@ namespace Engine {
 	}
 
 	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags ) {
-		for( auto item : py_seq ) {
+		for( Object const& item : py_seq ) {
 			if (n_skip>0) { n_skip-- ; continue ; }
-			if (item->is_a<Str>()) {
-				::string flag_str = item->as_a<Str>() ;
+			if (item.is_a<Str>()) {
+				::string flag_str = item.as_a<Str>() ;
 				bool     neg      = flag_str[0]=='-'  ;
 				if (neg) flag_str = flag_str.substr(1) ; // suppress initial - sign
 				//
 				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F::NRule     ) ) flags      .set(f ,!neg) ;
 				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<n_extra_flags) ) extra_flags.set(ef,!neg) ;
 				else                                                                                         throw to_string("unexpected flag ",flag_str," for ",key) ;
-			} else if (item->is_a<Sequence>()) {
-				_mk_flags( key , item->as_a<Sequence>() , 0 , flags , extra_flags , n_extra_flags ) ;
+			} else if (item.is_a<Sequence>()) {
+				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , extra_flags , n_extra_flags ) ;
 			} else {
 				throw to_string(key,"has a flag that is not a str") ;
 			}
@@ -198,6 +218,40 @@ namespace Engine {
 		SWEAR(py_seq[0].is_a<Str>(),key) ;
 		_mk_flags( key , py_seq , n_skip , flags , extra_flags , n_extra_flags ) ;
 		return py_seq[0].as_a<Str>() ;
+	}
+
+	//
+	// Dynamic
+	//
+
+	void DynamicDskBase::_s_eval( Job j , Rule::SimpleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
+		::string         res        ;
+		Rule             r          = +j ? j->rule : m.rule            ;
+		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
+		::vector_s       mtab       ;
+		::vmap_ss        dtab       ;
+		::umap_ss        rtab       ;
+		//
+		auto match = [&]()->Rule::SimpleMatch const& { { if (!m) m = Rule::SimpleMatch(j) ; } return m             ; } ; // solve lazy evaluation
+		auto stems = [&]()->::vector_s        const& {                                        return match().stems ; } ;
+		//
+		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t        : match().py_matches() ) mtab.push_back   (  mk_lcl(t         ,r->cwd_s)) ; } return mtab ; } ;
+		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dndf] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dndf.first,r->cwd_s)) ; } return dtab ; } ;
+		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                  } return rtab ; } ;
+		for( auto [vc,i] : ctx ) {
+			::vmap_ss dct ;
+			switch (vc) {
+				case VarCmd::Stem  :                                                                        cb_str(vc,i,r->stems  [i].first,stems  ()[i]       ) ;   break ;
+				case VarCmd::Match :                                                                        cb_str(vc,i,r->matches[i].first,matches()[i]       ) ;   break ;
+				case VarCmd::Dep   :                                                                        cb_str(vc,i,deps()    [i].first,deps   ()[i].second) ;   break ;
+				case VarCmd::Rsrc  : { auto it = rsrcs().find(rsrcs_spec[i].first) ; if (it!=rsrcs().end()) cb_str(vc,i,it->first          ,it->second         ) ; } break ;
+				//
+				case VarCmd::Stems   : for( VarIdx j=0 ; j<r->n_static_stems  ; j++ ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
+				case VarCmd::Targets : for( VarIdx j=0 ; j<r->n_static_targets; j++ ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,d] : deps()              ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                     cb_dct(vc,i,"resources",rsrcs_) ; break ;
+			DF}
+		}
 	}
 
 	//
@@ -322,19 +376,19 @@ namespace Engine {
 		bad("outside repository and all source dirs must be suppressed") ;
 	}
 	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dynamic = false ;                                                                                                                           // if full dynamic, we are not initialized
+		full_dynamic = false ;                                                                                                                          // if full dynamic, we are not initialized
 		//
-		for( auto [py_key,py_val] : py_src->as_a<Dict>() ) {
-			::string key = py_key->template as_a<Str>() ;
-			if (*py_val==None) {
+		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
+			::string key = py_key.template as_a<Str>() ;
+			if (py_val==None) {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed  = 0                                                                                ;
-			Dflags      df         { Dflag::Essential , Dflag::Static }                                               ;
+			VarIdx      n_unnamed  = 0                                                                               ;
+			Dflags      df         { Dflag::Essential , Dflag::Static }                                              ;
 			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
-			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                  ;
+			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
+			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                 ;
 			//
 			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
 			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
@@ -350,9 +404,9 @@ namespace Engine {
 		if (deps.size()>=Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 	}
 
-	::vmap_s<pair_s<AccDflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
-		::vmap_s<pair_s<AccDflags>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , AccDflags({},ds.dflags) ) ) ;
+	::vmap_s<pair_s<Dflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
+		::vmap_s<pair_s<Dflags>> res ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , ds.dflags ) ) ;
 		//
 		if (is_dynamic) {
 			try {
@@ -361,15 +415,15 @@ namespace Engine {
 				//
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di=0 ; di<spec.deps.size() ; di++ ) dep_idxs[spec.deps[di].first] = di ;
-				for( auto [py_key,py_val] : py_obj->as_a<Dict>() ) {
-					if (*py_val==None) continue ;
-					::string key = py_key->as_a<Str>() ;
-					Dflags      df  { Dflag::Essential , Dflag::Static }                                               ;
+				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
+					if (py_val==None) continue ;
+					::string key = py_key.as_a<Str>() ;
+					Dflags      df  { Dflag::Essential , Dflag::Static }                                              ;
 					ExtraDflags edf ;
-					::string    dep = _split_flags( "dep "+key , *py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in AccDflags
+					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags
 					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 					_qualify_dep( key , dep , DepKind::Dep ) ;
-					::pair_s<AccDflags> e { dep , {{},df} } ;
+					::pair_s<Dflags> e { dep , df } ;
 					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
 					else                                                          res[dep_idxs.at(key)].second = e ;   // if not full_dynamic, all deps must be listed in spec
 				}
@@ -417,7 +471,7 @@ namespace Engine {
 		}
 	}
 
-	pair_ss/*script,call*/ DynamicCmd::eval( Rule::SimpleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<Accesses>* deps ) const {
+	pair_ss/*script,call*/ DynamicCmd::eval( Rule::SimpleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
 			if (!is_dynamic) return {parse_fstr(spec.cmd,match,rsrcs),{}} ;
@@ -452,9 +506,10 @@ namespace Engine {
 				,	[&](VarIdx s)->::string {
 						::string k = r->stems[s].first ;
 						if ( k.front()=='<' and k.back()=='>' ) k = k.substr(1,k.size()-2) ;
-						if ( s>=r->n_static_stems             ) { args.push_back(k) ; return to_string('{',k,'}') ; }
-						else                                                          return match.stems[s]       ;
+						if ( s>=r->n_static_stems             ) { args.push_back(k) ; return to_string('{',k,'}')         ; }
+						else                                                          return _fstr_escape(match.stems[s]) ;
 					}
+				,	Escape::Fstr
 				) ;
 				append_to_string(res,"def ",key,'(') ;
 				const char* sep = "" ;
@@ -604,8 +659,8 @@ namespace Engine {
 			::map_s<Bool3> stem_stars ;                                                                // ordered so that stems are ordered, Maybe means stem is used both as static and star
 			field = "stems" ;
 			if (dct.contains(field))
-				for( auto [k,v] : dct[field].as_a<Dict>() )
-					stem_defs.emplace( ::string(k->as_a<Str>()) , ::string(v->as_a<Str>()) ) ;
+				for( auto const& [py_k,py_v] : dct[field].as_a<Dict>() )
+					stem_defs.emplace( ::string(py_k.as_a<Str>()) , ::string(py_v.as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
 			size_t unnamed_star_idx = 1 ;                                                                                // free running while walking over job_name + targets
@@ -629,10 +684,10 @@ namespace Engine {
 			if (!dct.contains(field)) throw "not found"s ;
 			::string job_name_key ;
 			::string job_name_msg = "job_name" ;
-			for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
-				field = py_k->as_a<Str>() ;
-				::string  target =                    py_tkfs->as_a<Sequence>()[0].as_a<Str>()  ;                        // .
-				MatchKind kind   = mk_enum<MatchKind>(py_tkfs->as_a<Sequence>()[1].as_a<Str>()) ;                        // targets are a tuple (target_pattern,kind,flags...)
+			for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
+				field = py_k.as_a<Str>() ;
+				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                         // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                         // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					_parse_py( target , &unnamed_star_idx ,
@@ -669,9 +724,9 @@ namespace Engine {
 				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                      // defer star matches so that static targets are put first
 				bool                 seen_top                     = false ;
 				bool                 seen_target                  = false ;
-				for( auto [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                   // targets are a tuple (target_pattern,flags...)
-					field = py_k->as_a<Str>() ;
-					Sequence const& pyseq_tkfs         = py_tkfs->as_a<Sequence>()                     ;
+				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                            // targets are a tuple (target_pattern,flags...)
+					field = py_k.as_a<Str>() ;
+					Sequence const& pyseq_tkfs         = py_tkfs.as_a<Sequence>()                      ;
 					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;                 // .
 					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                 // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star            = false                                         ;
@@ -849,17 +904,17 @@ namespace Engine {
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
 					::string const& k = stems[s].first ;
-					if (k.front()=='<'&&k.back()=='>' ) return escape(to_string('{',""s,"*}")) ; // when matching on job name, star stems are matched as they are reported to user
-					else                                return escape(to_string('{',k  ,"*}")) ; // .
+					if (k.front()=='<'&&k.back()=='>' ) return _re_escape("{*}"                ) ; // when matching on job name, star stems are matched as they are reported to user
+					else                                return _re_escape(to_string('{',k,"*}")) ; // .
 				}
-				if (res.groups[s]) return to_string("(?:\\",res.groups[s],')') ;                 // already seen, we must protect against following text potentially containing numbers
+				if (res.groups[s]) return to_string("(?:\\",res.groups[s],')') ;                   // already seen, we must protect against following text potentially containing numbers
 				res.groups[s]  = cur_group             ;
 				cur_group     += 1+stem_mark_counts[s] ;
 				return to_string('(',stems[s].second,')') ;
 			}
-		,	true/*escape*/
+		,	Escape::Re
 		) ;
-		res.re = RegExpr( res.txt , true/*fast*/ ) ;                                             // stem regexprs have been validated, normally there is no error here
+		res.re = RegExpr( res.txt , true/*fast*/ ) ;                                               // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -935,8 +990,10 @@ namespace Engine {
 		::umap_ss patterns ;
 		//
 		for( auto const& [k,me] : matches ) {
-			::string p = _subst_target( me.pattern ,
-				[&](VarIdx s)->::string { return to_string( '{' , rd.stems[s].first , s<rd.n_static_stems?"":"*" , '}' ) ; }
+			::string p = _subst_target(
+				me.pattern
+			,	[&](VarIdx s)->::string { return to_string( '{' , rd.stems[s].first , s<rd.n_static_stems?"":"*" , '}' ) ; }
+			,	Escape::Fstr
 			) ;
 			w1          = ::max(w1,kind(me).size()) ;
 			w2          = ::max(w2,k       .size()) ;
@@ -1310,7 +1367,7 @@ namespace Engine {
 			::string target = _subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string { return stems[s] ; }
-			,	false/*escape*/
+			,	Escape::None
 			,	rule->n_static_stems/*stop_above*/
 			) ;
 			size_t sep = target.rfind('/') ;
@@ -1326,11 +1383,11 @@ namespace Engine {
 			res.push_back(_subst_target(
 				rule->matches[t].second.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return escape(stems[s]) ;
+					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
 					if (seen.insert(s).second ) return to_string('('    ,rule->stems[s].second      ,')') ;
 					else                        return to_string("(?:\\",rule->patterns[t].groups[s],')') ; // we must protect against following text potentially containing numbers
 				}
-			,	true/*escape*/
+			,	Escape::Re
 			)) ;
 		}
 		return res ;
@@ -1343,13 +1400,13 @@ namespace Engine {
 			res.push_back(_subst_target(
 				rule->matches[mi].second.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return escape(stems[s]) ;
+					if (s<rule->n_static_stems) return _re_escape(stems[s]) ;
 					::pair_ss const& stem = rule->stems[s] ;
 					if      ( !seen.insert(s).second                            ) return to_string("(?P=",stem.first,                ')') ;
 					else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return to_string('('   ,               stem.second,')') ; // stem is unnamed
 					else                                                          return to_string("(?P<",stem.first,'>',stem.second,')') ;
 				}
-			,	true/*escape*/
+			,	Escape::Re
 			)) ;
 		}
 		return res ;

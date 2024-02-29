@@ -106,47 +106,50 @@ COMMA := ,
 .DEFAULT_GOAL := DFLT
 
 SAN           := $(if $(SAN_FLAGS),.san,)
-COMPILE       := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0
-LINK_LIB_PATH := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                            # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                            # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
-LINK_LIB_PATH := $(subst :, ,$(LINK_LIB_PATH))                                                                       # e.g. : /usr/lib/x /a/b /c /a/b/c/..
-LINK_LIB_PATH := $(realpath $(LINK_LIB_PATH))                                                                        # e.g. : /usr/lib/x /a/b /c /a/b
-LINK_LIB_PATH := $(sort $(LINK_LIB_PATH))                                                                            # e.g. : /a/b /c /usr/lib/x
-LINK_LIB_PATH := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))                          # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
-LINK_OPTIONS  := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                         # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
+LINK_LIB_PATH := $(shell $(CC) -v -E /dev/null 2>&1 | grep LIBRARY_PATH=)                                   # e.g. : LIBARY_PATH=/usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH := $(subst LIBRARY_PATH=,,$(LINK_LIB_PATH))                                                   # e.g. : /usr/lib/x:/a/b:/c:/a/b/c/..
+LINK_LIB_PATH := $(subst :, ,$(LINK_LIB_PATH))                                                              # e.g. : /usr/lib/x /a/b /c /a/b/c/..
+LINK_LIB_PATH := $(realpath $(LINK_LIB_PATH))                                                               # e.g. : /usr/lib/x /a/b /c /a/b
+LINK_LIB_PATH := $(sort $(LINK_LIB_PATH))                                                                   # e.g. : /a/b /c /usr/lib/x
+LINK_LIB_PATH := $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(LINK_LIB_PATH))                 # e.g. : /a/b /c (suppress standard dirs as required in case of installed package)
+LINK_OPTS     := $(patsubst %,-Wl$(COMMA)-rpath=%,$(LINK_LIB_PATH)) -pthread                                # e.g. : -Wl,-rpath=/a/b -Wl,-rpath=/c -pthread
 LINK_O        := $(CC) $(COVERAGE) -r
-LINK_SO       := $(CC) $(COVERAGE) $(LINK_OPTIONS) -shared                                                           # some usage may have specific libs, avoid dependencies
-LINK_BIN      := $(CC) $(COVERAGE) $(LINK_OPTIONS)
+LINK_SO       := $(CC) $(COVERAGE) $(LINK_OPTS) -shared                                                     # some usage may have specific libs, avoid dependencies
+LINK_BIN      := $(CC) $(COVERAGE) $(LINK_OPTS)
 LINK_LIB      := -ldl -lstdc++ -lm
 #
+STD_INC_DIRS := $(shell $(CC) -E -v -std=$(LANG) -xc++ /dev/null 2>&1 | sed -e '1,/<.*>.*search starts/d' -e '/End of search/,$$d' )
+#
 ifneq ($(PYTHON2),)
-PYTHON2_INCLUDE_DIR     := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
-PYTHON2_INCLUDEPY_DIR   := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
-PYTHON2_COMPILE_OPTIONS := -I $(PYTHON2_INCLUDE_DIR) -I$(PYTHON2_INCLUDEPY_DIR) -Wno-register
-PYTHON2_LIB_BASE        := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))') # transform lib<foo>.so -> <foo>
-PYTHON2_LIB_DIR         := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
+PY2_INCLUDEDIR := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
+PY2_INCLUDEPY  := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY" ))')
+PY2_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))                          # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+PY2_CC_OPTS    := $(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register
+PY2_LIB_BASE   := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY" ))') # transform lib<foo>.so -> <foo>
+PY2_LIB_DIR    := $(shell $(PYTHON2) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"    ))')
 # ensure we can compile and link with Python2 or exclude its support
-ifneq ($(shell [ -f $(PYTHON2_INCLUDEPY_DIR)/Python.h ] && file -L $(PYTHON2_LIB_DIR)/$(PYTHON2_LIB_BASE) | grep -q shared && echo 1),1)
+ifneq ($(shell [ -f $(PY2_INCLUDEPY_DIR)/Python.h ] && file -L $(PY2_LIB_DIR)/$(PY2_LIB_BASE) | grep -q shared && echo 1),1)
 override PYTHON2 :=
 endif
 # suppress standard dirs as required in case of installed package /!\ comments on variable definitions insert blanks !
-PYTHON2_LIB_DIR      := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PYTHON2_LIB_DIR)))
-PYTHON2_LINK_OPTIONS := $(patsubst %,-L%,$(PYTHON2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PYTHON2_LIB_DIR)) -l:$(PYTHON2_LIB_BASE)
+PY2_LIB_DIR   := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PY2_LIB_DIR)))
+PY2_LINK_OPTS := $(patsubst %,-L%,$(PY2_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY2_LIB_DIR)) -l:$(PY2_LIB_BASE)
 endif
 #
-PYTHON_INCLUDE_DIR     := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
-PYTHON_INCLUDEPY_DIR   := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY") )')
-PYTHON_COMPILE_OPTIONS := -I $(PYTHON_INCLUDE_DIR) -I$(PYTHON_INCLUDEPY_DIR) -Wno-register
-PYTHON_LIB_BASE        := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY") )')   # transform lib<foo>.so -> <foo>
-PYTHON_LIB_DIR         := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   ) )')
+PY_INCLUDEDIR := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEDIR"))')
+PY_INCLUDEPY  := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("INCLUDEPY") )')
+PY_INC_DIRS   := $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR) $(PY_INCLUDEPY))                             # for some reasons, compilation does not work if standard inc dirs are given with -isystem
+PY_CC_OPTS    := $(patsubst %,-isystem %,$(PY_INC_DIRS)) -Wno-register
+PY_LIB_BASE   := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LDLIBRARY") )')   # transform lib<foo>.so -> <foo>
+PY_LIB_DIR    := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("LIBDIR"   ) )')
 # suppress standard dirs as required in case of installed package /!\ comments on variable definitions insert blanks !
-PYTHON_LIB_DIR         := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PYTHON_LIB_DIR)))
-PYTHON_LINK_OPTIONS    := $(patsubst %,-L%,$(PYTHON_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PYTHON_LIB_DIR)) -l:$(PYTHON_LIB_BASE)
+PY_LIB_DIR    := $(strip $(filter-out /usr/lib /usr/lib64 /usr/lib/% /usr/lib64/%,$(PY_LIB_DIR)))
+PY_LINK_OPTS  := $(patsubst %,-L%,$(PY_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=%,$(PY_LIB_DIR)) -l:$(PY_LIB_BASE)
 #
-PYTHON_VERSION := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"))')
+PY_VERSION := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"))')
 #
-CFLAGS    := $(OPT_FLAGS) -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
-CXXFLAGS  := $(CFLAGS) -std=$(LANG)
+CXX_FLAGS := $(OPT_FLAGS) -fno-strict-aliasing -std=$(LANG) -pthread -pedantic $(WARNING_FLAGS) -Werror
+COMPILE   := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0 $(CXX_FLAGS)
 ROOT_DIR  := $(abspath .)
 LIB       := lib
 SLIB      := _lib
@@ -158,18 +161,18 @@ LMAKE_ENV := lmake_env
 STORE_LIB := $(SRC)/store
 
 sys_config.h : sys_config
-	CC=$(CC) PYTHON=$(PYTHON) PYTHON_LD_LIBRARY_PATH=$(PYTHON_LD_LIBRARY_PATH) ./$< >$@ 2>$@.err
+	CC=$(CC) PYTHON=$(PYTHON) PY_LD_LIBRARY_PATH=$(PY_LD_LIBRARY_PATH) ./$< >$@ 2>$@.err
 
 HAS_SECCOMP := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h 2>/dev/null && echo 1)
 HAS_SLURM   := $(shell grep -q 'HAS_SLURM *1'   sys_config.h 2>/dev/null && echo 1)
 #
-PYTHON_LD_LIBRARY_PATH := $(PYTHON_LIB_DIR)
+PY_LD_LIBRARY_PATH := $(PY_LIB_DIR)
 ifneq ($(PYTHON2),)
-ifneq ($(PYTHON2_LIB_DIR),)
-ifeq  ($(PYTHON_LD_LIBRARY_PATH),)
-PYTHON_LD_LIBRARY_PATH := $(PYTHON2_LIB_DIR)
+ifneq ($(PY2_LIB_DIR),)
+ifeq  ($(PY_LD_LIBRARY_PATH),)
+PY_LD_LIBRARY_PATH := $(PY2_LIB_DIR)
 else
-PYTHON_LD_LIBRARY_PATH := $(PYTHON_LD_LIBRARY_PATH):$(PYTHON2_LIB_DIR)
+PY_LD_LIBRARY_PATH := $(PY_LD_LIBRARY_PATH):$(PY2_LIB_DIR)
 endif
 endif
 endif
@@ -292,7 +295,7 @@ $(LIB)/%.py : $(SLIB)/%.src.py
 	sed \
 		-e 's!\$$BASH!$(BASH)!'                              \
 		-e 's!\$$GIT!$(GIT)!'                                \
-		-e 's!\$$LD_LIBRARY_PATH!$(PYTHON_LD_LIBRARY_PATH)!' \
+		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
 		-e 's!\$$STD_PATH!$(STD_PATH)!'                      \
 		$< >$@
 # for other files, just copy
@@ -338,48 +341,26 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-SLIB_H    := $(patsubst %, $(SRC)/%.hh         , app client config disk fd hash lib non_portable process py re rpc_client rpc_job serialize thread time trace utils )
-AUTODEP_H := $(patsubst %, $(SRC)/autodep/%.hh , env gather_deps ld_server ptrace record syscall_tab                                                                )
-STORE_H   := $(patsubst %, $(SRC)/store/%.hh   , alloc file prefix red_black side_car struct vector                                                                 )
-ENGINE_H  := $(patsubst %, $(SRC_ENGINE)/%.hh  , backend.x cache.x caches/dir_cache cmd codec global.x idxed job.x makefiles node.x req.x rule.x store.x            )
-BACKEND_H := $(patsubst %, $(SRC_BACKEND)/%.hh , generic                                                                                                            )
-
-ALL_H         := sys_config.h ext/xxhash.patched.h
-ALL_TOP_H     := $(ALL_H) $(SLIB_H) $(AUTODEP_H)
-ALL_ENGINE_H  := $(ALL_TOP_H) $(ENGINE_H) $(STORE_H)
-ALL_BACKEND_H := $(ALL_TOP_H) $(ENGINE_H) $(BACKEND_H)
+ALL_H := sys_config.h ext/xxhash.patched.h
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-COMPILE_OPTIONS_PY2 := $(PYTHON2_COMPILE_OPTIONS) -I ext -I $(SRC) -I $(SRC_ENGINE) -I. -idirafter /usr/include/linux
-COMPILE_OPTIONS     := $(PYTHON_COMPILE_OPTIONS)  -I ext -I $(SRC) -I $(SRC_ENGINE) -I. -idirafter /usr/include/linux
+CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
 
-$(SRC_BACKEND)/%.san.o : $(SRC_BACKEND)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_BACKEND)/%.i     : $(SRC_BACKEND)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_BACKEND)/%.s     : $(SRC_BACKEND)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_BACKEND)/%.o     : $(SRC_BACKEND)/%.cc $(ALL_BACKEND_H)                          ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+%_py2.san.o : %.cc $(ALL_H) ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.i     : %.cc $(ALL_H) ; $(COMPILE) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.s     : %.cc $(ALL_H) ; $(COMPILE) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.o     : %.cc $(ALL_H) ; $(COMPILE) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
 
-$(SRC_ENGINE)/%.san.o  : $(SRC_ENGINE)/%.cc  $(ALL_ENGINE_H) $(SRC_ENGINE)/core.hh.gch ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_ENGINE)/%.i      : $(SRC_ENGINE)/%.cc  $(ALL_ENGINE_H) $(SRC_ENGINE)/core.hh.gch ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_ENGINE)/%.s      : $(SRC_ENGINE)/%.cc  $(ALL_ENGINE_H) $(SRC_ENGINE)/core.hh.gch ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC_ENGINE)/%.o      : $(SRC_ENGINE)/%.cc  $(ALL_ENGINE_H) $(SRC_ENGINE)/core.hh.gch ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
+%.san.o     : %.cc $(ALL_H) ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.i         : %.cc $(ALL_H) ; $(COMPILE) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.s         : %.cc $(ALL_H) ; $(COMPILE) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.o         : %.cc $(ALL_H) ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 
-$(SRC)/%_py2.san.o     : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.i         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.s         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS_PY2) -o $@ $<
-$(SRC)/%_py2.o         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS_PY2) -o $@ $<
+%_py2.d : %.cc $(ALL_H) ; $(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $<
+%.d     : %.cc $(ALL_H) ; $(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $<
 
-$(SRC)/%.san.o         : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.i             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.s             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-$(SRC)/%.o             : $(SRC)/%.cc         $(ALL_TOP_H)                              ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-
-%.san.o                : %.cc                $(ALL_H)                                  ; $(COMPILE) -c $(CXXFLAGS) $(SAN_FLAGS) -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-%.i                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -E $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-%.s                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -S $(CXXFLAGS)                           $(COMPILE_OPTIONS)     -o $@ $<
-%.o                    : %.cc                $(ALL_H)                                  ; $(COMPILE) -c $(CXXFLAGS)              -frtti -fPIC $(COMPILE_OPTIONS)     -o $@ $<
-
-$(SRC_ENGINE)/core.hh.gch : $(SRC_ENGINE)/core.hh $(ALL_ENGINE_H)
-	$(COMPILE) $(CXXFLAGS) -frtti -fPIC  $(COMPILE_OPTIONS) -x c++-header -o $@ $<
+include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
+include src/py_py2.d src/autodep/clmake_py2.d
 
 #
 # lmake
@@ -426,7 +407,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/store$(SAN).o                             \
 	$(SRC)/lmakeserver/main$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -455,7 +436,7 @@ $(BIN)/lrepair : \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/lrepair$(SAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -481,7 +462,7 @@ $(SBIN)/ldump : \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/ldump$(SAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \
@@ -491,7 +472,7 @@ $(SBIN)/ldump_job : \
 	$(SRC)/autodep/env$(SAN).o \
 	$(SRC)/ldump_job$(SAN).o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 $(SBIN)/job_exec : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
@@ -506,7 +487,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/autodep/syscall_tab$(SAN).o \
 	$(SRC)/job_exec$(SAN).o
 	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LIB_SECCOMP) $(LINK_LIB)
+	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -686,7 +667,7 @@ $(LIB)/clmake2.so : \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake_py2.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(PYTHON2_LINK_OPTIONS) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ $(PY2_LINK_OPTS) $(LINK_LIB)
 endif
 
 $(LIB)/clmake.so : \
@@ -697,7 +678,7 @@ $(LIB)/clmake.so : \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake.o
 	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(PYTHON_LINK_OPTIONS) $(LINK_LIB)
+	$(LINK_SO) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 #
 # Manifest

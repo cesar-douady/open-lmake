@@ -5,8 +5,6 @@
 __pycache__
 
 # directories
-!/unit_tests/git.dir/hello
-!/unit_tests/git.dir/world
 *.dir
 /bin/
 /lib/
@@ -22,6 +20,7 @@ __pycache__
 *.i
 *.s
 *.o
+*.d
 *.hh.gch
 *.so
 /ext/**.patched*

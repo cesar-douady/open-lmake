@@ -141,10 +141,24 @@ then HAS_STACKTRACE=1
 else HAS_STACKTRACE=0
 fi
 
+#
+# HAS_MEMFD
+#
+cat <<"EOF" > memfd.c
+	#define _GNU_SOURCE
+	#include<sys/mman.h>
+	int main() { memfd_create("trial",0) ; }
+EOF
+if $CC -Werror -o memfd memfd.c
+then HAS_MEMFD=1
+else HAS_MEMFD=0
+fi
+
 cat <<EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
+	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_OSTRINGSTREAM_VIEW      $HAS_OSTRINGSTREAM_VIEW
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
@@ -153,5 +167,5 @@ cat <<EOF
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PYTHON                      "$PYTHON"
-	#define PYTHON_LD_LIBRARY_PATH      "$PYTHON_LD_LIBRARY_PATH"
+	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 EOF

@@ -143,7 +143,8 @@ namespace Engine {
 		//
 		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{Time::Pdate::s_now()}                {}  // starting job
 		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{Time::Pdate::s_now()}                {}  // .
-		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
+		JobExec( Job j , in_addr_t h , NewType , NewType ) : Job{j} , host{h} , start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
+		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // .
 		// services
 		// called in main thread after start
 		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;

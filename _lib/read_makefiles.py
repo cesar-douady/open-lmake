@@ -47,6 +47,7 @@ StdAttrs = {
 ,	'chroot'            : ( str   , True  )
 ,	'cache'             : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
+,	'cwd'               : ( str   , True  )
 ,	'dep_flags'         : ( dict  , True  )
 ,	'deps'              : ( dict  , True  )
 ,	'environ_cmd'       : ( dict  , True  )
@@ -260,7 +261,8 @@ class Handle :
 		self.rule     = rule
 		self.attrs    = attrs
 		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict( { k:attrs[k] for k in ('name','prio','stems') } )
+		self.rule_rep = pdict( { k:attrs[k] for k in ('name','stems') } )
+		if 'prio' in attrs : self.rule_rep.prio = attrs.prio
 
 	def _init(self) :
 		self.static_val  = pdict()
@@ -375,9 +377,10 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		self.rule_rep.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
-		if 'force' in self.attrs : self.rule_rep.force    = bool(self.attrs.force)
-		if True                  : self.rule_rep.n_tokens = self.attrs.n_tokens
+		if True                     : self.rule_rep.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
+		if 'cwd'      in self.attrs : self.rule_rep.cwd         =      self.attrs.cwd
+		if 'force'    in self.attrs : self.rule_rep.force       = bool(self.attrs.force   )
+		if 'n_tokens' in self.attrs : self.rule_rep.n_tokens    =      self.attrs.n_tokens
 
 	def handle_create_none(self) :
 		self._init()

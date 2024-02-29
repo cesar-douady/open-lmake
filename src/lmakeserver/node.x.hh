@@ -142,9 +142,9 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,AccDflags> const& ,                     bool parallel=true ) ;
-		Deps( ::vmap  <Node,Dflags   > const& , Accesses ,          bool parallel=true ) ;
-		Deps( ::vector<Node          > const& , Accesses , Dflags , bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags> const& ,                     bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel=true ) ;
+		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel=true ) ;
 	} ;
 
 }
@@ -222,16 +222,16 @@ namespace Engine {
 		Codec::Code      & codec_code    ()       { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
 		Codec::Code const& codec_code    () const { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
 		//
-		bool           has_req   ( Req                               ) const ;
-		ReqInfo const& c_req_info( Req                               ) const ;
-		ReqInfo      & req_info  ( Req                               ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&                    ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs      (                                   ) const ;
-		bool           waiting   (                                   ) const ;
-		bool           done      ( ReqInfo const&     , RunAction    ) const ;
-		bool           done      ( ReqInfo const& cri                ) const ;
-		bool           done      ( Req            r   , RunAction ra ) const ;
-		bool           done      ( Req            r                  ) const ;
+		bool           has_req   ( Req                        ) const ;
+		ReqInfo const& c_req_info( Req                        ) const ;
+		ReqInfo      & req_info  ( Req                        ) const ;
+		ReqInfo      & req_info  ( ReqInfo const&             ) const ;                                                                          // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs      (                            ) const ;
+		bool           waiting   (                            ) const ;
+		bool           done      ( ReqInfo const& , RunAction ) const ;
+		bool           done      ( ReqInfo const&             ) const ;
+		bool           done      ( Req            , RunAction ) const ;
+		bool           done      ( Req                        ) const ;
 		//
 		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                     ; }
 		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
@@ -246,7 +246,7 @@ namespace Engine {
 		Manual manual_refresh( Req            r                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(r,fi)   ; }
 		Manual manual_refresh( JobData const& j                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(j,fi)   ; }
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;
+		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                                 // Req's are for reporting only
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -435,7 +435,15 @@ namespace Engine {
 		return false ;
 	}
 
-	inline bool NodeData::done( ReqInfo const& cri , RunAction ra ) const { return cri.done(ra) || buildable<=Buildable::No ; }
+	inline bool NodeData::done( ReqInfo const& cri , RunAction ra ) const {
+		if (cri.done(ra)) return true ;
+		switch (ra) {                                                   // if not actually done, report obvious cases
+			case RunAction::None    : return true                     ;
+			case RunAction::Makable : return is_src_anti()            ;
+			case RunAction::Status  : return buildable<=Buildable::No ;
+			case RunAction::Dsk     : return false                    ;
+		DF}
+	}
 	inline bool NodeData::done( ReqInfo const& cri                ) const { return done(cri          ,cri.action)           ; }
 	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        )           ; }
 	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           )           ; }
@@ -508,9 +516,9 @@ namespace Engine {
 	// Deps
 	//
 
-	inline Deps::Deps( ::vmap<Node,AccDflags> const& static_deps , bool p ) {
+	inline Deps::Deps( ::vmap<Node,Dflags> const& static_deps , bool p ) {
 		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,af] : static_deps ) ds.emplace_back( d , af.accesses , af.dflags , p ) ;
+		for( auto const& [d,f] : static_deps ) ds.emplace_back( d , Accesses() , f , p ) ;
 		*this = Deps(ds) ;
 	}
 

@@ -62,9 +62,9 @@ void print_start(JobRpcReply const& jrr) {
 	::cout << "tmp_view    : "  << jrr.autodep_env.tmp_view    <<'\n' ; // tmp directory as viewed by job
 	::cout << "use_script  : "  << jrr.use_script              <<'\n' ;
 	//
+	::cout << "deps :\n"           ; _print_map(jrr.deps          )                            ;
 	::cout << "static matches :\n" ; _print_map(jrr.static_matches)                            ;
 	::cout << "star matches :\n"   ; _print_map(jrr.star_matches  )                            ;
-	::cout << "static_deps :\n"    ; _print_map(jrr.static_deps   )                            ;
 	::cout << "env :\n"            ; _print_map(jrr.env           )                            ;
 	::cout << "cmd :\n"            ; ::cout << ensure_nl(indent(jrr.cmd.first+jrr.cmd.second)) ;
 }

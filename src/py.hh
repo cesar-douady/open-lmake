@@ -322,15 +322,16 @@ namespace Py {
 	template<bool C> struct SequenceIter {
 		using Iterable = ::conditional_t< C , Sequence    const , Sequence    > ;
 		using PtrItem  = ::conditional_t< C , Ptr<Object> const , Ptr<Object> > ;
+		using Item     = ::conditional_t< C ,     Object  const ,     Object  > ;
 		// cxtors & casts
 		SequenceIter(                       ) = default ;
 		SequenceIter(Iterable& i,bool at_end) : _item {reinterpret_cast<Ptr<Object>*>(PySequence_Fast_ITEMS(i.to_py()))} { if (at_end) _item += i.size() ; }
 		// accesses
 		bool operator==(SequenceIter const&) const = default ;
 		// services
-		PtrItem&      operator* (   ) const { return *_item ;                              }
-		SequenceIter& operator++(   )       { _item++ ; return *this ;                     }
-		SequenceIter  operator++(int)       { SequenceIter it = *this ; ++it ; return it ; }
+		Item        & operator* (   ) const {                                  return **_item ; }
+		SequenceIter& operator++(   )       { _item++ ;                        return *this   ; }
+		SequenceIter  operator++(int)       { SequenceIter it = *this ; ++it ; return it      ; }
 		// data
 	private :
 		PtrItem* _item = nullptr ;
@@ -435,12 +436,12 @@ namespace Py {
 		DictIter(Iterable& i) : _iterable{&i},_pos{0} { _legalize() ; }
 		bool operator==(DictIter const&) const = default ;
 		// services
-		::pair<Object const*,Item*> operator*() const {
+		::pair<Object const&,Item&> operator*() const {
 			Py_ssize_t p   = _pos    ;
 			PyObject*  key = nullptr ;
 			PyObject*  val = nullptr ;
 			PyDict_Next( _iterable->to_py() , &p , &key , &val ) ;
-			return { from_py(key) , from_py(val) } ;
+			return { *from_py(key) , *from_py(val) } ;
 		}
 		DictIter& operator++() {
 			PyDict_Next( _iterable->to_py() , &_pos , nullptr , nullptr ) ;

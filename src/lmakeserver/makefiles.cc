@@ -30,8 +30,8 @@ namespace Engine::Makefiles {
 		RealPath          real_path  { rpe }                                              ;
 		::vmap_s<FileTag> srcs       ;
 		::vector_s        src_dirs_s ;
-		for( Str const* py_src : py_srcs ) {
-			::string src = *py_src ;
+		for( Object const& py_src : py_srcs ) {
+			::string src = py_src.as_a<Str>() ;
 			if (!src) throw "found an empty source"s ;
 			//
 			bool is_dir_ = src.back()=='/' ;
@@ -61,8 +61,8 @@ namespace Engine::Makefiles {
 	static ::umap<Crc,RuleData> _gather_rules(Sequence const& py_rules) {
 		::umap<Crc,RuleData> rules ;
 		::uset_s             names ;
-		for( Dict const* py_rule : py_rules ) {
-			RuleData rd  = py_rule->as_a<Dict>() ;
+		for( Object const& py_rule : py_rules ) {
+			RuleData rd  = py_rule.as_a<Dict>() ;
 			Crc      crc = rd.match_crc ;
 			if (names.contains(rd.name)) {
 				if ( rules.contains(crc) && rules.at(crc).name==rd.name ) throw to_string("rule " , rd.name , " appears twice"      ) ;
@@ -169,15 +169,15 @@ namespace Engine::Makefiles {
 		Trace trace("_read_makefiles",action,module,Pdate::s_now()) ;
 		//
 		::string sav_ld_library_path ;
-		if (PYTHON_LD_LIBRARY_PATH[0]!=0) {
+		if (PY_LD_LIBRARY_PATH[0]!=0) {
 			sav_ld_library_path = get_env("LD_LIBRARY_PATH") ;
-			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PYTHON_LD_LIBRARY_PATH) ) ;
-			else                      set_env( "LD_LIBRARY_PATH" ,                                   PYTHON_LD_LIBRARY_PATH  ) ;
+			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PY_LD_LIBRARY_PATH) ) ;
+			else                      set_env( "LD_LIBRARY_PATH" ,                                   PY_LD_LIBRARY_PATH  ) ;
 		}
 		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ ) ;                       // redirect stdout to stderr as our stdout may be used to communicate with client
 		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (PYTHON_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
+		if (PY_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
 		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather_deps.msg?" : ":"" , localize(gather_deps.msg) ) ;
 		//

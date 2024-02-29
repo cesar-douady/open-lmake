@@ -62,10 +62,10 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	//
 	if (py_args.size()==1) {
 		Object const& py_arg0 = py_args[0] ;
-		if (py_arg0.is_a<Sequence>()) { Sequence const& py_seq0 = py_arg0.as_a<Sequence>() ; res.reserve(py_seq0.size()) ; for( auto a : py_seq0 ) push(*a     ) ; }
-		else                          {                                                      res.reserve(1             ) ;                         push(py_arg0) ; }
+		if (py_arg0.is_a<Sequence>()) { Sequence const& py_seq0 = py_arg0.as_a<Sequence>() ; res.reserve(py_seq0.size()) ; for( Object const& py : py_seq0 ) push(py     ) ; }
+		else                          {                                                      res.reserve(1             ) ;                                   push(py_arg0) ; }
 	} else {
-		/**/                                                                                 res.reserve(py_args.size()) ; for( auto a : py_args ) push(*a     ) ;
+		/**/                                                                                 res.reserve(py_args.size()) ; for( Object const& py : py_args ) push(py     ) ;
 	}
 	for( size_t i=0 ; i<res.size() ; i++ ) if(!res[i]) throw to_string("argument ",i+1," is empty") ;
 	return res ;

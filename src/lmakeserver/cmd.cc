@@ -213,7 +213,7 @@ namespace Engine {
 		return res ;
 	}
 
-	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::vector_s const& vsExtensions ) {
+	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::vector_s const& vs_ext ) {
 		JobRpcReply const& start = report_start.start ;
 		::string res =
 R"({
@@ -268,7 +268,7 @@ R"({
 
 		::string extensions ;
 		bool     first      = true ;
-		for ( auto& ext : vsExtensions ) {
+		for ( auto& ext : vs_ext ) {
 			if (!first) append_to_string( extensions , "\n\t\t,\t" ) ;
 			/**/        append_to_string( extensions , '"',ext,'"' ) ;
 			first = false ;
@@ -290,7 +290,15 @@ R"({
 		return res ;
 	}
 
-	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , ::string const& dbg_dir , bool with_cmd, ::vector_s const& vsExtensions = {}) {
+	static ::string _mk_script(
+		Job                 j
+	,	ReqFlags            flags
+	,	JobInfoStart const& report_start
+	,	JobInfoEnd   const& report_end
+	,	::string     const& dbg_dir
+	,	bool                with_cmd
+	,	::vector_s   const& vs_ext       = {}
+	) {
 		JobRpcReply const& start   = report_start.start ;
 		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
@@ -351,7 +359,7 @@ R"({
 		append_to_string( script , "rm -rf   \"$TMPDIR\""                         , '\n' ) ;
 		append_to_string( script , "mkdir -p \"$TMPDIR\""                         , '\n' ) ;
 		if (flags[ReqFlag::Vscode]) {
-			for (auto const& extension : vsExtensions )
+			for (auto const& extension : vs_ext )
 				append_to_string( script , "code --list-extensions | grep -q '^",extension,"$' || code --install-extension ",extension,'\n' ) ;
 			append_to_string( script , "DEBUG_DIR=",mk_shell_str(*g_root_dir+'/'+dbg_dir),'\n'                                          ) ;
 			append_to_string( script , "args=()\n"                                                                                      ) ;
@@ -367,11 +375,8 @@ R"({
 			append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
 			append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
 			append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
-			for( auto&& [k,v] : start.env ) {
-				if (k=="TMPDIR"   ) continue ;
-				if (v==EnvPassMrkr) append_to_string(script,'\t',k,"=\"$",k,'"'                           ," \\\n") ;
-				else                append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::copy(v)))," \\\n") ;
-			}
+			for( auto& [k,v] : start.env                  ) if (k!="TMPDIR") append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::copy(v)))," \\\n") ;
+			for( auto& [k,v] : report_end.end.dynamic_env )                  append_to_string(script,'\t',k,'=',mk_shell_str(           ::copy(v) )," \\\n") ;
 			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                    // in addition of dbg, autodep may be needed for functional reasons
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
@@ -430,15 +435,18 @@ R"({
 		if (!job                   ) throw "no job found"s                                    ;
 		if (job->rule->is_special()) throw to_string("cannot debug ",job->rule->name," jobs") ;
 		//
+		IFStream     job_stream   { job->ancillary_file() } ;
 		JobInfoStart report_start ;
-		try         { deserialize(IFStream(job->ancillary_file()),report_start) ;          }
-		catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ; }
+		JobInfoEnd   report_end   ;
+		try         { deserialize(job_stream,report_start) ; } catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ; }
+		try         { deserialize(job_stream,report_end  ) ; } catch (...) {                                                                      } // we can debug w/o report_end
 		//
-		JobRpcReply const& start       = report_start.start                     ;
-		bool               redirected  = +start.stdin || +start.stdout          ;
-		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg) ;
-		::string           script_file = dbg_dir+"/script"                      ;
-		::string           cmd_file    = dbg_dir+"/cmd"                         ;
+		JobRpcReply const& start       = report_start.start                      ;
+		bool               redirected  = +start.stdin || +start.stdout           ;
+		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)  ;
+		::string           script_file = dbg_dir+"/script"                       ;
+		::string           cmd_file    = dbg_dir+"/cmd"                          ;
+		::string           vscode_file = dbg_dir+"/vscode/ldebug.code-workspace" ;
 		//
 		::vector_s vs_ext {
 			"ms-python.python"
@@ -446,15 +454,13 @@ R"({
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		::string vscode_dir  = dbg_dir   +"/vscode"                                                              ;
-		::string vscode_file = vscode_dir+"/ldebug.code-workspace"                                               ;
-		::string script      = _mk_script( job , ro.flags , report_start , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
-		::string cmd         = _mk_cmd   ( job , ro.flags , start        , dbg_dir , redirected                ) ;
-		::string vscode      = _mk_vscode( job ,            report_start , dbg_dir ,                    vs_ext ) ;
+		::string script = _mk_script( job , ro.flags , report_start , report_end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
+		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,              dbg_dir , redirected                ) ;
+		::string vscode = _mk_vscode( job ,            report_start ,              dbg_dir ,                    vs_ext ) ;
 		//
 		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
 		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
-		OFStream(dir_guard(vscode_file)) << vscode ; ::chmod(cmd_file   .c_str(),0755) ;
+		OFStream(dir_guard(vscode_file)) << vscode ;
 		//
 		audit( fd , ro , script_file , true/*as_is*/ ) ;
 		return true ;
@@ -543,8 +549,8 @@ R"({
 							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::copy(v))) , lvl ) ;
 						} break ;
 						case ReqKey::ExecScript :
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available"                                                                   , true/*as_is*/ , lvl ) ; break ; }
-							/**/              audit( fd , ro ,              _mk_script(job,ro.flags,report_start,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) ,                 lvl ) ;
+							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/                                                              , lvl ) ; break ; }
+							/**/              audit( fd , ro ,              _mk_script(job,ro.flags,report_start,report_end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , lvl ) ;
 						break ;
 						case ReqKey::Cmd : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available"                       , true/*as_is*/ , lvl ) ; break ; }
@@ -632,10 +638,11 @@ R"({
 							}
 							//
 							::map_ss required_rsrcs  ;
-							::map_ss allocated_rsrcs = mk_map(report_start.rsrcs) ;
+							::map_ss allocated_rsrcs = mk_map(report_start.rsrcs        ) ;
+							::map_ss dynamic_env     = mk_map(report_end.end.dynamic_env) ;
 							try {
 								Rule::SimpleMatch match ;
-								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<Accesses>())).rsrcs) ; // dont care about deps
+								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(::pair_ss const&) {}
 							//
 							if (has_end) {
@@ -647,10 +654,10 @@ R"({
 									push_entry("elapsed total" ,to_string(double(digest.stats.total)),Color::None,true/*as_is*/) ;
 									push_entry("used mem"      ,to_string(       digest.stats.mem   ),Color::None,true/*as_is*/) ;
 								} else {
-									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : "" ;
-									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                 ;
-									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                  ;
-									::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                                                                          ;
+									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
+									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_units<size_t>(mem_rsrc_str):0                                                                  ;
+									bool            overflow     = digest.stats.mem > mem_rsrc                                                                                                   ;
+									::string        mem_str      = to_string_with_units<'M'>(digest.stats.mem>>20)+'B'                                                                           ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
 									push_entry("cpu time"      ,digest.stats.cpu  .short_str()                                    ) ;
 									push_entry("elapsed in job",digest.stats.job  .short_str()                                    ) ;
@@ -659,16 +666,9 @@ R"({
 								}
 							}
 							//
-							if (has_start) {
-								if (+report_start.pre_start.msg) push_entry("start message",localize(report_start.pre_start.msg,ro.startup_dir_s)               ) ;
-								if (+report_start.stderr       ) push_entry("start stderr" ,report_start.stderr                                  ,Color::Warning) ;
-							}
-							if (has_end) {
-								if (+report_end.end.msg        ) push_entry("message"      ,localize(report_end.end        .msg,ro.startup_dir_s)               ) ;
-							}
-							//
-							bool has_required  = +required_rsrcs  ;
-							bool has_allocated = +allocated_rsrcs ;
+							if (+report_start.pre_start.msg) push_entry("start message",localize(report_start.pre_start.msg,ro.startup_dir_s)               ) ;
+							if (+report_start.stderr       ) push_entry("start stderr" ,report_start.stderr                                  ,Color::Warning) ;
+							if (+report_end.end.msg        ) push_entry("message"      ,localize(report_end.end        .msg,ro.startup_dir_s)               ) ;
 							// generate output
 							if (porcelaine) {
 								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {
@@ -689,8 +689,9 @@ R"({
 								audit( fd , ro , to_string(::setw(w),mk_py_str("job")," : ",mk_py_str(jn)) , false/*as_is*/ , lvl+1 , '{' ) ;
 								for( auto const& [k,e] : tab )
 									audit( fd , ro , to_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , false/*as_is*/ , lvl+1 , ',' ) ;
-								if (has_required ) audit_rsrcs("required resources" ,required_rsrcs ,false/*allocated*/) ;
-								if (has_allocated) audit_rsrcs("allocated resources",allocated_rsrcs,true /*allocated*/) ;
+								if (+required_rsrcs ) audit_rsrcs("required resources" ,required_rsrcs ,false/*allocated*/) ;
+								if (+allocated_rsrcs) audit_rsrcs("allocated resources",allocated_rsrcs,true /*allocated*/) ;
+								if (+dynamic_env    ) audit_rsrcs("dynamic env"        ,dynamic_env    ,false/*allocated*/) ; // !allocated prevents fancy rsrcs processing
 								audit( fd , ro , "}" , lvl ) ;
 							} else {
 								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
@@ -698,16 +699,16 @@ R"({
 								for( auto const& [k,e] : tab )
 									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , to_string(::setw(w),k," : ",e.txt) , false/*as_is*/ , lvl+1 ) ;
 									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , false/*as_is*/ , lvl+1 ) ; audit(fd,ro,e.txt,lvl+2) ; }
-								if ( has_required || has_allocated ) {
+								if ( +required_rsrcs || +allocated_rsrcs ) {
 									size_t w2            = 0                ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
 									for( auto const& [k,_] : allocated_rsrcs ) w2 = ::max(w2,k.size()) ;
 									::string hdr = "resources :" ;
-									if      (!has_allocated) hdr = "required " +hdr ;
-									else if (!has_required ) hdr = "allocated "+hdr ;
+									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
+									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
 									audit( fd , ro , hdr , lvl+1 ) ;
-									if      (!has_required                  ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
-									else if (!has_allocated                 ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
+									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
+									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 									else {
 										for( auto const& [k,rv] : required_rsrcs ) {
@@ -720,6 +721,11 @@ R"({
 										for( auto const& [k,av] : allocated_rsrcs )
 											if (!required_rsrcs.contains(k))    audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , true/*as_is*/ , lvl+2 ) ;
 									}
+								}
+								if (+dynamic_env) {
+									size_t w2 = 0 ; for( auto const& [k,_] : dynamic_env ) w2 = ::max(w2,k.size()) ;
+									/**/                                   audit( fd , ro , "dynamic env :"                 ,                 lvl+1 ) ;
+									for( auto const& [k,v] : dynamic_env ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 								}
 							}
 						} break ;

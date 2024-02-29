@@ -39,11 +39,14 @@ if __name__!='__main__' :
 else :
 
 	import subprocess as sp
+	import sys
 
 	import ut
 
-	try    : sp.check_output('rustc')                                          # dont test rust if rust in not installed
-	except : exit()
+	try    : sp.check_output('rustc') # dont test rust if rust in not installed
+	except :
+		print('rustc not available',file=sys.stderr)
+		exit()
 
 	print('''
 
@@ -70,4 +73,4 @@ else :
 
 	print('hello world2',file=open('hello.in' ,'w'))
 	print('hello world2',file=open('hello.ref','w'))
-	ut.lmake( 'hello.ok' , done=1 , steady=1 , changed=2 )                     # check we have acquired hello.in as a dep
+	ut.lmake( 'hello.ok' , done=1 , steady=1 , changed=2 ) # check we have acquired hello.in as a dep

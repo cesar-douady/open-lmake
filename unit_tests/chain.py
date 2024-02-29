@@ -16,7 +16,7 @@ if __name__!='__main__' :
 	)
 
 	class BaseRule(Rule) :
-		stems = { 'File' : r'.*' }
+		stems          = { 'File' : r'.*' }
 		stems['File1'] = stems['File']
 		stems['File2'] = stems['File']
 
@@ -31,7 +31,7 @@ if __name__!='__main__' :
 	class Cpy(BaseRule) :
 		target = '{File:.*}.cpy'
 		dep    = '{File}'
-		cmd = 'cat'
+		cmd    = 'cat'
 
 	class Cmp(BaseRule) :
 		target = '{File}.ok'

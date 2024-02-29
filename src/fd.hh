@@ -71,13 +71,13 @@ struct AutoCloseFd : Fd {
 	// cxtors & casts
 	using Fd::Fd ;
 	AutoCloseFd(AutoCloseFd&& acfd) : Fd{::move(acfd)} { acfd.detach() ; }
-	AutoCloseFd(Fd         && fd_ ) : Fd{::move(fd_ )} {                 }
+	AutoCloseFd(Fd const&     fd_ ) : Fd{       fd_  } {                 }
 	//
 	~AutoCloseFd() { close() ; }
 	//
 	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
 	AutoCloseFd& operator=(AutoCloseFd&& acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
-	AutoCloseFd& operator=(Fd         && fd_ ) { *this = fd_ .fd ;                 return *this ; }
+	AutoCloseFd& operator=(Fd const&     fd_ ) { *this = fd_ .fd ;                 return *this ; }
 } ;
 
 struct LockedFd : Fd {

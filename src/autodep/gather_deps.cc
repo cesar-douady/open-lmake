@@ -87,14 +87,14 @@ void GatherDeps::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest con
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , it->first , ad , parallel_id , comment , old_info , "->" , *info ) ; // only trace if something changes
 }
 
-void GatherDeps::new_static_deps( PD pd , ::vmap_s<DepDigest>&& static_deps , ::string const& stdin ) {
-	for( auto&& [f,dd] : static_deps ) {
+void GatherDeps::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
+	for( auto& [f,dd] : deps ) {
 		bool is_stdin = f==stdin ;
-		if ( is_stdin && !dd.accesses ) {                                  // stdin is read
-			dd.date(file_date(f)) ;
-			dd.accesses = Access::Reg ;
+		if (is_stdin) {                               // stdin is read
+			if (!dd.accesses) dd.date(file_date(f)) ; // record now if not previously accessed
+			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , dd , is_stdin?"stdin"s:"s_deps"s ) ; // fd for trace purpose only
+		_new_access( pd , ::move(f) , dd , is_stdin?"stdin"s:"s_deps"s ) ;
 	}
 }
 

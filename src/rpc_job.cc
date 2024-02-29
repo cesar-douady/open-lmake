@@ -165,7 +165,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 			/**/                     os <<',' << jrr.remote_admin_dir             ;
 			/**/                     os <<',' << jrr.small_id                     ;
 			if (+jrr.star_matches  ) os <<',' << jrr.star_matches                 ;
-			if (+jrr.static_deps   ) os <<'<' << jrr.static_deps                  ;
+			if (+jrr.deps          ) os <<'<' << jrr.deps                         ;
 			if (+jrr.static_matches) os <<'>' << jrr.static_matches               ;
 			if (+jrr.stdin         ) os <<'<' << jrr.stdin                        ;
 			if (+jrr.stdout        ) os <<'>' << jrr.stdout                       ;

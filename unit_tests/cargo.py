@@ -26,7 +26,9 @@ if __name__!='__main__' :
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
-		if step==2 : autodep = 'ptrace'
+		if   step==1 : autodep = 'ld_preload_jemalloc'
+		elif step==2 : autodep = 'ptrace'
+		environ_cmd = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		cmd     = 'cd  {Dir}{Module} ; cargo build 2>&1'
 
 	class RunRust(RustRule) :
@@ -46,11 +48,14 @@ else :
 
 	import os
 	import subprocess as sp
+	import sys
 
 	import ut
 
 	try    : sp.check_output('cargo') # dont test rust if rust is not installed
-	except : exit()
+	except :
+		print('cargo not available',file=sys.stderr)
+		exit()
 
 	os.makedirs('hello/src',exist_ok=True)
 	toml = open('hello/Cargo.toml','w')

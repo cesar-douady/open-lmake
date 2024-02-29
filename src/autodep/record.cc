@@ -19,11 +19,11 @@ using namespace Time ;
 // Record
 //
 
-::vmap_s<Accesses>* Record::s_deps          = nullptr ;
-::string          * Record::s_deps_err      = nullptr ;
-bool                Record::s_static_report = false   ;
-AutodepEnv*         Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
-Fd                  Record::_s_root_fd      ;
+::vmap_s<DepDigest>* Record::s_deps          = nullptr ;
+::string           * Record::s_deps_err      = nullptr ;
+bool                 Record::s_static_report = false   ;
+AutodepEnv*          Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
+Fd                   Record::_s_root_fd      ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
@@ -71,7 +71,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 			if      (jerr.digest.write) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write to " ,f,'\n') ;
 			else if (jerr.unlnk       ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected unlink of ",f,'\n') ;
 			else if (!s_deps          ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of ",f,'\n') ;
-			else                        for( auto& [f,dd] : jerr.files ) s_deps->emplace_back(::move(f),jerr.digest.accesses) ;
+			else                        for( auto& [f,dd] : jerr.files ) s_deps->emplace_back(::move(f),jerr.digest) ;
 		break ;
 		case JobExecRpcProc::Confirm :
 		case JobExecRpcProc::Guard   :
