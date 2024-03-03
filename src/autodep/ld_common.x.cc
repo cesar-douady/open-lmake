@@ -127,8 +127,8 @@ struct _Exec : Record::Exec {
 		static constexpr size_t LlpeSz = sizeof(Llpe)-1 ;                              // -1 to account of terminating null
 		const char* const* llp = nullptr/*garbage*/ ;
 		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
-		if (*llp) elf_deps( r , real , *llp+LlpeSz , c+".dep" ) ;                      // pass value after the LD_LIBRARY_PATH= prefix
-		else      elf_deps( r , real , nullptr     , c+".dep" ) ;                      // /!\ dont add LlpeSz to nullptr
+		if (*llp) elf_deps( r , *this , *llp+LlpeSz , c+".dep" ) ;                     // pass value after the LD_LIBRARY_PATH= prefix
+		else      elf_deps( r , *this , nullptr     , c+".dep" ) ;                     // /!\ dont add LlpeSz to nullptr
 	}
 } ;
 using Exec = AuditAction<_Exec> ;

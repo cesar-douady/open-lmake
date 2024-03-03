@@ -273,7 +273,6 @@ namespace Disk {
 		::vector_s src_dirs_s    = {}               ;
 	} ;
 
-	// XXX : avoid duplicating RealPathEnv by storing a pointer to it here rather than inheritance, which requires to cleanly separate global part (in RealPathEnv) and specific part (in RealPath)
 	struct RealPath {
 		friend ::ostream& operator<<( ::ostream& , RealPath const& ) ;
 		struct SolveReport {

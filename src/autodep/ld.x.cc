@@ -42,10 +42,11 @@ void load_exec(::string const& file) {
 // this cannot be done by examining objects after they are loaded as we need to know files that have been tried before the ones that finally were loaded
 
 struct Elf {
-	using Ehdr = ElfW(Ehdr) ;
-	using Phdr = ElfW(Phdr) ;
-	using Shdr = ElfW(Shdr) ;
-	using Dyn  = ElfW(Dyn ) ;
+	using Ehdr  = ElfW(Ehdr)    ;
+	using Phdr  = ElfW(Phdr)    ;
+	using Shdr  = ElfW(Shdr)    ;
+	using Dyn   = ElfW(Dyn )    ;
+	using Solve = Record::Solve ;
 
 	static constexpr bool Is32Bits = sizeof(void*)==4 ;
 	static constexpr bool Is64Bits = sizeof(void*)==8 ;
@@ -75,15 +76,30 @@ struct Elf {
 	// statics
 	static ::string s_expand( const char* txt , ::string const& exe={} ) ;
 	// cxtors & casts
-	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {}
+	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
+		if (!llp) return ;
+		::string const& r = Record::s_autodep_env().root_dir ;
+		bool start = true ;
+		for( const char* p=llp ; *p ; p++ ) {
+			if (start) {
+				if ( *p!='/'                                                                ) return ; // found a relative entry, most probably inside the repo
+				if ( strncmp(p,r.c_str(),r.size())==0 && (p[r.size()]==':'||p[r.size()]==0) ) return ; // found an absolute entry pointing inside the repo
+				start = false ;
+			} else {
+				if (*p==':') start = true ;
+			}
+		}
+		simple_llp = true ;
+	}
 	// services
 	Record::Read search_elf( ::string const& file , ::string const& runpath , ::string&& comment="elf_srch" ) ;
-	void         elf_deps  ( ::string const& real , bool top                , ::string&& comment="elf_deps" ) ;
+	void         elf_deps  ( Solve    const&      , bool top                , ::string&& comment="elf_deps" ) ;
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
-	::string                  rpath           ;
+	::string                  rpath           ;                                                        // DT_RPATH or DT_RUNPATH entry
 	::umap_s<Bool3/*exists*/> seen            = {}                 ;
+	bool                      simple_llp      = false              ;                                   // if true => ld_library_path contains no dir to the repo
 } ;
 
 Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
@@ -195,14 +211,13 @@ static ::string _mk_origin(::string const& exe) {
 	return res ;
 }
 
-// XXX : optimize search : do not search libs outside repo if ld_library_path does not have an entry inside the repo as outside world is not supposed to have any pointer inside repo
 Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) {
 	if (!file) return {} ;
 	if (file.find('/')!=Npos) {
 		if (!seen.try_emplace(file,Maybe).second) return {} ;
 		::string     dc  = comment+".dep"                                                                                    ;
 		Record::Read res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , false/*allow_tmp_map*/ , ::move(comment) } ;
-		elf_deps( res.real , false/*top*/ , ::move(dc) ) ;
+		elf_deps( res , false/*top*/ , ::move(dc) ) ;
 		return res ;
 	}
 	//
@@ -220,21 +235,22 @@ Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , :
 		Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , false/*allow_tmp_map*/ , ::copy(comment) } ;
 		auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
 		if ( it->second==Maybe           )   it->second = No | is_target(Record::s_root_fd(),rr.real,false/*no_follow*/) ; // real may be a sym link in the system directories
-		if ( it->second==Yes && inserted ) { elf_deps( rr.real , false/*top*/ , comment+".dep" ) ; return rr ; }
-		if ( it->second==Yes             )                                                         return {} ;
+		if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , comment+".dep" ) ; return rr ; }
+		if ( it->second==Yes             )                                                    return {} ;
 		if (end==Npos) break ;
 		pos = end+1 ;
 	}
 	return {} ;
 }
 
-void Elf::elf_deps( ::string const& real , bool top , ::string&& comment ) {
+void Elf::elf_deps( Solve const& file , bool top , ::string&& comment ) {
+	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
-		FileMap   file_map { Record::s_root_fd() , real } ; if (!file_map) return ;                                                          // real may be a sym link in system dirs
-		DynDigest digest   { file_map }                   ;
-		if (top) rpath = digest.rpath ;                                                                                                      // rpath applies to the whole search
-		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,real) , s_expand(digest.runpath,real) , comment+".needed" ) ;
-	} catch (int) { return ; }                                                                                                               // bad file format, ignore
+		FileMap   file_map { Record::s_root_fd() , file.real } ; if (!file_map) return ;                                                               // real may be a sym link in system dirs
+		DynDigest digest   { file_map }                        ;
+		if (top) rpath = digest.rpath ;                                                                                                                // rpath applies to the whole search
+		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,file.real) , s_expand(digest.runpath,file.real) , comment+".needed" ) ;
+	} catch (int) { return ; }                                                                                                                         // bad file format, ignore
 }
 
 // capture LD_LIBRARY_PATH when first called : man dlopen says it must be captured at program start, but we capture it before any environment modif, should be ok
@@ -250,9 +266,9 @@ Record::Read search_elf( Record& r , const char* file , ::string&& comment="elf_
 	catch (::string const& e) { r.report_panic("while searching elf executable ",file," : ",e) ; return {} ;                                                   } // if we cannot report the dep, panic
 }
 
-void elf_deps( Record& r , ::string const& real , const char* ld_library_path , ::string&& comment="elf_deps" ) {
-	try                       { Elf(r,real,ld_library_path).elf_deps( real , true/*top*/ , ::move(comment) ) ; }
-	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(real)," : ",e) ; }      // if we cannot report the dep, panic
+void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , ::string&& comment="elf_deps" ) {
+	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
+	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(file.real)," : ",e) ;      } // if we cannot report the dep, panic
 }
 
 #define LD_PRELOAD 1

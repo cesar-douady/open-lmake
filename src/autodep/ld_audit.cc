@@ -39,8 +39,8 @@ void* get_orig(const char* syscall) {
 void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us about indirectly loaded libraries
 
 // elf dependencies are capture by auditing code, no need to interpret elf content
-void         elf_deps  ( Record& /*r*/ , ::string const& /*real*/ , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
-Record::Read search_elf( Record& /*r*/ , const char*     /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
+void         elf_deps  ( Record& /*r*/ , Record::Solve const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
+Record::Read search_elf( Record& /*r*/ , const char* /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
 static inline bool started() { return true ; }
 

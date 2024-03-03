@@ -314,7 +314,9 @@ namespace Backends {
 			bool dep_ready = true ;
 			for( auto const& [dn,dd] : ::vector_view(&deps[n_submit_deps],deps.size()-n_submit_deps) )
 				for( Req r : entry.reqs )
-					if (!Node(dn)->done(r,RunAction::Dsk)) { dep_ready = false ; goto EarlyEnd ; }
+					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
+					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
+					if (!Node(dn)->done(r,RunAction::Status)) { dep_ready = false ; goto EarlyEnd ; }
 			if (step<6) {
 			EarlyEnd :
 				Status status = Status::EarlyErr ;

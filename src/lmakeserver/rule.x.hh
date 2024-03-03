@@ -6,6 +6,7 @@
 // included in 5 passes
 
 #include "re.hh"
+
 #include "rpc_job.hh"
 
 #include "autodep/ld_server.hh"
@@ -785,7 +786,7 @@ namespace Engine {
 		::string res = ::move(fixed[fi++]) ;
 		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { append_to_string(res,val,fixed[fi++]) ; } ;
 		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                                ; } ;
-		Dynamic::_s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;                                                                                    // XXX : why is Dynamic:: necessary here ?
+		_s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
 	}
 

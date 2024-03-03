@@ -5,8 +5,6 @@
 
 // included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
 
-#include "rpc_job.hh"
-
 #include "codec.hh"
 
 #ifdef STRUCT_DECL

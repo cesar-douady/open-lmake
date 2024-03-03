@@ -351,7 +351,6 @@ namespace Engine {
 		}
 	}
 
-	// XXX generate consider line if status==Manual
 	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string&& msg ) {
 		Status            status           = digest.status                                        ;      // status will be modified, need to make a copy
 		Bool3             ok               = is_ok  (status)                                      ;
