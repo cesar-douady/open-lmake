@@ -36,6 +36,7 @@ else :
 
 	import os
 	import subprocess as sp
+	import sys
 
 	sav = os.environ.get('LD_PRELOAD')
 	os.environ['LD_PRELOAD'] = 'libjemalloc.so'
