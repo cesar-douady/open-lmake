@@ -190,7 +190,6 @@ ENUM_2( Status                           // result of job execution
 ,	Early = EarlyLostErr                 // <=Early means output has not been modified
 ,	Async = Killed                       // <=Async means job was interrupted asynchronously
 ,	New                                  // job was never run
-,	Manual                               // job was not started because some targets were manual
 ,	EarlyChkDeps                         // dep check failed before job actually started
 ,	EarlyErr                             // job was not started because of error
 ,	EarlyLost                            // job was lost before starting     , retry
@@ -207,7 +206,6 @@ static inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Stat
 static inline Bool3 is_ok  (Status s) {
 	static constexpr Bool3 IsOkTab[] = {
 		Maybe                            // New
-	,	No                               // Manual
 	,	Maybe                            // EarlyChkDeps
 	,	No                               // EarlyErr
 	,	Maybe                            // EarlyLost
@@ -553,7 +551,6 @@ struct JobRpcReply {
 				::serdes(s,stdin           ) ;
 				::serdes(s,stdout          ) ;
 				::serdes(s,timeout         ) ;
-				::serdes(s,trace_n_jobs    ) ;
 				::serdes(s,use_script      ) ;
 			break ;
 		DF}
@@ -582,7 +579,6 @@ struct JobRpcReply {
 	::string                  stdin            ;                 // proc == Start
 	::string                  stdout           ;                 // proc == Start
 	Time::Delay               timeout          ;                 // proc == Start
-	JobIdx                    trace_n_jobs     = 0             ; // proc == Start
 	bool                      use_script       = false         ; // proc == Start
 	::vector<pair<Bool3,Crc>> dep_infos        ;                 // proc == DepInfos
 	Bool3                     ok               = Maybe         ; // proc == ChkDeps|Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready

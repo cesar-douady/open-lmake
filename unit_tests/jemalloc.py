@@ -43,11 +43,13 @@ else :
 	if sav is None : del os.environ['LD_PRELOAD']
 	else           :     os.environ['LD_PRELOAD'] = sav
 
-	if has_jemalloc :
+	if not has_jemalloc :
+		print('jemalloc not available',file=sys.stderr)
+		exit()
 
-		import ut
+	import ut
 
-		print('hello',file=open('hello','w'))
-		print('world',file=open('world','w'))
+	print('hello',file=open('hello','w'))
+	print('world',file=open('world','w'))
 
-		ut.lmake( 'auto1_sh' , 'auto2_py' , may_rerun=2 , done=4 , new=1 ) # check deps are acquired
+	ut.lmake( 'auto1_sh' , 'auto2_py' , may_rerun=2 , done=4 , new=1 ) # check deps are acquired

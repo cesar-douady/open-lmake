@@ -23,21 +23,41 @@
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
 	for( char c : s ) {
 		switch (c) {
-			case '\a' : res += "\\a" ; break ;                    // special case
-			case '\b' : res += "\\b" ; break ;                    // .
-			case '\f' : res += "\\f" ; break ;                    // .
-			case '\n' : res += "\\n" ; break ;                    // .
-			case '\r' : res += "\\r" ; break ;                    // .
-			case '\t' : res += "\\t" ; break ;                    // .
-			case '\v' : res += "\\v" ; break ;                    // .
-			case '\\' :                                           // must be escaped
-			case '\'' : res += '\\'  ; [[fallthrough]] ;          // .
+			case '\a' : res += "\\a"  ; break ;                   // special case
+			case '\b' : res += "\\b"  ; break ;                   // .
+			case '\f' : res += "\\f"  ; break ;                   // .
+			case '\n' : res += "\\n"  ; break ;                   // .
+			case '\r' : res += "\\r"  ; break ;                   // .
+			case '\t' : res += "\\t"  ; break ;                   // .
+			case '\v' : res += "\\v"  ; break ;                   // .
+			case '\\' : res += "\\\\" ; break ;                   // .
+			case '\'' : res += "\\'"  ; break ;                   // .
 			default :
 				if (is_printable(c)) res +=                                                            c   ;
 				else                 res += to_string("\\x",::right,::setfill('0'),::hex,::setw(2),int(c)) ;
 		}
 	}
 	res += '\'' ;
+	return res ;
+}
+
+::string mk_json_str(::string const& s) {
+	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
+	for( char c : s ) {
+		switch (c) {
+			case '\b' : res += "\\b"  ; break ;                  // special case
+			case '\f' : res += "\\f"  ; break ;                  // .
+			case '\n' : res += "\\n"  ; break ;                  // .
+			case '\r' : res += "\\r"  ; break ;                  // .
+			case '\t' : res += "\\t"  ; break ;                  // .
+			case '\\' : res += "\\\\" ; break ;                  // .
+			case '"'  : res += "\\\"" ; break ;                  // .
+			default :
+				if (is_printable(c)) res +=                                                            c   ;
+				else                 res += to_string("\\u",::right,::setfill('0'),::hex,::setw(4),int(c)) ;
+		}
+	}
+	res += '"' ;
 	return res ;
 }
 

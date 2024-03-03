@@ -297,8 +297,9 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F f
 }
 template<::floating_point F> static inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
 
-::string mk_py_str   ( ::string const&) ;
-::string mk_shell_str( ::string const&) ;
+::string mk_py_str   (::string const&) ;
+::string mk_json_str (::string const&) ;
+::string mk_shell_str(::string const&) ;
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 static inline constexpr bool is_space(char c) {

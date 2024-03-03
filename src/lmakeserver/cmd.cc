@@ -171,6 +171,15 @@ namespace Engine {
 		}
 	}
 
+	static ::vmap_ss _mk_env( ::vmap_ss const& env , ::vmap_ss const& dynamic_env ) {
+		::umap_ss de  = mk_umap(dynamic_env) ;
+		::vmap_ss res ;
+		for( auto const& [k,v] : env )
+			if      (v!=EnvPassMrkr) res.emplace_back(k,env_decode(::copy(v       ))) ;
+			else if (de.contains(k)) res.emplace_back(k,env_decode(::copy(de.at(k)))) ;
+		return res ;
+	}
+
 	static ::string _mk_cmd( Job j , ReqFlags flags , JobRpcReply const& start , ::string const& dbg_dir , bool redirected ) {
 		// add debug prelude if asked to do so
 		// try to use stdin/stdout to debug with pdb as much as possible as readline does not work on alternate streams
@@ -190,35 +199,37 @@ namespace Engine {
 		res += start.cmd.first ;
 		//
 		if ( flags[ReqFlag::Debug] && j->rule->is_python ) {
-			::string runner = flags[ReqFlag::Vscode] ? "vscode" : flags[ReqFlag::Graphic] ? "pudb" : "pdb" ;
+			::string runner = flags[ReqFlag::Vscode] ? "run_vscode" : flags[ReqFlag::Graphic] ? "run_pudb" : "run_pdb" ;
 			//
 			size_t   open_pos  = start.cmd.second.find ('(')         ;
 			size_t   close_pos = start.cmd.second.rfind(')')         ;
 			::string run_call  = start.cmd.second.substr(0,open_pos) ; if (close_pos>open_pos+1) run_call = ','+start.cmd.second.substr(open_pos+1,close_pos) ;
 			//
-			res += "lmake_runtime['deps'] = (\n" ;                                                       // generate deps that debugger can use to pre-populate browser
+			append_line_to_string( res , "lmake_dbg = {}\n"                                                               ) ;
+			append_line_to_string( res , "exec(open(",mk_py_str(*g_lmake_dir+"/lib/lmake_dbg.py"),").read(),lmake_dbg)\n" ) ;
+			append_line_to_string( res , "lmake_dbg['deps'] = (\n"                                                        ) ; // generate deps that debugger can use to pre-populate browser
 			bool first = true ;
 			for( Dep const& d : j->deps ) {
-				if (d->crc==Crc::None) continue ;                                                        // we are only interested in existing deps as other ones are of marginal interest
+				if (d->crc==Crc::None) continue ; // we are only interested in existing deps as other ones are of marginal interest
 				if (first) first  = false ;
 				else       res   += ','   ;
 				append_to_string( res , '\t',mk_py_str(d->name()),'\n')  ;
 			}
 			res += ")\n" ;
 			//
-			append_to_string( res , "lmake_runtime[" , mk_py_str("run_"+runner) , "](" , mk_py_str(dbg_dir) , ',' , redirected?"True":"False" , ',' ,run_call ,")\n" ) ;
+			append_line_to_string( res , "lmake_dbg[" , mk_py_str(runner) , "](" , mk_py_str(dbg_dir) , ',' , redirected?"True":"False" , ',' ,run_call ,")\n" ) ;
 		} else {
 			res += start.cmd.second ;
 		}
 		return res ;
 	}
 
-	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , ::string const& dbg_dir , ::vector_s const& vs_ext ) {
+	static ::string _mk_vscode( Job j , JobInfoStart const& report_start , JobInfoEnd const& report_end , ::string const& dbg_dir , ::vector_s const& vs_ext ) {
 		JobRpcReply const& start = report_start.start ;
 		::string res =
 R"({
 	"folders": [
-		{ "path" : "$g_root_dir" }
+		{ "path" : $g_root_dir }
 	]
 ,	"settings": {
 		"files.associations" : {
@@ -236,12 +247,12 @@ R"({
 	}
 ,	"launch" : {
 		"configurations" : [
-			{	"name"       : "$name"
+			{	"name"       : $name
 			,	"type"       : "python"
 			,	"request"    : "launch"
-			,	"program"    : "$g_root_dir/$dbg_dir/cmd"
+			,	"program"    : $program
 			,	"console"    : "integratedTerminal"
-			,	"cwd"        : "$g_root_dir"
+			,	"cwd"        : $g_root_dir
 			,	"subProcess" : true
 			,	"env" : {
 					$env
@@ -253,7 +264,7 @@ R"({
 			,	"request"   : "attach"
 			,	"name"      : "Attach C/C++"
 			,	"program"   : ""
-			,	"cwd"       : "$g_root_dir"
+			,	"cwd"       : $g_root_dir
 			,	"processId" : 0
 			}
 		]
@@ -265,7 +276,6 @@ R"({
 	}
 }
 )" ;
-
 		::string extensions ;
 		bool     first      = true ;
 		for ( auto& ext : vs_ext ) {
@@ -273,32 +283,25 @@ R"({
 			/**/        append_to_string( extensions , '"',ext,'"' ) ;
 			first = false ;
 		}
-		res = ::regex_replace( res , ::regex("\\$extensions") , extensions  ) ;
-		res = ::regex_replace( res , ::regex("\\$name"      ) , j->name()   ) ;
-		res = ::regex_replace( res , ::regex("\\$g_root_dir") , *g_root_dir ) ;
-		res = ::regex_replace( res , ::regex("\\$dbg_dir"   ) , dbg_dir     ) ;
-
-		size_t   kw  = 11/*SEQUENCE_ID*/ ; for( auto&& [k,v] : start.env ) if ( k!="TMPDIR" && v!=EnvPassMrkr ) kw = ::max(kw,k.size()) ;
-		::string env ;
-		append_to_string( env ,                 to_string(::setw(kw+2),'"'+"ROOT_DIR"s   +'"')," : ",'"',*g_root_dir                              ,'"' ) ;
-		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"SEQUENCE_ID"s+'"')," : ",'"',report_start.pre_start.seq_id            ,'"' ) ;
-		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"SMALL_ID"s   +'"')," : ",'"',start.small_id                           ,'"' ) ;
-		append_to_string( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+"TMPDIR"s     +'"')," : ",'"',to_string(*g_root_dir,'/',dbg_dir,"/tmp"),'"' ) ;
-		for( auto&& [k,v] : start.env )
-			if ( k!="TMPDIR" && v!=EnvPassMrkr ) append_to_string ( env , "\n\t\t\t\t,\t",to_string(::setw(kw+2),'"'+k+'"')," : ",'"',env_decode(::copy(v)),'"' ) ;
-		res = ::regex_replace( res , ::regex("\\$env") , env );
+		res = ::regex_replace( res , ::regex("\\$extensions") , extensions                                             ) ;
+		res = ::regex_replace( res , ::regex("\\$name"      ) , mk_json_str(          j->name()                      ) ) ;
+		res = ::regex_replace( res , ::regex("\\$g_root_dir") , mk_json_str(          *g_root_dir                    ) ) ;
+		res = ::regex_replace( res , ::regex("\\$program"   ) , mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/cmd")) ) ;
+		//
+		::vmap_ss env     = _mk_env(start.env,report_end.end.dynamic_env) ;
+		size_t    kw      = 13/*SEQUENCE_ID*/ ; for( auto&& [k,v] : env ) if (k!="TMPDIR") kw = ::max(kw,mk_json_str(k).size()) ;
+		::string  env_str ;
+		append_to_string( env_str ,                 to_string(::setw(kw),mk_json_str("ROOT_DIR"   ))," : ",mk_json_str(*g_root_dir                              ) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SEQUENCE_ID"))," : ",mk_json_str(to_string(report_start.pre_start.seq_id) ) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("SMALL_ID"   ))," : ",mk_json_str(to_string(start.small_id               ) ) ) ;
+		append_to_string( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str("TMPDIR"     ))," : ",mk_json_str(to_string(*g_root_dir,'/',dbg_dir,"/tmp")) ) ;
+		for( auto&& [k,v] : env )
+			if (k!="TMPDIR") append_to_string ( env_str , "\n\t\t\t\t,\t",to_string(::setw(kw),mk_json_str(k))," : ",mk_json_str(v) ) ;
+		res = ::regex_replace( res , ::regex("\\$env") , env_str );
 		return res ;
 	}
 
-	static ::string _mk_script(
-		Job                 j
-	,	ReqFlags            flags
-	,	JobInfoStart const& report_start
-	,	JobInfoEnd   const& report_end
-	,	::string     const& dbg_dir
-	,	bool                with_cmd
-	,	::vector_s   const& vs_ext       = {}
-	) {
+	static ::string _mk_script( Job j , ReqFlags flags , JobInfoStart const& report_start , JobInfoEnd const& report_end ,::string const& dbg_dir , bool with_cmd , ::vector_s const& vs_ext={} ) {
 		JobRpcReply const& start   = report_start.start ;
 		AutodepEnv  const& ade     = start.autodep_env  ;
 		::string           abs_cwd = *g_root_dir        ;
@@ -370,13 +373,13 @@ R"({
 			append_to_string( script , "args+=(\"${DEBUG_DIR}/vscode/ldebug.code-workspace\")\n" ) ;
 			append_to_string( script , "code -n -w ${args[@]} &"                                 ) ;
 		} else {
-			append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
-			append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
-			append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
-			append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
-			append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
-			for( auto& [k,v] : start.env                  ) if (k!="TMPDIR") append_to_string(script,'\t',k,'=',mk_shell_str(env_decode(::copy(v)))," \\\n") ;
-			for( auto& [k,v] : report_end.end.dynamic_env )                  append_to_string(script,'\t',k,'=',mk_shell_str(           ::copy(v) )," \\\n") ;
+			::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
+			/**/                                      append_to_string( script , "exec env -i"    ,                                 " \\\n" ) ;
+			/**/                                      append_to_string( script , "\tROOT_DIR="    , mk_shell_str(*g_root_dir)     , " \\\n" ) ;
+			/**/                                      append_to_string( script , "\tSEQUENCE_ID=" , report_start.pre_start.seq_id , " \\\n" ) ;
+			/**/                                      append_to_string( script , "\tSMALL_ID="    , start.small_id                , " \\\n" ) ;
+			/**/                                      append_to_string( script , "\tTMPDIR="      , "\"$TMPDIR\""                 , " \\\n" ) ;
+			for( auto& [k,v] : env ) if (k!="TMPDIR") append_to_string( script , '\t',k,'='       , mk_shell_str(v)               , " \\\n" ) ;
 			if ( dbg || ade.auto_mkdir || +ade.tmp_view ) {                                                                    // in addition of dbg, autodep may be needed for functional reasons
 				/**/                               append_to_string( script , *g_lmake_dir,"/bin/autodep"        , ' ' ) ;
 				if      ( dbg )                    append_to_string( script , "-s " , snake(ade.lnk_support)     , ' ' ) ;
@@ -456,10 +459,10 @@ R"({
 		//
 		::string script = _mk_script( job , ro.flags , report_start , report_end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
 		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,              dbg_dir , redirected                ) ;
-		::string vscode = _mk_vscode( job ,            report_start ,              dbg_dir ,                    vs_ext ) ;
+		::string vscode = _mk_vscode( job ,            report_start , report_end , dbg_dir ,                    vs_ext ) ;
 		//
-		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
-		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
+		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ;                                                            // make executable
+		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ;                                                            // .
 		OFStream(dir_guard(vscode_file)) << vscode ;
 		//
 		audit( fd , ro , script_file , true/*as_is*/ ) ;
@@ -543,18 +546,19 @@ R"({
 					//
 					switch (ro.key) {
 						case ReqKey::Env : {
-							size_t w = 0 ;
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							for( auto const& [k,v] : start.env ) w = max(w,k.size()) ;
-							for( auto const& [k,v] : start.env ) audit( fd , ro , to_string(::setw(w),k," : ",env_decode(::copy(v))) , lvl ) ;
+							::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
+							size_t    w   = 0                                   ;
+							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
+							for( auto const& [k,v] : env ) audit( fd , ro , to_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
 						} break ;
-						case ReqKey::ExecScript :
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/                                                              , lvl ) ; break ; }
-							/**/              audit( fd , ro ,              _mk_script(job,ro.flags,report_start,report_end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , lvl ) ;
+						case ReqKey::ExecScript : //!                                                                                                                       as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                                              , true , lvl ) ;
+							else            audit( fd , ro ,              _mk_script(job,ro.flags,report_start,report_end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
 						break ;
-						case ReqKey::Cmd : {
-							if (!has_start) { audit( fd , ro , Color::Err , "no info available"                       , true/*as_is*/ , lvl ) ; break ; }
-							/**/              audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{},redirected) ,                 lvl ) ;
+						case ReqKey::Cmd : { //!                                                                     as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"                       , true , lvl ) ;
+							else            audit( fd , ro ,              _mk_cmd(job,ro.flags,start,{},redirected) , true , lvl ) ;
 						} break ;
 						case ReqKey::Stdout :
 							if (!has_end ) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
@@ -567,9 +571,9 @@ R"({
 							if (has_start) {
 								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
 							}
-							if (has_end) {
-								if (verbose) audit( fd , ro , Color::Note , report_end.end.msg , false/*as_is*/ , lvl+1 ) ;
-								/**/         audit( fd , ro ,               digest.stderr      , true /*as_is*/ , lvl+1 ) ;
+							if (has_end) { //!                                                   as_is
+								if (verbose) audit( fd , ro , Color::Note , report_end.end.msg , false , lvl+1 ) ;
+								/**/         audit( fd , ro ,               digest.stderr      , true  , lvl+1 ) ;
 							}
 						break ;
 						case ReqKey::Info : {
@@ -625,21 +629,20 @@ R"({
 									else            push_entry("scheduling",to_string(               rs.eta.str() ," - ",       sa.pressure.short_str()     )                          ) ;
 								}
 								//
-								if (+tmp_dir                             ) push_entry("tmp dir"    ,localize(mk_file(tmp_dir),ro.startup_dir_s)) ;
-								if (+rs.start.autodep_env.tmp_view       ) push_entry("tmp view"   ,rs.start.autodep_env.tmp_view              ) ;
-								if ( sa.live_out                         ) push_entry("live_out"   ,"true"                                     ) ;
-								if (+rs.start.chroot                     ) push_entry("chroot"     ,rs.start.chroot                            ) ;
-								if (+rs.start.cwd_s                      ) push_entry("cwd"        ,cwd                                        ) ;
-								if ( rs.start.autodep_env.auto_mkdir     ) push_entry("auto_mkdir" ,"true"                                     ) ;
-								if ( rs.start.autodep_env.ignore_stat    ) push_entry("ignore_stat","true"                                     ) ;
-								/**/                                       push_entry("autodep"    ,snake_str(rs.start.method)                 ) ;
-								if (+rs.start.timeout                    ) push_entry("timeout"    ,rs.start.timeout.short_str()               ) ;
-								if (sa.tag!=BackendTag::Local            ) push_entry("backend"    ,snake_str(sa.tag)                          ) ;
+								if (+tmp_dir                         ) push_entry("tmp dir"    ,localize(mk_file(tmp_dir),ro.startup_dir_s)) ;
+								if (+rs.start.autodep_env.tmp_view   ) push_entry("tmp view"   ,rs.start.autodep_env.tmp_view              ) ;
+								if ( sa.live_out                     ) push_entry("live_out"   ,"true"                                     ) ;
+								if (+rs.start.chroot                 ) push_entry("chroot"     ,rs.start.chroot                            ) ;
+								if (+rs.start.cwd_s                  ) push_entry("cwd"        ,cwd                                        ) ;
+								if ( rs.start.autodep_env.auto_mkdir ) push_entry("auto_mkdir" ,"true"                                     ) ;
+								if ( rs.start.autodep_env.ignore_stat) push_entry("ignore_stat","true"                                     ) ;
+								/**/                                   push_entry("autodep"    ,snake_str(rs.start.method)                 ) ;
+								if (+rs.start.timeout                ) push_entry("timeout"    ,rs.start.timeout.short_str()               ) ;
+								if (sa.tag!=BackendTag::Local        ) push_entry("backend"    ,snake_str(sa.tag)                          ) ;
 							}
 							//
-							::map_ss required_rsrcs  ;
 							::map_ss allocated_rsrcs = mk_map(report_start.rsrcs        ) ;
-							::map_ss dynamic_env     = mk_map(report_end.end.dynamic_env) ;
+							::map_ss required_rsrcs  ;
 							try {
 								Rule::SimpleMatch match ;
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
@@ -691,14 +694,13 @@ R"({
 									audit( fd , ro , to_string(::setw(w),mk_py_str(k)," : ",e.as_is?e.txt:mk_py_str(e.txt)) , false/*as_is*/ , lvl+1 , ',' ) ;
 								if (+required_rsrcs ) audit_rsrcs("required resources" ,required_rsrcs ,false/*allocated*/) ;
 								if (+allocated_rsrcs) audit_rsrcs("allocated resources",allocated_rsrcs,true /*allocated*/) ;
-								if (+dynamic_env    ) audit_rsrcs("dynamic env"        ,dynamic_env    ,false/*allocated*/) ; // !allocated prevents fancy rsrcs processing
-								audit( fd , ro , "}" , lvl ) ;
+								audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;
 							} else {
 								size_t w = 0 ; for( auto const& [k,e] : tab ) if (e.txt.find('\n')==Npos) w = ::max(w,k.size()) ;
 								_send_job( fd , ro , No/*show_deps*/ , false/*hide*/ , job , lvl ) ;
 								for( auto const& [k,e] : tab )
 									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , to_string(::setw(w),k," : ",e.txt) , false/*as_is*/ , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , false/*as_is*/ , lvl+1 ) ; audit(fd,ro,e.txt,lvl+2) ; }
+									else                        { audit( fd , ro , e.color , to_string(          k," :"       ) , false/*as_is*/ , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
 								if ( +required_rsrcs || +allocated_rsrcs ) {
 									size_t w2            = 0                ;
 									for( auto const& [k,_] : required_rsrcs  ) w2 = ::max(w2,k.size()) ;
@@ -706,7 +708,7 @@ R"({
 									::string hdr = "resources :" ;
 									if      (!+allocated_rsrcs) hdr = "required " +hdr ;
 									else if (!+required_rsrcs ) hdr = "allocated "+hdr ;
-									audit( fd , ro , hdr , lvl+1 ) ;
+									audit( fd , ro , hdr , true/*as_is*/ , lvl+1 ) ;
 									if      (!required_rsrcs                ) for( auto const& [k,v] : allocated_rsrcs ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 									else if (!allocated_rsrcs               ) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 									else if (required_rsrcs==allocated_rsrcs) for( auto const& [k,v] : required_rsrcs  ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
@@ -721,11 +723,6 @@ R"({
 										for( auto const& [k,av] : allocated_rsrcs )
 											if (!required_rsrcs.contains(k))    audit( fd , ro , to_string(::setw(w2),k,"(allocated)"," : ",av) , true/*as_is*/ , lvl+2 ) ;
 									}
-								}
-								if (+dynamic_env) {
-									size_t w2 = 0 ; for( auto const& [k,_] : dynamic_env ) w2 = ::max(w2,k.size()) ;
-									/**/                                   audit( fd , ro , "dynamic env :"                 ,                 lvl+1 ) ;
-									for( auto const& [k,v] : dynamic_env ) audit( fd , ro , to_string(::setw(w2),k," : ",v) , true/*as_is*/ , lvl+2 ) ;
 								}
 							}
 						} break ;

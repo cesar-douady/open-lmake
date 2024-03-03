@@ -353,16 +353,16 @@ namespace Engine {
 
 	// XXX generate consider line if status==Manual
 	bool/*modified*/ JobExec::end( ::vmap_ss const& rsrcs , JobDigest const& digest , ::string&& msg ) {
-		Status            status           = digest.status                               ;               // status will be modified, need to make a copy
-		Bool3             ok               = is_ok  (status)                             ;
-		bool              lost             = is_lost(status)                             ;
-		JobReason         local_reason     = JobReasonTag::None                          ;
-		bool              local_err        = false                                       ;
-		bool              any_modified     = false                                       ;
-		bool              fresh_deps       = status>Status::Async                        ;               // if job did not go through, old deps are better than new ones
-		bool              seen_dep_date    = false                                       ;
-		Rule              rule             = (*this)->rule                               ;
-		::vector<Req>     running_reqs_    = (*this)->running_reqs(true/*with_zombies*/) ;
+		Status            status           = digest.status                                        ;      // status will be modified, need to make a copy
+		Bool3             ok               = is_ok  (status)                                      ;
+		bool              lost             = is_lost(status)                                      ;
+		JobReason         local_reason     = JobReasonTag::None                                   ;
+		bool              local_err        = false                                                ;
+		bool              any_modified     = false                                                ;
+		bool              fresh_deps       = status==Status::EarlyChkDeps || status>Status::Async ;      // if job did not go through, old deps are better than new ones
+		bool              seen_dep_date    = false                                                ;
+		Rule              rule             = (*this)->rule                                        ;
+		::vector<Req>     running_reqs_    = (*this)->running_reqs(true/*with_zombies*/)          ;
 		::string          local_msg        ;                                                             // to be reported if job was otherwise ok
 		::string          severe_msg       ;                                                             // to be reported always
 		CacheNoneAttrs    cache_none_attrs ;
@@ -563,7 +563,7 @@ namespace Engine {
 				audit_end( {}/*pfx*/ , ri , msg , err?""s:stderr , end_none_attrs.max_stderr_len , any_modified , digest.stats.total ) ; // report user stderr if make analysis ...
 				trace("wakeup_watchers",ri) ;                                                                                            // ... did not make these errors meaningless
 				ri.wakeup_watchers() ;
-			} else {
+			} else if (status!=Status::EarlyChkDeps) { // early deps (deps for attribute computations) do not generate rerun messages as we ran nothing
 				all_done = false ;
 				JobReport jr = audit_end( +local_reason?"":"may_" , ri , msg , {}/*stderr*/ , -1/*max_stderr_len*/ , any_modified , digest.stats.total ) ; // report 'rerun' rather than status
 				if (!err) append_line_to_string(msg,local_msg) ;                             // report local_msg if nothing more import to report

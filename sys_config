@@ -154,6 +154,20 @@ then HAS_MEMFD=1
 else HAS_MEMFD=0
 fi
 
+#
+# USE_LIBC_START_MAIN
+#
+cat <<"EOF" > start_main.c
+	#include<unistd.h>
+	int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
+		write(1,"1",1) ; // stick to very basic sycalls as nothing is initialized yet
+		_exit(0) ;       // dont call main
+	}
+	int main() { write(1,"0",1) ; }
+EOF
+$CC -o start_main start_main.c
+USE_LIBC_START_MAIN=$(./start_main)
+
 cat <<EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
@@ -168,4 +182,5 @@ cat <<EOF
 	#define NEED_STAT_WRAPPERS          $NEED_STAT_WRAPPERS
 	#define PYTHON                      "$PYTHON"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
+	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF

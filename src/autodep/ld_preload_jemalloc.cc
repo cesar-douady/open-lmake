@@ -12,12 +12,19 @@ static inline bool started() { return _g_started ; }
 
 #include "ld.x.cc"
 
-#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
-extern "C" {
-	int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
-		static auto orig = reinterpret_cast<decltype(__libc_start_main)*>(dlsym(RTLD_NEXT,"__libc_start_main")) ;
-		_g_started = true ;
-		return orig(main,argc,argv,auxvec,init,fini,rtld_fini,stack_end) ;
+// if we can intercept program start, the semantic is clear : it is right before global constructors in main program
+// else we define a static, which is somewhere before global constructors in main program, but unknown relative to other global contructors
+// the first solution may not be the best, but at least it has a clear and reproductible semantic
+#if USE_LIBC_START_MAIN
+	#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
+	extern "C" {
+		int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
+			static auto orig = reinterpret_cast<decltype(__libc_start_main)*>(dlsym(RTLD_NEXT,"__libc_start_main")) ;
+			_g_started = true ;
+			return orig(main,argc,argv,auxvec,init,fini,rtld_fini,stack_end) ;
+		}
 	}
-}
-#pragma GCC visibility pop
+	#pragma GCC visibility pop
+#else
+	static bool _g_start = (_g_started=true) ;
+#endif

@@ -234,6 +234,20 @@ def find_static_stems(job_name) :
 		else                 : raise ValueError(f'spurious {{ in job_name {job_name}')
 	return stems
 
+def mk_dbg_info( dbg , serialize_ctx ) :
+	if not dbg : return ("","")
+	lmake_dir      = avoid_ctx('lmake_dir'     ,serialize_ctx)
+	lmake_runtime  = avoid_ctx('lmake_runtime' ,serialize_ctx)
+	lmake_sourcify = avoid_ctx('lmake_sourcify',serialize_ctx)
+	dbg_info = ''.join((
+		f"{lmake_runtime} = {{}}\n"
+	,	f"exec(open({lmake_dir}+'/lib/lmake_runtime.py').read(),{lmake_runtime})\n"
+	,	f"{lmake_sourcify} = {lmake_runtime}['lmake_sourcify']\n"
+	))
+	for func,(module,qualname,filename,firstlineno) in dbg.items() :
+		dbg_info += f'{lmake_sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
+	return lmake_dir,dbg_info
+
 def static_fstring(s) :
 	'suppress double { and } assuming no variable part'
 	prev_c = '*'
@@ -330,13 +344,14 @@ class Handle :
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val : return (static_val,)
+		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
-		,	ctx            = ( self.per_job , self.aggregate_per_job , *self.glbs )
-		,	no_imports     = in_repo_re                                             # non-static deps are forbidden, transport all local modules by value
+		,	ctx            = serialize_ctx
+		,	no_imports     = in_repo_re                                                      # non-static deps are forbidden, transport all local modules by value
 		,	call_callables = True
 		)
-		return ( static_val , tuple(names) , ctx , code )
+		return ( static_val , tuple(names) , ctx , code , *mk_dbg_info(dbg,serialize_ctx) )
 
 	def handle_matches(self) :
 		if 'target' in self.attrs : self.attrs.targets['<stdout>'] = self.attrs.pop('target')
@@ -461,41 +476,36 @@ class Handle :
 	def handle_cmd(self) :
 		self.rule_rep.is_python = self.attrs.is_python
 		if self.attrs.is_python :
-			cmd_ctx       = set()
 			serialize_ctx = (self.per_job,self.aggregate_per_job,*self.glbs)
-			cmd           = self.attrs.cmd
-			multi         = len(cmd)>1
+			cmd_lst       = self.attrs.cmd
+			multi         = len(cmd_lst)>1
 			if multi :
-				cmd_lst = []
-				cmd_idx = 0
-				for ci,c in enumerate(cmd) :
+				for ci,c in enumerate(cmd_lst) :
 					# create a copy of c with its name modified (dont modify in place as this would be visible for other rules inheriting from the same parent)
 					cc                 = c.__class__( c.__code__ , c.__globals__ , avoid_ctx(f'cmd{ci}',serialize_ctx) , c.__defaults__ , c.__closure__ )
 					cc.__annotations__ = c.__annotations__
 					cc.__kwdefaults__  = c.__kwdefaults__
 					cc.__module__      = c.__module__
 					cc.__qualname__    = c.__qualname__
-					cmd_lst.append(cc)
-				cmd = cmd_lst
-			decorator = avoid_ctx('lmake_func',serialize_ctx)
-			cmd , cmd_ctx , dbg_info = serialize.get_src(
-				*cmd
+					cmd_lst[ci] = cc
+			sourcify = avoid_ctx('lmake_sourcify',serialize_ctx)
+			cmd , names , dbg = serialize.get_src(
+				*cmd_lst
 			,	ctx        = serialize_ctx
 			,	no_imports = rule_modules
 			,	force      = True
-			,	decorator  = decorator
 			,	root_dir   = root_dir
 			)
 			if multi :
 				cmd += 'def cmd() : \n'
-				x = avoid_ctx('x',serialize_ctx) # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                         # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					a = '' if c.__code__.co_argcount==0 else 'None' if i==0 else x
 					if   i==len(self.attrs.cmd)-1          : cmd += f'\treturn {c.__name__}({a})\n'
 					elif cmd_lst[i+1].__code__.co_argcount : cmd += f'\t{a} = { c.__name__}({a})\n'
 					else                                   : cmd += f'\t{       c.__name__}({a})\n'
-			self.rule_rep.cmd      = ( {'cmd':cmd,'decorator':decorator} , tuple(cmd_ctx) )
-			self.rule_rep.dbg_info = dbg_info
+			if dbg : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)  , "" , "" , *mk_dbg_info(dbg,serialize_ctx) )
+			else   : self.rule_rep.cmd = ( pdict(cmd=cmd) , tuple(names)                                              )
 		else :
 			self.attrs.cmd = cmd = '\n'.join(self.attrs.cmd)
 			self._init()

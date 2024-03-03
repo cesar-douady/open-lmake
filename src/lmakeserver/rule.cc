@@ -224,6 +224,38 @@ namespace Engine {
 	// Dynamic
 	//
 
+	bool DynamicDskBase::s_is_dynamic(Py::Tuple const& py_src) {
+		ssize_t sz = py_src.size() ;
+		if (sz>1) SWEAR(py_src[1].is_a<Py::Sequence>()) ; // names
+		switch (sz) {
+			case 1 :
+			case 2 : return false ;
+			case 6 :
+				SWEAR(py_src[2].is_a<Py::Str>()) ;        // glbs
+				SWEAR(py_src[3].is_a<Py::Str>()) ;        // code
+				SWEAR(py_src[4].is_a<Py::Str>()) ;        // lmake_dir_var_name
+				SWEAR(py_src[5].is_a<Py::Str>()) ;        // dbg_info
+				return +py_src[3] ;
+		DF}
+	}
+
+	DynamicDskBase::DynamicDskBase( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
+		is_dynamic        { s_is_dynamic(py_src)                                   }
+	,	glbs_str          { is_dynamic      ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
+	,	code_str          { is_dynamic      ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
+	,	lmake_dir_var_name{ py_src.size()>4 ? ::string(py_src[4].as_a<Py::Str>()) : ""s }
+	,	dbg_info          { py_src.size()>5 ? ::string(py_src[5].as_a<Py::Str>()) : ""s }
+	{
+		Py::Gil gil ;
+		if (py_src.size()<=1) return ;
+		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
+		for( Py::Object const& py_item : py_src[1].as_a<Py::Sequence>() ) {
+			CmdIdx ci = var_idxs.at(py_item.as_a<Py::Str>()) ;
+			ctx.push_back(ci) ;
+		}
+		::sort(ctx) ; // stabilize crc's
+	}
+
 	void DynamicDskBase::_s_eval( Job j , Rule::SimpleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
 		Rule             r          = +j ? j->rule : m.rule            ;
@@ -460,8 +492,7 @@ namespace Engine {
 
 	void Cmd::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		::string raw_cmd ;
-		Attrs::acquire_from_dct( raw_cmd   , *py_src , "cmd"       ) ;
-		Attrs::acquire_from_dct( decorator , *py_src , "decorator" ) ;
+		Attrs::acquire_from_dct( raw_cmd , *py_src , "cmd" ) ;
 		if (rd.is_python) {
 			cmd = ::move(raw_cmd) ;
 		} else {
@@ -482,18 +513,6 @@ namespace Engine {
 			return {cmd,{}} ;
 		}
 		::string res ;
-		append_to_string( res , "lmake_runtime = {}\n"                                                                   ) ;
-		append_to_string( res , "exec(open(",mk_py_str(*g_lmake_dir+"/lib/lmake_runtime.py"),").read(),lmake_runtime)\n" ) ;
-		append_to_string( res , spec.decorator," = lmake_runtime['lmake_func']\n"                                        ) ;
-		append_to_string( res , spec.decorator,".dbg = {\n"                                                              ) ;
-		bool first = true ;
-		SWEAR(+r) ;
-		for( auto const& [k,v] : r->dbg_info ) {
-			if (!first) res += ',' ;
-			first = false ;
-			append_to_string(res,'\t',mk_py_str(k)," : (",mk_py_str(v.module),',',mk_py_str(v.qual_name),',',mk_py_str(v.filename),',',v.first_line_no1,")\n") ;
-		}
-		res += "}\n" ;
 		eval_ctx( match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				if ( vc!=VarCmd::Match || i<r->n_statics ) {
@@ -531,8 +550,8 @@ namespace Engine {
 				res += "}\n" ;
 			}
 		) ;
-		res += ensure_nl(spec.cmd) ;
-		return {res,"cmd()\n"} ;
+		append_line_to_string(res,spec.cmd) ;
+		return {append_dbg_info(res),"cmd()\n"} ;
 	}
 
 	::ostream& operator<<( ::ostream& os , DbgEntry const& de ) {
@@ -867,9 +886,6 @@ namespace Engine {
 			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			//
-			field = "dbg_info" ;
-			if (dct.contains(field)) Attrs::acquire( dbg_info , &dct[field] ) ;
-			//
 			field = "ete"   ; if (dct.contains(field)) exec_time = Delay(dct[field].as_a<Float>()) ;
 			field = "force" ; if (dct.contains(field)) force     =      +dct[field]                ;
 			for( VarIdx mi=0 ; mi<n_static_targets ; mi++ ) {
@@ -1166,8 +1182,8 @@ namespace Engine {
 	}
 	static ::string _pretty( size_t i , Cmd const& c , RuleData const& rd ) {
 		if (!c.cmd      ) return {}                                          ;
-		if (rd.is_python) return indent(ensure_nl(             c.cmd    ),i) ;
-		else              return indent(ensure_nl(_pretty_fstr(c.cmd,rd)),i) ;
+		if (rd.is_python) return indent(ensure_nl(rd.cmd.append_dbg_info(c.cmd)),i) ;
+		else              return indent(ensure_nl(_pretty_fstr(c.cmd,rd)       ),i) ;
 	}
 	static ::string _pretty( size_t i , StartRsrcsAttrs const& sra ) {
 		OStringStream res     ;
@@ -1181,7 +1197,7 @@ namespace Engine {
 		if (+sra.env    ) res << indent("environ :\n",i) << _pretty_env( i+1 , sra.env )  ;
 		return res.str() ;
 	}
-	static ::string _pretty( size_t i , StartNoneAttrs const& sna , RuleData const& rd ) {
+	static ::string _pretty( size_t i , StartNoneAttrs const& sna ) {
 		OStringStream res     ;
 		::vmap_ss     entries ;
 		if ( sna.keep_tmp   ) entries.emplace_back( "keep_tmp"    , to_string   (sna.keep_tmp   )            ) ;
@@ -1189,7 +1205,6 @@ namespace Engine {
 		if (+sna.kill_sigs  ) entries.emplace_back( "kill_sigs"   , _pretty_sigs(sna.kill_sigs  )            ) ;
 		/**/              res << _pretty_vmap(i,entries)                                         ;
 		if (+sna.env    ) res << indent("environ :\n"   ,i) << _pretty_env ( i+1 , sna.env     ) ;
-		if (+rd.dbg_info) res << indent("debug info :\n",i) << _pretty_vmap( i+1 , rd.dbg_info ) ;
 		return res.str() ;
 	}
 	static ::string _pretty( size_t i , EndCmdAttrs const& eca ) {
@@ -1208,13 +1223,13 @@ namespace Engine {
 		if ( !s && !d.code_str ) return {} ;
 		//
 		::string res ;
-		/**/                                        append_to_string( res , indent(to_string(T::Msg," :\n"),i  )                                     ) ;
-		if (+d.glbs_str)                            append_to_string( res , indent("<dynamic globals> :\n" ,i+1) , ensure_nl(indent(d.glbs_str,i+2)) ) ;
-		if (+d.ctx     )                            append_to_string( res , indent("<context> :"           ,i+1)                                     ) ;
-		for( ::string const& k : _list_ctx(d.ctx) ) append_to_string( res , ' ',k                                                                    ) ;
-		if (+d.ctx     )                            append_to_string( res , '\n'                                                                     ) ;
-		if (+s         )                            append_to_string( res , s                                                                        ) ;
-		if (+d.code_str)                            append_to_string( res , indent("<dynamic code> :\n",i+1)     , ensure_nl(indent(d.code_str,i+2)) ) ;
+		/**/                                        append_to_string( res , indent(to_string(T::Msg," :\n"),i  )                                                        ) ;
+		if (+d.glbs_str)                            append_to_string( res , indent("<dynamic globals> :\n" ,i+1) , ensure_nl(indent(d.append_dbg_info(d.glbs_str),i+2)) ) ;
+		if (+d.ctx     )                            append_to_string( res , indent("<context> :"           ,i+1)                                                        ) ;
+		for( ::string const& k : _list_ctx(d.ctx) ) append_to_string( res , ' ',k                                                                                       ) ;
+		if (+d.ctx     )                            append_to_string( res , '\n'                                                                                        ) ;
+		if (+s         )                            append_to_string( res , s                                                                                           ) ;
+		if (+d.code_str)                            append_to_string( res , indent("<dynamic code> :\n",i+1)     , ensure_nl(indent(d.code_str,i+2))                    ) ;
 		return res ;
 	}
 
@@ -1248,10 +1263,10 @@ namespace Engine {
 			res << _pretty_str(1,cache_none_attrs        ) ;
 			res << _pretty_str(1,submit_rsrcs_attrs      ) ;
 			res << _pretty_str(1,submit_none_attrs       ) ;
-			res << _pretty_str(1,start_none_attrs  ,*this) ;
-			res << _pretty_str(1,start_cmd_attrs         ) ;
 			res << _pretty_str(1,cmd               ,*this) ;
+			res << _pretty_str(1,start_cmd_attrs         ) ;
 			res << _pretty_str(1,start_rsrcs_attrs       ) ;
+			res << _pretty_str(1,start_none_attrs        ) ;
 			res << _pretty_str(1,end_cmd_attrs           ) ;
 			res << _pretty_str(1,end_none_attrs          ) ;
 		}
@@ -1299,6 +1314,9 @@ namespace Engine {
 			match_crc = ::move(h).digest() ;
 		}
 		if (special) return ;                // source & anti are only capable of matching
+		DynamicCmd cmd_ = cmd ;
+		cmd_.lmake_dir_var_name = {} ;       // ignore debug info
+		cmd_.dbg_info           = {} ;       // .
 		{	Hash::Xxh h ;
 			h.update(match_crc      ) ;
 			h.update(matches        ) ;      // these define names and influence cmd execution, all is not necessary but simpler to code
@@ -1306,7 +1324,7 @@ namespace Engine {
 			h.update(is_python      ) ;
 			h.update(interpreter    ) ;
 			h.update(start_cmd_attrs) ;
-			h.update(cmd            ) ;
+			h.update(cmd_           ) ;
 			h.update(end_cmd_attrs  ) ;
 			cmd_crc = ::move(h).digest() ;   // stand-alone : it guarantees rule uniqueness (contains match_crc)
 		}

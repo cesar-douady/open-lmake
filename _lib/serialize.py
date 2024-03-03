@@ -20,21 +20,20 @@ comment_re = re.compile(r'^\s*(#.*)?$')
 
 _Code = (lambda:None).__code__.__class__
 
-def get_src(*args,no_imports=None,ctx=(),force=False,decorator=None,root_dir=None) :
+def get_src(*args,no_imports=None,ctx=(),force=False,root_dir=None) :
 	'''
 		get a source text that reproduce args :
 		- args must be composed of named objects such as functions or classes or dicts mapping names to values
 		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
-		- if decorator is true, use it to decorate all generated functions
 		- if root_dir is provided, source filename debug info are reported relative to this directory
 		The return value is (source,names) where :
 			- source is the source text that reproduces args
 			- names is the set of names found in sets in ctx
 			- debug_info contains a dict mapping generated function names to (module,qualname,file,firstlineno)
 	'''
-	s = Serialize(no_imports,ctx,decorator,root_dir)
+	s = Serialize(no_imports,ctx,root_dir)
 	for a in args :
 		if isinstance(a,dict) :
 			for k,v in a.items() : s.val_src(k,v,force)
@@ -116,15 +115,14 @@ def _analyze(filename) :
 		file_end_lines[start_lineno] = end_lineno
 
 class Serialize :
-	InSet = object()                                                 # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	def __init__(self,no_imports,ctx,decorator=None,root_dir=None) :
-		self.seen            = {}
-		self.src             = []
-		self.in_sets         = set()
-		self.ctx             = list(ctx)
-		self.decorator       = decorator
-		self.root_dir        = root_dir
-		self.debug_info      = {}
+	InSet = object()                                  # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
+	def __init__(self,no_imports,ctx,root_dir=None) :
+		self.seen       = {}
+		self.src        = []
+		self.in_sets    = set()
+		self.ctx        = list(ctx)
+		self.root_dir   = root_dir
+		self.debug_info = {}
 		if not no_imports :
 			self.no_imports_proc = lambda m : False
 		elif isinstance(no_imports,str) :
@@ -279,7 +277,7 @@ class Serialize :
 		first_line_no1 = code.co_firstlineno                                                                 # first line is 1
 		first_line_no0 = first_line_no1-1                                                                    # first line is 0
 		end_line_no    = file_end_lines.get(first_line_no0)
-		if first_line_no0>0 and file_src[first_line_no0-1].strip()[0:1]=='@' : raise ValueError(f'decorator not supported for {name}')
+		if first_line_no0>0 and file_src[first_line_no0-1].strip().startswith('@') : raise ValueError(f'cannot handle decorated {name}')
 		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
 		#
 		if func.__globals__ not in self.ctx : self.ctx.append(func.__globals__)
@@ -289,5 +287,5 @@ class Serialize :
 		if self.root_dir  : filename = osp.relpath(filename,self.root_dir)
 		if True           : self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
 		if True           : self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
-		if self.decorator : self.src.append( f'{name} = {self.decorator}({name})'                          ) # dont synthetize a decorator as this would mix up line numbers in pdb/pudb
+		#
 		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

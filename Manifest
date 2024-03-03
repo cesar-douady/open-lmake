@@ -11,6 +11,7 @@ _lib/lmake/import_machinery.py
 _lib/lmake/rules.src.py
 _lib/lmake/sources.src.py
 _lib/lmake/utils.py
+_lib/lmake_dbg.py
 _lib/lmake_runtime.py
 _lib/read_makefiles.py
 _lib/serialize.py

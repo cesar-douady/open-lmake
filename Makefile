@@ -191,6 +191,7 @@ LMAKE_SERVER_PY_FILES := \
 	$(LIB)/lmake/rules.py            \
 	$(LIB)/lmake/sources.py          \
 	$(LIB)/lmake/utils.py            \
+	$(LIB)/lmake_dbg.py              \
 	$(LIB)/lmake_runtime.py
 
 LMAKE_SERVER_BIN_FILES := \

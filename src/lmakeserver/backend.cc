@@ -218,24 +218,15 @@ namespace Backends {
 			//                               vvvvvvvvvvvvvvvvvvvvvvv
 			append_line_to_string( jrr.msg , s_start(entry.tag,+job) ) ;
 			//                               ^^^^^^^^^^^^^^^^^^^^^^^
-			// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-			try {
-				start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&::ref(::vmap_s<DepDigest>())) ; // ignore deps of start_none_attrs as this is not critical (no impact on targets)
-			} catch (::pair_ss const& msg_err) {
-				/**/              start_none_attrs  = rule->start_none_attrs.spec                            ;
-				set_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
-				/**/              start_msg_err     = msg_err                                                ;
-			}
 			::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
 			size_t               n_submit_deps = deps.size()       ;
 			int                  step          = 0                 ;
 			bool                 keep_tmp      = false/*garbage*/  ;
 			tie(eta,keep_tmp) = entry.req_info() ;
-			keep_tmp |= start_none_attrs.keep_tmp ;
 			try {
 				deps_attrs        = rule->deps_attrs       .eval(match            ) ; step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 3 ;
+				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 2 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 3 ;
 				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 4 ;
 				//
 				try                       { start_cmd_attrs.chk(start_rsrcs_attrs.method) ; }
@@ -248,8 +239,8 @@ namespace Backends {
 				append_line_to_string(start_msg_err.second , msg_err.second ) ;
 				switch (step) {
 					case 0 : append_line_to_string( start_msg_err.first , rule->deps_attrs       .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 2 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 1 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 2 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
 					case 3 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
 					case 4 :                                                                                                           break ;
 					case 5 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
@@ -258,6 +249,16 @@ namespace Backends {
 			// record as much info as possible in reply
 			switch (step) {
 				case 6 :
+					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
+					try {
+						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&::ref(::vmap_s<DepDigest>())) ; // ignore deps of start_none_attrs as this is not critical (no impact on targets)
+					} catch (::pair_ss const& msg_err) {
+						/**/              start_none_attrs  = rule->start_none_attrs.spec                            ;
+						set_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
+						/**/              start_msg_err     = msg_err                                                ;
+					}
+					keep_tmp |= start_none_attrs.keep_tmp ;
+					//
 					for( auto [t,a] : pre_actions.first )              reply.pre_actions.emplace_back(t->name(),a) ;
 				[[fallthrough]] ;
 				case 5 :
@@ -267,15 +268,15 @@ namespace Backends {
 					for( ::pair_ss& kv : start_rsrcs_attrs.env )       reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
 				case 3 :
-					/**/                                               reply.cmd                       = ::move(cmd)                                  ;
-				[[fallthrough]] ;
-				case 2 :
 					/**/                                               reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir                   ;
 					/**/                                               reply.autodep_env.ignore_stat   = start_cmd_attrs.ignore_stat                  ;
 					/**/                                               reply.autodep_env.tmp_view      = ::move(start_cmd_attrs.tmp   )               ;   // tmp directory as viewed by job
 					/**/                                               reply.chroot                    = ::move(start_cmd_attrs.chroot)               ;
 					/**/                                               reply.use_script                = start_cmd_attrs.use_script                   ;
-					for( ::pair_ss& kv : start_cmd_attrs  .env )       reply.env.push_back(::move(kv)) ;
+					for( ::pair_ss& kv : start_cmd_attrs.env )         reply.env.push_back(::move(kv)) ;
+				[[fallthrough]] ;
+				case 2 :
+					/**/                                               reply.cmd                       = ::move(cmd)                                  ;
 				[[fallthrough]] ;
 				case 1 :
 					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs[rule->stdin_idx ].second.first    ;
@@ -298,7 +299,6 @@ namespace Backends {
 					/**/                                               reply.live_out                  = submit_attrs.live_out                        ;
 					/**/                                               reply.network_delay             = g_config.network_delay                       ;
 					/**/                                               reply.remote_admin_dir          = g_config.remote_admin_dir                    ;
-					/**/                                               reply.trace_n_jobs              = g_config.trace.n_jobs                        ;
 					for( ::pair_ss& kv : start_none_attrs .env )       reply.env.push_back(::move(kv)) ;
 				} break ;
 			DF}
@@ -344,10 +344,10 @@ namespace Backends {
 					}) ) ;
 					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,JobDigest(digest)) ) ) ;
 				}
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ::move(start_msg_err.second) , ::move(jrr.msg            ) ) ;
-				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                                                  , ::move(start_msg_err.first) ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ""s , ::move(jrr.msg            ) ) ;
+				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                         , ::move(start_msg_err.first) ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("release_start_tab",entry,step,start_msg_err) ;
 				_s_release_start_entry(it) ;
 				return false ;

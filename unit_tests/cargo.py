@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,HomelessRule,RustRule
 
-	from step import step
+	from step import step,has_jemalloc
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -26,10 +26,11 @@ if __name__!='__main__' :
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
-		if   step==1 : autodep = 'ld_preload_jemalloc'
-		elif step==2 : autodep = 'ptrace'
-		environ_cmd = { 'LD_PRELOAD' : 'libjemalloc.so' }
-		cmd     = 'cd  {Dir}{Module} ; cargo build 2>&1'
+		if   step==1      : autodep     = 'ld_preload_jemalloc'
+		elif step==2      : autodep     = 'ptrace'
+		if   has_jemalloc : environ_cmd = { 'LD_PRELOAD' : 'libjemalloc.so' }
+		allow_stderr = True
+		cmd          = 'cd  {Dir}{Module} ; cargo build'
 
 	class RunRust(RustRule) :
 		targets = { 'OUT' : '{Dir:.+/|}{Module:[^/]+}.out'        }
@@ -51,6 +52,12 @@ else :
 	import sys
 
 	import ut
+
+	sav = os.environ.get('LD_PRELOAD')
+	os.environ['LD_PRELOAD'] = 'libjemalloc.so'
+	has_jemalloc             = not sp.run(('/usr/bin/echo',),check=True,stderr=sp.PIPE).stderr
+	if sav is None : del os.environ['LD_PRELOAD']
+	else           :     os.environ['LD_PRELOAD'] = sav
 
 	try    : sp.check_output('cargo') # dont test rust if rust is not installed
 	except :
@@ -85,13 +92,12 @@ else :
 	print('hello world',file=open('hello.in' ,'w'))
 	print('hello world',file=open('hello.ref','w'))
 
-	print('step=1',file=open('step.py','w'))
-
+	print(f'step=1 ; has_jemalloc={has_jemalloc}',file=open('step.py','w'))
 	ut.lmake( 'hello.ok' , done=3 , new=4 )
 
 	print(file=open('hello/src/main.rs','a'))
 	ut.lmake( 'hello.ok' , steady=1 , changed=1 ) # check cargo can run twice with no problem
 
-	print('step=2',file=open('step.py','w'))
+	print(f'step=2 ; has_jemalloc={has_jemalloc}',file=open('step.py','w'))
 	os.system('rm -rf hello/target hello.ok') # force cargo to regenerate everything
 	ut.lmake( 'hello.ok' , steady=1 )         # check ptrace works with cargo

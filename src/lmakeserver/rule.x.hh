@@ -249,8 +249,7 @@ namespace Engine {
 			Attrs::acquire_from_dct( cmd , py_dct , "cmd" ) ;
 		}
 		// data
-		::string cmd       ;
-		::string decorator ;
+		::string cmd ;
 	} ;
 	namespace Attrs {
 		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
@@ -324,38 +323,63 @@ namespace Engine {
 
 	// the part of the Dynamic struct which is stored on disk
 	struct DynamicDskBase {
+		static bool s_is_dynamic(Py::Tuple const& ) ;
 	protected :
 		static void _s_eval( Job , Rule::SimpleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
+		// cxtors & casts
+		DynamicDskBase() = default ;
+		DynamicDskBase( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs ) ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,is_dynamic        ) ;
+			::serdes(s,glbs_str          ) ;
+			::serdes(s,code_str          ) ;
+			::serdes(s,ctx               ) ;
+			::serdes(s,lmake_dir_var_name) ;
+			::serdes(s,dbg_info          ) ;
+		}
+		::string append_dbg_info(::string const& code) const {
+			::string res = code ;
+			if (+dbg_info) {
+				append_line_to_string( res , lmake_dir_var_name," = ",mk_py_str(*g_lmake_dir),'\n' ) ;
+				append_line_to_string( res , dbg_info                                              ) ;
+			}
+			return res ;
+		}
+		// data
+	public :
+		bool             is_dynamic         = false ;
+		::string         glbs_str           ;         // if is_dynamic <=> contains string to run to get the glbs below
+		::string         code_str           ;         // if is_dynamic <=> contains string to compile to code object below
+		::vector<CmdIdx> ctx                ;         // a list of stems, targets & deps, accessed by code
+		::string         lmake_dir_var_name = {}    ; // name of variable holding lmake_dir
+		::string         dbg_info           = {}    ;
 	} ;
+
 	template<class T> struct DynamicDsk : DynamicDskBase {
 		// statics
-		static bool     s_is_dynamic(Py::Tuple const& ) ;
-		static ::string s_exc_msg   (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
+		static ::string s_exc_msg (bool using_static) { return to_string( "cannot compute dynamic " , T::Msg , using_static?", using static info":"" ) ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
 		template<class... A> DynamicDsk( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,is_dynamic) ;
-			::serdes(s,spec      ) ;
-			::serdes(s,glbs_str  ) ;
-			::serdes(s,code_str  ) ;
-			::serdes(s,ctx       ) ;
+			DynamicDskBase::serdes(s) ;
+			::serdes(s,spec) ;
 		}
 		// data
-		bool             is_dynamic = false ;
-		T                spec       ;         // contains default values when code does not provide the necessary entries
-		::string         glbs_str   ;         // if is_dynamic <=> contains string to run to get the glbs below
-		::string         code_str   ;         // if is_dynamic <=> contains string to compile to code object below
-		::vector<CmdIdx> ctx        ;         // a list of stems, targets & deps, accessed by code
+		T spec ; // contains default values when code does not provide the necessary entries
 	} ;
+
 	template<class T> struct Dynamic : DynamicDsk<T> {
 		using Base = DynamicDsk<T> ;
-		using Base::is_dynamic ;
-		using Base::spec       ;
-		using Base::glbs_str   ;
-		using Base::code_str   ;
-		using Base::ctx        ;
+		using Base::is_dynamic      ;
+		using Base::glbs_str        ;
+		using Base::code_str        ;
+		using Base::ctx             ;
+		using Base::spec            ;
+		using Base::_s_eval         ;
+		using Base::append_dbg_info ;
 		// statics
 		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
@@ -518,7 +542,6 @@ namespace Engine {
 		Dynamic<StartNoneAttrs  > start_none_attrs   ;         // in no    crc, evaluated before execution
 		Dynamic<EndCmdAttrs     > end_cmd_attrs      ;         // in cmd   crc, evaluated after  execution
 		Dynamic<EndNoneAttrs    > end_none_attrs     ;         // in no    crc, evaluated after  execution
-		::vmap_s<DbgEntry>        dbg_info           ;         // in no    crc, contains info to debug cmd that must not appear in cmd crc
 		size_t                    n_tokens           = 1     ; // in no    crc, contains the number of tokens to determine parallelism to use for ETA computation
 		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
@@ -728,49 +751,19 @@ namespace Engine {
 	// Dynamic
 	//
 
-	template<class T> bool DynamicDsk<T>::s_is_dynamic(Py::Tuple const& py_src) {
-		ssize_t sz = py_src.size() ;
-		switch (sz) {
-			case 1  :
-				return false ;
-			case 2  :
-				SWEAR(py_src[1].is_a<Py::Sequence>()) ;
-				return false ;
-			case 4  :
-				SWEAR(py_src[1].is_a<Py::Sequence>()) ;
-				SWEAR(py_src[2].is_a<Py::Str     >()) ;
-				SWEAR(py_src[3].is_a<Py::Str     >()) ;
-				return true ;
-			default :
-				FAIL(sz) ;
-		}
-	}
-
-	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) :
-		is_dynamic{ s_is_dynamic(py_src)                                   }
-	,	glbs_str  { is_dynamic ? ::string(py_src[2].as_a<Py::Str>()) : ""s }
-	,	code_str  { is_dynamic ? ::string(py_src[3].as_a<Py::Str>()) : ""s }
-	{
-		Py::Gil gil ;
+	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) : DynamicDskBase(py_src,var_idxs) {
 		if (py_src[0]!=Py::None) spec.init( is_dynamic , &py_src[0].as_a<Py::Dict>() , var_idxs , ::forward<A>(args)... ) ;
-		if (py_src.size()<=1    ) return ;
-		ctx.reserve(py_src[1].as_a<Py::Sequence>().size()) ;
-		for( Py::Object const& py_item : py_src[1].as_a<Py::Sequence>() ) {
-			CmdIdx ci = var_idxs.at(py_item.as_a<Py::Str>()) ;
-			ctx.push_back(ci) ;
-		}
-		::sort(ctx) ; // stabilize crc's
 	}
 
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
 		Py::Gil gil ;
-		try { code = code_str             ; code->boost() ; } catch (::string const& e) { throw to_string("cannot compile code :\n"   ,indent(e,1)) ; }
-		try { glbs = Py::py_run(glbs_str) ; glbs->boost() ; } catch (::string const& e) { throw to_string("cannot compile context :\n",indent(e,1)) ; }
+		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw to_string("cannot compile code :\n"   ,indent(e,1)) ; }
+		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw to_string("cannot compile context :\n",indent(e,1)) ; }
 	}
 
 	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::SimpleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
-		Dynamic::_s_eval(job,match_,rsrcs_,ctx,cb_str,cb_dct) ; // XXX : why is Dynamic:: necessary here ?
+		_s_eval(job,match_,rsrcs_,ctx,cb_str,cb_dct) ;
 	}
 
 	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs ) const {
@@ -826,12 +819,13 @@ namespace Engine {
 	}
 
 	template<class T> T Dynamic<T>::eval( Job job , Rule::SimpleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
-		if (!is_dynamic) return spec ;
-		T                   res    = spec                                     ;
-		Py::Gil             gil    ;
-		Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
-		try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
-		catch (::string const& e) { throw ::pair_ss(e,{}) ;                         }
+		T res = spec ;
+		if (is_dynamic) {
+			Py::Gil             gil    ;
+			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
+			try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
+			catch (::string const& e) { throw ::pair_ss(e,{}) ;                         }
+		}
 		return res ;
 	}
 
@@ -866,7 +860,6 @@ namespace Engine {
 			::serdes(s,start_none_attrs  ) ;
 			::serdes(s,end_cmd_attrs     ) ;
 			::serdes(s,end_none_attrs    ) ;
-			::serdes(s,dbg_info          ) ;
 			::serdes(s,n_tokens          ) ;
 			::serdes(s,interpreter       ) ;
 			::serdes(s,is_python         ) ;

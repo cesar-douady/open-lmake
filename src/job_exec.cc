@@ -112,21 +112,26 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 	res["ROOT_DIR"   ] = g_start_info.autodep_env.root_dir ;
 	res["SEQUENCE_ID"] = to_string(g_seq_id             )  ;
 	res["SMALL_ID"   ] = to_string(g_start_info.small_id)  ;
-	for( auto&& [k,v] : g_start_info.env ) {
-		if      (v!=EnvPassMrkr)                                                                        res[k] = env_decode(::move(v)) ;
-		else if (has_env(k)    ) { ::string v = get_env(k) ; end_report.dynamic_env.emplace_back(k,v) ; res[k] =            ::move(v)  ; } // if value is special illegal value, use value ...
-	}                                                                                                                                      // ... from environement (typically from slurm)
+	for( auto& [k,v] : g_start_info.env ) {
+		if (v!=EnvPassMrkr) {
+			res[k] = env_decode(::move(v)) ;
+		} else if (has_env(k)) {                                                                             // if value is special illegal value, use value from environement (typically from slurm)
+			::string v = get_env(k) ;
+			end_report.dynamic_env.emplace_back(k,env_encode(::copy(v))) ;
+			res[k] =                                         ::move(v)   ;
+		}
+	}
 	if ( g_start_info.keep_tmp || !res.contains("TMPDIR") )
-		res["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ;                               // if we keep tmp, we force the tmp directory
+		res["TMPDIR"] = mk_abs( g_start_info.autodep_env.tmp_dir , g_start_info.autodep_env.root_dir+'/' ) ; // if we keep tmp, we force the tmp directory
 	g_start_info.autodep_env.tmp_dir = res["TMPDIR"] ;
-	if (+g_start_info.autodep_env.tmp_view) res["TMPDIR"] = g_start_info.autodep_env.tmp_view ;                                            // job must use the job view
+	if (+g_start_info.autodep_env.tmp_view) res["TMPDIR"] = g_start_info.autodep_env.tmp_view ;              // job must use the job view
 	//
 	Trace trace("prepare_env",res) ;
 	//
 	try {
-		unlnk_inside(g_start_info.autodep_env.tmp_dir) ;                                                                                   // ensure tmp dir is clean
+		unlnk_inside(g_start_info.autodep_env.tmp_dir) ;                                                     // ensure tmp dir is clean
 	} catch (::string const&) {
-		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; }                                                            // ensure tmp dir exists
+		try                       { mkdir(g_start_info.autodep_env.tmp_dir) ; }                              // ensure tmp dir exists
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;      }
 	}
 	return res ;
@@ -311,8 +316,8 @@ int main( int argc , char* argv[] ) {
 		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ; // this is more than enough
-	unlnk(*g_trace_file) ; // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+	Trace::s_sz = 10<<20 ;                                        // this is more than enough
+	unlnk(*g_trace_file) ;                                        // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	app_init() ;
 	{
 		Trace trace("main",Pdate::s_now(),::vector_view(argv,8)) ;
@@ -324,17 +329,20 @@ int main( int argc , char* argv[] ) {
 		//
 		JobRpcReq req_info { JobProc::Start , g_seq_id , g_job , server_thread.fd.port() } ;
 		try {
-			ClientSockFd fd {g_service_start,NConnectionTrials} ;
-			//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv                                          // once connection is established, everything should be smooth
-			try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { exit(3) ; } // maybe normal in case ^C was hit
-			try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { exit(4) ; } // .
+			ClientSockFd fd {g_service_start,NConnectionTrials} ; // once connection is established, everything should be smooth
+			//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { trace("no_send"   ) ; exit(3) ; } // maybe normal if ^C was hit
+			try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { trace("no_receive") ; exit(4) ; } // .
 			//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const&) { exit(5) ; }                                                                           // maybe normal in case ^C was hit
+		} catch (::string const&) {
+			trace("no_server",g_service_start) ;
+			exit(5,"cannot connect to server ",g_service_start) ;                               // maybe normal if ^C was hit but better to have a message if verbose
+		}
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		switch (g_start_info.proc) {
-			case JobProc::None  : return 0 ;                                                                              // server ask us to give up
-			case JobProc::Start : break    ;                                                                              // normal case
+			case JobProc::None  : return 0 ;                                                    // server ask us to give up
+			case JobProc::Start : break    ;                                                    // normal case
 		DF}
 		//
 		for( auto const& [d,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d , {digest.dflags,{}} ) ;
@@ -363,7 +371,7 @@ int main( int argc , char* argv[] ) {
 		//
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
 		end_report.msg += wash_report.first ;
-		if (!wash_report.second) { end_report.digest.status = Status::Manual ; goto End ; }
+		if (!wash_report.second) { end_report.digest.status = Status::Garbage ; goto End ; }
 		g_gather_deps.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		//
 		Fd child_stdin ;
@@ -377,28 +385,28 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate         start_job = Pdate::s_now() ;                                                                        // as late as possible before child starts
+		Pdate         start_job = Pdate::s_now() ;                                              // as late as possible before child starts
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status        status    = g_gather_deps.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job   = Pdate::s_now() ;                                                                        // as early as possible after child ends
+		Pdate         end_job   = Pdate::s_now() ;                                              // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
-		bool killed = g_killed ;                                                                                          // sample g_killed to ensure coherence
+		bool killed = g_killed ;                                                                // sample g_killed to ensure coherence
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
 		//
 		end_report.msg += compute_crcs(digest) ;
 		//
-		if (!g_start_info.autodep_env.reliable_dirs) {                                                                    // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                                       // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                                       // .
+		if (!g_start_info.autodep_env.reliable_dirs) {                                          // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;             // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;             // .
 			g_nfs_guard.close() ;
 		}
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
-			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                           // cleaning is done at job start any way, so no harm
+			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {} // cleaning is done at job start any way, so no harm
 		//
 		switch (status) {
 			case Status::Ok :
@@ -439,7 +447,7 @@ End :
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = Pdate::s_now()                      ;
 		Trace trace("end",end_overhead,end_report.digest.status) ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                                                   // measure overhead as late as possible
+		end_report.digest.stats.total = end_overhead - start_overhead ;                         // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

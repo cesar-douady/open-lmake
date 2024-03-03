@@ -217,8 +217,9 @@ namespace Py {
 
 	struct Bool : Object {
 		using Base = Object ;
-		bool qualify () const { return PyBool_Check   (to_py()) ; }
-		operator bool() const { return PyObject_IsTrue(to_py()) ; }
+		bool qualify () const { return PyBool_Check(to_py()) ; }
+		operator bool() const { return +*this                ; }
+		bool     val () const ;                                  // for debug
 	} ;
 	template<> struct Ptr<Bool> : PtrBase<Bool> {
 		using Base = PtrBase<Bool> ;
@@ -249,6 +250,8 @@ namespace Py {
 				return T(v) ;
 			}
 		}
+		long  val () const ; // for debug
+		ulong uval() const ; // for debug
 	} ;
 	template<> struct Ptr<Int> : PtrBase<Int> {
 		using Base = PtrBase<Int> ;
@@ -267,6 +270,7 @@ namespace Py {
 		operator double() const {
 			return PyFloat_AsDouble(to_py()) ;
 		}
+		double val() const ; // for debug
 	} ;
 	template<> struct Ptr<Float> : PtrBase<Float> {
 		using Base = PtrBase<Float> ;
@@ -300,6 +304,7 @@ namespace Py {
 			if (!data) throw py_err_str_clear() ;
 			return {data,size_t(sz)} ;
 		}
+		::string val() const ; // for debug
 	} ;
 	template<> struct Ptr<Str> : PtrBase<Str> {
 		using Base = PtrBase<Str> ;
