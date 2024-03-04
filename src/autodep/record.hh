@@ -19,8 +19,8 @@ struct Record {
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
 	static bool s_is_simple   (const char*) ;
-	static bool s_active      (           ) { SWEAR(_s_autodep_env) ; return  _s_autodep_env->active   ; }
-	static bool s_has_tmp_view(           ) { SWEAR(_s_autodep_env) ; return +_s_autodep_env->tmp_view ; }
+	static bool s_active      (           ) { SWEAR(_s_autodep_env ) ; return  _s_autodep_env->active   ; }
+	static bool s_has_tmp_view(           ) { SWEAR(_s_autodep_env ) ; return +_s_autodep_env->tmp_view ; }
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
@@ -30,13 +30,30 @@ struct Record {
 		}
 		return _s_root_fd ;
 	}
-	static AutodepEnv const& s_autodep_env(                     ) { SWEAR( _s_autodep_env) ;                                        return *_s_autodep_env ; }
-	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) { SWEAR(!_s_autodep_env) ; _s_autodep_env = new AutodepEnv{ade} ; return *_s_autodep_env ; }
-	static AutodepEnv const& s_autodep_env(NewType              ) { if   (!_s_autodep_env)   _s_autodep_env = new AutodepEnv{New} ; return *_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env() {
+		SWEAR( _s_autodep_env && s_access_cache ) ;
+		return *_s_autodep_env ;
+	}
+	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
+		SWEAR( !s_access_cache && !_s_autodep_env ) ;
+		_s_autodep_env = new AutodepEnv                                            { ade } ;
+		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
+		return *_s_autodep_env ;
+	}
+	static AutodepEnv const& s_autodep_env(NewType) {
+		SWEAR(bool(s_access_cache)==bool(_s_autodep_env)) ;
+		if (!_s_autodep_env) {
+			_s_autodep_env = new AutodepEnv{New} ;
+			s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
+		}
+		return *_s_autodep_env ;
+	}
 	// static data
-	static bool                 s_static_report ;                                          // if true <=> report deps to s_deps instead of through report_fd() socket
-	static ::vmap_s<DepDigest>* s_deps          ;
-	static ::string           * s_deps_err      ;
+public :
+	static bool                                                   s_static_report  ;       // if true <=> report deps to s_deps instead of through report_fd() socket
+	static ::vmap_s<DepDigest>                                  * s_deps           ;
+	static ::string                                             * s_deps_err       ;
+	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;       // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
 	static Fd          _s_root_fd     ;                                                    // a file descriptor to repo root directory
@@ -72,10 +89,7 @@ private :
 	//
 	void _report_access( JobExecRpcReq&& jerr                                                             ) const ;
 	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , bool unlnk , ::string&& c={} ) const {
-		AccessDigest ad { a } ;
-		ad.write = write ;
-		ad.unlnk = unlnk ;
-		_report_access(JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , ad , ::move(c) )) ;
+		_report_access(JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , {.write=write,.unlnk=unlnk,.accesses=a} , ::move(c) )) ;
 	}
 	void _report_guard( ::string&& f , ::string&& c={} ) const {
 		_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
@@ -98,9 +112,7 @@ private :
 	void _report_confirm( bool unlnk , bool ok ) const { _report(JobExecRpcReq( JobExecRpcProc::Confirm , unlnk , ok )) ; }
 	//
 	void _report_deps( ::vmap_s<Ddate>&& fs , Accesses a , bool u , ::string&& c={} ) const {
-		AccessDigest ad { a } ;
-		ad.unlnk = u ;
-		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , ad , ::move(c) )) ;
+		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(fs) , {.unlnk=u,.accesses=a} , ::move(c) )) ;
 	}
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<Ddate> fds ;
@@ -309,7 +321,6 @@ private :
 	Disk::RealPath                                                _real_path    ;
 	mutable Fd                                                    _report_fd    ;
 	mutable bool                                                  _tmp_cache    = false ; // record that tmp usage has been reported, no need to report any further
-	mutable ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> _access_cache ;         // map file to read accesses
 } ;
 
 template<bool W> Record::SolveReport Record::_solve( _Path<W>& path , bool no_follow , bool read , ::string const& comment ) {

@@ -23,6 +23,7 @@ using namespace Time ;
 	if (+ai.digest.accesses                   ) os << "R:" <<ai.access_date      <<',' ;
 	if (!ai.digest.idle()                     ) os << "W1:"<<ai.first_write_date <<',' ;
 	if (ai.first_write_date<ai.last_write_date) os << "WL:"<<ai.last_write_date  <<',' ;
+	if (+ai.crc_date                          ) os << ai.crc_date                <<',' ;
 	/**/                                        os << ai.digest                        ;
 	if (+ai.digest.accesses                   ) os <<','<< ai.parallel_id              ;
 	if ( ai.seen                              ) os <<",seen"                           ;
@@ -30,7 +31,7 @@ using namespace Time ;
 	return                                      os <<')' ;
 }
 
-void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , bool tok , NodeIdx parallel_id_ ) {
+void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , CD const& cd , bool tok , NodeIdx parallel_id_ ) {
 	AccessOrder order =
 		pd<access_date      ? AccessOrder::Before
 	:	digest.idle()       ? AccessOrder::BetweenReadAndWrite
@@ -45,6 +46,7 @@ void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , bool tok ,
 		)
 	) {
 		access_date = pd           ;
+		crc_date    = cd           ;
 		parallel_id = parallel_id_ ;
 	}
 	if (!ad.idle()) {
@@ -53,7 +55,7 @@ void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , bool tok ,
 		else if (order< AccessOrder::Write ) first_write_date                   = pd    ;
 		if      (order==AccessOrder::Before) seen                               = false ;                  // file has been written before first known read, wash read access
 	}
-	seen      |= order<AccessOrder::Write && +ad.accesses && (ad.is_date?+ad.date():ad.crc()!=Crc::None) ; // record this read access if done before first known write
+	seen      |= order<AccessOrder::Write && +ad.accesses && (cd.is_date?+cd.date():cd.crc()!=Crc::None) ; // record this read access if done before first known write
 	target_ok |= tok                                                                                     ; // user explicitely allowed writing to this file
 	//
 	digest.update(ad,order) ;                                                                              // execute actions in actual order as provided by dates
@@ -70,7 +72,7 @@ void GatherDeps::AccessInfo::update( PD pd , AccessDigest const& ad , bool tok ,
 	return           os << ')'                          ;
 }
 
-void GatherDeps::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest const& ad , bool target_ok , ::string const& comment ) {
+void GatherDeps::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest const& ad , CD const& cd , bool target_ok , ::string const& comment ) {
 	SWEAR( +file , comment ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
@@ -80,11 +82,11 @@ void GatherDeps::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest con
 	} else {
 		info = &accesses[it->second].second ;
 	}
-	AccessInfo old_info = *info ;                                                                                                                      // for tracing only
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update(pd,ad,target_ok,parallel_id) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , it->first , ad , parallel_id , comment , old_info , "->" , *info ) ; // only trace if something changes
+	AccessInfo old_info = *info ;                                                                                                                           // for tracing only
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update(pd,ad,cd,target_ok,parallel_id) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , it->first , ad , cd , parallel_id , comment , old_info , "->" , *info ) ; // only trace if something changes
 }
 
 void GatherDeps::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
@@ -94,7 +96,7 @@ void GatherDeps::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& 
 			if (!dd.accesses) dd.date(file_date(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , dd , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?"stdin"s:"s_deps"s ) ;
 	}
 }
 
@@ -103,7 +105,7 @@ void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
 		parallel_id++ ;
-		_new_access( pd , ::move(f) , {a,file_date(f)} , c ) ;
+		_new_access( pd , ::move(f) , {.accesses=a} , file_date(f) , c ) ;
 	}
 }
 
@@ -162,8 +164,9 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR(+f) ;
 			RealPath::SolveReport sr = real_path.solve(f,jerr.no_follow) ;
-			for( ::string& lnk : sr.lnks )               _new_access(fd,jerr.date,::move(lnk       ) ,{Access::Lnk,file_date(lnk)},jerr.ok,"auto_date.lnk"     ) ; // cf Record::_solve for explanation
-			if ( !jerr.digest.accesses && +sr.last_lnk ) _new_access(fd,jerr.date,::move(sr.last_lnk),{Access::Lnk,Ddate()       },jerr.ok,"auto_date.last_lnk") ; // .
+			// cf Record::_solve for explanation
+			for( ::string& lnk : sr.lnks )               _new_access( fd , jerr.date , ::move(lnk       )  , {.accesses=Access::Lnk} , file_date(lnk) , jerr.ok , "auto_date.lnk"      ) ;
+			if ( !jerr.digest.accesses && +sr.last_lnk ) _new_access( fd , jerr.date , ::move(sr.last_lnk) , {.accesses=Access::Lnk} , Ddate()        , jerr.ok , "auto_date.last_lnk" ) ;
 			//
 			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write ;
 			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = false ;
@@ -171,9 +174,9 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 			if (+dd                      ) files.emplace_back( sr.real , dd                 ) ;
 			else                           files.emplace_back( sr.real , file_date(sr.real) ) ;
 		}
-		jerr.date      = Pdate::s_now() ; // ensure date is posterior to links encountered while solving
+		jerr.date      = Pdate::s_now() ;                              // ensure date is posterior to links encountered while solving
 		jerr.files     = ::move(files)  ;
-		jerr.auto_date = false          ; // files are now real and dated
+		jerr.auto_date = false          ;                              // files are now real and dated
 }
 
 Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
@@ -380,7 +383,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 				case Kind::Slave : {
 					JobExecRpcReq jerr  ;
 					try         { if (!slaves.at(fd).receive_step(fd,jerr)) continue ; }
-					catch (...) {                                                      }                                      // server disappeared, give up
+					catch (...) {                                                      }                                      // job disappeared, give up
 					Proc proc  = jerr.proc ;                                                                                  // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                                  // .
 					if ( proc!=Proc::Access                     ) trace(kind,fd,epoll.cnt,proc) ;                             // there may be too many Access'es, only trace within _new_accesses

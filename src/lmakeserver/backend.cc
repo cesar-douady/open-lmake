@@ -223,35 +223,36 @@ namespace Backends {
 			int                  step          = 0                 ;
 			bool                 keep_tmp      = false/*garbage*/  ;
 			tie(eta,keep_tmp) = entry.req_info() ;
+			trace("submit_attrs",submit_attrs) ;
+			deps_attrs = rule->deps_attrs.eval(match) ;                // this cannot fail as it was already run to construct job
 			try {
-				deps_attrs        = rule->deps_attrs       .eval(match            ) ; step = 1 ;
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 2 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 3 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 4 ;
+				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
 				//
 				try                       { start_cmd_attrs.chk(start_rsrcs_attrs.method) ; }
 				catch (::string const& e) { throw ::pair_ss/*msg,err*/(e,{}) ;              }
-				step = 5 ;
+				step = 4 ;
 				//
-				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 6 ;
+				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 5 ;
 			} catch (::pair_ss const& msg_err) {
 				append_line_to_string(start_msg_err.first  , msg_err.first  ) ;
 				append_line_to_string(start_msg_err.second , msg_err.second ) ;
 				switch (step) {
-					case 0 : append_line_to_string( start_msg_err.first , rule->deps_attrs       .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 1 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 2 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
-					case 3 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
-					case 4 :                                                                                                           break ;
-					case 5 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
+					case 0 : append_line_to_string( start_msg_err.first , rule->cmd              .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 1 : append_line_to_string( start_msg_err.first , rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ) ; break ;
+					case 2 : append_line_to_string( start_msg_err.first , rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ) ; break ;
+					case 3 :                                                                                                           break ;
+					case 4 : append_line_to_string( start_msg_err.first , "cannot wash targets"                                    ) ; break ;
 				DF}
 			}
+			trace("deps",deps) ;
 			// record as much info as possible in reply
 			switch (step) {
-				case 6 :
+				case 5 :
 					// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 					try {
-						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&::ref(::vmap_s<DepDigest>())) ; // ignore deps of start_none_attrs as this is not critical (no impact on targets)
+						start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ;
 					} catch (::pair_ss const& msg_err) {
 						/**/              start_none_attrs  = rule->start_none_attrs.spec                            ;
 						set_nl(jrr.msg) ; jrr.msg          += rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
@@ -261,13 +262,13 @@ namespace Backends {
 					//
 					for( auto [t,a] : pre_actions.first )              reply.pre_actions.emplace_back(t->name(),a) ;
 				[[fallthrough]] ;
-				case 5 :
 				case 4 :
+				case 3 :
 					/**/                                               reply.method                    = start_rsrcs_attrs.method                     ;
 					/**/                                               reply.timeout                   = start_rsrcs_attrs.timeout                    ;
 					for( ::pair_ss& kv : start_rsrcs_attrs.env )       reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
-				case 3 :
+				case 2 :
 					/**/                                               reply.autodep_env.auto_mkdir    = start_cmd_attrs.auto_mkdir                   ;
 					/**/                                               reply.autodep_env.ignore_stat   = start_cmd_attrs.ignore_stat                  ;
 					/**/                                               reply.autodep_env.tmp_view      = ::move(start_cmd_attrs.tmp   )               ;   // tmp directory as viewed by job
@@ -275,16 +276,14 @@ namespace Backends {
 					/**/                                               reply.use_script                = start_cmd_attrs.use_script                   ;
 					for( ::pair_ss& kv : start_cmd_attrs.env )         reply.env.push_back(::move(kv)) ;
 				[[fallthrough]] ;
-				case 2 :
-					/**/                                               reply.cmd                       = ::move(cmd)                                  ;
-				[[fallthrough]] ;
 				case 1 :
-					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs[rule->stdin_idx ].second.first    ;
+					/**/                                               reply.cmd                       = ::move(cmd)                                  ;
 				[[fallthrough]] ;
 				case 0 : {
 					VarIdx ti = 0 ;
 					for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 					for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
+					if (rule->stdin_idx !=Rule::NoVar)                 reply.stdin                     = deps_attrs[rule->stdin_idx ].second.first    ;
 					if (rule->stdout_idx!=Rule::NoVar)                 reply.stdout                    = reply.static_matches[rule->stdout_idx].first ;
 					/**/                                               reply.addr                      = fd.peer_addr()                               ;
 					/**/                                               reply.autodep_env.lnk_support   = g_config.lnk_support                         ;
@@ -317,7 +316,7 @@ namespace Backends {
 					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
 					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
 					if (!Node(dn)->done(r,RunAction::Status)) { dep_ready = false ; goto EarlyEnd ; }
-			if (step<6) {
+			if (step<5) {
 			EarlyEnd :
 				Status status = Status::EarlyErr ;
 				if (!dep_ready) {

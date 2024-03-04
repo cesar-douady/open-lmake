@@ -23,27 +23,33 @@ if __name__!='__main__' :
 	class Deps(Rule) :
 		target = 'deps'
 		def deps() :
-			if step==1 :
-				open('hello')
+			if step==1 : open('one')
 			return {}
 		def cmd() : pass
 
 	class Resources(Rule) :
-		target    = r'resources'
-		deps      = { 'ONE' : 'one' }
-		if step==1 : resources = { 'cpu' : "{open('two').read().strip()}" }
-		else       : resources = { 'cpu' : "{open(ONE  ).read().strip()}" }
-		cmd       = 'echo {cpu}'
+		target = r'resources'
+		deps   = { 'ONE' : 'one' }
+		if step==1 : resources = { 'cpu' : "{open(ONE  ).read().strip()}" } # static dep
+		else       : resources = { 'cpu' : "{open('two').read().strip()}" } # hidden dep
+		cmd = '[ {cpu} = {step} ] && echo {cpu}'
+
+	class Env(Rule) :
+		target = r'env'
+		deps   = { 'ONE' : 'one' }
+		if step==1 : environ_cmd = { 'VAR' : "{open(ONE  ).read().strip()}" } # static dep
+		else       : environ_cmd = { 'VAR' : "{open('two').read().strip()}" } # hidden dep
+		cmd = '[ $VAR = {step} ] && echo $VAR'
 
 else :
 
 	import ut
 
-	print(1       ,file=open('one','w'))
-	print(2       ,file=open('two','w'))
+	print(1,file=open('one'  ,'w'))
+	print(2,file=open('two'  ,'w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('deps','resources',new=2,no_deps=1,rerun=1,steady=1,rc=1) # resources can have dynamic deps
+	ut.lmake('deps','resources','env',new=1,no_deps=1,done=2,rc=1) # resources can have dynamic deps
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake('deps','resources',done=1)
+	ut.lmake('deps','resources','env',new=1,done=3)

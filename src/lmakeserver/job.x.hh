@@ -391,8 +391,8 @@ namespace Engine {
 	inline bool JobTgt::produces(Node t) const {
 		if ((*this)->missing()          ) return false ; // missing jobs produce nothing
 		if ((*this)->err()              ) return true  ; // jobs in error are deemed to produce all their potential targets
-		if (is_sure()                   ) return true  ;
-		if (t->has_actual_job_tgt(*this)) return true  ; // fast path
+		if (is_sure()                   ) return true  ; // fast path
+		if (t->has_actual_job_tgt(*this)) return true  ; // .
 		//
 		return ::binary_search( (*this)->targets , {t,{}} ) ;
 	}

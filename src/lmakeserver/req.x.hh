@@ -26,6 +26,7 @@ ENUM_1( JobReport
 ,	Killed
 ,	Lost
 ,	LostErr
+,	Resubmit
 ,	Rerun
 ,	Hit
 )

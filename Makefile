@@ -148,8 +148,8 @@ PY_LINK_OPTS  := $(patsubst %,-L%,$(PY_LIB_DIR)) $(patsubst %,-Wl$(COMMA)-rpath=
 #
 PY_VERSION := $(shell $(PYTHON) -c 'import sysconfig ; print(sysconfig.get_config_var("VERSION"))')
 #
-CXX_FLAGS := $(OPT_FLAGS) -fno-strict-aliasing -std=$(LANG) -pthread -pedantic $(WARNING_FLAGS) -Werror
-COMPILE   := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0 $(CXX_FLAGS)
+CXX_FLAGS := $(OPT_FLAGS) -std=$(LANG)
+COMPILE   := $(CC) -ftabstop=4 $(COVERAGE) -fvisibility=hidden -ftemplate-backtrace-limit=0 -fno-strict-aliasing -pthread -pedantic $(WARNING_FLAGS) -Werror
 ROOT_DIR  := $(abspath .)
 LIB       := lib
 SLIB      := _lib
@@ -347,18 +347,18 @@ ALL_H := sys_config.h ext/xxhash.patched.h
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
 
-%_py2.san.o : %.cc $(ALL_H) ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.i     : %.cc $(ALL_H) ; $(COMPILE) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.s     : %.cc $(ALL_H) ; $(COMPILE) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.o     : %.cc $(ALL_H) ; $(COMPILE) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.san.o : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.i     : %.cc $(ALL_H) ; @echo preproc $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.s     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.o     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
 
-%.san.o     : %.cc $(ALL_H) ; $(COMPILE) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.i         : %.cc $(ALL_H) ; $(COMPILE) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.s         : %.cc $(ALL_H) ; $(COMPILE) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.o         : %.cc $(ALL_H) ; $(COMPILE) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.san.o     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.i         : %.cc $(ALL_H) ; @echo preproc $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.s         : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.o         : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 
-%_py2.d : %.cc $(ALL_H) ; $(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $<
-%.d     : %.cc $(ALL_H) ; $(COMPILE) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $<
+%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $<
+%.d     : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $<
 
 include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 include src/py_py2.d src/autodep/clmake_py2.d
@@ -407,8 +407,9 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/lmakeserver/rule$(SAN).o                              \
 	$(SRC)/lmakeserver/store$(SAN).o                             \
 	$(SRC)/lmakeserver/main$(SAN).o
-	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -436,8 +437,9 @@ $(BIN)/lrepair : \
 	$(SRC)/lmakeserver/rule$(SAN).o             \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/lrepair$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/ldump : \
 	$(LMAKE_BASIC_SAN_OBJS)                     \
@@ -462,8 +464,9 @@ $(SBIN)/ldump : \
 	$(SRC)/lmakeserver/rule$(SAN).o             \
 	$(SRC)/lmakeserver/store$(SAN).o            \
 	$(SRC)/ldump$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 $(SBIN)/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)    \
@@ -472,8 +475,9 @@ $(SBIN)/ldump_job : \
 	$(SRC)/trace$(SAN).o       \
 	$(SRC)/autodep/env$(SAN).o \
 	$(SRC)/ldump_job$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 $(SBIN)/job_exec : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
@@ -487,14 +491,16 @@ $(SBIN)/job_exec : \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/autodep/syscall_tab$(SAN).o \
 	$(SRC)/job_exec$(SAN).o
-	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(SBIN)/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	$(SRC)/align_comments$(SAN).o
-	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lmake : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -503,8 +509,9 @@ $(BIN)/lmake : \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/lmake$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ldebug : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -513,8 +520,9 @@ $(BIN)/ldebug : \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/ldebug$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lshow : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -523,8 +531,9 @@ $(BIN)/lshow : \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/lshow$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lforget : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -533,8 +542,9 @@ $(BIN)/lforget : \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/lforget$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lmark : \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -543,14 +553,16 @@ $(BIN)/lmark : \
 	$(SRC)/rpc_client$(SAN).o \
 	$(SRC)/trace$(SAN).o      \
 	$(SRC)/lmark$(SAN).o
-	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/xxhsum : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	$(SRC)/xxhsum.o
 	mkdir -p $(BIN)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/autodep : \
 	$(LMAKE_BASIC_SAN_OBJS)            \
@@ -563,8 +575,9 @@ $(BIN)/autodep : \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/autodep/syscall_tab$(SAN).o \
 	$(SRC)/autodep/autodep$(SAN).o
-	mkdir -p $(@D)
-	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LIB_SECCOMP) $(LINK_LIB)
 
 #
 # remote
@@ -580,8 +593,9 @@ $(BIN)/ldecode : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ldecode.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ldepend : \
 	$(LMAKE_BASIC_OBJS)      \
@@ -591,8 +605,9 @@ $(BIN)/ldepend : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ldepend.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lencode : \
 	$(LMAKE_BASIC_OBJS)      \
@@ -602,8 +617,9 @@ $(BIN)/lencode : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/lencode.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/ltarget : \
 	$(LMAKE_BASIC_OBJS)      \
@@ -613,8 +629,9 @@ $(BIN)/ltarget : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/ltarget.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 $(BIN)/lcheck_deps : \
 	$(LMAKE_BASIC_OBJS)      \
@@ -624,8 +641,9 @@ $(BIN)/lcheck_deps : \
 	$(SRC)/autodep/env.o     \
 	$(SRC)/autodep/record.o  \
 	$(SRC)/autodep/lcheck_deps.o
-	mkdir -p $(BIN)
-	$(LINK_BIN) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(BIN)
+	@echo link to $@
+	@$(LINK_BIN) -o $@ $^ $(LINK_LIB)
 
 # remote libs generate errors when -fsanitize=thread // XXX fix these errors and use $(SAN)
 
@@ -636,8 +654,9 @@ $(SLIB)/ld_preload.so : \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
 	$(SRC)/autodep/ld_preload.o
-	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(SLIB)/ld_preload_jemalloc.so : \
 	$(LMAKE_BASIC_OBJS)          \
@@ -646,8 +665,9 @@ $(SLIB)/ld_preload_jemalloc.so : \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
 	$(SRC)/autodep/ld_preload_jemalloc.o
-	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 $(SLIB)/ld_audit.so : \
 	$(LMAKE_BASIC_OBJS)          \
@@ -656,8 +676,9 @@ $(SLIB)/ld_audit.so : \
 	$(SRC)/autodep/record.o      \
 	$(SRC)/autodep/syscall_tab.o \
 	$(SRC)/autodep/ld_audit.o
-	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_SO) -o $@ $^ $(LINK_LIB)
 
 ifneq ($(PYTHON2),)
 $(LIB)/clmake2.so : \
@@ -667,8 +688,9 @@ $(LIB)/clmake2.so : \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake_py2.o
-	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(PY2_LINK_OPTS) $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_SO) -o $@ $^ $(PY2_LINK_OPTS) $(LINK_LIB)
 endif
 
 $(LIB)/clmake.so : \
@@ -678,8 +700,9 @@ $(LIB)/clmake.so : \
 	$(SRC)/autodep/env.o    \
 	$(SRC)/autodep/record.o \
 	$(SRC)/autodep/clmake.o
-	mkdir -p $(@D)
-	$(LINK_SO) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK_SO) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 #
 # Manifest
@@ -702,18 +725,19 @@ UNIT_TESTS2 : Manifest $(patsubst %.script,%.dir/tok, $(shell grep -x '$(UT_DIR)
 UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 
 %.dir/tok : %.script $(LMAKE_FILES) $(UT_BASE) Manifest
-	mkdir -p $(@D)
-	( cd $(@D) ; git clean -ffdxq || : ) # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
-	for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
-	cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
+	@echo script test to $@
+	@mkdir -p $(@D)
+	@( cd $(@D) ; git clean -ffdxq || : ) >/dev/null # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	@for f in $$(grep '^$(UT_DIR)/base/' Manifest) ; do df=$(@D)/$${f#$(UT_DIR)/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
+	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
+	@( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH $(ROOT_DIR)/$< ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
-	mkdir -p $(@D)
-	( cd $(@D) ; git clean -ffdxq || : ) # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
-	cp $< $(@D)/Lmakefile.py
-	( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
-	cat $@.err
+	@echo py test to $@
+	@mkdir -p $(@D)
+	@( cd $(@D) ; git clean -ffdxq || : ) >/dev/null # keep $(@D) to ease debugging, ignore rc as old versions of git work but generate an error
+	@cp $< $(@D)/Lmakefile.py
+	@( cd $(@D) ; PATH=$(ROOT_DIR)/bin:$(ROOT_DIR)/_bin:$$PATH PYTHONPATH=$(ROOT_DIR)/lib:$(ROOT_DIR)/_lib HOME= $(PYTHON) Lmakefile.py ) >$@ 2>$@.err || ( cat $@ $@.err ; mv $@ $@.out ; exit 1 )
 
 #
 # lmake env
@@ -735,7 +759,7 @@ $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
 $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
-	mkdir -p $(LMAKE_ENV)-cache/LMAKE
+	@mkdir -p $(LMAKE_ENV)-cache/LMAKE
 	echo '300M' > $(LMAKE_ENV)-cache/LMAKE/size
 	touch $@
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py

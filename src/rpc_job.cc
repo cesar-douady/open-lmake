@@ -71,6 +71,15 @@ using namespace Hash ;
 }
 
 //
+// CrcDate
+//
+
+::ostream& operator<<( ::ostream& os , CrcDate const& cd ) {
+	if (cd.is_date) return os << cd.date() ;
+	else            return os << cd.crc () ;
+}
+
+//
 // SubmitAttrs
 //
 
@@ -183,12 +192,16 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 //
 
 ::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
-	/**/            os << "AccessDigest(" << static_cast<DepDigest const&>(ad) ;
-	if (+ad.tflags) os <<","<< ad.tflags                                       ;
-	if (+ad.dflags) os <<","<< ad.dflags                                       ;
-	if ( ad.write ) os <<",write"                                              ;
-	if ( ad.unlnk ) os <<",unlnk"                                              ;
-	return          os <<')'                                                   ;
+	const char* sep = "" ;
+	/**/                    os << "AccessDigest("      ;
+	if (+ad.accesses    ) { os <<      ad.accesses     ; sep = "," ; }
+	if (+ad.dflags      ) { os <<sep<< ad.dflags       ; sep = "," ; }
+	if (+ad.extra_dflags) { os <<sep<< ad.extra_dflags ; sep = "," ; }
+	if (+ad.tflags      ) { os <<sep<< ad.tflags       ; sep = "," ; }
+	if (+ad.extra_tflags) { os <<sep<< ad.extra_tflags ; sep = "," ; }
+	if ( ad.write       ) { os <<sep<< "write"         ; sep = "," ; }
+	if ( ad.unlnk       )   os <<sep<< "unlnk"         ;
+	return                  os <<')'                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -211,25 +224,23 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 }
 
 void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
-	switch (order) {
-		case AccessOrder::Before :
-			crc_date(ad) ;                                                 // read info is sampled at first read
-			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
-		break ;
-		case AccessOrder::BetweenReadAndWrite :
-			if (!accesses) crc_date(ad) ;                                  // read info is sampled at first read
-			/**/           accesses |= ad.accesses ;
-		break ;
-		default : SWEAR(order>=AccessOrder::Write) ;                       // ensure we have not forgotten a case
-	}
-	//
-	tflags |= ad.tflags ;
-	dflags |= ad.dflags ;
-	//
 	if (!ad.idle()) {
 		if ( idle() || order==AccessOrder::After ) unlnk = ( unlnk && !ad.write ) || ad.unlnk ;
 		/**/                                       write =   write                || ad.write ;
 	}
+	switch (order) {
+		case AccessOrder::Before :
+			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
+		break ;
+		case AccessOrder::BetweenReadAndWrite :
+			accesses |= ad.accesses ;
+		break ;
+		default : SWEAR(order>=AccessOrder::Write) ; // ensure we have not forgotten a case
+	}
+	tflags       |= ad.tflags       ;
+	extra_tflags |= ad.extra_tflags ;
+	dflags       |= ad.dflags       ;
+	extra_dflags |= ad.extra_dflags ;
 }
 
 //

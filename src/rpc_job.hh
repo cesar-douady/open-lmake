@@ -283,10 +283,50 @@ struct JobStats {
 	size_t mem   = 0  ; // in bytes
 } ;
 
+template<class B> struct DepDigestBase ;
+
+struct CrcDate {
+	friend ::ostream& operator<<( ::ostream& , CrcDate const& ) ;
+	using Crc   = Hash::Crc   ;
+	using Ddate = Time::Ddate ;
+	//cxtors & casts
+	/**/              CrcDate(                           ) : _crc{} {               }
+	/**/              CrcDate(Crc                     c  )          { *this = c   ; }
+	/**/              CrcDate(Ddate                   d  )          { *this = d   ; }
+	/**/              CrcDate(CrcDate const&          cd )          { *this = cd  ; }
+	template<class B> CrcDate(DepDigestBase<B> const& ddb)          { *this = ddb ; }
+	//
+	/**/              CrcDate& operator=(Crc                     c  ) { is_date = false ; _crc  = c ;                                 return *this ; }
+	/**/              CrcDate& operator=(Ddate                   d  ) { is_date = true  ; _date = d ;                                 return *this ; }
+	/**/              CrcDate& operator=(CrcDate          const& cd ) { { if (cd .is_date) *this=cd.date() ; else *this=cd .crc() ; } return *this ; }
+	template<class B> CrcDate& operator=(DepDigestBase<B> const& ddb) {
+		if (!ddb.accesses) return *this = Crc()      ;
+		if ( ddb.is_date ) return *this = ddb.date() ;
+		/**/               return *this = ddb.crc () ;
+	}
+	// accesses
+	bool operator==(CrcDate const& other) const {
+		if (is_date!=other.is_date) return false                ;
+		if (is_date               ) return date()==other.date() ;
+		/**/                        return crc ()==other.crc () ;
+	}
+	bool  operator+() const {                   return !is_date && !_crc                  ; }
+	bool  operator!() const {                   return !+*this                            ; }
+	Crc   crc      () const { SWEAR(!is_date) ; return _crc                               ; }
+	Ddate date     () const { SWEAR( is_date) ; return _date                              ; }
+	bool  seen     () const {                   return is_date ? +_date : _crc!=Crc::None ; }
+	// data
+	bool is_date = false ;
+private :
+	union {
+		Crc   _crc  ; // ~46<64 bits
+		Ddate _date ; // ~45<64 bits
+	} ;
+} ;
+
 // for Dep recording in book-keeping, we want to derive from Node
 // but if we derive from Node and have a field DepDigest, it is impossible to have a compact layout because of alignment constraints
 // hence this solution : derive from a template argument
-template<class B> struct DepDigestBase ;
 template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) ;
 template<class B> struct DepDigestBase : NoVoid<B> {
 	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
@@ -297,13 +337,15 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Crc   = Hash::Crc   ;
 	using Ddate = Time::Ddate ;
 	//cxtors & casts
-	DepDigestBase(                                                 bool p=false ) :                                       parallel{p} , _crc{} {           }
-	DepDigestBase(          Accesses a ,           Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
-	DepDigestBase(          Accesses a , Crc   c , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
-	DepDigestBase(          Accesses a , Ddate d , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
-	DepDigestBase( Base b , Accesses a ,           Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} , _crc{} {           }
-	DepDigestBase( Base b , Accesses a , Crc   c , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { crc (c) ; }
-	DepDigestBase( Base b , Accesses a , Ddate d , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p}          { date(d) ; }
+	DepDigestBase(                                                           bool p=false ) :                                       parallel{p} { crc     ({}) ; }
+	DepDigestBase(          Accesses a ,                     Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
+	DepDigestBase(          Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
+	DepDigestBase(          Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
+	DepDigestBase(          Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
+	DepDigestBase( Base b , Accesses a ,                     Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
+	DepDigestBase( Base b , Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
+	DepDigestBase( Base b , Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
+	DepDigestBase( Base b , Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
 	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
 	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
@@ -315,7 +357,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                   if (parallel!=other.parallel) return false              ;
 		/**/                   if (is_date !=other.is_date ) return false              ;
 		/**/                   if (is_date                 ) return _date==other._date ;
-		/**/                   else                          return _crc ==other._crc  ;
+		/**/                                                 return _crc ==other._crc  ;
 	}
 	// accesses
 	Crc   crc () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc  ; }
@@ -323,6 +365,10 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	//
 	void crc (Crc   c) { is_date = false ; _crc  = c ; }
 	void date(Ddate d) { is_date = true  ; _date = d ; }
+	void crc_date(CrcDate const& cd) {
+		if ( cd.is_date ) date(cd.date()) ;
+		else              crc (cd.crc ()) ;
+	}
 	template<class B2> void crc_date(DepDigestBase<B2> const& dd) {
 		if (!dd.accesses) return ;
 		if ( dd.is_date ) date(dd.date()) ;
@@ -611,12 +657,8 @@ ENUM_1( AccessOrder
 ,	After
 )
 
-struct AccessDigest : DepDigest {                                      // order is first read, first write, last write, unlink
+struct AccessDigest {                                                  // order is first read, first write, last write, unlink
 	friend ::ostream& operator<<( ::ostream& , AccessDigest const& ) ;
-	// cxtors & casts
-	AccessDigest() = default ;
-	using DepDigest::DepDigest ;
-	template<class B2> AccessDigest(DepDigestBase<B2> const& dd) : DepDigest{dd} {}
 	// accesses
 	bool idle     () const { return !write && !unlnk     ; }
 	bool operator+() const { return +accesses || !idle() ; }           // true if some access of some sort is done
@@ -635,11 +677,13 @@ struct AccessDigest : DepDigest {                                      // order 
 	// update this with access from ad, which may be before or after this (or between the read part and the write part is after==Maybe)
 	void update( AccessDigest const& , AccessOrder ) ;
 	// data
-	Tflags      tflags       = {}    ;                                 // dflags are inherited from DepDigest
-	ExtraDflags extra_dflags = {}    ;
-	ExtraTflags extra_tflags = {}    ;
 	bool        write        = false ;                                 // if true <=> files are written, possibly unlinked later
 	bool        unlnk        = false ;                                 // if true <=> files are unlinked at the end, possibly written before
+	Accesses    accesses     = {}    ;
+	Tflags      tflags       = {}    ;                                 // dflags are inherited from DepDigest
+	ExtraTflags extra_tflags = {}    ;
+	Dflags      dflags       = {}    ;
+	ExtraDflags extra_dflags = {}    ;
 } ;
 
 struct JobExecRpcReq {
@@ -684,25 +728,25 @@ public : //!                                                                    
 	JobExecRpcReq( P p , ::vector_s&& fs , ::string&& c={} ) : proc{p} , files{_s_mk_mdd(::move(fs))} , txt{::move(c)} { SWEAR(p==P::Guard) ; }
 	//
 	JobExecRpcReq( P p , ::string&& f , ::string&& code , ::string&& c ) :
-		proc      { p                }
-	,	sync      { true             }
-	,	auto_date { true             }
-	,	cwd       { Disk::cwd()      }
-	,	files     { {{::move(f),{}}} }                   // no need for date for codec
-	,	digest    { Access::Reg      }
-	,	txt       { code             }
-	,	ctx       { c                }
+		proc      { p                     }
+	,	sync      { true                  }
+	,	auto_date { true                  }
+	,	cwd       { Disk::cwd()           }
+	,	files     { {{::move(f),{}}}      }              // no need for date for codec
+	,	digest    { .accesses=Access::Reg }
+	,	txt       { code                  }
+	,	ctx       { c                     }
 	{ SWEAR(p==P::Decode) ; }
 	JobExecRpcReq( P p , ::string&& f , ::string&& val , ::string&& c , uint8_t ml ) :
-		proc      { p                }
-	,	sync      { true             }
-	,	auto_date { true             }
-	,	min_len   { ml               }
-	,	cwd       { Disk::cwd()      }
-	,	files     { {{::move(f),{}}} }                   // no need for date for codec
-	,	digest    { Access::Reg      }
-	,	txt       { val              }
-	,	ctx       { c                }
+		proc      { p                     }
+	,	sync      { true                  }
+	,	auto_date { true                  }
+	,	min_len   { ml                    }
+	,	cwd       { Disk::cwd()           }
+	,	files     { {{::move(f),{}}}      }              // no need for date for codec
+	,	digest    { .accesses=Access::Reg }
+	,	txt       { val                   }
+	,	ctx       { c                     }
 	{ SWEAR(p==P::Encode) ; }
 	// services
 public :

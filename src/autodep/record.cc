@@ -19,11 +19,12 @@ using namespace Time ;
 // Record
 //
 
-::vmap_s<DepDigest>* Record::s_deps          = nullptr ;
-::string           * Record::s_deps_err      = nullptr ;
-bool                 Record::s_static_report = false   ;
-AutodepEnv*          Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
-Fd                   Record::_s_root_fd      ;
+bool                                                   Record::s_static_report = false   ;
+::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
+::string                                             * Record::s_deps_err      = nullptr ;
+::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache  = nullptr ; // map file to read accesses
+AutodepEnv*                                            Record::_s_autodep_env  = nullptr ; // declare as pointer to avoid late initialization
+Fd                                                     Record::_s_root_fd      ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                     // no file is simple (not documented, but used in practice)
@@ -71,7 +72,10 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 			if      (jerr.digest.write) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write to " ,f,'\n') ;
 			else if (jerr.unlnk       ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected unlink of ",f,'\n') ;
 			else if (!s_deps          ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of ",f,'\n') ;
-			else                        for( auto& [f,dd] : jerr.files ) s_deps->emplace_back(::move(f),jerr.digest) ;
+			else {
+				for( auto& [f,dd] : jerr.files ) s_deps->emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,dd,jerr.digest.dflags,true/*parallel*/) ) ;
+				if (+jerr.files) s_deps->back().second.parallel = false ; // parallel bit is marked false on last of a series of parallel accesses
+			}
 		break ;
 		case JobExecRpcProc::Confirm :
 		case JobExecRpcProc::Guard   :
@@ -88,8 +92,8 @@ void Record::_report_access( JobExecRpcReq&& jerr ) const {
 		bool idle = jerr.digest.idle() ;
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR( +f , jerr.txt ) ;
-			auto                                           [it,inserted] = _access_cache.emplace(f,pair(Accesses::None,Accesses::None)) ;
-			::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                   ;
+			auto                                           [it,inserted] = s_access_cache->emplace(f,pair(Accesses::None,Accesses::None)) ;
+			::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                     ;
 			if ( !inserted && idle ) {
 				if (+dd) { if (!( jerr.digest.accesses & ~entry.second )) continue ; } // no new seen accesses
 				else     { if (!( jerr.digest.accesses & ~entry.first  )) continue ; } // no new      accesses

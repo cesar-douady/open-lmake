@@ -189,7 +189,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		Ptr<Dict> res { New } ;
 		if (+files) {           // fast path : else, depend on no files
 			//
-			JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {accesses,dflags} , no_follow , true/*sync*/ , "depend" )) ;
+			JobExecRpcReply reply = record().direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {.accesses=accesses,.dflags=dflags} , no_follow , true/*sync*/ , "depend" )) ;
 			//
 			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
 			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
@@ -204,7 +204,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		}
 		return res->to_py_boost() ;
 	} else {
-		record().direct(JobExecRpcReq( Proc::Access , ::move(files) , {accesses,dflags} , no_follow , "depend" )) ;
+		record().direct(JobExecRpcReq( Proc::Access , ::move(files) , {.accesses=accesses,.dflags=dflags} , no_follow , "depend" )) ;
 		return None.to_py_boost() ;
 	}
 }
