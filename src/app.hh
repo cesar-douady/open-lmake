@@ -15,7 +15,10 @@ extern ::string* g_lmake_dir     ; // pointer to avoid init/fini order hazards, 
 extern ::string* g_root_dir      ; // pointer to avoid init/fini order hazards, absolute              , root of repository
 extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute              , executable name for user messages
 
-void app_init(bool cd_root=true) ;
+/**/          void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version==Maybe, it is ok to initialize stored version
+static inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
+
+Bool3 chk_version( bool may_init=false , ::string const& dir_s={} , bool with_repo=true ) ;
 
 struct KeySpec {
 	char     short_name = 0 ;
@@ -99,7 +102,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 			/**/                        ::cerr << " : "<<flags[+f].doc<<'\n'                                   ;
 		}
 	}
-	exit(2) ;
+	exit(Rc::Usage) ;
 }
 
 template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {

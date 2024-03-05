@@ -66,7 +66,7 @@ namespace std {
 		size_t operator()(Backends::Local::RsrcsData const& rs) const {
 			Hash::Xxh h{rs.size()} ;
 			for( auto r : rs ) h.update(r) ;
-			return +::move(h).digest() ;
+			return +h.digest() ;
 		}
 	} ;
 	template<> struct hash<Backends::Local::RsrcsDataAsk> {
@@ -76,7 +76,7 @@ namespace std {
 				h.update(ra.min) ;
 				h.update(ra.max) ;
 			}
-			return +::move(h).digest() ;
+			return +h.digest() ;
 		}
 	} ;
 }

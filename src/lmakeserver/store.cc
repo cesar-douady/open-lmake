@@ -103,6 +103,8 @@ namespace Engine::Persistent {
 		catch (...) { return ;                                                                     }
 	}
 
+	// START_OF_VERSIONING
+
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",Pdate::s_now()) ;
 		::string dir = g_config.local_admin_dir+"/store" ;
@@ -148,10 +150,12 @@ namespace Engine::Persistent {
 				invalidate_match() ;                                                                                        // then rely only on essential data that should be crash-safe
 				::cerr<<"seems ok"<<endl ;
 			} catch (::string const&) {
-				exit(2,"failed to rescue, consider running lrepair") ;
+				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
 			}
 		}
 	}
+
+	// END_OF_VERSIONING
 
 	void chk() {
 		// files

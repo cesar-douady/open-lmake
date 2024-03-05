@@ -310,9 +310,9 @@ int main( int argc , char* argv[] ) {
 		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                        // this is more than enough
-	unlnk(*g_trace_file) ;                                        // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
-	app_init() ;
+	Trace::s_sz = 10<<20 ;                                                                      // this is more than enough
+	unlnk(*g_trace_file) ;                                                                      // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+	app_init(No/*chk_version*/) ;
 	{
 		Trace trace("main",Pdate::s_now(),::vector_view(argv,8)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
@@ -323,14 +323,14 @@ int main( int argc , char* argv[] ) {
 		//
 		JobRpcReq req_info { JobProc::Start , g_seq_id , g_job , server_thread.fd.port() } ;
 		try {
-			ClientSockFd fd {g_service_start,NConnectionTrials} ; // once connection is established, everything should be smooth
-			//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try {                OMsgBuf().send                ( fd , req_info ) ; } catch(::string const&) { trace("no_send"   ) ; exit(3) ; } // maybe normal if ^C was hit
-			try { g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ; } catch(::string const&) { trace("no_receive") ; exit(4) ; } // .
-			//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const&) {
-			trace("no_server",g_service_start) ;
-			exit(5,"cannot connect to server ",g_service_start) ;                               // maybe normal if ^C was hit but better to have a message if verbose
+			ClientSockFd fd {g_service_start,NConnectionTrials} ;
+			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			/**/           OMsgBuf().send                ( fd , req_info ) ;
+			g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ;
+			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		} catch (::string const& e) {
+			trace("no_server",g_service_start,e) ;
+			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ;          // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
 		}
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
@@ -446,7 +446,7 @@ End :
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("done") ;
-	} catch (::string const& e) { exit(2,"after job execution : ",e) ; }
+	} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
 	//
 	return 0 ;
 }

@@ -160,7 +160,7 @@ SRC       := src
 LMAKE_ENV := lmake_env
 STORE_LIB := $(SRC)/store
 
-sys_config.h : sys_config
+sys_config.h : _bin/sys_config
 	CC=$(CC) PYTHON=$(PYTHON) PY_LD_LIBRARY_PATH=$(PY_LD_LIBRARY_PATH) ./$< >$@ 2>$@.err
 
 HAS_SECCOMP := $(shell grep -q 'HAS_SECCOMP *1' sys_config.h 2>/dev/null && echo 1)
@@ -282,7 +282,29 @@ ext/%.patched.h : ext/%.h ext/%.patch_script
 
 .SECONDARY :
 
-%.html : %.texi ; LANGUAGE= LC_ALL= LANG= texi2any --html --no-split --output=$@ $<
+%.html : %.texi
+	LANGUAGE= LC_ALL= LANG= texi2any --html --no-split --output=$@ $<
+
+#
+# Manifest
+#
+Manifest : .git/index
+	git ls-files >$@
+include Manifest.inc_stamp # Manifest is used in this makefile
+
+#
+# versioning
+#
+
+SOURCES     := $(shell cat Manifest)
+CPP_SOURCES := $(filter %.cc,$(SOURCES)) $(filter %.hh,$(SOURCES))
+
+version.hh : _bin/version Manifest $(CPP_SOURCES)
+	@./$< $(CPP_SOURCES) > $@.new
+	@# dont touch output if it is steady
+	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady version ; \
+	else                        mv $@.new $@ ; echo new version    ; \
+	fi
 
 #
 # LMAKE
@@ -292,20 +314,20 @@ ext/%.patched.h : ext/%.h ext/%.patch_script
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
 $(LIB)/%.py : $(SLIB)/%.src.py
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	sed \
-		-e 's!\$$BASH!$(BASH)!'                              \
-		-e 's!\$$GIT!$(GIT)!'                                \
+		-e 's!\$$BASH!$(BASH)!'                          \
+		-e 's!\$$GIT!$(GIT)!'                            \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
-		-e 's!\$$STD_PATH!$(STD_PATH)!'                      \
+		-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
 		$< >$@
 # for other files, just copy
 $(LIB)/% : $(SLIB)/%
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	cp $< $@
 # idem for bin
 $(BIN)/% : $(SBIN)/%
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	cp $< $@
 
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
@@ -327,22 +349,22 @@ $(STORE_LIB)/unit_test : \
 	$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 $(STORE_LIB)/unit_test.dir/tok : $(STORE_LIB)/unit_test
-	rm -rf   $(@D)
-	mkdir -p $(@D)
+	@rm -rf   $(@D)
+	@mkdir -p $(@D)
 	./$<     $(@D)
-	touch    $@
+	@touch    $@
 
 $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
-	mkdir -p $(@D)
-	rm -rf   $(@D)/LMAKE
+	@mkdir -p $(@D)
+	@rm -rf   $(@D)/LMAKE
 	PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
-	touch $@
+	@touch $@
 
 #
 # engine
 #
 
-ALL_H := sys_config.h ext/xxhash.patched.h
+ALL_H := version.hh sys_config.h ext/xxhash.patched.h
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
@@ -560,7 +582,7 @@ $(BIN)/lmark : \
 $(BIN)/xxhsum : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	$(SRC)/xxhsum.o
-	mkdir -p $(BIN)
+	@mkdir -p $(BIN)
 	@echo link to $@
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
@@ -705,13 +727,6 @@ $(LIB)/clmake.so : \
 	@$(LINK_SO) -o $@ $^ $(PY_LINK_OPTS) $(LINK_LIB)
 
 #
-# Manifest
-#
-Manifest : .git/index
-	git ls-files >$@
-include Manifest.inc_stamp # Manifest is used in this makefile
-
-#
 # Unit tests
 #
 
@@ -750,20 +765,23 @@ UNIT_TESTS : UNIT_TESTS1 UNIT_TESTS2
 LMAKE_ENV  : $(LMAKE_ENV)/stamp
 LMAKE_TEST : $(LMAKE_ENV)/tok
 
+LMAKE_SRCS := $(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ Manifest)
 $(LMAKE_ENV)/Manifest : Manifest
 	@mkdir -p $(@D)
-	grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest > $@
-	grep ^$(@D)/ Manifest | sed s:$(@D)/::                                                  >>$@
-	echo $(@F)                                                                              >>$@
+	@for f in $(LMAKE_SRCS) ; do echo $$f ; done > $@
+	@grep ^$(@D)/ Manifest | sed s:$(@D)/::       >>$@
+	@echo $(@F)                                   >>$@
+	@echo generate $@
 $(LMAKE_ENV)/% : %
 	@mkdir -p $(@D)
 	cp $< $@
-$(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(shell grep -e ^_bin/ -e ^_lib/ -e ^doc/ -e ^ext/ -e ^lib/ -e ^src/ -e ^sys_config\$$ Manifest))
+$(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMAKE_ENV)/%,$(LMAKE_SRCS))
 	@mkdir -p $(LMAKE_ENV)-cache/LMAKE
 	echo '300M' > $(LMAKE_ENV)-cache/LMAKE/size
-	touch $@
+	@touch $@
+	@echo init $(LMAKE_ENV)-cache
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	@set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
 
 #
 # archive
@@ -773,7 +791,7 @@ ARCHIVE_DIR := open-lmake-$(VERSION)
 lmake.tar.gz  : TAR_COMPRESS := z
 lmake.tar.bz2 : TAR_COMPRESS := j
 lmake.tar.gz lmake.tar.bz2 : $(LMAKE_ALL_FILES)
-	rm -rf $(ARCHIVE_DIR)
+	@rm -rf $(ARCHIVE_DIR)
 	for d in $^ ; do mkdir -p $$(dirname $(ARCHIVE_DIR)/$$d) ; cp $$d $(ARCHIVE_DIR)/$$d ; done
 	tar c$(TAR_COMPRESS) -f $@ $(ARCHIVE_DIR)
 

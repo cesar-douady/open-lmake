@@ -364,7 +364,7 @@ bool/*interrupted*/ engine_loop() {
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
-	app_init() ;                                                                        // server is always launched at root
+	app_init(Maybe/*chk_version*/) ;                                                    // server is always launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	AutodepEnv ade ;
 	ade.root_dir = *g_root_dir ;
@@ -387,11 +387,11 @@ int main( int argc , char** argv ) {
 			case 'o' : out_fd          = from_string<int>(argv[i]+2) ;                               break ;
 			case 'r' : refresh_        = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
 			case '-' :                                                 if (argv[i][2]!=0) goto Bad ; break ;
-			default : exit(2,"unrecognized option : ",argv[i]) ;
+			default : exit(Rc::Usage,"unrecognized option : ",argv[i]) ;
 		}
 		continue ;
 	Bad :
-		exit(2,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
+		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax : lmakeserver [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
 	if (g_startup_dir_s) SWEAR( !*g_startup_dir_s || g_startup_dir_s->back()=='/' ) ;
 	else                 g_startup_dir_s = new ::string ;
@@ -413,7 +413,7 @@ int main( int argc , char** argv ) {
 		::string msg = Makefiles::refresh(crashed,refresh_) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (+msg  ) ::cerr << ensure_nl(msg) ;
-	} catch (::string const& e) { exit(2,e) ; }
+	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                 // once we have reported we have started, lmake will send us a message to kill us
 	//
 	{	::string v ;
@@ -430,6 +430,6 @@ int main( int argc , char** argv ) {
 	//                 ^^^^^^^^^^^^^
 	unlnk(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                     // cleanup
 	//
-	trace("exit",STR(interrupted),Pdate::s_now()) ;
+	trace("done",STR(interrupted),Pdate::s_now()) ;
 	return interrupted ;
 }

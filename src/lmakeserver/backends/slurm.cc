@@ -77,7 +77,7 @@ namespace std {
 				h.update(r.licenses) ;
 				h.update(r.part    ) ;
 			}
-			return +::move(h).digest() ;
+			return +h.digest() ;
 		}
 	} ;
 }

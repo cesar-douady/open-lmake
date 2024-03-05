@@ -180,7 +180,7 @@ static size_t fill_src_points( void* addr , SrcPoint* src_points , size_t n_src_
 		del_env("LD_AUDIT"  ) ;                                                                                 // .
 		const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 		::execv( args[0] , const_cast<char**>(args) ) ;
-		exit(2) ;                                                                                               // in case exec fails
+		exit(Rc::System) ;                                                                                      // in case exec fails
 	}
 	::close(c2p.write) ;
 	size_t n_sp ;

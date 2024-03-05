@@ -55,7 +55,7 @@ int main( int argc , char* argv[] ) {
 	//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	try                       { status = gather_deps.exec_child( cmd_line.args ) ; }
 	//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(2,e) ;                                        }
+	catch (::string const& e) { exit(Rc::System,e) ;                               }
 	//
 	::ostream* ds       ;
 	OFStream   user_out ;
@@ -74,7 +74,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	NodeIdx  prev_parallel_id = 0     ;
-	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {        // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                                 // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = parallel_id && parallel_id==prev_parallel_id ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;

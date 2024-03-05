@@ -1289,52 +1289,51 @@ namespace Engine {
 		return res ;
 	}
 
+	// START_OF_CACHE_VERSIONING
 	// match_crc is an id of the rule : a new rule is a replacement of an old rule if it has the same match_crc
 	// also, 2 rules matching identically is forbidden : the idea is that one is useless
-	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a
+	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
 	// although awkward & useless (as both rules could be merged), this can be meaningful
 	// if the need arises, we will add an "id" artificial field entering in match_crc to distinguish them
 	void RuleData::_set_crcs() {
-		bool special = is_special() ;
-		{	::vector_s targets ;
-			for( auto const& [k,me] : matches )
-				if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
-					targets.push_back(me.pattern) ;                                // keys and flags have no influence on matching
-			Hash::Xxh h ;
-			/**/          h.update(special   ) ;
-			/**/          h.update(stems     ) ;
-			/**/          h.update(cwd_s     ) ;
-			if (!special) h.update(job_name  ) ;                                   // job_name has no effect for source & anti as it is only used to store jobs and there are none
-			/**/          h.update(targets   ) ;
-			/**/          h.update(allow_ext ) ;
-			if (!special) h.update(deps_attrs) ;                                   // no deps for source & anti
-			//
-			if ( !special && _qualify_dep({},interpreter[0],is_python?DepKind::Python:DepKind::Shell) ) h.update(interpreter[0]) ; // no interpreter for source & anti
-			//
-			match_crc = ::move(h).digest() ;
+		bool       special = is_special() ;
+		Hash::Xxh  h       ;                                                   // each crc continues after the previous one, so they are standalone
+		//
+		::vector_s targets          ;
+		for( auto const& [k,me] : matches )
+			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
+				targets.push_back(me.pattern) ;                                // keys and flags have no influence on matching
+		h.update(special) ;
+		h.update(stems  ) ;
+		h.update(cwd_s  ) ;
+		h.update(targets) ;
+		if (special) {
+			h.update(allow_ext) ;                                              // only exists for special rules
+		} else {
+			bool with_interpreter = _qualify_dep({},interpreter[0],is_python?DepKind::Python:DepKind::Shell) ;
+			/**/                  h.update(job_name      )  ;                  // job_name has no effect for source & anti as it is only used to store jobs and there are none
+			if (with_interpreter) h.update(interpreter[0])  ;                  // no interpreter for source & anti
+			else                  h.update(""s           )  ;                  // ensure type homogeneity
+			/**/                  deps_attrs.update_hash(h) ;                  // no deps for source & anti
 		}
-		if (special) return ;                // source & anti are only capable of matching
-		DynamicCmd cmd_ = cmd ;
-		cmd_.lmake_dir_var_name = {} ;       // ignore debug info
-		cmd_.dbg_info           = {} ;       // .
-		{	Hash::Xxh h ;
-			h.update(match_crc      ) ;
-			h.update(matches        ) ;      // these define names and influence cmd execution, all is not necessary but simpler to code
-			h.update(force          ) ;
-			h.update(is_python      ) ;
-			h.update(interpreter    ) ;
-			h.update(start_cmd_attrs) ;
-			h.update(cmd_           ) ;
-			h.update(end_cmd_attrs  ) ;
-			cmd_crc = ::move(h).digest() ;   // stand-alone : it guarantees rule uniqueness (contains match_crc)
-		}
-		{	Hash::Xxh h ;
-			h.update(cmd_crc           ) ;
-			h.update(submit_rsrcs_attrs) ;
-			h.update(start_rsrcs_attrs ) ;
-			rsrcs_crc = ::move(h).digest() ; // stand-alone : it guarantees rule uniqueness (contains cmd_crc)
-		}
+		match_crc = h.digest() ;
+		//
+		if (special) return ;                                                  // source & anti are only capable of matching
+		//
+		h.update(matches    )          ;                                       // these define names and influence cmd execution, all is not necessary but simpler to code
+		h.update(force      )          ;
+		h.update(is_python  )          ;
+		h.update(interpreter)          ;
+		cmd            .update_hash(h) ;
+		start_cmd_attrs.update_hash(h) ;
+		end_cmd_attrs  .update_hash(h) ;
+		cmd_crc = h.digest() ;
+		//
+		submit_rsrcs_attrs.update_hash(h) ;
+		start_rsrcs_attrs .update_hash(h) ;
+		rsrcs_crc = h.digest() ;
 	}
+	// END_OF_CACHE_VERSIONING
 
 	//
 	// Rule::SimpleMatch

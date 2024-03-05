@@ -177,8 +177,13 @@ class SysConfigH(Centos7Rule) :
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : 'trial/{*:.*}'
 	}
-    deps = { 'EXE' : 'sys_config' }
+    deps = { 'EXE' : '_bin/sys_config' }
     cmd  = 'CC={gcc} PYTHON={sys.executable} ./{EXE} 2>&1  >{H}'
+
+class VersionH(BaseRule) :
+    target = 'version.hh'
+    deps = { 'EXE' : '_bin/version' }
+    cmd  = "./{EXE} $(grep '\.cc$' Manifest) $(grep '\.hh$' Manifest)"
 
 opt_tab = {}
 class GenOpts(BaseRule) :

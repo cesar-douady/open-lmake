@@ -30,7 +30,7 @@ struct SymEntry {
 extern ::umap_s<SymEntry> const* const g_syscall_tab ;
 
 void* get_orig(const char* syscall) {
-	if (!g_libc_name) exit(2,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
+	if (!g_libc_name) exit(Rc::Usage,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
 	SymEntry const& entry = g_syscall_tab->at(syscall) ;
 	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , syscall ) ; // may be not initialized if syscall was routed to another syscall
 	return entry.orig ;
@@ -205,7 +205,7 @@ extern "C" {
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(map->l_name) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(2,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_libc_name = map->l_name ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;

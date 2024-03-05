@@ -84,7 +84,7 @@ static void connect_to_server(bool refresh) {
 			server_to_client.read .close() ;
 			server.wait() ;                                                             // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
-			exit(2,e) ;
+			exit(Rc::System,e) ;
 		}
 		// retry if not successful, may be a race between several clients trying to connect to/launch servers
 		now += Delay(0.1) ;
@@ -95,7 +95,7 @@ static void connect_to_server(bool refresh) {
 	if ( server_pid                          ) kill_server_msg += to_string("kill ",server_pid       )                 ;
 	if ( +kill_server_msg                    ) kill_server_msg  = to_string('\t',kill_server_msg,'\n')                 ;
 	trace("cannot_connect",server_service,kill_server_msg) ;
-	exit(2
+	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
 	,	to_string("\trm ",AdminDir,"/server\n")

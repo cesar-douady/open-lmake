@@ -32,7 +32,7 @@ int main( int argc , char* argv[] ) {
 	Bool3 ok = out_proc( script_file_stream , ReqProc::Debug , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	::string script_file = ensure_no_nl(script_file_stream.str()) ;
-	if ( int rc=mk_rc(ok) ) exit(rc,script_file) ;
+	if ( Rc rc=mk_rc(ok) ; +rc ) exit(rc,script_file) ;
 
 	char* exec_args[] = { script_file.data() , nullptr } ;
 
@@ -41,5 +41,5 @@ int main( int argc , char* argv[] ) {
 	::execv(script_file.c_str(),exec_args) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-	exit(2,"could not run ",script_file) ;
+	exit(Rc::System,"could not run ",script_file) ;
 }

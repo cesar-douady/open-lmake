@@ -24,12 +24,12 @@ struct AutoCloseFdPair {
 
 extern AutoCloseFdPair g_server_fds ;
 
-static inline int mk_rc(Bool3 ok) {
+static inline Rc mk_rc(Bool3 ok) {
 	switch (ok) {
-		case Yes : return 0 ;
-		case No  : return 1 ;
-		default  : return 2 ;
-	}
+		case Yes   : return Rc::Ok     ;
+		case Maybe : return Rc::Format ;
+		case No    : return Rc::Fail   ;
+	DF}
 }
 
 Bool3/*ok*/ out_proc( ::ostream& , ReqProc , bool refresh , ReqSyntax const& , ReqCmdLine const& , ::function<void()> const& started_cb = []()->void{} ) ;

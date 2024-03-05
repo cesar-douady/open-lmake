@@ -12,23 +12,10 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* debug rerun twice with hidden deps for attrs
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* automatic versioning of internal info
-	- extend serdes to enumerate fields & types
-	- for data base
-		- Store
-		- JobInfoStart
-		- JobInfoEnd
-		? ...
-	- for cache
-		- JobInfoStart
-		- JobInfoEnd
-		- find a way to identify LRU structure
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -56,9 +43,6 @@ items :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* report env variables chosen in job_exec
-	- for lshow -i
-	- for ldebug
 * generate target/dep key everywhere it is pertinent
 * report Source/Anti rule name when appropriate
 * be more consise in console output
@@ -106,7 +90,6 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* support hidden deps in attribut computation
 * implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run

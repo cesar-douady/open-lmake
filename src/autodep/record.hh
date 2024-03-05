@@ -135,8 +135,8 @@ private :
 		_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
 	}
 public :
-	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(2) ; } // continuing is meaningless
-	template<class... A>              void report_trace(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;           }
+	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(Rc::Usage) ; } // continuing is meaningless
+	template<class... A>              void report_trace(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;                   }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	template<bool Writable=false> struct _Path {

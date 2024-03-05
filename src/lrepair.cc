@@ -15,27 +15,27 @@ using namespace Engine ;
 
 int main( int argc , char* /*argv*/[] ) {
 	//
-	if (argc!=1) exit(2,"must be called without arg") ;
+	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	bool has_admin_dir = is_dir(AdminDir) ;
-	g_trace_file = new ::string() ;                      // no trace as we are repairing AdminDir in which traces are made
-	app_init() ;                                         // lrepair must always be launched at root
+	g_trace_file = new ::string() ;                                // no trace as we are repairing AdminDir in which traces are made
+	app_init() ;                                                   // lrepair must always be launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
 		FAIL("lrepair must be started from repo root, not from ",*g_startup_dir_s) ;
 	}
-	if (is_target(ServerMrkr)) exit(1,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	if (is_target(ServerMrkr)) exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
-	::string backup_admin_dir = AdminDir+".bck"s       ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
+	::string backup_admin_dir = AdminDir+".bck"s       ;           // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
 	::string repair_mrkr      = AdminDir+"/repairing"s ;
-	if (is_reg(repair_mrkr)     ) unlnk(AdminDir,true/*dir_ok*/) ;                             // if last lrepair was interrupted, AdminDir contains no useful information
+	if (is_reg(repair_mrkr)     ) unlnk(AdminDir,true/*dir_ok*/) ; // if last lrepair was interrupted, AdminDir contains no useful information
 	if (is_dir(backup_admin_dir)) {
-		if      (has_admin_dir                                    ) exit(1,"backup already existing, consider : rm -r ",backup_admin_dir) ;
+		if      (has_admin_dir                                    ) exit(Rc::Format,"backup already existing, consider : rm -r ",backup_admin_dir) ;
 	} else {
-		if      (!is_dir(PrivateAdminDir+"/local_admin/job_data"s)) exit(1,"nothing to repair"                                          ) ;
-		else if (::rename(AdminDir,backup_admin_dir.c_str())!=0   ) exit(2,"backup failed to ",backup_admin_dir                         ) ;
+		if      (!is_dir(PrivateAdminDir+"/local_admin/job_data"s)) exit(Rc::Fail  ,"nothing to repair"                                          ) ;
+		else if (::rename(AdminDir,backup_admin_dir.c_str())!=0   ) exit(Rc::System,"backup failed to ",backup_admin_dir                         ) ;
 	}
-	if ( AutoCloseFd fd=open_write(repair_mrkr) ; !fd ) exit(2,"cannot create ",repair_mrkr) ; // create marker
+	if ( AutoCloseFd fd=open_write(repair_mrkr) ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	Persistent::writable = true ;
 	::cout << "the repair process is starting, if something goes wrong :" << endl ;
 	::cout << "to restore old state,                   consider : rm -r "<<AdminDir<<" ; mv "<<backup_admin_dir<<' '<<AdminDir << endl ;
@@ -44,7 +44,7 @@ int main( int argc , char* /*argv*/[] ) {
 	try {
 		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
 		if (+msg) ::cerr << ensure_nl(msg) ;
-	} catch (::string const& e) { exit(2,e) ; }
+	} catch (::string const& e) { exit(Rc::Format,e) ; }
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Persistent::repair(to_string(backup_admin_dir,'/',PRIVATE_ADMIN_SUBDIR,"/local_admin/job_data")) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

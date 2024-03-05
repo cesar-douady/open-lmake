@@ -14,12 +14,12 @@ static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
 
 int main( int argc , char* /*argv*/[] ) {
 	//
-	if (argc!=1) exit(2,"must be called without arg") ;
+	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	app_init() ;
 	Py::init(*g_lmake_dir) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }
-	catch (::string const& e) { exit(2,e) ;                                             }
+	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
 	for( const Rule r : Persistent::rule_lst() )             _out( {}           , to_string(r      ) , r->name   ) ;
 	for( const Job  j : Persistent::job_lst () ) { j.chk() ; _out( to_string(j) , to_string(j->rule) , j->name() ) ; }

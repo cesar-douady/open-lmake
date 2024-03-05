@@ -136,8 +136,10 @@ namespace Engine {
 		// services
 		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		// data
+		// START_OF_VERSIONING
 		bool              full_dynamic = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
 		::vmap_s<DepSpec> deps         ;        // ... if full_dynamic, we are not initialized, so be ready by default
+		// END_OF_VERSIONING
 	} ;
 
 	// used at match time, but participate in nothing
@@ -153,7 +155,9 @@ namespace Engine {
 			else                                              tokens1 = tokens-1                         ;
 		}
 		// data
+		// START_OF_VERSIONING
 		Tokens1 tokens1 = 0 ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used at submit time, participate in resources
@@ -171,8 +175,10 @@ namespace Engine {
 		}
 		void canon() { s_canon(rsrcs) ; }
 		// data
+		// START_OF_VERSIONING
 		BackendTag backend = BackendTag::Local ;                           // backend to use to launch jobs
 		::vmap_ss  rsrcs   ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used at submit time, participate in resources
@@ -184,7 +190,9 @@ namespace Engine {
 			Attrs::acquire_from_dct( n_retries , py_dct , "n_retries" ) ;
 		}
 		// data
+		// START_OF_VERSIONING
 		uint8_t n_retries = 0 ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
@@ -197,7 +205,9 @@ namespace Engine {
 			if ( +key && !Cache::s_tab.contains(key) ) throw to_string("unexpected cache key ",key," not found in config") ;
 		}
 		// data
+		// START_OF_VERSIONING
 		::string key ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used at start time, participate in cmd
@@ -224,22 +234,26 @@ namespace Engine {
 			}
 		}
 		// data
+		// START_OF_VERSIONING
 		bool          auto_mkdir  = false ;
 		bool          ignore_stat = false ;
 		::string      chroot      ;
 		::vmap_ss     env         ;
 		::string      tmp         ;
 		bool          use_script  = false ;
+		// END_OF_VERSIONING
 	} ;
 
 	struct DbgEntry {
 		friend ::ostream& operator<<( ::ostream& , DbgEntry const& ) ;
 		bool operator +() const { return first_line_no1 ; }
 		bool operator !() const { return !+*this ;        }
+		// START_OF_VERSIONING
 		::string module         ;
 		::string qual_name      ;
 		::string filename       ;
 		size_t   first_line_no1 = 0 ; // illegal value as lines start at 1
+		// END_OF_VERSIONING
 	} ;
 
 	struct Cmd {
@@ -250,7 +264,9 @@ namespace Engine {
 			Attrs::acquire_from_dct( cmd , py_dct , "cmd" ) ;
 		}
 		// data
+		// START_OF_VERSIONING
 		::string cmd ;
+		// END_OF_VERSIONING
 	} ;
 	namespace Attrs {
 		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
@@ -268,9 +284,11 @@ namespace Engine {
 			::sort(env) ;                                                                         // stabilize rsrcs crc
 		}
 		// data
+		// START_OF_VERSIONING
 		AutodepMethod method  = {} ;
 		Time::Delay   timeout ;                                                                   // if 0 <=> no timeout, maximum time allocated to job execution in s
 		::vmap_ss     env     ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used at start time, participate to nothing
@@ -288,11 +306,13 @@ namespace Engine {
 			::sort(env) ;                                                                            // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		// data
+		// START_OF_VERSIONING
 		bool              keep_tmp    = false ;
 		Time::Delay       start_delay ;                                                              // job duration above which a start message is generated
 		::vector<uint8_t> kill_sigs   ;                                                              // signals to use to kill job (tried in sequence, 1s apart from each other)
 		uint8_t           n_retries   = 0     ;                                                      // max number of retry if job is lost
 		::vmap_ss         env         ;
+		// END_OF_VERSIONING
 	} ;
 
 	// used at end of job execution, participate in cmd
@@ -304,7 +324,9 @@ namespace Engine {
 			Attrs::acquire_from_dct( allow_stderr , py_dct , "allow_stderr" ) ;
 		}
 		// data
+		// START_OF_VERSIONING
 		bool allow_stderr = false ; // if true <=> non empty stderr does not imply job error
+		// END_OF_VERSIONING
 	} ;
 
 	// used at end of job execution, participate in nothing
@@ -316,7 +338,9 @@ namespace Engine {
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len" , size_t(1) ) ;
 		}
 		// data
+		// START_OF_VERSIONING
 		size_t max_stderr_len = -1 ; // max lines when displaying stderr (full content is shown with lshow -e)
+		// END_OF_VERSIONING
 	} ;
 
 	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , string const& key , string  const& val )> ;
@@ -331,6 +355,7 @@ namespace Engine {
 		DynamicDskBase() = default ;
 		DynamicDskBase( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs ) ;
 		// services
+		// START_OF_VERSIONING
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,is_dynamic        ) ;
 			::serdes(s,glbs_str          ) ;
@@ -339,6 +364,15 @@ namespace Engine {
 			::serdes(s,lmake_dir_var_name) ;
 			::serdes(s,dbg_info          ) ;
 		}
+		// END_OF_VERSIONING
+		// START_OF_CACHE_VERSIONING
+		void update_hash(Hash::Xxh& h) const { // ignore debug info as these does not participate to the semantic
+			h.update(is_dynamic) ;
+			h.update(glbs_str  ) ;
+			h.update(code_str  ) ;
+			h.update(ctx       ) ;
+		}
+		// END_OF_CACHE_VERSIONING
 		::string append_dbg_info(::string const& code) const {
 			::string res = code ;
 			if (+dbg_info) {
@@ -349,12 +383,16 @@ namespace Engine {
 		}
 		// data
 	public :
-		bool             is_dynamic         = false ;
-		::string         glbs_str           ;         // if is_dynamic <=> contains string to run to get the glbs below
-		::string         code_str           ;         // if is_dynamic <=> contains string to compile to code object below
-		::vector<CmdIdx> ctx                ;         // a list of stems, targets & deps, accessed by code
-		::string         lmake_dir_var_name = {}    ; // name of variable holding lmake_dir
-		::string         dbg_info           = {}    ;
+		// START_OF_CACHE_VERSIONING
+		bool             is_dynamic = false ;
+		::string         glbs_str   ;          // if is_dynamic <=> contains string to run to get the glbs below
+		::string         code_str   ;          // if is_dynamic <=> contains string to compile to code object below
+		::vector<CmdIdx> ctx        ;          // a list of stems, targets & deps, accessed by code
+		// END_OF_CACHE_VERSIONING
+		// START_OF_VERSIONING
+		::string lmake_dir_var_name = {} ;     // name of variable holding lmake_dir
+		::string dbg_info           = {} ;
+		// END_OF_VERSIONING
 	} ;
 
 	template<class T> struct DynamicDsk : DynamicDskBase {
@@ -368,8 +406,14 @@ namespace Engine {
 			DynamicDskBase::serdes(s) ;
 			::serdes(s,spec) ;
 		}
+		void update_hash(Hash::Xxh& h) const {
+			DynamicDskBase::update_hash(h) ;
+			h.update(spec) ;
+		}
 		// data
+		// START_OF_VERSIONING
 		T spec ; // contains default values when code does not provide the necessary entries
+		// END_OF_VERSIONING
 	} ;
 
 	template<class T> struct Dynamic : DynamicDsk<T> {
@@ -425,7 +469,6 @@ namespace Engine {
 	private :
 		mutable ::mutex _glbs_mutex ;    // ensure glbs is not used for several jobs simultaneously
 	public :
-		// not stored on disk
 		Py::Ptr<Py::Dict> mutable glbs ; // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
 		Py::Ptr<Py::Code>         code ; // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
@@ -519,6 +562,9 @@ namespace Engine {
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx     ) const ;
 		void          _set_crcs  (                                 ) ;
 		TargetPattern _mk_pattern( ::string const& , bool for_name ) const ;
+
+		// START_OF_VERSIONING
+
 		// user data
 	public :
 		Special              special    = Special::None ;
@@ -557,6 +603,9 @@ namespace Engine {
 		// stats
 		mutable Delay  exec_time    = {} ;                     // average exec_time
 		mutable JobIdx stats_weight = 0  ;                     // number of jobs used to compute average
+
+		// END_OF_VERSIONING
+
 		// not stored on disk
 		::vector<VarIdx>        stem_mark_counts ;
 		/**/     TargetPattern  job_name_pattern ;

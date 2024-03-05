@@ -4,7 +4,9 @@ Makefile
 Manifest
 README.md
 TO_DO
+_bin/sys_config
 _bin/ut_launch
+_bin/version
 _lib/lmake/__init__.py
 _lib/lmake/auto_sources.py
 _lib/lmake/import_machinery.py
@@ -145,7 +147,6 @@ src/trace.hh
 src/utils.cc
 src/utils.hh
 src/xxhsum.cc
-sys_config
 unit_tests/admin.py
 unit_tests/base/Lmakefile.py
 unit_tests/base/hello.py

@@ -54,7 +54,7 @@ static void _handle_int() {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	app_init() ;
+	app_init(Maybe/*chk_version*/) ;
 	//
 	ReqSyntax syntax{{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
@@ -85,5 +85,5 @@ int main( int argc , char* argv[] ) {
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ::cout , ReqProc::Make , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	return mk_rc(ok) ;
+	exit(mk_rc(ok)) ;
 }

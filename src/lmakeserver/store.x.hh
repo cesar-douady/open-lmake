@@ -247,6 +247,8 @@ namespace Engine {
 
 namespace Engine::Persistent {
 
+	// START_OF_VERSIONING
+
 	struct JobHdr {
 		SeqId   seq_id  ;
 		JobTgts frozens ; // these jobs are not rebuilt
@@ -277,6 +279,8 @@ namespace Engine::Persistent {
 	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
+
+	// END_OF_VERSIONING
 
 	// visible data
 	extern bool writable ;

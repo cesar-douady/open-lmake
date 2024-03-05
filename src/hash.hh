@@ -170,9 +170,12 @@ namespace Hash {
 		// cxtors & cast
 		_Xxh(       ) ;
 		_Xxh(FileTag) ;
+		//
+		_Xxh           (_Xxh const&) = delete ;
+		_Xxh& operator=(_Xxh const&) = delete ;
 		// services
 		void _update( const void* p , size_t sz ) ;
-		Crc  digest (                           ) && ; // context is no more usable once digest has been asked
+		Crc  digest (                           ) const ;
 		// data
 	public :
 		bool is_lnk = false ;

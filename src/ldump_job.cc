@@ -93,7 +93,7 @@ void print_end(JobRpcReq const& jrr) {
 }
 
 int main( int argc , char* argv[] ) {
-	if (argc!=2) exit(2,"usage : ldump_job file") ;
+	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
 	app_init() ;
 	//
 	IFStream job_stream{argv[1]} ;

@@ -29,7 +29,7 @@ namespace Hash {
 					if (!map) return ;
 					switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
 						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this =        ctx .digest() ; } break ;
 					DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 				}
 			break ;
@@ -37,14 +37,14 @@ namespace Hash {
 				::string lnk_target = read_lnk(filename) ;
 				switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
 					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
-					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // .
+					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this =        ctx .digest() ; } break ; // .
 				DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 			} break ;
 			case FileTag::None :
 			case FileTag::Dir  : *this = None ; break ;                                                                    // directories are deemed not to exist
 			default : ;
 		}
-		if (file_date(filename)!=fi.date) *this = Crc(fi.tag)  ; // file was moving, crc is unreliable
+		if (file_date(filename)!=fi.date) *this = Crc(fi.tag)  ;                                                           // file was moving, crc is unreliable
 	}
 
 	Crc::operator ::string() const {
@@ -250,7 +250,7 @@ namespace Hash {
 		DF}
 	}
 
-	void _Xxh::_update ( const void* p , size_t sz )    { XXH3_64bits_update( &_state , p , sz ) ;          }
-	Crc  _Xxh::digest  (                           ) && { return { XXH3_64bits_digest(&_state) , is_lnk } ; }
+	void _Xxh::_update ( const void* p , size_t sz )       { XXH3_64bits_update( &_state , p , sz ) ;          }
+	Crc  _Xxh::digest  (                           ) const { return { XXH3_64bits_digest(&_state) , is_lnk } ; }
 
 }

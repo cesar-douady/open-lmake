@@ -30,28 +30,28 @@ namespace Engine {
 		SWEAR( +*this<=s_store.size() , +*this , s_store.size() ) ;
 		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
 		if (+*this>=s_store.size()) {
-			::unique_lock lock{s_reqs_mutex} ;                                          // emplace_back may reallocate
+			::unique_lock lock{s_reqs_mutex} ;                                                   // emplace_back may reallocate
 			s_store.emplace_back() ;
 		}
 		ReqData& data = **this ;
 		//
-		for( int i=0 ;; i++ ) {                                                         // try increasing resolution in file name until no conflict
+		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
 			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)     ;
 			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
-			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                        // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
+			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                                 // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
 			::string last = AdminDir+"/last_output"s ;
 			//
 			data.log_stream.open(log_file) ;
-			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                      }
-			catch (...) { exit(2,"cannot create symlink ",last," to ",lcl_log_file) ; }
-			data.start_ddate = file_date(log_file) ;                                    // use log_file as a date marker
+			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
+			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
+			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
 			data.start_pdate = Pdate::s_now()      ;
 			break ;
 		}
 		//
 		data.idx_by_start = s_n_reqs()           ;
-		data.idx_by_eta   = s_n_reqs()           ;                                      // initially, eta is far future
+		data.idx_by_eta   = s_n_reqs()           ;                                               // initially, eta is far future
 		data.jobs .dflt   = Job ::ReqInfo(*this) ;
 		data.nodes.dflt   = Node::ReqInfo(*this) ;
 		data.options      = ecr.options          ;

@@ -14,6 +14,8 @@
 
 #include "autodep/env.hh"
 
+// START_OF_CACHE_VERSIONING
+
 ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
 ,	Dflt = Local
 ,	Unknown        // must be first
@@ -413,6 +415,7 @@ private :
 		Ddate _date ;                                                            // ~45<64 bits
 	} ;
 } ;
+// END_OF_CACHE_VERSIONING
 template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const& dd ) {
 	const char* sep = "" ;
 	/**/                                                os << "D("                           ;
@@ -424,6 +427,7 @@ template<class B> ::ostream& operator<<( ::ostream& os , DepDigestBase<B> const&
 	else if      ( +dd.accesses && +dd.crc()        ) { os <<sep<< dd.crc()                  ; sep = "," ; }
 	return                                              os <<')'                             ;
 }
+// START_OF_CACHE_VERSIONING
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
@@ -632,6 +636,8 @@ struct JobRpcReply {
 	Crc                       crc              ;                 // proc ==         Decode|Encode , crc of txt
 } ;
 
+// END_OF_CACHE_VERSIONING
+
 ENUM_1( JobExecRpcProc
 ,	HasFiles = Access  // >=HasFiles means files field is significative
 ,	None
@@ -826,6 +832,8 @@ struct JobExecRpcReply {
 	::string                        txt       ;              // if proc==Decode|Encode (value for Decode, code for Encode)
 } ;
 
+// START_OF_CACHE_VERSIONING
+
 //
 // JobSserverRpcReq
 //
@@ -918,3 +926,5 @@ namespace Codec {
 	::string mk_file(::string const& node) ; // node may have been obtained from mk_decode_node or mk_encode_node
 
 }
+
+// END_OF_CACHE_VERSIONING

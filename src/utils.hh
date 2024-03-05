@@ -434,11 +434,6 @@ static bool/*done*/ kill_self      ( int sig                        ) ;
 /**/   void         set_sig_handler( int sig , void (*handler)(int) ) ;
 /**/   void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
 
-template<class... A> [[noreturn]] void exit( int rc , A const&... args ) {
-	::cerr << ensure_nl(to_string(args...)) ;
-	::std::exit(rc) ;
-}
-
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	static bool busy = false ;
 	if (!busy) {                             // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
@@ -955,6 +950,19 @@ template<class T> struct SaveInc {
 private :
 	T& _ref ;
 } ;
+
+ENUM( Rc
+,	Ok
+,	Fail
+,	Usage
+,	Format
+,	System
+)
+
+template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
+	::cerr << ensure_nl(to_string(args...)) ;
+	::std::exit(+rc) ;
+}
 
 //
 // Implementation

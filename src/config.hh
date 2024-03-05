@@ -12,6 +12,8 @@ struct Version {
 	uint32_t minor ;
 } ;
 
+// START_OF_CACHE_VERSIONING
+
 // idxs
 using ReqIdx      = uint8_t     ;
 using RuleIdx     = uint16_t    ;
@@ -73,6 +75,8 @@ static constexpr uint8_t MaxCodecBits = 32 ; // if more than 32 bits, then we ne
 
 #define ADMIN_DIR "LMAKE"
 static constexpr char AdminDir[] = ADMIN_DIR ;
+
+// END_OF_CACHE_VERSIONING
 
 //
 // miscellaneous

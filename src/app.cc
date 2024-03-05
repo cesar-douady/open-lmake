@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "version.hh"
+
 #include "disk.hh"
 #include "trace.hh"
 
@@ -23,7 +25,7 @@ void crash_handler(int sig) {
 	else              crash(2,sig,"caught ",strsignal(sig)) ;
 }
 
-void app_init(bool cd_root) {
+void app_init( Bool3 chk_version_ , bool cd_root ) {
 	sanitize(::cout) ;
 	sanitize(::cerr) ;
 	//
@@ -34,8 +36,8 @@ void app_init(bool cd_root) {
 		try {
 			g_root_dir                        = new ::string{cwd()}          ;
 			tie(*g_root_dir,*g_startup_dir_s) = search_root_dir(*g_root_dir) ;
-		} catch (::string const& e) { exit(2,e) ; }
-		if ( cd_root && +*g_startup_dir_s && ::chdir(g_root_dir->c_str())!=0 ) exit(2,"cannot chdir to ",*g_root_dir) ;
+		} catch (::string const& e) { exit(Rc::Usage,e) ; }
+		if ( cd_root && +*g_startup_dir_s && ::chdir(g_root_dir->c_str())!=0 ) exit(Rc::System,"cannot chdir to ",*g_root_dir) ;
 	}
 	//
 	::string exe = read_lnk("/proc/self/exe") ;
@@ -43,8 +45,31 @@ void app_init(bool cd_root) {
 	if (!g_trace_file) g_trace_file = new ::string{to_string(PrivateAdminDir,"/trace/",*g_exe_name)} ;
 	/**/               g_lmake_dir  = new ::string{dir_name(dir_name(exe))                         } ;
 	//
+	if (chk_version_!=No)
+		switch (chk_version(chk_version_==Maybe)) {
+			case No    : exit(Rc::Format,"version mismatch, consider : git clean -ffdx") ;
+			case Maybe : exit(Rc::Format,"version mismatch, consider : lrepair"        ) ;
+			case Yes   : break ;
+		DF}
+	//
 	Trace::s_start() ;
-	Trace trace("app_init",g_startup_dir_s?*g_startup_dir_s:""s) ;
+	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
+}
+
+Bool3 chk_version( bool may_init , ::string const& dir_s , bool with_repo ) {
+	::string   version_file = to_string(dir_s,AdminDir,"/version") ;
+	::vector_s stored       = read_lines(version_file)               ;
+	if (+stored) {
+		if ( stored.size()!=1u+with_repo          ) throw to_string("bad version file ",version_file) ;
+		if (              stored[0]!=CacheVersion ) return No    ;
+		if ( with_repo && stored[1]!=RepoVersion  ) return Maybe ;
+		/**/                                        return Yes   ;
+	} else {
+		if (!may_init) return No ;
+		if (with_repo) write_lines( dir_guard(version_file) , { CacheVersion , RepoVersion } ) ;
+		else           write_lines( dir_guard(version_file) , { CacheVersion               } ) ;
+		/**/           return Yes  ;
+	}
 }
 
 //

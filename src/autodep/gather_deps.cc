@@ -214,14 +214,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} catch(::string const& e) {
-					exit(2,e) ;
+					exit(Rc::System,e) ;
 				}
 				trace("pid",grand_child.pid) ;
 				AutodepPtrace autodep_ptrace { grand_child.pid }        ;
 				int           wstatus        = autodep_ptrace.process() ;
 				grand_child.waited() ;                                         // grand_child has already been waited
 				if      (WIFEXITED  (wstatus)) ::_exit(WEXITSTATUS(wstatus)) ;
-				else if (WIFSIGNALED(wstatus)) ::_exit(2                   ) ;
+				else if (WIFSIGNALED(wstatus)) ::_exit(+Rc::System         ) ;
 				fail_prod("ptraced child did not exit and was not signaled : wstatus : ",wstatus) ;
 			}
 		} else {
