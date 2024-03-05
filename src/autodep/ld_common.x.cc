@@ -289,8 +289,8 @@ struct Mkstemp : WSolve {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; NO_SERVER(chdir ) ; Chdir r{pth   } ; return r(orig(F(r))) ; }
-	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd)} ; return r(orig(A(r))) ; }
+	int chdir (CC* pth) NE { HEADER0(chdir ,(pth)) ; NO_SERVER(chdir ) ; Chdir r{pth   ,"chdir" } ; return r(orig(F(r))) ; }
+	int fchdir(int fd ) NE { HEADER0(fchdir,(fd )) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),"fchdir"} ; return r(orig(A(r))) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
@@ -448,20 +448,38 @@ struct Mkstemp : WSolve {
 	}
 
 	// readlink
-	ssize_t readlink        (      CC* p,char* b,size_t sz           ) NE { HEADER1(readlink        ,p,(  p,b,sz    )) ; Readlnk r{   p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
-	ssize_t __readlink_chk  (      CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk  ,p,(  p,b,sz,bsz)) ; Readlnk r{   p ,b,sz} ; return r(orig(F(r),b,sz,bsz)) ; }
-	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
+	#ifdef LD_PRELOAD_JEMALLOC
+		// jemalloc does a readlink of its config file (/etc/jemalloc.conf) during its init phase
+		// under some circumstances (not really understood), dlsym, which is necessary to find the original readlink function calls malloc
+		// this creates a loop, leading to a deadlock in jemalloc as it takes a mutex during its init phase
+		// this is a horible hack to avoid calling dlsym : readlink is redirected to __readlink_chk (which is, thus, left unprotected)
+		// once init phase is passed, we proceed normally
+		ssize_t readlink(CC* p,char* b,size_t sz) NE {
+			if (!started()) return __readlink_chk(p,b,sz,sz) ;
+			HEADER1(readlink,p,(p,b,sz)) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz)) ;
+		}
+	#else
+		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HEADER1(readlink      ,p,(p,b,sz    )) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
+		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk,p,(p,b,sz,bsz)) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz,bsz)) ; }
+	#endif
 	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz    )) ; }
+	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
 
 	// rename
 	#ifdef RENAME_EXCHANGE
 		#define REXC(flags) bool((flags)&RENAME_EXCHANGE)
 	#else
 		#define REXC(flags) false
-	#endif //!                                                                                                                exchange
-	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false  ,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
-	int renameat (int od,CC* op,int nd,CC* np       ) NE { HEADER2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},false  ,"renameat" } ; return r(orig(P(r.src),P(r.dst)  )) ; }
-	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f),"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	#endif
+	#ifdef RENAME_NOREPLACE
+		#define RNR(flags) bool((flags)&RENAME_NOREPLACE)
+	#else
+		#define RNR(flags) false
+	#endif //!                                                                                                                exchange no_replace
+	int rename   (       CC* op,       CC* np       ) NE { HEADER2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false  ,false    ,"rename"   } ; return r(orig(F(r.src),F(r.dst)  )) ; }
+	int renameat (int od,CC* op,int nd,CC* np       ) NE { HEADER2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},false  ,false    ,"renameat" } ; return r(orig(P(r.src),P(r.dst)  )) ; }
+	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HEADER2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f),RNR(f)   ,"renameat2"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	#undef RNR
 	#undef REXC
 
 	// rmdir

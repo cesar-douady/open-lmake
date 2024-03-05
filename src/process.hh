@@ -33,8 +33,8 @@ struct Pipe {
 		write.no_std() ;
 	}
 	// data
-	Fd read  ;     // read  side of the pipe
-	Fd write ;     // write side of the pipe
+	Fd read  ; // read  side of the pipe
+	Fd write ; // write side of the pipe
 } ;
 
 static inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
@@ -86,14 +86,14 @@ struct Child {
 	// cxtors & casts
 	Child() = default ;
 	Child(
-		bool            as_group_          , ::vector_s const& args
+		bool            as_session         , ::vector_s const& args
 	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
 	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
 	,	::string const& chroot  ={}
 	,	::string const& cwd     ={}
 	,	void (*pre_exec)()      =nullptr
 	) {
-		spawn(as_group_,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,chroot,cwd,pre_exec) ;
+		spawn(as_session,args,stdin_fd,stdout_fd,stderr_fd,env,add_env,chroot,cwd,pre_exec) ;
 	}
 	~Child() {
 		swear_prod(pid==-1,"bad pid ",pid) ;
@@ -103,7 +103,7 @@ struct Child {
 	bool operator !() const { return !+*this ; }
 	// services
 	bool/*parent*/ spawn(
-		bool            as_group_          , ::vector_s const& args
+		bool            as_session         , ::vector_s const& args
 	,	Fd              stdin_fd=Fd::Stdin , Fd                stdout_fd=Fd::Stdout , Fd stderr_fd=Fd::Stderr
 	,	::map_ss const* env     =nullptr   , ::map_ss   const* add_env  =nullptr
 	,	::string const& chroot  ={}
@@ -131,12 +131,12 @@ struct Child {
 		int wstatus = wait() ;
 		return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
 	}
-	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_group) ; }
-	bool         is_alive(       ) const { return kill_process(pid,0           ) ; }
+	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
+	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
 	//data
-	pid_t       pid      = -1    ;
-	AutoCloseFd stdin    ;
-	AutoCloseFd stdout   ;
-	AutoCloseFd stderr   ;
-	bool        as_group = false ;
+	pid_t       pid        = -1    ;
+	AutoCloseFd stdin      ;
+	AutoCloseFd stdout     ;
+	AutoCloseFd stderr     ;
+	bool        as_session = false ;
 } ;

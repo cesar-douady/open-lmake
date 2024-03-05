@@ -32,31 +32,38 @@ struct GatherDeps {
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
-		AccessInfo(     ) = default ;
-		AccessInfo(PD pd) : access_date{pd} {}
+		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
-		bool is_dep() const { return digest.idle() ; }
+		bool is_dep() const { return digest.write==No ; }
 		// services
-		void update( PD , AccessDigest const& , CD const& , bool tok , NodeIdx parallel_id_ ) ;
+		void update( PD , bool phony_ok_ , AccessDigest , CD const& , Bool3 confirm , NodeIdx parallel_id_ ) ;
 		void chk() const {
-			if      (seen            ) SWEAR(+digest.accesses) ; // cannot see a file as existing without accessing it
-			else if (+digest.accesses) SWEAR(!crc_date       ) ; // cannot know about the file without having seen it
+			if (!digest.accesses ) SWEAR( !crc_date                                          , crc_date                              ) ; // cannot know about the file    without accessing it
+			if (!digest.accesses ) SWEAR( !seen                                                                                      ) ; // cannot see a file as existing without accessing it
+			if (!digest          ) SWEAR( !first_read && !first_write && !last_write         , first_read , first_write , last_write ) ;
+			else                   SWEAR( +first_read && +first_write && +last_write         , first_read , first_write , last_write ) ;
+			if (+digest          ) SWEAR( first_read<=first_write && first_write<=last_write , first_read , first_write , last_write ) ; // check access order
+			if ( digest.write==No) SWEAR(                            first_write==last_write ,              first_write , last_write ) ; // first_read may be earlier if a 2nd read access made it so
+			if (!digest.accesses ) SWEAR( first_read==first_write                            , first_read , first_write              ) ; // first_read                 is  set to first_write
+			if ( digest.write==No) SWEAR( first_confirmed==last_confirmed                    , first_confirmed , last_confirmed      ) ; // need 2 accesses to distinguish between first and last write
 		}
 		// data
-		PD           access_date      ;                // first access date
-		PD           first_write_date ;                // if !digest.idle(), first write/unlink date
-		PD           last_write_date  ;                // if !digest.idle(), last  write/unlink date
-		CD           crc_date         ;                // state when first read
-		AccessDigest digest           ;
-		NodeIdx      parallel_id      = 0     ;
-		bool         seen             = false ;        // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
-		bool         target_ok        = false ;        // ... is seen as existing and is then unlinked as this incoherence is not seen by just checking file at first read and at job end
-	} ;
+		PD           first_read        ;         // if +digest.accesses , first access date
+		PD           first_write       ;         // if  digest.write!=No, first write/unlink date
+		PD           last_write        ;         // if  digest.write!=No, last  write/unlink date (always confirmed)
+		CD           crc_date          ;         // state when first read
+		AccessDigest digest            ;
+		NodeIdx      parallel_id       = 0     ;
+		bool         phony_ok          = false ; // if false <=> prevent phony flag so as to hide washing to user
+		bool         first_confirmed:1 = false ; // if digest.write!=No, first write is confirmed
+		bool         last_confirmed :1 = false ; // if digest.write!=No, last  write is confirmed (for user report only)
+		bool         seen           :1 = false ; // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
+	} ;                                          // ... then is read again, then unlinked (if fugitive state is not recorded, everything looks as if file never existed)
 	struct ServerReply {
-		IMsgBuf  buf        ;                          // buf to assemble the reply
-		Fd       fd         ;                          // fd to forward reply to
+		IMsgBuf  buf        ;                    // buf to assemble the reply
+		Fd       fd         ;                    // fd to forward reply to
 		::string codec_file ;
 	} ;
 	// cxtors & casts
@@ -65,90 +72,71 @@ public :
 	GatherDeps(NewType) { init() ; }
 	//
 	void init() { master_fd.listen() ; }
-	// accesses
-	bool all_confirmed() const { return !to_confirm_write && !to_confirm_unlnk ; }
 	// services
 private :
 	void _fix_auto_date( Fd , JobExecRpcReq& jerr) ;
 	// Fd for trace purpose only
-	void _new_access( Fd    , PD    , ::string&&   , AccessDigest const&    , CD const&    , bool tok , ::string const& comment ) ;
-	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad , CD const& cd , bool tok , ::string const& c       ) { _new_access({},pd,::move(f),ad,cd,tok  ,c) ; }
-	void _new_access( Fd fd , PD pd , ::string&& f , AccessDigest const& ad , CD const& cd ,            ::string const& c       ) { _new_access(fd,pd,::move(f),ad,cd,false,c) ; }
-	void _new_access(         PD pd , ::string&& f , AccessDigest const& ad , CD const& cd ,            ::string const& c       ) { _new_access({},pd,::move(f),ad,cd,false,c) ; }
+	void _new_access( Fd    , PD    , bool phony_ok , ::string&&   , AccessDigest    , CD const&    , Bool3 confirm , ::string const& comment ) ;
+	void _new_access(         PD pd , bool po       , ::string&& f , AccessDigest ad , CD const& cd , Bool3 confirm , ::string const& c       ) { _new_access({},pd,po  ,::move(f),ad,cd,confirm,c) ; }
+	void _new_access( Fd fd , PD pd ,                 ::string&& f , AccessDigest ad , CD const& cd , Bool3 confirm , ::string const& c       ) { _new_access(fd,pd,true,::move(f),ad,cd,confirm,c) ; }
+	void _new_access(         PD pd ,                 ::string&& f , AccessDigest ad , CD const& cd , Bool3 confirm , ::string const& c       ) { _new_access({},pd,true,::move(f),ad,cd,confirm,c) ; }
 	//
-	void _new_accesses( Fd fd , JobExecRpcReq&& jerr , bool confirmed=false ) {
-		if ( !confirmed && !jerr.digest.idle() ) {
-			if (jerr.digest.write) { bool inserted = to_confirm_write.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
-			if (jerr.digest.unlnk) { bool inserted = to_confirm_unlnk.emplace(fd,::move(jerr)).second ; SWEAR(inserted,fd) ; }
-			return ;
-		}
+	void _new_accesses( Fd fd , JobExecRpcReq&& jerr ) {
 		parallel_id++ ;
-		for( auto& [f,dd] : jerr.files ) {
-			_new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.ok , jerr.txt ) ;
-		}
+		for( auto& [f,dd] : jerr.files ) _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.confirm , jerr.txt ) ;
 	}
-	void _confirm( Fd fd , JobExecRpcReq const& jerr ) {
-		Trace trace("_confirm",fd,STR(jerr.ok)) ;
-		::umap<Fd,JobExecRpcReq>& to_confirm = jerr.unlnk ? to_confirm_unlnk : to_confirm_write ;
-		auto it = to_confirm.find(fd) ;
-		SWEAR(it!=to_confirm.end(),fd) ;
-		if (jerr.ok) _new_accesses( fd , ::move(it->second) , true/*confirmed*/ ) ;
-		to_confirm.erase(it) ;
-	}
-	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) { // fd for trace purpose only
+	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                                                            // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
 	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
 		Trace trace("_codec",jrr) ;
-		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , comment ) ;
+		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , Yes/*confirm*/ , comment ) ;
 	}
-public :
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,::copy(t),{.write=true},{}/*crc_date*/,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,::copy(t),{.unlnk=true},{}/*crc_date*/,c) ; }
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                         }
+public : //!                                                                                    phony_ok                        crc_date confirm
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,       ::copy(t),{.write=Yes  },{}     ,Yes   ,c) ; }
+	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,false ,::copy(t),{.write=Maybe},{}     ,Yes   ,c) ; } // new_unlnk is used for internal wash
+	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                                 }
 	//
 	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;
 	//
 	void sync( Fd sock , JobExecRpcReply const&  jerr ) {
-		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                                  // dont care if we cannot report the reply to job
+		try { OMsgBuf().send(sock,jerr) ; } catch (::string const&) {}                                            // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child( ::vector_s const& args , Fd child_stdin=Fd::Stdin , Fd child_stdout=Fd::Stdout , Fd child_stderr=Fd::Stderr ) ;
 	//
-	bool/*done*/ kill(int sig=-1) ;                                                                                     // is sig==-1, use best effort to kill job
+	bool/*done*/ kill(int sig=-1) ;                                                                               // is sig==-1, use best effort to kill job
 	//
-	void reorder() ;                                                                                                    // reorder accesses by first read access
+	void reorder() ;                                                                                              // reorder accesses by first read access
 	// data
-	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb        = [](JobExecRpcReq     &&)->Fd     { return {} ; } ; // function to contact server when necessary, return error by default
-	::function<void       (::string_view const&)> live_out_cb      = [](::string_view const&)->void   {             } ; // function to report live output, dont report by default
-	::function<void       (                    )> kill_job_cb      = [](                    )->void   {             } ; // function to kill job
-	ServerSockFd                                  master_fd        ;
-	in_addr_t                                     addr             = NoSockAddr                                       ; // local addr to which we can be contacted by running job
-	::atomic<bool>                                create_group     = false                                            ; // if true <=> process is launched in its own group
-	AutodepMethod                                 method           = AutodepMethod::Dflt                              ;
-	AutodepEnv                                    autodep_env      ;
-	Time::Delay                                   timeout          ;
-	pid_t                                         pid              = -1                                               ; // pid to kill
-	bool                                          killed           = false                                            ; // do not start as child is supposed to be already killed
-	::vector<uint8_t>                             kill_sigs        ;                                                    // signals used to kill job
-	::string                                      chroot           ;
-	::string                                      cwd              ;
-	 ::map_ss const*                              env              = nullptr                                          ;
-	vmap_s<AccessInfo>                            accesses         ;
-	umap_s<NodeIdx   >                            access_map       ;
-	uset_s                                        guards           ;                                                    // dir creation/deletion that must be guarded against NFS
-	NodeIdx                                       parallel_id      = 0                                                ; // id to identify parallel deps
-	bool                                          seen_tmp         = false                                            ;
-	int                                           wstatus          = 0/*garbage*/                                     ;
-	Fd                                            child_stdout     ;                                                    // fd used to gather stdout
-	Fd                                            child_stderr     ;                                                    // fd used to gather stderr
-	::string                                      stdout           ;                                                    // contains child stdout if child_stdout==Pipe
-	::string                                      stderr           ;                                                    // contains child stderr if child_stderr==Pipe
-	::string                                      msg              ;                                                    // contains error messages not from job
-	::umap<Fd,JobExecRpcReq>                      to_confirm_write ;
-	::umap<Fd,JobExecRpcReq>                      to_confirm_unlnk ;
+	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function to contact server when necessary, return error by default
+	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void {             } ; // function to report live output, dont report by default
+	::function<void       (                    )> kill_job_cb  = [](                    )->void {             } ; // function to kill job
+	ServerSockFd                                  master_fd    ;
+	in_addr_t                                     addr         = NoSockAddr                                     ; // local addr to which we can be contacted by running job
+	::atomic<bool>                                as_session   = false                                          ; // if true <=> process is launched in its own group
+	AutodepMethod                                 method       = AutodepMethod::Dflt                            ;
+	AutodepEnv                                    autodep_env  ;
+	Time::Delay                                   timeout      ;
+	pid_t                                         pid          = -1                                             ; // pid to kill
+	bool                                          killed       = false                                          ; // do not start as child is supposed to be already killed
+	::vector<uint8_t>                             kill_sigs    ;                                                  // signals used to kill job
+	::string                                      chroot       ;
+	::string                                      cwd          ;
+	 ::map_ss const*                              env          = nullptr                                        ;
+	vmap_s<AccessInfo>                            accesses     ;
+	umap_s<NodeIdx   >                            access_map   ;
+	uset_s                                        guards       ;                                                  // dir creation/deletion that must be guarded against NFS
+	NodeIdx                                       parallel_id  = 0                                              ; // id to identify parallel deps
+	bool                                          seen_tmp     = false                                          ;
+	int                                           wstatus      = 0/*garbage*/                                   ;
+	Fd                                            child_stdout ;                                                  // fd used to gather stdout
+	Fd                                            child_stderr ;                                                  // fd used to gather stderr
+	::string                                      stdout       ;                                                  // contains child stdout if child_stdout==Pipe
+	::string                                      stderr       ;                                                  // contains child stderr if child_stderr==Pipe
+	::string                                      msg          ;                                                  // contains error messages not from job
 private :
 	mutable ::mutex _pid_mutex ;
 } ;

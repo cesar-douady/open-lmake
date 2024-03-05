@@ -46,29 +46,24 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	/**/               g_lmake_dir  = new ::string{dir_name(dir_name(exe))                         } ;
 	//
 	if (chk_version_!=No)
-		switch (chk_version(chk_version_==Maybe)) {
-			case No    : exit(Rc::Format,"version mismatch, consider : git clean -ffdx") ;
-			case Maybe : exit(Rc::Format,"version mismatch, consider : lrepair"        ) ;
-			case Yes   : break ;
-		DF}
+		try                       { chk_version(chk_version_==Maybe) ; }
+		catch (::string const& e) { exit(Rc::Format,e) ;               }
 	//
 	Trace::s_start() ;
 	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
 }
 
-Bool3 chk_version( bool may_init , ::string const& dir_s , bool with_repo ) {
+void chk_version( bool may_init , ::string const& dir_s , bool with_repo ) {
 	::string   version_file = to_string(dir_s,AdminDir,"/version") ;
 	::vector_s stored       = read_lines(version_file)               ;
 	if (+stored) {
-		if ( stored.size()!=1u+with_repo          ) throw to_string("bad version file ",version_file) ;
-		if (              stored[0]!=CacheVersion ) return No    ;
-		if ( with_repo && stored[1]!=RepoVersion  ) return Maybe ;
-		/**/                                        return Yes   ;
+		if ( stored.size()!=1u+with_repo          ) throw to_string("bad version file ",version_file)     ;
+		if (              stored[0]!=CacheVersion ) throw "version mismatch, consider : git clean -ffdx"s ;
+		if ( with_repo && stored[1]!=RepoVersion  ) throw "version mismatch, consider : lrepair"s         ;
 	} else {
-		if (!may_init) return No ;
+		if (!may_init) throw "repo not initialized, consider : lmake"s ;
 		if (with_repo) write_lines( dir_guard(version_file) , { CacheVersion , RepoVersion } ) ;
 		else           write_lines( dir_guard(version_file) , { CacheVersion               } ) ;
-		/**/           return Yes  ;
 	}
 }
 

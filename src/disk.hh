@@ -17,18 +17,18 @@
 
 // ENUM macro does not work inside namespace's
 
-ENUM(Access
-,	Lnk                                 // file is accessed with readlink
-,	Reg                                 // file is accessed with open
-,	Stat                                // file is accessed with stat like (read inode)
+ENUM(Access                                                            // in all cases, dirs are deemed non-existing
+,	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
+,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
+,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
 )
 static constexpr char AccessChars[] = {
-	'L'                                 // Lnk
-,	'R'                                 // Reg
-,	'T'                                 // Stat
+	'L'                                                                // Lnk
+,	'R'                                                                // Reg
+,	'T'                                                                // Stat
 } ;
 static_assert(::size(AccessChars)==N<Access>) ;
-using Accesses = BitMap<Access> ;
+using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 
 ENUM_1(FileLoc
@@ -41,15 +41,6 @@ ENUM_1(FileLoc
 ,	Admin
 ,	Ext           // all other cases
 ,	Unknown
-)
-
-ENUM( FileTag
-,	None
-,	Reg
-,	Exe // a regular file with exec permission
-,	Lnk
-,	Dir
-,	Err
 )
 
 namespace Disk {
@@ -79,19 +70,19 @@ namespace Disk {
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
 		// accesses
 		bool operator+() const {
-			switch (tag) {
+			switch (tag()) {
 				case FileTag::Reg :
 				case FileTag::Exe :
 				case FileTag::Lnk : return true  ;
 				default           : return false ;
 			}
 		}
-		bool operator!() const { return !+*this                                ; } // i.e. sz & date are not present
-		bool is_reg   () const { return tag==FileTag::Reg || tag==FileTag::Exe ; }
+		bool    operator!() const { return !+*this                                    ; } // i.e. sz & date are not present
+		bool    is_reg   () const { return tag()==FileTag::Reg || tag()==FileTag::Exe ; }
+		FileTag tag      () const { return date.tag()                                 ; }
 		// data
-		DiskSz  sz   = 0             ;
-		Ddate   date ;
-		FileTag tag  = FileTag::None ;
+		DiskSz sz   = 0 ;
+		Ddate  date ;
 	} ;
 
 	struct NfsGuard {
@@ -175,11 +166,11 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	static inline bool  is_reg   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).is_reg()          ; }
-	static inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag==FileTag::Dir ; }
-	static inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return +FileInfo(at,file,no_follow)                   ; }
-	static inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag==FileTag::Exe ; }
-	static inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date              ; }
+	static inline bool  is_reg   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).is_reg()            ; }
+	static inline bool  is_dir   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Dir ; }
+	static inline bool  is_target( Fd at , ::string const& file={} , bool no_follow=true ) { return +FileInfo(at,file,no_follow)                     ; }
+	static inline bool  is_exe   ( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).tag()==FileTag::Exe ; }
+	static inline Ddate file_date( Fd at , ::string const& file={} , bool no_follow=true ) { return  FileInfo(at,file,no_follow).date                ; }
 
 	static inline ::vector_s      lst_dir     ( ::string const& dir  , ::string const& prefix={}                                 ) { return lst_dir     (Fd::Cwd,dir ,prefix              ) ; }
 	static inline ::vector_s      walk        ( ::string const& file , ::string const& prefix={}                                 ) { return walk        (Fd::Cwd,file,prefix              ) ; }
@@ -239,9 +230,14 @@ namespace Disk {
 		if ( size_t pos = txt.find(FileMrkr) ; pos==Npos ) return ::move   (txt          ) ; // fast path : avoid copy
 		else                                               return _localize(txt,dir_s,pos) ;
 	}
-	static inline ::string mk_file (::string const& f) {
+	static inline ::string mk_file( ::string const& f , Bool3 exists=Maybe ) {
 		::string pfx(1+sizeof(FileNameIdx),FileMrkr) ;
 		encode_int<FileNameIdx>(&pfx[1],f.size()) ;
+		switch (exists) {
+			case Yes : { if (!is_target(f)) return to_string("(not existing) ",pfx,f) ; } break ;
+			case No  : { if ( is_target(f)) return to_string("(existing) "    ,pfx,f) ; } break ;
+			default  : ;
+		}
 		return pfx+f ;
 	}
 
@@ -280,8 +276,7 @@ namespace Disk {
 			// data
 			::string   real          = {}           ; // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir or mapped in tmp, else empty
 			::vector_s lnks          = {}           ; // links followed to get to real
-			::string   last_lnk      = {}           ; // last tried (and failed) link
-			Accesses   last_accesses = {}           ; // Access::Lnk if file does not exist and !no_follow
+			Bool3      file_accessed = No           ; // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
 			FileLoc    file_loc      = FileLoc::Ext ; // do not process awkard files
 			bool       mapped        = false        ; // if true <=> tmp mapping has been used
 		} ;
@@ -340,7 +335,7 @@ namespace Disk {
 			else                                                  cwd_ = ::move(dir)                                     ;
 		}
 	private :
-		::string _find_src(::string const& real) const ;
+		size_t _find_src_idx(::string const& real) const ;
 		// data
 	public :
 		pid_t    pid          = 0                ;
@@ -351,6 +346,7 @@ namespace Disk {
 		::string    const* _tmp_view       ;
 		::string           _admin_dir      ;
 		::vector_s         _abs_src_dirs_s ;                                                                                          // this is an absolute version of src_dirs
+		size_t             _root_dir_sz1   ;
 	} ;
 	::ostream& operator<<( ::ostream& , RealPath::SolveReport const& ) ;
 

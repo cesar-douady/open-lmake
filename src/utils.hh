@@ -71,8 +71,6 @@ template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;            
 template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
 template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
-template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
-
 template<class T> static inline constexpr T        copy    (T const& x) { return x ; }
 template<class T> static inline constexpr T      & ref     (T     && x) { return x ; }
 template<class T> static inline constexpr T const& constify(T const& x) { return x ; }
@@ -496,10 +494,10 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
-#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__                 )
-#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
-#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" ( " #__VA_ARGS__ " =",)__VA_ARGS__ __VA_OPT__(,')'))
+#define FAIL(           ...) fail      (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL_PROD(      ...) fail_prod (       __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR(     cond,...) swear     ((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define SWEAR_PROD(cond,...) swear_prod((cond),__FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
 
@@ -595,7 +593,7 @@ template<        class V> using vmap_view_c_s  = vmap_view_c  <::string,V > ;
 // math
 //
 
-static constexpr inline uint8_t n_bits(size_t n) { return NBits<size_t>-::countl_zero(n-1) ; } // number of bits to store n states
+static constexpr inline uint8_t n_bits(size_t n) { return sizeof(size_t)*8-::countl_zero(n-1) ; } // number of bits to store n states
 
 #define SCI static constexpr inline
 template<::integral T=size_t> SCI T    bit_msk ( bool x ,             uint8_t b            ) {                           return T(x)<<b                                     ; }
@@ -701,6 +699,9 @@ template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)  >
 template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)*2> _EnumSnakes0 = _enum_snake0                                  (_EnumCamels0    <E>) ;
 template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumCamels   = _enum_mk_tab<N<E>,sizeof(_EnumCamels0    <E>)>(_EnumCamels0    <E>) ;
 template<StdEnum E> static constexpr ::array<::string_view,N<E>                > EnumSnakes   = _enum_mk_tab<N<E>,sizeof(_EnumSnakes0    <E>)>(_EnumSnakes0    <E>) ;
+
+template<class   T> static constexpr size_t NBits    = sizeof(T)*8  ;
+template<StdEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
 template<StdEnum E> static inline ::ostream& operator<<( ::ostream& os , E e ) {
 	if (e<All<E>) return os << camel(e)        ;

@@ -17,10 +17,6 @@ ENUM(DepErr
 
 namespace Engine {
 
-	::map <Pdate,Job  > Job::_s_start_date_to_jobs ;
-	::umap<Job  ,Pdate> Job::_s_job_to_end_dates   ;
-	::map <Pdate,Job  > Job::_s_end_date_to_jobs   ;
-
 	//
 	// jobs thread
 	//
@@ -44,9 +40,11 @@ namespace Engine {
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
-			if      (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                       // nothing to wash
+			if      (t->polluted                  ) fat = FileActionTag::Unlnk    ;                                                       // wash pollution
+			else if (t->crc==Crc::None            ) fat = FileActionTag::None     ;                                                       // nothing to wash
 			else if (t->unlnked                   ) fat = FileActionTag::None     ;                                                       // already unlinked somehow
-			else if (t->is_src_anti()             ) fat = FileActionTag::Src      ;                                                       // never touch a source, and dont even check manual
+			else if (t->is_src_anti()             ) fat = FileActionTag::Src      ;                                                       // dont touch sources, not even integrity check
+			else if ( t.tflags[Tflag::IsDep      ]) fat = FileActionTag::None     ;                                                       // dont wash deps as they have acquired their values when made
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlnk    ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::None     ;
 			else                                    fat = FileActionTag::Uniquify ;
@@ -148,21 +146,22 @@ namespace Engine {
 		return  os << ')'  ;
 	}
 	::ostream& operator<<( ::ostream& os , JobTgt jt ) {
-		if (!jt) return   os << "JT()"         ;
-		/**/              os << "(" << Job(jt) ;
-		if (jt.is_sure()) os << ",sure"        ;
-		return            os << ')'            ;
+		if (!jt) return           os << "(J())"        ;
+		/**/                      os << "(" << Job(jt) ;
+		if (jt.is_static_phony()) os << ",static"      ;
+		else                      os << ",star"        ;
+		return                    os << ')'            ;
 	}
 	::ostream& operator<<( ::ostream& os , JobExec const& je ) {
 		if (!je) return os << "JE()" ;
 		//
 		/**/                     os <<'('<< Job(je)                     ;
 		if (je.host!=NoSockAddr) os <<','<< SockFd::s_addr_str(je.host) ;
-		if (je.start_==je.end_) {
-			os <<','<< je.start_ ;
+		if (je.start_date==je.end_date) {
+			os <<','<< je.start_date ;
 		} else {
-			if (+je.start_) os <<",F:"<< je.start_ ;
-			if (+je.end_  ) os <<",T:"<< je.end_   ;
+			if (+je.start_date) os <<",S:"<< je.start_date ;
+			if (+je.end_date  ) os <<",E:"<< je.end_date   ;
 		}
 		return os <<')' ;
 	}
@@ -212,32 +211,6 @@ namespace Engine {
 	//
 	// JobExec
 	//
-
-	void JobExec::_set_start_date() {
-		if (!_s_start_date_to_jobs.emplace(start_,*this).second) FAIL("date conflict",*this,_s_start_date_to_jobs.at(start_)) ;
-	}
-
-	void JobExec::_set_end_date() {
-		if ( auto it = _s_start_date_to_jobs.find(start_) ; it!=_s_start_date_to_jobs.end() ) { // if started was not called (e.g. if cache hit), job is not recorded in _s_start_date_to_jobs
-			SWEAR(it->second==*this) ;
-			_s_start_date_to_jobs.erase(it) ;
-		}
-		if (!_s_start_date_to_jobs) {
-			_s_job_to_end_dates.clear() ;
-			_s_end_date_to_jobs.clear() ;
-		} else {
-			Pdate earliest = _s_start_date_to_jobs.begin()->first ;
-			for( auto it=_s_end_date_to_jobs.begin() ; it!=_s_end_date_to_jobs.end() ;) {
-				if (it->first>earliest) break ;
-				_s_job_to_end_dates.erase(it->second) ;
-				_s_end_date_to_jobs.erase(it++      ) ;
-			}
-			if (end_>earliest) {
-				/**/  _s_job_to_end_dates.emplace(*this,end_ )          ;
-				swear(_s_end_date_to_jobs.emplace(end_ ,*this).second ) ;
-			}
-		}
-	}
 
 	void JobExec::give_up( Req req , bool report ) {
 		Trace trace("give_up",*this,req) ;
@@ -304,7 +277,7 @@ namespace Engine {
 		if (!ri.live_out) return ;
 		Req r = ri.req ;
 		// identify job (with a continue message if no start message), dated as now and with current exec time
-		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,New),false/*at_end*/,Pdate::s_now()-start_) ;
+		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate::s_now()-start_date.p) ;
 		r->last_info = *this ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		r->audit_info(Color::None,txt,0) ;
@@ -321,8 +294,8 @@ namespace Engine {
 		ri.req->audit_job( +stderr?Color::Warning:Color::HiddenNote , "start" , *this ) ;
 		ri.req->last_info = *this ;
 		for( Node t : report_unlnks ) {
-			ri.req->audit_node( Color::Warning , "unlinked"     , t                           , 1 ) ;
-			ri.req->audit_info( Color::Note    , "generated by" , t->actual_job_tgt()->name() , 2 ) ;
+			ri.req->audit_node( Color::Warning , "unlinked"     , t                       , 1 ) ;
+			ri.req->audit_info( Color::Note    , "generated by" , t->actual_job()->name() , 2 ) ;
 		}
 		if (+stderr) ri.req->audit_stderr( msg , stderr , -1 , 1 ) ;
 		ri.start_reported = true ;
@@ -336,7 +309,6 @@ namespace Engine {
 	void JobExec::started( bool report , ::vector<Node> const& report_unlnks , ::string const& stderr , ::string const& msg ) {
 		Trace trace("started",*this) ;
 		SWEAR( !(*this)->rule->is_special() , (*this)->rule->special ) ;
-		_set_start_date() ;
 		report |= +report_unlnks || +stderr ;
 		for( Req req : (*this)->running_reqs() ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
@@ -405,78 +377,70 @@ namespace Engine {
 		//
 		if ( !lost && status>Status::Early ) {            // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job_tgt().clear() ; // ensure targets we no more generate do not keep pointing to us
+			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job().clear() ; // ensure targets we no more generate do not keep pointing to us
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
-				Tflags tflags  = td.tflags                 ;
-				Node   target  { tn }                      ;
-				bool   is_sure = Target::s_is_sure(tflags) ;
-				bool   unlnk   = td.crc==Crc::None         ;
-				bool   touched = td.write || unlnk         ;
-				Crc    crc     = td.crc                    ;
+				Tflags tflags       = td.tflags              ;
+				Node   target       { tn }                   ;
+				bool   static_phony = ::static_phony(tflags) ;
+				Crc    crc          = td.crc                 ;
+				//
+				SWEAR( !( tflags[Tflag::Target] && crc==Crc::None && !static_phony ) , tn , td ) ;   // else job_exec should have suppressed the Target flag
 				//
 				target->set_buildable() ;
 				//
-				if ( td.write && target->is_src_anti() ) {
-					if (!crc.valid()) crc = Crc(tn,g_config.hash_algo) ;                                 // force crc computation if updating a source
-					if (!tflags[Tflag::SourceOk]) {
-						if (unlnk) append_to_string( severe_msg , "unexpected unlink of source " , mk_file(tn) , '\n' ) ;
-						else       append_to_string( severe_msg , "unexpected write to source "  , mk_file(tn) , '\n' ) ;
-						local_err = true ;
-					}
-				}
-				//
-				if (
-					td.write                                                                             // we actually wrote
-				&&	target->has_actual_job() && !target->has_actual_job(*this)                           // there is another job
-				&&	target->actual_job_tgt().end_date() > start_
-				) {
+				if ( +crc && ( +start_date.d && target->date()>start_date.d ) ) {                    // if no start_date.d, job did not execute, it cannot generate a clash
 					// /!\ This may be very annoying !
-					//     Even completed Req's may have been polluted as at the time t->actual_job_tgt() completed, it was not aware of the clash. But this is too complexe and too rare to detect.
-					//     Putting target in clash_nodes will generate a message to user asking to relaunch command.
-					if (crc.valid()        ) local_reason |= {JobReasonTag::ClashTarget,+target} ;       // crc is unreliable, rerun
-					if (target->crc.valid()) {                                                           // existing crc is discovered unreliable, we may have the annoying case mentioned above
+					// A job was running in parallel with us and there was a clash on this target.
+					// There are 2 problems : for us and for them.
+					// For us, it's ok, we will rerun.
+					// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user, all that is wrong
+					// This is too complex and too rare to detect (and ideally handle).
+					// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
+					if (crc.valid()        ) local_reason |= {JobReasonTag::ClashTarget,+target} ;   // crc is actually unreliable, rerun
+					if (target->crc.valid())                                                         // existing crc was believed to be reliable but actually was not
 						for( Req r : target->reqs() ) {
 							Node::ReqInfo& tri = target->req_info(r) ;
 							if (!tri.done(RunAction::Dsk)) continue ;
-							tri.done_ = RunAction::Status ;                                              // target must be re-analyzed if we need the actual files
+							tri.done_ = RunAction::Status ;                                          // target must be re-analyzed if we need the actual files
 							trace("critical_clash") ;
-							r->clash_nodes.emplace(target,r->clash_nodes.size()) ;                       // but req r may not be aware of it
+							r->clash_nodes.emplace(target,r->clash_nodes.size()) ;                   // but req r may not be aware of it
 						}
-					}
 				}
 				//
-				if ( !tflags[Tflag::Incremental] && target->read(td.accesses) ) local_reason |= {JobReasonTag::PrevTarget,+target} ;
-				//
-				if ( crc==Crc::None && !is_sure && !td.write ) {
-					// if we have written then unlinked, then there has been a transcient state where the file existed
-					// we must consider this is a real target with full clash detection.
-					// the unlinked bit is for situations where the file has just been unlinked with no weird intermediate, which is a less dangerous situation
-					target->unlnked = target->crc!=Crc::None ;                                           // if target was just unlinked, note it as it is not considered a target of the job
-					trace("unlnk",target,STR(target->unlnked)) ;
-					continue ;
+				if ( +crc && target->is_src_anti() ) {                                               // source may have been modified
+					if (!crc.valid()) crc = Crc(tn,g_config.hash_algo) ;                             // force crc computation if updating a source
+					//
+					/**/                           if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
+					for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
+					//
+					if (crc==Crc::None) append_to_string( severe_msg , "unexpected unlink of source " , mk_file(tn,No /*exists*/) , '\n' ) ;
+					else                append_to_string( severe_msg , "unexpected write to source "  , mk_file(tn,Yes/*exists*/) , '\n' ) ;
+					local_err = true ;
+				SourceOk : ;
 				}
 				//
-				targets.emplace_back( target , tflags ) ;
-				//
-				Ddate date     = td.date ;
-				bool  modified = false   ;
-				if (!touched) {
-					if (target->unlnked) date = Ddate() ;                                                // ideally, should be start date
-					else                 goto NoRefresh ;
+				if (td.polluted) {
+					SWEAR(!tflags[Tflag::Incremental]) ;                                             // incremental targets cannot be polluted as they are supposed to cope with any initial state
+					local_reason |= {JobReasonTag::PrevTarget,+target} ;
 				}
-				//         vvvvvvvvvvvvvvvvvvvvvvvvv
-				modified = target->refresh(crc,date) ;
-				//         ^^^^^^^^^^^^^^^^^^^^^^^^^
-			NoRefresh :
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				target->actual_job_tgt() = { *this , is_sure } ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if ( !crc && target->unlnked ) crc = Crc::None ;                                     // typical case is job unlinked the file but the file was already unlinked
+				//
+				bool not_target = crc==Crc::None && !static_phony ;                                  // static and phony are always targets, even if unlinked
+				bool modified   = false                           ;
+				//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if (+crc      )   modified = target->refresh( crc , crc==Crc::None?end_date.d:td.date ) ;
+				if (not_target)   target->actual_job   () = {}          ;
+				else            { target->actual_job   () = *this       ; targets.emplace_back( target , tflags ) ; }
+				/**/              target->actual_tflags() = td.tflags   ;
+				/**/              target->polluted        = td.polluted ;
+				//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				any_modified |= modified && tflags[Tflag::Target] ;
+				//
 				trace("target",target,td,STR(modified),status) ;
 			}
-			::sort(targets) ;                                                                            // ease search in targets
+			::sort(targets) ;                                                                        // ease search in targets
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			(*this)->targets.assign(targets) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -506,8 +470,6 @@ namespace Engine {
 		}
 		//
 		// wrap up
-		//
-		_set_end_date() ;                                                                                         // must be called after target analysis to ensure clash detection
 		//
 		if ( status==Status::Ok && +digest.stderr && !end_cmd_attrs.allow_stderr ) { append_to_string(local_msg,"non-empty stderr\n") ; local_err = true ; }
 		EndNoneAttrs end_none_attrs ;
@@ -706,15 +668,15 @@ namespace Engine {
 	) {
 		using Step = JobStep ;
 		SWEAR( reason.tag<JobReasonTag::Err , reason ) ;
-		Step prev_step      = ri.step                              ;                                 // capture previous level before any update
+		Step prev_step      = ri.step                              ;                       // capture previous level before any update
 		Req  req            = ri.req                               ;
 		bool stop_speculate = speculate<ri.speculate && +ri.action ;
-		if (+reason ) run_action = RunAction::Run ;                                                  // we already have a reason to run
+		if (+reason ) run_action = RunAction::Run ;                                        // we already have a reason to run
 		if (+asking_) asking     = asking_        ;
 		ri.speculate = ri.speculate & speculate           ;
-		reason       = reason       | JobReason(ri.force) ;                                          // ri.force was anterior to incoming reason
+		reason       = reason       | JobReason(ri.force) ;                                // ri.force was anterior to incoming reason
 		ri.update( run_action , make_action , *this ) ;
-		if (!ri.waiting()) {                                                                         // we may have looped in which case stats update is meaningless and may fail()
+		if (!ri.waiting()) {                                                               // we may have looped in which case stats update is meaningless and may fail()
 			//
 			Special special      = rule->special                                                 ;
 			bool    dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
@@ -722,17 +684,17 @@ namespace Engine {
 			//
 			Trace trace("Jmake",idx(),ri,prev_step,run_action,reason,asking_,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
 			if (ri.done(ri.action)) goto Wakeup ;
-			for (;;) {                                                                               // loop in case analysis must be restarted (only in case of flash execution)
+			for (;;) {                                                                     // loop in case analysis must be restarted (only in case of flash execution)
 				DepErr      err_          = DepErr::Ok /*garbage*/                       ;
 				bool        modif         = false      /*garbage*/                       ;
 				bool        sure          = true                                         ;
 				CoarseDelay dep_pressure  = ri.pressure + best_exec_time().first         ;
-				Idx         n_deps        = special==Special::Infinite ? 0 : deps.size() ;           // special case : Infinite actually has no dep, just a list of node showing infinity
+				Idx         n_deps        = special==Special::Infinite ? 0 : deps.size() ; // special case : Infinite actually has no dep, just a list of node showing infinity
 				//
 				RunAction dep_action = req->options.flags[ReqFlag::Archive] ? RunAction::Dsk : RunAction::Status ;
 				//
-				if (make_action==MakeAction::End) { dep_action = RunAction::Dsk ; ri.dep_lvl = 0 ; } // if analysing end of job, we need to be certain of presence of all deps on disk
-				if (ri.action  ==RunAction::Run )   dep_action = RunAction::Dsk ;                    // if we must run the job , .
+				if (make_action==MakeAction::End) ri.dep_lvl = 0              ;            // if analysing end of job, reconsider all deps as they may be completely different from previous analysis
+				if (ri.action  ==RunAction::Run ) dep_action = RunAction::Dsk ;            // if we must run the job , we need to be certain of presence of all deps on disk
 				//
 				switch (ri.step) {
 					case Step::None :
@@ -1023,7 +985,7 @@ namespace Engine {
 		//
 		switch (special) {
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                                                                                                  // only case where we are here without special rule
+				SWEAR(frozen_) ;                                                                                                              // only case where we are here without special rule
 				SpecialStep special_step = SpecialStep::Idle        ;
 				Node        worst_target ;
 				Bool3       modified     = No                       ;
@@ -1044,10 +1006,10 @@ namespace Engine {
 						t->refresh( crc , date ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^
 						// if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
-						if      (!crc.valid()                                        )                                 ss = SpecialStep::Err  ;
-						else if (+fi                                                 )                                 ss = SpecialStep::Ok   ;
-						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] )                                 ss = SpecialStep::Err  ;
-						else                                                           { t->actual_job_tgt().clear() ; ss = SpecialStep::Idle ; } // unlink of a star target is nothing
+						if      (!crc.valid()                                        )                             ss = SpecialStep::Err  ;
+						else if (+fi                                                 )                             ss = SpecialStep::Ok   ;
+						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] )                             ss = SpecialStep::Err  ;
+						else                                                           { t->actual_job().clear() ; ss = SpecialStep::Idle ; } // unlink of a star target is nothing
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
@@ -1100,7 +1062,6 @@ namespace Engine {
 			switch (cache_match.hit) {
 				case Yes :
 					try {
-						JobExec  je        { idx() , New , New }      ;                                       // job starts and ends, no host
 						NfsGuard nfs_guard { g_config.reliable_dirs } ;
 						//
 						vmap<Node,FileAction> fas     = pre_actions(match).first ;
@@ -1116,6 +1077,7 @@ namespace Engine {
 						}
 						//
 						JobDigest digest = cache->download(idx(),cache_match.id,reason,nfs_guard) ;
+						JobExec  je      { idx() , {file_date(ancillary_file()),New} , New }      ;           // job starts and ends, no host
 						if (ri.live_out) je.live_out(ri,digest.stdout) ;
 						ri.step = Step::Hit ;
 						trace("hit_result") ;

@@ -99,15 +99,11 @@ namespace Engine {
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::ostream& operator<<( ::ostream& , Target const ) ;
-		// statics
-		static bool s_is_sure(Tflags tflags) {
-			return tflags[Tflag::Target] && (tflags[Tflag::Static]||tflags[Tflag::Phony]) ;
-		}
 		// cxtors & casts
 		Target(                       ) = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
 		// accesses
-		bool is_sure() const { return s_is_sure(tflags) ; }
+		bool static_phony() const { return ::static_phony(tflags) ; }
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
@@ -197,28 +193,30 @@ namespace Engine {
 			job_tgts().pop() ;
 		}
 		// accesses
-		Node         idx    () const {                         return Node::s_idx(*this) ; }
-		::string     name   () const {                         return full_name()        ; }
-		size_t       name_sz() const {                         return full_name_sz()     ; }
-		Ddate const& date   () const { SWEAR(crc!=Crc::None) ; return _date              ; }
-		Ddate      & date   ()       { SWEAR(crc!=Crc::None) ; return _date              ; }
+		Node         idx    () const { return Node::s_idx(*this) ; }
+		::string     name   () const { return full_name()        ; }
+		size_t       name_sz() const { return full_name_sz()     ; }
+		Ddate const& date   () const { return _date              ; }
+		Ddate      & date   ()       { return _date              ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
 		bool is_encode() const { return buildable==Buildable::Encode ; }
 		bool is_plain () const { return !is_decode() && !is_encode() ; }
 		//
-		Node             & dir           ()       { SWEAR(is_plain (),buildable) ; return _if_plain .dir            ; }
-		Node        const& dir           () const { SWEAR(is_plain (),buildable) ; return _if_plain .dir            ; }
-		JobTgts          & job_tgts      ()       { SWEAR(is_plain (),buildable) ; return _if_plain .job_tgts       ; }
-		JobTgts     const& job_tgts      () const { SWEAR(is_plain (),buildable) ; return _if_plain .job_tgts       ; }
-		RuleTgts         & rule_tgts     ()       { SWEAR(is_plain (),buildable) ; return _if_plain .rule_tgts      ; }
-		RuleTgts    const& rule_tgts     () const { SWEAR(is_plain (),buildable) ; return _if_plain .rule_tgts      ; }
-		JobTgt           & actual_job_tgt()       { SWEAR(is_plain (),buildable) ; return _if_plain .actual_job_tgt ; }
-		JobTgt      const& actual_job_tgt() const { SWEAR(is_plain (),buildable) ; return _if_plain .actual_job_tgt ; }
-		Codec::Val       & codec_val     ()       { SWEAR(is_decode(),buildable) ; return _if_decode.val            ; }
-		Codec::Val  const& codec_val     () const { SWEAR(is_decode(),buildable) ; return _if_decode.val            ; }
-		Codec::Code      & codec_code    ()       { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
-		Codec::Code const& codec_code    () const { SWEAR(is_encode(),buildable) ; return _if_encode.code           ; }
+		Node             & dir          ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .dir        ; }
+		Node        const& dir          () const { SWEAR( is_plain () , buildable ) ; return _if_plain .dir        ; }
+		JobTgts          & job_tgts     ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .job_tgts   ; }
+		JobTgts     const& job_tgts     () const { SWEAR( is_plain () , buildable ) ; return _if_plain .job_tgts   ; }
+		RuleTgts         & rule_tgts    ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .rule_tgts  ; }
+		RuleTgts    const& rule_tgts    () const { SWEAR( is_plain () , buildable ) ; return _if_plain .rule_tgts  ; }
+		Job              & actual_job   ()       { SWEAR( is_plain () , buildable ) ; return _if_plain .actual_job ; }
+		Job         const& actual_job   () const { SWEAR( is_plain () , buildable ) ; return _if_plain .actual_job ; }
+		Tflags           & actual_tflags()       { SWEAR( is_plain () , buildable ) ; return _actual_tflags        ; }
+		Tflags      const& actual_tflags() const { SWEAR( is_plain () , buildable ) ; return _actual_tflags        ; }
+		Codec::Val       & codec_val    ()       { SWEAR( is_decode() , buildable ) ; return _if_decode.val        ; }
+		Codec::Val  const& codec_val    () const { SWEAR( is_decode() , buildable ) ; return _if_decode.val        ; }
+		Codec::Code      & codec_code   ()       { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
+		Codec::Code const& codec_code   () const { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
 		//
 		bool           has_req   ( Req                        ) const ;
 		ReqInfo const& c_req_info( Req                        ) const ;
@@ -231,10 +229,9 @@ namespace Engine {
 		bool           done      ( Req            , RunAction ) const ;
 		bool           done      ( Req                        ) const ;
 		//
-		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                                     ; }
-		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job_tgt() && !actual_job_tgt()->rule.old() ; }
-		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job_tgt()==j                                ; }
-		bool has_actual_job_tgt(JobTgt jt) const { SWEAR(!jt->rule.old()) ; return is_plain() && actual_job_tgt()==jt                               ; }
+		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                             ; }
+		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job() && !actual_job()->rule.old() ; }
+		bool has_actual_job    (Job    j ) const { SWEAR(!j ->rule.old()) ; return is_plain() && actual_job()==j                            ; }
 		//
 		Manual manual        ( Ddate , bool empty                        ) const ;
 		Manual manual        (                  Disk::FileInfo const& fi ) const {                             return manual(fi.date,!fi.sz) ; }
@@ -251,20 +248,20 @@ namespace Engine {
 		NodeStatus status     (              ) const { if   (_conform_idx> MaxRuleIdx)   return NodeStatus(-_conform_idx) ; else return NodeStatus::Plain ; }
 		void       status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
-		JobTgt conform_job_tgt() const {
+		Job conform_job() const {
 			if (status()==NodeStatus::Plain) return job_tgts()[conform_idx()] ;
 			else                             return {}                        ;
 		}
 		bool conform() const {
-			JobTgt cjt = conform_job_tgt() ;
-			return +cjt && ( cjt->is_special() || has_actual_job_tgt(cjt) ) ;
+			Job cj = conform_job() ;
+			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
 		}
 		Bool3 ok() const {                                                                      // if Maybe <=> not built
 			switch (status()) {
-				case NodeStatus::Plain : return No    | !conform_job_tgt()->err() ;
-				case NodeStatus::Multi : return No                                ;
-				case NodeStatus::Src   : return Yes   & (crc!=Crc::None)          ;
-				default                : return Maybe                             ;
+				case NodeStatus::Plain : return No    | !conform_job()->err() ;
+				case NodeStatus::Multi : return No                            ;
+				case NodeStatus::Src   : return Yes   & (crc!=Crc::None)      ;
+				default                : return Maybe                         ;
 			}
 		}
 		Bool3 ok     ( ReqInfo const& cri , Accesses a=Accesses::All ) const { SWEAR(cri.done()) ; return +(cri.overwritten&a) ? No : ok() ; }
@@ -333,8 +330,8 @@ namespace Engine {
 		//
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
-		bool/*modified*/ refresh( Crc , Ddate ) ;
-		void             refresh(             ) ;
+		bool/*modified*/ refresh( Crc , Ddate={} ) ;
+		void             refresh(                ) ;
 	private :
 		void         _set_buildable_raw( Req      , DepDepth                                                                           ) ; // req is for error reporting only
 		bool/*done*/ _make_pre         ( ReqInfo&                                                                                      ) ;
@@ -353,10 +350,10 @@ namespace Engine {
 		// data
 	public :
 		struct IfPlain {
-			Node     dir            ;                            //  31<=32 bits, shared
-			JobTgts  job_tgts       ;                            //      32 bits, owned , ordered by prio, valid if match_ok
-			RuleTgts rule_tgts      ;                            // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			JobTgt   actual_job_tgt ;                            //  31<=32 bits, shared, job that generated node
+			Node     dir        ;                                //  31<=32 bits, shared
+			JobTgts  job_tgts   ;                                //      32 bits, owned , ordered by prio, valid if match_ok
+			RuleTgts rule_tgts  ;                                // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			Job      actual_job ;                                //  31<=32 bits, shared, job that generated node
 		} ;
 		struct IfDecode {
 			Codec::Val val ;                                     //      32 bits,         offset in association file where the association line can be found
@@ -378,8 +375,10 @@ namespace Engine {
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
 		bool      unlnked  :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
+		bool      polluted :1             = false              ; //       1 bit ,         if true <=  node was polluted when produced by actual_job
 	private :
-		RuleIdx _conform_idx = -+NodeStatus::Unknown ;           //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                                 //       8 bits,         tflags associated with actual_job
 	} ;
 	static_assert(sizeof(NodeData)==48) ;                        // check expected size
 
@@ -503,10 +502,10 @@ namespace Engine {
 	inline void NodeData::refresh() {
 		FileInfo fi = Disk::FileInfo{name()} ;
 		switch (manual(fi)) {
-			case Manual::Ok      :                                  break ;
-			case Manual::Unlnked : refresh( Crc::None , Ddate() ) ; break ;
+			case Manual::Ok      :                           break ;
+			case Manual::Unlnked : refresh( Crc::None    ) ; break ;
 			case Manual::Empty   :
-			case Manual::Modif   : refresh( {}        , fi.date ) ; break ;
+			case Manual::Modif   : refresh( {} , fi.date ) ; break ;
 		DF}
 	}
 

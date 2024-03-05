@@ -44,7 +44,7 @@ namespace Engine::Makefiles {
 			} else if (is_dir_) {
 				if      ( !is_canon(src)                                ) reason =           " is not canonical"                              ;
 				else if ( src==".." || src.ends_with("/..")             ) reason =           " is a directory of the repo"                    ;
-				else if ( fi.tag!=FileTag::Dir                          ) reason =           " is not a directory"                            ;
+				else if ( fi.tag()!=FileTag::Dir                        ) reason =           " is not a directory"                            ;
 			} else {
 				if      ( sr.file_loc!=FileLoc::Repo                    ) reason =           " is not in repo"                                ;
 				else if ( sr.real!=src                                  ) reason = to_string(" canonical form is ",sr.real)                   ;
@@ -52,8 +52,8 @@ namespace Engine::Makefiles {
 				else if ( lnk_support!=LnkSupport::None && !fi          ) reason =           " is not a regular file nor a symbolic link"     ;
 			}
 			if (+reason) throw to_string( is_dir_?"source dir ":"source " , src , reason ) ;
-			if (is_dir_) src_dirs_s.push_back   (src+'/') ;
-			else         srcs      .emplace_back(src    ,fi.tag) ;
+			if (is_dir_) src_dirs_s.push_back   (src+'/')          ;
+			else         srcs      .emplace_back(src    ,fi.tag()) ;
 		}
 		return {srcs ,src_dirs_s} ;
 	}
@@ -185,7 +185,7 @@ namespace Engine::Makefiles {
 		::vector_s deps    ; deps.reserve(gather_deps.accesses.size()) ;
 		::uset_s   dep_set ;
 		for( auto const& [d,ai] : gather_deps.accesses ) {
-			if (!ai.digest.idle()) continue ;
+			if (ai.digest.write!=No) continue ;
 			::string py ;
 			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[3/*module*/])+".py" ;
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }

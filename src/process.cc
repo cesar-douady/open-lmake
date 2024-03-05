@@ -6,9 +6,9 @@
 #include "process.hh"
 
 bool/*parent*/ Child::spawn(
-	bool            as_group_ , ::vector_s const& args
-,	Fd              stdin_fd  , Fd                stdout_fd , Fd stderr_fd
-,	::map_ss const* env       , ::map_ss   const* add_env
+	bool            as_session_ , ::vector_s const& args
+,	Fd              stdin_fd    , Fd                stdout_fd , Fd stderr_fd
+,	::map_ss const* env         , ::map_ss   const* add_env
 ,	::string const& chroot_
 ,	::string const& cwd_
 ,	void (*pre_exec)()
@@ -23,11 +23,10 @@ bool/*parent*/ Child::spawn(
 	if (stdin_fd ==Pipe) p2c .open() ; else if (+stdin_fd ) p2c .read  = stdin_fd  ;
 	if (stdout_fd==Pipe) c2po.open() ; else if (+stdout_fd) c2po.write = stdout_fd ;
 	if (stderr_fd==Pipe) c2pe.open() ; else if (+stderr_fd) c2pe.write = stderr_fd ;
-	as_group = as_group_ ;
-	pid      = fork()    ;
+	as_session = as_session_ ;
+	pid        = fork()      ;
 	if (!pid) {                                                                // if in child
-		if (as_group) ::setpgid(0,0) ;
-		//
+		if (as_session) ::setsid() ;
 		sigset_t full_mask ; ::sigfillset(&full_mask) ;
 		::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                        // restore default behavior
 		//

@@ -13,6 +13,16 @@
 
 #include "utils.hh"
 
+// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
+ENUM( FileTag
+,	None
+,	Reg
+,	Exe // a regular file with exec permission
+,	Lnk
+,	Dir
+,	Err
+)
+
 namespace Time {
 
 	struct Delay       ;
@@ -203,6 +213,7 @@ namespace Time {
 		static Pdate s_now() ;
 		// cxtors & casts
 		using Date::Date ;
+		Pdate(NewType) { *this = s_now() ; }
 		// services
 		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
@@ -218,34 +229,57 @@ namespace Time {
 		void          sleep_until(            ) const ;
 	} ;
 
-	// DDate represents the date of a file, together with its exec bit (as the lsb of _val)
+	// DDate represents the date of a file, together with its tag (as the lsb's of _val)
+	// we lose a few bits of precision, but real disk dates have around ms precision anyway, so we have around 20 bits of margin
 	struct Ddate : Date {
 		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
 		friend Delay ;
+	private :
+		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts
 	public :
-		Ddate(                ) = default ;
-		Ddate(struct ::stat st) : Date{st.st_mtim} { if (st.st_mode&S_IXUSR) _val |= 0x1 ; else _val &= ~0x1 ; }
+		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
+		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		// accesses
+		constexpr bool    operator+() const { return _date()               ; }
+		constexpr bool    operator!() const { return !+*this               ; }
+		constexpr FileTag tag      () const { return FileTag(_val&_TagMsk) ; }
 	private :
-		constexpr Tick _date() const { return _val&~0x1 ; }
-		constexpr bool _exe () const { return _val& 0x1 ; }
+		constexpr Tick _date() const { return _val&~_TagMsk ; }
 		// services
 	public :
-		constexpr bool operator==(Ddate const& other) const { return _val==other._val            ; } // if only differ by exe bit, all comparisons return false
+		constexpr bool operator==(Ddate const& other) const { return _val==other._val            ; } // if only differ by tag bits, all comparisons return false
 		constexpr bool operator< (Ddate const& other) const { return _date()<other._date()       ; } // .
 		constexpr bool operator> (Ddate const& other) const { return _date()>other._date()       ; } // .
+
 		constexpr bool operator<=(Ddate const& other) const { return *this<other || *this==other ; } // .
 		constexpr bool operator>=(Ddate const& other) const { return *this>other || *this==other ; } // .
 		//
 		using Base::operator+ ;
-		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~0x1 ;         return *this ; } // do not modify exe bit
-		constexpr Ddate& operator-=(Delay other)       { _val -= other._val&~0x1 ;         return *this ; } // .
+		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~_TagMsk ;     return *this ; } // do not modify tag bits
+		constexpr Ddate& operator-=(Delay other)       { _val -= other._val&~_TagMsk ;     return *this ; } // .
 		constexpr Ddate  operator+ (Delay other) const { Ddate res{*this} ; res += other ; return res   ; }
 		constexpr Ddate  operator- (Delay other) const { Ddate res{*this} ; res -= other ; return res   ; }
 		constexpr Delay  operator- (Ddate      ) const ;
 		//
 		::string str( uint8_t prec=0 , bool in_day=false ) const { return Date(New,_date()).str(prec,in_day) ; }
+	} ;
+
+	struct FullDate {
+		friend ::ostream& operator<<( ::ostream& , FullDate const& ) ;
+		// cxtors & casts
+		FullDate(                     ) = default ;
+		FullDate( NewType             ) : d{  } , p{New} {}
+		FullDate( Ddate d_            ) : d{d_} , p{New} {}
+		FullDate(            Pdate p_ ) : d{  } , p{p_ } {}
+		FullDate( Ddate d_ , Pdate p_ ) : d{d_} , p{p_ } {}
+		// accesses
+		bool operator==(FullDate const&) const = default ;
+		bool operator+ (               ) const { return +p || +d ; }
+		bool operator! (               ) const { return !+*this  ; }
+		// data
+		Ddate d ;
+		Pdate p ;
 	} ;
 
 	//

@@ -24,6 +24,7 @@ namespace Engine {
 	using CoarseDelay = Time::CoarseDelay ;
 	using Ddate       = Time::Ddate       ;
 	using Pdate       = Time::Pdate       ;
+	using FullDate    = Time::FullDate    ;
 }
 
 #define STRUCT_DECL

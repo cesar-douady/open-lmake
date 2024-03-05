@@ -299,12 +299,14 @@ include Manifest.inc_stamp # Manifest is used in this makefile
 SOURCES     := $(shell cat Manifest)
 CPP_SOURCES := $(filter %.cc,$(SOURCES)) $(filter %.hh,$(SOURCES))
 
-version.hh : _bin/version Manifest $(CPP_SOURCES)
-	@./$< $(CPP_SOURCES) > $@.new
+# use a stamp to implement a by value update (while make works by date)
+version.hh.stamp : _bin/version Manifest $(CPP_SOURCES)
+	@./$< $(CPP_SOURCES) > $@
 	@# dont touch output if it is steady
-	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady version ; \
-	else                        mv $@.new $@ ; echo new version    ; \
+	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
+	else                                mv $@ $(@:%.stamp=%) ; echo new version    ; \
 	fi
+version.hh : version.hh.stamp ;
 
 #
 # LMAKE

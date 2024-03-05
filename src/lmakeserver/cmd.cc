@@ -28,15 +28,15 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Job > jobs  = Job ::s_frozens() ;
 			::vector<Node> nodes = Node::s_frozens() ;
-			size_t         w            = 3/*src*/          ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
+			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
 				for( Job  j : jobs  ) j->status = Status::Garbage ;
 				for( Node n : nodes ) n->mk_no_src() ;
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			}
-			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , to_string(::setw(w),j->rule->name,' ',mk_file(j->name())) ) ;
-			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , to_string(::setw(w),"src"        ,' ',mk_file(n->name())) ) ;
+			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , to_string(::setw(w),j->rule->name,' ',mk_file(j->name()              )) ) ;
+			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , to_string(::setw(w),              ' ',mk_file(n->name(),Yes/*exists*/)) ) ;
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
@@ -60,8 +60,8 @@ namespace Engine {
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
-				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw to_string(n.frozen()?"already":"not"," frozen "             ,mk_file(nn)) ; }
-				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw to_string("cannot freeze ",is_target(nn)?"source":"anti",' ',mk_file(nn)) ; }
+				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw to_string(n.frozen()?"already":"not"," frozen ",mk_file(nn)) ; }
+				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw to_string("cannot freeze source/anti "         ,mk_file(nn)) ; }
 				//
 				nodes.push_back(n) ;
 			} ;
@@ -72,15 +72,15 @@ namespace Engine {
 				bool force = ro.flags[ReqFlag::Force] ;
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
-					Job j = t->actual_job_tgt() ;
+					Job j = t->actual_job() ;
 					if      ( add && !j.active()                                        ) handle_node(t) ;
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
-						Job cj = t->conform_job_tgt() ;
+						Job cj = t->conform_job() ;
 						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
-						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -F to override) : ",mk_file(t->name())) ;
-						else     throw to_string("target was produced by ",j->rule->name,                              " (use -F to override) : ",mk_file(t->name())) ;
+						if (+cj) throw to_string("target was produced by ",j->rule->name," instead of ",cj->rule->name," (use -F to override) : ",mk_file(t->name(),Yes/*exists*/)) ;
+						else     throw to_string("target was produced by ",j->rule->name,                              " (use -F to override) : ",mk_file(t->name(),Yes/*exists*/)) ;
 					}
 				}
 			}
@@ -114,7 +114,7 @@ namespace Engine {
 		if (_is_mark_glb(ro.key)) {
 			::vector<Node> markeds = Node::s_no_triggers() ;
 			if (ro.key==ReqKey::Clear) Node::s_clear_no_triggers() ;
-			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name()) ) ;
+			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
 			::vector<Node> nodes ;
@@ -123,12 +123,12 @@ namespace Engine {
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
-					audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name())) ) ;
+					audit( fd , ro , Color::Err , to_string("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name(),Yes/*exists*/)) ) ;
 					return false ;
 				}
 			// do what is asked
 			Node::s_no_triggers(add,nodes) ;
-			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(n->name()) ) ;
+			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
 		}
 		return true ;
 	}
@@ -404,14 +404,14 @@ R"({
 		return script ;
 	}
 
-	static JobTgt _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
-		JobTgt jt = target->actual_job_tgt() ;
-		if (!jt.active()) {
-			/**/                             if (target->status()>NodeStatus::Makable) goto NoJob ;
-			jt = target->conform_job_tgt() ; if (!jt.active()                        ) goto NoJob ;
+	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
+		JobTgt job = target->actual_job() ;
+		if (!job.active()) {
+			/**/                          if (target->status()>NodeStatus::Makable) goto NoJob ;
+			job = target->conform_job() ; if (!job.active()                       ) goto NoJob ;
 		}
-		Trace("target",target,jt) ;
-		return jt ;
+		Trace("target",target,job) ;
+		return job ;
 	NoJob :
 		target->set_buildable() ;
 		if (!target->is_src_anti()) {
@@ -737,10 +737,10 @@ R"({
 				for( auto const& [tn,td] : digest.targets ) {
 					Node t { tn } ;
 					::string flags_str ;
-					/**/                         flags_str += t->crc==Crc::None ? '!'                : '-'                ;
-					/**/                         flags_str += +td.accesses      ? (td.write?'U':'R') : (td.write?'W':'-') ;
-					/**/                         flags_str += ' '                                                         ;
-					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf]?TflagChars[+tf]:'-'                           ;
+					/**/                         flags_str +=  t->crc==Crc::None ? '!'             : '-' ;
+					/**/                         flags_str += +t->crc            ? 'W'             : '-' ;
+					/**/                         flags_str +=                      ' '                   ;
+					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf]      ? TflagChars[+tf] : '-' ;
 					//
 					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}
@@ -775,29 +775,29 @@ R"({
 				case ReqKey::InvDeps : for_job = false ; break ;
 				default              : for_job = true  ;
 			}
-			JobTgt jt ;
+			Job job ;
 			if (for_job) {
-				jt = _job_from_target(fd,ro,target) ;
-				if ( !jt && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
+				job = _job_from_target(fd,ro,target) ;
+				if ( !job && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
 			}
 			switch (ro.key) {
 				case ReqKey::Info :
 					if (target->status()==NodeStatus::Plain) {
-						JobTgt cjt            = target->conform_job_tgt() ;
-						size_t w              = 0                         ;
-						bool   seen_candidate = false                     ;
-						for( JobTgt job_tgt : target->conform_job_tgts() ) {
-							/**/              w              = ::max(w,job_tgt->rule->name.size()) ;
-							if (job_tgt!=cjt) seen_candidate = true                                ;
+						Job    cj             = target->conform_job() ;
+						size_t w              = 0                     ;
+						bool   seen_candidate = false                 ;
+						for( Job j : target->conform_job_tgts() ) {
+							/**/       w              = ::max(w,j->rule->name.size()) ;
+							if (j!=cj) seen_candidate = true                          ;
 						}
-						for( JobTgt job_tgt : target->conform_job_tgts() ) {
-							if      (job_tgt==jt    ) continue ;
-							if      (!seen_candidate) audit( fd , ro , Color::Note , to_string("official job " ,::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ; // no need to align
-							else if (job_tgt==cjt   ) audit( fd , ro , Color::Note , to_string("official job  ",::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ; // align
-							else                      audit( fd , ro , Color::Note , to_string("job candidate ",::setw(w),job_tgt->rule->name," : ",mk_file(job_tgt->name())) ) ;
+						for( Job j : target->conform_job_tgts() ) {
+							if      (j==job         ) continue ;
+							if      (!seen_candidate) audit( fd , ro , Color::Note , to_string("official job " ,::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // no need to align
+							else if (j==cj          ) audit( fd , ro , Color::Note , to_string("official job  ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ; // align
+							else                      audit( fd , ro , Color::Note , to_string("job candidate ",::setw(w),j->rule->name," : ",mk_file(j->name())) ) ;
 						}
 					}
-					if (!jt) {
+					if (!job) {
 						Node n = target ;
 						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
 						if (+n->asking) audit( fd , ro , to_string("required by : ",mk_file(Job(n->asking)->name())) ) ;
@@ -811,25 +811,25 @@ R"({
 				case ReqKey::Stderr     :
 				case ReqKey::Stdout     :
 				case ReqKey::Targets    :
-					_show_job(fd,ro,jt,lvl) ;
+					_show_job(fd,ro,job,lvl) ;
 				break ;
 				case ReqKey::Deps    : {
 					bool     always      = ro.flags[ReqFlag::Verbose] ;
 					::string uphill_name = dir_name(target->name())   ;
 					double   prio        = -Infinity                  ;
 					if (+uphill_name) _send_node( fd , ro , always , Maybe/*hide*/ , "U" , target->dir() , lvl ) ;
-					for( JobTgt job_tgt : target->conform_job_tgts() ) {
-						bool hide = !job_tgt.produces(target) ;
-						if      (always) _send_job( fd , ro , Yes   , hide          , job_tgt , lvl ) ;
-						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , job_tgt , lvl ) ;
+					for( JobTgt jt : target->conform_job_tgts() ) {
+						bool hide = !jt.produces(target) ;
+						if      (always) _send_job( fd , ro , Yes   , hide          , jt , lvl ) ;
+						else if (!hide ) _send_job( fd , ro , Maybe , false/*hide*/ , jt , lvl ) ;
 					}
-					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , jt ) ; // actual job is output last as this is what user views first
+					if (prio!=-Infinity) _send_job( fd , ro , always?Yes:Maybe , false/*hide*/ , job ) ; // actual job is output last as this is what user views first
 				} break ;
 				case ReqKey::InvDeps :
-					for( Job job : Persistent::job_lst() )
-						for( Dep const& dep : job->deps ) {
+					for( Job j : Persistent::job_lst() )
+						for( Dep const& dep : j->deps ) {
 							if (dep!=target) continue ;
-							_send_job( fd , ro , No , false/*hide*/ , job , lvl ) ;
+							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
 							break ;
 						}
 				break ;

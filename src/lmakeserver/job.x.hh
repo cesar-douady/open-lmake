@@ -77,13 +77,7 @@ namespace Engine {
 		//
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
-		// static data
-	protected :
-		static ::map <Time::Pdate,Job        > _s_start_date_to_jobs ;  // start_date of all running jobs, used to detect target clashes
-		static ::umap<Job        ,Time::Pdate> _s_job_to_end_dates   ;  // end_dates of all jobs that have ended after the earliest start date mentioned above
-		static ::map <Time::Pdate,Job        > _s_end_date_to_jobs   ;  // .
 		// cxtors & casts
-	public :
 		using JobBase::JobBase ;
 		Job( Rule::SimpleMatch&&          , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
 		Job( RuleTgt , ::string const& t  , Req={} , DepDepth lvl=0 ) ; // plain Job, match on target
@@ -94,11 +88,6 @@ namespace Engine {
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;        // multi
 		// accesses
 		bool active() const ;
-		Time::Pdate end_date() const {
-			auto it = _s_job_to_end_dates.find(*this) ;
-			if (it==_s_job_to_end_dates.end()) return {}         ;      // job still running or has ended long ago, no risk of clash (clash is detected upon the end of the second job)
-			else                               return it->second ;
-		}
 	} ;
 
 	struct JobTgt : Job {
@@ -108,22 +97,20 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , JobTgt ) ;
 		// cxtors & casts
 		JobTgt(                                                              ) = default ;
-		JobTgt( Job j , bool is=false                                        ) : Job(j ) { is_sure( +j && is )   ; } // if no job, ensure JobTgt appears as false
+		JobTgt( Job j , bool isp=false                                       ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
 		JobTgt( RuleTgt rt , ::string const& t , Req req={} , DepDepth lvl=0 ) ;
-		JobTgt( JobTgt const& jt                                             ) : Job(jt) { is_sure(jt.is_sure()) ; }
+		JobTgt( JobTgt const& jt                                             ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
 		//
-		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_sure(jt.is_sure()) ; return *this ; }
-		// accesses
-		Idx operator+() const { return Job::operator+() | is_sure()<<(NValBits-1) ; }
+		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return *this ; }
 		//
-		bool is_sure(        ) const { return Job::side<1>(   ) ; }
-		void is_sure(bool val)       {        Job::side<1>(val) ; }
-		bool sure   (        ) const ;
+		bool is_static_phony(        ) const { return Job::side<1>() ;                          }
+		void is_static_phony(bool isp)       { { if (isp) SWEAR(+*this) ; } Job::side<1>(isp) ; }
+		bool sure           (        ) const ;
 		//
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(       ) const = delete ;   // { return Job::side<W,LSB+1>(   ) ; }
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx val)       = delete ;   // {        Job::side<W,LSB+1>(val) ; }
+		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(     ) const = delete ;                     // { return Job::side<W,LSB+1>( ) ; }
+		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx s)       = delete ;                     // {        Job::side<W,LSB+1>(s) ; }
 		// services
-		bool produces(Node) const ;                                                                                  // if sure, reply true only if it is certain than node is produced
+		bool produces(Node) const ;
 	} ;
 
 	struct JobTgts : JobTgtsBase {
@@ -135,16 +122,10 @@ namespace Engine {
 	struct JobExec : Job {
 		friend ::ostream& operator<<( ::ostream& , JobExec const& ) ;
 		// cxtors & casts
-		JobExec() = default ;
-		//
-		JobExec( Job j ,               Pdate s={}              ) : Job{j} ,           start_{s}                              {} // not executing or started job
-		JobExec( Job j , in_addr_t h , Pdate s={} , Pdate e={} ) : Job{j} , host{h} , start_{s} , end_{e                   } {}
-		JobExec( Job j , in_addr_t h , Pdate s    , NewType    ) : Job{j} , host{h} , start_{s} , end_{Time::Pdate::s_now()} {}
-		//
-		JobExec( Job j , in_addr_t h , NewType           ) : Job{j} , host{h} , start_{Time::Pdate::s_now()}                {}  // starting job
-		JobExec( Job j ,               NewType           ) : Job{j} ,           start_{Time::Pdate::s_now()}                {}  // .
-		JobExec( Job j , in_addr_t h , NewType , NewType ) : Job{j} , host{h} , start_{Time::Pdate::s_now()} , end_{start_} {}  // instantaneous job, no need to distinguish start, cannot have host
-		JobExec( Job j ,               NewType , NewType ) : Job{j} ,           start_{Time::Pdate::s_now()} , end_{start_} {}  // .
+		JobExec( Job j={} ,               FullDate s={} , FullDate e={} ) : Job{j} ,           start_date{s} , end_date{e} {}
+		JobExec( Job j    , in_addr_t h , FullDate s={} , FullDate e={} ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
+		JobExec( Job j    ,               FullDate s    , NewType       ) : Job{j} ,           start_date{s} , end_date{s} {} // end=New means job is instantaneous
+		JobExec( Job j    , in_addr_t h , FullDate s    , NewType       ) : Job{j} , host{h} , start_date{s} , end_date{s} {} // .
 		// services
 		// called in main thread after start
 		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
@@ -163,15 +144,10 @@ namespace Engine {
 		JobReport audit_end( ::string const& pfx , ReqInfo const& cri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
 			return audit_end(pfx,cri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
-		// start/end date book keeping
-	private :
-		void _set_start_date() ;
-		void _set_end_date  () ;
 		// data
-	public :
-		in_addr_t host   = NoSockAddr ;
-		Pdate     start_ ;
-		Pdate     end_   ;
+		in_addr_t host      = NoSockAddr ;
+		FullDate start_date ;
+		FullDate end_date   ;                                                                                   // if no end_date, job is stil on going
 	} ;
 
 }
@@ -242,8 +218,8 @@ namespace Engine {
 	public :
 		JobData(                                  ) = default ;
 		JobData( Name n                           ) : DataBase{n}                                            {}
-		JobData( Name n , Special sp , Deps ds={} ) : DataBase{n} , deps{ds} , rule{sp} , exec_gen{NExecGen} {}                                 // special Job, all deps, always exec_ok
-		JobData( Name n , Rule::SimpleMatch const& m , Deps sds ) : DataBase{n} , deps{sds} , rule{m.rule} {                                    // plain Job, static targets and deps
+		JobData( Name n , Special sp , Deps ds={} ) : DataBase{n} , deps{ds} , rule{sp} , exec_gen{NExecGen} {}                                // special Job, all deps, always exec_ok
+		JobData( Name n , Rule::SimpleMatch const& m , Deps sds ) : DataBase{n} , deps{sds} , rule{m.rule} {                                   // plain Job, static targets and deps
 			SWEAR(!rule.is_shared()) ;
 			_reset_targets(m) ;
 		}
@@ -265,13 +241,13 @@ namespace Engine {
 		//
 		ReqInfo const& c_req_info  (Req                   ) const ;
 		ReqInfo      & req_info    (Req                   ) const ;
-		ReqInfo      & req_info    (ReqInfo const&        ) const ;                                                                             // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info    (ReqInfo const&        ) const ;                                                                            // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs        (                      ) const ;
 		::vector<Req>  running_reqs(bool with_zombies=true) const ;
-		bool           running     (bool with_zombies=true) const ;                                                                             // fast implementation of +running_reqs(...)
+		bool           running     (bool with_zombies=true) const ;                                                                            // fast implementation of +running_reqs(...)
 		//
 		bool cmd_ok    (   ) const { return                      exec_gen >= rule->cmd_gen   ; }
-		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; }                                                // dont care about rsrcs if job went ok
+		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || exec_gen >= rule->rsrcs_gen ; }                                               // dont care about rsrcs if job went ok
 		bool is_special(   ) const { return rule->is_special() || idx().frozen()             ; }
 		bool has_req   (Req) const ;
 		//
@@ -386,15 +362,16 @@ namespace Engine {
 
 	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,r,lvl) , rt.sure() } {}
 
-	inline bool JobTgt::sure() const { return is_sure() && (*this)->sure() ; }
+	inline bool JobTgt::sure() const { return is_static_phony() && (*this)->sure() ; }
 
 	inline bool JobTgt::produces(Node t) const {
-		if ((*this)->missing()          ) return false ; // missing jobs produce nothing
-		if ((*this)->err()              ) return true  ; // jobs in error are deemed to produce all their potential targets
-		if (is_sure()                   ) return true  ; // fast path
-		if (t->has_actual_job_tgt(*this)) return true  ; // .
+		if ((*this)->missing()      ) return false                             ; // missing jobs produce nothing
+		if ((*this)->err()          ) return true                              ; // jobs in error are deemed to produce all their potential targets
+		if (sure()                  ) return true                              ; // fast path
+		if (t->has_actual_job(*this)) return t->actual_tflags()[Tflag::Target] ; // .
 		//
-		return ::binary_search( (*this)->targets , {t,{}} ) ;
+		auto it = ::lower_bound( (*this)->targets , {t,{}} ) ;
+		return it!=(*this)->targets.end() && *it==t && it->tflags[Tflag::Target] ;
 	}
 
 	//

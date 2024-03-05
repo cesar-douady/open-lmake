@@ -65,7 +65,8 @@ namespace Caches {
 		if (dct.contains("dir" )) dir =            dct.at("dir" )  ; else throw "dir not found"s  ;
 		repo   = "repo-"+::string(repo_hash.digest()) ;
 		//
-		if (chk_version(true/*may_init*/,dir+'/',false/*with_repo*/)!=Yes) throw to_string("cache version mismatch, running without ",dir) ;
+		try                     { chk_version(true/*may_init*/,dir+'/',false/*with_repo*/) ;        }
+		catch (::string const&) { throw to_string("cache version mismatch, running without ",dir) ; }
 		//
 		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
 		if (!dir_fd) throw to_string("cannot configure cache ",dir," : no directory") ;
@@ -135,14 +136,14 @@ namespace Caches {
 
 	static void _copy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , bool unlnk_dst , bool mk_read_only ) {
 		FileInfo fi{src_at,src_file} ;
-		if (unlnk_dst) unlnk(dst_at,dst_file)                                        ;
-		else            SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
-		switch (fi.tag) {
+		if (unlnk_dst) unlnk(dst_at,dst_file)                                         ;
+		else           SWEAR( !is_target(dst_at,dst_file) , '@',dst_at,':',dst_file ) ;
+		switch (fi.tag()) {
 			case FileTag::None : break ;
 			case FileTag::Reg  :
 			case FileTag::Exe  : {
 				FileMap     fm  { src_at , src_file } ;
-				AutoCloseFd wfd = open_write( dst_at , dst_file , false/*append*/ , fi.tag==FileTag::Exe , mk_read_only ) ;
+				AutoCloseFd wfd = open_write( dst_at , dst_file , false/*append*/ , fi.tag()==FileTag::Exe , mk_read_only ) ;
 				for( size_t pos=0 ; pos<fm.sz ;) {
 					ssize_t cnt = ::write( wfd , fm.data+pos , fm.sz-pos ) ;
 					if (cnt<=0) throw ""s ;
@@ -318,23 +319,26 @@ namespace Caches {
 		JobInfoEnd   report_end   ;
 		try {
 			IFStream is { job->ancillary_file() } ;
-			 deserialize(is,report_start) ;
-			 deserialize(is,report_end  ) ;
-			// update some specific info
-			report_start.pre_start.seq_id    = 0  ;                                                  // no seq_id   since no execution
-			report_start.start    .small_id  = 0  ;                                                  // no small_id since no execution
-			report_start.pre_start.job       = 0  ;                                                  // job_id may not be the same in the destination repo
-			report_start.eta                 = {} ;                                                  // dont care about timing info in cache
-			report_start.submit_attrs.reason = {} ;                                                  // cache does not care about original reason
-			report_start.rsrcs.clear() ;                                                             // caching resources is meaningless as they have no impact on content
-			// remove target dates
-			for( auto& [tn,td] : report_end.end.digest.targets ) td.date.clear() ;
-			// check deps
-			for( auto const& [dn,dd] : report_end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
+			deserialize(is,report_start) ;
+			deserialize(is,report_end  ) ;
 		} catch (::string const& e) {
-			trace("no_ancillary_files",e) ;
+			trace("no_ancillary_file",e) ;
 			return false/*ok*/ ;
 		}
+		// remove useless info
+		report_start.pre_start.seq_id    = 0  ;                                                      // no seq_id   since no execution
+		report_start.start    .small_id  = 0  ;                                                      // no small_id since no execution
+		report_start.pre_start.job       = 0  ;                                                      // job_id may not be the same in the destination repo
+		report_start.eta                 = {} ;                                                      // dont care about timing info in cache
+		report_start.submit_attrs.reason = {} ;                                                      // cache does not care about original reason
+		report_start.rsrcs.clear() ;                                                                 // caching resources is meaningless as they have no impact on content
+		for( auto& [tn,td] : report_end.end.digest.targets ) {
+			SWEAR(!td.polluted) ; // cannot be a candidate for upload as this must have failed
+			td.date.clear() ;
+			td.extra_tflags = {} ;
+		}
+		// check deps
+		for( auto const& [dn,dd] : report_end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
 		//
 		mkdir(dir_fd,jn) ;
 		AutoCloseFd dfd = open_read(dir_fd,jn) ;

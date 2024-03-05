@@ -70,14 +70,16 @@ struct AutoCloseFd : Fd {
 	friend ::ostream& operator<<( ::ostream& , AutoCloseFd const& ) ;
 	// cxtors & casts
 	using Fd::Fd ;
-	AutoCloseFd(AutoCloseFd&& acfd) : Fd{::move(acfd)} { acfd.detach() ; }
-	AutoCloseFd(Fd const&     fd_ ) : Fd{       fd_  } {                 }
+	AutoCloseFd(Fd          const& fd_ ) : Fd{       fd_  } {                }
+	AutoCloseFd(AutoCloseFd     && acfd) : Fd{::move(acfd)} { SWEAR(!acfd) ; } // ensure acfd has been detached
+	AutoCloseFd(AutoCloseFd const& acfd) = delete ;
 	//
 	~AutoCloseFd() { close() ; }
 	//
-	AutoCloseFd& operator=(int           fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
-	AutoCloseFd& operator=(AutoCloseFd&& acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
-	AutoCloseFd& operator=(Fd const&     fd_ ) { *this = fd_ .fd ;                 return *this ; }
+	AutoCloseFd& operator=(int                fd_ ) { if (fd!=fd_) close() ; fd = fd_ ; return *this ; }
+	AutoCloseFd& operator=(Fd          const& fd_ ) { *this = fd_ .fd ;                 return *this ; }
+	AutoCloseFd& operator=(AutoCloseFd     && acfd) { *this = acfd.fd ; acfd.detach() ; return *this ; }
+	AutoCloseFd& operator=(AutoCloseFd const& acfd) = delete ;
 } ;
 
 struct LockedFd : Fd {

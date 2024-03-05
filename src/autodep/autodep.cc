@@ -64,17 +64,17 @@ int main( int argc , char* argv[] ) {
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather_deps.accesses ) {
-		if (ai.digest.idle()) continue ;
-		deps_stream << ( +ai.digest.accesses ? '<' : ' ' ) ;
-		deps_stream << ( ai.digest.write     ? '>' : ' ' ) ;
-		deps_stream << ( ai.digest.unlnk     ? '!' : ' ' ) ;
-		deps_stream << target << '\n'                      ;
+		if (ai.digest.write==No) continue ;
+		deps_stream << ( +ai.digest.accesses    ? '<' : ' ' ) ;
+		deps_stream << ( ai.digest.write==Yes   ? '>' : ' ' ) ;
+		deps_stream << ( ai.digest.write==Maybe ? '!' : ' ' ) ;
+		deps_stream << target << '\n'                         ;
 	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	NodeIdx  prev_parallel_id = 0     ;
-	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                                 // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                                    // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = parallel_id && parallel_id==prev_parallel_id ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
@@ -87,7 +87,7 @@ int main( int argc , char* argv[] ) {
 		prev_parallel    = parallel    ;
 		prev_dep         = dep         ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.digest.idle()) send(dep,ai.parallel_id) ;
-	/**/                                                                     send(                  ) ; // send last
+	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.digest.write==No) send(dep,ai.parallel_id) ;
+	/**/                                                                        send(                  ) ; // send last
 	return status!=Status::Ok ;
 }

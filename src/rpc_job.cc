@@ -29,26 +29,24 @@ using namespace Hash ;
 	//
 	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
-		if ( a.crc==Crc::None && a.tag<=FileActionTag::HasFile ) continue ;                                                         // no file to act on
 		switch (a.tag) {
-			case FileActionTag::None     :                                                                                     break ;
-			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f)) ; break ;
-			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                break ;
+			case FileActionTag::None     :                                                                                          break ;
+			case FileActionTag::Uniquify : if (uniquify(nfs_guard.change(f))) append_to_string(msg,"uniquified ",mk_file(f),'\n') ; break ;
+			case FileActionTag::Mkdir    : mkdir(f,nfs_guard) ;                                                                     break ;
 			case FileActionTag::Unlnk    : {
 				FileInfo fi { nfs_guard.access(f) } ;
-				if (+fi) {
-					bool done = true/*garbage*/ ;
-					if ( fi.date!=a.date && a.crc.valid() && (a.crc==Crc::None||!a.crc.match(Crc(f,ha))) ) {
-						done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
-						if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
-						else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
-					} else {
-						done = unlnk(nfs_guard.change(f)) ;
-						if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
-					}
-					if (done) unlnks.push_back(f) ;
-					else      ok = false ;
+				if (!fi) break ;                                                                                                    // file does not exist, nothing to do
+				bool done = true/*garbage*/ ;
+				if ( fi.date!=a.date && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f,ha))) ) {
+					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
+					if (done) append_to_string(msg,"quarantined "         ,mk_file(f),'\n') ;
+					else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
+				} else {
+					done = unlnk(nfs_guard.change(f)) ;
+					if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
 				}
+				if (done) unlnks.push_back(f) ;
+				else      ok = false ;
 			} break ;
 			case FileActionTag::Rmdir :
 				if (!keep_dirs.contains(f))
@@ -101,13 +99,13 @@ using namespace Hash ;
 
 ::ostream& operator<<( ::ostream& os , TargetDigest const& td ) {
 	const char* sep = "" ;
-	/**/                os << "TargetDigest("  ;
-	if (+td.accesses) { os <<sep<< td.accesses ; sep = "," ; }
-	if ( td.write   ) { os <<sep<< "write"     ; sep = "," ; }
-	if (+td.tflags  ) { os <<sep<< td.tflags   ; sep = "," ; }
-	if (+td.crc     ) { os <<sep<< td.crc      ; sep = "," ; }
-	if (+td.date    ) { os <<sep<< td.date     ; sep = "," ; }
-	return              os <<')'               ;
+	/**/                    os << "TargetDigest("      ;
+	if ( td.polluted    ) { os <<sep<< "polluted"      ; sep = "," ; }
+	if (+td.tflags      ) { os <<sep<< td.tflags       ; sep = "," ; }
+	if (+td.extra_tflags) { os <<sep<< td.extra_tflags ; sep = "," ; }
+	if (+td.crc         ) { os <<sep<< td.crc          ; sep = "," ; }
+	if (+td.date        ) { os <<sep<< td.date         ; sep = "," ; }
+	return                  os <<')'                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobDigest const& jd ) {
@@ -171,6 +169,7 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 			if (jrr.live_out       ) os <<',' << "live_out"                       ;
 			/**/                     os <<',' << jrr.method                       ;
 			if (+jrr.network_delay ) os <<',' << jrr.network_delay                ;
+			if (+jrr.pre_actions   ) os <<',' << jrr.pre_actions                  ;
 			/**/                     os <<',' << jrr.remote_admin_dir             ;
 			/**/                     os <<',' << jrr.small_id                     ;
 			if (+jrr.star_matches  ) os <<',' << jrr.star_matches                 ;
@@ -193,15 +192,15 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 
 ::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                    os << "AccessDigest("      ;
-	if (+ad.accesses    ) { os <<      ad.accesses     ; sep = "," ; }
-	if (+ad.dflags      ) { os <<sep<< ad.dflags       ; sep = "," ; }
-	if (+ad.extra_dflags) { os <<sep<< ad.extra_dflags ; sep = "," ; }
-	if (+ad.tflags      ) { os <<sep<< ad.tflags       ; sep = "," ; }
-	if (+ad.extra_tflags) { os <<sep<< ad.extra_tflags ; sep = "," ; }
-	if ( ad.write       ) { os <<sep<< "write"         ; sep = "," ; }
-	if ( ad.unlnk       )   os <<sep<< "unlnk"         ;
-	return                  os <<')'                   ;
+	/**/                         os << "AccessDigest("      ;
+	if      (+ad.accesses    ) { os <<      ad.accesses     ; sep = "," ; }
+	if      (+ad.dflags      ) { os <<sep<< ad.dflags       ; sep = "," ; }
+	if      (+ad.extra_dflags) { os <<sep<< ad.extra_dflags ; sep = "," ; }
+	if      (+ad.tflags      ) { os <<sep<< ad.tflags       ; sep = "," ; }
+	if      (+ad.extra_tflags) { os <<sep<< ad.extra_tflags ; sep = "," ; }
+	if      ( ad.write==Yes  ) { os <<sep<< "write"         ; sep = "," ; }
+	else if ( ad.write==Maybe)   os <<sep<< "unlnk"         ;
+	return                       os <<')'                   ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
@@ -223,24 +222,14 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 	return os <<')' ;
 }
 
-void AccessDigest::update( AccessDigest const& ad , AccessOrder order ) {
-	if (!ad.idle()) {
-		if ( idle() || order==AccessOrder::After ) unlnk = ( unlnk && !ad.write ) || ad.unlnk ;
-		/**/                                       write =   write                || ad.write ;
-	}
-	switch (order) {
-		case AccessOrder::Before :
-			accesses = ad.accesses | (ad.idle()?accesses:Accesses::None) ;
-		break ;
-		case AccessOrder::BetweenReadAndWrite :
-			accesses |= ad.accesses ;
-		break ;
-		default : SWEAR(order>=AccessOrder::Write) ; // ensure we have not forgotten a case
-	}
-	tflags       |= ad.tflags       ;
-	extra_tflags |= ad.extra_tflags ;
-	dflags       |= ad.dflags       ;
-	extra_dflags |= ad.extra_dflags ;
+AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
+	if (other.write!=No) write         = other.write        ;
+	if (      write==No) accesses     |= other.accesses     ;
+	/**/                 tflags       |= other.tflags       ;
+	/**/                 extra_tflags |= other.extra_tflags ;
+	/**/                 dflags       |= other.dflags       ;
+	/**/                 extra_dflags |= other.extra_dflags ;
+	return *this ;
 }
 
 //

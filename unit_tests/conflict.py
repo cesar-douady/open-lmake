@@ -12,40 +12,61 @@ if __name__!='__main__' :
 		'Lmakefile.py'
 	,)
 
-	class Star(PyRule):
-		targets = { 'DST' : r'out{Wait:\d}/{*:.*}' }
+	class Base(PyRule) :
+		stems = {
+			'W'    : r'(\.w)?'
+		,	'Wait' : r'\d+'
+		,	'Any'  : r'.*'
+		}
+
+	class Star(Base) :
+		targets = { 'DST' : 'out{W}.{Wait}/{Any*}' }
 		def cmd():
 			import time
 			import os
 			time.sleep(int(Wait))
 			dir = f'out{Wait}'
-			try                      : os.unlink(DST('mrkr0'))
-			except FileNotFoundError : pass
-			try                      : os.unlink(DST('mrkr1'))
-			except FileNotFoundError : pass
-			open(DST('a_file'),'w').write('hello')
+			for i in (1,2) :
+				if W                     : open     (DST(f'mrkr{i}'),'w').write('bad')
+				try                      : os.unlink(DST(f'mrkr{i}'))
+				except FileNotFoundError : pass
+			print('a_file',file=open(DST('a_file'),'w'))
 
-	class Mrkr(Rule):
-		targets = { 'MRKR' : r'{:(.*/)?}mrkr{Wait:\d}' } # cannot use target as we want to wait before creating MRKR
-		cmd     = 'sleep {Wait} ; echo > {MRKR}'         # just create output
+	class Mrkr(Base) :
+		targets = { 'MRKR' : r'{Any}/mrkr{Wait}' } # cannot use target as we want to wait before creating MRKR
+		def cmd() :
+			import os.path as osp
+			import time
+			time.sleep(int(Wait))
+			print(osp.basename(MRKR),file=open(MRKR,'w'))
 
-	class Res1(PyRule):
-		target = 'res1'
+	class Res1(Base) :     # check case where mrkr has been unlinked before having been created
+		target = 'res1{W}'
 		def cmd():
-			lmake.depend('out1/mrkr0')
-			print(open('out1/a_file').read())
+			print(open(f'out{W}.2/mrkr1' ).read().strip())
+			print(open(f'out{W}.2/a_file').read().strip())
 
-	class Res2(PyRule):
-		target = 'res2'
+	class Res2(Base) :     # check case where mrkr has been unlinked after having been created
+		target = 'res2{W}'
 		def cmd():
-			lmake.depend('out0/mrkr1')
-			print(open('out0/a_file').read())
+			print(open(f'out{W}.1/mrkr2' ).read().strip())
+			print(open(f'out{W}.1/a_file').read().strip())
+
+	class Chk(Base) :
+		target = 'chk{W}'
+		deps = {
+			'RES1' : 'res1{W}'
+		,	'RES2' : 'res2{W}'
+		}
+		def cmd() :
+			assert open(RES1).read().split()==['mrkr1','a_file']
+			assert open(RES2).read().split()==['mrkr2','a_file']
 
 else :
 
 	import ut
 
-	ut.lmake( 'res1' , new=1 , done=3 , may_rerun=1 , steady=1 ) # check case where mrkr has been unlinked after having been created
-	ut.lmake( 'res1'                                           ) # ensure up to date
-	ut.lmake( 'res2' ,         done=3 , may_rerun=1            ) # check case where mrkr has been unlinked before having been created
-	ut.lmake( 'res2'                                           ) # ensure up to date
+	ut.lmake( 'chk'   , new=1 , done=7 , may_rerun=2 , rerun=1 , steady=1 )
+	ut.lmake( 'chk'                                                       ) # ensure up to date
+	ut.lmake( 'chk.w' , new=0 , done=6 , may_rerun=2 , rerun=2 , steady=2 )
+	ut.lmake( 'chk.w'                                                     ) # ensure up to date

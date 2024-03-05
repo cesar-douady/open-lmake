@@ -120,13 +120,13 @@ namespace Backends {
 				s_tab[+t]->launch() ;
 			} catch (::vmap<JobIdx,pair_s<vmap_ss/*rsrcs*/>>& err_list) {
 				for( auto&& [ji,re] : err_list ) {
-					JobExec           je     { ji                       } ;
+					JobExec           je     { ji , New , New }           ;
 					Rule::SimpleMatch match  = je->simple_match()         ;
 					JobDigest         digest { .status=Status::EarlyErr } ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::Start , JobExec(je) , false/*report*/                                       ) ;
-					g_engine_queue.emplace( JobProc::End   , ::move (je) , ::move(re.second) , ::move(digest) , ::move(re.first) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report*/                                       ) ;
+					g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(re.second) , ::move(digest) , ::move(re.first) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("cannot_launch",ji) ;
 					_s_start_tab.erase(ji) ;
 				}
@@ -135,18 +135,18 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
-		{	::unique_lock lock { _s_mutex }                       ;                   // lock _s_start_tab for minimal time to avoid dead-locks
+		{	::unique_lock lock { _s_mutex }                      ;                                // lock _s_start_tab for minimal time to avoid dead-locks
 			auto          it   = _s_start_tab.find(+de.job_exec) ;
-			if (it==_s_start_tab.end()           ) return ;                           // too late, job has ended
-			if (it->second.conn.seq_id!=de.seq_id) return ;                           // too late, job has ended and restarted
+			if (it==_s_start_tab.end()           ) return ;                                       // too late, job has ended
+			if (it->second.conn.seq_id!=de.seq_id) return ;                                       // too late, job has ended and restarted
 		}
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
-		JobDigest jd { .status=Status::LateLost } ;                                   // job is still present, must be really lost
-		if (+de.job_exec.start_) jd.stats.total = Pdate::s_now()-de.job_exec.start_ ;
+		JobDigest jd { .status=Status::LateLost } ;                                               // job is still present, must be really lost
+		if (+de.job_exec.start_date.p) jd.stats.total = Pdate::s_now()-de.job_exec.start_date.p ;
 		_s_handle_job_end( JobRpcReq( JobProc::End , de.seq_id , +de.job_exec , ::move(jd) ) ) ;
 	}
 
-	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , Pdate const& start , JobServerRpcProc proc ) {
+	void Backend::_s_wakeup_remote( JobIdx job , StartEntry::Conn const& conn , FullDate const& start_date , JobServerRpcProc proc ) {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
 		try {
 			ClientSockFd fd(conn.host,conn.port) ;
@@ -154,7 +154,7 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
-			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry(conn.seq_id,JobExec(Job(job),conn.host,start,New)) ) ;
+			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry(conn.seq_id,JobExec(Job(job),conn.host,start_date,New)) ) ;
 		}
 	}
 
@@ -189,11 +189,12 @@ namespace Backends {
 			case JobProc::None  : return false ;                       // if connection is lost, ignore it
 			case JobProc::Start : SWEAR(+fd,jrr.proc) ; break ;        // fd is needed to reply
 		DF}
-		Job                                        job               { jrr.job }           ;
+		Job                                        job               { jrr.job }             ;
+		::string                                   jaf               = job->ancillary_file() ;
 		JobExec                                    job_exec          ;
-		Rule                                       rule              = job->rule           ;
-		Rule::SimpleMatch                          match             = job->simple_match() ;
-		JobRpcReply                                reply             { JobProc::Start }    ;
+		Rule                                       rule              = job->rule             ;
+		Rule::SimpleMatch                          match             = job->simple_match()   ;
+		JobRpcReply                                reply             { JobProc::Start }      ;
 		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
 		StartCmdAttrs                              start_cmd_attrs   ;
 		::pair_ss/*script,call*/                   cmd               ;
@@ -323,9 +324,8 @@ namespace Backends {
 					status        = Status::EarlyChkDeps ;
 					start_msg_err = {}                   ;
 				}
-				job_exec = { job , reply.addr , New , New } ;  // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;           // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                                                                            // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				JobDigest digest {
 					.status = status
@@ -333,7 +333,7 @@ namespace Backends {
 				,	.stderr = start_msg_err.second
 				} ;
 				trace("early",digest) ;
-				{	OFStream ofs { dir_guard(job->ancillary_file()) } ;
+				{	OFStream ofs { dir_guard(jaf) } ;
 					serialize( ofs , JobInfoStart({
 						.eta          = eta
 					,	.submit_attrs = ::move(submit_attrs)
@@ -345,6 +345,7 @@ namespace Backends {
 					}) ) ;
 					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,JobDigest(digest)) ) ) ;
 				}
+				job_exec = { job , reply.addr , file_date(jaf) , New } ;                                                        // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ""s , ::move(jrr.msg            ) ) ;
 				g_engine_queue.emplace( JobProc::End   , ::move(job_exec) , ::move(rsrcs) , ::move(digest)                         , ::move(start_msg_err.first) ) ;
@@ -356,40 +357,41 @@ namespace Backends {
 			//
 			reply.small_id            = _s_small_ids.acquire() ;
 			reply.autodep_env.tmp_dir = keep_tmp ?
-				to_string(*g_root_dir,'/',job->ancillary_file(AncillaryTag::KeepTmp))
-			:	to_string(g_config.remote_tmp_dir,'/',reply.small_id                )
+				to_string(*g_root_dir            ,'/',job->ancillary_file(AncillaryTag::KeepTmp))
+			:	to_string(g_config.remote_tmp_dir,'/',reply.small_id                            )
 			;
-			//
-			job_exec            = { job , reply.addr , New } ; // job starts
-			entry.start         = job_exec.start_            ;
+			//vvvvvvvvvvvvvvvvvvvvvv
+			OMsgBuf().send(fd,reply) ;                                                                                          // send reply ASAP to minimize overhead
+			//^^^^^^^^^^^^^^^^^^^^^^
+			in_addr_t reply_addr = reply.addr ;                                                                                 // save before move
+			serialize(
+				OFStream(dir_guard(jaf))
+			,	JobInfoStart({
+					.rule_cmd_crc =        rule->cmd_crc
+				,	.stems        = ::move(match.stems         )
+				,	.eta          =        eta
+				,	.submit_attrs =        submit_attrs
+				,	.rsrcs        = ::move(rsrcs               )
+				,	.host         =        reply_addr
+				,	.pre_start    =        jrr
+				,	.start        = ::move(reply               )
+				,	.stderr       =        start_msg_err.second
+				})
+			) ;
+			job_exec            = { job , reply.addr , file_date(jaf) } ;                                                       // job starts
+			entry.start_date    = job_exec.start_date        ;
 			entry.conn.host     = job_exec.host              ;
 			entry.conn.port     = jrr.port                   ;
 			entry.conn.small_id = reply.small_id             ;
+			//
+			trace("started",reply) ;
 		}
-		trace("started",reply) ;
-		//vvvvvvvvvvvvvvvvvvvvvv
-		OMsgBuf().send(fd,reply) ; // send reply ASAP to minimize overhead, but after we have the _s_ancillary_file_mutex to ensure _s_handle_job_end is not executed too soon
-		//^^^^^^^^^^^^^^^^^^^^^^
-		serialize(
-			OFStream(dir_guard(job->ancillary_file()))
-		,	JobInfoStart({
-				.rule_cmd_crc =        rule->cmd_crc
-			,	.stems        = ::move(match.stems  )
-			,	.eta          =        eta
-			,	.submit_attrs =        submit_attrs
-			,	.rsrcs        = ::move(rsrcs        )
-			,	.host         =        reply.addr
-			,	.pre_start    =        jrr
-			,	.start        = ::move(reply        )
-			,	.stderr       =        start_msg_err.second
-			})
-		) ;
 		bool report_now = +pre_actions.second || +start_msg_err.second || Delay(job->exec_time)>=start_none_attrs.start_delay ; // dont defer long jobs or if a message is to be delivered to user
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , report_now , ::move(pre_actions.second) , ::move(start_msg_err.second) , jrr.msg+start_msg_err.first ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
-			Pdate start_report = job_exec.start_+start_none_attrs.start_delay ;                                                 // record before moving job_exec
+			Pdate start_report = job_exec.start_date.p+start_none_attrs.start_delay ;                                           // record before moving job_exec
 			_s_deferred_report_thread->emplace_at( start_report , jrr.seq_id , ::move(job_exec) ) ;
 		}
 		return false/*keep_fd*/ ;
@@ -413,8 +415,8 @@ namespace Backends {
 			trace("entry",job,entry) ;
 			switch (jrr.proc) { //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv         keep_fd
 				case JobProc::ChkDeps  :
-				case JobProc::DepInfos : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.digest.deps)          , fd ) ; return true  ;
-				case JobProc::LiveOut  : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start,New) , ::move(jrr.msg)                       ) ; return false ;
+				case JobProc::DepInfos : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start_date,New) , ::move(jrr.digest.deps)     , fd ) ; return true  ;
+				case JobProc::LiveOut  : g_engine_queue      . emplace( jrr.proc , JobExec(job,entry.conn.host,entry.start_date,New) , ::move(jrr.msg)                  ) ; return false ;
 				case JobProc::Decode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) ,               entry.reqs , fd ) ; return true  ;
 				case JobProc::Encode   : Codec::g_codec_queue->emplace( jrr.proc , ::move(jrr.msg) , ::move(jrr.file) , ::move(jrr.ctx) , jrr.min_len , entry.reqs , fd ) ; return true  ;
 				//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -427,19 +429,19 @@ namespace Backends {
 			case JobProc::None : return false ;                                     // if connection is lost, ignore it
 			case JobProc::End  : break ;                                            // no reply
 		DF}
-		Job       job      { jrr.job } ;
-		JobExec   job_exec ;
-		::vmap_ss rsrcs    ;
+		Job       job   { jrr.job } ;
+		JobExec   je    ;
+		::vmap_ss rsrcs ;
 		Trace trace(BeChnl,"_s_handle_job_end",jrr) ;
 		if (jrr.job==_s_starting_job) ::unique_lock lock{_s_starting_job_mutex} ;   // ensure _s_handled_job_start is done for this job
 		{	::unique_lock lock { _s_mutex } ;                                       // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
-			job_exec = JobExec( job , entry.conn.host , entry.start , New ) ;
-			rsrcs    = ::move(entry.rsrcs)                                  ;
+			je = JobExec( job , entry.conn.host , entry.start_date ) ;
+			rsrcs    = ::move(entry.rsrcs)                           ;
 			_s_small_ids.release(entry.conn.small_id) ;
-			trace("release_start_tab",job_exec,entry) ;
+			trace("release_start_tab",job,entry) ;
 			// if we have no fd, job end was invented by heartbeat, no acknowledge
 			// acknowledge job end before telling backend as backend may wait the end of the job
 			//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -457,20 +459,22 @@ namespace Backends {
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
-		serialize( OFStream(job->ancillary_file(),::ios::app) , JobInfoEnd(jrr) ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		::string jaf = job->ancillary_file() ;
+		serialize( OFStream(jaf,::ios::app) , JobInfoEnd(jrr) ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( JobProc::End , ::move(job_exec) , ::move(rsrcs) , ::move(jrr.digest) , ::move(jrr.msg) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		je.end_date = file_date(jaf) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( JobProc::End , ::move(je) , ::move(rsrcs) , ::move(jrr.digest) , ::move(jrr.msg) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		return false/*keep_fd*/ ;
 	}
 
 	// kill all if ri==0
 	void Backend::_s_kill_req(ReqIdx ri) {
 		Trace trace(BeChnl,"s_kill_req",ri) ;
-		Req                                         req       { ri } ;
-		::vmap<JobIdx,pair<StartEntry::Conn,Pdate>> to_wakeup ;
-		{	::unique_lock lock { _s_mutex } ;                                                                       // lock for minimal time
+		Req                                            req       { ri } ;
+		::vmap<JobIdx,pair<StartEntry::Conn,FullDate>> to_wakeup ;
+		{	::unique_lock lock { _s_mutex } ;                                                                                       // lock for minimal time
 			for( Tag t : All<Tag> ) if (s_ready(t))
 				for( JobIdx j : s_tab[+t]->kill_waiting_jobs(ri) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -478,17 +482,17 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("waiting",j) ;
 				}
-			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                     // /!\ we erase entries while iterating
+			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                                     // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
 				if (ri) {
 					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
-					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                     // e.reqs is a non-sorted vector, we must search ri by hand
+					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                                     // e.reqs is a non-sorted vector, we must search ri by hand
 						if (*it!=ri) continue ;
 						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) , req , +e.start/*report*/ ) ; // job is useful for some other Req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,e.start_date,Pdate(New)) , req , +e.start_date.p/*report*/ ) ; // job is useful for some other Req
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						trace("continue",j) ;
 						break ;
 					}
@@ -496,16 +500,16 @@ namespace Backends {
 					continue ;
 				}
 			Kill :
-				if (+e.start) {
+				if (+e.start_date.p) {
 					trace("kill",j) ;
-					to_wakeup.emplace_back(j,::pair(e.conn,e.start)) ;
+					to_wakeup.emplace_back(j,::pair(e.conn,e.start_date)) ;
 					jit++ ;
 				} else {
 					trace("not_started",j) ;
 					s_tab[+e.tag]->kill_job(j) ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,New,New) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( JobProc::GiveUp , JobExec(j,e.start_date,Pdate(New)) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					_s_start_tab.erase(jit++) ;
 				}
 			}
@@ -518,7 +522,7 @@ namespace Backends {
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {
 		t_thread_key = 'H' ;
 		Trace trace(BeChnl,"_heartbeat_thread_func") ;
-		Pdate  last_wrap_around = Pdate::s_now() ;
+		Pdate  last_wrap_around{New} ;
 		//
 		StartEntry::Conn         conn         ;
 		::pair_s<HeartbeatState> lost_report  = {}         /*garbage*/ ;
@@ -526,7 +530,7 @@ namespace Backends {
 		Pdate                    eta          ;
 		::vmap_ss                rsrcs        ;
 		SubmitAttrs              submit_attrs ;
-		Pdate                    start        ;
+		FullDate                 start_date   ;
 		for( JobIdx job=0 ;; job++ ) {
 			{	::unique_lock lock { _s_mutex }                    ;                                         // lock _s_start_tab for minimal time
 				auto          it   = _s_start_tab.lower_bound(job) ;
@@ -537,9 +541,9 @@ namespace Backends {
 				//
 				if (!entry    )                      continue ;                                              // not a real entry                        ==> no check, no wait
 				if (!entry.old) { entry.old = true ; continue ; }                                            // entry is too new, wait until next round ==> no check, no wait
-				conn  = entry.conn  ;
-				start = entry.start ;
-				if (+start) goto Wakeup ;
+				conn       = entry.conn       ;
+				start_date = entry.start_date ;
+				if (+start_date.p) goto Wakeup ;
 				lost_report = s_heartbeat(entry.tag,job) ;
 				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                   // job is still alive
 				if (!lost_report.first                       ) lost_report.first = "vanished before start" ;
@@ -552,7 +556,7 @@ namespace Backends {
 				status       = _s_release_start_entry(it,hbs) ;
 				trace("handle_job",job,entry,status) ;
 			}
-			{	JobExec   je { job , New , New } ;                                                           // job starts and ends, no host
+			{	::string jaf = Job(job)->ancillary_file() ;
 				JobDigest jd { .status=status  } ;
 				if (status==Status::EarlyLostErr) {                                                          // if we do not retry, record run info
 					JobInfoStart jis {
@@ -566,10 +570,11 @@ namespace Backends {
 					JobInfoEnd jie {
 						.end { JobProc::End , conn.seq_id , job , ::copy(jd) , ::copy(lost_report.first) }
 					} ;
-					OFStream os { dir_guard(je->ancillary_file()) } ;
+					OFStream os { dir_guard(jaf) } ;
 					serialize( os , jis ) ;
 					serialize( os , jie ) ;
 				}
+				JobExec je { job , file_date(jaf) , New } ;                                                  // job starts and ends, no host
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report_now*/                                    ) ;
 				g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(rsrcs) , ::move(jd) , ::move(lost_report.first) ) ;
@@ -577,7 +582,7 @@ namespace Backends {
 				goto Next ;
 			}
 		Wakeup :
-			_s_wakeup_remote(job,conn,start,JobServerRpcProc::Heartbeat) ;
+			_s_wakeup_remote(job,conn,start_date,JobServerRpcProc::Heartbeat) ;
 		Next :
 			if (!g_config.heartbeat_tick.sleep_for(stop)) break ;                                            // limit job checks
 			continue ;

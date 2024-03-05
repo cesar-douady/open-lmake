@@ -182,6 +182,7 @@ unit_tests/link.py
 unit_tests/lmark.py
 unit_tests/mandelbrot.py
 unit_tests/mandelbrot.zip
+unit_tests/manual_target.py
 unit_tests/misc1.py
 unit_tests/misc2.py
 unit_tests/misc3.py

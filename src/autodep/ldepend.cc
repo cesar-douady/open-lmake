@@ -29,12 +29,12 @@ int main( int argc , char* argv[]) {
 		{ Flag::NoFollow , { .short_name='P' , .has_arg=false , .doc="Physical view, do not follow symolic links" } }
 	,	{ Flag::Verbose  , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"                   } }
 	//
-	,	{ Flag::Essential    , { .short_name=DflagChars     [+Dflag     ::Essential   ] , .has_arg=false , .doc="ask that deps be seen in graphical flow"         } }
-	,	{ Flag::Critical     , { .short_name=DflagChars     [+Dflag     ::Critical    ] , .has_arg=false , .doc="report critical deps"                            } }
-	,	{ Flag::IgnoreError  , { .short_name=DflagChars     [+Dflag     ::IgnoreError ] , .has_arg=false , .doc="accept that deps are in error"                   } }
-	,	{ Flag::NoRequired   , { .short_name=DflagChars     [+Dflag     ::Required    ] , .has_arg=false , .doc="accept that deps cannot be built"                } }
-	,	{ Flag::Ignore       , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore      ] , .has_arg=false , .doc="ignore dep"                                      } }
-	,	{ Flag::StatReadData , { .short_name=ExtraDflagChars[+ExtraDflag::StatReadData] , .has_arg=false , .doc="stat access sees only existence and type of dep" } }
+	,	{ Flag::Essential    , { .short_name=DflagChars[+Dflag::Essential  ] , .has_arg=false , .doc="ask that deps be seen in graphical flow"         } }
+	,	{ Flag::Critical     , { .short_name=DflagChars[+Dflag::Critical   ] , .has_arg=false , .doc="report critical deps"                            } }
+	,	{ Flag::IgnoreError  , { .short_name=DflagChars[+Dflag::IgnoreError] , .has_arg=false , .doc="accept that deps are in error"                   } }
+	,	{ Flag::NoRequired   , { .short_name=DflagChars[+Dflag::Required   ] , .has_arg=false , .doc="accept that deps cannot be built"                } }
+	,	{ Flag::Ignore       , { .short_name='i'                             , .has_arg=false , .doc="ignore dep"                                      } }
+	,	{ Flag::StatReadData , { .short_name='d'                             , .has_arg=false , .doc="stat access sees only existence and type of dep" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	//

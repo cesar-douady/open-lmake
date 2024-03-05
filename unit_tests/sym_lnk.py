@@ -23,6 +23,14 @@ if __name__!='__main__' :
 		target = 'hello+{File:.*}'
 		cmd    = 'cat hello.lnk {File}'
 
+	class Abc(Rule) :
+		targets = { 'ABC' : 'a/b/c' }
+		cmd     = 'ln -s ../../d/e {ABC}'
+
+	class De(Rule) :
+		targets = { 'DE' : 'd/e' }
+		cmd     = 'echo abc > a/b/c'
+
 else :
 
 	import ut
@@ -31,3 +39,5 @@ else :
 	print('world',file=open('world','w'))
 
 	ut.lmake( 'hello+world' , may_rerun=1 , done=2 , new=2 ) # check link is distinguished from non-existent
+
+	ut.lmake( 'd/e' , may_rerun=1 , done=2 ) # check we acquire dep to a/b/c although we write to it

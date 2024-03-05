@@ -176,7 +176,7 @@ namespace Backends::Local {
 			_wait_queue.push(se.id) ;                                           // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		virtual pid_t launch_job( JobIdx , Pdate /*prio*/ , ::vector_s const& cmd_line , Rsrcs const& rsrcs , bool /*verbose*/ ) const {
-			Child child { true/*as_group*/ , cmd_line , Child::None , Child::None } ;
+			Child child { true/*as_session*/ , cmd_line , Child::None , Child::None } ;
 			pid_t pid = child.pid ;
 			child.mk_daemon() ;                                                // we have recorded the pid to wait and there is no fd to close
 			if (pid<0) throw "cannot spawn process"s ;

@@ -205,7 +205,12 @@ template<bool At,int FlagArg> static inline void _entry_rename( void* & ctx , Re
 		#else
 			bool exchange = false                                  ;
 		#endif
-		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , comment ) ;
+		#ifdef RENAME_NOREPLACE
+			bool no_replace = flag<At,FlagArg>(args,RENAME_NOREPLACE) ;
+		#else
+			bool no_replace = false                                   ;
+		#endif
+		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment ) ;
 		ctx = rn ;
 		_update<At>(args+0,rn->src) ;
 		_update<At>(args+2,rn->dst) ;

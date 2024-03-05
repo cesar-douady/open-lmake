@@ -84,9 +84,9 @@ namespace Engine {
 		job->make(jri,RunAction::Status,{}/*JobReason*/,{}/*asking*/,No/*speculate*/) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		for( Node d : job->deps ) {
-			/**/                           if (!d->done(*this)                   ) continue ;
-			Job j = d->conform_job_tgt() ; if (!j                                ) continue ;
-			/**/                           if (j->run_status!=RunStatus::Complete) continue ;
+			/**/                       if (!d->done(*this)                   ) continue ;
+			Job j = d->conform_job() ; if (!j                                ) continue ;
+			/**/                       if (j->run_status!=RunStatus::Complete) continue ;
 			//
 			(*this)->up_to_dates.push_back(d) ;
 		}
@@ -564,7 +564,7 @@ namespace Engine {
 				SWEAR(+missing_dep) ;                                                      // else why wouldn't it apply ?!?
 				::string mdn = missing_dep->name()     ;
 				FileInfo fi  { nfs_guard.access(mdn) } ;
-				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") ) ;
+				reason = to_string( "misses static dep ", missing_key , (+fi?" (existing)":fi.tag()==FileTag::Dir?" (dir)":"") ) ;
 			}
 		Report :
 			if (+missing_dep) audit_node( Color::Note , to_string("rule ",rt->name,' ',reason," :") , missing_dep , lvl+1 ) ;

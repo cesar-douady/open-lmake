@@ -226,10 +226,10 @@ namespace Engine {
 			typename T::ReqInfo dflt ;
 			using ::umap<T,typename T::ReqInfo>::umap ;
 		} ;
-		static constexpr size_t StepSz = 14 ;                // size of the field representing step in output
+		static constexpr size_t StepSz = 14 ;           // size of the field representing step in output
 		// static data
 	private :
-		static ::mutex _s_audit_mutex ;                      // should not be static, but if per ReqData, this would prevent ReqData from being movable
+		static ::mutex _s_audit_mutex ;                 // should not be static, but if per ReqData, this would prevent ReqData from being movable
 		// cxtors & casts
 	public :
 		void clear() ;
@@ -250,9 +250,9 @@ namespace Engine {
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , JobExec const&                                           , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()          ,s,j    ,h,et) ; }
-		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_:je.start_,s,je     ,et) ; }
+		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                      ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                      ,s,j    ,h,et) ; }
+		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date.p:je.start_date.p,s,je     ,et) ; }
 		#undef SC
 		//
 		void         audit_status( bool ok                                                                                    ) const ;
@@ -265,28 +265,28 @@ namespace Engine {
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
-		Job                  job            ;                // owned if job->rule->special==Special::Req
+		Job                  job            ;           // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
-		bool                 zombie         = false   ;      // req has been killed, waiting to be closed when all jobs are actually killed
+		bool                 zombie         = false   ; // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
-		Fd                   audit_fd       ;                // to report to user
-		OFStream mutable     log_stream     ;                // saved output
-		Job      mutable     last_info      ;                // used to identify last message to generate an info line in case of ambiguity
+		Fd                   audit_fd       ;           // to report to user
+		OFStream mutable     log_stream     ;           // saved output
+		Job      mutable     last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Ddate                start_ddate    ;
 		Pdate                start_pdate    ;
-		Delay                ete            ;                // Estimated Time Enroute
-		Pdate                eta            ;                // Estimated Time of Arrival
-		::umap<Rule,JobIdx > ete_n_rules    ;                // number of jobs participating to stats.ete with exec_time from rule
+		Delay                ete            ;           // Estimated Time Enroute
+		Pdate                eta            ;           // Estimated Time of Arrival
+		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
 		// summary
-		::vector<Node>                        up_to_dates  ; // asked nodes already done when starting
-		::umap<Job ,                JobIdx  > frozen_jobs  ; // frozen     jobs                                   (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > frozen_nodes ; // frozen     nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > long_names   ; // nodes with name too long                          (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > no_triggers  ; // no-trigger nodes                                  (value        is just for summary ordering purpose)
-		::umap<Node,                NodeIdx > clash_nodes  ; // nodes that have been written by simultaneous jobs (value        is just for summary ordering purpose)
+		::vector<Node>        up_to_dates  ;            // asked nodes already done when starting
+		::umap<Job ,JobIdx  > frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx > frozen_nodes ;            // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx > long_names   ;            // nodes with name too long                          (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx > no_triggers  ;            // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx > clash_nodes  ;            // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

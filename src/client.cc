@@ -71,7 +71,7 @@ static void connect_to_server(bool refresh) {
 		/**/          cmd_line.push_back(          "--"                             ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
-			Child server{ false/*as_group*/ , cmd_line } ;
+			Child server{ true/*as_session*/ , cmd_line } ;
 			client_to_server.read .close() ;
 			server_to_client.write.close() ;
 			//

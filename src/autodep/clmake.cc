@@ -139,8 +139,9 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	ssize_t n_kwds    = py_kwds ? py_kwds->size() : 0 ;
 	bool    no_follow = false                         ;
 	if (n_kwds) {
-		if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow = !(*py_kwds)["follow_symlinks"] ;          }
-		if (n_kwds                              )   return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
+		if ( const char* o="follow_symlinks" ; py_kwds->contains(o) ) { n_kwds-- ; no_follow = !(*py_kwds)[o] ; }
+		//
+		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
 	::vector_s views = _get_files(py_args) ;
 	if (views.size()==0) views.push_back(cwd()) ;
@@ -175,12 +176,13 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	Accesses     accesses  = Accesses::All                 ;
 	Dflags       dflags    = Dflag::Required               ;
 	if (n_kwds) {
-		/**/                                                            if (py_kwds->contains("verbose"        )) { n_kwds-- ; verbose   =     +(*py_kwds)["verbose"        ]  ; }
-		/**/                                                            if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =    !+(*py_kwds)["follow_symlinks"]  ; }
-		for( Access a  : All<Access> ) { ::string sa  = snake_str(a ) ; if (py_kwds->contains(sa               )) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[sa               ]) ; } }
-		for( Dflag  df : Dflag::NDyn ) { ::string sdf = snake_str(df) ; if (py_kwds->contains(sdf              )) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[sdf              ]) ; } }
+		/**/                           if (  const char* o  ="verbose"         ; py_kwds->contains(o  ) ) { n_kwds-- ; verbose   =     +(*py_kwds)[o  ]  ; }
+		/**/                           if (  const char* o  ="follow_symlinks" ; py_kwds->contains(o  ) ) { n_kwds-- ; no_follow =    !+(*py_kwds)[o  ]  ; }
+		for( Access a  : All<Access> ) if ( ::string     sa =snake_str(a )     ; py_kwds->contains(sa ) ) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[sa ]) ; }
+		for( Dflag  df : Dflag::NDyn ) if ( ::string     sdf=snake_str(df)     ; py_kwds->contains(sdf) ) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[sdf]) ; }
+		//
+		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
-	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
@@ -210,24 +212,27 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)   ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0 ;
-	bool         no_follow = false                         ;
-	AccessDigest ad        ;
+	Tuple const& py_args   = *from_py<Tuple const>(args)                    ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                    ;
+	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0                  ;
+	bool         no_follow = false                                          ;
+	AccessDigest ad        { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
 	if (n_kwds) {
-		/**/                                                           if (py_kwds->contains("unlink"         )) { n_kwds-- ; ad.unlnk  =      +(*py_kwds)["unlink"         ]  ; }
-		/**/                                                           if (py_kwds->contains("follow_symlinks")) { n_kwds-- ; no_follow =     !+(*py_kwds)["follow_symlinks"]  ; }
-		for( Tflag tf : Tflag::NDyn ) { ::string stf = snake_str(tf) ; if (py_kwds->contains(stf              )) { n_kwds-- ; ad.tflags.set(tf,+(*py_kwds)[stf              ]) ; } }
+		/**/                          if ( const char* stf="unlink"          ; py_kwds->contains(stf) ) { n_kwds-- ; ad.write  = Maybe |                      !(*py_kwds)[stf]  ; }
+		/**/                          if ( const char* stf="follow_symlinks" ; py_kwds->contains(stf) ) { n_kwds-- ; no_follow =                              !(*py_kwds)[stf]  ; }
+		/**/                          if ( const char* stf="allow"           ; py_kwds->contains(stf) ) { n_kwds-- ; ad.extra_tflags.set(ExtraTflag::Allow   ,+(*py_kwds)[stf]) ; }
+		/**/                          if ( const char* stf="source_ok"       ; py_kwds->contains(stf) ) { n_kwds-- ; ad.extra_tflags.set(ExtraTflag::SourceOk,+(*py_kwds)[stf]) ; }
+		for( Tflag tf : Tflag::NDyn ) if ( ::string    stf=snake_str(tf)     ; py_kwds->contains(stf) ) { n_kwds-- ; ad.tflags      .set(tf                  ,+(*py_kwds)[stf]) ; }
+		//
+		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
-	if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	ad.write = !ad.unlnk ;
-	record().direct(JobExecRpcReq( JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , true/*ok*/ , "ltarget" )) ; // ok=true to signal it is ok to write to
-	record().direct(JobExecRpcReq( JobExecRpcProc::Confirm , false/*unlnk*/ , true/*ok*/                                             )) ;
+	JobExecRpcReq jerr { JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , "ltarget" } ;
+	jerr.confirm = Yes ;
+	record().direct(::move(jerr)) ;
 	//
 	return None.to_py_boost() ;
 }

@@ -19,7 +19,8 @@ namespace Hash {
 	}
 
 	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
-		switch (fi.tag) {
+		FileTag tag = fi.tag() ;
+		switch (tag) {
 			case FileTag::Reg :
 			case FileTag::Exe :
 				if (!fi.sz) {
@@ -27,24 +28,24 @@ namespace Hash {
 				} else {
 					FileMap map{filename} ;
 					if (!map) return ;
-					switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
-						case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-						case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(map.data,map.sz) ; *this =        ctx .digest() ; } break ;
-					DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
+					switch (algo) { //!                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+						case Algo::Md5 : { Md5 ctx{tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
+						case Algo::Xxh : { Xxh ctx{tag} ; ctx.update(map.data,map.sz) ; *this =        ctx .digest() ; } break ;
+					DF} //!                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 				}
 			break ;
 			case FileTag::Lnk : {
 				::string lnk_target = read_lnk(filename) ;
-				switch (algo) { //!                      vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
-					case Algo::Md5 : { Md5 ctx{fi.tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
-					case Algo::Xxh : { Xxh ctx{fi.tag} ; ctx.update(lnk_target) ; *this =        ctx .digest() ; } break ; // .
-				DF} //!                                  ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
+				switch (algo) { //!                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+					case Algo::Md5 : { Md5 ctx{tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
+					case Algo::Xxh : { Xxh ctx{tag} ; ctx.update(lnk_target) ; *this =        ctx .digest() ; } break ; // .
+				DF} //!                               ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 			} break ;
 			case FileTag::None :
-			case FileTag::Dir  : *this = None ; break ;                                                                    // directories are deemed not to exist
+			case FileTag::Dir  : *this = None ; break ;                                                                 // directories are deemed not to exist
 			default : ;
 		}
-		if (file_date(filename)!=fi.date) *this = Crc(fi.tag)  ;                                                           // file was moving, crc is unreliable
+		if (file_date(filename)!=fi.date) *this = Crc(tag)  ;                                                           // file was moving, crc is unreliable
 	}
 
 	Crc::operator ::string() const {
@@ -65,14 +66,14 @@ namespace Hash {
 		// qualify the accesses that can perceive the difference
 		Accesses res = Accesses::All ;
 		if (is_reg()) {
-			if      (other.is_reg()  ) res = StrictUserAccesses?~Access::Lnk:Accesses(Access::Reg) ; // regular accesses see modifications of regular files, stat accesses may see file sizes
-			else if (other==Crc::None) res = ~Access::Lnk                                          ; // readlink accesses cannot see the difference between no file and a regular file
+			if      (other.is_reg()  ) res =  Access::Reg ; // regular accesses see modifications of regular files
+			else if (other==Crc::None) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
 		} else if (is_lnk()) {
-			if      (other.is_lnk()  ) res =  Access::Lnk                                          ; // only readlink accesses see modifications of links
-			else if (other==Crc::None) res = ~Access::Reg                                          ; // regular accesses cannot see the difference between no file and a link
+			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
+			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
 		} else if (*this==Crc::None) {
-			if      (other.is_reg()  ) res = ~Access::Lnk                                          ; // readlink accesses cannot see the difference between no file and a regular file
-			else if (other.is_lnk()  ) res = ~Access::Reg                                          ; // regular  accesses cannot see the difference between no file and a link
+			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
+			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
 		}
 		return res ;
 	}

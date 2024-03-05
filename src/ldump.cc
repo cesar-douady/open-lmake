@@ -36,11 +36,11 @@ int main( int argc , char* /*argv*/[] ) {
 			case Buildable::Decode    :
 			case Buildable::Encode    :
 			case Buildable::SubSrc    :
-			case Buildable::Loop      : _out( to_string(n) , snake_str(n->buildable)        , n->name() ) ; break ;
+			case Buildable::Loop      : _out( to_string(n) , snake_str(n->buildable)    , n->name() ) ; break ;
 			case Buildable::Maybe     :
 			case Buildable::Yes       :
 			case Buildable::DynSrc    :
-			case Buildable::Unknown   : _out( to_string(n) , to_string(n->actual_job_tgt()) , n->name() ) ; break ;
+			case Buildable::Unknown   : _out( to_string(n) , to_string(n->actual_job()) , n->name() ) ; break ;
 		}
 	}
 	//

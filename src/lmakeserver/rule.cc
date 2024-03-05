@@ -786,14 +786,15 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)             ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
-					if ( !is_lcl(target)                            ) throw to_string(snake(kind)," must be local : "                        ,target) ;
-					if ( !is_canon(target)                          ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
-					if ( +missing_stems                             ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
-					if ( !is_official_target        && is_special() ) throw           "flags are meaningless for source and anti-rules"s              ;
-					if ( is_star                    && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
-					if ( is_star                    && is_stdout    ) throw           "stdout cannot be directed to a star target"s                   ;
-					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s           ;
+					if ( target.starts_with(root_dir_s)                                    ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
+					if ( !is_lcl(target)                                                   ) throw to_string(snake(kind)," must be local : "                        ,target) ;
+					if ( !is_canon(target)                                                 ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
+					if ( +missing_stems                                                    ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
+					if (  is_official_target        && extra_tflags[ExtraTflag::ReadIsDep] ) throw to_string("cannot be a dep and matching target : "               ,target) ;
+					if ( !is_official_target        && is_special()                        ) throw           "flags are meaningless for source and anti-rules"s              ;
+					if (  is_star                   && is_special()                        ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
+					if (  is_star                   && is_stdout                           ) throw           "stdout cannot be directed to a star target"s                   ;
+					if ( tflags[Tflag::Incremental] && is_stdout                           ) throw           "stdout cannot be directed to an incremental target"s           ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;

@@ -146,70 +146,98 @@ struct Digest {
 
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	Digest  res              ;     res.deps.reserve(g_gather_deps.accesses.size()) ;                              // typically most of accesses are deps
-	NodeIdx prev_parallel_id = 0 ;
+	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;                      // typically most of accesses are deps
+	NodeIdx prev_parallel_id = 0                                         ;
+	Pdate   relax            = Pdate::s_now()+g_start_info.network_delay ;
 	//
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
-		CrcDate      const& cd = info.crc_date ;
-		AccessDigest const& ad = info.digest   ;
 		info.chk() ;
-		MatchFlags flags = g_match_dct.at(file) ;
-		if (
-			info.digest.idle()
-		&&	(	flags.is_target!=Yes
-			||	( !flags.tflags()[Tflag::Target] && flags.extra_tflags()[ExtraTflag::ReadIsDep] )                 // reading an incremental target is processed according to ReadIsUpdate
-			)
-		) {
-			if ( flags.is_target!=No || !flags.extra_dflags()[ExtraDflag::Ignore] ) {
-				DepDigest dd { ad.accesses , cd , ad.dflags } ;
-				if (flags.is_target==No) {
-					/**/                                                                               dd.dflags   |= flags.dflags() ;
-					if ( ad.accesses[Access::Stat] && flags.extra_dflags()[ExtraDflag::StatReadData] ) dd.accesses  = Accesses::All  ;
+		MatchFlags   flags = g_match_dct.at(file) ;
+		AccessDigest ad    = info.digest          ;
+		switch (flags.is_target) {
+			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; break ;
+			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; break ;
+			case Maybe :                                                                       ; break ;
+		DF}
+		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;
+		//
+		bool is_dep =
+				( flags.is_target!=Yes || ad.extra_tflags[ExtraTflag::ReadIsDep] )
+			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )                    // static deps are deemed read
+		;
+		// handle deps
+		if (is_dep) {
+			DepDigest dd { ad.accesses , info.crc_date , ad.dflags } ;
+			//
+			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = Accesses::All ;
+			//
+			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id ;
+			prev_parallel_id = info.parallel_id                                       ;
+			//
+			if ( +dd.accesses && dd.is_date ) {                                                       // try to transform date into crc as far as possible
+				if          (                      !info.seen          ) dd.crc(Crc::None) ;          // the whole job has been executed without seeing the file
+				else if     (                      !dd.date()          ) dd.crc({}       ) ;          // file was not always present, this is a case of incoherence
+				else if     ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;          // file dates are incoherent from first access to end of job ...
+				else {
+					FileTag tag = dfi.tag() ;
+					switch (tag) {                                                                    // ... we do not know what we have read, not even the tag
+						case FileTag::Reg :
+						case FileTag::Exe :
+						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,tag)) dd.crc(tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+						default           :                                     dd.crc({} ) ; break ; // file is either awkward or has disappeared after having been seen
+					}
 				}
-				dd.parallel  = info.parallel_id && info.parallel_id==prev_parallel_id ;
-				if ( +dd.accesses && dd.is_date ) {                                                               // try to transform date into crc as far as possible
-					if      ( !info.seen                               ) dd.crc(Crc::None) ;                      // the whole job has been executed without seeing the file
-					else if ( !dd.date()                               ) dd.crc({}       ) ;                      // file was not always present, this is a case of incoherence
-					else if ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;                      // file dates are incoherent from first access to end of job ...
-					else                                                                                          // ... we do not know what we have read, not even the tag
-						switch (dfi.tag) {
-							case FileTag::Reg :
-							case FileTag::Exe :
-							case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,dfi.tag)) dd.crc(dfi.tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-							default           :                                         dd.crc({}     ) ; break ; // file is either awkward or has disappeared after having been seen
-						}
-				}
-				prev_parallel_id = info.parallel_id ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				res.deps.emplace_back(file,dd) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				trace("dep   ",dd,flags,file) ;
 			}
-		} else if (at_end) {                                                                                      // else we are handling chk_deps and we only care about deps
-			TargetDigest td { ad.accesses , ad.tflags , ad.write } ;
-			if      ( !cd.seen()                            ) td.accesses  = Accesses::None ;                     // we are only interested in read accesses that found a file
-			if      ( flags.is_target==Yes                  ) td.tflags   |= flags.tflags() ;
-			else if ( +flags || !(info.target_ok||ad.unlnk) ) {                                                   // it is allowed to write then unlink anywhere without declaration
-				SWEAR(!info.digest.idle()) ;                                                                      // else it should be a dep
-				trace("bad access",STR(ad.unlnk),flags.is_target) ;
-				append_to_string( res.msg , "unexpected " , ad.unlnk?"unlink":"write to" , ' ' , flags.is_target==No?"dep ":"" , mk_file(file) , '\n' ) ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.deps.emplace_back(file,dd) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			trace("dep   ",dd,flags,file) ;
+		}
+		if (!at_end) continue ;                                                        // we are handling chk_deps and we only care about deps
+		// handle targets
+		if ( ad.write!=No || ( +ad.accesses && !is_dep ) ) {                           // if reading and not a dep, file must be adequately washed and hence must be a target
+			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                           // used to ensure washing is not reported to user as a target
+			bool         unlnk = ad.write==Maybe && info.last_confirmed              ;
+			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
+			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;
+			if (is_dep                        ) td.tflags   |= Tflag::IsDep                    ;
+			switch (flags.is_target) {
+				case Yes   : break ;
+				case Maybe :
+					if (unlnk       ) break ;                                          // it is ok to write and unlink temporary files
+					if (ad.write==No) break ;                                          // it is ok to attempt writing as long as attempt does not succeed
+				[[fallthrough]] ;
+				case No :
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                    // it is ok if explicitly allowed by user
+					trace("bad access",ad,flags) ;
+					if (!info.last_confirmed) append_to_string( res.msg , "maybe "                               ) ;
+					/**/                      append_to_string( res.msg , "unexpected "                          ) ;
+					if (ad.write==Yes       ) append_to_string( res.msg , "write to "                            ) ;
+					else                      append_to_string( res.msg , "unlink "                              ) ;
+					if (flags.is_target==No ) append_to_string( res.msg , "dep "                                 ) ;
+					/**/                      append_to_string( res.msg , mk_file(file,No|(ad.write==Yes)) , '\n') ;
+				break ;
 			}
-			if      ( ad.unlnk                            ) td.crc = Crc::None ;
-			else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag) ; td.date = fi.date ; } // no crc if meaningless
-			else                                            res.crcs.emplace_back(res.targets.size()) ;                        // defer (parallel) crc computation
+			if (ad.write!=No) {
+				// no need to optimize (could compute other crcs while waiting) as this is exceptional
+				if (!info.last_confirmed) relax.sleep_until() ;                        // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
+				//
+				if      ( unlnk                               )   td.crc = Crc::None ;
+				else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
+				else                                              res.crcs.emplace_back(res.targets.size()) ;      // record index in res.targets for deferred (parallel) crc computation
+			}
+			if ( td.tflags[Tflag::Target] && !static_phony(td.tflags) ) {                                          // unless phony, a target loses its official status if not actually produced
+				if ( ad.write!=No && info.last_confirmed ) { if (ad.write==Maybe ) td.tflags &= ~Tflag::Target ; }
+				else                                       { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
+			}
+			if ( td.tflags[Tflag::Target] && td.tflags[Tflag::Static] ) g_missing_static_targets.erase(file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if ( td.tflags[Tflag::Static] && td.tflags[Tflag::Target] ) g_missing_static_targets.erase(file) ;
-			trace("target",td,STR(ad.unlnk),td.tflags,file) ;
+			trace("target",ad,td,file) ;
 		}
 	}
-	for( auto const& [f,p] : g_missing_static_targets ) {
-		FileInfo fi{f} ;
-		if (!p) append_to_string( res.msg , "missing static target", (+fi?" (existing)":fi.tag==FileTag::Dir?" (dir)":"") , " : " , mk_file(f) , '\n' ) ;
-		res.targets.emplace_back( f , TargetDigest({},{Tflag::Static,Tflag::Target}) ) ;                                       // report missing static targets as targets with no accesses
-	}
-	trace("done",res.msg,res.deps.size(),res.targets.size(),res.crcs.size()) ;
+	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
 
@@ -266,7 +294,7 @@ trace((*crcs)[ci]);
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = Pdate::s_now()          ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
-		trace("crc_date",ci,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
+		trace("crc_date",ci,before,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
 		if (!e.second.crc.valid()) {
 			::unique_lock lock{*msg_mutex} ;
 			append_to_string(*msg,"cannot compute crc for ",e.first) ;
@@ -293,7 +321,7 @@ trace((*crcs)[ci]);
 
 int main( int argc , char* argv[] ) {
 	//
-	Pdate start_overhead = Pdate::s_now() ;
+	Pdate start_overhead = Pdate(New) ;
 	//
 	swear_prod(argc==8,argc) ;                       // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
 	g_service_start =                     argv[1]  ;
@@ -310,11 +338,11 @@ int main( int argc , char* argv[] ) {
 		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                                                      // this is more than enough
-	unlnk(*g_trace_file) ;                                                                      // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+	Trace::s_sz = 10<<20 ;                                                             // this is more than enough
+	unlnk(*g_trace_file) ;                                                             // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	app_init(No/*chk_version*/) ;
 	{
-		Trace trace("main",Pdate::s_now(),::vector_view(argv,8)) ;
+		Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		trace("g_start_info"  ,g_start_info  ) ;
@@ -330,18 +358,18 @@ int main( int argc , char* argv[] ) {
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			trace("no_server",g_service_start,e) ;
-			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ;          // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
+			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
 		}
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		switch (g_start_info.proc) {
-			case JobProc::None  : return 0 ;                                                    // server ask us to give up
-			case JobProc::Start : break    ;                                                    // normal case
+			case JobProc::None  : return 0 ;                                           // server ask us to give up
+			case JobProc::Start : break    ;                                           // normal case
 		DF}
 		//
-		for( auto const& [d,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d , {digest.dflags,{}} ) ;
-		for( auto const& [t,tf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , t ,                tf  ) ;
-		for( auto const& [p,tf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p ,                tf  ) ;
+		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d  , digest.dflags ) ;
+		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
+		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
 		for( auto const& [t,flags ] : g_start_info.static_matches )
 			if ( flags.is_target==Yes && flags.tflags()[Tflag::Target] ) g_missing_static_targets[t] |= flags.tflags()[Tflag::Phony] ;
@@ -353,7 +381,7 @@ int main( int argc , char* argv[] ) {
 		/**/                       g_gather_deps.addr         = g_start_info.addr        ;
 		/**/                       g_gather_deps.autodep_env  = g_start_info.autodep_env ;
 		/**/                       g_gather_deps.chroot       = g_start_info.chroot      ;
-		/**/                       g_gather_deps.create_group = true                     ;
+		/**/                       g_gather_deps.as_session   = true                     ;
 		/**/                       g_gather_deps.cwd          = g_start_info.cwd_s       ; if (+g_gather_deps.cwd) g_gather_deps.cwd.pop_back() ;
 		/**/                       g_gather_deps.env          = &cmd_env                 ;
 		/**/                       g_gather_deps.kill_sigs    = g_start_info.kill_sigs   ;
@@ -379,28 +407,33 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate         start_job = Pdate::s_now() ;                                              // as late as possible before child starts
+		Pdate         start_job = Pdate::s_now() ;                                     // as late as possible before child starts
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status        status    = g_gather_deps.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job   = Pdate::s_now() ;                                              // as early as possible after child ends
+		Pdate         end_job   = Pdate::s_now() ;                                     // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
-		bool killed = g_killed ;                                                                // sample g_killed to ensure coherence
+		bool killed = g_killed ;                                                       // sample g_killed to ensure coherence
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
+		for( auto const& [f,p] : g_missing_static_targets ) {
+			FileInfo fi{f} ;
+			if (!p) append_to_string( digest.msg , "missing static target " , mk_file(f,No/*exists*/) , '\n' ) ;
+			digest.targets.emplace_back( f , TargetDigest({Tflag::Static,Tflag::Target}) ) ;                     // report missing static targets as targets with no accesses
+		}
 		//
 		end_report.msg += compute_crcs(digest) ;
 		//
-		if (!g_start_info.autodep_env.reliable_dirs) {                                          // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;             // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;             // .
+		if (!g_start_info.autodep_env.reliable_dirs) {                                                           // fast path : avoid listing targets & guards if reliable_dirs
+			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                              // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                              // .
 			g_nfs_guard.close() ;
 		}
 		//
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
-			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {} // cleaning is done at job start any way, so no harm
+			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
 		switch (status) {
 			case Status::Ok :
@@ -408,11 +441,6 @@ int main( int argc , char* argv[] ) {
 					trace("analysis_err") ;
 					end_report.msg += digest.msg ;
 					status = Status::Err ;
-				} else if (!g_gather_deps.all_confirmed()) {
-					trace("!confirmed",g_gather_deps.to_confirm_write,g_gather_deps.to_confirm_unlnk) ;
-					status = Status::LateLostErr ;
-					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_write ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed write to ",mk_file(f),'\n') ;
-					for( auto const& [fd,jerr] : g_gather_deps.to_confirm_unlnk ) for( auto const& [f,_] : jerr.files ) append_to_string(end_report.msg,"unconfirmed unlink "  ,mk_file(f),'\n') ;
 				}
 			break ;
 			case Status::LateLost :
@@ -441,7 +469,7 @@ End :
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = Pdate::s_now()                      ;
 		Trace trace("end",end_overhead,end_report.digest.status) ;
-		end_report.digest.stats.total = end_overhead - start_overhead ;                         // measure overhead as late as possible
+		end_report.digest.stats.total = end_overhead - start_overhead ;                                          // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
