@@ -27,15 +27,26 @@ ENUM_1( Order               // order of incoming date wrt AccessDigest object
 //
 
 ::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
-	/**/                                                        os << "AccessInfo("                                            ;
-	if (+ai.digest.accesses                                   ) os << "R:" <<ai.first_read                               <<',' ;
-	if ( ai.digest.write!=No                                  ) os << "W1:"<<ai.first_write<<(ai.first_confirmed?"?":"") <<',' ;
-	if ( ai.digest.write!=No && ai.first_write!=ai.last_write ) os << "WL:"<<ai.last_write <<(ai.last_confirmed ?"?":"") <<',' ;
-	if (+ai.crc_date                                          ) os << ai.crc_date                                        <<',' ;
-	/**/                                                        os << ai.digest                                                ;
-	if (+ai.digest.accesses                                   ) os <<','<< ai.parallel_id                                      ;
-	if ( ai.seen                                              ) os <<",seen"                                                   ;
-	return                                                      os <<')'                                                       ;
+	/**/                                                         os << "AccessInfo("                                            ;
+	if ( +ai.digest.accesses                                   ) os << "R:" <<ai.first_read                               <<',' ;
+	if (  ai.digest.write!=No                                  ) os << "W1:"<<ai.first_write<<(ai.first_confirmed?"?":"") <<',' ;
+	if (  ai.digest.write!=No && ai.first_write!=ai.last_write ) os << "WL:"<<ai.last_write <<(ai.last_confirmed ?"?":"") <<',' ;
+	if ( +ai.crc_date                                          ) os << ai.crc_date                                        <<',' ;
+	/**/                                                         os << ai.digest                                                ;
+	if ( +ai.digest.accesses                                   ) os <<','<< ai.parallel_id                                      ;
+	if (  ai.seen                                              ) os <<",seen"                                                   ;
+	return                                                       os <<')'                                                       ;
+}
+
+void GatherDeps::AccessInfo::chk() const {
+	if (!digest.accesses ) SWEAR( !crc_date                                          , crc_date                              ) ; // cannot know about the file    without accessing it
+	if (!digest.accesses ) SWEAR( !seen                                                                                      ) ; // cannot see a file as existing without accessing it
+	if (!digest          ) SWEAR( !first_read && !first_write && !last_write         , first_read , first_write , last_write ) ;
+	else                   SWEAR( +first_read && +first_write && +last_write         , first_read , first_write , last_write ) ;
+	if (+digest          ) SWEAR( first_read<=first_write && first_write<=last_write , first_read , first_write , last_write ) ; // check access order
+	if ( digest.write==No) SWEAR(                            first_write==last_write ,              first_write , last_write ) ; // first_read may be earlier if a 2nd read access made it so
+	if (!digest.accesses ) SWEAR( first_read==first_write                            , first_read , first_write              ) ; // first_read                 is  set to first_write
+	if ( digest.write==No) SWEAR( first_confirmed==last_confirmed                    , first_confirmed , last_confirmed      ) ; // need 2 accesses to distinguish between first and last write
 }
 
 void GatherDeps::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , Bool3 confirm , NodeIdx parallel_id_ ) {
@@ -83,8 +94,9 @@ void GatherDeps::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , 
 		seen            |= cd.seen(ad.accesses) ;   // if read before first write, record if we have seen a file
 	}
 	// manage write access
-	if (ad.write==No) return ;
-	else              digest.write = ad.write ;     // last action survives
+	if ( ad.write==No) return ;
+	//
+	if ( digest.write==No || order==Order::After ) digest.write = ad.write ;                                                                               // last action survives
 	switch (order) {
 		case Order::Before              : first_read = first_write = pd ;                                                        break ;
 		case Order::After               :              last_write  = pd ; last_confirmed  = confirm==Yes ; if (digest.write!=No) break ; [[fallthrough]] ; // also the first write if no previous ones

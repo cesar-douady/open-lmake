@@ -353,7 +353,7 @@ namespace Engine {
 
 	static inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
-		if (reason.node) append_to_string( res ,' ', Disk::mk_file(Node(reason.node)->name()) ) ;
+		if (reason.node) append_to_string( res ," : ", Disk::mk_file(Node(reason.node)->name()) ) ;
 		return res ;
 	}
 

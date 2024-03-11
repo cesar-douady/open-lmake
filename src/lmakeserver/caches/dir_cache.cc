@@ -27,7 +27,7 @@ using namespace Disk ;
 
 namespace Caches {
 
-	// START_OF_CACHE_VERSIONING
+	// START_OF_VERSIONING
 
 	struct Lru {
 		::string     prev = DirCache::Head ;
@@ -55,7 +55,7 @@ namespace Caches {
 		SWEAR(head.sz  ==total_sz+delta_sz,head.sz,total_sz,delta_sz) ;
 	}
 
-	// END_OF_CACHE_VERSIONING
+	// END_OF_VERSIONING
 
 	void DirCache::config(Config::Cache const& config) {
 		::map_ss dct = mk_map(config.dct) ;
@@ -65,7 +65,7 @@ namespace Caches {
 		if (dct.contains("dir" )) dir =            dct.at("dir" )  ; else throw "dir not found"s  ;
 		repo   = "repo-"+::string(repo_hash.digest()) ;
 		//
-		try                     { chk_version(true/*may_init*/,dir+'/',false/*with_repo*/) ;        }
+		try                     { chk_version(true/*may_init*/,to_string(dir,'/',AdminDir)) ;       }
 		catch (::string const&) { throw to_string("cache version mismatch, running without ",dir) ; }
 		//
 		dir_fd = open_read(dir)                               ; dir_fd.no_std() ;       // avoid poluting standard descriptors
@@ -73,7 +73,7 @@ namespace Caches {
 		sz = from_string_with_units<size_t>(strip(read_content(to_string(dir,'/',AdminDir,"/size")))) ;
 	}
 
-	// START_OF_CACHE_VERSIONING
+	// START_OF_VERSIONING
 
 	static ::string _unique_name(Job job) {
 		Rule     rule      = job->rule                              ;
@@ -94,7 +94,7 @@ namespace Caches {
 		return res ;
 	}
 	static inline ::string _unique_name( Job job , ::string const& repo ) { return to_string(_unique_name(job),'/',repo) ; }
-	// END_OF_CACHE_VERSIONING
+	// END_OF_VERSIONING
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz ) {
 		if (new_sz>sz) throw to_string("cannot store entry of size ",new_sz," in cache of size ",sz) ;

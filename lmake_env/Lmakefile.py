@@ -215,19 +215,19 @@ basic_opts_tab = {
 }
 def run_gcc(target,*args) :
 		cmd_line = ( gcc , '-o' , target , '-fdiagnostics-color=always' , *args )
-		if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH'])) # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
+		if '/' in gcc : os.environ['PATH'] = ':'.join((osp.dirname(gcc),os.environ['PATH']))                            # gcc calls its subprograms (e.g. as) using PATH, ensure it points to gcc dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
 		run( cmd_line , check=True )
 for ext,basic_opts in basic_opts_tab.items() :
-	class Compile(Centos7Rule) :               # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
+	class Compile(Centos7Rule) :                                         # note that although class is overwritten at each iteration, each is recorded at definition time by the metaclass
 		name    = f'compile {ext}'
 		targets = { 'OBJ' : '{File}.o' }
 		deps    = {
 			'SRC'  : f'{{File}}.{ext}'
 		,	'OPTS' : '{File}.opts'
 		}
-		basic_opts = basic_opts                # capture value while iterating (w/o this line, basic_opts would be the final value)
+		basic_opts = basic_opts                                          # capture value while iterating (w/o this line, basic_opts would be the final value)
 		def cmd() :
 			add_flags = eval(open(OPTS).read())
 			seen_inc  = False
@@ -235,8 +235,8 @@ for ext,basic_opts in basic_opts_tab.items() :
 			mrkrs     = []
 			for x in add_flags :
 				if seen_inc and x[0]!='/' :
-					if not File.startswith(x+'/') :                                              # if x is a dir of File, it necessarily exists
-						mrkrs.append(osp.join(x,'mrkr'))                                         # gcc does not open includes from non-existent dirs
+					if not File.startswith(x+'/') :                      # if x is a dir of File, it necessarily exists
+						mrkrs.append(osp.join(x,'mrkr'))                 # gcc does not open includes from non-existent dirs
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
@@ -423,6 +423,7 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'STORE_FILE' : 'src/store/file.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
+	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add conditional compilation to compile slurm when it is available
 	,	'CACHE'      : 'src/lmakeserver/cache.o'
 	,	'DIR_CACHE'  : 'src/lmakeserver/caches/dir_cache.o'
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
@@ -437,10 +438,11 @@ class LinkLmakeserverExe(LinkPythonAppExe,LinkAutodep,LinkAppExe) :
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
 
-class Lrepair(Rule) :
-	targets = { 'TARGET' : 'bin/lrepair'      }
-	deps    = { 'SRC'    : '_bin/lmakeserver' }
-	cmd     = 'ln {SRC} {TARGET}'
+class LinkLrepairExe(LinkLmakeserverExe) :
+	targets = { 'TARGET' : 'bin/lrepair' }
+	deps = {
+		'MAIN' : 'src/lrepair.o' # lrepair is a server with another main
+	}
 
 class LinkLdumpExe(LinkPythonAppExe,LinkAutodep) :
 	targets = { 'TARGET' : '_bin/ldump' }

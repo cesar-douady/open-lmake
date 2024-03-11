@@ -81,11 +81,11 @@ template<bool At,int FlagArg> static inline bool flag() {
 }
 
 // chdir
-template<bool At,bool Path> static inline void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* /*comment*/ ) {
+template<bool At,bool Path> static inline void _entry_chdir( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		static_assert(At!=Path) ;
-		if (Path) { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} ) ; ctx = cd ; _update<At>(args+0,*cd) ; }
-		else      { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } ) ; ctx = cd ;                           }
+		if (Path) { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , comment ) ; ctx = cd ; _update<At>(args+0,*cd) ; }
+		else      { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , comment ) ; ctx = cd ;                           }
 	} catch (int) {}
 }
 static inline int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , int64_t res ) {

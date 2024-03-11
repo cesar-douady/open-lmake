@@ -859,9 +859,12 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "interpreter" ; if (dct.contains(field)) Attrs::acquire( interpreter , &dct[field] ) ; if (!interpreter) throw "no interpreter found"s ;
-			field = "is_python"   ; if (dct.contains(field)) Attrs::acquire( is_python   , &dct[field] ) ; else              throw "not found"s            ;
-			field = "n_tokens"    ; if (dct.contains(field)) Attrs::acquire( n_tokens    , &dct[field] ) ;
+			field = "ete"              ; if (dct.contains(field)) Attrs::acquire( exec_time   , &dct[field]              ) ;
+			field = "force"            ; if (dct.contains(field)) Attrs::acquire( force       , &dct[field]              ) ;
+			field = "interpreter"      ; if (dct.contains(field)) Attrs::acquire( interpreter , &dct[field]              ) ; if (!interpreter) throw "no interpreter found"s ;
+			field = "is_python"        ; if (dct.contains(field)) Attrs::acquire( is_python   , &dct[field]              ) ; else              throw "not found"s            ;
+			field = "max_submit_count" ; if (dct.contains(field)) Attrs::acquire( n_submits   , &dct[field] , uint8_t(1) ) ;
+			field = "n_tokens"         ; if (dct.contains(field)) Attrs::acquire( n_tokens    , &dct[field]              ) ;
 			//
 			/**/                                          var_idxs["targets"        ] = {VarCmd::Targets,0 } ;
 			for( VarIdx mi=0 ; mi<matches.size() ; mi++ ) var_idxs[matches[mi].first] = {VarCmd::Match  ,mi} ;
@@ -887,8 +890,6 @@ namespace Engine {
 			field = "end_cmd_attrs"     ; if (dct.contains(field)) end_cmd_attrs     = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			field = "end_none_attrs"    ; if (dct.contains(field)) end_none_attrs    = { dct[field].as_a<Tuple>() , var_idxs         } ;
 			//
-			field = "ete"   ; if (dct.contains(field)) exec_time = Delay(dct[field].as_a<Float>()) ;
-			field = "force" ; if (dct.contains(field)) force     =      +dct[field]                ;
 			for( VarIdx mi=0 ; mi<n_static_targets ; mi++ ) {
 				if (matches[mi].first!="<stdout>") continue ;
 				stdout_idx = mi ;
@@ -1251,9 +1252,10 @@ namespace Engine {
 		if (!is_special()) {
 			::string i ; for( ::string const& c : interpreter ) append_to_string( i , +i?" ":"" , c ) ;
 			//
-			if (force      ) entries.emplace_back( "force"       , to_string(force   ) ) ;
-			if (n_tokens!=1) entries.emplace_back( "n_tokens"    , to_string(n_tokens) ) ;
-			/**/             entries.emplace_back( "interpreter" , i                   ) ;
+			if (force      ) entries.emplace_back( "force"            , to_string(force    ) ) ;
+			if (n_submits  ) entries.emplace_back( "max_submit_count" , to_string(n_submits) ) ;
+			if (n_tokens!=1) entries.emplace_back( "n_tokens"         , to_string(n_tokens ) ) ;
+			/**/             entries.emplace_back( "interpreter"      , i                    ) ;
 		}
 		res << _pretty_vmap(1,entries) ;
 		if (+stems) res << indent("stems :\n",1) << _pretty_vmap   (      2,stems,true/*uniq*/) ;
@@ -1290,7 +1292,7 @@ namespace Engine {
 		return res ;
 	}
 
-	// START_OF_CACHE_VERSIONING
+	// START_OF_VERSIONING
 	// match_crc is an id of the rule : a new rule is a replacement of an old rule if it has the same match_crc
 	// also, 2 rules matching identically is forbidden : the idea is that one is useless
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
@@ -1334,7 +1336,7 @@ namespace Engine {
 		start_rsrcs_attrs .update_hash(h) ;
 		rsrcs_crc = h.digest() ;
 	}
-	// END_OF_CACHE_VERSIONING
+	// END_OF_VERSIONING
 
 	//
 	// Rule::SimpleMatch

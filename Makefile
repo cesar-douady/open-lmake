@@ -436,30 +436,32 @@ $(SBIN)/lmakeserver : \
 	@$(LINK_BIN) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_OPTS) $(LIB_SECCOMP) $(LINK_LIB)
 
 $(BIN)/lrepair : \
-	$(LMAKE_BASIC_SAN_OBJS)                     \
-	$(SRC)/app$(SAN).o                          \
-	$(SRC)/py$(SAN).o                           \
-	$(SRC)/rpc_client$(SAN).o                   \
-	$(SRC)/rpc_job$(SAN).o                      \
-	$(SRC)/trace$(SAN).o                        \
-	$(SRC)/autodep/env$(SAN).o                  \
-	$(SRC)/autodep/gather_deps$(SAN).o          \
-	$(SRC)/autodep/ld_server$(SAN).o            \
-	$(SRC)/autodep/ptrace$(SAN).o               \
-	$(SRC)/autodep/record$(SAN).o               \
-	$(SRC)/autodep/syscall_tab$(SAN).o          \
-	$(SRC)/store/file$(SAN).o                   \
-	$(SRC)/lmakeserver/backend$(SAN).o          \
-	$(SRC)/lmakeserver/cache$(SAN).o            \
-	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o \
-	$(SRC)/lmakeserver/codec$(SAN).o            \
-	$(SRC)/lmakeserver/global$(SAN).o           \
-	$(SRC)/lmakeserver/job$(SAN).o              \
-	$(SRC)/lmakeserver/makefiles$(SAN).o        \
-	$(SRC)/lmakeserver/node$(SAN).o             \
-	$(SRC)/lmakeserver/req$(SAN).o              \
-	$(SRC)/lmakeserver/rule$(SAN).o             \
-	$(SRC)/lmakeserver/store$(SAN).o            \
+	$(LMAKE_BASIC_SAN_OBJS)                                      \
+	$(SRC)/app$(SAN).o                                           \
+	$(SRC)/py$(SAN).o                                            \
+	$(SRC)/rpc_client$(SAN).o                                    \
+	$(SRC)/rpc_job$(SAN).o                                       \
+	$(SRC)/trace$(SAN).o                                         \
+	$(SRC)/autodep/env$(SAN).o                                   \
+	$(SRC)/autodep/gather_deps$(SAN).o                           \
+	$(SRC)/autodep/ld_server$(SAN).o                             \
+	$(SRC)/autodep/ptrace$(SAN).o                                \
+	$(SRC)/autodep/record$(SAN).o                                \
+	$(SRC)/autodep/syscall_tab$(SAN).o                           \
+	$(SRC)/store/file$(SAN).o                                    \
+	$(SRC)/lmakeserver/backend$(SAN).o                           \
+	                  $(SRC)/lmakeserver/backends/local$(SAN).o  \
+	$(if $(HAS_SLURM),$(SRC)/lmakeserver/backends/slurm$(SAN).o) \
+	$(SRC)/lmakeserver/cache$(SAN).o                             \
+	$(SRC)/lmakeserver/caches/dir_cache$(SAN).o                  \
+	$(SRC)/lmakeserver/codec$(SAN).o                             \
+	$(SRC)/lmakeserver/global$(SAN).o                            \
+	$(SRC)/lmakeserver/job$(SAN).o                               \
+	$(SRC)/lmakeserver/makefiles$(SAN).o                         \
+	$(SRC)/lmakeserver/node$(SAN).o                              \
+	$(SRC)/lmakeserver/req$(SAN).o                               \
+	$(SRC)/lmakeserver/rule$(SAN).o                              \
+	$(SRC)/lmakeserver/store$(SAN).o                             \
 	$(SRC)/lrepair$(SAN).o
 	@mkdir -p $(BIN)
 	@echo link to $@

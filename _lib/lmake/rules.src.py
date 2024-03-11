@@ -60,16 +60,16 @@ class _RuleBase :
 	order        = [] # explicite matching order of keys in targets, target_flags and dep_flags. If partial, other keys are put after specified ones
 
 class Rule(_RuleBase) :
-	__special__    = None                                    # plain Rule
-#	allow_stderr   = False                                   # if set, writing to stderr is not an error but a warning
-#	auto_mkdir     = False                                   # auto mkdir directory in case of chdir
-	backend        = 'local'                                 # may be set anywhere in the inheritance hierarchy if execution must be remote
-#	chroot         = ''                                      # chroot directory to execute cmd (if empty, chroot cmd is not done)
-#	cache          = None                                    # cache used to store results for this rule. None means no caching
+	__special__      = None                                  # plain Rule
+#	allow_stderr     = False                                 # if set, writing to stderr is not an error but a warning
+#	auto_mkdir       = False                                 # auto mkdir directory in case of chdir
+	backend          = 'local'                               # may be set anywhere in the inheritance hierarchy if execution must be remote
+#	chroot           = ''                                    # chroot directory to execute cmd (if empty, chroot cmd is not done)
+#	cache            = None                                  # cache used to store results for this rule. None means no caching
 #	cmd                                                      # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 #	cwd                                                      # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
 #                                                            # defaults to the nearest root dir of the module in which the rule is defined
-	deps           = {}                                      # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
+	deps             = {}                                    # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
 	#                                                        # deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
 	#                                                        #   flag        | default | description
 	#                                                        #   ------------+---------+--------------------------------------------------------------------------------------------
@@ -77,22 +77,23 @@ class Rule(_RuleBase) :
 	#                                                        #   Critical    |         | following deps are ignored if this dep is modified
 	#                                                        #   IgnoreError |         | accept dep even if generated in error
 #	dep                                                      # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
-#	ete            = 0                                       # Estimated Time Enroute, initial guess for job exec time (in s)
-#	force          = False                                   # if set, jobs are never up-to-date, they are rebuilt every time they are needed
-#	ignore_stat    = False                                   # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
-#	job_tokens     = 1                                       # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
-#	keep_tmp       = False                                   # keep tmp dir after job execution
-	kill_sigs      = (_signal.SIGKILL,)                      # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
-	n_retries      = 1                                       # number of retries in case of job lost. 1 is a reasonable value
-#	n_tokens       = 1                                       # number of jobs likely to run in parallel for this rule (used for ETA estimation)
-#	prio           = 0                                       # in case of ambiguity, rules are selected with highest prio first
-	python         = (_python,)                              # python used for callable cmd
-	shell          = (_bash  ,)                              # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
-	start_delay    = 3                                       # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
-	max_stderr_len = 100                                     # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
-#	timeout        = None                                    # timeout allocated to job execution (in s), must be None or an int
-#	tmp            = '/tmp'                                  # path under which the temporary directory (automatically generated) is seen in the job
-#	use_script     = False                                   # use a script to run job rather than calling interpreter with -c
+#	ete              = 0                                     # Estimated Time Enroute, initial guess for job exec time (in s)
+#	force            = False                                 # if set, jobs are never up-to-date, they are rebuilt every time they are needed
+	max_submit_count = 10                                    # maximum number a job can be submitted in a single lmake command, unlimited if None
+#	ignore_stat      = False                                 # if set, stat-like syscalls do not, by themselves, trigger dependencies (but link_support is still ensured at required level)
+#	job_tokens       = 1                                     # number of tokens taken by a job, follow the same syntax as deps (used for ETA estimation)
+#	keep_tmp         = False                                 # keep tmp dir after job execution
+	kill_sigs        = (_signal.SIGKILL,)                    # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
+	n_retries        = 1                                     # number of retries in case of job lost. 1 is a reasonable value
+#	n_tokens         = 1                                     # number of jobs likely to run in parallel for this rule (used for ETA estimation)
+#	prio             = 0                                     # in case of ambiguity, rules are selected with highest prio first
+	python           = (_python,)                            # python used for callable cmd
+	shell            = (_bash  ,)                            # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
+	start_delay      = 3                                     # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
+	max_stderr_len   = 100                                   # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
+#	timeout          = None                                  # timeout allocated to job execution (in s), must be None or an int
+#	tmp              = '/tmp'                                # path under which the temporary directory (automatically generated) is seen in the job
+#	use_script       = False                                 # use a script to run job rather than calling interpreter with -c
 	if has_ld_audit : autodep = 'ld_audit'                   # may be set anywhere in the inheritance hierarchy if autodep uses an alternate method : none, ptrace, ld_audit, ld_preload
 	else            : autodep = 'ld_preload'                 # .
 	resources = {                                            # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps

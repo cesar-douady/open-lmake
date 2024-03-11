@@ -150,7 +150,7 @@ namespace Engine {
 			if (!py_map.contains(fields[0])) throw "not found"s ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			fields[1] = "precision" ;
+			fields[1] = "precisions" ;
 			if (py_backends.contains(fields[1])) {
 				Dict const&    py_precs = py_backends[fields[1]].as_a<Dict>() ;
 				fields.emplace_back() ;

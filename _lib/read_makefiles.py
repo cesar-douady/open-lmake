@@ -61,6 +61,7 @@ StdAttrs = {
 ,	'kill_sigs'         : ( tuple , True  )
 ,	'max_stderr_len'    : ( int   , True  )
 ,	'n_retries'         : ( int   , True  )
+,	'max_submit_count'  : ( int   , False )
 ,	'n_tokens'          : ( int   , False )
 ,	'order'             : ( list  , False )
 ,	'python'            : ( tuple , False )
@@ -392,10 +393,10 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		if True                     : self.rule_rep.interpreter = self.attrs.python if self.attrs.is_python else self.attrs.shell
-		if 'cwd'      in self.attrs : self.rule_rep.cwd         =      self.attrs.cwd
-		if 'force'    in self.attrs : self.rule_rep.force       = bool(self.attrs.force   )
-		if 'n_tokens' in self.attrs : self.rule_rep.n_tokens    =      self.attrs.n_tokens
+		if self.attrs.is_python : self.rule_rep.interpreter = self.attrs.python
+		else                    : self.rule_rep.interpreter = self.attrs.shell
+		for attr in ('cwd','ete','force','max_submit_count','n_tokens') :
+			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 
 	def handle_create_none(self) :
 		self._init()

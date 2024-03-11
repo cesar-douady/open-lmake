@@ -95,10 +95,10 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                   bool/*updated*/ acquire( bool       & dst , Py::Object const* py_src                                                                                           ) ;
-		/**/                   bool/*updated*/ acquire( Time::Delay& dst , Py::Object const* py_src , Time::Delay min=Time::Delay::Lowest        , Time::Delay max=Time::Delay::Highest       ) ;
-		template<::integral I> bool/*updated*/ acquire( I          & dst , Py::Object const* py_src , I           min=::numeric_limits<I>::min() , I           max=::numeric_limits<I>::max() ) ;
-		template<StdEnum    E> bool/*updated*/ acquire( E          & dst , Py::Object const* py_src                                                                                           ) ;
+		/**/                   bool/*updated*/ acquire( bool & dst , Py::Object const* py_src                                                                               ) ;
+		/**/                   bool/*updated*/ acquire( Delay& dst , Py::Object const* py_src , Delay min=Delay::Lowest              , Delay max=Delay::Highest             ) ;
+		template<::integral I> bool/*updated*/ acquire( I    & dst , Py::Object const* py_src , I     min=::numeric_limits<I>::min() , I     max=::numeric_limits<I>::max() ) ;
+		template<StdEnum    E> bool/*updated*/ acquire( E    & dst , Py::Object const* py_src                                                                               ) ;
 		//
 		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) ;
@@ -364,15 +364,13 @@ namespace Engine {
 			::serdes(s,lmake_dir_var_name) ;
 			::serdes(s,dbg_info          ) ;
 		}
-		// END_OF_VERSIONING
-		// START_OF_CACHE_VERSIONING
 		void update_hash(Hash::Xxh& h) const { // ignore debug info as these does not participate to the semantic
 			h.update(is_dynamic) ;
 			h.update(glbs_str  ) ;
 			h.update(code_str  ) ;
 			h.update(ctx       ) ;
 		}
-		// END_OF_CACHE_VERSIONING
+		// END_OF_VERSIONING
 		::string append_dbg_info(::string const& code) const {
 			::string res = code ;
 			if (+dbg_info) {
@@ -383,12 +381,12 @@ namespace Engine {
 		}
 		// data
 	public :
-		// START_OF_CACHE_VERSIONING
+		// START_OF_VERSIONING
 		bool             is_dynamic = false ;
 		::string         glbs_str   ;          // if is_dynamic <=> contains string to run to get the glbs below
 		::string         code_str   ;          // if is_dynamic <=> contains string to compile to code object below
 		::vector<CmdIdx> ctx        ;          // a list of stems, targets & deps, accessed by code
-		// END_OF_CACHE_VERSIONING
+		// END_OF_VERSIONING
 		// START_OF_VERSIONING
 		::string lmake_dir_var_name = {} ;     // name of variable holding lmake_dir
 		::string dbg_info           = {} ;
@@ -564,7 +562,6 @@ namespace Engine {
 		TargetPattern _mk_pattern( ::string const& , bool for_name ) const ;
 
 		// START_OF_VERSIONING
-
 		// user data
 	public :
 		Special              special    = Special::None ;
@@ -593,6 +590,7 @@ namespace Engine {
 		::vector_s                interpreter        ;
 		bool                      is_python          = false ;
 		bool                      force              = false ;
+		uint8_t                   n_submits          = 0     ; // max number of submission for a given job for a given req (disabled if 0)
 		// derived data
 		VarIdx n_static_stems   = 0 ;
 		VarIdx n_static_targets = 0 ;                          // number of official static targets
@@ -883,6 +881,7 @@ namespace Engine {
 	// RuleData
 	//
 
+	// START_OF_VERSIONING
 	template<IsStream S> void RuleData::serdes(S& s) {
 		if (::is_base_of_v<::istream,S>) *this = {} ;
 		::serdes(s,special         ) ;
@@ -914,6 +913,7 @@ namespace Engine {
 			::serdes(s,interpreter       ) ;
 			::serdes(s,is_python         ) ;
 			::serdes(s,force             ) ;
+			::serdes(s,n_submits         ) ;
 			::serdes(s,cmd_gen           ) ;
 			::serdes(s,rsrcs_gen         ) ;
 			::serdes(s,exec_time         ) ;
@@ -921,6 +921,7 @@ namespace Engine {
 		}
 		if (is_base_of_v<::istream,S>) _compile() ;
 	}
+	// END_OF_VERSIONING
 
 }
 

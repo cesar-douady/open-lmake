@@ -18,7 +18,7 @@ int main( int argc , char* /*argv*/[] ) {
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	bool has_admin_dir = is_dir(AdminDir) ;
 	g_trace_file = new ::string() ;                                // no trace as we are repairing AdminDir in which traces are made
-	app_init() ;                                                   // lrepair must always be launched at root
+	app_init(No/*chk_version*/) ;                                  // lrepair must always be launched at root
 	Py::init( *g_lmake_dir , true/*multi-thread*/ ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
@@ -41,6 +41,8 @@ int main( int argc , char* /*argv*/[] ) {
 	::cout << "to restore old state,                   consider : rm -r "<<AdminDir<<" ; mv "<<backup_admin_dir<<' '<<AdminDir << endl ;
 	::cout << "to restart the repair process,          consider : lrepair"                                                     << endl ;
 	::cout << "to continue with what has been repaired consider : rm "<<repair_mrkr<<" ; rm -r "<<backup_admin_dir             << endl ;
+	try                       { chk_version( false/*may_init*/ , backup_admin_dir ) ; }
+	catch (::string const& e) { exit(Rc::Format,e) ;                                  }
 	try {
 		::string msg = Makefiles::refresh(false/*crashed*/,true/*refresh*/) ;
 		if (+msg) ::cerr << ensure_nl(msg) ;

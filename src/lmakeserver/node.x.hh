@@ -107,8 +107,10 @@ namespace Engine {
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
-		Tflags tflags ;
+		Tflags tflags   ;
+		Bool3  polluted = No ; // if Yes <=> target existed while not incremental, if Maybe <=> target clash (simultaneously written by another job)
 	} ;
+	static_assert(sizeof(Target)==8) ;
 
 	//
 	// Dep
@@ -193,11 +195,9 @@ namespace Engine {
 			job_tgts().pop() ;
 		}
 		// accesses
-		Node         idx    () const { return Node::s_idx(*this) ; }
-		::string     name   () const { return full_name()        ; }
-		size_t       name_sz() const { return full_name_sz()     ; }
-		Ddate const& date   () const { return _date              ; }
-		Ddate      & date   ()       { return _date              ; }
+		Node     idx    () const { return Node::s_idx(*this) ; }
+		::string name   () const { return full_name()        ; }
+		size_t   name_sz() const { return full_name_sz()     ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
 		bool is_encode() const { return buildable==Buildable::Encode ; }
@@ -292,7 +292,6 @@ namespace Engine {
 		// services
 		bool read(Accesses a) const {                                                           // return true <= file was perceived different from non-existent, assuming access provided in a
 			if (crc==Crc::None ) return false          ;                                        // file does not exist, cannot perceive difference
-			if (unlnked        ) return false          ;                                        // file did not exist despite a non-None crc
 			if (a[Access::Stat]) return true           ;                                        // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
@@ -322,9 +321,9 @@ namespace Engine {
 		//
 		void set_infinite(::vector<Node> const& deps) ;
 		//
-		void make( ReqInfo& , RunAction=RunAction::Status , Watcher asking={} , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
+		void make( ReqInfo& , RunAction=RunAction::Status , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
 		//
-		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,{}/*asking*/,Yes/*speculate*/,ma) ; }                  // for wakeup
+		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,Yes/*speculate*/,ma) ; }          // for wakeup
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -333,16 +332,16 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , Ddate={} ) ;
 		void             refresh(                ) ;
 	private :
-		void         _set_buildable_raw( Req      , DepDepth                                                                           ) ; // req is for error reporting only
-		bool/*done*/ _make_pre         ( ReqInfo&                                                                                      ) ;
-		void         _make_raw         ( ReqInfo& , RunAction , Watcher asking_={} , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
-		void         _set_pressure_raw ( ReqInfo&                                                                                      ) const ;
-		void         _propag_speculate ( ReqInfo const&                                                                                ) const ;
+		void         _set_buildable_raw( Req      , DepDepth                                                      ) ; // req is for error reporting only
+		bool/*done*/ _make_pre         ( ReqInfo&                                                                 ) ;
+		void         _make_raw         ( ReqInfo& , RunAction , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
+		void         _set_pressure_raw ( ReqInfo&                                                                 ) const ;
+		void         _propag_speculate ( ReqInfo const&                                                           ) const ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts()) return Buildable::No                             ;                                                           // fast path : avoid computing name()
+			if (!rule_tgts()) return Buildable::No                             ;                                      // fast path : avoid computing name()
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
@@ -364,8 +363,8 @@ namespace Engine {
 		//Name  name   ;                                         //      32 bits, inherited
 		Watcher asking ;                                         //      32 bits,         last watcher needing this node
 		Crc     crc    = Crc::None ;                             // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		Ddate   date   ;                                         // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 	private :
-		Ddate _date ;                                            // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 		union {
 			IfPlain  _if_plain  ;                                //     128 bits
 			IfDecode _if_decode ;                                //      32 bits
@@ -374,7 +373,6 @@ namespace Engine {
 	public :
 		MatchGen  match_gen:NMatchGenBits = 0                  ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
 		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      unlnked  :1             = false              ; //       1 bit ,         if true <=> node as been unlinked by another rule
 		bool      polluted :1             = false              ; //       1 bit ,         if true <=  node was polluted when produced by actual_job
 	private :
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
@@ -434,31 +432,31 @@ namespace Engine {
 
 	inline bool NodeData::done( ReqInfo const& cri , RunAction ra ) const {
 		if (cri.done(ra)) return true ;
-		switch (ra) {                                                   // if not actually done, report obvious cases
-			case RunAction::None    : return true                     ;
-			case RunAction::Makable : return is_src_anti()            ;
-			case RunAction::Status  : return buildable<=Buildable::No ;
-			case RunAction::Dsk     : return false                    ;
+		switch (ra) {                                                                 // if not actually done, report obvious cases
+			case RunAction::None    : return true                                   ;
+			case RunAction::Makable : return match_ok() && is_src_anti()            ;
+			case RunAction::Status  : return match_ok() && buildable<=Buildable::No ;
+			case RunAction::Dsk     : return false                                  ;
 		DF}
 	}
-	inline bool NodeData::done( ReqInfo const& cri                ) const { return done(cri          ,cri.action)           ; }
-	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        )           ; }
-	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           )           ; }
+	inline bool NodeData::done( ReqInfo const& cri                ) const { return done(cri          ,cri.action) ; }
+	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        ) ; }
+	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           ) ; }
 
 	inline Manual NodeData::manual(Ddate d,bool empty) const {
 		Manual res = {}/*garbage*/ ;
 		if (crc==Crc::None) {
-			if      (!d       ) return Manual::Ok      ;
-			else if (empty    ) res =  Manual::Empty   ;
-			else                res =  Manual::Modif   ;
+			if      (!d     ) return Manual::Ok      ;
+			else if (empty  ) res =  Manual::Empty   ;
+			else              res =  Manual::Modif   ;
 		} else {
-			if      (!d       ) res =  Manual::Unlnked ;
-			else if (d==date()) return Manual::Ok      ;
-			else if (empty    ) res =  Manual::Empty   ;
+			if      (!d     ) res =  Manual::Unlnked ;
+			else if (d==date) return Manual::Ok      ;
+			else if (empty  ) res =  Manual::Empty   ;
 			else                res =  Manual::Modif   ;
 		}
 		//
-		Trace("manual",idx(),d,crc,crc==Crc::None?Ddate():date(),res,STR(empty)) ;
+		Trace("manual",idx(),d,crc,date,res,STR(empty)) ;
 		return res ;
 	}
 
@@ -493,10 +491,9 @@ namespace Engine {
 		_set_pressure_raw(ri) ;
 	}
 
-	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Watcher asking , Bool3 speculate , MakeAction make_action ) {
-		// /!\ do not recognize buildable==No : we must execute set_buildable before in case a non-buildable becomes buildable
-		if ( !(run_action>=RunAction::Dsk&&unlnked) && make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ; // fast path
-		_make_raw(ri,run_action,asking,speculate,make_action) ;
+	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Bool3 speculate , MakeAction make_action ) {
+		if ( make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ;         // fast path
+		_make_raw(ri,run_action,speculate,make_action) ;
 	}
 
 	inline void NodeData::refresh() {
@@ -540,7 +537,7 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( is_date && (*this)->crc.valid() && (*this)->crc.exists() && date()==(*this)->date() ) crc((*this)->crc) ;
+		if ( is_date && (*this)->crc.valid() && (*this)->crc.exists() && date()==(*this)->date ) crc((*this)->crc) ;
 	}
 
 }

@@ -2362,6 +2362,23 @@ When this attribute has a @code{False} value, the temporary directory is washed 
 When this attribute is set to a @code{True} value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.
 
+@section @code{max_submit_count}
+
+@multitable @columnfractions 0.1 0.9
+@item Inheritance
+@tab Python
+@item Type
+@tab @code{int}
+@item Default
+@tab @code{10}
+@item Dynamic
+@tab No.
+@end multitable
+
+This attribute specifies the maximum number of times a job can be submitted for a single @lmake command.
+The goal is to protect agains potential infinite loop cases.
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submission before stopping).
+
 @section @code{timeout}
 
 @multitable @columnfractions 0.1 0.9

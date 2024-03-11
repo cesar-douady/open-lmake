@@ -146,7 +146,7 @@ struct Digest {
 
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;                      // typically most of accesses are deps
+	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;         // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0                                         ;
 	Pdate   relax            = Pdate::s_now()+g_start_info.network_delay ;
 	//
@@ -159,11 +159,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; break ;
 			case Maybe :                                                                       ; break ;
 		DF}
-		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;
+		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;                      // if reading and not a dep, file must be adequately washed and hence must be a target
 		//
 		bool is_dep =
 				( flags.is_target!=Yes || ad.extra_tflags[ExtraTflag::ReadIsDep] )
-			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )                    // static deps are deemed read
+			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )       // static deps are deemed read
 		;
 		// handle deps
 		if (is_dep) {
@@ -174,41 +174,35 @@ Digest analyze( bool at_end , bool killed=false ) {
 			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id ;
 			prev_parallel_id = info.parallel_id                                       ;
 			//
-			if ( +dd.accesses && dd.is_date ) {                                                       // try to transform date into crc as far as possible
-				if          (                      !info.seen          ) dd.crc(Crc::None) ;          // the whole job has been executed without seeing the file
-				else if     (                      !dd.date()          ) dd.crc({}       ) ;          // file was not always present, this is a case of incoherence
-				else if     ( FileInfo dfi{file} ; dfi.date!=dd.date() ) dd.crc({}       ) ;          // file dates are incoherent from first access to end of job ...
-				else {
-					FileTag tag = dfi.tag() ;
-					switch (tag) {                                                                    // ... we do not know what we have read, not even the tag
-						case FileTag::Reg :
-						case FileTag::Exe :
-						case FileTag::Lnk : if (!Crc::s_sense(dd.accesses,tag)) dd.crc(tag) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-						default           :                                     dd.crc({} ) ; break ; // file is either awkward or has disappeared after having been seen
-					}
-				}
+			if ( +dd.accesses && dd.is_date ) {                                                   // try to transform date into crc as far as possible
+				if      (                       !info.seen                  ) dd.crc(Crc::None) ; // the whole job has been executed without seeing the file (before possibly writing to it)
+				else if (                       !dd.date()                  ) dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
+				else if (                       ad.write!=No                ) {}                  // cannot check stability as we wrote to it, clash will be detecte in server if any
+				else if ( FileInfo dfi{file}  ; dfi.date!=dd.date()         ) dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
+				else if (                       !dfi                        ) dd.crc({}       ) ; // file is awkward
+				else if ( FileTag t=dfi.tag() ; !Crc::s_sense(dd.accesses,t)) dd.crc(t        ) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,flags,file) ;
 		}
-		if (!at_end) continue ;                                                        // we are handling chk_deps and we only care about deps
+		if (!at_end) continue ;                                                                       // we are handling chk_deps and we only care about deps
 		// handle targets
-		if ( ad.write!=No || ( +ad.accesses && !is_dep ) ) {                           // if reading and not a dep, file must be adequately washed and hence must be a target
-			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                           // used to ensure washing is not reported to user as a target
+		if ( ad.write!=No || ( +ad.accesses && !is_dep ) ) {
+			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                          // used to ensure washing is not reported to user as a target
 			bool         unlnk = ad.write==Maybe && info.last_confirmed              ;
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
+			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;      // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;
-			if (is_dep                        ) td.tflags   |= Tflag::IsDep                    ;
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk       ) break ;                                          // it is ok to write and unlink temporary files
-					if (ad.write==No) break ;                                          // it is ok to attempt writing as long as attempt does not succeed
+					if (unlnk       ) break ;                       // it is ok to write and unlink temporary files
+					if (ad.write==No) break ;                       // it is ok to attempt writing as long as attempt does not succeed
 				[[fallthrough]] ;
 				case No :
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                    // it is ok if explicitly allowed by user
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ; // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
 					if (!info.last_confirmed) append_to_string( res.msg , "maybe "                               ) ;
 					/**/                      append_to_string( res.msg , "unexpected "                          ) ;
@@ -220,7 +214,7 @@ Digest analyze( bool at_end , bool killed=false ) {
 			}
 			if (ad.write!=No) {
 				// no need to optimize (could compute other crcs while waiting) as this is exceptional
-				if (!info.last_confirmed) relax.sleep_until() ;                        // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
+				if (!info.last_confirmed) relax.sleep_until() ;     // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
 				//
 				if      ( unlnk                               )   td.crc = Crc::None ;
 				else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
@@ -345,7 +339,6 @@ int main( int argc , char* argv[] ) {
 		Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
-		trace("g_start_info"  ,g_start_info  ) ;
 		//
 		ServerThread<JobServerRpcReq> server_thread{'S',handle_server_req} ;
 		//
@@ -360,6 +353,7 @@ int main( int argc , char* argv[] ) {
 			trace("no_server",g_service_start,e) ;
 			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
 		}
+		trace("g_start_info"  ,g_start_info  ) ;
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		switch (g_start_info.proc) {
@@ -393,7 +387,7 @@ int main( int argc , char* argv[] ) {
 		//
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
 		end_report.msg += wash_report.first ;
-		if (!wash_report.second) { end_report.digest.status = Status::Garbage ; goto End ; }
+		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
 		g_gather_deps.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		//
 		Fd child_stdin ;

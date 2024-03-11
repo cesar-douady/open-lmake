@@ -77,9 +77,16 @@ namespace Disk {
 				default           : return false ;
 			}
 		}
-		bool    operator!() const { return !+*this                                    ; } // i.e. sz & date are not present
-		bool    is_reg   () const { return tag()==FileTag::Reg || tag()==FileTag::Exe ; }
-		FileTag tag      () const { return date.tag()                                 ; }
+		bool    operator!() const { return !+*this    ; } // i.e. sz & date are not present
+		FileTag tag      () const { return date.tag() ; }
+		//
+		bool is_reg() const {
+			switch (tag()) {
+				case FileTag::Reg :
+				case FileTag::Exe : return true  ;
+				default           : return false ;
+			}
+		}
 		// data
 		DiskSz sz   = 0 ;
 		Ddate  date ;

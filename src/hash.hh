@@ -88,7 +88,7 @@ namespace Hash {
 		constexpr Crc( CrcSpecial special                                      ) : _val{+special} {}
 		/**/      Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;
 		//
-		operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
+		constexpr operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
 	public :
 		explicit operator ::string() const ;
 		// accesses
@@ -107,6 +107,7 @@ namespace Hash {
 	public :
 		bool     match        ( Crc other , Accesses a=Accesses::All ) const { return !( diff_accesses(other) & a ) ; } ;
 		Accesses diff_accesses( Crc other                            ) const ;
+		bool     never_match  (             Accesses a=Accesses::All ) const ;
 	private :
 		uint64_t _val = +CrcSpecial::Unknown ;
 	} ;
@@ -215,6 +216,15 @@ namespace Hash {
 	constexpr Crc Crc::Reg    {CrcSpecial::Reg    } ;
 	constexpr Crc Crc::None   {CrcSpecial::None   } ;
 	constexpr Crc Crc::Empty  {CrcSpecial::Empty  } ;
+
+	inline bool Crc::never_match(Accesses a) const {
+		switch (*this) {
+			case Unknown : return +a              ;
+			case Lnk     : return  a[Access::Lnk] ;
+			case Reg     : return  a[Access::Reg] ;
+			default      : return false           ;
+		}
+	}
 
 }
 // must be outside Engine namespace as it specializes std::hash

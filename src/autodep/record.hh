@@ -152,8 +152,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;        // safer to avoid dangling pointers
-			p.allocated = false       ;        // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                          // safer to avoid dangling pointers
+			p.allocated = false       ;                          // we have clobbered allocation, so it is no more p's responsibility
 			return *this ;
 		}
 		//
@@ -161,25 +161,25 @@ public :
 		// services
 		void deallocate() { if (allocated) delete[] file ; }
 		//
-		void allocate(                          ) { if (!allocated) allocate( at      , file      , strlen(file) ) ; }
-		void allocate(        size_t sz         ) { if (!allocated) allocate( at      , file      , sz           ) ; }
-		void allocate(        ::string const& f ) {                 allocate( Fd::Cwd , f.c_str() , f.size()     ) ; }
-		void allocate( Fd a , ::string const& f ) {                 allocate( a       , f.c_str() , f.size()     ) ; }
+		void allocate(                            ) { if (!allocated) allocate( at      , file      , strlen(file) ) ; }
+		void allocate(          size_t sz         ) { if (!allocated) allocate( at      , file      , sz           ) ; }
+		void allocate(          ::string const& f ) {                 allocate( Fd::Cwd , f.c_str() , f.size()     ) ; }
+		void allocate( Fd a   , ::string const& f ) {                 allocate( a       , f.c_str() , f.size()     ) ; }
 		void allocate( Fd at_ , const char* file_ , size_t sz ) {
 			SWEAR( has_at || at_==Fd::Cwd , has_at ,' ', at_ ) ;
-			deallocate() ;
-			char* buf = new char[sz+1] ;       // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                         // +1 to account for terminating null
 			::memcpy(buf,file_,sz+1) ;
+			deallocate() ;                                       // safer to deallocate after memcpy in case file_ points into file
 			file      = buf  ;
 			at        = at_  ;
 			allocated = true ;
 		}
 		// data
-		bool    has_at    = false            ; // if false => at is not managed and may not be substituted any non-default value
-		bool    allocated = false            ; // if true <=> file has been allocated and must be freed upon destruction
-		FileLoc file_loc  = FileLoc::Unknown ; // updated when analysis is done
-		Fd      at        = Fd::Cwd          ; // at & file may be modified, but together, they always refer to the same file ...
-		Char*   file      = nullptr          ; // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool    has_at    = false            ;                   // if false => at is not managed and may not be substituted any non-default value
+		bool    allocated = false            ;                   // if true <=> file has been allocated and must be freed upon destruction
+		FileLoc file_loc  = FileLoc::Unknown ;                   // updated when analysis is done
+		Fd      at        = Fd::Cwd          ;                   // at & file may be modified, but together, they always refer to the same file ...
+		Char*   file      = nullptr          ;                   // ... except in the case of mkstemp (& al.) that modifies its arg in place
 	} ;
 	using Path  = _Path<false/*Writable*/> ;
 	using WPath = _Path<true /*Writable*/> ;
@@ -200,14 +200,14 @@ public :
 			/**/                       file_loc = sr.file_loc     ;
 			/**/                       real     = ::move(sr.real) ;
 			//
-			for( ::string& lnk : sr.lnks )            r._report_dep( ::move(lnk)          ,           Access::Lnk , c+".lnk" ) ;
-			if ( !read && sr.file_accessed==Maybe   ) r._report_dep( Disk::dir_name(real) , Ddate() , Access::Lnk , c+".lst" ) ; // real dir is not protected by real
-			if ( !read && sr.file_loc==FileLoc::Tmp ) r._report_tmp(                                                         ) ;
+			for( ::string& lnk : sr.lnks )            r._report_dep( ::move(lnk)          ,           Access::Lnk , c+".lnk"  ) ;
+			if ( !read && sr.file_accessed==Maybe   ) r._report_dep( Disk::dir_name(real) , Ddate() , Access::Lnk , c+".last" ) ; // real dir is not protected by real
+			if ( !read && sr.file_loc==FileLoc::Tmp ) r._report_tmp(                                                          ) ;
 			//
 			if (!sr.mapped) return ;
 			//
 			if      (!allow_tmp_map    ) r.report_panic("cannot use tmp mapping to map ",file," to ",real) ;
-			else if (Disk::is_abs(real)) allocate( +real?real:"/"s                              ) ;                              // dont share real with file as real may be moved
+			else if (Disk::is_abs(real)) allocate( +real?real:"/"s                              ) ;                               // dont share real with file as real may be moved
 			else if (has_at            ) allocate( s_root_fd() , real                           ) ;
 			else                         allocate( to_string(s_autodep_env().root_dir,'/',real) ) ;
 		}
@@ -215,26 +215,26 @@ public :
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		// data
 		::string real     ;
-		Accesses accesses ;                                                                                                      // Access::Lnk if real was accessed as a sym link
+		Accesses accesses ;                                                                                                       // Access::Lnk if real was accessed as a sym link
 	} ;
 	using Solve  = _Solve<false/*Writable*/> ;
 	using WSolve = _Solve<true /*Writable*/> ;
 	struct Chdir : Solve {
 		// cxtors & casts
 		Chdir() = default ;
-		Chdir( Record& , Path&& , ::string&& comment={}) ;
+		Chdir( Record& , Path&& , ::string&& comment ) ;
 		// services
 		int operator()( Record& , int rc , pid_t=0 ) ;
 	} ;
 	struct Chmod : Solve {
 		// cxtors & casts
 		Chmod() = default ;
-		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string&& comment="chmod" ) ;
+		Chmod( Record& , Path&& , bool exe , bool no_follow , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;
 	struct Hide {
-		Hide( Record&            ) {              }                                                                              // in case nothing to hide, just to ensure invariants
+		Hide( Record&            ) {              }                                                                               // in case nothing to hide, just to ensure invariants
 		Hide( Record& r , int fd ) { r.hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
@@ -248,12 +248,12 @@ public :
 	struct Exec : Solve {
 		// cxtors & casts
 		Exec() = default ;
-		Exec( Record& , Path&& , bool no_follow , ::string&& comment="exec" ) ;
+		Exec( Record& , Path&& , bool no_follow , ::string&& comment ) ;
 	} ;
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;
-		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string&& comment="lnk" ) ;
+		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { r._report_confirm(dst.file_loc,rc>=0) ; return rc ; }
 		// data
@@ -262,12 +262,12 @@ public :
 	} ;
 	struct Mkdir : Solve {
 		Mkdir() = default ;
-		Mkdir( Record& , Path&& , ::string&& comment="mkdir" ) ;
+		Mkdir( Record& , Path&& , ::string&& comment ) ;
 	} ;
 	struct Open : Solve {
 		// cxtors & casts
 		Open() = default ;
-		Open( Record& , Path&& , int flags , ::string&& comment="open" ) ;
+		Open( Record& , Path&& , int flags , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { { if (do_write) r._report_confirm(file_loc,rc>=0) ; } return rc ; }
 		// data
@@ -275,14 +275,14 @@ public :
 	} ;
 	struct Read : Solve {
 		Read() = default ;
-		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment="read" ) ;
+		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment ) ;
 	} ;
 	struct Readlnk : Solve {
 		// cxtors & casts
 		Readlnk() = default ;
 		// buf and sz are only used when mapping tmp
-		Readlnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment="read_lnk" ) ;
-		Readlnk( Record& r , Path&& p ,                         ::string&& c      ="read_lnk" ) : Readlnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {}
+		Readlnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment ) ;
+		Readlnk( Record& r , Path&& p ,                         ::string&& c       ) : Readlnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {}
 		// services
 		ssize_t operator()( Record& , ssize_t len=0 ) ;
 		// data
@@ -292,9 +292,9 @@ public :
 	struct Rename {
 		// cxtors & casts
 		Rename() = default ;
-		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , ::string&& comment="rename" ) ;
+		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , ::string&& comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { r._report_confirm(::min(src.file_loc,dst.file_loc),rc>=0) ; return rc ; }
+		int operator()( Record& r , int rc ) { r._report_confirm( src.file_loc&dst.file_loc , rc>=0 ) ; return rc ; }
 		// data
 		Solve src        ;
 		Solve dst        ;
@@ -304,7 +304,7 @@ public :
 	struct Stat : Solve {
 		// cxtors & casts
 		Stat() = default ;
-		Stat( Record& , Path&& , bool no_follow , ::string&& comment="stat" ) ;
+		Stat( Record& , Path&& , bool no_follow , ::string&& comment ) ;
 		// services
 		/**/              void operator()( Record&           ) {                            }
 		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }
@@ -312,7 +312,7 @@ public :
 	struct Symlnk : Solve {
 		// cxtors & casts
 		Symlnk() = default ;
-		Symlnk( Record& r , Path&& p , ::string&& comment="symlink" ) ;
+		Symlnk( Record& r , Path&& p , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 		// data
@@ -320,7 +320,7 @@ public :
 	struct Unlnk : Solve {
 		// cxtors & casts
 		Unlnk() = default ;
-		Unlnk( Record& , Path&& , bool remove_dir=false , ::string&& comment="unlnk" ) ;
+		Unlnk( Record& , Path&& , bool remove_dir , ::string&& comment ) ;
 		// services
 		int operator()( Record& r , int rc ) { r._report_confirm(file_loc,rc>=0) ; return rc ; }
 	} ;

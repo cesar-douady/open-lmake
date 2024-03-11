@@ -196,7 +196,7 @@ namespace Engine::Persistent {
 		else                                                         SWEAR(g_config.booted,g_config) ; // we must update something
 		if (                                       g_config.booted ) config.key = g_config.key ;
 		//
-		diff(g_config,config) ;
+		/**/                                                         diff(g_config,config) ;
 		//
 		/**/                                                         ConfigDiff d = config.booted ? g_config.diff(config) : ConfigDiff::None ;
 		if (              d>ConfigDiff::Static  && g_config.booted ) throw "repo must be clean"s  ;

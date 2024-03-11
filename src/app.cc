@@ -53,17 +53,15 @@ void app_init( Bool3 chk_version_ , bool cd_root ) {
 	Trace trace("app_init",chk_version_,STR(cd_root),g_startup_dir_s?*g_startup_dir_s:""s) ;
 }
 
-void chk_version( bool may_init , ::string const& dir_s , bool with_repo ) {
-	::string   version_file = to_string(dir_s,AdminDir,"/version") ;
-	::vector_s stored       = read_lines(version_file)               ;
+void chk_version( bool may_init , ::string const& admin_dir ) {
+	::string   version_file = to_string(admin_dir,"/version") ;
+	::vector_s stored       = read_lines(version_file)        ;
 	if (+stored) {
-		if ( stored.size()!=1u+with_repo          ) throw to_string("bad version file ",version_file)     ;
-		if (              stored[0]!=CacheVersion ) throw "version mismatch, consider : git clean -ffdx"s ;
-		if ( with_repo && stored[1]!=RepoVersion  ) throw "version mismatch, consider : lrepair"s         ;
+		if (stored.size()!=1u     ) throw to_string("bad version file ",version_file)     ;
+		if (stored[0]!=VersionMrkr) throw "version mismatch, consider : git clean -ffdx"s ;
 	} else {
 		if (!may_init) throw "repo not initialized, consider : lmake"s ;
-		if (with_repo) write_lines( dir_guard(version_file) , { CacheVersion , RepoVersion } ) ;
-		else           write_lines( dir_guard(version_file) , { CacheVersion               } ) ;
+		write_lines( dir_guard(version_file) , {VersionMrkr} ) ;
 	}
 }
 

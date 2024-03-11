@@ -81,21 +81,21 @@ template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	// services
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditer(),res) ; }
 } ;
-//                                          n paths
-using Chdir   = AuditAction<Record::Chdir          > ;
-using Chmod   = AuditAction<Record::Chmod          > ;
-using Hide    = AuditAction<Record::Hide   ,0      > ;
-using Mkdir   = AuditAction<Record::Mkdir          > ;
-using Lnk     = AuditAction<Record::Lnk    ,2      > ;
-using Open    = AuditAction<Record::Open           > ;
-using Read    = AuditAction<Record::Read           > ;
-using Readlnk = AuditAction<Record::Readlnk        > ;
-using Rename  = AuditAction<Record::Rename ,2      > ;
-using Solve   = AuditAction<Record::Solve          > ;
-using Stat    = AuditAction<Record::Stat           > ;
-using Symlnk  = AuditAction<Record::Symlnk         > ;
-using Unlnk   = AuditAction<Record::Unlnk          > ;
-using WSolve  = AuditAction<Record::WSolve         > ;
+//                                         n paths
+using Chdir   = AuditAction<Record::Chdir        > ;
+using Chmod   = AuditAction<Record::Chmod        > ;
+using Hide    = AuditAction<Record::Hide   ,0    > ;
+using Mkdir   = AuditAction<Record::Mkdir        > ;
+using Lnk     = AuditAction<Record::Lnk    ,2    > ;
+using Open    = AuditAction<Record::Open         > ;
+using Read    = AuditAction<Record::Read         > ;
+using Readlnk = AuditAction<Record::Readlnk      > ;
+using Rename  = AuditAction<Record::Rename ,2    > ;
+using Solve   = AuditAction<Record::Solve        > ;
+using Stat    = AuditAction<Record::Stat         > ;
+using Symlnk  = AuditAction<Record::Symlnk       > ;
+using Unlnk   = AuditAction<Record::Unlnk        > ;
+using WSolve  = AuditAction<Record::WSolve       > ;
 
 #ifdef LD_PRELOAD
 
@@ -107,7 +107,7 @@ using WSolve  = AuditAction<Record::WSolve         > ;
 		using Base = Record::Read ;
 		// cxtors & casts
 		_Dlopen() = default ;
-		_Dlopen( Record& r , const char* file , ::string&& c="dlopen" ) : Base{search_elf(r,file,::move(c))} {}
+		_Dlopen( Record& r , const char* file , ::string&& comment ) : Base{search_elf(r,file,::move(comment))} {}
 		// services
 	} ;
 	using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
@@ -122,13 +122,13 @@ struct _Exec : Record::Exec {
 	using Base = Record::Exec ;
 	//
 	_Exec() = default ;
-	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , ::string&& c="exec" ) : Base{r,::move(path),no_follow,::copy(c)} {
+	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , ::string&& comment ) : Base{r,::move(path),no_follow,::copy(comment)} {
 		static constexpr char Llpe[] = "LD_LIBRARY_PATH=" ;
 		static constexpr size_t LlpeSz = sizeof(Llpe)-1 ;                              // -1 to account of terminating null
 		const char* const* llp = nullptr/*garbage*/ ;
 		for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
-		if (*llp) elf_deps( r , *this , *llp+LlpeSz , c+".dep" ) ;                     // pass value after the LD_LIBRARY_PATH= prefix
-		else      elf_deps( r , *this , nullptr     , c+".dep" ) ;                     // /!\ dont add LlpeSz to nullptr
+		if (*llp) elf_deps( r , *this , *llp+LlpeSz , comment+".dep" ) ;               // pass value after the LD_LIBRARY_PATH= prefix
+		else      elf_deps( r , *this , nullptr     , comment+".dep" ) ;               // /!\ dont add LlpeSz to nullptr
 	}
 } ;
 using Exec = AuditAction<_Exec> ;
@@ -137,11 +137,11 @@ struct _Execp : _Exec {
 	using Base = _Exec ;
 	// search executable file in PATH
 	_Execp() = default ;
-	_Execp( Record& r , const char* file , const char* const envp[] , ::string&& c="execp" ) {
+	_Execp( Record& r , const char* file , const char* const envp[] , ::string&& comment ) {
 		if (!file) return ;
 		//
 		if (::strchr(file,'/')) {                                                        // if file contains a /, no search is performed
-			static_cast<Base&>(*this) = Base(r,file,false/*no_follow*/,envp,::move(c)) ;
+			static_cast<Base&>(*this) = Base(r,file,false/*no_follow*/,envp,::move(comment)) ;
 			return ;
 		}
 		//
@@ -155,12 +155,12 @@ struct _Execp : _Exec {
 		}
 		//
 		for( size_t pos=0 ;;) {
-			size_t   end       = p.find(':',pos)                                                                                     ;
-			size_t   len       = (end==Npos?p.size():end)-pos                                                                        ;
-			::string full_file = len ? to_string(::string_view(p).substr(pos,len),'/',file) : file                                   ;
-			::string real_     = Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,true/*allow_tmp_map*/,::move(c)).real ;
+			size_t   end       = p.find(':',pos)                                                                                           ;
+			size_t   len       = (end==Npos?p.size():end)-pos                                                                              ;
+			::string full_file = len ? to_string(::string_view(p).substr(pos,len),'/',file) : file                                         ;
+			::string real_     = Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,true/*allow_tmp_map*/,::copy(comment)).real ;
 			if (is_exe(Record::s_root_fd(),real_,false/*no_follow*/)) {
-				static_cast<Base&>(*this) = Base(r,{Record::s_root_fd(),real_},false/*no_follow*/,envp,::move(c)) ;
+				static_cast<Base&>(*this) = Base(r,{Record::s_root_fd(),real_},false/*no_follow*/,envp,::move(comment)) ;
 				allocate(full_file) ;
 				return ;
 			}
@@ -196,7 +196,7 @@ struct Fopen : AuditAction<Record::Open> {
 		if (c       ) return O_PATH ;                                                         // gnu extension, no access
 		/**/          return ( p ? O_RDWR : r ? O_RDONLY : O_WRONLY ) | ( w ? O_TRUNC : 0 ) ; // normal posix
 	}
-	Fopen( Record::Path&& pth , const char* mode , ::string const& comment="fopen" ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
+	Fopen( Record::Path&& pth , const char* mode , ::string const& comment ) : Base{ ::move(pth) , mk_flags(mode) , to_string(comment,'.',mode) } {}
 	FILE* operator()(FILE* fp) {
 		Base::operator()(fp?::fileno(fp):-1) ;
 		return fp ;
@@ -221,16 +221,18 @@ struct Getcwd : Hide {
 
 struct Mkstemp : WSolve {
 	using Base = AuditAction<Record::WSolve> ;
-	Mkstemp( char* t , int sl=0 ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*allow_tmp_map*/ } , tmpl{t} , sfx_len{sl} {}
+	Mkstemp( char* t , int sl , ::string&& comment_ ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*allow_tmp_map*/ , comment_ } , tmpl{t} , sfx_len{sl} , comment{::move(comment_)} {}
+	Mkstemp( char* t ,          ::string&& comment_ ) : Mkstemp(t,0,::move(comment_)) {}
 	int operator()(int fd) {
 		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
 		if (file!=tmpl) ::memcpy( tmpl+strlen(tmpl)-sfx_len-6 , file+strlen(file)-sfx_len-6 , 6 ) ;
-		if (fd>=0     ) Record::Open(auditer(),file,O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW,"mkstemp")(auditer(),fd) ;
+		if (fd>=0     ) Record::Open(auditer(),file,O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW,::move(comment))(auditer(),fd) ;
 		return Base::operator()(fd) ;
 	}
 	// data
-	char* tmpl    = nullptr/*garbage*/ ;
-	int   sfx_len = 0      /*garbage*/ ;
+	char*    tmpl    = nullptr/*garbage*/ ;
+	int      sfx_len = 0      /*garbage*/ ;
+	::string comment ;
 } ;
 
 //
@@ -406,22 +408,22 @@ struct Mkstemp : WSolve {
 	#endif
 
 	// link
-	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false/*no_follow*/ } ; return r(orig(F(r.src),F(r.dst)  )) ; }
-	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HEADER2(linkat,op,np,(od,op,nd,np,f)) ; Lnk r{{od,op},{nd,np},ASLNF(f)           } ; return r(orig(P(r.src),P(r.dst),f)) ; }
+	int link  (       CC* op,       CC* np      ) NE { HEADER2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false/*no_follow*/,"link"  } ; return r(orig(F(r.src),F(r.dst)  )) ; }
+	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HEADER2(linkat,op,np,(od,op,nd,np,f)) ; Lnk r{{od,op},{nd,np},ASLNF(f)          ,"linkat"} ; return r(orig(P(r.src),P(r.dst),f)) ; }
 
 	// mkdir
-	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Mkdir r{   p } ; return r(orig(F(r),m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p}} ; return r(orig(P(r),m)) ; }
+	int mkdir  (      CC* p,mode_t m) NE { HEADER1(mkdir  ,p,(  p,m)) ; Mkdir r{   p ,"mkdirat"} ; return r(orig(F(r),m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HEADER1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p},"mkdir"  } ; return r(orig(P(r),m)) ; }
 
 	// mkstemp
-	int mkstemp    (char* tmpl                     ) { HEADER0(mkstemp    ,(tmpl             )) ; Mkstemp r{tmpl        } ; return r(orig(F(r)             )) ; }
-	int mkostemp   (char* tmpl,int flgs            ) { HEADER0(mkostemp   ,(tmpl,flgs        )) ; Mkstemp r{tmpl        } ; return r(orig(F(r),flgs        )) ; }
-	int mkstemps   (char* tmpl,         int sfx_len) { HEADER0(mkstemps   ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),     sfx_len)) ; }
-	int mkostemps  (char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps  ,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),flgs,sfx_len)) ; }
-	int mkstemp64  (char* tmpl                     ) { HEADER0(mkstemp64  ,(tmpl             )) ; Mkstemp r{tmpl        } ; return r(orig(F(r)             )) ; }
-	int mkostemp64 (char* tmpl,int flgs            ) { HEADER0(mkostemp64 ,(tmpl,flgs        )) ; Mkstemp r{tmpl        } ; return r(orig(F(r),flgs        )) ; }
-	int mkstemps64 (char* tmpl,         int sfx_len) { HEADER0(mkstemps64 ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),     sfx_len)) ; }
-	int mkostemps64(char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps64,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len} ; return r(orig(F(r),flgs,sfx_len)) ; }
+	int mkstemp    (char* tmpl                     ) { HEADER0(mkstemp    ,(tmpl             )) ; Mkstemp r{tmpl,        "mkstemp"    } ; return r(orig(F(r)             )) ; }
+	int mkostemp   (char* tmpl,int flgs            ) { HEADER0(mkostemp   ,(tmpl,flgs        )) ; Mkstemp r{tmpl,        "mkostemp"   } ; return r(orig(F(r),flgs        )) ; }
+	int mkstemps   (char* tmpl,         int sfx_len) { HEADER0(mkstemps   ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkstemps"   } ; return r(orig(F(r),     sfx_len)) ; }
+	int mkostemps  (char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps  ,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkostemps"  } ; return r(orig(F(r),flgs,sfx_len)) ; }
+	int mkstemp64  (char* tmpl                     ) { HEADER0(mkstemp64  ,(tmpl             )) ; Mkstemp r{tmpl,        "mkstemp64"  } ; return r(orig(F(r)             )) ; }
+	int mkostemp64 (char* tmpl,int flgs            ) { HEADER0(mkostemp64 ,(tmpl,flgs        )) ; Mkstemp r{tmpl,        "mkostemp64" } ; return r(orig(F(r),flgs        )) ; }
+	int mkstemps64 (char* tmpl,         int sfx_len) { HEADER0(mkstemps64 ,(tmpl,     sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkstemps64" } ; return r(orig(F(r),     sfx_len)) ; }
+	int mkostemps64(char* tmpl,int flgs,int sfx_len) { HEADER0(mkostemps64,(tmpl,flgs,sfx_len)) ; Mkstemp r{tmpl,sfx_len,"mkostemps64"} ; return r(orig(F(r),flgs,sfx_len)) ; }
 
 	// open
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = va_arg(lst,mode_t) ; va_end(lst) ; }
@@ -456,14 +458,14 @@ struct Mkstemp : WSolve {
 		// once init phase is passed, we proceed normally
 		ssize_t readlink(CC* p,char* b,size_t sz) NE {
 			if (!started()) return __readlink_chk(p,b,sz,sz) ;
-			HEADER1(readlink,p,(p,b,sz)) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz)) ;
+			HEADER1(readlink,p,(p,b,sz)) ; Readlnk r{p ,b,sz,"readlink"} ; return r(orig(F(r),b,sz)) ;
 		}
 	#else
-		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HEADER1(readlink      ,p,(p,b,sz    )) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz    )) ; }
-		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk,p,(p,b,sz,bsz)) ; Readlnk r{p ,b,sz} ; return r(orig(F(r),b,sz,bsz)) ; }
+		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HEADER1(readlink      ,p,(p,b,sz    )) ; Readlnk r{p ,b,sz,"readlink"       } ; return r(orig(F(r),b,sz    )) ; }
+		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk,p,(p,b,sz,bsz)) ; Readlnk r{p ,b,sz,"__readlink__chk"} ; return r(orig(F(r),b,sz,bsz)) ; }
 	#endif
-	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz    )) ; }
-	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz} ; return r(orig(P(r),b,sz,bsz)) ; }
+	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz,"readlinkat"      } ; return r(orig(P(r),b,sz    )) ; }
+	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz,"__readlinkat_chk"} ; return r(orig(P(r),b,sz,bsz)) ; }
 
 	// rename
 	#ifdef RENAME_EXCHANGE
@@ -498,10 +500,10 @@ struct Mkstemp : WSolve {
 	int unlinkat(int dfd,CC* pth,int flgs) NE { HEADER1(unlinkat,pth,(dfd,pth,flgs)) ; Unlnk r{{dfd,pth},bool(flgs&AT_REMOVEDIR),"unlinkat"} ; return r(orig(P(r),flgs)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
-	//                                                                                         no_follow read  allow_tmp_map
-	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false   ,                   "access"   } ; return r(orig(F(r),m  )) ; }
-	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f),                   "faccessat"} ; return r(orig(P(r),m,f)) ; }
-	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true    ,false,true                    } ; return r(orig(F(r)    )) ; }
+	//                                                                                         no_follow read allow_tmp_map
+	int  access   (      CC* p,int m      ) NE { HEADER1(access   ,p,(  p,m  )) ; Stat  r{   p ,false   ,                  "access"   } ; return r(orig(F(r),m  )) ; }
+	int  faccessat(int d,CC* p,int m,int f) NE { HEADER1(faccessat,p,(d,p,m,f)) ; Stat  r{{d,p},ASLNF(f),                  "faccessat"} ; return r(orig(P(r),m,f)) ; }
+	DIR* opendir  (      CC* p            )    { HEADER1(opendir  ,p,(  p    )) ; Solve r{   p ,true    ,false,true       ,"opendir"  } ; return r(orig(F(r)    )) ; }
 	//                                                                                                                no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HEADER1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat"     } ; return r(orig(v,F(r),b  )) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HEADER1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false   ,"__xstat64"   } ; return r(orig(v,F(r),b  )) ; }
@@ -534,10 +536,10 @@ struct Mkstemp : WSolve {
 	using Cmp     = int (*)(const struct dirent**  ,const struct dirent  **) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
 	//                                                                                                            no_follow read  allow_tmp_map
-	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,true        } ; return r(orig(F(r),nl,f,c)) ; }
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,true        } ; return r(orig(F(r),nl,f,c)) ; }
-	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,true        } ; return r(orig(P(r),nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,true        } ; return r(orig(P(r),nl,f,c)) ; }
+	int scandir    (      CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandir    ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,true        ,"scandir"    } ; return r(orig(F(r),nl,f,c)) ; }
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,true        ,"scandir64"  } ; return r(orig(F(r),nl,f,c)) ; }
+	int scandirat  (int d,CC* p,NmLst   nl,Fltr   f,Cmp   c) { HEADER1(scandirat  ,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,true        ,"scandirat"  } ; return r(orig(P(r),nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HEADER1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,true        ,"scandirat64"} ; return r(orig(P(r),nl,f,c)) ; }
 
 	#undef P
 	#undef CC

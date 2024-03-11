@@ -30,7 +30,7 @@ namespace Engine {
 			::vector<Node> nodes = Node::s_frozens() ;
 			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule->name.size()) ;
 			if (ro.key==ReqKey::Clear) {
-				for( Job  j : jobs  ) j->status = Status::Garbage ;
+				for( Job  j : jobs  ) j->status = Status::New ;
 				for( Node n : nodes ) n->mk_no_src() ;
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
@@ -91,7 +91,7 @@ namespace Engine {
 				trace("jobs",jobs) ;
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
-					if (!add) j->status = Status::Garbage ;
+					if (!add) j->status = Status::New ;
 					audit( fd , ro , add?Color::Warning:Color::Note , to_string(::setw(w),j->rule->name,' ',mk_file(j->name())) ) ;
 				}
 			}

@@ -12,10 +12,6 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-****************************************************************************************************
-* LACK (not implemented but necessary for lmake semantic)
-****************************************************************************************************
-
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -24,8 +20,18 @@ items :
 		- so as to ensure the sub-repo behaves as an autonomous repo
 	- handle cwd of rules
 	- devise a sound mechanism to read what must be read when reading makefiles
+
+****************************************************************************************************
+* LACK (not implemented but necessary for lmake semantic)
+****************************************************************************************************
+
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
+? add used field in NodeReqInfo
+	- to decrease the probability of critical clash
+	- set a dependent job is done (hence no further analysis)
+	- used when evaluating if a clash is critical : it is critical if already used
+	- but requires a second pass on deps in Job::make when done is set, which impacts perf
 ? mimic slurm killing procedure
 	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
 	- follow process hierarchy
@@ -68,10 +74,6 @@ items :
 * get rid of double crc (md5+xxh)
 	- keep only xxh
 	- superior on all metrics
-! put in place a variant in Job::ReqInfo
-	- to ensure no infinite rerun loop
-	- for example the index of the first dep that triggered the rerun
-		- this should increase at each rerun
 ? replace if (...) throw by throw_if or throw_unless
 	? or vice versa
 ? if a job cannot connect to job_exec to report deps
@@ -90,10 +92,10 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+*1 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
-* result cache v2 (copy & link) :
+* implement cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
 	- use link instead of copy
@@ -149,32 +151,35 @@ items :
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* no req_info for non-buildable nodes
-* make deps be a sequence of non-buildable nodes followed by a buildable node
+* when rounding resources using config.backends.precisions
+	- round to prioritize jobs
+	- do not round for actual allocation
+* handle dir hierarchy in store
+	- provide a primitive to insert all dirs of a node at once
+	- much more efficient
+	- not difficult to code
+	- return a vector of idxs
 * generate KPI's
 	- useful/useless created jobs
 	- number of non buildable nodes
 	- max number of resources slots in backend
 	- total number of deps
 	- total number of pressure updates
+* gprof
 * regexprs
 	- consider using PCRE2 instead of std::regex
 	- consider handling prefix/suffix apart
 		- most importantly sufixes
 		? maybe a pre-pass searching for infix is advisable
-* handle dir hierarchy in store
-	- provide a primitive to insert all dirs of a node at once
-	- much more efficient
-	- not difficult to code
-	- return a vector of idxs
+* no req_info for non-buildable nodes
+* make deps be a sequence of non-buildable nodes followed by a buildable node
+	- invent a new concept
+		- deps chain : Job -> NodeSeq -> Node -> Job
+	- store in a prefix file for best sharing and easy retieval
 * there can be 1 backend thread per backend
 	- with one master socket
 	- and everything replicated per backend (including mutexes, tables, etc.)
 	- allow several backends of same type to distribute load
-* when rounding resources using config.backends.precisions
-	- round to prioritize jobs
-	- do not round for actual allocation
-* gprof
 ! trap close in autodep
 	- so as to know when a dep was last accessed
 	- and avoid too may overwrites

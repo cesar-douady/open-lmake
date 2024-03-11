@@ -39,16 +39,8 @@ struct GatherDeps {
 		bool is_dep() const { return digest.write==No ; }
 		// services
 		void update( PD , bool phony_ok_ , AccessDigest , CD const& , Bool3 confirm , NodeIdx parallel_id_ ) ;
-		void chk() const {
-			if (!digest.accesses ) SWEAR( !crc_date                                          , crc_date                              ) ; // cannot know about the file    without accessing it
-			if (!digest.accesses ) SWEAR( !seen                                                                                      ) ; // cannot see a file as existing without accessing it
-			if (!digest          ) SWEAR( !first_read && !first_write && !last_write         , first_read , first_write , last_write ) ;
-			else                   SWEAR( +first_read && +first_write && +last_write         , first_read , first_write , last_write ) ;
-			if (+digest          ) SWEAR( first_read<=first_write && first_write<=last_write , first_read , first_write , last_write ) ; // check access order
-			if ( digest.write==No) SWEAR(                            first_write==last_write ,              first_write , last_write ) ; // first_read may be earlier if a 2nd read access made it so
-			if (!digest.accesses ) SWEAR( first_read==first_write                            , first_read , first_write              ) ; // first_read                 is  set to first_write
-			if ( digest.write==No) SWEAR( first_confirmed==last_confirmed                    , first_confirmed , last_confirmed      ) ; // need 2 accesses to distinguish between first and last write
-		}
+		//
+		void chk() const ;
 		// data
 		PD           first_read        ;         // if +digest.accesses , first access date
 		PD           first_write       ;         // if  digest.write!=No, first write/unlink date
@@ -56,7 +48,7 @@ struct GatherDeps {
 		CD           crc_date          ;         // state when first read
 		AccessDigest digest            ;
 		NodeIdx      parallel_id       = 0     ;
-		bool         phony_ok          = false ; // if false <=> prevent phony flag so as to hide washing to user
+		bool         phony_ok       :1 = false ; // if false <=> prevent phony flag so as to hide washing to user
 		bool         first_confirmed:1 = false ; // if digest.write!=No, first write is confirmed
 		bool         last_confirmed :1 = false ; // if digest.write!=No, last  write is confirmed (for user report only)
 		bool         seen           :1 = false ; // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...

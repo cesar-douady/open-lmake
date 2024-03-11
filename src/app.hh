@@ -18,7 +18,7 @@ extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, 
 /**/          void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
 static inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
 
-void chk_version( bool may_init=false , ::string const& dir_s={} , bool with_repo=true ) ;
+void chk_version( bool may_init=false , ::string const& admin_dir=AdminDir ) ;
 
 struct KeySpec {
 	char     short_name = 0 ;

@@ -4,21 +4,13 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-repo_version=$(
-	sed -n -e 's://.*\(\(START\|END\)_OF_\(CACHE_\)\?VERSIONING\).*:\1:' -e 's://.*::' -e 's:/\*.*\*/::g' -e '/START_OF_\(CACHE_\)\?VERSIONING/,/END_OF_\(CACHE_\)\?VERSIONING/p' "$@" \
-|	grep -vx '\(START\|END\)_OF_\(CACHE_\)\?VERSIONING'                                                                                                                                \
-|	tr -d ' \t\n'                                                                                                                                                                      \
-|	md5sum                                                                                                                                                                             \
-|	cut -d' ' -f1
-)
-cache_version=$(
-	sed -n -e 's://.*\(\(START\|END\)_OF_CACHE_VERSIONING\).*:\1:' -e 's://.*::' -e 's:/\*.*\*/::g' -e '/START_OF_CACHE_VERSIONING/,/END_OF_CACHE_VERSIONING/p' "$@" \
-|	grep -vx '\(START\|END\)_OF_CACHE_VERSIONING'                                                                                                                    \
+version=$(
+	sed -n -e 's://.*\(\(START\|END\)_OF_VERSIONING\).*:\1:' -e 's://.*::' -e 's:/\*.*\*/::g' -e '/START_OF_VERSIONING/,/END_OF_VERSIONING/p' "$@" \
+|	grep -vx '\(START\|END\)_OF_VERSIONING'                                                                                                                    \
 |	tr -d ' \t\n'                                                                                                                                                    \
 |	md5sum                                                                                                                                                           \
 |	cut -d' ' -f1
 )
 cat <<EOF
-constexpr char RepoVersion [] = "$repo_version" ;
-constexpr char CacheVersion[] = "$cache_version" ;
+constexpr char VersionMrkr[] = "$version" ;
 EOF

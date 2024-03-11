@@ -11,9 +11,10 @@
 
 FROM ubuntu:22.04
 
-RUN apt-get update --fix-missing
+RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
-RUN apt-get install -y ed g++-12 git python2 python3-dev texinfo python3-numba libseccomp-dev
+RUN apt-get install -y ed g++-12 git texinfo libseccomp-dev
+RUN apt-get install -y python2 python3-dev python3-numba python3-venv
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

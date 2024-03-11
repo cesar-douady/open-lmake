@@ -474,7 +474,7 @@ namespace Disk {
 			if ( !is_in_tmp && !in_proc ) {
 				if (+in_repo) {
 					if      ( real.size()<_root_dir_sz1              ) continue ;                                                                         // at repo root, no sym link to handle
-					else if ( +nxt                                    ) lnks.push_back(real.substr(_root_dir_sz1)) ;
+					else if ( +nxt                                   ) lnks.push_back(real.substr(_root_dir_sz1)) ;
 				} else {
 					if      ( size_t i=_find_src_idx(real) ; i==Npos ) continue ;
 					else if (                                +nxt    ) lnks.push_back( _env->src_dirs_s[i] + (real.c_str()+_abs_src_dirs_s[i].size()) ) ; // real lie in a source dir
@@ -551,10 +551,9 @@ namespace Disk {
 			interpreter.resize(256) ;
 			real_stream.getline(interpreter.data(),interpreter.size()) ;                     // man execve specifies that data beyond 255 chars are ignored
 			if (!real_stream.gcount()) break ;
-			size_t pos = interpreter.find(' ') ;
-			if      (pos!=Npos               ) interpreter.resize(pos                   ) ;  // interpreter is the first word
-			else if (interpreter.back()=='\n') interpreter.resize(real_stream.gcount()-1) ;  // or the entire line if it is composed of a single word
-			else                               interpreter.resize(real_stream.gcount()  ) ;  // .
+			interpreter.resize(real_stream.gcount()) ;
+			if      ( size_t pos = interpreter.find(' ' ) ; pos!=Npos ) interpreter.resize(pos) ;  // interpreter is the first word
+			else if ( size_t pos = interpreter.find('\0') ; pos!=Npos ) interpreter.resize(pos) ;  // interpreter is the entire line (or the first \0 delimited word)
 			// recurse
 			sr = solve(interpreter,false/*no_follow*/) ;
 		}

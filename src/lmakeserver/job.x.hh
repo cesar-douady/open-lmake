@@ -51,6 +51,7 @@ ENUM( SpecialStep // ordered by increasing importance
 ,	Idle
 ,	Ok
 ,	Err
+,	Loop
 )
 
 namespace Engine {
@@ -189,6 +190,7 @@ namespace Engine {
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
 		NodeIdx      dep_lvl            = 0     ;                        // ~20<=32 bits
+		uint8_t      n_submits          = 0     ;                        //       8 bits, number of times job has been submitted to avoid infinite loop
 		Step         step            :3 = {}    ;                        //       3 bits
 		JobReasonTag force           :5 = {}    ;                        //       5 bits
 		BackendTag   backend         :2 = {}    ;                        //       2 bits
@@ -272,45 +274,34 @@ namespace Engine {
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                               ) const ;                                                      // thread-safe
+		void     end_exec      (                               ) const ;                                         // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
 		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;                                                      // cannot declare a default value for incomplete type Node
+		::string special_stderr(                               ) const ;                                         // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
-		Rule::SimpleMatch simple_match  () const ;                                                                            // thread-safe
+		Rule::SimpleMatch simple_match  () const ;                                                               // thread-safe
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                                               // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;                                  // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.done() && err() ) audit_end("was_",ri) ;
 			_propag_speculate(ri) ;
 		}
 		//
-		JobReason make(
-			ReqInfo&
-		,	RunAction
-		,	JobReason                          = {}
-		,	Node               asking_         = {}
-		,	Bool3              speculate       = Yes
-		,	MakeAction                         = MakeAction::None
-		,	CoarseDelay const* old_exec_time   = nullptr
-		,	bool               wakeup_watchers = true
-		) ;
+		JobReason make( ReqInfo& , RunAction , JobReason={} , Bool3 speculate=Yes , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
-		void make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,{}/*asking*/,Yes/*speculate*/,ma) ; } // for wakeup
-		//
-		bool/*maybe_new_deps*/ submit( ReqInfo& , JobReason , CoarseDelay pressure ) ;
+		void make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,Yes/*speculate*/,ma) ; } // for wakeup
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ;                                           // modified=Maybe means file is new
-		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ;                                           // cannot use default Node={} as Node is incomplete
+		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ;                              // modified=Maybe means file is new
+		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ;                              // cannot use default Node={} as Node is incomplete
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
@@ -321,21 +312,21 @@ namespace Engine {
 		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
 	public :
-		//Name           name                     ;                       //     32 bits, inherited
-		Node             asking                   ;                       //     32 bits,        last target needing this job
-		Targets          targets                  ;                       //     32 bits, owned, for plain jobs
-		Deps             deps                     ;                       // 31<=32 bits, owned
-		Rule             rule                     ;                       //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                ;                       //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0                   ; //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0                   ; //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0                   ; //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status:3             = RunStatus::Complete ; //      3 bits
-		Status           status    :4             = Status   ::New      ; //      4 bits
+		//Name           name                     ;                                                              //     32 bits, inherited
+		Node             asking                   ;                                                              //     32 bits,        last target needing this job
+		Targets          targets                  ;                                                              //     32 bits, owned, for plain jobs
+		Deps             deps                     ;                                                              // 31<=32 bits, owned
+		Rule             rule                     ;                                                              //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                ;                                                              //     16 bits,        for plain jobs
+		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                        //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                        //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0                   ;                                        //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		RunStatus        run_status:3             = RunStatus::Complete ;                                        //      3 bits
+		Status           status    :4             = Status   ::New      ;                                        //      4 bits
 	private :
-		mutable bool     _sure     :1             = false               ; //      1 bit
+		mutable bool     _sure     :1             = false               ;                                        //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==24) ;                                  // check expected size
+	static_assert(sizeof(JobData)==24) ;                                                                         // check expected size
 
 }
 
@@ -406,12 +397,6 @@ namespace Engine {
 		if (!ri.set_pressure(pressure)) return ;                                   // if pressure is not significantly higher than already existing, nothing to propagate
 		if (!ri.waiting()             ) return ;
 		_set_pressure_raw(ri,pressure) ;
-	}
-
-	inline bool/*maybe_new_deps*/ JobData::submit( ReqInfo& ri , JobReason reason , CoarseDelay pressure ) {
-		ri.force = JobReasonTag::None ;                                                                      // job is submitted, that was the goal, now void looping
-		if (is_special()) return _submit_special(ri                ) ;
-		else              return _submit_plain  (ri,reason,pressure) ;
 	}
 
 	template<class... A> inline void JobData::audit_end(A&&... args) const {

@@ -44,6 +44,10 @@ else :
 	print('world',file=open('world','w'))
 
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 )     # check targets are out of date
-	for i in range(2) :
-		os.system('rm -rf LMAKE.bck ; lrepair')
-		ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=2 ) # check targets are up to date
+
+	assert os.system('rm -rf LMAKE.bck ; lrepair')==0
+	print('hello2',file=open('hello','w'))
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are remade
+
+	assert os.system('rm -rf LMAKE.bck ; lrepair')==0
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=2 ) # check targets are up to date

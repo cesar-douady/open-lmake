@@ -72,9 +72,9 @@ namespace Codec {
 	static bool _buildable_ok( ::string const& file , Node node ) {
 		switch (node->buildable) {
 			case Buildable::No      :
-			case Buildable::Unknown : return false                                          ;
+			case Buildable::Unknown : return false                                        ;
 			case Buildable::Decode  :
-			case Buildable::Encode  : return node->date()==Closure::s_tab.at(file).log_date ;
+			case Buildable::Encode  : return node->date==Closure::s_tab.at(file).log_date ;
 		DF}
 	}
 
@@ -131,7 +131,7 @@ namespace Codec {
 		}
 		trace(STR(is_canonic)) ;
 		//
-		if (!is_canonic) {                                                                // if already canonic, nothing to do
+		if (!is_canonic) {                                                                          // if already canonic, nothing to do
 			// disambiguate in case the same code is used for the several values
 			OFStream                          os         { file } ;
 			::map_s<map_ss>/*ctx->code->val*/ decode_tab ;
@@ -140,7 +140,7 @@ namespace Codec {
 				::uset_s codes   = mk_key_uset(e_entry) ;
 				::map_ss d_entry = decode_tab[ctx]      ;
 				for( auto const& [val,code] : e_entry ) {
-					if (d_entry.try_emplace(code,val).second) continue ;                  // 2 vals for the same code, need to disambiguate
+					if (d_entry.try_emplace(code,val).second) continue ;                            // 2 vals for the same code, need to disambiguate
 					::string crc      = ::string(Xxh(val).digest()) ;
 					::string new_code ;
 					if (code==crc.substr(0,code.size())) {
@@ -168,13 +168,13 @@ namespace Codec {
 				}
 			}
 			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
-		} else {                                                                          // file needs no update, but we must record file content into nodes
+		} else {                                                                                    // file needs no update, but we must record file content into nodes
 			for( auto const& [ctx,e_entry] : encode_tab )
 				for( auto const& [val,code] : e_entry ) process_node(ctx,code,val) ;
 		}
 		// wrap up
 		Ddate log_date = s_tab.at(file).log_date ;
-		for( Node n : nodes ) n->date() = log_date ;
+		for( Node n : nodes ) n->date = log_date ;
 		trace("done",nodes.size()/2) ;
 	}
 
@@ -182,7 +182,7 @@ namespace Codec {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
 		if (!inserted) {
-			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                    // we sample disk once per Req
+			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                  // we sample disk once per Req
 			return true/*ok*/ ;
 		}
 	Refresh :
@@ -202,9 +202,9 @@ namespace Codec {
 		entry.sample_date = Pdate::s_now() ;
 		if (inserted) {
 			Node node{ni} ;
-			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date = node->date() ; // initialize from known info
+			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date = node->date ; // initialize from known info
 		}
-		if ( phys_date==entry.phys_date                         ) return true/*ok*/ ;                               // file has not changed, nothing to do
+		if ( phys_date==entry.phys_date                         ) return true/*ok*/ ;                             // file has not changed, nothing to do
 		entry.log_date = phys_date ;
 		//
 		_s_canonicalize(file,reqs) ;
@@ -216,7 +216,7 @@ namespace Codec {
 		SWEAR(proc==JobProc::Decode,proc) ;
 		Node decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		bool refreshed = s_refresh( file , +decode_node , reqs ) ;
-		if (refreshed) {                                        // else codec file not available
+		if (refreshed) {                                           // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
 				::string val { decode_node->codec_val().str_view() } ;
 				trace("found",val) ;
@@ -256,9 +256,9 @@ namespace Codec {
 		OFStream(file,::ios::app) << _codec_line(ctx,code,txt,true/*with_nl*/) ;
 		Entry& entry = s_tab.at(file) ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;
-		decode_node->date() = entry.log_date  ;
-		encode_node->date() = entry.log_date  ;
-		entry.phys_date     = file_date(file) ;                           // we have touched the file but not the semantic, update phys_date but not log_date
+		decode_node->date = entry.log_date  ;
+		encode_node->date = entry.log_date  ;
+		entry.phys_date   = file_date(file) ;                             // we have touched the file but not the semantic, update phys_date but not log_date
 		//
 		trace("found",code) ;
 		return JobRpcReply( JobProc::Encode , code , encode_node->crc , Yes ) ;
@@ -271,7 +271,7 @@ namespace Codec {
 			node->refresh( Crc::None , Closure::s_tab.at(file).log_date ) ;
 			return false/*ok*/ ;
 		}
-		return node->date()!=Closure::s_tab.at(file).log_date ;
+		return node->date!=Closure::s_tab.at(file).log_date ;
 	}
 
 	void codec_thread_func(Closure const& cc) {

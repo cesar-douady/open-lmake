@@ -78,12 +78,12 @@ struct Elf {
 	// cxtors & casts
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
-		::string const& r = Record::s_autodep_env().root_dir ;
+		::string const& root = Record::s_autodep_env().root_dir ;
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
 			if (start) {
-				if ( *p!='/'                                                                ) return ; // found a relative entry, most probably inside the repo
-				if ( strncmp(p,r.c_str(),r.size())==0 && (p[r.size()]==':'||p[r.size()]==0) ) return ; // found an absolute entry pointing inside the repo
+				if ( *p!='/'                                                                            ) return ; // found a relative entry, most probably inside the repo
+				if ( strncmp(p,root.c_str(),root.size())==0 && (p[root.size()]==':'||p[root.size()]==0) ) return ; // found an absolute entry pointing inside the repo
 				start = false ;
 			} else {
 				if (*p==':') start = true ;
@@ -92,8 +92,8 @@ struct Elf {
 		simple_llp = true ;
 	}
 	// services
-	Record::Read search_elf( ::string const& file , ::string const& runpath , ::string&& comment="elf_srch" ) ;
-	void         elf_deps  ( Solve    const&      , bool top                , ::string&& comment="elf_deps" ) ;
+	Record::Read search_elf( ::string const& file , ::string const& runpath , ::string&& comment ) ;
+	void         elf_deps  ( Solve    const&      , bool top                , ::string&& comment ) ;
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
@@ -205,7 +205,7 @@ static ::string _mk_origin(::string const& exe) {
 		else if ( ::memcmp(p1,"PLATFORM",8)==0 && (!brace||p1[8]=='}') ) { res += reinterpret_cast<const char*>(::getauxval(AT_PLATFORM)) ; ptr = p1+8+brace ; }
 		else                                                             { res += *ptr                                                    ; ptr++            ; }
 		const char* new_ptr = ::strchrnul(ptr,'$') ;
-		res.append(ptr,new_ptr-ptr) ;
+		res.append(ptr,new_ptr) ;
 		ptr = new_ptr ;
 	}
 	return res ;
@@ -259,14 +259,14 @@ const char* get_ld_library_path() {
 	return llp.c_str() ;
 }
 
-Record::Read search_elf( Record& r , const char* file , ::string&& comment="elf_srch" ) {
+Record::Read search_elf( Record& r , const char* file , ::string&& comment ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while searching elf executable ",file," : ",e) ; return {} ;                                                   } // if we cannot report the dep, panic
 }
 
-void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , ::string&& comment="elf_deps" ) {
+void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , ::string&& comment ) {
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , ::move(comment) ) ; }
 	catch (::string const& e) { r.report_panic("while analyzing elf executable ",mk_file(file.real)," : ",e) ;      } // if we cannot report the dep, panic
 }

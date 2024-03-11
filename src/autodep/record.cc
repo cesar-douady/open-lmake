@@ -19,7 +19,8 @@ using namespace Time ;
 // Record
 //
 
-static constexpr Accesses UserStatAccess = StrictUserAccesses ? Accesses(Access::Reg,Access::Stat) : Accesses(Access::Stat) ; // if strict, user might look at the st_size field
+// if strict, user might look at the st_size field which gives access to regular and link content
+static constexpr Accesses UserStatAccess = StrictUserAccesses ? Accesses::All : Accesses(Access::Stat) ;
 
 bool                                                   Record::s_static_report = false   ;
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
@@ -150,7 +151,7 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , ::st
 Record::Exec::Exec( Record& r , Path&& path , bool no_follow , ::string&& c ) : Solve{r,::move(path),no_follow,true/*read*/,true/*allow_tmp_map*/,c} {
 	SolveReport sr {.real=real,.file_loc=file_loc} ;
 	try {
-		for( auto&& [file,a] : r._real_path.exec(sr) ) r._report_dep( ::move(file) , a , ::move(c) ) ;
+		for( auto&& [file,a] : r._real_path.exec(sr) ) r._report_dep( ::move(file) , a , ::copy(c) ) ;
 	} catch (::string const& e) { r.report_panic(e) ; }
 }
 
@@ -187,14 +188,14 @@ Record::Open::Open( Record& r , Path&& path , int flags , ::string&& c ) :
 	if ( file_loc>FileLoc::Dep                  )                             return ;
 	//
 	if (!do_write) {
-		if      (do_read) r._report_dep   ( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".rd"   ) ; // user might do fstat on returned fd
-		else if (do_stat) r._report_dep   ( ::move(real) , accesses            |UserStatAccess , c+".path" ) ; // idem, and if strict user might look at st_size field
+		if      (do_read) r._report_dep   ( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".rd"   ) ; // user might do fstat on returned fd and if strict user might look at st_size field
+		else if (do_stat) r._report_dep   ( ::move(real) , accesses            |UserStatAccess , c+".path" ) ; // .
 	} else if (file_loc==FileLoc::Repo) {
-		if      (do_read) r._report_update( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".upd"  ) ; // file date is     updated if created, user might do a meaningful fstat
-		else              r._report_update( ::move(real) , accesses                            , c+".wr"   ) ; // file date may be updated if created
+		if      (do_read) r._report_update( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".upd"  ) ; // file date may be updated if created, user might do a meaningful fstat
+		else              r._report_update( ::move(real) , accesses                            , c+".wr"   ) ; // file date may be updated if created, user cannot see file stat before the write
 	} else {
 		if      (do_read) r._report_dep   ( ::move(real) , accesses|Access::Reg|UserStatAccess , c+".upd"  ) ; // in src dirs, only the read side is reported
-		else              r._report_dep   ( ::move(real) , accesses                            , c+".upd"  ) ; // .
+		else              r._report_dep   ( ::move(real) , accesses                            , c+".wr"   ) ; // .
 	}
 }
 

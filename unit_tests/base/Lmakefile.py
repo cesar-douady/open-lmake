@@ -69,17 +69,17 @@ for to in (None,5) :
 		name    = f'wait{to_}'
 		stems   = { 'Wait' : r'r?w\d+|r?\d+w?|\d+rw?' }
 		target  = f'{{File}}.{{Wait}}.wait{to_}'
-		dep     = '{File}'
+		deps    = { 'SRC' : '{File}' }
 		timeout = to
 		def cmd() :
 			span = re.search('\d+',Wait)
 			read_before = 'r' not in Wait[span.end  ():            ]
 			write_after = 'w' not in Wait[            :span.start()]
 			cnt         = int(       Wait[span.start():span.end  ()])
-			if     read_before : text = sys.stdin.read()
+			if     read_before : text = open(SRC).read()
 			if not write_after : sys.stdout.write(text)
 			time.sleep(cnt)
-			if not read_before : text = sys.stdin.read()
+			if not read_before : text = open(SRC).read()
 			if     write_after : sys.stdout.write(text)
 
 class Cat(BaseRule) :
