@@ -319,6 +319,9 @@ namespace Backends {
 					if (!Node(dn)->done(r,RunAction::Status)) { dep_ready = false ; goto EarlyEnd ; }
 			if (step<5) {
 			EarlyEnd :
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				OMsgBuf().send(fd,JobRpcReply(JobProc::None)) ;                                                                 // silently tell job_exec to give up
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				Status status = Status::EarlyErr ;
 				if (!dep_ready) {
 					status        = Status::EarlyChkDeps ;
@@ -426,15 +429,15 @@ namespace Backends {
 
 	bool/*keep_fd*/ Backend::_s_handle_job_end( JobRpcReq&& jrr , SlaveSockFd const& ) {
 		switch (jrr.proc) {
-			case JobProc::None : return false ;                                     // if connection is lost, ignore it
-			case JobProc::End  : break ;                                            // no reply
+			case JobProc::None : return false ;                                   // if connection is lost, ignore it
+			case JobProc::End  : break ;                                          // no reply
 		DF}
 		Job       job   { jrr.job } ;
 		JobExec   je    ;
 		::vmap_ss rsrcs ;
 		Trace trace(BeChnl,"_s_handle_job_end",jrr) ;
-		if (jrr.job==_s_starting_job) ::unique_lock lock{_s_starting_job_mutex} ;   // ensure _s_handled_job_start is done for this job
-		{	::unique_lock lock { _s_mutex } ;                                       // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		if (jrr.job==_s_starting_job) ::unique_lock lock{_s_starting_job_mutex} ; // ensure _s_handled_job_start is done for this job
+		{	::unique_lock lock { _s_mutex } ;                                     // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
@@ -454,13 +457,13 @@ namespace Backends {
 		}
 		trace("info") ;
 		for( auto& [dn,dd] : jrr.digest.deps ) {
-			if (!dd.is_date) continue ;                                             // fast path
+			if (!dd.is_date) continue ;                                           // fast path
 			Dep dep { Node(dn) , dd } ;
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
 		::string jaf = job->ancillary_file() ;
-		serialize( OFStream(jaf,::ios::app) , JobInfoEnd(jrr) ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		serialize( OFStream(jaf,::ios::app) , JobInfoEnd(jrr) ) ;                 // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
 		je.end_date = file_date(jaf) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -474,7 +477,7 @@ namespace Backends {
 		Trace trace(BeChnl,"s_kill_req",ri) ;
 		Req                                            req       { ri } ;
 		::vmap<JobIdx,pair<StartEntry::Conn,FullDate>> to_wakeup ;
-		{	::unique_lock lock { _s_mutex } ;                                                                                       // lock for minimal time
+		{	::unique_lock lock { _s_mutex } ;                                                                                              // lock for minimal time
 			for( Tag t : All<Tag> ) if (s_ready(t))
 				for( JobIdx j : s_tab[+t]->kill_waiting_jobs(ri) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -482,12 +485,12 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("waiting",j) ;
 				}
-			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                                     // /!\ we erase entries while iterating
+			for( auto jit = _s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                                            // /!\ we erase entries while iterating
 				JobIdx      j = jit->first  ;
 				StartEntry& e = jit->second ;
 				if (ri) {
 					if ( e.reqs.size()==1 && e.reqs[0]==ri ) goto Kill ;
-					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                                     // e.reqs is a non-sorted vector, we must search ri by hand
+					for( auto it = e.reqs.begin() ; it!=e.reqs.end() ; it++ ) {                                                            // e.reqs is a non-sorted vector, we must search ri by hand
 						if (*it!=ri) continue ;
 						e.reqs.erase(it) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -146,7 +146,7 @@ struct Digest {
 
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;         // typically most of accesses are deps
+	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;                  // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0                                         ;
 	Pdate   relax            = Pdate::s_now()+g_start_info.network_delay ;
 	//
@@ -159,11 +159,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; break ;
 			case Maybe :                                                                       ; break ;
 		DF}
-		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;                      // if reading and not a dep, file must be adequately washed and hence must be a target
+		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;                               // if reading and not a dep, file must be adequately washed and hence must be a target
 		//
 		bool is_dep =
 				( flags.is_target!=Yes || ad.extra_tflags[ExtraTflag::ReadIsDep] )
-			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )       // static deps are deemed read
+			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )                // static deps are deemed read
 		;
 		// handle deps
 		if (is_dep) {
@@ -187,13 +187,13 @@ Digest analyze( bool at_end , bool killed=false ) {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,flags,file) ;
 		}
-		if (!at_end) continue ;                                                                       // we are handling chk_deps and we only care about deps
+		if (!at_end) continue ;                                                                   // we are handling chk_deps and we only care about deps
 		// handle targets
 		if ( ad.write!=No || ( +ad.accesses && !is_dep ) ) {
-			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                          // used to ensure washing is not reported to user as a target
+			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                      // used to ensure washing is not reported to user as a target
 			bool         unlnk = ad.write==Maybe && info.last_confirmed              ;
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
-			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;      // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;  // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;
 			switch (flags.is_target) {
 				case Yes   : break ;
@@ -354,6 +354,7 @@ int main( int argc , char* argv[] ) {
 			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
 		}
 		trace("g_start_info"  ,g_start_info  ) ;
+		if (!g_start_info.proc) return 0 ;                                             // silently exit if told to do so
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		switch (g_start_info.proc) {

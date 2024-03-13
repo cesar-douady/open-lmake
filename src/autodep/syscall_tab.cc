@@ -61,19 +61,19 @@ template<bool At> static Record::Path _path( pid_t pid , uint64_t const* args ) 
 template<bool At> static inline void _update( uint64_t* args , Record::Path const& p ) {
 	SWEAR(p.has_at==At) ;
 	if (At) { args[0] = p.at ; args[1] = reinterpret_cast<uint64_t>(p.file) ; }
-	else    {                  args[0] = reinterpret_cast<uint64_t>(p.file) ; }
+	else                       args[0] = reinterpret_cast<uint64_t>(p.file) ;
 }
 
 static constexpr int FlagAlways = -1 ;
 static constexpr int FlagNever  = -2 ;
-template<bool At,int FlagArg> static inline bool flag( uint64_t args[6] , int flag ) {
+template<bool At,int FlagArg> static inline bool _flag( uint64_t args[6] , int flag ) {
 	switch (FlagArg) {
 		case FlagAlways : return true                    ;
 		case FlagNever  : return false                   ;
 		default         : return args[FlagArg+At] & flag ;
 	}
 }
-template<bool At,int FlagArg> static inline bool flag() {
+template<bool At,int FlagArg> static inline bool _flag() {
 	switch (FlagArg) {
 		case FlagAlways : return true   ;
 		case FlagNever  : return false  ;
@@ -99,7 +99,7 @@ static inline int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t pid , in
 // chmod
 template<bool At,bool Path,int FlagArg> void static inline _entry_chmod( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		Record::Chmod* cm = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = cm ;
 		_update<At>(args+0,*cm) ;
 	} catch (int) {}
@@ -112,11 +112,22 @@ static inline int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_
 	return res ;
 }
 
+// creat
+static inline void _entry_creat( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
+	try {
+		Record::Open* o = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , comment ) ;
+		ctx = o ;
+		_update<false>(args+0,*o) ;
+	}
+	catch (int) {}
+}
+// use _exit_open as exit proc
+
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> static inline void _entry_execve( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Exec e{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
+		Record::Exec e{ r , _path<At>(pid,args+0) , _flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,e) ;
 	} catch (int) {}
 }
@@ -141,7 +152,7 @@ static inline int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int
 // hard link
 template<bool At,int FlagArg> static inline void _entry_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
+		Record::Lnk* l = new Record::Lnk( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment ) ;
 		ctx = l ;
 		_update<At>(args+0,l->src) ;
 		_update<At>(args+2,l->dst) ;
@@ -201,14 +212,14 @@ static inline int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid ,
 template<bool At,int FlagArg> static inline void _entry_rename( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
 		#ifdef RENAME_EXCHANGE
-			bool exchange = flag<At,FlagArg>(args,RENAME_EXCHANGE) ;
+			bool exchange = _flag<At,FlagArg>(args,RENAME_EXCHANGE) ;
 		#else
-			bool exchange = false                                  ;
+			bool exchange = false                                   ;
 		#endif
 		#ifdef RENAME_NOREPLACE
-			bool no_replace = flag<At,FlagArg>(args,RENAME_NOREPLACE) ;
+			bool no_replace = _flag<At,FlagArg>(args,RENAME_NOREPLACE) ;
 		#else
-			bool no_replace = false                                   ;
+			bool no_replace = false                                    ;
 		#endif
 		Record::Rename* rn = new Record::Rename( r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , comment ) ;
 		ctx = rn ;
@@ -243,7 +254,7 @@ static inline int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int6
 // unlink
 template<bool At,int FlagArg> static inline void _entry_unlnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		bool rmdir = flag<At,FlagArg>(args,AT_REMOVEDIR) ;
+		bool rmdir = _flag<At,FlagArg>(args,AT_REMOVEDIR) ;
 		Record::Unlnk* u = new Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , comment ) ;
 		if (!rmdir) ctx = u ;                                                                   // rmdir calls us without exit, and we must not set ctx in that case
 		_update<At>(args+0,*u) ;
@@ -260,7 +271,7 @@ static inline int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_
 // access
 template<bool At,int FlagArg> static inline void _entry_stat( void* & /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Stat s{ r , _path<At>(pid,args+0) , flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
+		Record::Stat s{ r , _path<At>(pid,args+0) , _flag<At,FlagArg>(args,AT_SYMLINK_NOFOLLOW) , comment } ;
 		_update<At>(args+0,s) ;
 		s(r) ;
 	} catch (int) {}
@@ -284,10 +295,10 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) { // this must *no
 		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_stat    <true ,      2         > , nullptr        ,2    , 2  , false    , "Faccessat2"        } ;
 	#endif
 	#ifdef SYS_chdir
-		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir   <false,true            > , _exit_chdir    ,0    , 1  , true                           } ;
+		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir   <false,true            > , _exit_chdir    ,0    , 1  , true     , "Chdir"             } ;
 	#endif
 	#ifdef SYS_fchdir
-		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir   <true ,false           > , _exit_chdir    ,0    , 1  , true                           } ;
+		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir   <true ,false           > , _exit_chdir    ,0    , 1  , true     , "Fchdir"            } ;
 	#endif
 	#ifdef SYS_chmod
 		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod   <false,true ,FlagNever > , _exit_chmod    ,1    , 1  , true     , "Chmod"             } ;
@@ -298,6 +309,9 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) { // this must *no
 	#ifdef SYS_fchmodat
 		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod   <true ,true ,2         > , _exit_chmod    ,2    , 1  , true     , "Fchmodat"          } ;
 	#endif
+	#ifdef SYS_creat
+		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                            , _exit_open     ,1    , 2  , true     , "Creat"             } ;
+	#endif
 	#ifdef SYS_execve
 		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve  <false,      FlagNever > , nullptr        ,0    , 1  , true     , "Execve"            } ;
 	#endif
@@ -307,7 +321,7 @@ SyscallDescr::Tab const& SyscallDescr::s_tab(bool for_ptrace) { // this must *no
 	#if defined(SYS_getcwd)
 		// tmp mapping is not supported with ptrace
 		if (!for_ptrace) {
-		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                           , _exit_getcwd   ,0    , 1  , true                           } ;
+		static_assert(SYS_getcwd           <NSyscalls) ; s_tab[SYS_getcwd           ] = { _entry_getcwd                           , _exit_getcwd   ,0    , 1  , true     , "Getcwd"            } ;
         }
 	#endif
 	#ifdef SYS_link
