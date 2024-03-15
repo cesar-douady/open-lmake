@@ -189,7 +189,13 @@ Digest analyze( bool at_end , bool killed=false ) {
 		}
 		if (!at_end) continue ;                                                                   // we are handling chk_deps and we only care about deps
 		// handle targets
-		if ( ad.write!=No || ( +ad.accesses && !is_dep ) ) {
+		if (
+			ad.write!=No
+		||	(	+ad.accesses                                                                      // if no access at all, not a target
+			&&	!is_dep
+			&&	( ad.tflags[Tflag::Target] || !ad.tflags[Tflag::Incremental] )                    // if not touching an incremental non-official target, forget it
+			)
+		) {
 			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                      // used to ensure washing is not reported to user as a target
 			bool         unlnk = ad.write==Maybe && info.last_confirmed              ;
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
