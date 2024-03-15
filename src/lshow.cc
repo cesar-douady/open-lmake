@@ -19,6 +19,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::ExecScript , { .short_name='s' , .doc="show a sh-executable script"                } }
 	,	{ ReqKey::Info       , { .short_name='i' , .doc="show info about jobs leading to files"      } }
 	,	{ ReqKey::InvDeps    , { .short_name='D' , .doc="show dependents"                            } }
+	,	{ ReqKey::InvTargets , { .short_name='T' , .doc="show producing jobs"                        } }
 	,	{ ReqKey::Stderr     , { .short_name='e' , .doc="show stderr"                                } }
 	,	{ ReqKey::Stdout     , { .short_name='o' , .doc="show stdout"                                } }
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"      } }
@@ -36,6 +37,7 @@ int main( int argc , char* argv[] ) {
 	if ( cmd_line.flags[ReqFlag::Verbose   ] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr"         ) ;
 	if ( cmd_line.flags[ReqFlag::Debug     ] && cmd_line.key!=ReqKey::ExecScript ) syntax.usage("debug is only for showing executable script"                 ) ;
 	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"                         ) ;
+	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs"                     ) ;
 	if ( cmd_line.flags[ReqFlag::Porcelaine] && cmd_line.key!=ReqKey::Info       ) syntax.usage("porcelaine output is only valid with --info"                 ) ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ::cout , ReqProc::Show , false/*refresh_makefiles*/ , syntax , cmd_line ) ;

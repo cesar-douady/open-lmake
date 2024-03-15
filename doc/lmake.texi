@@ -591,7 +591,7 @@ Once the build process is complete, a summary is generated with :
 
 @section @code{lshow}
 
-Usage : @code{lshow [ [-d|--deps] | [-D|-inv-deps] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
+Usage : @code{lshow [ [-d|--deps] | [-D|-inv-deps] | [-T|-inv-targets] | [-i|--info] | [-s|--script] | [-S|--exec-script] | [-E|--env] | [-e|--stderr] |[-o|--stdout] [-b|--backend]
 [[-d|--debug] debug_dir] [-t|--targets] [-v|--verbose] [-p|--porcelaine] targets...}
 
 @code{lshow} provides various information about jobs.
@@ -623,8 +623,9 @@ Each line is composed of 6 fields  separated by spaces :
 @item Name of the dep.
 @end itemize
 If a dep does not exist, it is deemed secondary information and is shown in gray.
-@item @code{-D}|@code{--inv-deps} : show jobs that depend on targets.
-@item @code{-i}|@code{--info} : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
+@item @code{-D}|@code{--inv-deps}    : show jobs that depend on targets.
+@item @code{-T}|@code{--inv-targets} : show jobs that produce targets either officially (listed in @code{targets} attribute) or not (listed in @code{target_flags} attribute or not)
+@item @code{-i}|@code{--info}        : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
 If porcelaine mode (using the @code{--porcelaine} or @code{-p} option), the same information is reported as as an easy to parse Python @code{dict}.
 @item @code{-s}|@code{--script} : show the scripts used to execute the jobs.
 If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.

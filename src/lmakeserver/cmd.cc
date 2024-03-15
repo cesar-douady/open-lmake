@@ -772,8 +772,9 @@ R"({
 			sep = ',' ;
 			bool for_job = false/*garbage*/ ;
 			switch (ro.key) {
-				case ReqKey::InvDeps : for_job = false ; break ;
-				default              : for_job = true  ;
+				case ReqKey::InvDeps    :
+				case ReqKey::InvTargets : for_job = false ; break ;
+				default                 : for_job = true  ;
 			}
 			Job job ;
 			if (for_job) {
@@ -827,8 +828,14 @@ R"({
 				} break ;
 				case ReqKey::InvDeps :
 					for( Job j : Persistent::job_lst() )
-						for( Dep const& dep : j->deps ) {
-							if (dep!=target) continue ;
+						for( Dep const& d : j->deps ) if (d==target) {
+							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
+							break ;
+						}
+				break ;
+				case ReqKey::InvTargets :
+					for( Job j : Persistent::job_lst() )
+						for( Target const& t : j->targets ) if (t==target) {
 							_send_job( fd , ro , No , false/*hide*/ , j , lvl ) ;
 							break ;
 						}

@@ -34,6 +34,7 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	ExecScript // if proc==Show
 ,	Info       // if proc==Show
 ,	InvDeps    // if proc==Show
+,	InvTargets // if proc==Show
 ,	List       // if proc==Mark
 ,	Resources  // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
 ,	Stderr     // if proc==Show
