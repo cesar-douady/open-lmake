@@ -386,15 +386,15 @@ namespace Engine {
 					// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user, all that is wrong
 					// This is too complex and too rare to detect (and ideally handle).
 					// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
-					if (crc.valid()        ) target_reason |= {JobReasonTag::ClashTarget,+target} ;  // crc is actually unreliable, rerun
-					if (target->crc.valid())                                                         // existing crc was believed to be reliable but actually was not
+					if (crc.valid())
+						target_reason |= {JobReasonTag::ClashTarget,+target} ;     // crc is actually unreliable, rerun
+					if ( target->crc.valid() && !target->is_src_anti() ) {         // existing crc was believed to be reliable but actually was not (if no execution, there is no problem)
+						trace("critical_clash") ;
 						for( Req r : target->reqs() ) {
-							NodeReqInfo& tri = target->req_info(r) ;
-							if (!tri.done()) continue ;                                              // XXX : add a used field to NodeReqInfo to indicate if was already used to make a job done
-							tri.done_ = RunAction::None ;                                            // target must be re-analyzed if we need the actual files
-							trace("critical_clash") ;
 							r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
+							target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 						}
+					}
 				}
 				//
 				if ( +crc && target->is_src_anti() ) {                                               // source may have been modified
@@ -503,7 +503,7 @@ namespace Engine {
 				err_reason |= reason ;
 			}
 			//
-			if (ri.done()) {
+			if (ri.done(ri.action)) {
 				if (!err) append_line_to_string(msg,local_msg) ;                                                                         // report local_msg if nothing more import to report
 				audit_end( {}/*pfx*/ , ri , msg , err?""s:stderr , end_none_attrs.max_stderr_len , any_modified , digest.stats.total ) ; // report user stderr if make analysis ...
 				trace("wakeup_watchers",ri) ;                                                                                            // ... did not make these errors meaningless
