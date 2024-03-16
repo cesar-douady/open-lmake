@@ -54,8 +54,8 @@ namespace Engine {
 		// init
 		static void s_init() {}
 		// statics
-		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) { // sorted by start
-			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                    // pessimistic
+		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) {     // sorted by start
+			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                        // pessimistic
 			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;
 		}
@@ -64,26 +64,31 @@ namespace Engine {
 		static ::vector<Req>     s_reqs_by_eta() { ::unique_lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
-		static SmallIds<ReqIdx > s_small_ids     ;
-		static ::vector<Req>     s_reqs_by_start ;                                                       // INVARIANT : ordered by item->start
+		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
+		static ::vector<Req>                       s_reqs_by_start ;                                         // INVARIANT : ordered by item->start
 		//
-		static ::mutex           s_reqs_mutex ;                                                          // protects s_store, _s_reqs_by_eta as a whole
-		static ::vector<ReqData> s_store      ;
+		static ::mutex                             s_reqs_mutex ;                                            // protects s_store, _s_reqs_by_eta as a whole
+		static ::vector<ReqData>                   s_store      ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;                                                            // INVARIANT : ordered by item->stats.eta
+		static ::vector<Req> _s_reqs_by_eta ;                                                                // INVARIANT : ordered by item->stats.eta
+		static_assert(sizeof(ReqIdx)==1) ;                                                                   // else an array to hold zombie state is not ideal
+		static ::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> _s_zombie_tab ;
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		Req(EngineClosureReq const&) ;
+		Req(NewType) : Base{s_small_ids.acquire()} {}
 		// accesses
 		ReqData const& operator* () const ;
 		ReqData      & operator* ()       ;
 		ReqData const* operator->() const { return &**this ; }
 		ReqData      * operator->()       { return &**this ; }
+		//
+		bool zombie(      ) const { return                     bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7     ) ; } // req has been killed, waiting to be closed when all jobs are done
+		void zombie(bool z)       { _s_zombie_tab[+*this>>3] = bit( uint8_t(_s_zombie_tab[+*this>>3]) , +*this&0x7 , z ) ; } // dont care about atomicity as this is called by a single thread
 		// services
-		void make   (                       ) ;
+		void make   (EngineClosureReq const&) ;
 		void kill   (                       ) ;
-		void close  (bool close_backend=true) ;
+		void close  (                       ) ;
 		void chk_end(                       ) ;
 		//
 		void inc_rule_exec_time( Rule ,                                            Delay delta     , Tokens1 ) ;
@@ -234,6 +239,8 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
+		bool   operator+() const { return +job                                                ; }
+		bool   operator!() const { return !+*this                                             ; }
 		bool   is_open  () const { return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const { return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
 		// services
@@ -250,8 +257,8 @@ namespace Engine {
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=NoSockAddr , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , JobExec const&                                           , Delay exec_time={} ) const ;
 		//
-		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                      ,s,rn,jn,h,et) ; }
-		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate::s_now()                      ,s,j    ,h,et) ; }
+		void audit_job( Color c , SC& s , SC& rn , SC& jn , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                          ,s,rn,jn,h,et) ; }
+		void audit_job( Color c , SC& s , Job j           , in_addr_t h=NoSockAddr , Delay et={} ) const { audit_job(c,Pdate(New)                          ,s,j    ,h,et) ; }
 		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false    , Delay et={} ) const { audit_job(c,at_end?je.end_date.p:je.start_date.p,s,je     ,et) ; }
 		#undef SC
 		//
@@ -269,17 +276,16 @@ namespace Engine {
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
-		bool                 zombie         = false   ; // req has been killed, waiting to be closed when all jobs are actually killed
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;           // to report to user
 		OFStream mutable     log_stream     ;           // saved output
 		Job      mutable     last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
-		Ddate                start_ddate    ;
-		Pdate                start_pdate    ;
+		FullDate             start_date     ;
 		Delay                ete            ;           // Estimated Time Enroute
 		Pdate                eta            ;           // Estimated Time of Arrival
 		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
+		bool                 has_backend    = false   ;
 		// summary
 		::vector<Node>        up_to_dates  ;            // asked nodes already done when starting
 		::umap<Job ,JobIdx  > frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)

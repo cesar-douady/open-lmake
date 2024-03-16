@@ -209,11 +209,9 @@ namespace Time {
 	struct Pdate : Date {
 		friend ::ostream& operator<<( ::ostream& , Pdate const ) ;
 		friend Delay ;
-		// statics
-		static Pdate s_now() ;
 		// cxtors & casts
 		using Date::Date ;
-		Pdate(NewType) { *this = s_now() ; }
+		Pdate(NewType) ;
 		// services
 		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
@@ -297,11 +295,11 @@ namespace Time {
 		::mutex                  m   ;
 		::unique_lock<mutex>     lck { m } ;
 		::condition_variable_any cv  ;
-		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate::s_now()>=until ; } ) ;
+		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
 		return res ;
 	}
 	inline bool/*slept*/ Delay::sleep_for(::stop_token tkn) const {
-		return _s_sleep( tkn , *this , Pdate::s_now()+*this ) ;
+		return _s_sleep( tkn , *this , Pdate(New)+*this ) ;
 	}
 	inline void Delay::sleep_for() const {
 		if (_val<=0) return ;
@@ -316,16 +314,20 @@ namespace Time {
 	// Date
 	//
 	constexpr Date Date::None { New , 0 } ;
-	inline Pdate Pdate::s_now() {
+
+	//
+	// Pdate
+	//
+	inline Pdate::Pdate(NewType) {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;
-		return Pdate(now) ;
+		*this = Pdate(now) ;
 	}
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
 	//
-	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-s_now() , *this ) ; }
-	inline void          Pdate::sleep_until(                ) const { (*this-s_now()).sleep_for()                           ; }
+	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-Pdate(New) , *this ) ; }
+	inline void          Pdate::sleep_until(                ) const { (*this-Pdate(New)).sleep_for()                           ; }
 
 }
 

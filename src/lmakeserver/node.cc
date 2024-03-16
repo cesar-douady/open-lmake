@@ -113,7 +113,7 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date> r->start_ddate                ) ri.overwritten |= mismatch ;             }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date> r->start_date.d               ) ri.overwritten |= mismatch ;             }
 			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.action|RunAction::Status)) r->audit_job( c , step , msg , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
@@ -399,7 +399,7 @@ namespace Engine {
 	Codec :
 		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (date>req->start_ddate) ri.overwritten = Access::Reg ;                                   // date is only updated when actual content is modified and codec cannot be links
+			if (date>req->start_date.d) ri.overwritten = Access::Reg ;                                  // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto Done ;
 		}

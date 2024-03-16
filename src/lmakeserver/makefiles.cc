@@ -166,7 +166,7 @@ namespace Engine::Makefiles {
 		::vector_s cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
 		gather_deps.autodep_env.src_dirs_s = {"/"}       ;
 		gather_deps.autodep_env.root_dir   = *g_root_dir ;
-		Trace trace("_read_makefiles",action,module,Pdate::s_now()) ;
+		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
 		::string sav_ld_library_path ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
@@ -193,7 +193,7 @@ namespace Engine::Makefiles {
 		}
 		try {
 			Ptr<Dict> res = py_eval(content) ;
-			trace("done",Pdate::s_now()) ;
+			trace("done",Pdate(New)) ;
 			return { res , deps } ;
 		} catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; }
 	}

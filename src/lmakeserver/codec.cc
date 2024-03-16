@@ -182,7 +182,7 @@ namespace Codec {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
 		if (!inserted) {
-			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                  // we sample disk once per Req
+			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_date.p ) goto Refresh ;                 // we sample disk once per Req
 			return true/*ok*/ ;
 		}
 	Refresh :
@@ -199,7 +199,7 @@ namespace Codec {
 		}
 		//
 		Ddate phys_date = file_date(file) ;
-		entry.sample_date = Pdate::s_now() ;
+		entry.sample_date = New ;
 		if (inserted) {
 			Node node{ni} ;
 			if ( inserted && node->buildable==Buildable::Decode ) entry.phys_date = entry.log_date = node->date ; // initialize from known info

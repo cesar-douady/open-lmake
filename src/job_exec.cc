@@ -147,8 +147,8 @@ struct Digest {
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
 	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;                  // typically most of accesses are deps
-	NodeIdx prev_parallel_id = 0                                         ;
-	Pdate   relax            = Pdate::s_now()+g_start_info.network_delay ;
+	NodeIdx prev_parallel_id = 0                                     ;
+	Pdate   relax            = Pdate(New)+g_start_info.network_delay ;
 	//
 	for( auto const& [file,info] : g_gather_deps.accesses ) {
 		info.chk() ;
@@ -292,9 +292,9 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 trace(ci);
 trace((*crcs)[ci]);
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
-		Pdate                   before = Pdate::s_now()          ;
+		Pdate                   before = New                     ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;
-		trace("crc_date",ci,before,Pdate::s_now()-before,e.second.crc,e.second.date,e.first) ;
+		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.date,e.first) ;
 		if (!e.second.crc.valid()) {
 			::unique_lock lock{*msg_mutex} ;
 			append_to_string(*msg,"cannot compute crc for ",e.first) ;
@@ -408,11 +408,11 @@ int main( int argc , char* argv[] ) {
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate         start_job = Pdate::s_now() ;                                     // as late as possible before child starts
+		Pdate         start_job = New ;                                                // as late as possible before child starts
 		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		Status        status    = g_gather_deps.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
 		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job   = Pdate::s_now() ;                                     // as early as possible after child ends
+		Pdate         end_job   = New ;                                                // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
@@ -468,7 +468,7 @@ int main( int argc , char* argv[] ) {
 End :
 	try {
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
-		Pdate        end_overhead = Pdate::s_now()                      ;
+		Pdate        end_overhead = New                                 ;
 		Trace trace("end",end_overhead,end_report.digest.status) ;
 		end_report.digest.stats.total = end_overhead - start_overhead ;                                          // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

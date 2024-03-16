@@ -603,7 +603,7 @@ template<::integral T=size_t> SCI T    lsb_msk (                      uint8_t b 
 template<::integral T=size_t> SCI T    msb_msk ( bool x ,             uint8_t b            ) {                           return (-bit_msk<T>(b)) & -T(x)                    ; }
 template<::integral T=size_t> SCI T    msb_msk (                      uint8_t b            ) {                           return msb_msk<T>(true,b)                          ; }
 template<::integral T       > SCI bool bit     ( T    x ,             uint8_t b            ) {                           return x&(1<<b)                                    ; } // get bit
-template<::integral T       > SCI T    bit     ( T    x ,             uint8_t b   , bool v ) {                           return x&~bit_msk<T>(b) | bit_msk(v,b)             ; } // set bit
+template<::integral T       > SCI T    bit     ( T    x ,             uint8_t b   , bool v ) {                           return (x&~bit_msk<T>(b)) | bit_msk(v,b)           ; } // set bit
 template<::integral T       > SCI T    bits_msk( T    x , uint8_t w , uint8_t lsb          ) { SWEAR(!(x&~lsb_msk(w))) ; return x<<lsb                                      ; }
 template<::integral T=size_t> SCI T    bits_msk(          uint8_t w , uint8_t lsb          ) {                           return bits_msk<T>(lsb_msk(w),w,lsb)               ; }
 template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t lsb          ) {                           return (x>>lsb)&lsb_msk<T>(w)                      ; } // get bits
@@ -905,11 +905,22 @@ static inline void del_env(::string const& name) {
 
 ::string beautify_filename(::string const&) ;
 
-template<::unsigned_integral T> struct SmallIds {
+template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
+	struct NoMutex {
+		void lock  () {}
+		void unlock() {}
+	} ;
+	struct NoLock {
+		NoLock(NoMutex) {}
+	} ;
+	using Mutex = ::conditional_t<ThreadSafe,::mutex             ,NoMutex> ;
+	using Lock  = ::conditional_t<ThreadSafe,::unique_lock<Mutex>,NoLock > ;
 	T acquire() {
-		T res ;
+		T    res  ;
+		Lock lock { _mutex } ;
 		if (!free_ids) {
 			res = n_allocated ;
+			if (n_allocated==::numeric_limits<T>::max()) throw "cannot allocate id"s ;
 			n_allocated++ ;
 			SWEAR(n_allocated) ;        // ensure no overflow
 		} else {
@@ -920,6 +931,7 @@ template<::unsigned_integral T> struct SmallIds {
 	}
 	void release(T id) {
 		if (!id) return ;               // id 0 has not been acquired
+		Lock lock { _mutex } ;
 		SWEAR(!free_ids.contains(id)) ; // else, double release
 		free_ids.insert(id) ;
 	}
@@ -929,6 +941,8 @@ template<::unsigned_integral T> struct SmallIds {
 	}
 	set<T> free_ids    ;
 	T      n_allocated = 1 ;            // dont use id 0 so that it is free to mean "no id"
+private :
+	Mutex _mutex ;
 } ;
 
 static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity

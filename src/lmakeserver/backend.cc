@@ -142,7 +142,7 @@ namespace Backends {
 		}
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
 		JobDigest jd { .status=Status::LateLost } ;                                               // job is still present, must be really lost
-		if (+de.job_exec.start_date.p) jd.stats.total = Pdate::s_now()-de.job_exec.start_date.p ;
+		if (+de.job_exec.start_date.p) jd.stats.total = Pdate(New)-de.job_exec.start_date.p ;
 		_s_handle_job_end( JobRpcReq( JobProc::End , de.seq_id , +de.job_exec , ::move(jd) ) ) ;
 	}
 
@@ -592,8 +592,8 @@ namespace Backends {
 		WrapAround :
 			job = 0 ;
 			Delay d = g_config.heartbeat + g_config.network_delay ;                                          // ensure jobs have had a minimal time to start and signal it
-			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate::s_now() ; continue ; }   // limit job checks
-			else                                        {                                     break    ; }
+			if ((last_wrap_around+d).sleep_until(stop)) { last_wrap_around = Pdate(New) ; continue ; }       // limit job checks
+			else                                        {                                 break    ; }
 		}
 		trace("done") ;
 	}

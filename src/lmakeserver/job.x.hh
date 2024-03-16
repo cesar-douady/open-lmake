@@ -457,7 +457,7 @@ namespace Engine {
 		}
 		if (!n_wait) {
 			if (
-				( req->zombie                              )                                               // zombie's need not check anything
+				( req.zombie()                             )                                               // zombie's need not check anything
 			||	( make_action==MakeAction::GiveUp          )                                               // if not started, no further analysis
 			||	( action==RunAction::Makable && job.sure() )                                               // no need to check deps, they are guaranteed ok if sure
 			) {

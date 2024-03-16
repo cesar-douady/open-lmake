@@ -16,27 +16,25 @@ namespace Engine {
 	// Req
 	//
 
-	SmallIds<ReqIdx > Req::s_small_ids     ;
-	::vector<Req    > Req::s_reqs_by_start ;
-	::mutex           Req::s_reqs_mutex    ;
-	::vector<ReqData> Req::s_store(1)      ;
-	::vector<Req    > Req::_s_reqs_by_eta  ;
+	SmallIds<ReqIdx,true/*ThreadSafe*/>              Req::s_small_ids     ;
+	::vector<Req>                                    Req::s_reqs_by_start ;
+	::mutex                                          Req::s_reqs_mutex    ;
+	::vector<ReqData>                                Req::s_store(1)      ;
+	::vector<Req>                                    Req::_s_reqs_by_eta  ;
+	::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> Req::_s_zombie_tab   = {} ;
 
 	::ostream& operator<<( ::ostream& os , Req const r ) {
 		return os << "Rq(" << int(+r) << ')' ;
 	}
 
-	Req::Req(EngineClosureReq const& ecr) : Base{s_small_ids.acquire()} {
-		SWEAR( +*this<=s_store.size() , +*this , s_store.size() ) ;
-		if (s_store.size()>ReqIdx(-1)) throw to_string("too many requests : ",s_store.size()," > ",ReqIdx(-1)) ;
-		if (+*this>=s_store.size()) {
-			::unique_lock lock{s_reqs_mutex} ;                                                   // emplace_back may reallocate
-			s_store.emplace_back() ;
+	void Req::make(EngineClosureReq const& ecr) {
+		{	::unique_lock lock{s_reqs_mutex} ;                                                   // grow may reallocate
+			grow(s_store,+*this) ;
 		}
 		ReqData& data = **this ;
 		//
 		for( int i=0 ;; i++ ) {                                                                  // try increasing resolution in file name until no conflict
-			::string lcl_log_file = "outputs/"+Pdate::s_now().str(i)     ;
+			::string lcl_log_file = "outputs/"+Pdate(New).str(i)         ;
 			::string log_file     = to_string(AdminDir,'/',lcl_log_file) ;
 			if (is_reg(log_file)) { SWEAR(i<=9,i) ; continue ; }                                 // if conflict, try higher resolution, at ns resolution, it impossible to have a conflict
 			//
@@ -45,8 +43,7 @@ namespace Engine {
 			data.log_stream.open(log_file) ;
 			try         { unlnk(last) ; lnk(last,lcl_log_file) ;                               }
 			catch (...) { exit(Rc::System,"cannot create symlink ",last," to ",lcl_log_file) ; }
-			data.start_ddate = file_date(log_file) ;                                             // use log_file as a date marker
-			data.start_pdate = Pdate::s_now()      ;
+			data.start_date = { file_date(log_file) , New } ;                                    // use log_file as a date marker
 			break ;
 		}
 		//
@@ -60,30 +57,24 @@ namespace Engine {
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
 		//
-		bool close_backend = false ;
 		try {
 			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
 			if (ecr.as_job()) data.job = ecr.job()                                                             ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,Dflag::Static) ) ;
 			Backend::s_open_req( +*this , n_jobs ) ;
-			close_backend = true ;
+			data.has_backend = true ;
 		} catch (::string const& e) {
-			close(close_backend) ;
+			close() ;
 			throw ;
 		}
-		Trace trace("Req",*this,s_n_reqs(),data.start_ddate,data.start_pdate) ;
-	}
-
-	void Req::make() {
-		Job job = (*this)->job ;
-		Trace trace("make",*this,job) ;
+		Trace trace("make",*this,s_n_reqs(),data.start_date,data.job) ;
 		//
-		Job::ReqInfo& jri = job->req_info(*this) ;
+		Job::ReqInfo& jri = data.job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		job->make(jri,RunAction::Status,{}/*JobReason*/,No/*speculate*/) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( Node d : job->deps ) {
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		data.job->make(jri,RunAction::Status,{}/*JobReason*/,No/*speculate*/) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		for( Node d : data.job->deps ) {
 			/**/                       if (!d->done(*this)                   ) continue ;
 			Job j = d->conform_job() ; if (!j                                ) continue ;
 			/**/                       if (j->run_status!=RunStatus::Complete) continue ;
@@ -95,15 +86,15 @@ namespace Engine {
 
 	void Req::kill() {
 		Trace trace("kill",*this) ;
-		(*this)->zombie = true ;
+		SWEAR(zombie()) ;             // zombie has already been set
 		Backend::s_kill_req(+*this) ;
 	}
 
-	void Req::close(bool close_backend) {
-		Trace trace("close",*this,STR(close_backend)) ;
+	void Req::close() {
+		Trace trace("close",*this) ;
 		SWEAR((*this)->is_open()) ;
-		if (!(*this)->zombie) kill() ;                    // in case req is closed before being done
-		if (close_backend) Backend::s_close_req(+*this) ;
+		SWEAR(!(*this)->n_running()) ;
+		if ((*this)->has_backend) Backend::s_close_req(+*this) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
 		Idx n_reqs = s_n_reqs() ;
 		for( Idx i=(*this)->idx_by_start ; i<n_reqs-1 ; i++ ) {
@@ -119,6 +110,7 @@ namespace Engine {
 			_s_reqs_by_eta.pop_back() ;
 		}
 		(*this)->clear() ;
+		zombie(false) ;
 		s_small_ids.release(+*this) ;
 	}
 
@@ -145,7 +137,7 @@ namespace Engine {
 		_adjust_eta() ;
 	}
 	void Req::_adjust_eta(bool push_self) {
-			Pdate now = Pdate::s_now() ;
+			Pdate now = New ;
 			Trace trace("_adjust_eta",now,(*this)->ete) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed = false ;
@@ -282,8 +274,8 @@ namespace Engine {
 		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
 		(*this)->audit_stats() ;
 		(*this)->audit_summary(job_err) ;
-		if ((*this)->zombie) goto Done ;
-		if (!job_err       ) goto Done ;
+		if (zombie()                      ) goto Done ;
+		if (!job_err                      ) goto Done ;
 		if (!job->c_req_info(*this).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(*this)) { _report_cycle(d) ; goto Done ; }
@@ -371,6 +363,7 @@ namespace Engine {
 	::mutex ReqData::_s_audit_mutex ;
 
 	void ReqData::clear() {
+		Trace trace("clear",job) ;
 		SWEAR( !n_running() , n_running() ) ;
 		if ( +job && job->rule->special==Special::Req ) job.pop();
 		*this = {} ;
@@ -398,7 +391,7 @@ namespace Engine {
 			}
 		/**/                                   audit_info( Color::Note , to_string( "useful    time : " , stats.jobs_time[true /*useful*/].short_str()                  ) ) ;
 		if (+stats.jobs_time[false/*useful*/]) audit_info( Color::Note , to_string( "rerun     time : " , stats.jobs_time[false/*useful*/].short_str()                  ) ) ;
-		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate::s_now()-start_pdate)    .short_str()                  ) ) ;
+		/**/                                   audit_info( Color::Note , to_string( "elapsed   time : " , (Pdate(New)-start_date.p)       .short_str()                  ) ) ;
 		if (+options.startup_dir_s           ) audit_info( Color::Note , to_string( "startup   dir  : " , options.startup_dir_s.substr(0,options.startup_dir_s.size()-1)) ) ;
 		//
 		if (+up_to_dates) {

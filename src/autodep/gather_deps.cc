@@ -220,9 +220,9 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 			if (+dd                      ) files.emplace_back( sr.real , dd                 ) ;
 			else                           files.emplace_back( sr.real , file_date(sr.real) ) ;
 		}
-		jerr.date      = Pdate::s_now() ;                                                                  // ensure date is posterior to links encountered while solving
-		jerr.files     = ::move(files)  ;
-		jerr.auto_date = false          ;                                                                  // files are now real and dated
+		jerr.date      = New           ;                                                                   // ensure date is posterior to links encountered while solving
+		jerr.files     = ::move(files) ;
+		jerr.auto_date = false         ;                                                                   // files are now real and dated
 }
 
 Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
@@ -283,7 +283,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 				if (env) { if (env->contains(env_var)) add_env[env_var] += ':' + env->at(env_var) ; }
 				else     { if (has_env      (env_var)) add_env[env_var] += ':' + get_env(env_var) ; }
 			}
-			new_exec( PD::s_now() , args[0] ) ;
+			new_exec( New , args[0] ) ;
 			try {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				child.spawn(
@@ -346,7 +346,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		if (+msg_              ) { set_nl(msg) ; msg += msg_ ; }
 	} ;
 	//
-	if (+timeout            ) end = PD::s_now() + timeout ;
+	if (+timeout            ) end = PD(New) + timeout ;
 	if (cstdout==Child::Pipe) epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ;
 	if (cstderr==Child::Pipe) epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ;
 	/**/                      epoll.add_read(child_fd                 ,Kind::ChildEnd) ;
@@ -354,7 +354,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 	while (epoll.cnt) {
 		uint64_t wait_ns = Epoll::Forever ;
 		if (+end) {
-			PD now = PD::s_now() ;
+			PD now = New ;
 			if (now>=end) {
 				if (!killed) {
 					killed = true ;

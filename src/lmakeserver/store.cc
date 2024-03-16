@@ -106,7 +106,7 @@ namespace Engine::Persistent {
 	// START_OF_VERSIONING
 
 	static void _init_srcs_rules(bool rescue) {
-		Trace trace("_init_srcs_rules",Pdate::s_now()) ;
+		Trace trace("_init_srcs_rules",Pdate(New)) ;
 		::string dir = g_config.local_admin_dir+"/store" ;
 		//
 		mkdir(dir) ;
@@ -141,7 +141,7 @@ namespace Engine::Persistent {
 		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes.insert(n) ;
 		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers .insert(n) ;
 		//
-		trace("done",Pdate::s_now()) ;
+		trace("done",Pdate(New)) ;
 		//
 		if (rescue) {
 			::cerr<<"previous crash detected, checking & rescueing"<<endl ;
@@ -190,7 +190,7 @@ namespace Engine::Persistent {
 	}
 
 	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
-		Trace trace("new_config",Pdate::s_now(),STR(dynamic),STR(rescue)) ;
+		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue)) ;
 		if ( !dynamic                                              ) mkdir( AdminDir+"/outputs"s , true/*multi*/ , true/*unlnk_ok*/ ) ;
 		if ( !dynamic                                              ) _init_config() ;
 		else                                                         SWEAR(g_config.booted,g_config) ; // we must update something
@@ -211,7 +211,7 @@ namespace Engine::Persistent {
 		if (             +d                                        ) _save_config()                   ;
 		if ( !dynamic                                              ) _init_srcs_rules(rescue)         ;
 		if (             +d                                        ) _diff_config(old_config,dynamic) ;
-		trace("done",Pdate::s_now()) ;
+		trace("done",Pdate(New)) ;
 	}
 
 	void repair(::string const& from_dir) {

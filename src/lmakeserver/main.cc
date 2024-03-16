@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"
+#include "core.hh" // must be first to include Python.h first
 
 #include <sys/inotify.h>
 
@@ -27,13 +27,15 @@ ENUM( EventKind
 ,	Watch
 )
 
-static ServerSockFd   _g_server_fd      ;
-static Fd             _g_int_fd         ;          // watch interrupts (^C and hang up)
-static Fd             _g_watch_fd       ;          // watch LMAKE/server
-static bool           _g_is_daemon      = true   ;
-static ::atomic<bool> _g_done           = false  ;
-static bool           _g_server_running = false  ;
-static ::string       _g_host           = host() ;
+static ServerSockFd                                  _g_server_fd      ;
+static Fd                                            _g_int_fd         ;          // watch interrupts (^C and hang up)
+static Fd                                            _g_watch_fd       ;          // watch LMAKE/server
+static bool                                          _g_is_daemon      = true   ;
+static ::atomic<bool>                                _g_done           = false  ;
+static bool                                          _g_server_running = false  ;
+static ::string                                      _g_host           = host() ;
+static ::mutex                                       _g_req_tab_mutex  ;
+static ::umap<Fd/*out*/,pair<Req,bool/*kill_seen*/>> _g_req_tab        ;
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	::ifstream server_mrkr_stream { ServerMrkr } ;
@@ -170,6 +172,10 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case EventKind::Int   : { struct signalfd_siginfo event ; ssize_t cnt = ::read(_g_int_fd  ,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
 						case EventKind::Watch : { struct inotify_event    event ; ssize_t cnt = ::read(_g_watch_fd,&event,sizeof(event)) ; SWEAR( cnt==sizeof(event) , cnt ) ; } break ;
 					DF}
+					for( Req r : Req::s_reqs_by_start ) {
+						trace("all_zombie",r) ;
+						r.zombie(true) ;
+					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace_urgent(GlobalProc::Int) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -180,55 +186,73 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 					try         { if (!in_tab.at(fd).receive_step(fd,rrr)) continue ; }
 					catch (...) { rrr.proc = ReqProc::None ;                          }
 					Fd ofd = kind==EventKind::Std ? out_fd : fd ;
-					trace("req",fd,rrr) ;
-					if (rrr.proc>=ReqProc::HasArgs) {
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					} else {
-						trace("close",fd) ;
-						epoll.del(fd) ;                                                                                   // must precede close(fd)
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace_urgent( ReqProc::Kill , fd , ofd ) ;                                       // this will close ofd when done writing to it
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						in_tab.erase(fd) ;
-					}
+					trace("req",kind,fd,rrr) ;
+					switch (rrr.proc) {
+						case ReqProc::Make   : {
+							::unique_lock lock{_g_req_tab_mutex} ;
+							Req r{New} ;
+							_g_req_tab.emplace(ofd,pair(r,false/*kill_seen*/)) ;
+						trace("make",r) ;
+						} [[fallthrough]] ;
+						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+						case ReqProc::Forget :
+						case ReqProc::Mark   :
+						case ReqProc::Show   :
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						break ;
+						case ReqProc::Kill   :
+						case ReqProc::Close  :
+						case ReqProc::None   : {
+							epoll.del(fd) ;                                                       // must precede close(fd)
+							::unique_lock lock{_g_req_tab_mutex} ;
+							auto it = _g_req_tab.find(ofd) ;
+							trace("eof",ofd) ;
+							if (it!=_g_req_tab.end()) {
+								it->second.first.zombie(true) ;                                   // make req zombie immediately to optimize reaction time
+								trace("zombie",it->second.first) ;
+							}
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							g_engine_queue.emplace_urgent( ReqProc::Kill , fd , ofd ) ;           // this will close ofd when done writing to it
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							in_tab.erase(fd) ;
+						} break ;
+					DF}
 				} break ;
-				default : fail("kind=",kind,"fd=",fd) ;
-			}
+			DF}
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                                                           // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                                   // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = Fd(_g_server_fd.accept()) ;
 			trace("new_req",slave_fd) ;
-			in_tab[slave_fd] ;                                                                                            // allocate entry
+			in_tab[slave_fd] ;                                                                    // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ;
 			report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                                        // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                // ensure engine loop sees we are done
 	trace("done") ;
 }
 
 bool/*interrupted*/ engine_loop() {
 	Trace trace("engine_loop") ;
-	::umap<Fd/*out*/,Req               > req_tab         ;                           // if !entry is true <=> it is zombie, next event (Make, Kill or Close) will erase entry
 	::umap<Req,pair<Fd/*in*/,Fd/*out*/>> fd_tab          ;
-	Pdate                                next_stats_date = Pdate::s_now() ;
+	Pdate                                next_stats_date = New ;
 	for (;;) {
 		bool empty = !g_engine_queue ;
-		if (empty) {                                                                 // we are about to block, do some book-keeping
+		if (empty) {                   // we are about to block, do some book-keeping
 			trace("wait") ;
 			//vvvvvvvvvvvvvvvvv
-			Backend::s_launch() ;                                                    // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
+			Backend::s_launch() ;      // we are going to wait, tell backend as it may have retained jobs to process them with as mauuch info as possible
 			//^^^^^^^^^^^^^^^^^
 		}
-		if ( Pdate now=Pdate::s_now() ; empty || now>next_stats_date ) {
-			for( auto const& [fd,r] : req_tab ) if (+r->audit_fd) r->audit_stats() ; // refresh title
+		if ( Pdate now=New ; empty || now>next_stats_date ) {
+			for( auto const& [fd,rks] : _g_req_tab ) if (+rks.first->audit_fd) rks.first->audit_stats() ; // refresh title
 			next_stats_date = now+Delay(1.) ;
 		}
 		if ( empty && _g_done && !Req::s_n_reqs() && !g_engine_queue ) break ;
@@ -265,71 +289,56 @@ bool/*interrupted*/ engine_loop() {
 					} break ;
 					// Make, Kill and Close management :
 					// there is exactly one Kill and one Close and one Make for each with only one guarantee : Close comes after Make
-					// there is one exception : if Kill comes before Make, no Req is created and we pretend it is directly closed
-					// to do that, we use zombie entries when Req is closed
+					// there is one exception : if already killed when Make is seen, the Req is not made and Make executes as if immediately followed by Close
+					// _g_req_tab entry is already created in the Q thread and is erased upon Close
+					// input  is closed upon Kill  (using shutdown if other side is not closed yet)
+					// output is closed upon Close (using shutdown if other side is not closed yet)
 					case ReqProc::Make : {
-						if ( auto it=req_tab.find(req.out_fd) ; it!=req_tab.end() ) {
-							SWEAR(!it->second) ;                                           // if entry already exists, it was created by Kill and is deemed already closed
-							req_tab.erase(it) ;
-							trace("zombie_req",req) ;
-						} else {
-							Req r ;
-							try {
-								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-								if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
-								r = Req(req) ;
-							} catch(::string const& e) {
-								audit( req.out_fd , req.options , Color::Err , e ) ;
-								OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
-								break ;
-							}
-							if (!req.as_job()) record_targets(r->job) ;
-							req_tab[req.out_fd] = r                      ;
-							fd_tab [r         ] = {req.in_fd,req.out_fd} ;
+						Req r = ( ::unique_lock(_g_req_tab_mutex) , _g_req_tab.at(req.out_fd).first ) ; // avoid locking while we call r.make or we cant set zombie during that time
+						fd_tab[r] = {req.in_fd,req.out_fd} ;
+						if (!r.zombie()) try {                                                          // if already zombie, dont make r
+							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+							if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
 							trace("new_req",req,r) ;
-							//vvvvvv
-							r.make() ;
-							//^^^^^^
+							//vvvvvvvvv
+							r.make(req) ;
+							//^^^^^^^^^
+							if (!req.as_job()) record_targets(r->job) ;
+							break ;                                                                     // make has been successfully called, dont process as Close
+						} catch(::string const& e) {
+							audit( req.out_fd , req.options , Color::Err , e ) ;
+							OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
 						}
-					} break ;
-					case ReqProc::Kill : {
-						auto it = req_tab.find(req.out_fd) ;
-						if (it==req_tab.end()) {
-							trace("kill_new",req) ;
-							req_tab.emplace(req.out_fd,Req()) ;                            // Kill comes before Make, make an empty entry and it will die when Make finally comes
-							/**/                       ::close(req.in_fd ) ;               // nothing comes after a Kill (the Make event is already received, just processed in reversed order)
-							if (req.out_fd!=req.in_fd) ::close(req.out_fd) ;               // no Req will be created, there will be no output
-						} else if (!it->second) {
-							trace("kill_closed",req) ;
-							req_tab.erase(it) ;                                            // entry was closed
-							::close(req.in_fd) ;                                           // nothing comes after a Kill and the write side is already shutdown
-						} else {
-							trace("kill_req",req,it->second) ;
-							//vvvvvvvvvvvvvvv
-							it->second.kill() ;
-							//^^^^^^^^^^^^^^^
-							if (req.in_fd!=req.out_fd) ::close (req.in_fd        ) ;       // nothing comes after a Kill
-							else                       shutdown(req.in_fd,SHUT_RD) ;       // but the write side is stil alive as Req may still have stuff to send
-						}
-					} break ;
+					} [[fallthrough]] ;                                                                 // cannot make, process as if followed by Close
 					case ReqProc::Close : {
-						auto                              fit = fd_tab.find(req.req)     ;
-						::pair<Fd/*in*/,Fd/*out*/> const& fds = fit->second              ;
-						auto                              rit = req_tab.find(fds.second) ;
-						SWEAR(rit!=req_tab.end()) ;                                        // Close comes after a Make and entry exists (possibly a zombie if Kill already came)
-						SWEAR(+rit->second      ) ;                                        // we need to keep Req to do book-keeping
-						Req  r      = rit->second ;
-						bool zombie = r->zombie   ;                                        // fetch before r is closed
-						trace("close_req",req,r,STR(zombie)) ;
-						if (zombie) req_tab.erase(rit) ;                                   // entry was killed
-						else        rit->second = {} ;                                     // entry is yet to be killed
+						::unique_lock                     lock      { _g_req_tab_mutex }          ;
+						auto                              fit       = fd_tab.find(req.req)        ;
+						::pair<Fd/*in*/,Fd/*out*/> const& fds       = fit->second                 ;
+						auto                              rit       = _g_req_tab.find(fds.second) ; SWEAR(rit!=_g_req_tab.end()) ;
+						Req                               r         = rit->second.first           ;
+						bool                              kill_seen = rit->second.second          ;
+						trace("close_req",req,r) ;
+						_g_req_tab.erase(rit) ;
 						//vvvvvvv
 						r.close() ;
 						//^^^^^^^
-						if      (zombie               ) ::close (fds.second        ) ;     // kill already seen, close connection if it is a socket
-						else if (fds.first!=fds.second) ::close (fds.second        ) ;     // input and output are independentm nothing is sent after a close
-						else                            shutdown(fds.second,SHUT_WR) ;     // receive side is still alive as Kill was not received yet
+						if ( kill_seen || fds.first!=fds.second ) ::close   (fds.second        ) ;
+						else                                      ::shutdown(fds.second,SHUT_WR) ;
 						fd_tab.erase(fit) ;
+					} break ;
+					case ReqProc::Kill : {
+						::unique_lock lock { _g_req_tab_mutex } ;
+						if ( auto it=_g_req_tab.find(req.out_fd) ; it!=_g_req_tab.end() ) {
+							Req r = it->second.first ;
+							//       vvvvvvvvvvvvvvvvvvvvvvv
+							if (+*r) it->second.first.kill() ;                                          // else Make has been seen, no need to kill
+							//       ^^^^^^^^^^^^^^^^^^^^^^^
+							it->second.second = true/*seen_kill*/ ;
+							if (req.in_fd!=req.out_fd) ::close   (req.in_fd        ) ;                  // nothing comes after a Kill
+							else                       ::shutdown(req.in_fd,SHUT_RD) ;                  // but the write side must stay alive as Req may still have stuff to send
+						} else {
+							::close(req.in_fd) ;                                                        // Close has already been seen, we are last, close input with a close, even on socket
+						}
 					} break ;
 				DF}
 			} break ;
@@ -430,6 +439,6 @@ int main( int argc , char** argv ) {
 	//                 ^^^^^^^^^^^^^
 	unlnk(g_config.remote_tmp_dir,true/*dir_ok*/) ;                                     // cleanup
 	//
-	trace("done",STR(interrupted),Pdate::s_now()) ;
+	trace("done",STR(interrupted),Pdate(New)) ;
 	return interrupted ;
 }

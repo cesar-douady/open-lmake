@@ -275,7 +275,7 @@ namespace Engine {
 		if (!ri.live_out) return ;
 		Req r = ri.req ;
 		// identify job (with a continue message if no start message), dated as now and with current exec time
-		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate::s_now()-start_date.p) ;
+		if ( !report_start(ri) && r->last_info!=*this ) r->audit_job(Color::HiddenNote,"continue",JobExec(*this,host,{{},New}),false/*at_end*/,Pdate(New)-start_date.p) ;
 		r->last_info = *this ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		r->audit_info(Color::None,txt,0) ;
@@ -391,7 +391,7 @@ namespace Engine {
 						if (crc.valid())
 							target_reason |= {JobReasonTag::ClashTarget,+target} ;     // crc is actually unreliable, rerun
 						if ( target->crc.valid() && !target->is_src_anti() ) {         // existing crc was believed to be reliable but actually was not (if no execution, there is no problem)
-							trace("critical_clash") ;
+							trace("critical_clash",start_date.d,target->date) ;
 							for( Req r : target->reqs() ) {
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 								target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
@@ -580,7 +580,7 @@ namespace Engine {
 		else if (jd.status==Status::Killed         ) { res = JR::Killed    ; color = Color::Note    ; with_stderr = false ;                                    }
 		else if (is_lost(jd.status) && jd.err()    ) { res = JR::LostErr   ; color = Color::Err     ;                       step = "lost_err"                ; }
 		else if (is_lost(jd.status)                ) { res = JR::Lost      ; color = Color::Warning ; with_stderr = false ;                                    }
-		else if (req->zombie                       ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
+		else if (req.zombie()                      ) { res = JR::Completed ; color = Color::Note    ; with_stderr = false ;                                    }
 		else if (jd.err()                          ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
 		else if (modified                          ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
 		else                                         { res = JR::Steady    ; color = Color::Ok      ;                                                          }
@@ -663,7 +663,7 @@ namespace Engine {
 		/**/          reason       = JobReason(ri.force) | reason ;
 		ri.update( run_action , make_action , *this ) ;
 		if (!ri.waiting()) {                                                                           // we may have looped in which case stats update is meaningless and may fail()
-			Trace trace("Jmake",idx(),ri,prev_step,run_action,reason,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers)) ;
+			Trace trace("Jmake",idx(),ri,prev_step,run_action,reason,STR(speculate),STR(stop_speculate),make_action,old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers),STR(req.zombie())) ;
 			bool submit_loop = false ;
 			//
 			if (ri.done(ri.action)) goto Wakeup ;
@@ -898,7 +898,7 @@ namespace Engine {
 			ri.step  = Step::Done           ;
 			ri.done_ = ri.done_ | ri.action ;                                             // cannot use |= with bit fields
 		Wakeup :
-			if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req->zombie ) {
+			if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 				JobAudit const& ja = it->second ;
 				trace("report_missing",ja) ;
 				IFStream job_stream { ancillary_file() }                                      ;
@@ -1214,13 +1214,13 @@ namespace Engine {
 	}
 
 	bool JobData::running(bool with_zombies) const {
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r->zombie) && c_req_info(r).running() ) return true ;
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running() ) return true ;
 		return false ;
 	}
 
-	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                          // sorted by start
-		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                  // pessimistic, so no realloc
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r->zombie) && c_req_info(r).running() ) res.push_back(r) ;
+	::vector<Req> JobData::running_reqs(bool with_zombies) const {                                                           // sorted by start
+		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                   // pessimistic, so no realloc
+		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running() ) res.push_back(r) ;
 		return res ;
 	}
 

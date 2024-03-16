@@ -202,7 +202,7 @@ namespace Backends {
 	inline ::pair_s<HeartbeatState> Backend::s_heartbeat( Tag t , JobIdx j            ) { SWEAR(!_s_mutex.try_lock()) ; Trace trace(BeChnl,"s_heartbeat",t,j) ; return s_tab[+t]->heartbeat(j  ) ; }
 
 	inline bool Backend::StartEntry::useful() const {
-		for( Req r : reqs ) if (!r->zombie) return true ;
+		for( Req r : reqs ) if (!r.zombie()) return true ;
 		return false ;
 	}
 }

@@ -29,9 +29,9 @@ static bool server_ok( Fd fd , ::string const& tag ) {
 static void connect_to_server(bool refresh) {
 	Trace trace("connect_to_server",STR(refresh)) ;
 	::string server_service  ;
-	bool     server_is_local = false          ;
-	pid_t    server_pid      = 0              ;
-	Pdate    now             = Pdate::s_now() ;
+	bool     server_is_local = false ;
+	pid_t    server_pid      = 0     ;
+	Pdate    now             = New   ;
 	for ( int i=0 ; i<3 ; i++ ) {
 		trace("try_old",i) ;
 		// try to connect to an existing server

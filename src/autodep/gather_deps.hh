@@ -83,7 +83,7 @@ private :
 	}
 	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
 		Trace trace("_codec",jrr) ;
-		_new_access( sr.fd , PD::s_now() , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , Yes/*confirm*/ , comment ) ;
+		_new_access( sr.fd , PD(New) , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , Yes/*confirm*/ , comment ) ;
 	}
 public : //!                                                                                    phony_ok                        crc_date confirm
 	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,       ::copy(t),{.write=Yes  },{}     ,Yes   ,c) ; }

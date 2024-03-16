@@ -789,7 +789,7 @@ public :
 	bool         no_follow = false                     ; // if auto_date, whether links should not be followed
 	Bool3        confirm   = Yes                       ; // if proc==Access|Confirm
 	uint8_t      min_len   = 0                         ; // if proc==Encode
-	PD           date      = PD::s_now()               ; // access date to reorder accesses during analysis
+	PD           date      = New                       ; // access date to reorder accesses during analysis
 	::string     cwd       ;                             // if auto_date, cwd to use to solve files
 	::vmap_s<DD> files     ;
 	AccessDigest digest    ;

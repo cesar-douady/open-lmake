@@ -100,7 +100,7 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , int n_trials , D
 	bool  too_late = false ;
 	for( int i=n_trials ; i>0 ; i-- ) {
 		if (+timeout) {
-			Pdate now = Pdate::s_now() ;
+			Pdate now = New ;
 			if (!end    )   end = now + timeout ;
 			if (now>=end) { too_late = true ; break ; }                                        // this cannot happen on first iteration, so we are guaranteed to try at least once
 			Pdate::TimeVal to ( end-now ) ;

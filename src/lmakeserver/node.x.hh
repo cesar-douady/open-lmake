@@ -399,7 +399,7 @@ namespace Engine {
 		}
 		if (run_action>action) action = run_action ;                                                          // increasing action requires to reset checks
 		if (n_wait) return ;
-		if      ( req->zombie                                                  ) done_ = RunAction::Dsk     ;
+		if      ( req.zombie()                                                 ) done_ = RunAction::Dsk     ;
 		else if ( node.buildable>=Buildable::Yes && action==RunAction::Makable ) done_ = RunAction::Makable ;
 	}
 
