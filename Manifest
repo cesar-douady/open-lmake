@@ -233,3 +233,4 @@ unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
 unit_tests/wide.py
+unit_tests/wine.py

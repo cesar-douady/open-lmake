@@ -328,7 +328,7 @@ R"({
 			if (a.tag==FileActionTag::Uniquify) {
 				append_to_string( script ,
 					"uniquify() {\n"
-					"\tif [ -f \"$1\" -a $(stat -c%h \"$1\" 2>/dev/null||echo 0) -gt 0 ] ; then\n"
+					"\tif [ -f \"$1\" -a $(stat -c%h \"$1\" 2>/dev/null||echo 0) -gt 1 ] ; then\n"
 					"\t\techo warning : uniquify \"$1\"\n"
 					"\t\tmv \"$1\" \"$1.$$\" ; cp -p \"$1.$$\" \"$1\" ; rm -f \"$1.$$\"\n"
 					"\tfi\n"

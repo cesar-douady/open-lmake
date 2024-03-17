@@ -365,7 +365,11 @@ namespace Engine {
 		//
 		if ( !lost && status>Status::Early ) { // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job().clear() ; // ensure targets we no more generate do not keep pointing to us
+			::uset<Node> from_here ;
+			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) {
+				t->actual_job().clear() ;                                                              // ensure targets we no more generate do not keep pointing to us
+				from_here.insert(t)     ;
+			}
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
@@ -375,12 +379,13 @@ namespace Engine {
 				Crc    crc             = td.crc                 ;
 				bool   target_modified = false                  ;
 				//
-				SWEAR( !( tflags[Tflag::Target] && crc==Crc::None && !static_phony ) , tn , td ) ;   // else job_exec should have suppressed the Target flag
+				SWEAR( !( tflags[Tflag::Target] && crc==Crc::None && !static_phony ) , tn , td ) ;     // else job_exec should have suppressed the Target flag
 				//
 				target->set_buildable() ;
 				//
 				if (+crc) {
-					if ( +start_date.d && target->date>start_date.d ) {                // if no start_date.d, job did not execute, it cannot generate a clash
+					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
+					if ( +start_date.d && target->date>start_date.d && !from_here.contains(target) ) { // if no start_date.d, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
