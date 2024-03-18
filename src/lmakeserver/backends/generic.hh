@@ -270,7 +270,8 @@ namespace Backends {
 			//
 			if (digest.second!=HeartbeatState::Alive) {
 				Trace trace("heartbeat",j,se.id) ;
-				spawned_jobs.erase(it) ;
+				/**/                       spawned_jobs  .erase(it) ;
+				for( auto& [r,re] : reqs ) re.queued_jobs.erase(j ) ;
 			}
 			return digest ;
 		}
