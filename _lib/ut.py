@@ -14,10 +14,10 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 
 	try :
 
-		cmd         = ('lmake',*args)
+		cmd = ('lmake',*args)
 		print()
 		print( '+ ' + ' '.join(cmd) )
-		proc        = sp.run( cmd , universal_newlines=True , stdin=None , stdout=sp.PIPE )
+		proc = sp.run( cmd , universal_newlines=True , stdin=None , stdout=sp.PIPE )
 		print(proc.stdout,end='',flush=True)
 		if proc.returncode!=rc : raise RuntimeError(f'bad return code {proc.returncode} != {rc}')
 		sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )

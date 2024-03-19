@@ -84,9 +84,12 @@ template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
 	static void s_serdes( ::istream& is , T      & x ) { char buf[sizeof(x)] ; is.read ( buf                                         , sizeof(x) ) ; x = bit_cast<T>(buf) ; }
 } ;
 
+// /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+// uint32_t is already very comfortable, no need to use 64 bits for lengths
+
 template<> struct Serdeser<::string> {
-	static void s_serdes( ::ostream& os , ::string const& s ) { size_t sz=s.size() ; serdes(os,sz) ;                os.write( s.data() , sz ) ; }
-	static void s_serdes( ::istream& is , ::string      & s ) { size_t sz          ; serdes(is,sz) ; s.resize(sz) ; is.read ( s.data() , sz ) ; }
+	static void s_serdes( ::ostream& os , ::string const& s ) { uint32_t sz=s.size() ; serdes(os,sz) ;                os.write(s.data(),sz) ; }
+	static void s_serdes( ::istream& is , ::string      & s ) { uint32_t sz          ; serdes(is,sz) ; s.resize(sz) ; is.read (s.data(),sz) ; }
 } ;
 
 template<class T,size_t N> struct Serdeser<T[N]> {
@@ -100,28 +103,28 @@ template<class T,size_t N> struct Serdeser<::array<T,N>> {
 } ;
 
 template<class T> struct Serdeser<::vector<T>> {
-	static void s_serdes( ::ostream& os , ::vector<T> const& v ) {             serdes(os,v.size()) ;                for( T const& x : v ) serdes(os,x) ; }
-	static void s_serdes( ::istream& is , ::vector<T>      & v ) { size_t sz ; serdes(is,sz      ) ; v.resize(sz) ; for( T      & x : v ) serdes(is,x) ; }
+	static void s_serdes( ::ostream& os , ::vector<T> const& v ) { uint32_t sz=v.size() ; serdes(os,sz) ;                for( T const& x : v ) serdes(os,x) ; }
+	static void s_serdes( ::istream& is , ::vector<T>      & v ) { uint32_t sz          ; serdes(is,sz) ; v.resize(sz) ; for( T      & x : v ) serdes(is,x) ; }
 } ;
 
 template<class T> struct Serdeser<::set<T>> {
-	static void s_serdes( ::ostream& os , ::set<T> const& s ) {             serdes(os,s.size()) ;             for( T const& x : s          )         serdes(os,x) ;                 }
-	static void s_serdes( ::istream& is , ::set<T>      & s ) { size_t sz ; serdes(is,sz      ) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
+	static void s_serdes( ::ostream& os , ::set<T> const& s ) { uint32_t sz=s.size() ; serdes(os,sz) ;             for( T const& x : s          )         serdes(os,x) ;                 }
+	static void s_serdes( ::istream& is , ::set<T>      & s ) { uint32_t sz          ; serdes(is,sz) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
 } ;
 
 template<class T> struct Serdeser<::uset<T>> {
-	static void s_serdes( ::ostream& os , ::uset<T> const& s ) {             serdes(os,s.size()) ;             for( T const& x : s          )         serdes(os,x) ;                 }
-	static void s_serdes( ::istream& is , ::uset<T>      & s ) { size_t sz ; serdes(is,sz      ) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
+	static void s_serdes( ::ostream& os , ::uset<T> const& s ) { uint32_t sz=s.size() ; serdes(os,sz) ;             for( T const& x : s          )         serdes(os,x) ;                 }
+	static void s_serdes( ::istream& is , ::uset<T>      & s ) { uint32_t sz          ; serdes(is,sz) ; s.clear() ; for( size_t i=0 ; i<sz ; i++ ) { T x ; serdes(is,x) ; s.insert(x) ; } }
 } ;
 
 template<class K,class V> struct Serdeser<::map<K,V>> {
-	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) {             serdes(os,m.size()) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::map<K,V> const& m ) { uint32_t sz=m.size() ; serdes(os,sz) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
+	static void s_serdes( ::istream& is , ::map<K,V>      & m ) { uint32_t sz          ; serdes(is,sz) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
 } ;
 
 template<class K,class V> struct Serdeser<::umap<K,V>> {
-	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) {             serdes(os,m.size()) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
-	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { size_t sz ; serdes(is,sz      ) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
+	static void s_serdes( ::ostream& os , ::umap<K,V> const& m ) { uint32_t sz=m.size() ; serdes(os,sz) ;             for( auto const& p : m       )                   serdes(os,p) ;                 }
+	static void s_serdes( ::istream& is , ::umap<K,V>      & m ) { uint32_t sz          ; serdes(is,sz) ; m.clear() ; for( size_t i=0 ; i<sz ; i++ ) { ::pair<K,V> p ; serdes(is,p) ; m.insert(p) ; } }
 } ;
 
 template<class T,class U> struct Serdeser<::pair<T,U>> {

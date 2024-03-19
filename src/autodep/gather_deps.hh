@@ -35,27 +35,25 @@ struct GatherDeps {
 		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
-		// accesses
-		bool is_dep() const { return digest.write==No ; }
 		// services
 		void update( PD , bool phony_ok_ , AccessDigest , CD const& , Bool3 confirm , NodeIdx parallel_id_ ) ;
 		//
 		void chk() const ;
 		// data
-		PD           first_read        ;         // if +digest.accesses , first access date
-		PD           first_write       ;         // if  digest.write!=No, first write/unlink date
-		PD           last_write        ;         // if  digest.write!=No, last  write/unlink date (always confirmed)
-		CD           crc_date          ;         // state when first read
+		PD           first_read        ;               // if +digest.accesses , first access date
+		PD           first_write       ;               // if  digest.write!=No, first write/unlink date
+		PD           last_write        ;               // if  digest.write!=No, last  write/unlink date (always confirmed)
+		CD           crc_date          ;               // state when first read
 		AccessDigest digest            ;
 		NodeIdx      parallel_id       = 0     ;
-		bool         phony_ok       :1 = false ; // if false <=> prevent phony flag so as to hide washing to user
-		bool         first_confirmed:1 = false ; // if digest.write!=No, first write is confirmed
-		bool         last_confirmed :1 = false ; // if digest.write!=No, last  write is confirmed (for user report only)
-		bool         seen           :1 = false ; // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
-	} ;                                          // ... then is read again, then unlinked (if fugitive state is not recorded, everything looks as if file never existed)
+		bool         phony_ok       :1 = false ;       // if false <=> prevent phony flag so as to hide washing to user
+		bool         first_confirmed:1 = false ;       // if digest.write!=No, first write is confirmed
+		bool         last_confirmed :1 = false ;       // if digest.write!=No, last  write is confirmed (for user report only)
+		bool         seen           :1 = false ;       // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
+	} ;                                                // ... then is read again, then unlinked (if fugitive state is not recorded, everything looks as if file never existed)
 	struct ServerReply {
-		IMsgBuf  buf        ;                    // buf to assemble the reply
-		Fd       fd         ;                    // fd to forward reply to
+		IMsgBuf  buf        ;                          // buf to assemble the reply
+		Fd       fd         ;                          // fd to forward reply to
 		::string codec_file ;
 	} ;
 	// cxtors & casts
@@ -77,7 +75,7 @@ private :
 		parallel_id++ ;
 		for( auto& [f,dd] : jerr.files ) _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.confirm , jerr.txt ) ;
 	}
-	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) {                                                            // fd for trace purpose only
+	void _new_guards( Fd fd , JobExecRpcReq&& jerr ) { // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
@@ -101,7 +99,7 @@ public : //!                                                                    
 	//
 	bool/*done*/ kill(int sig=-1) ;                                                                               // is sig==-1, use best effort to kill job
 	//
-	void reorder() ;                                                                                              // reorder accesses by first read access
+	void reorder(bool at_end) ;                                                                                   // reorder accesses by first read access and suppress superfluous accesses
 	// data
 	::function<Fd/*reply*/(JobExecRpcReq     &&)> server_cb    = [](JobExecRpcReq     &&)->Fd   { return {} ; } ; // function to contact server when necessary, return error by default
 	::function<void       (::string_view const&)> live_out_cb  = [](::string_view const&)->void {             } ; // function to report live output, dont report by default

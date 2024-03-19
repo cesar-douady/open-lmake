@@ -319,7 +319,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		bool     sync_      = jerr.sync         ;                                                                                   // .
 		::string codec_file ;
 		switch (proc) {
-			case Proc::ChkDeps  : reorder() ;                                                                               break ; // ensure server sees a coherent view
+			case Proc::ChkDeps  : reorder(false/*at_end*/) ;                                                                break ; // ensure server sees a coherent view
 			case Proc::DepInfos : _new_accesses(fd,::copy(jerr)) ;                                                          break ;
 			case Proc::Decode   : codec_file = Codec::mk_decode_node( jerr.files[0].first/*file*/ , jerr.ctx , jerr.txt ) ; break ;
 			case Proc::Encode   : codec_file = Codec::mk_encode_node( jerr.files[0].first/*file*/ , jerr.ctx , jerr.txt ) ; break ;
@@ -468,51 +468,51 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		}
 	}
 	trace("done") ;
-	reorder() ;                                                                                                               // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                                 // ensure server sees a coherent view
 	return status ;
 }
 
-void GatherDeps::reorder() {
+// reorder accesses in chronological order and suppress implied dependencies :
+// - when a file is depended upon, its uphill directories are implicitely depended upon, no need to keep them and this significantly decreases the number of deps
+// - suppress dir when one of its sub-files appear before
+// - suppress dir when one of its sub-files appear immediately after
+void GatherDeps::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
-	::stable_sort(                                   // reorder by date, keeping parallel entries together (which must have the same date)
+	::stable_sort(                                                                                          // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
 			return ::pair(a.second.first_read,a.second.parallel_id) < ::pair(b.second.first_read,b.second.parallel_id) ;
 		}
 	) ;
-	// first pass : note stat accesses that are directories of immediately following file accesses as these are already implicit deps (through Uphill rule)
-	::uset<size_t> to_del ;
-	size_t         last   = Npos ;                   // XXX : replace with a vector to manage parallel deps
-	for( size_t i1=accesses.size() ; i1>0 ; i1-- ) {
-		size_t      i           = i1-1        ;
-		auto const& [file,info] = accesses[i] ;
-		if      ( !info.is_dep()                                                                      ) last = Npos ;
-		else if ( last==Npos                                                                          ) last = i    ;
-		else if ( info.digest.accesses!=Access::Stat                                                  ) last = i    ;
-		else if (!( accesses[last].first.starts_with(file) && accesses[last].first[file.size()]=='/' )) last = i    ;
-		else                                                                                            to_del.insert(i) ;
+	// first pass (backward) : note dirs of immediately following files
+	::string const* last = nullptr ;
+	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {                                         // XXX : manage parallel deps
+		::string const& file   = it->first         ;
+		::AccessDigest& digest = it->second.digest ;
+		if (
+			last
+		&&	( digest.write==No        && !digest.dflags            )
+		&&	( last->starts_with(file) && (*last)[file.size()]=='/' )
+		)    digest.accesses = {}    ;                                                                      // keep original last which is better
+		else last            = &file ;
 	}
-	// second pass : suppress stat accesses that are directories of seen files as these are already implicit deps (through Uphill rule)
-	::uset_s dirs ;
-	size_t   n    = 0     ;
-	bool     cpy  = false ;
-	for( size_t i=0 ; i<accesses.size() ; i++ ) {
-		auto const& [file,info] = accesses[i] ;
-		if (to_del.contains(i)) { trace("skip_from_next",file) ; goto Skip ; }
-		if ( info.is_dep() ) {
-			if ( info.digest.accesses==Access::Stat && dirs.contains(file) ) { trace("skip_from_prev",file) ; goto Skip ; } // as soon as an entry is removed, we must copy the following ones
-			for( ::string dir=dir_name(file) ; +dir ; dir=dir_name(dir) )
-				if (!dirs.insert(dir).second) break ;                                                                       // all uphill dirs are already inserted if a dir has been inserted
+	// second pass : suppress dirs of seen files and previously noted dirs
+	::uset_s dirs  ;
+	size_t   i_dst = 0     ;
+	bool     cpy   = false ;
+	for( auto& access : accesses ) {
+		::string const& file   = access.first         ;
+		::AccessDigest& digest = access.second.digest ;
+		if ( digest.write==No && !digest.dflags ) {
+			if (!digest.accesses   ) { trace("skip_from_next",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
+			if (dirs.contains(file)) { trace("skip_from_prev",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
 		}
-		if (cpy) accesses[n] = ::move(accesses[i]) ;
-		n++ ;
-		continue ;
-	Skip :
-		cpy = true ;
+		for( ::string dir=dir_name(file) ; +dir ; dir=dir_name(dir) ) if (!dirs.insert(dir).second) break ; // all uphill dirs are already inserted if a dir has been inserted
+		if (cpy) accesses[i_dst] = ::move(access) ;
+		i_dst++ ;
 	}
-	accesses.resize(n) ;
-	// recompute access_map
-	if (cpy) access_map.clear() ;                                                    // fast path : no need to clear if all elements will be refreshed
-	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map[accesses[i].first] = i ; // reconstruct access_map as reorder may be called during execution (DepInfos or ChkDeps)
+	accesses.resize(i_dst) ;
+	if (at_end) access_map.clear() ;                                                                        // safer not to leave outdated info
+	else        for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;         // always recompute access_map as accesses has been sorted
 }

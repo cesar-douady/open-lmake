@@ -4,6 +4,8 @@ Priority: optional
 Maintainer: Cesar Douady <cesar.douady@doliam.fr>
 Build-Depends:
  debhelper-compat (= 13),
+ ed,
+ texinfo,
  python3,
  libslurm-dev,
  libseccomp-dev

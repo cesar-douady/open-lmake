@@ -135,13 +135,13 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
-		{	::unique_lock lock { _s_mutex }                      ;                                // lock _s_start_tab for minimal time to avoid dead-locks
+		{	::unique_lock lock { _s_mutex }                      ;                            // lock _s_start_tab for minimal time to avoid dead-locks
 			auto          it   = _s_start_tab.find(+de.job_exec) ;
-			if (it==_s_start_tab.end()           ) return ;                                       // too late, job has ended
-			if (it->second.conn.seq_id!=de.seq_id) return ;                                       // too late, job has ended and restarted
+			if (it==_s_start_tab.end()           ) return ;                                   // too late, job has ended
+			if (it->second.conn.seq_id!=de.seq_id) return ;                                   // too late, job has ended and restarted
 		}
 		Trace trace(BeChnl,"_s_handle_deferred_wakeup",de) ;
-		JobDigest jd { .status=Status::LateLost } ;                                               // job is still present, must be really lost
+		JobDigest jd { .status=Status::LateLost } ;                                           // job is still present, must be really lost
 		if (+de.job_exec.start_date.p) jd.stats.total = Pdate(New)-de.job_exec.start_date.p ;
 		_s_handle_job_end( JobRpcReq( JobProc::End , de.seq_id , +de.job_exec , ::move(jd) ) ) ;
 	}
@@ -316,7 +316,7 @@ namespace Backends {
 				for( Req r : entry.reqs )
 					// to be sure, we should check done(Dsk) rather than done(Status), but we do not seek security here, we seek perf (real check will be done at end of job)
 					// and most of the time, done(Status) implies file is ok, and we have less false positive as we do not have the opportunity to fully assess sources
-					if (!Node(dn)->done(r,RunAction::Status)) { dep_ready = false ; goto EarlyEnd ; }
+					if (!Node(dn)->done(r,NodeGoal::Status)) { dep_ready = false ; goto EarlyEnd ; }
 			if (step<5) {
 			EarlyEnd :
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -528,8 +528,8 @@ namespace Backends {
 		Pdate  last_wrap_around{New} ;
 		//
 		StartEntry::Conn         conn         ;
-		::pair_s<HeartbeatState> lost_report  = {}         /*garbage*/ ;
-		Status                   status       = Status::New/*garbage*/ ;
+		::pair_s<HeartbeatState> lost_report  = {}/*garbage*/ ;
+		Status                   status       = {}/*garbage*/ ;
 		Pdate                    eta          ;
 		::vmap_ss                rsrcs        ;
 		SubmitAttrs              submit_attrs ;
@@ -544,8 +544,8 @@ namespace Backends {
 				//
 				if (!entry    )                      continue ;                                              // not a real entry                        ==> no check, no wait
 				if (!entry.old) { entry.old = true ; continue ; }                                            // entry is too new, wait until next round ==> no check, no wait
-				conn       = entry.conn       ;
 				start_date = entry.start_date ;
+				conn       = entry.conn       ;
 				if (+start_date.p) goto Wakeup ;
 				lost_report = s_heartbeat(entry.tag,job) ;
 				if (lost_report.second==HeartbeatState::Alive) goto Next ;                                   // job is still alive

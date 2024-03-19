@@ -25,13 +25,18 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* avoid memory fragmentation
+	- in vector file, when shrinking, do not split large chunks into smaller chunks
+	- reallocate smaller chunk and copy
+	- else if vector size oscillate between 2 chunk sizes, we keep allocating larger chunks instead of reuse
+* manage 32 bits executables
+	- compile ld_audit.so (and co) in both 32 & 64 bits
+	- put adequate $PLATFORM in LD_PRELOAD
+* use Pdate (end of job) rather than Ddate (target date) to detect clash
+	- Ddate are not reliable
+	- ok to detect manual, nothing else
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
-? add used field in NodeReqInfo
-	- to decrease the probability of critical clash
-	- set a dependent job is done (hence no further analysis)
-	- used when evaluating if a clash is critical : it is critical if already used
-	- but requires a second pass on deps in Job::make when done is set, which impacts perf
 ? mimic slurm killing procedure
 	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
 	- follow process hierarchy

@@ -14,21 +14,24 @@ ENUM( AncillaryTag
 ,	KeepTmp
 )
 
-ENUM_1( JobMakeAction
-,	None              //                           trigger analysis from dependent
-,	End               // if >=End => job is ended, job has completed
-,	GiveUp            //                           job has completed and no further analysis
-,	Wakeup            //                           a watched dep is available
+ENUM( JobMakeAction
+,	Wakeup          // waited nodes are available
+,	Makable         // job makability is available
+,	Status          // target crcs are available
+,	End             // job has completed
+,	GiveUp          // job is abandonned, because of error or ^C
 )
 
-ENUM( JobStep // must be in chronological order
-,	None      // no analysis done yet (not in stats)
-,	Dep       // analyzing deps
-,	Queued    // waiting for execution
-,	Exec      // executing
-,	Done      // done execution
-,	End       // job execution just ended (not in stats)
-,	Hit       // cache hit
+ENUM_3( JobStep       // must be in chronological order
+,	MinCurStats =Dep
+,	MaxCurStats1=Done
+,	End         =Dep  // value to which step is set at end of execution to distinguish from an actively running job
+,	None              // no analysis done yet (not in stats)
+,	Dep               // analyzing deps
+,	Queued            // waiting for execution
+,	Exec              // executing
+,	Done              // done execution (or impossible to execute)
+,	Hit               // cache hit
 )
 
 ENUM( MissingAudit
@@ -37,14 +40,11 @@ ENUM( MissingAudit
 ,	Modified
 )
 
-ENUM_1( RunStatus
-,	Err = TargetErr // >=Err means job is in error before even starting
-,	Complete        // job was run
-,	NoDep           // job was not run because of missing static dep
-,	NoFile          // job was not run because it is a missing file in a source dir
-,	TargetErr       // job was not run because of a manual static target
-,	DepErr          // job was not run because of dep error
-,	RsrcsErr        // job was not run because of resources could not be computed
+ENUM( RunStatus
+,	Ok
+,	DepErr        // job cannot run because some deps are in error
+,	MissingStatic // job cannot run because missing static dep
+,	Err           // job cannot run because an error was seen before even starting
 )
 
 ENUM( SpecialStep // ordered by increasing importance
@@ -70,6 +70,18 @@ namespace Engine {
 #endif
 #ifdef STRUCT_DEF
 
+inline NodeGoal mk_goal(JobMakeAction ma) {
+	static constexpr NodeGoal s_tab[] {
+		NodeGoal::None                  // Wakeup
+	,	NodeGoal::Makable               // Makable
+	,	NodeGoal::Status                // Status
+	,	NodeGoal::Status                // End
+	,	NodeGoal::None                  // GiveUp
+	} ;
+	static_assert(sizeof(s_tab)==N<JobMakeAction>*sizeof(NodeGoal)) ;
+	return s_tab[+ma] ;
+}
+
 namespace Engine {
 
 	struct Job : JobBase {
@@ -78,6 +90,7 @@ namespace Engine {
 		//
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
+		using Step       = JobStep       ;
 		// cxtors & casts
 		using JobBase::JobBase ;
 		Job( Rule::SimpleMatch&&          , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
@@ -166,39 +179,57 @@ namespace Engine {
 		using ReqInfo::ReqInfo ;
 		// accesses
 		bool running() const {
-			switch (step) {
+			switch (step()) {
 				case Step::Queued :
 				case Step::Exec   : return true  ;
 				default           : return false ;
 			}
 		}
+		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
+		//
+		Step step(      ) const { return _step ; }
+		void step(Step s) ;
 		// services
-		void update( RunAction , MakeAction , JobData const& ) ;
-		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) { ReqInfo::add_watcher(watcher,watcher_req_info) ; }
-		void mark_end() ;
+		void reset() {
+			if (step()>Step::Dep) step(Step::Dep) ;
+			missing_dsk                 = false ;
+			dep_lvl                     = 0     ;
+			stamped_err   = proto_err   = {}    ;                        // no errors in dep as no dep analyzed yet
+			stamped_modif = proto_modif = false ;
+		}
+		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
+			ReqInfo::add_watcher(watcher,watcher_req_info) ;
+		}
 		void chk() const {
-			switch (step) {
+			switch (step()) {
 				case Step::None   : SWEAR(n_wait==0) ; break ;           // not started yet, cannot wait anything
 				case Step::Dep    : SWEAR(n_wait> 0) ; break ;           // we must be waiting something if analysing Dep
 				case Step::Queued :                                      // if running, we are waiting for job execution
 				case Step::Exec   : SWEAR(n_wait==1) ; break ;           // .
 				case Step::Done   :                                      // done, cannot wait anything anymore
-				case Step::End    :
 				case Step::Hit    : SWEAR(n_wait==0) ; break ;
 			DF}
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		NodeIdx      dep_lvl            = 0     ;                        // ~20<=32 bits
+		JobReason    reason             ;                                //  36<=64 bits, reason to run job when deps are ready
+		NodeIdx      dep_lvl            = 0     ;                        // ~20<=32 bits, deps up to this one statisfy required action
 		uint8_t      n_submits          = 0     ;                        //       8 bits, number of times job has been submitted to avoid infinite loop
-		Step         step            :3 = {}    ;                        //       3 bits
-		JobReasonTag force           :5 = {}    ;                        //       5 bits
-		BackendTag   backend         :2 = {}    ;                        //       2 bits
+		bool         new_cmd         :1 = false ;                        //       1 bit , if true <=> cmd has been modified
+		bool         full            :1 = false ;                        //       1 bit , if true <=>, job result is asked, else only makable
+		bool         missing_dsk     :1 = false ;                        //       1 bit , if true <=>, a dep has been checked but not on disk
+		RunStatus    stamped_err     :2 = {}    ;                        //       2 bits, errors seen in dep until dep_lvl before    last parallel chunk, Maybe means missing static
+		RunStatus    proto_err       :2 = {}    ;                        //       2 bits, errors seen in dep until dep_lvl including last parallel chunk, Maybe means missing static
+		bool         stamped_modif   :1 = false ;                        //       1 bit , modifs seen in dep until dep_lvl before    last parallel chunk
+		bool         proto_modif     :1 = false ;                        //       1 bit , modifs seen in dep until dep_lvl including last parallel chunk
 		bool         start_reported  :1 = false ;                        //       1 bit , if true <=> start message has been reported to user
 		bool         speculative_deps:1 = false ;                        //       1 bit , if true <=> job is waiting for speculative deps only
-		Bool3        speculate       :2 = Yes   ;                        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		Bool3        speculate       :2 = Yes   ;                        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		BackendTag   backend         :2 = {}    ;                        //       2 bits
+	private :
+		Step _step :3 = {} ;                                             //       3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==24) ;                              // check expected size
+	static_assert(sizeof(JobReqInfo)==32) ;                              // check expected size
 
 }
 
@@ -264,44 +295,47 @@ namespace Engine {
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
 		bool err() const {
-				if (run_status>=RunStatus::Err     ) return true               ;
-				if (run_status!=RunStatus::Complete) return false              ;
-				else                                 return is_ok(status)!=Yes ;
+			switch (run_status) {
+				case RunStatus::Ok            : return is_ok(status)!=Yes ;
+				case RunStatus::DepErr        : return true               ;
+				case RunStatus::MissingStatic : return false              ;
+				case RunStatus::Err           : return true               ;
+			DF}
 		}
-		bool missing() const { return run_status<RunStatus::Err && run_status!=RunStatus::Complete ; }
+		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services
 		::pair<vmap<Node,FileAction>,vector<Node>/*warn_unlnk*/> pre_actions( Rule::SimpleMatch const& , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                               ) const ;                                         // thread-safe
+		void     end_exec      (                               ) const ;            // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
 		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;                                         // cannot declare a default value for incomplete type Node
+		::string special_stderr(                               ) const ;            // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
-		Rule::SimpleMatch simple_match  () const ;                                                               // thread-safe
+		Rule::SimpleMatch simple_match  () const ;                                  // thread-safe
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                                  // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;     // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.done() && err() ) audit_end("was_",ri) ;
 			_propag_speculate(ri) ;
 		}
 		//
-		JobReason make( ReqInfo& , RunAction , JobReason={} , Bool3 speculate=Yes , MakeAction=MakeAction::None , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		::pair<JobReason,bool/*wakeup*/> make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
-		void make( ReqInfo& ri , MakeAction ma ) { make(ri,RunAction::None,{}/*reason*/,Yes/*speculate*/,ma) ; } // for wakeup
+		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ;                              // modified=Maybe means file is new
-		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ;                              // cannot use default Node={} as Node is incomplete
+		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ; // modified=Maybe means file is new
+		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ; // cannot use default Node={} as Node is incomplete
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
@@ -312,21 +346,21 @@ namespace Engine {
 		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
 	public :
-		//Name           name                     ;                                                              //     32 bits, inherited
-		Node             asking                   ;                                                              //     32 bits,        last target needing this job
-		Targets          targets                  ;                                                              //     32 bits, owned, for plain jobs
-		Deps             deps                     ;                                                              // 31<=32 bits, owned
-		Rule             rule                     ;                                                              //     16 bits,        can be retrieved from full_name, but would be slower
-		CoarseDelay      exec_time                ;                                                              //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0                   ;                                        //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0                   ;                                        //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0                   ;                                        //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
-		RunStatus        run_status:3             = RunStatus::Complete ;                                        //      3 bits
-		Status           status    :4             = Status   ::New      ;                                        //      4 bits
+		//Name           name                     ;                                 //     32 bits, inherited
+		Node             asking                   ;                                 //     32 bits,        last target needing this job
+		Targets          targets                  ;                                 //     32 bits, owned, for plain jobs
+		Deps             deps                     ;                                 // 31<=32 bits, owned
+		Rule             rule                     ;                                 //     16 bits,        can be retrieved from full_name, but would be slower
+		CoarseDelay      exec_time                ;                                 //     16 bits,        for plain jobs
+		ExecGen          exec_gen  :NExecGenBits  = 0     ;                         //   <= 8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0     ;                         //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0     ;                         //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		RunStatus        run_status:3             = {}    ;                         //      3 bits
+		Status           status    :4             = {}    ;                         //      4 bits
 	private :
-		mutable bool     _sure     :1             = false               ;                                        //      1 bit
+		mutable bool     _sure     :1             = false ;                         //      1 bit
 	} ;
-	static_assert(sizeof(JobData)==24) ;                                                                         // check expected size
+	static_assert(sizeof(JobData)==24) ;                                            // check expected size
 
 }
 
@@ -388,7 +422,7 @@ namespace Engine {
 		if ( +rule && rule.old() ) idx().pop() ;
 	}
 
-	inline void JobData::add_watcher( ReqInfo& ri , Node watcher , Node::ReqInfo& wri , CoarseDelay pressure ) {
+	inline void JobData::add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) {
 		ri.add_watcher(watcher,wri) ;
 		set_pressure(ri,pressure) ;
 	}
@@ -417,17 +451,17 @@ namespace Engine {
 		return _sure ;
 	}
 
-	inline JobData::ReqInfo const& JobData::c_req_info(Req r) const {
+	inline JobReqInfo const& JobData::c_req_info(Req r) const {
 		::umap<Job,ReqInfo> const& req_infos = Req::s_store[+r].jobs ;
 		auto                       it        = req_infos.find(idx()) ;                  // avoid double look up
 		if (it==req_infos.end()) return Req::s_store[+r].jobs.dflt ;
 		else                     return it->second                 ;
 	}
-	inline JobData::ReqInfo& JobData::req_info(Req req) const {
+	inline JobReqInfo& JobData::req_info(Req req) const {
 		auto te = Req::s_store[+req].jobs.try_emplace(idx(),ReqInfo(req)) ;
 		return te.first->second ;
 	}
-	inline JobData::ReqInfo& JobData::req_info(ReqInfo const& cri) const {
+	inline JobReqInfo& JobData::req_info(ReqInfo const& cri) const {
 		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
 		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
@@ -441,55 +475,12 @@ namespace Engine {
 	// JobReqInfo
 	//
 
-	inline void JobReqInfo::update( RunAction run_action , MakeAction make_action , JobData const& job ) {
-		SWEAR(run_action!=RunAction::Dsk) ;                                                                // Dsk is only for Node's
-		Bool3 ok = is_ok(job.status) ;
-		if ( ok==Maybe && action>=RunAction::Status ) run_action = RunAction::Run ;
-		if (make_action==MakeAction::Wakeup) {
-			SWEAR(n_wait) ;
-			n_wait-- ;
-		}
-		if (run_action>action) {                                                                           // increasing action requires to reset checks
-			SWEAR(!running()) ;                                                                            // else, we must decrease n_wait
-			step    = step & Step::Dep ;
-			dep_lvl = 0                ;
-			action  = run_action       ;
-		}
-		if (!n_wait) {
-			if (
-				( req.zombie()                             )                                               // zombie's need not check anything
-			||	( make_action==MakeAction::GiveUp          )                                               // if not started, no further analysis
-			||	( action==RunAction::Makable && job.sure() )                                               // no need to check deps, they are guaranteed ok if sure
-			) {
-				done_ = done_ | action ;
-			} else if (make_action==MakeAction::End) {
-				SWEAR(!running()) ;                                                                        // else, we must decrease n_wait
-				step    = step & Step::Dep ;                                                               // we just ran, reset analysis
-				dep_lvl = 0                ;
-				action  = run_action       ;                                                               // we just ran, we are allowed to decrease action
-			}
-		}
-		if (done(action)) {
-			SWEAR(!running()) ;                                                                            // else, we must decrease n_wait
-			step = Step::Done ;
-		}
-		SWEAR(step!=Step::End) ;
+	inline void JobReqInfo::step(Step s) {
+		if ( _step==s                                             ) return ;                  // fast path
+		if ( _step>=Step::MinCurStats && _step<Step::MaxCurStats1 ) req->stats.cur(_step)-- ;
+		if ( s    >=Step::MinCurStats && s    <Step::MaxCurStats1 ) req->stats.cur(s    )++ ;
+		_step = s ;
 	}
-
-	inline void JobReqInfo::mark_end() {
-		switch (step) {
-			case JobStep::Queued :
-				req->stats.cur(JobStep::Queued)-- ;
-				req->stats.cur(JobStep::Exec  )++ ;
-			[[fallthrough]] ;
-			case JobStep::Exec :
-				n_wait-- ;
-				step = JobStep::End ; // we must not appear as Exec while other reqs are analysing or we will wrongly think job is on going
-			break ;
-			default :
-				FAIL(step) ;
-		}
-		}
 
 }
 

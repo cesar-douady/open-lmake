@@ -115,9 +115,10 @@ ENUM( JobProc
 ,	End
 )
 
-ENUM_2( JobReasonTag                                // see explanations in table below
+ENUM_3( JobReasonTag                                // see explanations in table below
 ,	HasNode = ClashTarget                           // if >=HasNode, a node is associated
-,	Err     = DepErr                                // if >=Err, job did not complete because of a dep
+,	Err     = DepDangling
+,	Missing = DepMissingStatic
 	//
 ,	None
 //	with reason
@@ -133,18 +134,19 @@ ENUM_2( JobReasonTag                                // see explanations in table
 ,	Rsrcs
 //	with node
 ,	ClashTarget
-,	DepBusy
-,	DepUnstable
 ,	DepOutOfDate
 ,	DepUnlnked
+,	DepUnstable
 ,	NoTarget
 ,	PollutedTarget
 ,	PrevTarget
 //	with error
+,	DepDangling
 ,	DepErr
 ,	DepMissingRequired
-,	DepMissingStatic
 ,	DepOverwritten
+// with missing
+,	DepMissingStatic
 )
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                     // None
@@ -161,18 +163,19 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"resources changed and job was in error"        // Rsrcs
 //	with node
 ,	"multiple simultaneous writes"                  // ClashTarget
-,	"dep waiting or being remade"                   // DepBusy
-,	"dep changed during job execution"              // DepUnstable
 ,	"dep out of date"                               // DepOutOfDate
 ,	"dep not on disk"                               // DepUnlnked
+,	"dep changed during job execution"              // DepUnstable
 ,	"missing target"                                // NoTarget
 ,	"target polluted by another job"                // PollutedTarget
 ,	"target previously existed"                     // PrevTarget
 //	with error
+,	"dep is dangling"                               // DepDangling
 ,	"dep in error"                                  // DepErr
 ,	"required dep missing"                          // DepMissingRequired
-,	"static dep missing"                            // DepMissingStatic
 ,	"dep has been overwritten"                      // DepOverwritten
+// with missing
+,	"static dep missing"                            // DepMissingStatic
 } ;
 static_assert(::size(JobReasonTagStrs)==N<JobReasonTag>) ;
 
@@ -269,16 +272,15 @@ struct JobReason {
 	JobReason( Tag t             ) : tag{t}           { SWEAR( t< Tag::HasNode       , t     ) ; }
 	JobReason( Tag t , NodeIdx n ) : tag{t} , node{n} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
 	// accesses
-	bool operator+() const { return +tag ; }
-	bool operator!() const { return !tag ; }
+	bool operator+() const { return +tag                 ; }
+	bool operator!() const { return !tag                 ; }
+	bool need_run () const { return +tag && tag<Tag::Err ; }
 	// services
-	JobReason operator|(JobReason jr) const {
-		if (   tag>=Tag::Err    ) return *this ;
-		if (jr.tag>=Tag::Err    ) return jr    ;
-		if (   tag>=Tag::HasNode) return *this ;
-		if (jr.tag>=Tag::HasNode) return jr    ;
-		if (+*this              ) return *this ;
-		/**/                      return jr    ;
+	JobReason operator|(JobReason jr) const {                                               // priority is to more severe error or to more informative info, and at equal level, the older
+		{ if (tag>=Tag::Missing) return *this ; } { if (jr.tag>=Tag::Missing) return jr ; }
+		{ if (tag>=Tag::Err    ) return *this ; } { if (jr.tag>=Tag::Err    ) return jr ; }
+		{ if (tag>=Tag::HasNode) return *this ; } { if (jr.tag>=Tag::HasNode) return jr ; }
+		{ if (+*this           ) return *this ; } { /**/                      return jr ; }
 	}
 	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
 	::string msg() const {
@@ -360,20 +362,20 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Crc   = Hash::Crc   ;
 	using Ddate = Time::Ddate ;
 	//cxtors & casts
-	DepDigestBase(                                                           bool p=false ) :                                       parallel{p} { crc     ({}) ; }
-	DepDigestBase(          Accesses a ,                     Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
-	DepDigestBase(          Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
-	DepDigestBase(          Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
-	DepDigestBase(          Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
-	DepDigestBase( Base b , Accesses a ,                     Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
-	DepDigestBase( Base b , Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
-	DepDigestBase( Base b , Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
-	DepDigestBase( Base b , Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
+	constexpr DepDigestBase(                                                           bool p=false ) :                                       parallel{p} { crc     ({}) ; }
+	constexpr DepDigestBase(          Accesses a ,                     Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
+	constexpr DepDigestBase(          Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
+	constexpr DepDigestBase(          Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
+	constexpr DepDigestBase(          Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
+	constexpr DepDigestBase( Base b , Accesses a ,                     Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
 	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
-	template<class B2> DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
-	template<class B2> DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
+	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
+	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	//
-	bool operator==(DepDigestBase const& other) const {
+	constexpr bool operator==(DepDigestBase const& other) const {
 		if constexpr (HasBase) if (Base::operator!=(other) ) return false              ;
 		/**/                   if (dflags  !=other.dflags  ) return false              ;
 		/**/                   if (accesses!=other.accesses) return false              ;
@@ -383,23 +385,23 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                                                 return _crc ==other._crc  ;
 	}
 	// accesses
-	Crc   crc       () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc                       ; }
-	Ddate date      () const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date                      ; }
-	bool never_match() const { SWEAR(              !is_date , accesses , is_date ) ; return _crc.never_match(accesses) ; }
+	constexpr Crc   crc       () const { SWEAR( +accesses && !is_date , accesses , is_date ) ; return _crc                       ; }
+	constexpr Ddate date      () const { SWEAR( +accesses &&  is_date , accesses , is_date ) ; return _date                      ; }
+	constexpr bool never_match() const { SWEAR(              !is_date , accesses , is_date ) ; return _crc.never_match(accesses) ; }
 	//
-	void crc (Crc   c) { is_date = false ; _crc  = c ; }
-	void date(Ddate d) { is_date = true  ; _date = d ; }
-	void crc_date(CrcDate const& cd) {
+	constexpr void crc (Crc   c) { is_date = false ; _crc  = c ; }
+	constexpr void date(Ddate d) { is_date = true  ; _date = d ; }
+	constexpr void crc_date(CrcDate const& cd) {
 		if ( cd.is_date ) date(cd.date()) ;
 		else              crc (cd.crc ()) ;
 	}
-	template<class B2> void crc_date(DepDigestBase<B2> const& dd) {
+	template<class B2> constexpr void crc_date(DepDigestBase<B2> const& dd) {
 		if (!dd.accesses) return ;
 		if ( dd.is_date ) date(dd.date()) ;
 		else              crc (dd.crc ()) ;
 	}
 	// services
-	DepDigestBase& operator|=(DepDigestBase const& other) {                      // assumes other has been accessed after us
+	constexpr DepDigestBase& operator|=(DepDigestBase const& other) {            // assumes other has been accessed after us
 		if constexpr (HasBase) SWEAR(Base::operator==(other),other) ;
 		if (+accesses) {
 			SWEAR(is_date==other.is_date,is_date) ;                              // else, cannot make fusion
@@ -414,7 +416,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		accesses |= other.accesses ;
 		return *this ;
 	}
-	void tag(Tag tag) {
+	constexpr void tag(Tag tag) {
 		SWEAR(is_date) ;
 		if (!_date) { crc(Crc::None) ; return ; }                                // even if file appears, the whole job has been executed seeing the file as absent
 		switch (tag) {

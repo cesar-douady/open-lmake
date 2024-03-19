@@ -14,13 +14,13 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) {
-		/**/                          os << "NRI(" << ri.req <<','<< ri.action <<',' ;
-		if (ri.prio_idx==Node::NoIdx) os << "None"                                   ;
-		else                          os <<                  ri.prio_idx             ;
-		if (+ri.done_               ) os <<",Done@"       << ri.done_                ;
-		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait               ;
-		if (+ri.overwritten         ) os <<",overwritten:"<<ri.overwritten           ;
-		return                        os <<')'                                       ;
+		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
+		if (ri.prio_idx==Node::NoIdx) os << "None"                                 ;
+		else                          os <<                  ri.prio_idx           ;
+		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
+		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
+		if (+ri.overwritten         ) os <<",overwritten:"<<ri.overwritten         ;
+		return                        os <<')'                                     ;
 	}
 
 	//
@@ -67,8 +67,9 @@ namespace Engine {
 				case Manual::Modif : {
 					Trace trace("manual_wash","modif",STR(dangling),idx()) ;
 					if (dangling) {
-						req->audit_node( Color::Err  , "dangling"           , idx()     ) ;
-						req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ;
+						/**/                  req->audit_node( Color::Err  , "dangling"           , idx()                                        ) ;
+						if (has_actual_job()) req->audit_info( Color::Note , "generated as a side effect of "+mk_file(actual_job()->name())  , 1 ) ;
+						else                  req->audit_node( Color::Note , "consider : git add" , idx()                                    , 1 ) ;
 					} else {
 						::string n = name() ;
 						if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
@@ -113,8 +114,8 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date> r->start_date.d               ) ri.overwritten |= mismatch ;             }
-			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.action|RunAction::Status)) r->audit_job( c , step , msg , name_ ) ; }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date> r->start_date.d            ) ri.overwritten |= mismatch ;             }
+			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , msg , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
 		return true/*updated*/ ;
@@ -306,7 +307,7 @@ namespace Engine {
 	bool/*done*/ NodeData::_make_pre(ReqInfo& ri) {
 		Trace trace("Nmake_pre",idx(),ri) ;
 		Req      req   = ri.req ;
-		::string name_ ;                                                                                // lazy evaluated
+		::string name_ ;                                                                                   // lazy evaluated
 		auto lazy_name = [&]()->::string const& {
 			if (!name_) name_ = name() ;
 			return name_ ;
@@ -314,7 +315,7 @@ namespace Engine {
 		// step 1 : handle what can be done without dir
 		switch (buildable) {
 			case Buildable::LongName :
-				if (req->long_names.try_emplace(idx(),req->long_names.size()).second) {                 // if inserted
+				if (req->long_names.try_emplace(idx(),req->long_names.size()).second) {                    // if inserted
 					size_t sz = lazy_name().size() ;
 					SWEAR( sz>g_config.path_max , sz , g_config.path_max ) ;
 					req->audit_node( Color::Warning , to_string("name is too long (",sz,'>',g_config.path_max,") for") , idx() ) ;
@@ -337,39 +338,39 @@ namespace Engine {
 			case Buildable::DynAnti :
 			case Buildable::Anti    :
 			case Buildable::No      :                            goto NotDone ;
-			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ;                         // status is overwritten Src if node actually exists
+			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ;                            // status is overwritten Src if node actually exists
 			default                 :                            break        ;
 		}
-		if ( Node::ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,RunAction::Status) ) {        // fast path : no need to call make if dir is done
+		if ( ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,NodeGoal::Status) ) {                  // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
-				ReqInfo::WaitInc sav_n_wait{ri} ;                                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+				ReqInfo::WaitInc sav_n_wait{ri} ;                                                          // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				dir()->asking = idx() ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir()->make( dri , RunAction::Status , ri.speculate ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				dir()->make( dri , MakeAction::Status , ri.speculate ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
-			trace("dir",dir(),STR(dir()->done(dri,RunAction::Status)),ri) ;
+			trace("dir",dir(),STR(dir()->done(dri,NodeGoal::Status)),ri) ;
 			//
 			if (dri.waiting()) {
 				dir()->add_watcher(dri,idx(),ri,ri.pressure) ;
-				status(NodeStatus::Uphill) ;                                                            // temporarily, until dir() is built and we know the definitive answer
-				goto NotDone ;                                                                          // return value is meaningless when waiting
+				status(NodeStatus::Uphill) ;                                                               // temporarily, until dir() is built and we know the definitive answer
+				goto NotDone ;                                                                             // return value is meaningless when waiting
 			}
-			SWEAR(dir()->done(dri)) ;                                                                   // after having called make, dep must be either waiting or done
+			SWEAR(dir()->done(dri)) ;                                                                      // after having called make, dep must be either waiting or done
 		}
 		// step 3 : handle what needs dir status
 		switch (dir()->buildable) {
 			case Buildable::Maybe :
-				if (dir()->status()==NodeStatus::None) { status(NodeStatus::Unknown) ; goto NotDone ; } // not Uphill anymore
+				if (dir()->status()==NodeStatus::None) { status(NodeStatus::Unknown) ; goto NotDone ; }    // not Uphill anymore
 				[[fallthrough]] ;
 			case Buildable::Yes :
-				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                           // propagate as dir->buildable may have changed from Maybe to Yes when made
+				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                              // propagate as dir->buildable may have changed from Maybe to Yes when made
 				[[fallthrough]] ;
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
 				switch (dir()->status()) {
-					case NodeStatus::Transcient : status(NodeStatus::Transcient) ; goto NoSrc ;         // forward
-					case NodeStatus::Uphill     : status(NodeStatus::Uphill    ) ; goto NoSrc ;         // .
+					case NodeStatus::Transcient : status(NodeStatus::Transcient) ; goto NoSrc ;            // forward
+					case NodeStatus::Uphill     : status(NodeStatus::Uphill    ) ; goto NoSrc ;            // .
 					default : ;
 				}
 			break ;
@@ -380,97 +381,99 @@ namespace Engine {
 			case Buildable::Maybe     :
 			case Buildable::Yes       :
 			case Buildable::SubSrcDir :
-				if (dir()->crc==Crc::None) { status(NodeStatus::None) ; goto Src ; }                    // status is overwritten Src if node actually exists
+				if (dir()->crc==Crc::None) { status(NodeStatus::None) ; goto Src ; }                       // status is overwritten Src if node actually exists
 				[[fallthrough]] ;
 			case Buildable::DynSrc :
 			case Buildable::Src    :
-				if (dir()->crc.is_lnk()) status(NodeStatus::Transcient) ;                               // our dir is a link, we are transcient
-				else                     status(NodeStatus::Uphill    ) ;                               // a non-existent source stays a source, hence its sub-files are uphill
+				if (dir()->crc.is_lnk()) status(NodeStatus::Transcient) ;                                  // our dir is a link, we are transcient
+				else                     status(NodeStatus::Uphill    ) ;                                  // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
 		DF}
 	Src :
 		{	bool modified = refresh_src_anti( status()!=NodeStatus::None , {req} , lazy_name() ) ;
-			if (crc     !=Crc::None       ) status(NodeStatus::Src) ;                                   // overwrite status if it was pre-set to None
-			if (status()==NodeStatus::None) goto NoSrc        ;                                         // if status was pre-set to None, it means we accept NoSrc
+			if (crc     !=Crc::None       ) status(NodeStatus::Src) ;                                      // overwrite status if it was pre-set to None
+			if (status()==NodeStatus::None) goto NoSrc        ;                                            // if status was pre-set to None, it means we accept NoSrc
 			if (modified                  ) goto ActuallyDone ;
-			ri.done_ = RunAction::Dsk ;                                                                 // disk has been updated to compute crc
-			goto NotDone ;                                                                              // we are done, but done_ is already updated
+			ri.done_ = NodeGoal::Dsk ;                                                                     // disk has been updated to compute crc
+			goto NotDone ;                                                                                 // we are done, but done_ is already updated
 		}
 	Codec :
 		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (date>req->start_date.d) ri.overwritten = Access::Reg ;                                  // date is only updated when actual content is modified and codec cannot be links
+			if (date>req->start_date.d) ri.overwritten = Access::Reg ;                                     // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto Done ;
 		}
 	NoSrc :
 		{	Crc crc_ = status()==NodeStatus::Transcient ? Crc::Unknown : Crc::None ;
 			trace("no_src",crc,crc_) ;
-			if (crc==crc_) goto Done ;                                                                        // node is not polluted
-			if ( ri.action>=RunAction::Dsk && crc_==Crc::None && manual_wash(ri,true/*lazy*/)==Manual::Ok ) { // if already unlinked, no need to unlink it again
-				unlnk(lazy_name(),true/*dir_ok*/) ;                                                           // wash pollution if not manual
+			if (crc==crc_) goto Done ;                                                                     // node is not polluted
+			if ( ri.goal>=NodeGoal::Dsk && crc_==Crc::None && manual_wash(ri,true/*lazy*/)==Manual::Ok ) { // if already unlinked, no need to unlink it again
+				unlnk(lazy_name(),true/*dir_ok*/) ;                                                        // wash pollution if not manual
 				req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
 			}
-			refresh(crc_) ;                                                                                   // if not physically unlinked, node will be manual
+			refresh(crc_) ;                                                                                // if not physically unlinked, node will be manual
 			goto ActuallyDone ;
 		}
 	ActuallyDone :
 		actual_job().clear() ;
 	Done :
-		ri.done_ = ri.action ;                                                                                // disk is de facto updated
+		ri.done_ = ri.goal ;                                                                               // disk is de facto updated
 	NotDone :
 		trace("done",idx(),status(),crc,ri) ;
-		return ri.done_>=ri.action ;
+		return ri.done() ;
 	}
 
 	static inline bool _must_regenerate( NodeData const& nd , NodeReqInfo& ri ) {
-		SWEAR(ri.done_>=ri.action) ;                                                                     // must be done to ask for regeneration
+		SWEAR(ri.done_>=ri.goal) ;                                                                       // must be done to ask for regeneration
 		Job cj = nd.conform_job() ;
 		if (!cj                ) return false ;                                                          // no hope to regenerate, proceed as a done target
 		if (cj->err()          ) return false ;                                                          // dont regenerate errors as content will not be used
 		if (cj==nd.actual_job()) return false ;
 		Trace trace("_must_regerate",nd.idx(),ri) ;
-		ri.done_    = RunAction::Status ;                                                                // regenerate
-		ri.prio_idx = nd.conform_idx()  ;                                                                // .
-		ri.single   = true              ;                                                                // only ask to run conform job
+		ri.done_    = NodeGoal::Status ;                                                                 // regenerate
+		ri.prio_idx = nd.conform_idx() ;                                                                 // .
+		ri.single   = true             ;                                                                 // only ask to run conform job
 		return true ;
 	}
-	void NodeData::_make_raw( ReqInfo& ri , RunAction run_action , Bool3 speculate , MakeAction make_action ) {
-		RuleIdx prod_idx       = NoIdx                                ;
-		Req     req            = ri.req                               ;
-		Bool3   clean          = Maybe                                ;                                  // lazy evaluate manual()==No
-		bool    multi          = false                                ;
-		bool    stop_speculate = speculate<ri.speculate && +ri.action ;
-		Trace trace("Nmake",idx(),ri,run_action,make_action) ;
-		SWEAR(run_action<=RunAction::Dsk) ;
+	void NodeData::_make_raw( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
+		RuleIdx prod_idx       = NoIdx                              ;
+		Req     req            = ri.req                             ;
+		Bool3   clean          = Maybe                              ;                                    // lazy evaluate manual()==No
+		bool    multi          = false                              ;
+		bool    stop_speculate = speculate<ri.speculate && +ri.goal ;
+		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//                                vvvvvvvvvvvvvvvvvv
 		try                             { set_buildable(req) ; }
 		//                                ^^^^^^^^^^^^^^^^^^
 		catch (::vector<Node> const& e) { set_infinite(e)    ; }
 		//
-		ri.update( run_action , make_action , *this ) ;
+		if (make_action==MakeAction::Wakeup                               ) ri.dec_wait() ;
+		else                                                                ri.goal = ri.goal | mk_goal(make_action) ;
+		if      ( ri.waiting()                                            ) goto Wait ;
+		else if ( req.zombie()                                            ) ri.done_ |= NodeGoal::Dsk     ;
+		else if ( buildable>=Buildable::Yes && ri.goal==NodeGoal::Makable ) ri.done_ |= NodeGoal::Makable ;
 		//
-		if (ri.waiting()      ) goto Done ;
 		if (ri.prio_idx==NoIdx) {
-			if (ri.done(ri.action)) goto Wakeup ;
+			if (ri.done()) goto Wakeup ;
 			//vvvvvvvvvvv
 			_make_pre(ri) ;
 			//^^^^^^^^^^^
-			if (ri.waiting()      ) goto Done   ;
-			if (ri.done(ri.action)) goto Wakeup ;
+			if (ri.waiting()) goto Wait   ;
+			if (ri.done()   ) goto Wakeup ;
 			ri.prio_idx = 0 ;
 		} else {
 			// check if we need to regenerate node
-			if (ri.done(ri.action)) {
+			if (ri.done()) {
 				if (_must_regenerate(*this,ri)) goto Make   ;
 				else                            goto Wakeup ;
 			}
 			// fast path : check jobs we were waiting for, lighter than full analysis
 			JobTgtIter it{*this,ri} ;
 			for(; it ; it++ ) {
-				JobTgt jt   = *it                                                   ;
-				bool   done = jt->c_req_info(req).done(ri.action&RunAction::Status) ;
+				JobTgt jt   = *it                                                 ;
+				bool   done = jt->c_req_info(req).done(ri.goal>=NodeGoal::Status) ;
 				trace("check",jt,jt->c_req_info(req)) ;
 				if (!done             ) { prod_idx = NoIdx ; goto Make ;                               } // we waited for it and it is not done, retry
 				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; } // jobs in error are deemed to produce all their potential targets
@@ -510,18 +513,18 @@ namespace Engine {
 			// make eligible jobs
 			{	ReqInfo::WaitInc sav_n_wait{ri} ;                                                        // ensure we appear waiting while making jobs to block loops (caught in Req::chk_end)
 				for(; it ; it++ ) {
-					JobTgt    jt     = *it               ;
-					RunAction action = RunAction::Status ;
+					JobTgt     jt   = *it                    ;
+					JobMakeAction ma = JobMakeAction::Status ;
 					JobReason reason ;
-					switch (ri.action) {
-						case RunAction::Makable : if (jt.sure()) action = RunAction::Makable ; break ;                   // if star, job must be run to know if we are generated
-						case RunAction::Status  :
-						case RunAction::Dsk :
+					switch (ri.goal) {
+						case NodeGoal::Makable : if (jt.sure()) ma = JobMakeAction::Makable ; break ;                    // if star, job must be run to know if we are generated
+						case NodeGoal::Status  :
+						case NodeGoal::Dsk     :
 							if      (jt->err()                        ) {}                                               // for jobs in error, we will not use the targets
 							else if (!jt.produces(idx())              ) {}
-							else if (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ; // this is important for RunAction::Status as crc is not correct
+							else if (!has_actual_job(  )              ) reason = {JobReasonTag::NoTarget      ,+idx()} ; // this is important for NodeGoal::Status as crc is not correct
 							else if (!has_actual_job(jt)              ) reason = {JobReasonTag::PollutedTarget,+idx()} ; // .
-							else if (ri.action==RunAction::Status     ) {}
+							else if (ri.goal==NodeGoal::Status        ) {}
 							else if (jt->running(true/*with_zombies*/)) reason =  JobReasonTag::Garbage                ; // be pessimistic and dont check target as it is not manual ...
 							else                                                                                         // ... and checking may modify it
 								switch (manual_wash(ri,true/*lazy*/)) {
@@ -532,18 +535,18 @@ namespace Engine {
 								DF}
 						break ;
 					DF}
-					Job::ReqInfo& jri = jt->req_info(req) ;
+					JobReqInfo& jri = jt->req_info(req) ;
 					if (ri.live_out) jri.live_out = ri.live_out ;                                                        // transmit user request to job for last level live output
 					jt->asking = idx() ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					jt->make( jri , action , reason , ri.speculate ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("job",ri,clean,action,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					jt->make( jri , ma , reason , ri.speculate ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					trace("job",ri,clean,ma,jt,STR(jri.waiting()),STR(jt.produces(idx()))) ;
 					if      (jri.waiting()     ) jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 					else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = true ; }        // jobs in error are deemed to produce all their potential targets
 				}
 			}
-			if (ri.waiting()   ) goto Done ;
+			if (ri.waiting()   ) goto Wait ;
 			if (prod_idx!=NoIdx) break     ;
 			ri.prio_idx = it.idx ;
 		}
@@ -559,13 +562,13 @@ namespace Engine {
 			/**/                   req->audit_info(Color::Note,"several rules match :",1) ;
 			for( JobTgt jt : jts ) req->audit_info(Color::Note,jt->rule->name         ,2) ;
 		}
-		ri.done_ = ri.action ;
-		if (_must_regenerate(*this,ri)) { prod_idx = NoIdx ; goto Make ; }
+		ri.done_ = ri.goal ;
+		if (_must_regenerate(*this,ri)) { prod_idx = NoIdx ; goto Make ; }                                               // BACKWARD
 	Wakeup :
 		SWEAR(done(ri)) ;
 		trace("wakeup",ri,conform_idx(),is_plain()?actual_job():Job()) ;
 		ri.wakeup_watchers() ;
-	Done :
+	Wait :
 		if (stop_speculate) _propag_speculate(ri) ;
 		trace("done",ri) ;
 	}
@@ -643,9 +646,9 @@ namespace Engine {
 			Trace trace("refresh",idx(),crc,"->",crc_,date,"->",date_) ;
 			crc  = {}    ; fence() ;
 			date = date_ ; fence() ;
-			crc  = crc_  ;                                                                                   // ensure crc is never associated with a wrong date, even in case of crash
+			crc  = crc_  ;                                                                                             // ensure crc is never associated with a wrong date, even in case of crash
 			for( Req r : reqs() )
-				if ( Node::ReqInfo& ri=req_info(r) ; ri.done() ) { trace("overwrite",*this) ; ri.reset() ; } // target is not done any more
+				if ( ReqInfo& ri=req_info(r) ; ri.done(NodeGoal::Status) ) { trace("overwrite",*this) ; ri.reset() ; } // target is not done any more
 			return true ;
 		}
 	}

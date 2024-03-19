@@ -229,7 +229,7 @@ namespace Caches {
 				for( auto const& [dn,dd] : deps ) {
 					if ( critical && !dd.parallel ) break ;           // if a critical dep needs reconstruction, do not proceed past parallel deps
 					Node d{dn} ;
-					if (!d->done(req,RunAction::Status)) {
+					if (!d->done(req,NodeGoal::Status)) {
 						nds.insert(d) ;
 						critical |= dd.dflags[Dflag::Critical] ;      // note critical flag to stop processing once parallel deps are exhausted
 						if (!nds) trace("not_done",dn) ;

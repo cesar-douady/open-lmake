@@ -9,14 +9,6 @@
 
 #ifdef STRUCT_DECL
 
-ENUM( RunAction // each action is included in the following one
-,	None        // when used as done_action, means not done at all
-,	Makable     // do whatever is necessary to assert if job can be run / node does exist (data dependent)
-,	Status      // check deps (no disk access except sources), run if possible & necessary
-,	Dsk         // for Node : ensure up-to-date on disk, for Job : ensure asking node is up-to-date on disk
-,	Run         // for Job  : force job to be run
-)
-
 ENUM_1( JobReport
 ,	Useful = Failed // <=Useful means job was usefully run
 ,	Steady
@@ -32,11 +24,9 @@ ENUM_1( JobReport
 )
 
 namespace Engine {
-
 	struct Req     ;
 	struct ReqData ;
 	struct ReqInfo ;
-
 }
 
 #endif
@@ -54,8 +44,8 @@ namespace Engine {
 		// init
 		static void s_init() {}
 		// statics
-		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) {     // sorted by start
-			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                        // pessimistic
+		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) {                     // sorted by start
+			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                                        // pessimistic
 			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;
 		}
@@ -65,13 +55,13 @@ namespace Engine {
 		static ::vmap<Req,Pdate> s_etas       () ;
 		// static data
 		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
-		static ::vector<Req>                       s_reqs_by_start ;                                         // INVARIANT : ordered by item->start
+		static ::vector<Req>                       s_reqs_by_start ;                                                         // INVARIANT : ordered by item->start
 		//
-		static ::mutex                             s_reqs_mutex ;                                            // protects s_store, _s_reqs_by_eta as a whole
+		static ::mutex                             s_reqs_mutex ;                                                            // protects s_store, _s_reqs_by_eta as a whole
 		static ::vector<ReqData>                   s_store      ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;                                                                // INVARIANT : ordered by item->stats.eta
-		static_assert(sizeof(ReqIdx)==1) ;                                                                   // else an array to hold zombie state is not ideal
+		static ::vector<Req> _s_reqs_by_eta ;                                                                                // INVARIANT : ordered by item->stats.eta
+		static_assert(sizeof(ReqIdx)==1) ;                                                                                   // else an array to hold zombie state is not ideal
 		static ::array<atomic<uint8_t>,1<<(sizeof(ReqIdx)*8-3)> _s_zombie_tab ;
 		// cxtors & casts
 	public :
@@ -107,8 +97,8 @@ namespace Engine {
 
 	struct ReqStats {
 	private :
-		static bool   s_valid_cur(JobStep i) {                         return i>JobStep::None && i<=JobStep::Done ; }
-		static size_t s_mk_idx   (JobStep i) { SWEAR(s_valid_cur(i)) ; return +i-(+JobStep::None+1) ;               }
+		static bool   s_valid_cur(JobStep i) {                         return i>=JobStep::MinCurStats && i<=JobStep::MaxCurStats1 ; }
+		static size_t s_mk_idx   (JobStep i) { SWEAR(s_valid_cur(i)) ; return +i-+JobStep::MinCurStats                            ; }
 		//services
 	public :
 		JobIdx const& cur  (JobStep   i) const { SWEAR( s_valid_cur(i) ) ; return _cur  [s_mk_idx(i)] ; }
@@ -121,8 +111,8 @@ namespace Engine {
 		// data
 		Time::Delay jobs_time[2/*useful*/] ;
 	private :
-		JobIdx _cur  [+JobStep::Done+1-(+JobStep::None+1)] = {} ;
-		JobIdx _ended[N<JobReport>                       ] = {} ;
+		JobIdx _cur  [+JobStep::MaxCurStats1-+JobStep::MinCurStats] = {} ;
+		JobIdx _ended[N<JobReport>                                ] = {} ;
 	} ;
 
 	struct JobAudit {
@@ -150,8 +140,8 @@ namespace Engine {
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
 
 		struct WaitInc {
-			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<::numeric_limits<WatcherIdx>::max()) ; _ri.n_wait++ ; } // increment
-			~WaitInc(           )           { SWEAR(_ri.n_wait>0                                  ) ; _ri.n_wait-- ; } // restore
+			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<::numeric_limits<WatcherIdx>::max()) ; _ri.inc_wait() ; }
+			~WaitInc(           )           { SWEAR(_ri.n_wait>0                                  ) ; _ri.dec_wait() ; }
 		private :
 			ReqInfo& _ri ;
 		} ;
@@ -164,9 +154,10 @@ namespace Engine {
 		 }
 		ReqInfo(ReqInfo&& ri) { *this = ::move(ri) ; }
 		ReqInfo& operator=(ReqInfo&& ri) {
-			req         = ri.req    ;
-			action      = ri.action ;
-			n_wait      = ri.n_wait ;
+			n_wait   = ri.n_wait   ;
+			live_out = ri.live_out ;
+			pressure = ri.pressure ;
+			req      = ri.req      ;
 			if (_n_watchers==VectorMrkr) delete _watchers_v   ;
 			else                         _watchers_a.~array() ;
 			_n_watchers = ri._n_watchers ;
@@ -175,18 +166,18 @@ namespace Engine {
 			return *this ;
 		}
 		// acesses
-		void       reset       (                              )       { done_ = RunAction::None                                        ; }
-		bool       done        (RunAction ra=RunAction::Status) const { return done_>=ra                                               ; }
-		bool       waiting     (                              ) const { return n_wait>0                                                ; }
-		bool       has_watchers(                              ) const { return _n_watchers                                             ; }
-		WatcherIdx n_watchers  (                              ) const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
+		void       inc_wait    ()       {                 n_wait++ ; SWEAR(n_wait) ;                       }
+		void       dec_wait    ()       { SWEAR(n_wait) ; n_wait-- ;                                       }
+		bool       waiting     () const { return n_wait                                                  ; }
+		bool       has_watchers() const { return _n_watchers                                             ; }
+		WatcherIdx n_watchers  () const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
 		// services
 	private :
 		void _add_watcher(Watcher watcher) ;
 	public :
 		template<class RI> void add_watcher( Watcher watcher , RI& watcher_req_info ) {
 			_add_watcher(watcher) ;
-			watcher_req_info.n_wait++ ;
+			watcher_req_info.inc_wait() ;
 		}
 		void wakeup_watchers() ;
 		Job  asking         () const ;
@@ -202,20 +193,18 @@ namespace Engine {
 			return propag ;
 		}
 		// data
-		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0               ;                               // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
-		bool        live_out:1                   = false           ;                               //       1 bit , if true <=> generate live output
-		CoarseDelay pressure                     ;                                                 //      16 bits, critical delay from end of job to end of req
-		Req         req                          ;                                                 //       8 bits
-		RunAction   action     :3                = RunAction::None ;                               //       3 bits
-		RunAction   done_      :3                = RunAction::None ;                               //       3 bits, if >=action => done for this action (non-buildable Node's are always done)
+		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0     ;        // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		bool        live_out:1                   = false ;        //       1 bit , if true <=> generate live output
+		CoarseDelay pressure                     ;                //      16 bits, critical delay from end of job to end of req
+		Req         req                          ;                //       8 bits
 	private :
-		uint8_t _n_watchers:2                    = 0               ; static_assert(VectorMrkr<4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::vector<Watcher          >* _watchers_v ;                                             //      64 bits, if _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>  _watchers_a ;                                             //      64 bits, if _n_watchers< VectorMrkr
+			::vector<Watcher          >* _watchers_v ;            //      64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>  _watchers_a ;            //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
-	static_assert(sizeof(ReqInfo)==16) ;                                                           // check expected size
+	static_assert(sizeof(ReqInfo)==16) ;                          // check expected size
 
 }
 

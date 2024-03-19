@@ -21,7 +21,7 @@ if __name__!='__main__' :
 
 	class Auto(Rule) :
 		target = r'auto{D:\d+}'
-		cmd = 'echo {D}'
+		cmd    = 'echo {D}'
 
 	class CpySh(Cpy) :
 		target = '{File}_sh'

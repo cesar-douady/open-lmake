@@ -36,9 +36,18 @@ ENUM_1( Manual
 ,	Unknown
 )
 
-ENUM_1( NodeMakeAction
+ENUM( NodeGoal // each action is included in the following one
 ,	None
-,	Wakeup // a job has completed
+,	Makable    // do whatever is necessary to assert node does/does not exist (data dependent)
+,	Status     // check book-keeping, no disk access
+,	Dsk        // ensure up-to-date on disk
+)
+
+ENUM( NodeMakeAction
+,	Wakeup           // a job has completed
+,	Makable
+,	Status
+,	Dsk
 )
 
 ENUM_1( NodeStatus
@@ -72,6 +81,29 @@ namespace Engine {
 
 #endif
 #ifdef STRUCT_DEF
+
+inline NodeGoal mk_goal(NodeMakeAction ma) {
+	static constexpr NodeGoal s_tab[] {
+		NodeGoal::None                  // Wakeup
+	,	NodeGoal::Makable               // Makable
+	,	NodeGoal::Status                // Status
+	,	NodeGoal::Dsk                   // Dsk
+	} ;
+	static_assert(sizeof(s_tab)==N<NodeMakeAction>*sizeof(NodeGoal)) ;
+	return s_tab[+ma] ;
+}
+
+inline NodeMakeAction mk_action(NodeGoal g) {
+	static constexpr NodeMakeAction s_tab[] {
+		{}
+	,	NodeMakeAction::Makable // Makable
+	,	NodeMakeAction::Status  // Status
+	,	NodeMakeAction::Dsk     // Dsk
+	} ;
+	static_assert(sizeof(s_tab)==N<NodeGoal>*sizeof(NodeMakeAction)) ;
+	SWEAR(g!=NodeGoal::None) ;
+	return s_tab[+g] ;
+}
 
 namespace Engine {
 
@@ -159,15 +191,20 @@ namespace Engine {
 		static const     ReqInfo Src   ;
 		// cxtors & casts
 		using ReqInfo::ReqInfo ;
+		// accesses
+		bool done(NodeGoal ng) const { return done_>=ng   ; }
+		bool done(           ) const { return done_>=goal ; }
 		// services
-		void update( RunAction , MakeAction , NodeData const& ) ;
+		void reset() { done_ = NodeGoal::None ; }
 		// data
 	public :
-		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits
+		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being analyzed
 		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
 		Accesses overwritten = Accesses::None  ;                                // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
 		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits
 		Bool3    speculate   = Yes             ;                                // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeGoal goal        = NodeGoal::None  ;                                // 2<= 8 bits, asked level
+		NodeGoal done_       = NodeGoal::None  ;                                // 2<= 8 bits, done level
 	} ;
 	static_assert(sizeof(NodeReqInfo)==24) ;                                    // check expected size
 
@@ -218,16 +255,16 @@ namespace Engine {
 		Codec::Code      & codec_code   ()       { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
 		Codec::Code const& codec_code   () const { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
 		//
-		bool           has_req   ( Req                        ) const ;
-		ReqInfo const& c_req_info( Req                        ) const ;
-		ReqInfo      & req_info  ( Req                        ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&             ) const ;                                                                          // make R/W while avoiding look up (unless allocation)
-		::vector<Req>  reqs      (                            ) const ;
-		bool           waiting   (                            ) const ;
-		bool           done      ( ReqInfo const& , RunAction ) const ;
-		bool           done      ( ReqInfo const&             ) const ;
-		bool           done      ( Req            , RunAction ) const ;
-		bool           done      ( Req                        ) const ;
+		bool           has_req   ( Req                       ) const ;
+		ReqInfo const& c_req_info( Req                       ) const ;
+		ReqInfo      & req_info  ( Req                       ) const ;
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                           // make R/W while avoiding look up (unless allocation)
+		::vector<Req>  reqs      (                           ) const ;
+		bool           waiting   (                           ) const ;
+		bool           done      ( ReqInfo const& , NodeGoal ) const ;
+		bool           done      ( ReqInfo const&            ) const ;
+		bool           done      ( Req            , NodeGoal ) const ;
+		bool           done      ( Req                       ) const ;
 		//
 		bool match_ok          (         ) const {                          return match_gen>=Rule::s_match_gen                             ; }
 		bool has_actual_job    (         ) const {                          return is_plain() && +actual_job() && !actual_job()->rule.old() ; }
@@ -242,6 +279,12 @@ namespace Engine {
 		Manual manual_refresh( JobData const& j                          )       { Disk::FileInfo fi{name()} ; return manual_refresh(j,fi)   ; }
 		//
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& , ::string const& name ) ;                                 // Req's are for reporting only
+		//
+		void full_refresh( bool report_no_file , ::vector<Req> const& reqs , ::string const& name ) {
+			set_buildable() ;
+			if (is_src_anti()) refresh_src_anti(report_no_file,reqs,name) ;
+			else               manual_refresh  (Req()                   ) ;                     // no manual_steady diagnostic as this may be because of another job
+		}
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -264,11 +307,11 @@ namespace Engine {
 				default                : return Maybe                         ;
 			}
 		}
-		Bool3 ok     ( ReqInfo const& cri , Accesses a=Accesses::All ) const { SWEAR(cri.done()) ; return +(cri.overwritten&a) ? No : ok() ; }
+		Bool3 ok     ( ReqInfo const& cri , Accesses a=Accesses::All ) const { SWEAR(cri.done(NodeGoal::Status)) ; return +(cri.overwritten&a) ? No : ok() ; }
 		bool  running( ReqInfo const& cri ) const {
 			for( Job j : conform_job_tgts(cri) )
 				for( Req r : j->running_reqs() )
-					if (j->c_req_info(r).step==JobStep::Exec) return true ;
+					if (j->c_req_info(r).step()==JobStep::Exec) return true ;
 			return false ;
 		}
 		//
@@ -321,9 +364,8 @@ namespace Engine {
 		//
 		void set_infinite(::vector<Node> const& deps) ;
 		//
-		void make( ReqInfo& , RunAction=RunAction::Status , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
-		//
-		void make( ReqInfo& ri , MakeAction ma ) { return make(ri,RunAction::Status,Yes/*speculate*/,ma) ; }          // for wakeup
+		void make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void wakeup( ReqInfo& ri                                 ) { return make(ri,MakeAction::Wakeup) ; }
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -332,16 +374,16 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , Ddate={} ) ;
 		void             refresh(                ) ;
 	private :
-		void         _set_buildable_raw( Req      , DepDepth                                                      ) ; // req is for error reporting only
-		bool/*done*/ _make_pre         ( ReqInfo&                                                                 ) ;
-		void         _make_raw         ( ReqInfo& , RunAction , Bool3 speculate=Yes , MakeAction=MakeAction::None ) ;
-		void         _set_pressure_raw ( ReqInfo&                                                                 ) const ;
-		void         _propag_speculate ( ReqInfo const&                                                           ) const ;
+		void         _set_buildable_raw( Req      , DepDepth                         ) ;        // req is for error reporting only
+		bool/*done*/ _make_pre         ( ReqInfo&                                    ) ;
+		void         _make_raw         ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void         _set_pressure_raw ( ReqInfo&                                    ) const ;
+		void         _propag_speculate ( ReqInfo const&                              ) const ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
 		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
 		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts()) return Buildable::No                             ;                                      // fast path : avoid computing name()
+			if (!rule_tgts()) return Buildable::No                             ;                // fast path : avoid computing name()
 			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
 		}
 		//
@@ -388,38 +430,22 @@ namespace Engine {
 namespace Engine {
 
 	//
-	// NodeReqInfo
-	//
-
-	inline void NodeReqInfo::update( RunAction run_action , MakeAction make_action , NodeData const& node ) {
-		SWEAR(run_action!=RunAction::Run) ;                                                                   // Run is only for Job's
-		if (make_action==MakeAction::Wakeup) {
-			SWEAR(n_wait) ;
-			n_wait-- ;
-		}
-		if (run_action>action) action = run_action ;                                                          // increasing action requires to reset checks
-		if (n_wait) return ;
-		if      ( req.zombie()                                                 ) done_ = RunAction::Dsk     ;
-		else if ( node.buildable>=Buildable::Yes && action==RunAction::Makable ) done_ = RunAction::Makable ;
-	}
-
-	//
 	// NodeData
 	//
 
 	inline bool NodeData::has_req(Req r) const {
 		return Req::s_store[+r].nodes.contains(idx()) ;
 	}
-	inline Node::ReqInfo const& NodeData::c_req_info(Req r) const {
+	inline NodeReqInfo const& NodeData::c_req_info(Req r) const {
 		::umap<Node,ReqInfo> const& req_infos = Req::s_store[+r].nodes ;
 		auto                        it        = req_infos.find(idx())  ;                 // avoid double look up
 		if (it==req_infos.end()) return Req::s_store[+r].nodes.dflt ;
 		else                     return it->second                  ;
 	}
-	inline Node::ReqInfo& NodeData::req_info(Req r) const {
+	inline NodeReqInfo& NodeData::req_info(Req r) const {
 		return Req::s_store[+r].nodes.try_emplace(idx(),NodeReqInfo(r)).first->second ;
 	}
-	inline Node::ReqInfo& NodeData::req_info(ReqInfo const& cri) const {
+	inline NodeReqInfo& NodeData::req_info(ReqInfo const& cri) const {
 		if (&cri==&Req::s_store[+cri.req].nodes.dflt) return req_info(cri.req)         ; // allocate
 		else                                          return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
@@ -430,18 +456,18 @@ namespace Engine {
 		return false ;
 	}
 
-	inline bool NodeData::done( ReqInfo const& cri , RunAction ra ) const {
-		if (cri.done(ra)) return true ;
-		switch (ra) {                                                                 // if not actually done, report obvious cases
-			case RunAction::None    : return true                                   ;
-			case RunAction::Makable : return match_ok() && is_src_anti()            ;
-			case RunAction::Status  : return match_ok() && buildable<=Buildable::No ;
-			case RunAction::Dsk     : return false                                  ;
+	inline bool NodeData::done( ReqInfo const& cri , NodeGoal na ) const {
+		if (cri.done(na)) return true ;
+		switch (na) {                                                                // if not actually done, report obvious cases
+			case NodeGoal::None    : return true                                   ;
+			case NodeGoal::Makable : return match_ok() && is_src_anti()            ;
+			case NodeGoal::Status  : return match_ok() && buildable<=Buildable::No ;
+			case NodeGoal::Dsk     : return false                                  ;
 		DF}
 	}
-	inline bool NodeData::done( ReqInfo const& cri                ) const { return done(cri          ,cri.action) ; }
-	inline bool NodeData::done( Req            r   , RunAction ra ) const { return done(c_req_info(r),ra        ) ; }
-	inline bool NodeData::done( Req            r                  ) const { return done(c_req_info(r)           ) ; }
+	inline bool NodeData::done( ReqInfo const& cri               ) const { return done(cri          ,cri.goal) ; }
+	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
+	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
 	inline Manual NodeData::manual(Ddate d,bool empty) const {
 		Manual res = {}/*garbage*/ ;
@@ -491,9 +517,9 @@ namespace Engine {
 		_set_pressure_raw(ri) ;
 	}
 
-	inline void NodeData::make( ReqInfo& ri , RunAction run_action , Bool3 speculate , MakeAction make_action ) {
-		if ( make_action!=MakeAction::Wakeup && speculate>=ri.speculate && ri.done(run_action) ) return ;         // fast path
-		_make_raw(ri,run_action,speculate,make_action) ;
+	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) ) return ; // fast path
+		_make_raw(ri,ma,s) ;
 	}
 
 	inline void NodeData::refresh() {

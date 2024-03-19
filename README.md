@@ -171,8 +171,20 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- e.g. `Node.mk_plain` does not enforce job invariant about having all its targets set
 
 ## data members are
-- public when they can be modified individually w/o violating invariants
+- public when they can be read with no pre-condition and modified individually w/o violating invariants
 - private otherwise
+
+## if branch order
+When there is a choice between "if (cond) branch1 else branch2" and "if (!cond) branch2 else branch1", the order is governed by the following prioritized considerations (prefer means put first) :
+- if there is natural chronological order between branch1 and branch2, respect the natural order
+- prefer simpler branch
+- prefer normal case to error case
+- prefer "true" case to "false" case (at semantic level)
+- prefer positive test (i.e. prefer == to !=, x or +x to !x, etc.)
+
+## goto's
+- goto's are used when they allow the code to be easier to read and understand
+- they are always forward unless specifically flagged with a `BACKWARD` comment, which is exceptional
 
 ## comments
 - comments can be realigned with the command \_bin/align\_comments 4 200 [// or #]
@@ -182,6 +194,7 @@ Names are suffixed with \_ if needed to suppress ambiguities
 	- `//^^^^^^^^^^^^^^^^^^^^^^^^^^`
 	- `XXX`            means something has to be reworked              (it is recommanded to highlight it in you editor)
 	- `/!\`            means something requires your special attention (it is recommanded to highlight it in you editor)
+	- `BACKWARD`       means the associated goto goes backward
 	- `INVARIANT`      means an invariant is described
 	- `fast path`      means that the corresponding code can be suppressed without altering the semantic
 	- `.`              means same as above

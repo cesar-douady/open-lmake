@@ -35,6 +35,7 @@ if __name__!='__main__' :
 		}
 		autodep      = '{Method}'
 		allow_stderr = True
+		timeout      = 30                     # actual time should be ~5s, but seems to block from time to time
 		cmd          = f'wine {hostname_exe}'
 
 else :

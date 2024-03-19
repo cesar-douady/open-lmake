@@ -204,11 +204,11 @@ Digest analyze( bool at_end , bool killed=false ) {
 			switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk       ) break ;                       // it is ok to write and unlink temporary files
-					if (ad.write==No) break ;                       // it is ok to attempt writing as long as attempt does not succeed
+					if (unlnk       ) break ;                                                     // it is ok to write and unlink temporary files
+					if (ad.write==No) break ;                                                     // it is ok to attempt writing as long as attempt does not succeed
 				[[fallthrough]] ;
 				case No :
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ; // it is ok if explicitly allowed by user
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
 					if (!info.last_confirmed) append_to_string( res.msg , "maybe "                               ) ;
 					/**/                      append_to_string( res.msg , "unexpected "                          ) ;
@@ -219,9 +219,8 @@ Digest analyze( bool at_end , bool killed=false ) {
 				break ;
 			}
 			if (ad.write!=No) {
-				// no need to optimize (could compute other crcs while waiting) as this is exceptional
-				if (!info.last_confirmed) relax.sleep_until() ;     // /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
-				//
+				// /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
+				if      ( !info.last_confirmed                )   relax.sleep_until() ;           // no need to optimize (could compute other crcs while waiting) as this is exceptional
 				if      ( unlnk                               )   td.crc = Crc::None ;
 				else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
 				else                                              res.crcs.emplace_back(res.targets.size()) ;      // record index in res.targets for deferred (parallel) crc computation
@@ -320,7 +319,6 @@ trace((*crcs)[ci]);
 }
 
 int main( int argc , char* argv[] ) {
-	//
 	Pdate start_overhead = Pdate(New) ;
 	//
 	swear_prod(argc==8,argc) ;                       // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx root_dir trace_file
@@ -436,6 +434,7 @@ int main( int argc , char* argv[] ) {
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
+		trace("status",status) ;
 		switch (status) {
 			case Status::Ok :
 				if (+digest.msg) {
@@ -466,15 +465,15 @@ int main( int argc , char* argv[] ) {
 		} ;
 	}
 End :
+	Trace trace("end",end_report.digest.status) ;
 	try {
 		ClientSockFd fd           { g_service_end , NConnectionTrials } ;
 		Pdate        end_overhead = New                                 ;
-		Trace trace("end",end_overhead,end_report.digest.status) ;
 		end_report.digest.stats.total = end_overhead - start_overhead ;                                          // measure overhead as late as possible
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		OMsgBuf().send( fd , end_report ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("done") ;
+		trace("done",end_overhead) ;
 	} catch (::string const& e) { exit(Rc::Fail,"after job execution : ",e) ; }
 	//
 	return 0 ;

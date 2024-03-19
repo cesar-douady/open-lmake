@@ -47,12 +47,12 @@ namespace Engine {
 			break ;
 		}
 		//
-		data.idx_by_start = s_n_reqs()           ;
-		data.idx_by_eta   = s_n_reqs()           ;                                               // initially, eta is far future
-		data.jobs .dflt   = Job ::ReqInfo(*this) ;
-		data.nodes.dflt   = Node::ReqInfo(*this) ;
-		data.options      = ecr.options          ;
-		data.audit_fd     = ecr.out_fd           ;
+		data.idx_by_start = s_n_reqs()         ;
+		data.idx_by_eta   = s_n_reqs()         ;                                                 // initially, eta is far future
+		data.jobs .dflt   = JobReqInfo (*this) ;
+		data.nodes.dflt   = NodeReqInfo(*this) ;
+		data.options      = ecr.options        ;
+		data.audit_fd     = ecr.out_fd         ;
 		//
 		s_reqs_by_start.push_back(*this) ;
 		_adjust_eta(true/*push_self*/) ;
@@ -71,13 +71,13 @@ namespace Engine {
 		//
 		Job::ReqInfo& jri = data.job->req_info(*this) ;
 		jri.live_out = (*this)->options.flags[ReqFlag::LiveOut] ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		data.job->make(jri,RunAction::Status,{}/*JobReason*/,No/*speculate*/) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		data.job->make(jri,JobMakeAction::Status,{}/*JobReason*/,No/*speculate*/) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		for( Node d : data.job->deps ) {
-			/**/                       if (!d->done(*this)                   ) continue ;
-			Job j = d->conform_job() ; if (!j                                ) continue ;
-			/**/                       if (j->run_status!=RunStatus::Complete) continue ;
+			/**/                       if (!d->done(*this)             ) continue ;
+			Job j = d->conform_job() ; if (!j                          ) continue ;
+			/**/                       if (j->run_status!=RunStatus::Ok) continue ;
 			//
 			(*this)->up_to_dates.push_back(d) ;
 		}
@@ -174,7 +174,7 @@ namespace Engine {
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) )        // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(*this).done()) to_raise.insert(j->rule) ;
 			for( Job j : d->conform_job_tgts(d->c_req_info(*this)) ) {      // 2nd pass to find the loop
-				Job::ReqInfo const& cjri = j->c_req_info(*this) ;
+				JobReqInfo const& cjri = j->c_req_info(*this) ;
 				if (cjri.done()          ) continue ;
 				if (cjri.speculative_deps) to_forget.push_back(d) ;
 				for( Node dd : j->deps ) {
@@ -212,8 +212,8 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_nodes.contains(dep)) return false ;
 		seen_nodes.insert(dep) ;
-		Node::ReqInfo const& cri = dep->c_req_info(*this) ;
-		const char*          err = nullptr                ;
+		NodeReqInfo const& cri = dep->c_req_info(*this) ;
+		const char*        err = nullptr                ;
 		switch (dep->status()) {
 			case NodeStatus::Multi      :                                  err = "multi"                                            ; break ;
 			case NodeStatus::Transcient :                                  err = "missing transcient sub-file"                      ; break ;
@@ -239,7 +239,7 @@ namespace Engine {
 	bool/*overflow*/ Req::_report_err( Job job , Node target , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
 		if (seen_jobs.contains(job)) return false ;
 		seen_jobs.insert(job) ;
-		Job::ReqInfo const& jri = job->c_req_info(*this) ;
+		JobReqInfo const& jri = job->c_req_info(*this) ;
 		if (!jri.done()) return false ;
 		if (!job->err()) return false ;
 		//
@@ -247,7 +247,7 @@ namespace Engine {
 		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ;
 		if (overflow) return true ;
 		//
-		if ( !seen_stderr && job->run_status==RunStatus::Complete && !job->rule->is_special() ) {
+		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) {
 			try {
 				// show first stderr
 				Rule::SimpleMatch match          ;
@@ -268,10 +268,10 @@ namespace Engine {
 
 	void Req::chk_end() {
 		if ((*this)->n_running()) return ;
-		Job                 job     = (*this)->job            ;
-		Job::ReqInfo const& cri     = job->c_req_info(*this)  ;
-		bool                job_err = job->status!=Status::Ok ;
-		Trace trace("chk_end",*this,cri,cri.done_,job,job->status) ;
+		Job               job     = (*this)->job            ;
+		JobReqInfo const& cri     = job->c_req_info(*this)  ;
+		bool              job_err = job->status!=Status::Ok ;
+		Trace trace("chk_end",*this,cri,job,job->status) ;
 		(*this)->audit_stats() ;
 		(*this)->audit_summary(job_err) ;
 		if (zombie()                      ) goto Done ;
@@ -306,7 +306,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , ReqInfo const& ri ) {
-		return os<<"ReqInfo("<<ri.req<<','<<ri.action<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
+		return os<<"ReqInfo("<<ri.req<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
 	}
 
 	void ReqInfo::_add_watcher(Watcher watcher) {
@@ -329,20 +329,20 @@ namespace Engine {
 	}
 
 	void ReqInfo::wakeup_watchers() {
-		SWEAR(!waiting()) ;                   // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;          // copy watchers aside before calling them as during a call, we could become not done and be waited for again
+		SWEAR(!waiting()) ;                                                         // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;                                                // copy watchers aside before calling them as during a call, we could become not done and be waited for again
 		if (_n_watchers==VectorMrkr) {
 			watchers = ::move(*_watchers_v) ;
-			delete _watchers_v ;              // transform vector into array as there is no watchers any more
+			delete _watchers_v ;                                                    // transform vector into array as there is no watchers any more
 		} else {
 			watchers = mk_vector(::vector_view(_watchers_a.data(),_n_watchers)) ;
 		}
 		_n_watchers = 0 ;
 		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
 		for( auto it = watchers.begin() ; it!=watchers.end() ; it++ )
-			if      (waiting()      ) _add_watcher(*it) ;                                                      // if waiting again, add back watchers we have got and that we no more want to call
-			else if (it->is_a<Job>()) Job (*it)->make( Job (*it)->req_info(req) , Job ::MakeAction::Wakeup ) ; // ok, we are still done, we can call watcher
-			else                      Node(*it)->make( Node(*it)->req_info(req) , Node::MakeAction::Wakeup ) ; // .
+			if      (waiting()      ) _add_watcher(*it) ;                           // if waiting again, add back watchers we have got and that we no more want to call
+			else if (it->is_a<Job>()) Job (*it)->wakeup(Job (*it)->req_info(req)) ; // ok, we are still done, we can call watcher
+			else                      Node(*it)->wakeup(Node(*it)->req_info(req)) ; // .
 	}
 
 	Job ReqInfo::asking() const {
@@ -526,7 +526,7 @@ namespace Engine {
 			if (rt->special==Special::Anti) { art = rt ; break    ; }
 			Rule::SimpleMatch m{rt,name} ;
 			mrts.emplace_back(rt,m) ;
-			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::NoDep ) continue ; // do not pass *this as req to avoid generating error message at cxtor time
+			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) continue ; // do not pass *this as req to avoid generating error message at cxtor time
 			try                      { rt->deps_attrs.eval(m) ; }
 			catch (::pair_ss const&) { continue ;               }                          // do not consider rule if deps cannot be computed
 			n_missing++ ;
@@ -541,9 +541,9 @@ namespace Engine {
 			::string                 reason      ;
 			Node                     missing_dep ;
 			::vmap_s<pair_s<Dflags>> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::NoDep ) { reason      = "does not produce it"                                                 ; goto Report ; }
-			try                                            { static_deps = rt->deps_attrs.eval(m)                                                ;               }
-			catch (::pair_ss const& msg_err)               { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
+			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason      = "does not produce it"                                                 ; goto Report ; }
+			try                                                    { static_deps = rt->deps_attrs.eval(m)                                                ;               }
+			catch (::pair_ss const& msg_err)                       { reason      = to_string("cannot compute its deps :\n",msg_err.first,msg_err.second) ; goto Report ; }
 			{	::string missing_key ;
 				for( bool search_non_buildable : {true,false} )                            // first search a non-buildable, if not found, search for non makable as deps have been made
 					for( auto const& [k,df] : static_deps ) {
