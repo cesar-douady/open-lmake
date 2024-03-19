@@ -14,7 +14,7 @@ if __name__!='__main__' :
 
 	class Cpy(Rule) :
 		targets      = { 'DST'        : 'test'    }
-		target_flags = { 'SCRATCHPAD' : 'test.sp' }
+		side_targets = { 'SCRATCHPAD' : 'test.sp' }
 		if python :
 			def cmd() :
 				import os

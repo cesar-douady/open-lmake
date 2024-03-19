@@ -168,7 +168,7 @@ class PatchFile(BaseRule) :
 
 class ConfigH(BaseRule) :
 	targets      = { 'CONFIG_H'   : 'ext/{DirS}config.h'  }
-	target_flags = { 'SCRATCHPAD' : 'ext/{DirS}{File*}'   }
+	side_targets = { 'SCRATCHPAD' : 'ext/{DirS}{File*}'   }
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 

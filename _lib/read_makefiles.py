@@ -48,7 +48,7 @@ StdAttrs = {
 ,	'cache'             : ( str   , True  )
 ,	'cmd'               : ( str   , True  )                    # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'cwd'               : ( str   , True  )
-,	'dep_flags'         : ( dict  , True  )
+,	'side_deps'         : ( dict  , True  )
 ,	'deps'              : ( dict  , True  )
 ,	'environ_cmd'       : ( dict  , True  )
 ,	'environ_resources' : ( dict  , True  )
@@ -68,7 +68,7 @@ StdAttrs = {
 ,	'resources'         : ( dict  , True  )
 ,	'shell'             : ( tuple , False )
 ,	'start_delay'       : ( float , True  )
-,	'target_flags'      : ( dict  , True  )
+,	'side_targets'      : ( dict  , True  )
 ,	'timeout'           : ( float , True  )
 ,	'tmp'               : ( str   , True  )
 ,	'use_script'        : ( bool  , True  )
@@ -133,8 +133,8 @@ def qualify(attrs,is_python) :
 	for k in attrs.stems       .keys() : _qualify_key('stem'        ,k,True,is_python,seen)
 	for k in attrs.targets     .keys() : _qualify_key('target'      ,k,True,is_python,seen)
 	if attrs.__special__ : return
-	for k in attrs.target_flags.keys() : _qualify_key('target_flags',k,True,is_python,seen)
-	for k in attrs.dep_flags   .keys() : _qualify_key('dep_flags'   ,k,True,is_python,seen)
+	for k in attrs.side_targets.keys() : _qualify_key('side_targets',k,True,is_python,seen)
+	for k in attrs.side_deps   .keys() : _qualify_key('side_deps'   ,k,True,is_python,seen)
 	for key in ('dep','resource') :
 		dct = attrs[key+'s']
 		if callable(dct) : continue
@@ -364,8 +364,8 @@ class Handle :
 		#
 		d = {
 			**{ k:fmt(k,'target'      ,t) for k,t in self.attrs.targets     .items() }
-		,	**{ k:fmt(k,'target_flags',t) for k,t in self.attrs.target_flags.items() }
-		,	**{ k:fmt(k,'dep_flags'   ,t) for k,t in self.attrs.dep_flags   .items() }
+		,	**{ k:fmt(k,'side_targets',t) for k,t in self.attrs.side_targets.items() }
+		,	**{ k:fmt(k,'side_deps'   ,t) for k,t in self.attrs.side_deps   .items() }
 		}
 		if self.attrs.order : # reorder d
 			d2 = {}

@@ -178,8 +178,8 @@ static_assert(::size(JobReasonTagStrs)==N<JobReasonTag>) ;
 
 ENUM( MatchKind
 ,	Target
-,	TargetFlags
-,	DepFlags
+,	SideTargets
+,	SideDeps
 )
 
 ENUM_3( Status                                    // result of job execution

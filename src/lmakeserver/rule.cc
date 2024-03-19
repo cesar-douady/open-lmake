@@ -419,7 +419,7 @@ namespace Engine {
 			VarIdx      n_unnamed  = 0                                                                               ;
 			Dflags      df         { Dflag::Essential , Dflag::Static }                                              ;
 			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags in DepSpec
+			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
 			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                 ;
 			//
 			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
@@ -452,7 +452,7 @@ namespace Engine {
 					::string key = py_key.as_a<Str>() ;
 					Dflags      df  { Dflag::Essential , Dflag::Static }                                              ;
 					ExtraDflags edf ;
-					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review dep_flags
+					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
 					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 					_qualify_dep( key , dep , DepKind::Dep ) ;
 					::pair_s<Dflags> e { dep , df } ;
@@ -750,7 +750,7 @@ namespace Engine {
 					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                 // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star            = false                                         ;
 					::set_s         missing_stems      ;
-					bool            is_target          = kind!=MatchKind::DepFlags                     ;
+					bool            is_target          = kind!=MatchKind::SideDeps                     ;
 					bool            is_official_target = kind==MatchKind::Target                       ;
 					bool            is_stdout          = field=="<stdout>"                             ;
 					Tflags          tflags             ;
@@ -811,7 +811,7 @@ namespace Engine {
 				/**/                                for( auto& st : star_matches       ) matches.push_back(::move(st)) ; // then star
 			}
 			field = "" ;
-			if (matches.size()>=NoVar) throw to_string("too many targets, targets_flags and dep_flags ",matches.size()," >= ",NoVar) ;
+			if (matches.size()>=NoVar) throw to_string("too many targets, side_targets and side_deps ",matches.size()," >= ",NoVar) ;
 			::umap_s<VarIdx> stem_idxs ;
 			for( bool star : {false,true} ) {                                                                            // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_stars ) {
@@ -997,9 +997,9 @@ namespace Engine {
 	static ::string _pretty_matches( RuleData const& rd , size_t i , ::vmap_s<RuleData::MatchEntry> const& matches ) {
 		auto kind = [&](RuleData::MatchEntry const& me)->::string_view {
 			return snake(
-				me.flags.is_target==No           ? MatchKind::DepFlags
+				me.flags.is_target==No           ? MatchKind::SideDeps
 			:	me.flags.tflags()[Tflag::Target] ? MatchKind::Target
-			:	                                   MatchKind::TargetFlags
+			:	                                   MatchKind::SideTargets
 			) ;
 		} ;
 		size_t    w1       = 0 ;

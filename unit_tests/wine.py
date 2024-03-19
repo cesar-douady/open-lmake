@@ -25,7 +25,7 @@ if __name__!='__main__' :
 
 	class Test(Rule) :
 		target       = r'test.{Method:\w+}'
-		target_flags = {
+		side_targets = {
 			'WINE'   : ( '.wine/{*:.*}'   , 'incremental' )
 		,	'LOCAL'  : ( '.local/{*:.*}'  , 'incremental' )
 		,	'CONFIG' : ( '.config/{*:.*}' , 'incremental' )

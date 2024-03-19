@@ -16,7 +16,7 @@ if __name__!='__main__' :
 
 	class B(Rule):
 		targets   = { 'B' :  'b'                 }
-		dep_flags = { 'A' : ('a{*:.*}','Ignore') }
+		side_deps = { 'A' : ('a{*:.*}','Ignore') }
 		def cmd():
 			open(A('')    )
 			open(B    ,'w')

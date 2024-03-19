@@ -21,7 +21,7 @@ if __name__!='__main__' :
 
 	class CompileRust(HomelessRule,RustRule) :
 		targets      = { 'EXE'        :   '{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'                   }
-		target_flags = { 'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
+		side_targets = { 'SCRATCHPAD' : ( '{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
 		deps    = {
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'

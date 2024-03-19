@@ -24,7 +24,7 @@ if __name__!='__main__' :
 			'OUT'     : 'output.dut'
 		,	'COMPILE' : r'target/{*:.*}'
 		}
-		target_flags = {
+		side_targets = {
 			'SCRATCH' : ( '.cargo/{*:.*}' , 'Top' )
 		}
 		deps         = { 'MAIN' : 'src/main.rs' }

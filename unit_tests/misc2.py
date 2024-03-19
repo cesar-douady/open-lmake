@@ -20,11 +20,11 @@ if __name__!='__main__' :
 	class Test(PyRule) :
 		targets = { 'DST' : '{File:.*}.test' }
 		if step==1 :
-			target_flags = {
+			side_targets = {
 				'UNIQ' : 'uniq'
 			,	'SIDE' : 'side.{*:[12]}'
 			}
-			dep_flags = { 'NO_DEP' : ( 'no_dep.{*:[12]}' , 'Ignore' ) }
+			side_deps = { 'NO_DEP' : ( 'no_dep.{*:[12]}' , 'Ignore' ) }
 		allow_stderr = True
 		def cmd() :
 			open('no_dep.1')

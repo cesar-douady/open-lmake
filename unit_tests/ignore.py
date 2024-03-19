@@ -15,7 +15,7 @@ if __name__!='__main__' :
 
 	class Cat(Rule) :
 		targets      = { 'DST'     :  'hello.cpy'                            }
-		target_flags = { 'SCRATCH' : ('hello'    ,'incremental','source_ok') }
+		side_targets = { 'SCRATCH' : ('hello'    ,'incremental','source_ok') }
 		cmd = '''
 			echo 2nd line >> hello
 			cat hello > {DST}
