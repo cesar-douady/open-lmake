@@ -205,16 +205,16 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						case ReqProc::Kill   :
 						case ReqProc::Close  :
 						case ReqProc::None   : {
-							epoll.del(fd) ;                                                       // must precede close(fd)
+							epoll.del(fd) ;                                             // must precede close(fd)
 							::unique_lock lock{_g_req_tab_mutex} ;
 							auto it = _g_req_tab.find(ofd) ;
 							trace("eof",ofd) ;
 							if (it!=_g_req_tab.end()) {
-								it->second.first.zombie(true) ;                                   // make req zombie immediately to optimize reaction time
+								it->second.first.zombie(true) ;                         // make req zombie immediately to optimize reaction time
 								trace("zombie",it->second.first) ;
 							}
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( ReqProc::Kill , fd , ofd ) ;           // this will close ofd when done writing to it
+							g_engine_queue.emplace_urgent( ReqProc::Kill , fd , ofd ) ; // this will close ofd when done writing to it
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							in_tab.erase(fd) ;
 						} break ;
@@ -223,19 +223,19 @@ void reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 			DF}
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                                   // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                         // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = Fd(_g_server_fd.accept()) ;
 			trace("new_req",slave_fd) ;
-			in_tab[slave_fd] ;                                                                    // allocate entry
+			in_tab[slave_fd] ;                                                          // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ;
 			report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                      // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -295,21 +295,28 @@ bool/*interrupted*/ engine_loop() {
 					// output is closed upon Close (using shutdown if other side is not closed yet)
 					case ReqProc::Make : {
 						Req r = ( ::unique_lock(_g_req_tab_mutex) , _g_req_tab.at(req.out_fd).first ) ; // avoid locking while we call r.make or we cant set zombie during that time
-						fd_tab[r] = {req.in_fd,req.out_fd} ;
-						if (!r.zombie()) try {                                                          // if already zombie, dont make r
-							::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
-							if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
-							trace("new_req",req,r) ;
-							//vvvvvvvvv
-							r.make(req) ;
-							//^^^^^^^^^
-							if (!req.as_job()) record_targets(r->job) ;
-							break ;                                                                     // make has been successfully called, dont process as Close
-						} catch(::string const& e) {
-							audit( req.out_fd , req.options , Color::Err , e ) ;
-							OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
-						}
-					} [[fallthrough]] ;                                                                 // cannot make, process as if followed by Close
+						if (!r.zombie())                                                                // if already zombie, dont make r
+							try {
+								::string msg = Makefiles::dynamic_refresh(startup_dir_s) ;
+								if (+msg) audit( req.out_fd , req.options , Color::Note , msg ) ;
+								trace("new_req",req,r) ;
+								//vvvvvvvvv
+								r.make(req) ;
+								//^^^^^^^^^
+								if (!req.as_job()) record_targets(r->job) ;
+								fd_tab[r] = {req.in_fd,req.out_fd} ;
+							} catch(::string const& e) {
+								audit( req.out_fd , req.options , Color::Err , e ) ;
+								OMsgBuf().send( req.out_fd , ReqRpcReply(false/*ok*/) ) ;
+								// cannot make, process as if followed by Close
+								trace("no_make") ;
+								auto rit       = _g_req_tab.find(req.out_fd) ; SWEAR(rit!=_g_req_tab.end()) ;
+								bool kill_seen = rit->second.second          ;
+								_g_req_tab.erase(rit) ;
+								if ( kill_seen || req.in_fd!=req.out_fd ) ::close   (req.out_fd        ) ;
+								else                                      ::shutdown(req.out_fd,SHUT_WR) ;
+							}
+					} break ;
 					case ReqProc::Close : {
 						::unique_lock                     lock      { _g_req_tab_mutex }          ;
 						auto                              fit       = fd_tab.find(req.req)        ;

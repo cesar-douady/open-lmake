@@ -208,7 +208,7 @@ namespace Engine::Makefiles {
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;               }
 		catch(::string const& e) { throw to_string("while processing config :\n",indent(e)) ; }
 		//
-		return { "read config because "+reason , true/*done*/ } ;
+		return { reason , true/*done*/ } ;
 	}
 
 	// /!\ the 2 following functions are mostly identical, one for rules, the other for sources, but are difficult to share, modifications must be done in both simultaneously
@@ -230,7 +230,6 @@ namespace Engine::Makefiles {
 			if (+new_  ) reason = to_string("config.sources_module was "s,new_)      ;
 			else         reason = _chk_deps( "sources" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
-			/**/         reason = "read sources because " + reason ;
 			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			tie(py_new_info,deps) = _read_makefiles( "srcs" , g_config.srcs_module ) ;
 			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -258,7 +257,6 @@ namespace Engine::Makefiles {
 			if (+new_  ) reason = to_string("config.rules_module was "s,new_)      ;
 			else         reason = _chk_deps( "rules" , startup_dir_s , nfs_guard ) ;
 			if (!reason) return {{},false/*done*/} ;
-			/**/         reason = "read rules because " + reason ;
 			//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			tie(py_new_info,deps) = _read_makefiles( "rules" , g_config.rules_module ) ;
 			//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -279,7 +277,7 @@ namespace Engine::Makefiles {
 			return {} ;
 		}
 		Gil        gil         ;
-		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                         // until we have config info, protect against NFS
+		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                                // until we have config info, protect against NFS
 		::vector_s config_deps ;
 		::vector_s rules_deps  ;
 		::vector_s srcs_deps   ;
@@ -291,15 +289,19 @@ namespace Engine::Makefiles {
 		Reason new_srcs  = Reason::None ;
 		Reason new_rules = Reason::None ;
 		auto diff_config      = [&]( Config const& old , Config const& new_ )->void {
-			if ( !old.booted || !new_.booted         ) return ;                                    // only record diffs, i.e. when both exist
+			if ( !old.booted || !new_.booted         ) return ;                                           // only record diffs, i.e. when both exist
 			//
 			if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
 			if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
 		} ;
-		//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
-		//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                         // now that config is loaded, we can optimize protection against NFS
+		try {
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		} catch (::string const& e) {
+			throw to_string("cannot dynamically read config (because ",config_digest.first,") : ",e) ;
+		}
+		nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                                // now that config is loaded, we can optimize protection against NFS
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
@@ -311,8 +313,8 @@ namespace Engine::Makefiles {
 			try { //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_src &= Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				::string because ; if (+srcs_digest.first) because = to_string(" (because ",srcs_digest.first,')') ;
-				throw to_string("cannot dynamically read sources",because," : ",e) ;
+				if (!srcs_digest.first) srcs_digest.first = config_digest.first ;                         // sources are embedded in config
+				throw to_string("cannot dynamically read sources (because ",srcs_digest.first,") : ",e) ;
 			}
 		}
 		//
@@ -323,26 +325,26 @@ namespace Engine::Makefiles {
 			try { //!                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				::string because ; if (+rules_digest.first) because = to_string(" (because ",rules_digest.first,')') ;
-				throw to_string("cannot dynamically read rules",because," : ",e) ;
+				if (!rules_digest.first) rules_digest.first = config_digest.first ;                       // rules are embedded in config
+				throw to_string("cannot dynamically read rules (because ",rules_digest.first,") : ",e) ;
 			}
 		}
 		if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
 		//
 		if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have becom dangling
+		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ;        // if sources have changed, some deps may have becom dangling
 		if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
 		if      (rules_digest .second) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
+		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ;        // .
 		//
 		::string msg ;
-		if (+config_digest.first) append_to_string(msg,config_digest.first,'\n') ;
-		if (+srcs_digest  .first) append_to_string(msg,srcs_digest  .first,'\n') ;
-		if (+rules_digest .first) append_to_string(msg,rules_digest .first,'\n') ;
+		if (+config_digest.first) append_to_string(msg,"read config because " ,config_digest.first,'\n') ;
+		if (+srcs_digest  .first) append_to_string(msg,"read sources because ",srcs_digest  .first,'\n') ;
+		if (+rules_digest .first) append_to_string(msg,"read rules because "  ,rules_digest .first,'\n') ;
 		//
-		if (config_digest.second) _stamp_deps("config" ) ;                                         // stamp deps once all error cases have been cleared
-		if (srcs_digest  .second) _stamp_deps("sources") ;                                         // .
-		if (rules_digest .second) _stamp_deps("rules"  ) ;                                         // .
+		if (config_digest.second) _stamp_deps("config" ) ;                                                // stamp deps once all error cases have been cleared
+		if (srcs_digest  .second) _stamp_deps("sources") ;                                                // .
+		if (rules_digest .second) _stamp_deps("rules"  ) ;                                                // .
 		//
 		return msg ;
 	}

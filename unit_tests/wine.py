@@ -23,20 +23,36 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class Test(Rule) :
-		target       = r'test.{Method:\w+}'
-		side_targets = {
-			'WINE'   : ( '.wine/{*:.*}'   , 'incremental' )
-		,	'LOCAL'  : ( '.local/{*:.*}'  , 'incremental' )
-		,	'CONFIG' : ( '.config/{*:.*}' , 'incremental' )
-		}
-		environ_resources = {
-			'DISPLAY' : os.environ['DISPLAY']
-		}
-		autodep      = '{Method}'
+	class Base(Rule) :
+		stems = { 'Method' : r'\w+' }
+
+	class WineRule(Rule) :
+		side_targets      = { 'WINE' : ('.wine/{*:.*}','incremental') }
+		environ_resources = { 'DISPLAY' : os.environ['DISPLAY'] }
+		timeout           = 30                                    # actual time should be ~5s, but seems to block from time to time
+
+	class WineInit(WineRule) :
+		target       = '.wine/init'
+		targets      = { 'WINE' : '.wine/{*:.*}' } # for init wine env is not incremental
+		side_targets = { 'WINE' : None }
 		allow_stderr = True
-		timeout      = 30                     # actual time should be ~5s, but seems to block from time to time
-		cmd          = f'wine {hostname_exe}'
+		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
+
+	class Dut(Base,WineRule) :
+		target  = 'dut.{Method}'
+		deps    = { 'WINE_INIT' : '.wine/init' }
+		autodep = '{Method}'
+		cmd     = f'wine64 {hostname_exe}'
+
+	class Chk(Base) :
+		target = r'test.{Method}'
+		dep    =  'dut.{Method}'
+		def cmd() :
+			import socket
+			import sys
+			ref = socket.gethostname().lower()
+			dut = sys.stdin.read().strip().lower()
+			assert dut==ref,f'{dut} != {ref}'
 
 else :
 
@@ -52,4 +68,5 @@ else :
 		methods = ['none','ld_preload']
 		if lmake.has_ptrace   : methods.append('ptrace'  )
 		if lmake.has_ld_audit : methods.append('ld_audit')
-		ut.lmake( *(f'test.{m}' for m in methods) , done=len(methods) , new=0 , rc=0 )
+		ut.lmake( *(f'test.{m}' for m in methods) , done=1+2*len(methods) , new=0 , rc=0 )
+		ut.lmake( *(f'test.{m}' for m in methods)                                        ) # ensure nothing needs to be remade

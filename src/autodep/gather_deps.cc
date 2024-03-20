@@ -346,7 +346,10 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		if (+msg_              ) { set_nl(msg) ; msg += msg_ ; }
 	} ;
 	//
-	if (+timeout            ) end = PD(New) + timeout ;
+	if (+timeout) {
+		end = PD(New) + timeout ;
+		trace("set_timeout",timeout,end) ;
+	}
 	if (cstdout==Child::Pipe) epoll.add_read(child_stdout=child.stdout,Kind::Stdout  ) ;
 	if (cstderr==Child::Pipe) epoll.add_read(child_stderr=child.stderr,Kind::Stderr  ) ;
 	/**/                      epoll.add_read(child_fd                 ,Kind::ChildEnd) ;
@@ -356,6 +359,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		if (+end) {
 			PD now = New ;
 			if (now>=end) {
+				trace("fire_timeout",now) ;
 				if (!killed) {
 					killed = true ;
 					set_status(Status::Err,to_string("timout after ",timeout.short_str())) ;

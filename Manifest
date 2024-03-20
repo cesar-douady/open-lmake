@@ -75,6 +75,8 @@ src/fd.hh
 src/hash.cc
 src/hash.hh
 src/job_exec.cc
+src/job_exec.cc
+src/job_exec.cc
 src/ldebug.cc
 src/ldump.cc
 src/ldump_job.cc
@@ -234,4 +236,6 @@ unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
 unit_tests/wide.py
+unit_tests/wine.py
+unit_tests/wine.py
 unit_tests/wine.py

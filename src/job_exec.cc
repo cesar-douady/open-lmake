@@ -61,8 +61,11 @@ void kill_thread_func(::stop_token stop) {
 	for( size_t i=0 ;; i++ ) {
 		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : -1 ; // -1 means best effort
 		trace("sig",sig) ;
-		if (!g_gather_deps.kill(sig)  ) return ;                                     // job is already dead, if no pid, job did not start yet, wait until job_exec dies or we can kill job
-		if (!Delay(1.).sleep_for(stop)) return ;                                     // job_exec has ended
+		g_gather_deps.kill(sig) ;
+		if (!Delay(1.).sleep_for(stop)) {
+			trace("done") ;
+			return ;                                                                 // job_exec has ended
+		}
 	}
 }
 
@@ -346,16 +349,19 @@ int main( int argc , char* argv[] ) {
 		//
 		ServerThread<JobServerRpcReq> server_thread{'S',handle_server_req} ;
 		//
-		JobRpcReq req_info { JobProc::Start , g_seq_id , g_job , server_thread.fd.port() } ;
+		JobRpcReq req_info     { JobProc::Start , g_seq_id , g_job , server_thread.fd.port() } ;
+		bool      found_server = false                                                         ;
 		try {
 			ClientSockFd fd {g_service_start,NConnectionTrials} ;
+			found_server = true ;
 			//             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			/**/           OMsgBuf().send                ( fd , req_info ) ;
 			g_start_info = IMsgBuf().receive<JobRpcReply>( fd            ) ;
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			trace("no_server",g_service_start,e) ;
-			exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // maybe normal if ^C was hit but better to have a message if verbose as it may a server address problem
+			trace("no_server",g_service_start,STR(found_server),e) ;
+			if (found_server) exit(Rc::Fail                                                          ) ; // this is typically a ^C
+			else              exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // this may be a server config problem, better to report
 		}
 		trace("g_start_info"  ,g_start_info  ) ;
 		if (!g_start_info.proc) return 0 ;                                             // silently exit if told to do so
@@ -414,7 +420,7 @@ int main( int argc , char* argv[] ) {
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
-		bool killed = g_killed ;                                                       // sample g_killed to ensure coherence
+		bool killed = g_killed && status==Status::LateLost ;                           // sample g_killed to ensure coherence
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
 		for( auto const& [f,p] : g_missing_static_targets ) {
@@ -434,19 +440,13 @@ int main( int argc , char* argv[] ) {
 		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
 			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
-		trace("status",status) ;
-		switch (status) {
-			case Status::Ok :
-				if (+digest.msg) {
-					trace("analysis_err") ;
-					end_report.msg += digest.msg ;
-					status = Status::Err ;
-				}
-			break ;
-			case Status::LateLost :
-				if (killed) { trace("killed") ; status = Status::Killed ; }
-			break ;
-			default : ;
+		if (killed) {
+			trace("killed") ;
+			status = Status::Killed ;
+		} else if ( status==Status::Ok && +digest.msg ) {
+			trace("analysis_err") ;
+			end_report.msg += digest.msg  ;
+			status          = Status::Err ;
 		}
 		end_report.msg += g_gather_deps.msg ;
 		end_report.digest = {
