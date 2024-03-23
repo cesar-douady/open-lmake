@@ -170,9 +170,8 @@ namespace Engine {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,Dflags> const& ,                     bool parallel=true ) ;
-		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel=true ) ;
-		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel=true ) ;
+		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel ) ;
+		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel ) ;
 	} ;
 
 }
@@ -195,7 +194,7 @@ namespace Engine {
 		bool done(NodeGoal ng) const { return done_>=ng   ; }
 		bool done(           ) const { return done_>=goal ; }
 		// services
-		void reset() { done_ = NodeGoal::None ; }
+		void reset(NodeGoal ng=NodeGoal::None) { done_ &= ng ; }
 		// data
 	public :
 		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being analyzed
@@ -536,21 +535,15 @@ namespace Engine {
 	// Deps
 	//
 
-	inline Deps::Deps( ::vmap<Node,Dflags> const& static_deps , bool p ) {
-		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,f] : static_deps ) ds.emplace_back( d , Accesses() , f , p ) ;
-		*this = Deps(ds) ;
-	}
-
-	inline Deps::Deps( ::vmap<Node,Dflags> const& static_deps , Accesses a , bool p ) {
-		::vector<Dep> ds ; ds.reserve(static_deps.size()) ;
-		for( auto const& [d,df] : static_deps ) { ds.emplace_back( d , a , df , p ) ; }
-		*this = Deps(ds) ;
-	}
-
-	inline Deps::Deps( ::vector<Node> const& deps , Accesses a , Dflags df , bool p ) {
+	inline Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
 		::vector<Dep> ds ; ds.reserve(deps.size()) ;
-		for( auto const& d : deps ) ds.emplace_back( d , a , df , p ) ;
+		for( auto const& [d,df] : deps ) { ds.emplace_back( d , accesses , df , parallel ) ; }
+		*this = Deps(ds) ;
+	}
+
+	inline Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
+		::vector<Dep> ds ; ds.reserve(deps.size()) ;
+		for( auto const& d : deps ) ds.emplace_back( d , accesses , dflags , parallel ) ;
 		*this = Deps(ds) ;
 	}
 

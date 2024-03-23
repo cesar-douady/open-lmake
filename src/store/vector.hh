@@ -146,21 +146,18 @@ namespace Store {
 			IdxSz  old_n = chunk.n_items()            ;
 			IdxSz  new_n = Chunk::s_n_items(v.size()) ;
 			// reallocate
-			if (new_n>old_n) {
+			if (new_n!=old_n) {
 				//           vvvvvvvvvvvvvvvv
 				/**/   Base::pop    (idx    ) ;
 				return Base::emplace(new_n,v) ;
 				//           ^^^^^^^^^^^^^^^^
 			}
 			// in place
-			Item* items   = chunk.items()     ;
-			bool  shorten = v.size()<chunk.sz ;
+			Item* items = chunk.items() ;
+			for( size_t i=0 ; i<::min(v.size(),size_t(chunk.sz)) ; i++ ) items[i] = v[i] ;
+			if (v.size()<chunk.sz) for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ;
+			else                   for( size_t i=chunk.sz ; i<v.size() ; i++ ) new(items+i) Item{v[i]} ;
 			chunk.sz = v.size() ;
-			//                                                           vvvvvvvvvvvvvvv                                               vvvvvvvvvvvvvvvvvvvvvvv
-			if      (new_n<old_n) { for( size_t i=0 ; i<v.size() ; i++ ) items[i] = v[i] ; for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ; Base::shorten(idx,new_n) ; }
-			else if (shorten    ) { for( size_t i=0 ; i<v.size() ; i++ ) items[i] = v[i] ; for( size_t i=v.size() ; i<chunk.sz ; i++ ) items[i].~Item()        ;                            }
-			else                  { for( size_t i=0 ; i<chunk.sz ; i++ ) items[i] = v[i] ; for( size_t i=chunk.sz ; i<v.size() ; i++ ) new(items+i) Item{v[i]} ;                            }
-			//                                                           ^^^^^^^^^^^^^^^                                               ^^^^^^^^^^^^^^^^^^^^^^^
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx append( Idx idx , ::vector_view<I> const& v ) {

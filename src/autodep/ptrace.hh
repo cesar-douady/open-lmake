@@ -19,7 +19,7 @@
 	#endif
 #endif
 
-#include "gather_deps.hh"
+#include "gather.hh"
 #include "record.hh"
 
 struct AutodepPtrace {

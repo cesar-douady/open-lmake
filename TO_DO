@@ -12,6 +12,9 @@ items :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* missing some deps when reading elf
+	- it seems that libc.so is missing at least in some occasions
+* ld_audit does not seem to correctly bind symbols with ldopen on Ubuntu20
 * reimplement hierarchical repositories
 	- add a sub_repositories entry to config
 	- map priorities to RuleIdx
@@ -25,16 +28,15 @@ items :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* avoid memory fragmentation
-	- in vector file, when shrinking, do not split large chunks into smaller chunks
-	- reallocate smaller chunk and copy
-	- else if vector size oscillate between 2 chunk sizes, we keep allocating larger chunks instead of reuse
-* manage 32 bits executables
-	- compile ld_audit.so (and co) in both 32 & 64 bits
-	- put adequate $PLATFORM in LD_PRELOAD
+* rework side_targets versus side_deps
+* improve lshow -i
+	- generate info on nodes
 * use Pdate (end of job) rather than Ddate (target date) to detect clash
 	- Ddate are not reliable
 	- ok to detect manual, nothing else
+* manage 32 bits executables
+	- compile ld_audit.so (and co) in both 32 & 64 bits
+	- put adequate $PLATFORM in LD_PRELOAD
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
 ? mimic slurm killing procedure
@@ -97,7 +99,7 @@ items :
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-*1 implement a lshow -r to see what is running now and -B to see BOM (list of sources)
+* implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
 * implement cache v2 (copy & link) :

@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,PyRule
+	from lmake.rules import Rule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -23,7 +23,7 @@ if __name__!='__main__' :
 		deps    = { 'SRC':'cpy' }
 		cmd     = 'ln {SRC} {DST}'
 
-	class Chk(PyRule) :
+	class Chk(Rule) :
 		target = 'chk'
 		deps   = {
 			'DUT' : 'lnk'

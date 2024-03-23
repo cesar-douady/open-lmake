@@ -316,6 +316,10 @@ static inline constexpr bool is_space(char c) {
 static inline constexpr bool is_printable(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
+static inline bool is_printable(::string const& s) {
+	for( char c : s ) if (!is_printable(c)) return false ;
+	/**/                                    return true  ;
+}
 
 template<char Delimiter=0>               ::string mk_printable(::string const&    ) ;
 template<char Delimiter=0> static inline ::string mk_printable(::string     && txt) {

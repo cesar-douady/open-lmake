@@ -116,12 +116,15 @@ ENUM( JobProc
 )
 
 ENUM_3( JobReasonTag                                // see explanations in table below
-,	HasNode = ClashTarget                           // if >=HasNode, a node is associated
-,	Err     = DepDangling
+,	HasNode = NoTarget                              // if >=HasNode, a node is associated
+,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
 ,	None
 //	with reason
+,	OldErr
+,	Rsrcs
+,	PollutedTargets
 ,	ChkDeps
 ,	Cmd
 ,	Force
@@ -129,28 +132,28 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	Killed
 ,	Lost
 ,	New
-,	OldErr
-,	PollutedTargets
-,	Rsrcs
 //	with node
+,	NoTarget
+,	PollutedTarget
+,	PrevTarget
 ,	ClashTarget
 ,	DepOutOfDate
 ,	DepUnlnked
 ,	DepUnstable
-,	NoTarget
-,	PollutedTarget
-,	PrevTarget
 //	with error
+,	DepOverwritten
 ,	DepDangling
 ,	DepErr
 ,	DepMissingRequired
-,	DepOverwritten
 // with missing
 ,	DepMissingStatic
 )
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                     // None
 //	with reason
+,	"job was in error"                              // OldErr
+,	"resources changed and job was in error"        // Rsrcs
+,	"polluted targets"                              // PollutedTargets
 ,	"dep check requires rerun"                      // ChkDeps
 ,	"command changed"                               // Cmd
 ,	"job forced"                                    // Force
@@ -158,26 +161,54 @@ static constexpr const char* JobReasonTagStrs[] = {
 ,	"job was killed"                                // Killed
 ,	"job was lost"                                  // Lost
 ,	"job was never run"                             // New
-,	"job was in error"                              // OldErr
-,	"polluted targets"                              // PollutedTargets
-,	"resources changed and job was in error"        // Rsrcs
 //	with node
+,	"missing target"                                // NoTarget
+,	"target polluted by another job"                // PollutedTarget
+,	"target previously existed"                     // PrevTarget
 ,	"multiple simultaneous writes"                  // ClashTarget
 ,	"dep out of date"                               // DepOutOfDate
 ,	"dep not on disk"                               // DepUnlnked
 ,	"dep changed during job execution"              // DepUnstable
-,	"missing target"                                // NoTarget
-,	"target polluted by another job"                // PollutedTarget
-,	"target previously existed"                     // PrevTarget
 //	with error
+,	"dep has been overwritten"                      // DepOverwritten
 ,	"dep is dangling"                               // DepDangling
 ,	"dep in error"                                  // DepErr
 ,	"required dep missing"                          // DepMissingRequired
-,	"dep has been overwritten"                      // DepOverwritten
 // with missing
 ,	"static dep missing"                            // DepMissingStatic
 } ;
 static_assert(::size(JobReasonTagStrs)==N<JobReasonTag>) ;
+static constexpr uint8_t JobReasonTagPrios[] = {
+//	no reason, must be 0
+	0                                               // None
+//	with reason
+,	1                                               // OldErr
+,	2                                               // Rsrcs
+,	3                                               // PollutedTargets
+,	7                                               // ChkDeps
+,	9                                               // Cmd
+,	10                                              // Force
+,	10                                              // Garbage
+,	10                                              // Killed
+,	10                                              // Lost
+,	11                                              // New
+//	with node
+,	4                                               // NoTarget
+,	5                                               // PollutedTarget
+,	5                                               // PrevTarget
+,	6                                               // ClashTarget
+,	8                                               // DepOutOfDate
+,	8                                               // DepUnlnked
+,	8                                               // DepUnstable
+//	with error, must be higher than ok reasons
+,	20                                              // DepOverwritten
+,	21                                              // DepDangling
+,	21                                              // DepErr
+,	21                                              // DepMissingRequired
+// with missing, must be higher than err reasons
+,	30                                              // DepMissingStatic
+} ;
+static_assert(::size(JobReasonTagPrios)==N<JobReasonTag>) ;
 
 ENUM( MatchKind
 ,	Target
@@ -276,11 +307,9 @@ struct JobReason {
 	bool operator!() const { return !tag                 ; }
 	bool need_run () const { return +tag && tag<Tag::Err ; }
 	// services
-	JobReason operator|(JobReason jr) const {                                               // priority is to more severe error or to more informative info, and at equal level, the older
-		{ if (tag>=Tag::Missing) return *this ; } { if (jr.tag>=Tag::Missing) return jr ; }
-		{ if (tag>=Tag::Err    ) return *this ; } { if (jr.tag>=Tag::Err    ) return jr ; }
-		{ if (tag>=Tag::HasNode) return *this ; } { if (jr.tag>=Tag::HasNode) return jr ; }
-		{ if (+*this           ) return *this ; } { /**/                      return jr ; }
+	JobReason operator|(JobReason jr) const {
+		if (JobReasonTagPrios[+tag]>=JobReasonTagPrios[+jr.tag]) return *this ;             // at equal level, prefer older reason
+		else                                                     return jr    ;
 	}
 	JobReason& operator|=(JobReason jr) { *this = *this | jr ; return *this ; }
 	::string msg() const {

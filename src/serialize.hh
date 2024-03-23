@@ -137,6 +137,7 @@ template<class T,class U> struct Serdeser<::pair<T,U>> {
 //
 
 struct MsgBuf {
+	friend ::ostream& operator<<( ::ostream& , MsgBuf const& ) ;
 	using Len = size_t ;
 	// statics
 	static Len s_sz(const char* str) {
@@ -149,6 +150,7 @@ protected :
 	::string _buf       ;         // reading : sized after expected size, but actuall filled up only with len char's    // writing : contains len+data to be sent
 	bool     _data_pass = false ; // reading : if true <=> buf contains partial data, else it contains partial data len // writing : if true <=> buf contains data
 } ;
+inline ::ostream& operator<<( ::ostream& os , MsgBuf const& mb ) { return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ; }
 
 struct IMsgBuf : MsgBuf {
 	// statics

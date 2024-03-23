@@ -375,13 +375,13 @@ class LinkAutodepEnv(Link) :
 
 class LinkAutodep(LinkAutodepEnv) :
 	deps = {
-		'GATHER_DEPS' : 'src/autodep/gather_deps.o'
-	,	'LD'          : 'src/autodep/ld_server.o'
-	,	'PTRACE'      : 'src/autodep/ptrace.o'
-	,	'RECORD'      : 'src/autodep/record.o'
-	,	'SYSCALL'     : 'src/autodep/syscall_tab.o'
-	,	'RPC_JOB'     : 'src/rpc_job.o'
-	,	'RPC_CLIENT'  : None
+		'GATHER'     : 'src/autodep/gather.o'
+	,	'LD'         : 'src/autodep/ld_server.o'
+	,	'PTRACE'     : 'src/autodep/ptrace.o'
+	,	'RECORD'     : 'src/autodep/record.o'
+	,	'SYSCALL'    : 'src/autodep/syscall_tab.o'
+	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'RPC_CLIENT' : None
 	}
 	# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 	if run((gcc,'-shared','-xc','-o','/dev/null','/dev/null','-l:libseccomp.so.2'),stderr=DEVNULL).returncode==0 :

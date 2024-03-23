@@ -106,8 +106,29 @@ config = pdict(
 	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ] # red
 	)
 ,	trace = pdict(
-#		size = 100<20                                     # overall size of lmakeserver trace
-#	,	n_jobs = 1000                                     # number of kept job traces
+#		size     = 100<20                                 # overall size of lmakeserver trace
+#	,	n_jobs   = 1000                                   # number of kept job traces
 #	,	channels = ('backend','default')                  # channels traced in lmakeserver trace
 	)
 )
+
+class SuspendAutodep :
+	"""context version of the set_autodep function (applies to this process and all processes started in the protected core)
+usage :
+	with SuspendAutodep() :
+		<code with autodep deactivated>
+	"""
+	level = 0
+	def __init__(self) :
+		pass
+	def __enter__(self) :
+		if not self.__class__.level :
+			self.ld_preload = _os.environ.pop('LD_PRELOAD',None)
+			set_autodep(False)
+		self.__class__.level += 1
+	def __exit__(self,*args) :
+		self.__class__.level -= 1
+		if not self.__class__.level :
+			if self.ld_preload is not None : _os.environ['LD_PRELOAD'] = self.ld_preload
+			set_autodep(True)
+

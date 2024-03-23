@@ -7,7 +7,7 @@
 
 #include "re.hh"
 
-#include "autodep/gather_deps.hh"
+#include "autodep/gather.hh"
 
 #include "makefiles.hh"
 
@@ -161,11 +161,11 @@ namespace Engine::Makefiles {
 		//
 		static RegExpr pyc_re { R"(((.*/)?)(?:__pycache__/)?(\w+)(?:\.\w+-\d+)?\.pyc)" , true/*fast*/ } ; // dir_s is \1, module is \3, matches both python 2 & 3
 		//
-		GatherDeps gather_deps { New }                                                                        ;
-		::string   data        = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
-		::vector_s cmd_line    = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
-		gather_deps.autodep_env.src_dirs_s = {"/"}       ;
-		gather_deps.autodep_env.root_dir   = *g_root_dir ;
+		Gather     gather   { New }                                                                        ;
+		::string   data     = to_string(PrivateAdminDir,'/',action,"_data.py")                             ; dir_guard(data) ;
+		::vector_s cmd_line = { PYTHON , *g_lmake_dir+"/_lib/read_makefiles.py" , data , action , module } ;
+		gather.autodep_env.src_dirs_s = {"/"}       ;
+		gather.autodep_env.root_dir   = *g_root_dir ;
 		Trace trace("_read_makefiles",action,module,Pdate(New)) ;
 		//
 		::string sav_ld_library_path ;
@@ -174,17 +174,17 @@ namespace Engine::Makefiles {
 			if (+sav_ld_library_path) set_env( "LD_LIBRARY_PATH" , to_string(sav_ld_library_path,':',PY_LD_LIBRARY_PATH) ) ;
 			else                      set_env( "LD_LIBRARY_PATH" ,                                   PY_LD_LIBRARY_PATH  ) ;
 		}
-		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status status = gather_deps.exec_child( cmd_line , Child::None/*stdin*/ ) ;                       // redirect stdout to stderr as our stdout may be used to communicate with client
-		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Status status = gather.exec_child( cmd_line , Child::None/*stdin*/ ) ;                            // redirect stdout to stderr as our stdout may be used to communicate with client
+		//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (PY_LD_LIBRARY_PATH[0]!=0) set_env( "LD_LIBRARY_PATH" , sav_ld_library_path ) ;
 		//
-		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather_deps.msg?" : ":"" , localize(gather_deps.msg) ) ;
+		if (status!=Status::Ok) throw to_string( "cannot read " , action , +gather.msg?" : ":"" , localize(gather.msg) ) ;
 		//
 		::string   content = read_content(data) ;
-		::vector_s deps    ; deps.reserve(gather_deps.accesses.size()) ;
+		::vector_s deps    ; deps.reserve(gather.accesses.size()) ;
 		::uset_s   dep_set ;
-		for( auto const& [d,ai] : gather_deps.accesses ) {
+		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
 			::string py ;
 			if ( Match m = pyc_re.match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[3/*module*/])+".py" ;
@@ -277,7 +277,7 @@ namespace Engine::Makefiles {
 			return {} ;
 		}
 		Gil        gil         ;
-		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                                // until we have config info, protect against NFS
+		NfsGuard   nfs_guard   { false/*reliable_dir*/ } ;                                         // until we have config info, protect against NFS
 		::vector_s config_deps ;
 		::vector_s rules_deps  ;
 		::vector_s srcs_deps   ;
@@ -289,7 +289,7 @@ namespace Engine::Makefiles {
 		Reason new_srcs  = Reason::None ;
 		Reason new_rules = Reason::None ;
 		auto diff_config      = [&]( Config const& old , Config const& new_ )->void {
-			if ( !old.booted || !new_.booted         ) return ;                                           // only record diffs, i.e. when both exist
+			if ( !old.booted || !new_.booted         ) return ;                                    // only record diffs, i.e. when both exist
 			//
 			if ( old.srcs_module !=new_.srcs_module  ) new_srcs  = !old.srcs_module  ? Reason::Set : !new_.srcs_module  ? Reason::Cleared : Reason::Modified ;
 			if ( old.rules_module!=new_.rules_module ) new_rules = !old.rules_module ? Reason::Set : !new_.rules_module ? Reason::Cleared : Reason::Modified ;
@@ -301,7 +301,7 @@ namespace Engine::Makefiles {
 		} catch (::string const& e) {
 			throw to_string("cannot dynamically read config (because ",config_digest.first,") : ",e) ;
 		}
-		nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                                // now that config is loaded, we can optimize protection against NFS
+		nfs_guard.reliable_dirs = g_config.reliable_dirs ;                                         // now that config is loaded, we can optimize protection against NFS
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
@@ -313,8 +313,8 @@ namespace Engine::Makefiles {
 			try { //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_src &= Persistent::new_srcs( ::move(srcs) , ::move(src_dirs_s) , dynamic ) ;
 			} catch (::string const& e) { //! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (!srcs_digest.first) srcs_digest.first = config_digest.first ;                         // sources are embedded in config
-				throw to_string("cannot dynamically read sources (because ",srcs_digest.first,") : ",e) ;
+				// if srcs_digest is empty, sources were in config
+				throw to_string( "cannot dynamically read sources (because " , +srcs_digest.first?srcs_digest.first:config_digest.first ,") : " , e ) ;
 			}
 		}
 		//
@@ -325,26 +325,26 @@ namespace Engine::Makefiles {
 			try { //!                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				invalidate_rule &= Persistent::new_rules( ::move(rules) , dynamic ) ;
 			} catch (::string const& e) { //!  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (!rules_digest.first) rules_digest.first = config_digest.first ;                       // rules are embedded in config
-				throw to_string("cannot dynamically read rules (because ",rules_digest.first,") : ",e) ;
+				// if rules_digest is empty, rules were in config
+				throw to_string( "cannot dynamically read rules (because " , +rules_digest.first?rules_digest.first:config_digest.first ,") : " , e ) ;
 			}
 		}
 		if ( invalidate_src || invalidate_rule ) Persistent::invalidate_match() ;
 		//
 		if      (config_digest.second) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ;        // if sources have changed, some deps may have becom dangling
+		else if (srcs_digest  .second) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have becom dangling
 		if      (srcs_digest  .second) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
 		if      (rules_digest .second) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
-		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ;        // .
+		else if (srcs_digest  .second) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
 		//
 		::string msg ;
 		if (+config_digest.first) append_to_string(msg,"read config because " ,config_digest.first,'\n') ;
 		if (+srcs_digest  .first) append_to_string(msg,"read sources because ",srcs_digest  .first,'\n') ;
 		if (+rules_digest .first) append_to_string(msg,"read rules because "  ,rules_digest .first,'\n') ;
 		//
-		if (config_digest.second) _stamp_deps("config" ) ;                                                // stamp deps once all error cases have been cleared
-		if (srcs_digest  .second) _stamp_deps("sources") ;                                                // .
-		if (rules_digest .second) _stamp_deps("rules"  ) ;                                                // .
+		if (config_digest.second) _stamp_deps("config" ) ;                                         // stamp deps once all error cases have been cleared
+		if (srcs_digest  .second) _stamp_deps("sources") ;                                         // .
+		if (rules_digest .second) _stamp_deps("rules"  ) ;                                         // .
 		//
 		return msg ;
 	}

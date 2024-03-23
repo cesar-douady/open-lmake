@@ -90,6 +90,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 
 void Record::_report_access( JobExecRpcReq&& jerr ) const {
 	SWEAR( jerr.proc==JobExecRpcProc::Access , jerr.proc ) ;
+	if (s_autodep_env().disabled) return ;                                                 // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
@@ -114,8 +115,8 @@ void Record::_report_access( JobExecRpcReq&& jerr ) const {
 }
 
 JobExecRpcReply Record::direct(JobExecRpcReq&& jerr) {
-	if (s_active()) {
-		bool sync = jerr.sync ; // save before moving jerr
+	if (s_autodep_env().active) {
+		bool sync = jerr.sync ;   // save before moving jerr
 		_report(::move(jerr)) ;
 		if (sync) return _get_reply() ;
 		else      return {}           ;
@@ -206,7 +207,18 @@ Record::Read::Read( Record& r , Path&& path , bool no_follow , bool keep_real , 
 }
 
 Record::Readlnk::Readlnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,true/*allow_tmp_map*/,c} , buf{buf_} , sz{sz_} {
-	if (file_loc<=FileLoc::Dep) r._report_dep( ::copy(real) , accesses|Access::Lnk , ::move(c) ) ;
+	if (file_loc<=FileLoc::Dep) {
+		r._report_dep( ::copy(real) , accesses|Access::Lnk , ::move(c) ) ;
+	} else if (file_loc==FileLoc::Admin) {
+		static constexpr char Backdoor[]    = ADMIN_DIR "/" PRIVATE_ADMIN_SUBDIR "/backdoor/" ;
+		static constexpr size_t BackdoorLen = (sizeof(Backdoor)-1)/sizeof(char)               ; // -1 to account for terminating null
+		if ( strncmp(file,Backdoor,BackdoorLen)==0 ) {
+			switch (file[BackdoorLen]) {
+				case 'd' : SWEAR(strcmp(file+BackdoorLen,"disable")==0) ; s_set_disabled(true ) ; break ;
+				case 'e' : SWEAR(strcmp(file+BackdoorLen,"enable" )==0) ; s_set_disabled(false) ; break ;
+			DF}
+		}
+	}
 }
 
 ssize_t Record::Readlnk::operator()( Record& , ssize_t len ) {
@@ -240,9 +252,9 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 {
 	if (src.real==dst.real) return ;                                                                                                // posix says in this case, it is nop
 	if (exchange          ) c += "<>" ;
-	// rename has not occurred yet so for each directory :
+	// rename has not occurred yet so for each dir :
 	// - files are read and unlinked
-	// - their coresponding files in the other directory are written
+	// - their coresponding files in the other dir are written
 	// also scatter files into 3 categories :
 	// - files that are unlinked         (typically all files in src  dir, but not necesssarily all of them)
 	// - files that are written          (          all files in dst  dir                                  )
@@ -264,15 +276,15 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;
 		if (it==unlnks.end()) continue ;
-			reads.push_back(w) ;
-			unlnks.erase(it) ;
+		reads.push_back(w) ;
+		unlnks.erase(it) ;
 	}
 	has_unlnks = +unlnks ;
 	has_writes = +writes ;
 	//                                                                                                       unlnk
 	if ( +reads                                    ) r._report_deps   ( ::move   (reads   ) , DataAccesses , false , c+".src"   ) ;
 	if ( +unlnks                                   ) r._report_deps   ( mk_vector(unlnks  ) , DataAccesses , true  , c+".unlnk" ) ;
-	if ( dst.file_loc<=FileLoc::Dep  && no_replace ) r._report_dep    ( ::copy   (src.real) , Access::Stat ,         c+".dst"   ) ;
+	if ( dst.file_loc<=FileLoc::Dep  && no_replace ) r._report_dep    ( ::copy   (dst.real) , Access::Stat ,         c+".probe" ) ;
 	if ( +writes                                   ) r._report_targets( ::move   (writes  ) ,                        c+".dst"   ) ;
 	if ( src.file_loc==FileLoc::Repo               ) r._report_guard  ( ::move   (src.real) ,                        c+".src"   ) ; // only necessary if renamed dirs, ...
 	if ( dst.file_loc==FileLoc::Repo               ) r._report_guard  ( ::move   (dst.real) ,                        c+".dst"   ) ; // ... perf is low prio as not that frequent

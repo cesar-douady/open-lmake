@@ -6,7 +6,7 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "gather_deps.hh"
+#include "gather.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -36,26 +36,26 @@ int main( int argc , char* argv[] ) {
 	//
 	if (!cmd_line.flags[CmdFlag::AutodepMethod]) syntax.usage("must have both autodep-method and link-support options") ;
 	//
-	GatherDeps gather_deps { New } ;
+	Gather gather{ New } ;
 	//
 	try {
-		/**/                                      gather_deps.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		/**/                                      gather_deps.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
-		/**/                                      gather_deps.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
-		if (cmd_line.flags[CmdFlag::LinkSupport]) gather_deps.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
-		/**/                                      gather_deps.autodep_env.root_dir    = *g_root_dir                                                         ;
-		/**/                                      gather_deps.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
+		/**/                                      gather.method                  = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		/**/                                      gather.autodep_env.auto_mkdir  = cmd_line.flags[CmdFlag::AutoMkdir ]                                 ;
+		/**/                                      gather.autodep_env.ignore_stat = cmd_line.flags[CmdFlag::IgnoreStat]                                 ;
+		if (cmd_line.flags[CmdFlag::LinkSupport]) gather.autodep_env.lnk_support = mk_enum<LnkSupport>(cmd_line.flag_args[+CmdFlag::LinkSupport])      ;
+		/**/                                      gather.autodep_env.root_dir    = *g_root_dir                                                         ;
+		/**/                                      gather.autodep_env.tmp_dir     = get_env("TMPDIR",P_tmpdir)                                          ;
 		if (cmd_line.flags[CmdFlag::TmpView]) {
-			gather_deps.autodep_env.tmp_view = cmd_line.flag_args[+CmdFlag::TmpView]   ;
-			set_env( "TMPDIR"                , cmd_line.flag_args[+CmdFlag::TmpView] ) ;
+			gather.autodep_env.tmp_view = cmd_line.flag_args[+CmdFlag::TmpView]   ;
+			set_env( "TMPDIR"           , cmd_line.flag_args[+CmdFlag::TmpView] ) ;
 		}
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;
-	//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { status = gather_deps.exec_child( cmd_line.args ) ; }
-	//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { exit(Rc::System,e) ;                               }
+	//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { status = gather.exec_child( cmd_line.args ) ; }
+	//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { exit(Rc::System,e) ;                          }
 	//
 	::ostream* ds       ;
 	OFStream   user_out ;
@@ -63,7 +63,7 @@ int main( int argc , char* argv[] ) {
 	else                              {                                                    ds = &::cerr   ; }
 	::ostream& deps_stream = *ds ;
 	deps_stream << "targets :\n" ;
-	for( auto const& [target,ai] : gather_deps.accesses ) {
+	for( auto const& [target,ai] : gather.accesses ) {
 		if (ai.digest.write==No) continue ;
 		deps_stream << ( +ai.digest.accesses    ? '<' : ' ' ) ;
 		deps_stream << ( ai.digest.write==Yes   ? '>' : ' ' ) ;
@@ -74,7 +74,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	NodeIdx  prev_parallel_id = 0     ;
-	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                                    // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , NodeIdx parallel_id=0 ) {                               // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = parallel_id && parallel_id==prev_parallel_id ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps_stream << "  "  ;
@@ -87,7 +87,7 @@ int main( int argc , char* argv[] ) {
 		prev_parallel    = parallel    ;
 		prev_dep         = dep         ;
 	} ;
-	for( auto const& [dep,ai] : gather_deps.accesses ) if (ai.digest.write==No) send(dep,ai.parallel_id) ;
-	/**/                                                                        send(                  ) ; // send last
+	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.parallel_id) ;
+	/**/                                                                   send(                  ) ; // send last
 	return status!=Status::Ok ;
 }

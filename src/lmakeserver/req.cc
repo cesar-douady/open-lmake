@@ -59,8 +59,8 @@ namespace Engine {
 		//
 		try {
 			JobIdx n_jobs = from_string<JobIdx>(ecr.options.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;
-			if (ecr.as_job()) data.job = ecr.job()                                                             ;
-			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,Dflag::Static) ) ;
+			if (ecr.as_job()) data.job = ecr.job()                                                                              ;
+			else              data.job = Job( Special::Req , Deps(ecr.targets(),Accesses::All,Dflag::Static,true/*parallel*/) ) ;
 			Backend::s_open_req( +*this , n_jobs ) ;
 			data.has_backend = true ;
 		} catch (::string const& e) {
@@ -210,7 +210,8 @@ namespace Engine {
 	}
 
 	bool/*overflow*/ Req::_report_err( Dep const& dep , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl ) {
-		if (seen_nodes.contains(dep)) return false ;
+		if (dep.dflags[Dflag::IgnoreError]) return false ;
+		if (seen_nodes.contains(dep)      ) return false ;
 		seen_nodes.insert(dep) ;
 		NodeReqInfo const& cri = dep->c_req_info(*this) ;
 		const char*        err = nullptr                ;

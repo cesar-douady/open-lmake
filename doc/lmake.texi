@@ -1092,6 +1092,34 @@ The return value is the value associated with code.
 The return value is the generated of retrieved code.
 @end table
 
+@section @code{lmake.set_autodep}
+@code{def set_autodep(active)}
+
+This function may be used to activate or deactivate the autodep machinery.
+When activated, the monitoring is performed normally.
+When deactivated, no access monitoring is performed, as if the @code{autodep} rule attribute is set to @code{None}.
+Note that even in that case, the @code{depend} and @code{target} functions work normally.
+
+Using @code{AutodepSuspend}, the context version of this function is much easier.
+
+@section @code{class AutodepSuspend}
+
+This class may be used as a context to temporarily disable the autodep machinery, as in the following example :
+
+@example
+@group
+import subprocess
+import lmake
+class Foo(Rule) :
+	targets = @{ 'DST' : 'foo' @}
+	def cmd() :
+		with lmake.AutodepSuspend() :
+			subprocess.run(('no_autodep_in_script',))
+			print(open('no_dep_on_this_file').read(),file=open(DST,'w')) # writing to DST will not be seen
+			lmake.target(DST)                                            # however this will report writing to DST
+@end group
+@end example
+
 @section The @code{lmake.rules} module
 
 @subsection @code{class Rule}

@@ -45,8 +45,8 @@ src/autodep/autodep.cc
 src/autodep/clmake.cc
 src/autodep/env.cc
 src/autodep/env.hh
-src/autodep/gather_deps.cc
-src/autodep/gather_deps.hh
+src/autodep/gather.cc
+src/autodep/gather.hh
 src/autodep/lcheck_deps.cc
 src/autodep/ld.x.cc
 src/autodep/ld_audit.cc
@@ -74,8 +74,6 @@ src/fd.cc
 src/fd.hh
 src/hash.cc
 src/hash.hh
-src/job_exec.cc
-src/job_exec.cc
 src/job_exec.cc
 src/ldebug.cc
 src/ldump.cc
@@ -178,6 +176,7 @@ unit_tests/hello_world.py
 unit_tests/hide.py
 unit_tests/home.py
 unit_tests/ignore.py
+unit_tests/ignore_err.py
 unit_tests/jemalloc.py
 unit_tests/jobs.py
 unit_tests/link.py
@@ -190,6 +189,8 @@ unit_tests/misc2.py
 unit_tests/misc3.py
 unit_tests/misc4.py
 unit_tests/misc5.py
+unit_tests/misc6.py
+unit_tests/misc7.py
 unit_tests/modules.py
 unit_tests/name.py
 unit_tests/numba.py
@@ -213,6 +214,7 @@ unit_tests/sources.py
 unit_tests/src.py
 unit_tests/star.py
 unit_tests/subprocess.py
+unit_tests/suspend.py
 unit_tests/sym_lnk.py
 unit_tests/tar.py
 unit_tests/target.py
@@ -236,6 +238,4 @@ unit_tests/unstable.script
 unit_tests/uphill.py
 unit_tests/use_script.py
 unit_tests/wide.py
-unit_tests/wine.py
-unit_tests/wine.py
 unit_tests/wine.py

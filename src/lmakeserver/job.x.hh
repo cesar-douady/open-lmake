@@ -154,9 +154,9 @@ namespace Engine {
 		void             give_up ( Req={} , bool report=true                                          ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end( ::string const& pfx , ReqInfo const&     , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
-		JobReport audit_end( ::string const& pfx , ReqInfo const& cri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
-			return audit_end(pfx,cri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
+		JobReport audit_end( ::string const& pfx , ReqInfo&    , ::string const& msg , ::string const& stderr    , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const ;
+		JobReport audit_end( ::string const& pfx , ReqInfo& ri ,                       ::string const& stderr={} , size_t max_stderr_len=-1 , bool modified=true , Delay exec_time={} ) const {
+			return audit_end(pfx,ri,{}/*msg*/,stderr,max_stderr_len,modified,exec_time) ;
 		}
 		// data
 		in_addr_t host      = NoSockAddr ;
@@ -225,6 +225,7 @@ namespace Engine {
 		bool         start_reported  :1 = false ;                        //       1 bit , if true <=> start message has been reported to user
 		bool         speculative_deps:1 = false ;                        //       1 bit , if true <=> job is waiting for speculative deps only
 		Bool3        speculate       :2 = Yes   ;                        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool         reported        :1 = false ;                        //       1 bit , used for delayed report when speculating
 		BackendTag   backend         :2 = {}    ;                        //       2 bits
 	private :
 		Step _step :3 = {} ;                                             //       3 bits
@@ -322,11 +323,11 @@ namespace Engine {
 			/**/                          if (speculate==Yes         ) return ;     // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
-			if ( speculate==No && ri.done() && err() ) audit_end("was_",ri) ;
+			if ( speculate==No && ri.reported && ri.done() && err() ) audit_end("was_",ri) ;
 			_propag_speculate(ri) ;
 		}
 		//
-		::pair<JobReason,bool/*wakeup*/> make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
+		JobReason make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , CoarseDelay const* old_exec_time=nullptr , bool wakeup_watchers=true ) ;
 		//
 		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//

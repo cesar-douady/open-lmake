@@ -8,7 +8,7 @@
 
 #include "ptrace.hh"
 
-#include "gather_deps.hh"
+#include "gather.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -23,10 +23,10 @@ ENUM_1( Order               // order of incoming date wrt AccessDigest object
 )
 
 //
-// GatherDeps::AccessInfo
+// Gather::AccessInfo
 //
 
-::ostream& operator<<( ::ostream& os , GatherDeps::AccessInfo const& ai ) {
+::ostream& operator<<( ::ostream& os , Gather::AccessInfo const& ai ) {
 	/**/                                                         os << "AccessInfo("                                            ;
 	if ( +ai.digest.accesses                                   ) os << "R:" <<ai.first_read                               <<',' ;
 	if (  ai.digest.write!=No                                  ) os << "W1:"<<ai.first_write<<(ai.first_confirmed?"?":"") <<',' ;
@@ -38,7 +38,7 @@ ENUM_1( Order               // order of incoming date wrt AccessDigest object
 	return                                                       os <<')'                                                       ;
 }
 
-void GatherDeps::AccessInfo::chk() const {
+void Gather::AccessInfo::chk() const {
 	if (!digest.accesses ) SWEAR( !crc_date                                          , crc_date                              ) ; // cannot know about the file    without accessing it
 	if (!digest.accesses ) SWEAR( !seen                                                                                      ) ; // cannot see a file as existing without accessing it
 	if (!digest          ) SWEAR( !first_read && !first_write && !last_write         , first_read , first_write , last_write ) ;
@@ -49,7 +49,7 @@ void GatherDeps::AccessInfo::chk() const {
 	if ( digest.write==No) SWEAR( first_confirmed==last_confirmed                    , first_confirmed , last_confirmed      ) ; // need 2 accesses to distinguish between first and last write
 }
 
-void GatherDeps::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , Bool3 confirm , NodeIdx parallel_id_ ) {
+void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , Bool3 confirm , NodeIdx parallel_id_ ) {
 	Order order = Order::Before/*garbage*/ ;
 	if (confirm==No  ) ad.write = No ;              // if confirm==No, writes have not occurred
 	if (!ad          ) return ;
@@ -94,28 +94,28 @@ void GatherDeps::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , 
 		seen            |= cd.seen(ad.accesses) ;   // if read before first write, record if we have seen a file
 	}
 	// manage write access
-	if ( ad.write==No) return ;
-	//
-	if ( digest.write==No || order==Order::After ) digest.write = ad.write ;                                                                               // last action survives
-	switch (order) {
-		case Order::Before              : first_read = first_write = pd ;                                                        break ;
-		case Order::After               :              last_write  = pd ; last_confirmed  = confirm==Yes ; if (digest.write!=No) break ; [[fallthrough]] ; // also the first write if no previous ones
-		case Order::BetweenReadAndWrite :              first_write = pd ; first_confirmed = confirm==Yes ;                       break ;
-		case Order::InbetweenWrites     : SWEAR(digest.write!=No) ;                                                              break ;                   // if idle, first_write==last_write
-	DF}
+	if (ad.write!=No) {
+		switch (order) {
+			case Order::Before              : first_read = first_write = pd ; first_confirmed = confirm==Yes ;                       break ;
+			case Order::After               :              last_write  = pd ; last_confirmed  = confirm==Yes ; if (digest.write!=No) break ; [[fallthrough]] ; // also first write if no previous ones
+			case Order::BetweenReadAndWrite :              first_write = pd ; first_confirmed = confirm==Yes ;                       break ;
+			case Order::InbetweenWrites     : SWEAR(digest.write!=No) ;                                                              break ;                   // if idle, first_write==last_write
+		DF}
+		if ( digest.write==No || order==Order::After ) digest.write = ad.write ;                                                                               // last action survives
+	}
 }
 
 //
-// GatherDeps
+// Gather
 //
 
-::ostream& operator<<( ::ostream& os , GatherDeps const& gd ) {
-	/**/             os << "GatherDeps(" << gd.accesses ;
-	if (gd.seen_tmp) os <<",seen_tmp"                   ;
-	return           os << ')'                          ;
+::ostream& operator<<( ::ostream& os , Gather const& gd ) {
+	/**/             os << "Gather(" << gd.accesses ;
+	if (gd.seen_tmp) os <<",seen_tmp"               ;
+	return           os << ')'                      ;
 }
 
-void GatherDeps::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , AccessDigest ad , CD const& cd , Bool3 confirm , ::string const& comment ) {
+void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , AccessDigest ad , CD const& cd , Bool3 confirm , bool parallel , ::string const& comment ) {
 	SWEAR( +file , comment ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
@@ -125,6 +125,7 @@ void GatherDeps::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , 
 	} else {
 		info = &accesses[it->second].second ;
 	}
+	if (!parallel) parallel_id++ ;
 	AccessInfo old_info = *info ;                                                                                                                                     // for tracing only
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	info->update( pd , phony_ok , ad , cd , confirm , parallel_id ) ;
@@ -132,27 +133,30 @@ void GatherDeps::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , 
 	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , cd , confirm , parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
 }
 
-void GatherDeps::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
+void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
+	bool parallel = false ;
 	for( auto& [f,dd] : deps ) {
 		bool is_stdin = f==stdin ;
 		if (is_stdin) {                               // stdin is read
 			if (!dd.accesses) dd.date(file_date(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , Yes/*confirm*/ , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , Yes/*confirm*/ , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
+		parallel = true ;
 	}
 }
 
-void GatherDeps::new_exec( PD pd , ::string const& exe , ::string const& c ) {
-	RealPath              rp { autodep_env }                    ;
-	RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
+void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
+	RealPath              rp       { autodep_env }                    ;
+	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
+	bool                  parallel = false                            ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		parallel_id++ ;
-		_new_access( pd , ::move(f) , {.accesses=a} , file_date(f) , Yes/*confirm*/ , c ) ;
+		_new_access( pd , ::move(f) , {.accesses=a} , file_date(f) , Yes/*confirm*/ , parallel , c ) ;
+		parallel = true ;
 	}
 }
 
-ENUM( GatherDepsKind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
+ENUM( GatherKind , Stdout , Stderr , ServerReply , ChildEnd , Master , Slave )
 
 void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 	static constexpr uint64_t One = 1 ;
@@ -160,35 +164,37 @@ void _child_wait_thread_func( int* wstatus , pid_t pid , Fd fd ) {
 	swear_prod(::write(fd,&One,8)==8,"cannot report child wstatus",wstatus) ;
 }
 
-bool/*done*/ GatherDeps::kill(int sig) {
-	Trace trace("kill",sig,pid,STR(as_session),child_stdout,child_stderr) ;
-	::unique_lock lock{_pid_mutex} ;
-	killed = true ;                                                                                                     // prevent child from starting if killed before
-	int  kill_sig = sig>=0 ? sig : SIGKILL ;
-	bool killed_  = false                  ;
+bool/*done*/ Gather::kill(int sig) {
+	Trace trace("kill",sig,pid,STR(as_session),child_stdout,child_stderr,mk_key_uset(slaves)) ;
+	::unique_lock lock      { _pid_mutex }           ;
+	int           kill_sig  = sig>=0 ? sig : SIGKILL ;
+	bool          killed_   = false                  ;
+	killed = true ;                                                                                                  // prevent child from starting if killed before
 	//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	if (pid>1) killed_ = kill_process(pid,kill_sig,as_session/*as_group*/) ;
 	//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( sig<0 && (+child_stdout||+child_stderr) ) {                                                                    // kill all processes (or process groups) connected to a stream we wait for
-		pid_t        ctl_pid   = getpid() ;
-		::string     stdout_fn ; if (+child_stdout) stdout_fn = read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ;
-		::string     stderr_fn ; if (+child_stderr) stderr_fn = read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ;
-		::set<pid_t> to_kill   ;                                                                                        // maintain an ordered tab to favor repeatability
+	if (sig<0) {                                                                                                     // kill all processes (or process groups) connected to a stream we wait for
+		pid_t         ctl_pid = getpid() ;
+		::uset_s      fd_strs ;
+		::uset<pid_t> to_kill ;                                                                                      // maintain an ordered tab to favor repeatability
+		if (+child_stdout)                 fd_strs.insert( read_lnk(to_string("/proc/self/fd/",child_stdout.fd)) ) ;
+		if (+child_stderr)                 fd_strs.insert( read_lnk(to_string("/proc/self/fd/",child_stderr.fd)) ) ;
+		for( auto const& [fd,_] : slaves ) fd_strs.insert( read_lnk(to_string("/proc/self/fd/",fd          .fd)) ) ;
 		for( ::string const& proc_entry : lst_dir("/proc")  ) {
 			for( char c : proc_entry ) if (c>'9'||c<'0') goto NextProc ;
 			try {
 				pid_t child_pid = from_string<pid_t>(proc_entry) ;
 				if (child_pid==ctl_pid) goto NextProc ;
 				if (as_session        ) child_pid = ::getpgid(child_pid) ;
-				if (child_pid<=1      ) goto NextProc ;                                                                 // no pgid available, ignore
+				if (child_pid<=1      ) goto NextProc ;                                                              // no pgid available, ignore
 				for( ::string const& fd_entry : lst_dir(to_string("/proc/",proc_entry,"/fd")) ) {
-					::string fd_fn = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
-					if ( !fd_fn                               ) continue ;                                              // fd has disappeared, ignore
-					if ( fd_fn!=stdout_fn && fd_fn!=stderr_fn ) continue ;                                              // not the fd we are looking for
+					::string fd_str = read_lnk(to_string("/proc/",proc_entry,"/fd/",fd_entry)) ;
+					if ( !fd_str                   ) continue ;                                                      // fd has disappeared, ignore
+					if ( !fd_strs.contains(fd_str) ) continue ;                                                      // not any of the fd's we are looking for
 					to_kill.insert(child_pid) ;
 					break ;
 				}
-			} catch(::string const&) {}                                                                                 // if we cannot read /proc/pid, process is dead, ignore
+			} catch(::string const&) {}                                                                              // if we cannot read /proc/pid, process is dead, ignore
 		NextProc : ;
 		}
 		trace("to_kill",to_kill) ;
@@ -200,7 +206,7 @@ bool/*done*/ GatherDeps::kill(int sig) {
 	return killed_ ;
 }
 
-void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
+void Gather::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 		SWEAR( jerr.proc>=Proc::HasFiles && jerr.auto_date ) ;
 		::vmap_s<Ddate> files     ;
 		RealPath        real_path { autodep_env , ::move(jerr.cwd) } ;                                     // auto_date is set to false, cwd is not used anymore
@@ -208,11 +214,11 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR(+f) ;
 			RealPath::SolveReport sr = real_path.solve(f,jerr.no_follow) ;
-			// cf Record::_solve for explanation
-			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , {.accesses=Access::Lnk} , file_date(lnk) , jerr.confirm , "auto_date.lnk" ) ;
+			// cf Record::_solve for explanation                                                                                                        parallel
+			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , {.accesses=Access::Lnk} , file_date(lnk) , jerr.confirm , false , "auto_date.lnk" ) ;
 			if      (read                   ) {}
-			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , "auto_date.lst" ) ;
-			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , "auto_date.lst" ) ;
+			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , false , "auto_date.lst" ) ;
+			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , false , "auto_date.lst" ) ;
 			//
 			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write==Yes && !read && jerr.confirm!=No ; // if reading before writing, then we cannot populate tmp
 			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = No ;
@@ -225,9 +231,8 @@ void GatherDeps::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
 		jerr.auto_date = false         ;                                                                   // files are now real and dated
 }
 
-Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
-	using Kind = GatherDepsKind ;
-	using Jerr = JobExecRpcReq  ;
+Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
+	using Kind = GatherKind ;
 	Trace trace("exec_child",STR(as_session),method,autodep_env,args) ;
 	if (env) trace("env",*env) ;
 	Child child ;
@@ -239,7 +244,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 	//
 	::map_ss add_env {{"LMAKE_AUTODEP_ENV",autodep_env}} ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	{	::unique_lock lock{_pid_mutex} ;
-		if (killed) return Status::Killed ;                                    // dont start if we are already killed before starting
+		if (killed                       ) return Status::Killed ;             // dont start if we are already killed before starting
 		if (method==AutodepMethod::Ptrace) {                                   // PER_AUTODEP_METHOD : handle case
 			// XXX : splitting responsibility is no more necessary. Can directly report child termination from within autodep_ptrace.process using same ifce as _child_wait_thread_func
 			// we split the responsability into 2 processes :
@@ -304,14 +309,14 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		pid = child.pid ;
 	}
 	//
-	Fd                                             child_fd           = ::eventfd(0,EFD_CLOEXEC)                                    ;
-	::jthread                                      wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ;                         // thread dedicated to wating child
-	Epoll                                          epoll              { New }                                                       ;
-	Status                                         status             = Status::New                                                 ;
-	PD                                             end                ;
-	::umap<Fd         ,pair<IMsgBuf,vector<Jerr>>> slaves             ;            // Jerr's are waiting for confirmation
-	::umap<Fd/*reply*/,ServerReply               > server_replies     ;
-	::umap<Fd         ,Jerr                      > delayed_check_deps ;            // check_deps events are delayed to ensure all previous deps are taken into account
+	Fd                              child_fd           = ::eventfd(0,EFD_CLOEXEC)                                    ;
+	::jthread                       wait_jt            { _child_wait_thread_func , &wstatus , child.pid , child_fd } ;                                        // thread dedicated to wating child
+	Epoll                           epoll              { New }                                                       ;
+	Status                          status             = Status::New                                                 ;
+	PD                              end                ;
+	::umap<Fd/*reply*/,ServerReply> server_replies     ;
+	::umap<Fd         ,Jerr       > delayed_check_deps ; // check_deps events are delayed to ensure all previous deps are taken into account
+	//
 	auto handle_req_to_server = [&]( Fd fd , Jerr&& jerr ) -> bool/*still_sync*/ {
 		trace("slave",fd,jerr) ;
 		Proc     proc       = jerr.proc         ;                                                                                   // capture essential info before moving to server_cb
@@ -342,9 +347,11 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		return false ;
 	} ;
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if (status==Status::New)   status = status_ ;                                                    // else there is already another reason
+		if (status==Status::New)   status = status_ ;                                                                               // else there is already another reason
 		if (+msg_              ) { set_nl(msg) ; msg += msg_ ; }
 	} ;
+	//
+	SWEAR(!slaves) ;
 	//
 	if (+timeout) {
 		end = PD(New) + timeout ;
@@ -370,7 +377,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 		}
 		if (+delayed_check_deps) wait_ns = 0 ;
 		::vector<Epoll::Event> events = epoll.wait(wait_ns) ;
-		if ( !events && +delayed_check_deps ) {                                                          // process delayed check deps after all other events
+		if ( !events && +delayed_check_deps ) {                                                                                     // process delayed check deps after all other events
 			trace("delayed_chk_deps") ;
 			for( auto& [fd,jerr] : delayed_check_deps ) handle_req_to_server(fd,::move(jerr)) ;
 			delayed_check_deps.clear() ;
@@ -386,18 +393,18 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 					char          buf[4096] ;
 					int           cnt       = ::read( fd , buf , sizeof(buf) ) ; SWEAR( cnt>=0 , cnt ) ;
 					::string_view buf_view  { buf , size_t(cnt) }                                      ;
-					if      (!cnt              ) { trace("close") ; epoll.del(fd) ;                  }   // /!\ fd is closed when child is destructed, closing it twice may close somebody else's fd
-					else if (kind==Kind::Stderr) { stderr.append(buf_view) ;                         }
-					else                         { stdout.append(buf_view) ; live_out_cb(buf_view) ; }
+					if      (!cnt              ) { trace("close") ; epoll.del(fd) ;                                   }             // /!\ dont close as fd is closed upon child destruction
+					else if (kind==Kind::Stderr) { stderr.append(buf_view) ; child_stderr={} ;                        }             // tell kill not to wait for this one
+					else                         { stdout.append(buf_view) ; child_stdout={} ;live_out_cb(buf_view) ; }             // .
 				} break ;
 				case Kind::ChildEnd : {
 					uint64_t one = 0/*garbage*/            ;
 					int      cnt = ::read( fd , &one , 8 ) ; SWEAR( cnt==8 && one==1 , cnt , one ) ;
 					{	::unique_lock lock{_pid_mutex} ;
-						child.pid = -1 ;                                                                                           // too late to kill job
+						child.pid = -1 ;                                                                                            // too late to kill job
 					}
 					if      (WIFEXITED  (wstatus)) set_status( WEXITSTATUS(wstatus)!=0        ? Status::Err : Status::Ok       ) ;
-					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
+					else if (WIFSIGNALED(wstatus)) set_status( is_sig_sync(WTERMSIG(wstatus)) ? Status::Err : Status::LateLost ) ;  // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",wstatus) ;
 					trace(status,::hex,wstatus,::dec) ;
 					epoll.close(fd) ;
@@ -480,7 +487,7 @@ Status GatherDeps::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout ,
 // - when a file is depended upon, its uphill directories are implicitely depended upon, no need to keep them and this significantly decreases the number of deps
 // - suppress dir when one of its sub-files appear before
 // - suppress dir when one of its sub-files appear immediately after
-void GatherDeps::reorder(bool at_end) {
+void Gather::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
 	::stable_sort(                                                                                          // reorder by date, keeping parallel entries together (which must have the same date)

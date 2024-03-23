@@ -10,17 +10,20 @@ using namespace Disk ;
 ::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
 	os << "AutodepEnv(" ;
 	if (ade.active) {
-		/**/                 os <<      static_cast<RealPathEnv const&>(ade) ;
-		/**/                 os <<','<< ade.service                          ;
-		if (ade.auto_mkdir ) os <<",auto_mkdir"                              ;
-		if (ade.ignore_stat) os <<",ignore_stat"                             ;
+		/**/                  os <<      static_cast<RealPathEnv const&>(ade) ;
+		/**/                  os <<','<< ade.service                          ;
+		if ( ade.auto_mkdir ) os <<",auto_mkdir"                              ;
+		if ( ade.ignore_stat) os <<",ignore_stat"                             ;
+		if (!ade.disabled   ) os <<",disabled"                                ;
 	}
 	return os <<')' ;
 }
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		active = false ; // nobody to report deps to
+		active = false ;                                                 // nobody to report deps to
+		try                     { root_dir = search_root_dir().first ; }
+		catch (::string const&) { root_dir = cwd()                   ; }
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;
@@ -31,8 +34,9 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	// options
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : auto_mkdir    = true             ; break ;
+			case 'd' : disabled      = true             ; break ;
 			case 'i' : ignore_stat   = true             ; break ;
+			case 'm' : auto_mkdir    = true             ; break ;
 			case 'n' : lnk_support   = LnkSupport::None ; break ;
 			case 'f' : lnk_support   = LnkSupport::File ; break ;
 			case 'a' : lnk_support   = LnkSupport::Full ; break ;
@@ -66,8 +70,9 @@ AutodepEnv::operator ::string() const {
 	res += service ;
 	// options
 	res += ':' ;
-	if (auto_mkdir   ) res += 'd' ;
+	if (disabled     ) res += 'd' ;
 	if (ignore_stat  ) res += 'i' ;
+	if (auto_mkdir   ) res += 'm' ;
 	if (reliable_dirs) res += 'r' ;
 	switch (lnk_support) {
 		case LnkSupport::None : res += 'n' ; break ;

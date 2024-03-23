@@ -4,7 +4,9 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import re
+import os.path    as osp
 import subprocess as sp
+import time
 
 def lmake(*args,rc=0,summary=None,**kwds) :
 	if not summary : summary = {}
@@ -21,6 +23,10 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 		print(proc.stdout,end='',flush=True)
 		if proc.returncode!=rc : raise RuntimeError(f'bad return code {proc.returncode} != {rc}')
 		sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
+
+		if osp.exists('LMAKE/server') :
+			time.sleep(1)
+			if osp.exists('LMAKE/server') : raise RuntimeError('server is still alive')
 
 		# analysis
 		cnt          = { k:0 for k in kwds    }

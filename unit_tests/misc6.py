@@ -12,14 +12,17 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class PyEnv(Rule) :
-		targets = { 'DST' : 'py_env/{*:.*}' }
+		targets      = { 'DUT' : 'dut' }
+		allow_stderr = True
+		max_submit_count = 1
 		cmd = '''
-			python3 -m venv py_env
-			. py_env/bin/activate
+			stat {DUT}.tmp
+			echo dut > {DUT}.tmp
+			mv {DUT}.tmp {DUT}
 		'''
 
 else :
 
 	import ut
 
-	ut.lmake('py_env/pyvenv.cfg',done=1)
+	ut.lmake('dut',done=1)

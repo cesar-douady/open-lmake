@@ -15,7 +15,7 @@ namespace Store {
 		template<class H,class I,size_t LinearSz=0,bool HasData=true> struct Hdr {
 			static constexpr uint8_t NFree = LinearSz ? LinearSz+NBits<I>-n_bits(LinearSz+1) : 1 ;
 			NoVoid<H>        hdr    ;
-			uint8_t          n_free = 0 ;                  // starting at n_free, there is no element in free list
+			uint8_t          n_free = 0 ;                                           // starting at n_free, there is no element in free list
 			::array<I,NFree> free   ;
 		} ;
 		template<class H,class I,size_t LinearSz> struct Hdr<H,I,LinearSz,false> {
@@ -26,8 +26,8 @@ namespace Store {
 			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                       // else waste memory
 			template<class... A> Data(A&&... args) : data{::forward<A>(args)...} {}
 			union {
-				NoVoid<D> data ;       // when data is used
-				I         nxt  ;       // when data is in free list
+				NoVoid<D> data ;                                                    // when data is used
+				I         nxt  ;                                                    // when data is in free list
 			} ;
 			~Data() { data.~NoVoid<D>() ; }
 		} ;
@@ -148,7 +148,7 @@ namespace Store {
 		//
 		void clear()                                  { ULock lock{_mutex} ; _clear() ; }
 		void chk  () const requires(!HasData        ) {                                 }
-		void chk  () const requires(!is_void_v<Data>) ;                                   // XXX : why cant we use HasData here with clang ?!?
+		void chk  () const requires(!is_void_v<Data>) ;                                                                        // XXX : why cant we use HasData here with clang ?!?
 	protected :
 		void _clear() {
 			Base::_clear() ;
@@ -160,30 +160,30 @@ namespace Store {
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
 			ULock lock{_mutex} ;
 			SWEAR(writable) ;
-			uint8_t bucket = _s_bucket(sz    ) ;                               // XXX : implement smaller granularity than 2x
+			uint8_t bucket = _s_bucket(sz    ) ;                                                                               // XXX : implement smaller granularity than 2x
 			Idx&    free   = _free    (bucket) ;
 			Idx     res    = free              ;
 			if (+res) {
 				free = Base::at(res).nxt ;
-			} else {                                                           // try find a larger bucket and split it if above linear zone
+			} else {                                                                                                           // try find a larger bucket and split it if above linear zone
 				uint8_t avail_bucket = BaseHdr::NFree ;
 				if (bucket>=LinearSz) {
 					for( avail_bucket = bucket+1 ; avail_bucket<Base::hdr().n_free ; avail_bucket++ ) if (+_free(avail_bucket)) break ;
 				}
 				//                                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (avail_bucket>=Base::hdr().n_free) return Base::emplace_back( _s_sz(bucket) , ::forward<A>(args)... ) ; // no space available
+				if (avail_bucket>=Base::hdr().n_free) return Base::emplace_back( _s_sz(bucket) , ::forward<A>(args)... ) ;     // no space available
 				//                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				res                 = _free(avail_bucket) ;
 				_free(avail_bucket) = Base::at(res).nxt   ;
-				fence() ;                                                      // ensure free list is always consistent
-				for( uint8_t i=avail_bucket-1 ; i>=bucket ; i-- ) {            // put upper half in adequate free list
+				fence() ;                                                                                                      // ensure free list is always consistent
+				for( uint8_t i=avail_bucket-1 ; i>=bucket ; i-- ) {                                                            // put upper half in adequate free list
 					Idx upper(+res+_s_sz(i)) ;
-					Base::at(upper).nxt = 0 ;                                  // free list was initially empty
-					fence() ;                                                  // ensure free list is always consistent
+					Base::at(upper).nxt = 0 ;                                                                                  // free list was initially empty
+					fence() ;                                                                                                  // ensure free list is always consistent
 					_free(i) = upper ;
 				}
 			}
-			fence() ;                                                          // ensure free list is always consistent
+			fence() ;                                                                                                          // ensure free list is always consistent
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Base::emplace(res,::forward<A>(args)...) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -195,20 +195,17 @@ namespace Store {
 			ULock lock{_mutex} ;
 			uint8_t old_bucket = _s_bucket(old_sz) ;
 			uint8_t new_bucket = _s_bucket(new_sz) ;
-			//
+			// deallocate extra room
 			new_sz = _s_sz(new_bucket) ;
-			while (old_bucket>new_bucket) {
-				Sz old_sz   = _s_sz(old_bucket) ;
-				Sz extra_sz = old_sz-new_sz     ;
-				if (extra_sz<=LinearSz) {
-					uint8_t b = _s_bucket(extra_sz) ;
-					SWEAR( _s_sz(b)==extra_sz , _s_sz(b) , extra_sz ) ;        // ensure allocation is perfect, which must be the case in the linear zone
-					_dealloc( static_cast<Sz>(+idx+new_sz) , b ) ;             // free remaining all at once, which is possible as soon as extra_sz is a perfect fit
-					break ;
-				}
-				old_sz     /= 2                 ;                              // reduce by 2x and retry
-				old_bucket  = _s_bucket(old_sz) ;
-				_dealloc( static_cast<Sz>(+idx+old_sz) , old_bucket ) ;
+			old_sz = _s_sz(old_bucket) ;
+			while (old_sz>new_sz) {                                                                                            // deallocate as much as possible in a single bucket and iterate
+				Sz      extra_sz        = old_sz-new_sz       ;
+				uint8_t extra_bucket    = _s_bucket(extra_sz) ;                                                                // the bucket that can contain extra_sz
+				Sz      extra_bucket_sz = _s_sz(extra_bucket) ;                             SWEAR(extra_bucket_sz>=extra_sz) ; // _s_sz returns the largest size that fits in extra_bucket
+				{ if (extra_bucket_sz>extra_sz) extra_bucket_sz = _s_sz(--extra_bucket) ; } SWEAR(extra_bucket_sz<=extra_sz) ; // but we want the largest bucket that fits in extra_sz
+				//
+				old_sz -= extra_bucket_sz ;
+				_dealloc( Idx(+idx+old_sz) , extra_bucket ) ;
 			}
 			SWEAR( new_bucket<=old_bucket , new_bucket , old_bucket ) ;
 		}
@@ -223,7 +220,7 @@ namespace Store {
 			Idx& free = _free(bucket) ;
 			Base::at(idx).nxt  = free                             ;
 			Base::hdr().n_free = ::max(Base::hdr().n_free,bucket) ;
-			fence() ;                                                          // ensure free list is always consistent
+			fence() ;                                                                                                          // ensure free list is always consistent
 			free = idx ;
 		}
 	} ;

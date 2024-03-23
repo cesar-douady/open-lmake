@@ -253,11 +253,11 @@ namespace Engine {
 		Job            job    (::string const& startup_dir_s={}) const ; // .
 		// data
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ;                             // if proc==Close
-		Fd         in_fd   = {}            ;
-		Fd         out_fd  = {}            ;
-		::vector_s files   = {}            ;
-		ReqOptions options = {}            ;
+		Req        req     = {}            ;                             // if proc==Close | Kill | Make
+		Fd         in_fd   = {}            ;                             // if proc!=Close
+		Fd         out_fd  = {}            ;                             // .
+		::vector_s files   = {}            ;                             // if proc>=HasHargs
+		ReqOptions options = {}            ;                             // .
 	} ;
 
 	struct EngineClosureJob {
@@ -295,9 +295,10 @@ namespace Engine {
 		// cxtors & casts
 		EngineClosure(GlobalProc p) : kind{Kind::Global} , global_proc{p} {}
 		//
-		EngineClosure(RP p,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p>=RP::HasArgs) ; }
-		EngineClosure(RP p,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill   ) ; }
-		EngineClosure(RP p,R r                                    ) : kind{K::Req},req{.proc=p,.req=r                                      } { SWEAR(p==RP::Close  ) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p==RP::Make                ) ; }
+		EngineClosure(RP p,    Fd ifd,Fd ofd,VS const& fs,RO const& ro) : kind{K::Req},req{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro} { SWEAR(p!=RP::Make&&p>=RP::HasArgs) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : kind{K::Req},req{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      } { SWEAR(p==RP::Kill                ) ; }
+		EngineClosure(RP p,R r                                        ) : kind{K::Req},req{.proc=p,.req=r                                             } { SWEAR(p==RP::Close               ) ; }
 		//
 		EngineClosure( JP p , JE&& je , bool r , ::vector<Node>&& rus={} , ::string&& t={} , ::string&& bem={} ) :
 			kind { K::Job                                                                                                          }

@@ -134,15 +134,19 @@ class DirtyRule(Rule) :
 class _PyRuleBase(Rule) :
 	'base rule that handle pyc creation when importing modules in Python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file, so stat accesses must be deemed read accesses
-	side_deps = { '__PY__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'StatReadData' ) }                                                     # this is actually a noop as this is the default
+	side_deps = { '__PY__' : ( r'{*:(.+/)?}{*:\w+}.py' , 'StatReadData' ) } # this is actually a noop as stats are deemed to access size, but this might change
+	def cmd() :                                                   # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+		from lmake.import_machinery import fix_import
+		fix_import()
+#
 class Py2Rule(_PyRuleBase) : side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc'                         , 'Incremental' ) } # for Python2
 class Py3Rule(_PyRuleBase) : side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental' ) } # for Python3
 
 class _DynamicPyRuleBase(Rule) :
 	'base rule that handle import of generated modules in Python'
 	def cmd() :                                                   # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-		from lmake.import_machinery import fix_imports
-		fix_imports()
+		from lmake.import_machinery import fix_import
+		fix_import()
 class DynamicPy2Rule(Py2Rule,_DynamicPyRuleBase) : virtual = True # this class has targets and cmd, it looks like a concrete rule
 class DynamicPy3Rule(Py3Rule,_DynamicPyRuleBase) : virtual = True # .
 

@@ -16,7 +16,7 @@
 #include "time.hh"
 #include "trace.hh"
 
-#include "autodep/gather_deps.hh"
+#include "autodep/gather.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -43,7 +43,7 @@ template<class T> struct PatternDict {
 } ;
 
 ServerSockFd            g_server_fd              ;
-GatherDeps              g_gather_deps            { New }        ;
+Gather                  g_gather                 { New }        ;
 JobRpcReply             g_start_info             ;
 ::string                g_service_start          ;
 ::string                g_service_mngt           ;
@@ -61,7 +61,7 @@ void kill_thread_func(::stop_token stop) {
 	for( size_t i=0 ;; i++ ) {
 		int sig = i<g_start_info.kill_sigs.size() ? g_start_info.kill_sigs[i] : -1 ; // -1 means best effort
 		trace("sig",sig) ;
-		g_gather_deps.kill(sig) ;
+		g_gather.kill(sig) ;
 		if (!Delay(1.).sleep_for(stop)) {
 			trace("done") ;
 			return ;                                                                 // job_exec has ended
@@ -100,7 +100,7 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 	Trace trace("wash",start,g_start_info.pre_actions) ;
 	::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 	trace("unlnks",actions) ;
-	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather_deps.new_unlnk(start,f) ;
+	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather.new_unlnk(start,f) ;
 	else                             trace(actions.second) ;
 	return actions.second ;
 }
@@ -148,12 +148,12 @@ struct Digest {
 } ;
 
 Digest analyze( bool at_end , bool killed=false ) {
-	Trace trace("analyze",STR(at_end),g_gather_deps.accesses.size()) ;
-	Digest  res              ; res.deps.reserve(g_gather_deps.accesses.size()) ;                  // typically most of accesses are deps
+	Trace trace("analyze",STR(at_end),g_gather.accesses.size()) ;
+	Digest  res              ; res.deps.reserve(g_gather.accesses.size()) ;                       // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0                                     ;
 	Pdate   relax            = Pdate(New)+g_start_info.network_delay ;
 	//
-	for( auto const& [file,info] : g_gather_deps.accesses ) {
+	for( auto const& [file,info] : g_gather.accesses ) {
 		info.chk() ;
 		MatchFlags   flags = g_match_dct.at(file) ;
 		AccessDigest ad    = info.digest          ;
@@ -339,8 +339,8 @@ int main( int argc , char* argv[] ) {
 		append_to_string(end_report.msg,"cannot chdir to root : ",*g_root_dir) ;
 		goto End ;
 	}
-	Trace::s_sz = 10<<20 ;                                                             // this is more than enough
-	unlnk(*g_trace_file) ;                                                             // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
+	Trace::s_sz = 10<<20 ;        // this is more than enough
+	unlnk(*g_trace_file) ;        // ensure that if another job is running to the same trace, its trace is unlinked to avoid clash
 	app_init(No/*chk_version*/) ;
 	{
 		Trace trace("main",Pdate(New),::vector_view(argv,8)) ;
@@ -364,12 +364,12 @@ int main( int argc , char* argv[] ) {
 			else              exit(Rc::Fail,"cannot communicate with server ",g_service_start," : ",e) ; // this may be a server config problem, better to report
 		}
 		trace("g_start_info"  ,g_start_info  ) ;
-		if (!g_start_info.proc) return 0 ;                                             // silently exit if told to do so
+		if (!g_start_info.proc) return 0 ;                                                               // silently exit if told to do so
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
 		//
 		switch (g_start_info.proc) {
-			case JobProc::None  : return 0 ;                                           // server ask us to give up
-			case JobProc::Start : break    ;                                           // normal case
+			case JobProc::None  : return 0 ;                          // server ask us to give up
+			case JobProc::Start : break    ;                          // normal case
 		DF}
 		//
 		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d  , digest.dflags ) ;
@@ -383,23 +383,23 @@ int main( int argc , char* argv[] ) {
 		try                       { cmd_env = prepare_env(end_report) ; }
 		catch (::string const& e) { end_report.msg += e ; goto End ;    }
 		//
-		/**/                       g_gather_deps.addr         = g_start_info.addr        ;
-		/**/                       g_gather_deps.autodep_env  = g_start_info.autodep_env ;
-		/**/                       g_gather_deps.chroot       = g_start_info.chroot      ;
-		/**/                       g_gather_deps.as_session   = true                     ;
-		/**/                       g_gather_deps.cwd          = g_start_info.cwd_s       ; if (+g_gather_deps.cwd) g_gather_deps.cwd.pop_back() ;
-		/**/                       g_gather_deps.env          = &cmd_env                 ;
-		/**/                       g_gather_deps.kill_sigs    = g_start_info.kill_sigs   ;
-		if (g_start_info.live_out) g_gather_deps.live_out_cb  = live_out_cb              ;
-		/**/                       g_gather_deps.method       = g_start_info.method      ;
-		/**/                       g_gather_deps.server_cb    = server_cb                ;
-		/**/                       g_gather_deps.timeout      = g_start_info.timeout     ;
-		/**/                       g_gather_deps.kill_job_cb  = kill_job                 ;
+		/**/                       g_gather.addr         = g_start_info.addr        ;
+		/**/                       g_gather.autodep_env  = g_start_info.autodep_env ;
+		/**/                       g_gather.chroot       = g_start_info.chroot      ;
+		/**/                       g_gather.as_session   = true                     ;
+		/**/                       g_gather.cwd          = g_start_info.cwd_s       ; if (+g_gather.cwd) g_gather.cwd.pop_back() ;
+		/**/                       g_gather.env          = &cmd_env                 ;
+		/**/                       g_gather.kill_sigs    = g_start_info.kill_sigs   ;
+		if (g_start_info.live_out) g_gather.live_out_cb  = live_out_cb              ;
+		/**/                       g_gather.method       = g_start_info.method      ;
+		/**/                       g_gather.server_cb    = server_cb                ;
+		/**/                       g_gather.timeout      = g_start_info.timeout     ;
+		/**/                       g_gather.kill_job_cb  = kill_job                 ;
 		//
 		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
 		end_report.msg += wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
-		g_gather_deps.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
+		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
 		//
 		Fd child_stdin ;
 		if (+g_start_info.stdin) child_stdin = open_read(g_start_info.stdin) ;
@@ -408,19 +408,19 @@ int main( int argc , char* argv[] ) {
 		Fd child_stdout = Child::Pipe ;
 		if (+g_start_info.stdout) {
 			child_stdout = open_write(g_start_info.stdout) ;
-			g_gather_deps.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
+			g_gather.new_target( start_overhead , g_start_info.stdout , "<stdout>" ) ;
 			child_stdout.no_std() ;
 		}
 		//
-		Pdate         start_job = New ;                                                // as late as possible before child starts
-		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		Status        status    = g_gather_deps.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
-		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		Pdate         end_job   = New ;                                                // as early as possible after child ends
+		Pdate         start_job = New ;                               // as late as possible before child starts
+		//                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Status        status    = g_gather.exec_child( cmd_line() , child_stdin , child_stdout , Child::Pipe ) ;
+		//                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		bool          killed    = g_killed ;                          // sample g_killed to ensure coherence (even if status is correct, it may mean we were waiting for stdout/stderr)
+		Pdate         end_job   = New      ;                          // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
 		//
-		bool killed = g_killed && status==Status::LateLost ;                           // sample g_killed to ensure coherence
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
 		for( auto const& [f,p] : g_missing_static_targets ) {
@@ -432,30 +432,24 @@ int main( int argc , char* argv[] ) {
 		end_report.msg += compute_crcs(digest) ;
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                                           // fast path : avoid listing targets & guards if reliable_dirs
-			for( auto const& [t,_] : digest.targets       ) g_nfs_guard.change(t) ;                              // protect against NFS strange notion of coherence while computing crcs
-			for( auto const&  f    : g_gather_deps.guards ) g_nfs_guard.change(f) ;                              // .
+			for( auto const& [t,_] : digest.targets  ) g_nfs_guard.change(t) ;                                   // protect against NFS strange notion of coherence while computing crcs
+			for( auto const&  f    : g_gather.guards ) g_nfs_guard.change(f) ;                                   // .
 			g_nfs_guard.close() ;
 		}
 		//
-		if ( g_gather_deps.seen_tmp && !g_start_info.keep_tmp )
+		if ( g_gather.seen_tmp && !g_start_info.keep_tmp )
 			try { unlnk_inside(g_start_info.autodep_env.tmp_dir) ; } catch (::string const&) {}                  // cleaning is done at job start any way, so no harm
 		//
-		if (killed) {
-			trace("killed") ;
-			status = Status::Killed ;
-		} else if ( status==Status::Ok && +digest.msg ) {
-			trace("analysis_err") ;
-			end_report.msg += digest.msg  ;
-			status          = Status::Err ;
-		}
-		end_report.msg += g_gather_deps.msg ;
+		if      ( killed                            ) { trace("killed"      ) ; status = Status::Killed ; }
+		else if ( status==Status::Ok && +digest.msg ) { trace("analysis_err") ; status = Status::Err    ; }
+		append_to_string( end_report.msg , g_gather.msg , digest.msg ) ;
 		end_report.digest = {
 			.status       = status
-		,	.targets      { ::move(digest.targets      ) }
-		,	.deps         { ::move(digest.deps         ) }
-		,	.stderr       { ::move(g_gather_deps.stderr) }
-		,	.stdout       { ::move(g_gather_deps.stdout) }
-		,	.wstatus      = g_gather_deps.wstatus
+		,	.targets      { ::move(digest.targets ) }
+		,	.deps         { ::move(digest.deps    ) }
+		,	.stderr       { ::move(g_gather.stderr) }
+		,	.stdout       { ::move(g_gather.stdout) }
+		,	.wstatus      = g_gather.wstatus
 		,	.end_date     = end_job
 		,	.stats{
 				.cpu { Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime) }

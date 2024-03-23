@@ -13,7 +13,7 @@
 
 #include "disk.hh"
 
-#include "gather_deps.hh"
+#include "gather.hh"
 #include "record.hh"
 #include "syscall_tab.hh"
 

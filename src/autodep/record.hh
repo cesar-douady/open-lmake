@@ -6,7 +6,7 @@
 #pragma once
 
 #include "disk.hh"
-#include "gather_deps.hh"
+#include "gather.hh"
 #include "rpc_job.hh"
 #include "time.hh"
 
@@ -19,8 +19,8 @@ struct Record {
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
 	static bool s_is_simple   (const char*) ;
-	static bool s_active      (           ) { SWEAR(_s_autodep_env ) ; return  _s_autodep_env->active   ; }
-	static bool s_has_tmp_view(           ) { SWEAR(_s_autodep_env ) ; return +_s_autodep_env->tmp_view ; }
+	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ;                     }
+	static void s_set_disabled(bool d     ) { SWEAR(_s_autodep_env) ; _s_autodep_env->disabled = d ; }
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
@@ -56,12 +56,11 @@ public :
 	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ;                                        // map file to read accesses
 private :
 	static AutodepEnv* _s_autodep_env ;
-	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root directory
+	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root dir
 	// cxtors & casts
 public :
 	Record(                       ) = default ;
 	Record( NewType , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {}
-	// accesses
 	// services
 	Fd report_fd() const {
 		if (!_report_fd) {
@@ -83,13 +82,20 @@ public :
 		if ( _report_fd.fd>=0 &&  uint(_report_fd.fd)>=min && uint(_report_fd.fd)<=max ) _report_fd.detach() ;
 	}
 private :
-	void            _static_report(JobExecRpcReq&& jerr) const ;
-	void            _report       (JobExecRpcReq&& jerr) const { if (s_static_report) _static_report(::move(jerr)) ; else        OMsgBuf().send                    (report_fd(),jerr) ; }
-	JobExecRpcReply _get_reply    (                    ) const { if (s_static_report) return {}                    ; else return IMsgBuf().receive<JobExecRpcReply>(report_fd()     ) ; }
+	void _static_report(JobExecRpcReq&& jerr) const ;
+	void _report       (JobExecRpcReq&& jerr) const {
+		if (s_autodep_env().disabled) return ;
+		if (s_static_report         ) _static_report(::move(jerr))     ;
+		else                          OMsgBuf().send(report_fd(),jerr) ;
+	}
+	JobExecRpcReply _get_reply() const {
+		if (s_static_report) return {}                                              ;
+		else                 return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ;
+	}
 	//
 	void _report_access( JobExecRpcReq&& jerr                                                ) const ;
 	void _report_access( ::string&& f , Ddate d , Accesses a , Bool3 write , ::string&& c={} ) const {
-		_report_access(JobExecRpcReq( JobExecRpcProc::Access , {{::move(f),d}} , {.write=write,.accesses=a} , ::move(c) )) ;
+		_report_access({ JobExecRpcProc::Access , {{::move(f),d}} , {.write=write,.accesses=a} , ::move(c) }) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -111,27 +117,27 @@ private :
 	void _report_deps( ::vector_s const& fs , Accesses a , bool u , ::string&& c={} ) const {
 		::vmap_s<Ddate> fds ;
 		for( ::string const& f : fs ) fds.emplace_back( f , Disk::file_date(s_root_fd(),f) ) ;
-		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(fds) , { .write=Maybe&u , .accesses=a } , ::move(c) )) ;
+		_report_access({ JobExecRpcProc::Access , ::move(fds) , {.write=Maybe&u,.accesses=a} , ::move(c) }) ;
 	}
 	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<Ddate> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),Ddate()) ;
-		_report_access(JobExecRpcReq( JobExecRpcProc::Access , ::move(mdd) , {.write=Yes} , ::move(c) )) ;
+		_report_access({ JobExecRpcProc::Access , ::move(mdd) , {.write=Yes} , ::move(c) }) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;
 		else if (!sync     ) return ;
-		_report(JobExecRpcReq(JobExecRpcProc::Tmp,sync,::move(c))) ;
+		_report({JobExecRpcProc::Tmp,sync,::move(c)}) ;
 	}
 	void _report_confirm( FileLoc fl , bool ok ) const {
-		if (fl==FileLoc::Repo) _report(JobExecRpcReq( JobExecRpcProc::Confirm , ok )) ;
+		if (fl==FileLoc::Repo) _report({ JobExecRpcProc::Confirm , ok }) ;
 	}
 	void _report_guard( ::string&& f , ::string&& c={} ) const {
-		_report(JobExecRpcReq( JobExecRpcProc::Guard , {::move(f)} , ::move(c) )) ;
+		_report({ JobExecRpcProc::Guard , {::move(f)} , ::move(c) }) ;
 	}
 public :
-	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Panic,to_string(args...)) ) ; exit(Rc::Usage) ; } // continuing is meaningless
-	template<class... A>              void report_trace(A const&... args) { _report( JobExecRpcReq(JobExecRpcProc::Trace,to_string(args...)) ) ;                   }
+	template<class... A> [[noreturn]] void report_panic(A const&... args) { _report({JobExecRpcProc::Panic,to_string(args...)}) ; exit(Rc::Usage) ; } // continuing is meaningless
+	template<class... A>              void report_trace(A const&... args) { _report({JobExecRpcProc::Trace,to_string(args...)}) ;                   }
 	JobExecRpcReply direct( JobExecRpcReq&& jerr) ;
 	//
 	template<bool Writable=false> struct _Path {

@@ -15,7 +15,7 @@ namespace Engine {
 
 	::ostream& operator<<( ::ostream& os , NodeReqInfo const& ri ) {
 		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
-		if (ri.prio_idx==Node::NoIdx) os << "None"                                 ;
+		if (ri.prio_idx==Node::NoIdx) os << "NoIdx"                                ;
 		else                          os <<                  ri.prio_idx           ;
 		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
 		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
@@ -114,7 +114,7 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date> r->start_date.d            ) ri.overwritten |= mismatch ;             }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_date.d             ) ri.overwritten |= mismatch ;             }
 			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , msg , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
@@ -646,9 +646,8 @@ namespace Engine {
 			Trace trace("refresh",idx(),crc,"->",crc_,date,"->",date_) ;
 			crc  = {}    ; fence() ;
 			date = date_ ; fence() ;
-			crc  = crc_  ;                                                                                             // ensure crc is never associated with a wrong date, even in case of crash
-			for( Req r : reqs() )
-				if ( ReqInfo& ri=req_info(r) ; ri.done(NodeGoal::Status) ) { trace("overwrite",*this) ; ri.reset() ; } // target is not done any more
+			crc  = crc_  ;                                                                             // ensure crc is never associated with a wrong date, even in case of crash
+			for( Req r : reqs() ) { trace("overwrite",*this) ; req_info(r).reset(NodeGoal::Status) ; } // target is not conform on disk any more
 			return true ;
 		}
 	}

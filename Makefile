@@ -411,7 +411,7 @@ $(SBIN)/lmakeserver : \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/store/file$(SAN).o                                    \
 	$(SRC)/autodep/env$(SAN).o                                   \
-	$(SRC)/autodep/gather_deps$(SAN).o                           \
+	$(SRC)/autodep/gather$(SAN).o                                \
 	$(SRC)/autodep/ld_server$(SAN).o                             \
 	$(SRC)/autodep/ptrace$(SAN).o                                \
 	$(SRC)/autodep/record$(SAN).o                                \
@@ -443,7 +443,7 @@ $(BIN)/lrepair : \
 	$(SRC)/rpc_job$(SAN).o                                       \
 	$(SRC)/trace$(SAN).o                                         \
 	$(SRC)/autodep/env$(SAN).o                                   \
-	$(SRC)/autodep/gather_deps$(SAN).o                           \
+	$(SRC)/autodep/gather$(SAN).o                                \
 	$(SRC)/autodep/ld_server$(SAN).o                             \
 	$(SRC)/autodep/ptrace$(SAN).o                                \
 	$(SRC)/autodep/record$(SAN).o                                \
@@ -512,7 +512,7 @@ $(SBIN)/job_exec : \
 	$(SRC)/rpc_job$(SAN).o             \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
-	$(SRC)/autodep/gather_deps$(SAN).o \
+	$(SRC)/autodep/gather$(SAN).o      \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/autodep/syscall_tab$(SAN).o \
@@ -596,7 +596,7 @@ $(BIN)/autodep : \
 	$(SRC)/rpc_job$(SAN).o             \
 	$(SRC)/trace$(SAN).o               \
 	$(SRC)/autodep/env$(SAN).o         \
-	$(SRC)/autodep/gather_deps$(SAN).o \
+	$(SRC)/autodep/gather$(SAN).o      \
 	$(SRC)/autodep/ptrace$(SAN).o      \
 	$(SRC)/autodep/record$(SAN).o      \
 	$(SRC)/autodep/syscall_tab$(SAN).o \

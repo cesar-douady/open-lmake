@@ -183,12 +183,12 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^
 			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok ) deps.emplace_back(d,df) ;
-			else                                                  deps[it->second].second |= df ;                      // uniquify deps by combining accesses and flags
+			else                                                  deps[it->second].second |= df ; // uniquify deps by combining accesses and flags
 		}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//           args for store           args for JobData
-		*this = Job( match.full_name(),Dflt , match,Deps(deps) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		*this = Job( match.full_name(),Dflt , match,Deps(deps,Accesses::All,true/*parallel*/) ) ; // initially, static deps are deemed read, then actual accesses will be considered
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			(*this)->tokens1 = rule->create_none_attrs.eval( *this , match , &::ref(::vmap_s<DepDigest>()) ).tokens1 ; // we cant record deps here, but we dont care, no impact on target
@@ -427,15 +427,19 @@ namespace Engine {
 		//
 		// handle deps
 		//
+		bool has_new_deps = false ;
 		if (fresh_deps) {
+			::uset<Node> old_deps = mk_uset<Node>((*this)->deps.view()) ;
 			::vector<Dep> deps ; deps.reserve(digest.deps.size()) ;
 			for( auto const& [dn,dd] : digest.deps ) {
 				Dep dep { Node(dn) , dd } ;
+				if (!old_deps.contains(dep)) has_new_deps = true ;
 				if (dep.is_date) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_,dn) ;
-					dep.acquire_crc() ;                                                // retry crc acquisition in case previous cleaning aligned the dates
-					seen_dep_date |= !dep.is_date ;                                    // if a dep has become a crc, we must fix ancillary file
+					dep.acquire_crc() ;                                                                           // retry crc acquisition in case previous cleaning aligned the dates
+					seen_dep_date |= !dep.is_date ;                                                               // if a dep has become a crc, we must fix ancillary file
 				} else if (dep.never_match()) {
+					if (dep->is_src_anti()) dep->refresh_src_anti(true/*report_no_file*/,running_reqs_,dn) ;      // the goal is to detect overwritten
 					unstable_dep = true ;
 				}
 				deps.push_back(dep) ;
@@ -478,35 +482,35 @@ namespace Engine {
 		MakeAction  end_action    = fresh_deps||ok==Maybe ? MakeAction::End : MakeAction::GiveUp ;
 		bool        all_done      = true ;
 		JobReason   err_reason    ;
-		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ;                                                      // ensure no confusion with previous run
+		for( Req req : running_reqs_ ) (*this)->req_info(req).step(Step::End) ; // ensure no confusion with previous run
 		for( Req req : running_reqs_ ) {
 			ReqInfo& ri = (*this)->req_info(req) ;
 			trace("req_before",target_reason,status,ri) ;
-			req->missing_audits.erase(*this) ;                                                                                       // old missing audit is obsolete as soon as we have rerun the job
+			req->missing_audits.erase(*this) ;                                  // old missing audit is obsolete as soon as we have rerun the job
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
-			//                                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			::pair<JobReason,bool/*wakeup_watcher*/> make_digest = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
-			//                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			bool err = make_digest.first.tag>=JobReasonTag::Err ;
-			append_line_to_string(msg,severe_msg) ;
-			if (err) {
-				append_line_to_string( msg , reason_str(make_digest.first) , '\n' ) ;
-				err_reason |= make_digest.first ;
+			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobReason job_reason = (*this)->make( ri , end_action , target_reason , Yes/*speculate*/ , &old_exec_time , false/*wakeup_watchers*/ ) ;
+			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			bool     full_report = ri.done() || !has_new_deps ;                 // if not done, does a full report anyway if this is not due to new deps
+			::string job_msg     ;
+			if (full_report) {
+				bool job_err = job_reason.tag>=JobReasonTag::Err ;
+				job_msg = msg ;
+				if (!job_err)   append_line_to_string( job_msg , local_msg                   ) ;                                             // report local_msg if nothing more import to report
+				else          { append_line_to_string( job_msg , reason_str(job_reason),'\n' ) ; err_reason |= job_reason ; stderr = {} ; }  // dont report user stderr if analysis made it meaningless
+				/**/            append_line_to_string( job_msg , severe_msg                  ) ;
 			}
 			//
-			if (make_digest.second) {
-				if (!err) append_line_to_string(msg,local_msg) ;                                                                     // report local_msg if nothing more import to report
-				audit_end( {}/*pfx*/ , ri , msg , err?""s:stderr , end_none_attrs.max_stderr_len , modified , digest.stats.total ) ; // report user stderr if make analysis ...
-				trace("wakeup_watchers",ri) ;                                                                                        // ... did not make these errors meaningless
+			Delay     exec_time = digest.stats.total ; if ( status<=Status::Early                                 ) SWEAR(!exec_time,exec_time) ;
+			::string  pfx       ;                      if ( !ri.done() && status>Status::Garbage && !unstable_dep ) pfx = "may_" ;
+			//
+			JobReport jr = audit_end( pfx , ri , job_msg , full_report?stderr:""s , end_none_attrs.max_stderr_len , modified , exec_time ) ; // report rerun or resubmit rather than status
+			if (ri.done()) {
+				trace("wakeup_watchers",ri) ;
 				ri.wakeup_watchers() ;
 			} else {
-				// early deps (deps for attribute computations) do not generate exec time as we ran nothing
-				Delay     exec_time ; if ( status>Status::Early                    ) exec_time = digest.stats.total ;
-				::string  pfx       ; if ( status>Status::Garbage && !unstable_dep ) pfx       = "may_"             ;
-				JobReport jr        = audit_end( pfx , ri , msg , {}/*stderr*/ , -1/*max_stderr_len*/ , modified , exec_time ) ;     // report rerun or resubmit rather than status
-				if (!err) append_line_to_string(msg,local_msg) ;                                                                     // report local_msg if nothing more import to report
 				req->missing_audits[*this] = { jr , modified , msg } ;
-				all_done = false ;
+				all_done                   = false                   ;
 			}
 			trace("req_after",ri) ;
 			req.chk_end() ;
@@ -522,8 +526,7 @@ namespace Engine {
 				auto report_end   = deserialize<JobInfoEnd  >(is) ;
 				bool updated      = false                         ;
 				if (update_msg) {
-					set_nl(report_end.end.msg)                                                                                  ;
-					append_to_string( report_end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : local_msg , severe_msg ) ;
+					append_line_to_string( report_end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : local_msg , severe_msg ) ;
 					updated = true ;
 				}
 				if (update_deps) {
@@ -553,10 +556,10 @@ namespace Engine {
 		return modified ;
 	}
 
-	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo const& cri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time) const {
+	JobReport JobExec::audit_end( ::string const& pfx , ReqInfo& ri , ::string const& msg , ::string const& stderr , size_t max_stderr_len , bool modified , Delay exec_time) const {
 		using JR = JobReport ;
 		//
-		Req            req         = cri.req       ;
+		Req            req         = ri.req        ;
 		JobData const& jd          = **this        ;
 		Color          color       = {}/*garbage*/ ;
 		JR             res         = {}/*garbage*/ ; // report if not Rerun
@@ -572,20 +575,19 @@ namespace Engine {
 		else if (jd.err()                       ) { res = JR::Failed    ; color = Color::Err     ;                                                          }
 		else if (modified                       ) { res = JR::Done      ; color = Color::Ok      ;                                                          }
 		else                                      { res = JR::Steady    ; color = Color::Ok      ;                                                          }
-		if      (cri.done()                     )   jr  = res           ;
-		else if (jd.status==Status::EarlyChkDeps) { jr  = JR::Resubmit  ; color = Color::Note    ; with_stderr = false ; step = nullptr                   ; }
-		else                                         { jr  = JR::Rerun     ; color = Color::Note    ; with_stderr = false ; step = nullptr                ; }
 		//
-		switch (color) {
-			case Color::Ok  : if (+stderr          ) color = Color::Warning      ; break ;
-			case Color::Err : if (cri.speculate!=No) color = Color::SpeculateErr ; break ;
-			default : ;
-		}
+		if      (ri.done()                      )   jr = res          ;
+		else if (jd.status==Status::EarlyChkDeps) { jr = JR::Resubmit ; color = Color::Note ; with_stderr = false ; step = nullptr ; }
+		else                                      { jr = JR::Rerun    ; color = Color::Note ;                       step = nullptr ; }
+		//
+		if (color==Color::Err) { if ( ri.speculate!=No         ) color = Color::SpeculateErr ; }
+		else                   { if ( + with_stderr && +stderr ) color = Color::Warning      ; }
 		if (!step) step = snake_cstr(jr) ;
-		Trace trace("audit_end",color,pfx,step,*this,cri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
+		Trace trace("audit_end",color,pfx,step,*this,ri,STR(modified),jr,STR(+msg),STR(+stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		req->audit_job(color,pfx+step,*this,true/*at_end*/,exec_time) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		ri.reported = true ;
 		req->stats.ended(jr)++ ;
 		req->stats.jobs_time[jr<=JR::Useful] += exec_time ;
 		if (with_stderr) req->audit_stderr(msg,stderr,max_stderr_len,1) ;
@@ -623,19 +625,18 @@ namespace Engine {
 		}
 	}
 
-	::pair<JobReason,bool/*wakeup*/> JobData::make( ReqInfo& ri , MakeAction make_action , JobReason reason , Bool3 speculate , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
+	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason reason , Bool3 speculate , CoarseDelay const* old_exec_time , bool wakeup_watchers ) {
 		using Step = JobStep ;
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                                   // used to clean up after all deps are processed
 		SWEAR( reason.tag<JobReasonTag::Err , reason ) ;
-		Step        prev_step              = make_action==MakeAction::End?Step::Exec:ri.step()             ;    // capture previous level before any update (compensate preparation in end)
-		Req         req                    = ri.req                                                        ;
-		bool        stop_speculate         = speculate<ri.speculate                                        ;
-		Special     special                = rule->special                                                 ;
-		bool        dep_live_out           = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
-		bool        submit_loop            = false                                                         ;
-		bool        caller_wakeup_watchers = false                                                         ;
-		CoarseDelay dep_pressure           = ri.pressure + best_exec_time().first                          ;
-		bool        archive                = req->options.flags[ReqFlag::Archive]                          ;
+		Step        prev_step      = make_action==MakeAction::End?Step::Exec:ri.step()             ;            // capture previous level before any update (compensate preparation in end)
+		Req         req            = ri.req                                                        ;
+		bool        stop_speculate = speculate<ri.speculate                                        ;
+		Special     special        = rule->special                                                 ;
+		bool        dep_live_out   = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
+		bool        submit_loop    = false                                                         ;
+		CoarseDelay dep_pressure   = ri.pressure + best_exec_time().first                          ;
+		bool        archive        = req->options.flags[ReqFlag::Archive]                          ;
 		//
 		Trace trace("Jmake",idx(),ri,ri.reason,make_action,reason,speculate,STR(stop_speculate),old_exec_time?*old_exec_time:CoarseDelay(),STR(wakeup_watchers),prev_step) ;
 	RestartFullAnalysis :
@@ -643,7 +644,7 @@ namespace Engine {
 			case MakeAction::End :
 				SWEAR(cmd_ok()) ;
 				ri.new_cmd = false ;                                                                            // cmd has been executed, it is not new any more
-				ri.reason  = {}    ;
+				ri.reason  = {}    ;                                                                            // reason was to trigger the ending job, there are none now
 				ri.reset() ;                                                                                    // deps have changed
 			[[fallthrough]] ;
 			case MakeAction::Wakeup :
@@ -672,7 +673,7 @@ namespace Engine {
 			if ( rule->n_submits && ri.n_submits>rule->n_submits ) { SWEAR(is_ok(status)==No) ; goto Done   ; } // we do not analyze, ensure we have an error state
 		}
 			/**/                                              ri.speculate  = ri.speculate & speculate ;                                          // cannot use &= with bit fields
-		{	/**/                                              ri.reason    |= reason                   ;
+			/**/                                              ri.reason    |= reason                   ;
 			if ( is_ok(status)==Maybe && +mk_reason(status) ) ri.reason    |= mk_reason(status)        ;
 			if ( ri.step()==Step::None                      ) {
 				if (ri.full) {
@@ -683,18 +684,19 @@ namespace Engine {
 				}
 				ri.step(Step::Dep) ;
 			}
-			Idx n_deps = deps.size() ;
 			SWEAR(ri.step()==Step::Dep) ;
+			//
+		{	auto need_dsk = [&]( bool care , bool force )->bool {
+				force |= (+ri.reason||+reason||archive) && ri.reason.tag<JobReasonTag::Err ;        // reason is accumulated in ri.reason only at the end so as to appear as a subsidiary reason
+				return ri.full && care && force ;
+			} ;
+			Idx n_deps = deps.size() ;
 		RestartAnalysis :                                                                           // restart analysis here when it is discovered we need deps to run the job
 			bool stamped_seen_waiting = false ;
 			bool proto_seen_waiting   = false ;
 			bool critical_modif       = false ;
 			bool critical_waiting     = false ;
 			bool sure                 = true  ;
-			//
-			auto need_dsk = [&]( bool care , JobReason reason=JobReasonTag::Cmd )->bool {           // JobReasonTag::Cmd is any reason that would trigger a run if possible
-				return ri.full && care && (+reason||archive) && reason.tag<JobReasonTag::Err ;
-			} ;
 			//
 			ri.speculative_deps               = false      ;                                        // initially, we are not speculatively waiting
 			ri.stamped_modif = ri.proto_modif = ri.new_cmd ;
@@ -721,9 +723,8 @@ namespace Engine {
 							seen_all = i_dep==n_deps ;
 						}
 					}
-					if (critical_waiting) goto Wait ;                                               // stop analysis as critical dep may be modified
-					if (seen_all        ) break     ;                                               // we are done
-					stamped_seen_waiting = proto_seen_waiting ;                                     // idem
+					if ( seen_all || critical_waiting ) break ;
+					stamped_seen_waiting = proto_seen_waiting ;
 				}
 				NodeData &         dnd         = *Node(dep)                                   ;
 				bool               dep_modif   = false                                        ;
@@ -736,7 +737,7 @@ namespace Engine {
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;     // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                      ;     // .
 				NodeGoal           dg          =
-					need_dsk(care,ri.reason)         ? NodeGoal::Dsk
+					need_dsk(care,false/*force*/)    ? NodeGoal::Dsk
 				:	ri.full && ( care || sense_err ) ? NodeGoal::Status
 				:	required                         ? NodeGoal::Makable
 				:	                                   NodeGoal::None
@@ -767,18 +768,18 @@ namespace Engine {
 					critical_waiting |= is_critical ;
 					goto Continue ;
 				}
-				SWEAR(dnd.done(*cdri,dg)) ;                                                     // after having called make, dep must be either waiting or done
-				if ( need_dsk(care) && !dnd.done(*cdri,NodeGoal::Dsk) ) ri.missing_dsk = true ; // job needs this dep if it must run
-				if (dg==NodeGoal::Makable                             ) continue ;              // dont check modifs and errors
+				SWEAR(dnd.done(*cdri,dg)) ;                                                                                // after having called make, dep must be either waiting or done
+				if ( need_dsk(care,true/*force*/) && !dnd.done(*cdri,NodeGoal::Dsk) ) ri.missing_dsk = true ;              // job needs this dep if it must run
+				if (dg==NodeGoal::Makable                             ) continue ;                                         // dont check modifs and errors
 				dep_modif = care && !dep.up_to_date() ;
-				if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {                    // no_trigger only applies to successful jobs
+				if ( dep_modif && status==Status::Ok && dep.no_trigger() ) {    // no_trigger only applies to successful jobs
 					trace("no_trigger",dep) ;
-					req->no_triggers.emplace(dep,req->no_triggers.size()) ;                     // record to repeat in summary, value is just to order summary in discovery order
+					req->no_triggers.emplace(dep,req->no_triggers.size()) ;     // record to repeat in summary, value is just to order summary in discovery order
 					dep_modif = false ;
 				}
 				if (dep_modif) ri.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
-				if ( +ri.stamped_err                ) goto Continue ;                           // we are already in error, no need to analyze errors any further
-				if ( !is_static && ri.stamped_modif ) goto Continue ;                           // if not static, errors may be washed by previous modifs, dont record them
+				if ( +ri.stamped_err                ) goto Continue ;           // we are already in error, no need to analyze errors any further
+				if ( !is_static && ri.stamped_modif ) goto Continue ;           // if not static, errors may be washed by previous modifs, dont record them
 				//
 				{	Bool3 dep_ok = dnd.ok(*cdri,dep.accesses) ;
 					switch (dep_ok) {
@@ -793,8 +794,8 @@ namespace Engine {
 						break ;
 						case No :
 							trace("dep_err",dep,STR(sense_err)) ;
-							if (+cdri->overwritten) { dep_err = RunStatus::DepErr ; ri.reason |= {JobReasonTag::DepOverwritten,+dep} ; goto Continue ; } // even with !sense_err
-							if (sense_err         ) { dep_err = RunStatus::DepErr ; ri.reason |= {JobReasonTag::DepErr        ,+dep} ; goto Continue ; }
+							if (+(cdri->overwritten&dep.accesses)) { dep_err = RunStatus::DepErr ; ri.reason |= {JobReasonTag::DepOverwritten,+dep} ; goto Continue ; } // even with !sense_err
+							if (sense_err                        ) { dep_err = RunStatus::DepErr ; ri.reason |= {JobReasonTag::DepErr        ,+dep} ; goto Continue ; }
 						break ;
 					DF}
 					if ( care && dep.is_date && +dep.date() ) {                            // if still waiting for a crc here, it will never come
@@ -820,6 +821,7 @@ namespace Engine {
 				ri.proto_modif  = ri.proto_modif | dep_modif ;                             // .
 				critical_modif |= dep_modif && is_critical   ;
 			}
+			ri.reason |= reason ;                                                          // this is done at the end so as to appear as a reason only if there is no other ones
 			if (   ri.waiting()                   ) goto Wait ;
 			if (   sure                           ) mk_sure() ;                            // improve sure (sure is pessimistic)
 			if (+( run_status = ri.stamped_err   )) goto Done ;
@@ -884,13 +886,10 @@ namespace Engine {
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
-		if (submit_loop) status = Status::Err ;
-		if (ri.done()  ) {
-			//                   vvvvvvvvvvvvvvvvvvvv
-			if (wakeup_watchers) ri.wakeup_watchers() ;
-			else                 caller_wakeup_watchers = true ;
-			//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		}
+		//                                  vvvvvvvvvvvvvvvvvvvv
+		if ( submit_loop                  ) status = Status::Err ;
+		if ( ri.done() && wakeup_watchers ) ri.wakeup_watchers() ;
+		//                                  ^^^^^^^^^^^^^^^^^^^^
 	Wait :
 		if ( stop_speculate                              ) _propag_speculate(ri) ;
 		if ( !rule->is_special() && ri.step()!=prev_step ) {
@@ -898,7 +897,7 @@ namespace Engine {
 			bool add_new    = ri.step()>=Step::MinCurStats && ri.step()<Step::MaxCurStats1 ;
 			req.new_exec_time( *this , remove_old , add_new , old_exec_time?*old_exec_time:exec_time ) ;
 		}
-		return { ri.reason , caller_wakeup_watchers } ;
+		return ri.reason ;
 	}
 
 	void JobData::_propag_speculate(ReqInfo const& cri) const {

@@ -39,10 +39,11 @@ if __name__!='__main__' :
 		cmd          = 'wine64 cmd'                # do nothing, just to init support files (in targets)
 
 	class Dut(Base,WineRule) :
-		target  = 'dut.{Method}'
-		deps    = { 'WINE_INIT' : '.wine/init' }
-		autodep = '{Method}'
-		cmd     = f'wine64 {hostname_exe}'
+		target       = 'dut.{Method}'
+		deps         = { 'WINE_INIT' : '.wine/init' }
+		autodep      = '{Method}'
+		allow_stderr = True                     # in some systems, there are fixme messages
+		cmd          = f'wine64 {hostname_exe}'
 
 	class Chk(Base) :
 		target = r'test.{Method}'
