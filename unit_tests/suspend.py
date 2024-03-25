@@ -25,7 +25,7 @@ if __name__!='__main__' :
 			if step==1 :
 				open('bad')
 			else :
-				with lmake.SuspendAutodep() : open('bad')
+				with lmake.Autodep(False) : open('bad')
 
 else :
 

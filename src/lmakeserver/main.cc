@@ -52,7 +52,7 @@ void server_cleanup() {
 	pid_t           pid  = getpid()             ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair_s(_g_host,pid)) return ;              // not our file, dont touch it
+	if (mrkr!=::pair(_g_host,pid)) return ;                // not our file, dont touch it
 	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }

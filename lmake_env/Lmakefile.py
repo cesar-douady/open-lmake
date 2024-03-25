@@ -209,9 +209,9 @@ class Marker(BaseRule) :
 		open(MRKR,'w')
 
 basic_opts_tab = {
-	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                   '-std=c99'  )
-,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-std=c++20') # on some systems, there is a warning type-limits
-,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-std=c++20') # .
+	'c'   : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra',                                             '-std=c99'  )
+,	'cc'  : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # on some systems, there is a warning type-limits
+,	'cxx' : ('-g','-O3','-pedantic','-fno-strict-aliasing','-Werror','-Wall','-Wextra','-Wno-type-limits','-Wno-cast-function-type','-std=c++20') # .
 }
 def run_gcc(target,*args) :
 		cmd_line = ( gcc , '-o' , target , '-fdiagnostics-color=always' , *args )
@@ -240,9 +240,12 @@ for ext,basic_opts in basic_opts_tab.items() :
 				seen_inc = x in ('-I','-iquote','-isystem','-idirafter')
 			lmake.depend(*mrkrs)
 			lmake.check_deps()
+			if 'clang' in gcc : clang_opts = ('-Wno-misleading-indentation','-Wno-unknown-warning-option','-Wno-c2x-extensions','-Wno-unused-function','-Wno-c++2b-extensions')
+			else              : clang_opts = ()
 			run_gcc( OBJ
 			,	'-c' , '-fPIC' , '-pthread' , f'-frandom-seed={OBJ}' , '-fvisibility=hidden'
 			,	*basic_opts
+			,	*clang_opts
 			,	*add_flags
 			,	SRC
 			)

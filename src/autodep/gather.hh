@@ -24,37 +24,42 @@
 
 struct Gather {
 	friend ::ostream& operator<<( ::ostream& os , Gather const& ad ) ;
-	using Proc = JobExecRpcProc ;
-	using Jerr = JobExecRpcReq  ;
-	using Crc  = Hash::Crc      ;
-	using PD   = Time::Pdate    ;
-	using DD   = Time::Ddate    ;
-	using CD   = CrcDate        ;
+	using Proc   = JobExecRpcProc ;
+	using Jerr   = JobExecRpcReq  ;
+	using Crc    = Hash::Crc      ;
+	using PD     = Time::Pdate    ;
+	using CD     = CrcDate        ;
 	struct AccessInfo {
 		friend ::ostream& operator<<( ::ostream& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
+		// accesses
+		PD first_read() const {
+			PD res = PD::Future ;
+			for( Access a : All<Access> ) if ( digest.accesses[a] && res>read[+a] ) res = read[+a] ;
+			return res ;
+		}
 		// services
-		void update( PD , bool phony_ok_ , AccessDigest , CD const& , Bool3 confirm , NodeIdx parallel_id_ ) ;
+		void update( PD , bool phony_ok_ , AccessDigest , CD const& , NodeIdx parallel_id_ ) ;
 		//
 		void chk() const ;
 		// data
-		PD           first_read        ;         // if +digest.accesses , first access date
-		PD           first_write       ;         // if  digest.write!=No, first write/unlink date
-		PD           last_write        ;         // if  digest.write!=No, last  write/unlink date (always confirmed)
-		CD           crc_date          ;         // state when first read
-		AccessDigest digest            ;
-		NodeIdx      parallel_id       = 0     ;
-		bool         phony_ok       :1 = false ; // if false <=> prevent phony flag so as to hide washing to user
-		bool         first_confirmed:1 = false ; // if digest.write!=No, first write is confirmed
-		bool         last_confirmed :1 = false ; // if digest.write!=No, last  write is confirmed (for user report only)
-		bool         seen           :1 = false ; // if true <= file has been seen existing, this bit is important if file does not exist when first read, then is created externally, ...
-	} ;                                          // ... then is read again, then unlinked (if fugitive state is not recorded, everything looks as if file never existed)
+		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
+		// this cannot be seen on file date has there is no date for non-existing files
+		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access (or ignore) date for each access
+		PD           write           = PD::Future                             ;                                 // first write  (or ignore) date
+		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
+		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
+		CD           crc_date        ;                                                                          // state when first read
+		NodeIdx      parallel_id     = 0                                      ;
+		AccessDigest digest          ;
+		bool         phony_ok        = false                                  ;                                 // if false <=> prevent phony flag so as to hide washing to user
+	} ;
 	struct ServerReply {
-		IMsgBuf  buf        ;                    // buf to assemble the reply
-		Fd       fd         ;                    // fd to forward reply to
+		IMsgBuf  buf        ;                                                                                   // buf to assemble the reply
+		Fd       fd         ;                                                                                   // fd to forward reply to
 		::string codec_file ;
 	} ;
 	// cxtors & casts
@@ -65,30 +70,30 @@ public :
 	void init() { master_fd.listen() ; }
 	// services
 private :
-	void _fix_auto_date( Fd , Jerr& jerr) ;
+	void _solve( Fd , Jerr& jerr) ;
 	// Fd for trace purpose only
-	void _new_access( Fd , PD , bool phony_ok , ::string&& file , AccessDigest , CD const& , Bool3 confirm , bool parallel , ::string const& comment ) ;
+	void _new_access( Fd , PD , bool phony_ok , ::string&& file , AccessDigest , CD const& , bool parallel , ::string const& comment ) ;
 	//
-	void _new_access(         PD pd , bool po , ::string&& f , AccessDigest ad , CD const& cd , Bool3 cfm , bool p , ::string const& cmt ) { _new_access({},pd,po  ,::move(f),ad,cd,cfm,p,cmt) ; }
-	void _new_access( Fd fd , PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , Bool3 cfm , bool p , ::string const& cmt ) { _new_access(fd,pd,true,::move(f),ad,cd,cfm,p,cmt) ; }
-	void _new_access(         PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , Bool3 cfm , bool p , ::string const& cmt ) { _new_access({},pd,true,::move(f),ad,cd,cfm,p,cmt) ; }
+	void _new_access(         PD pd , bool po , ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access({},pd,po  ,::move(f),ad,cd,p,c) ; }
+	void _new_access( Fd fd , PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access(fd,pd,true,::move(f),ad,cd,p,c) ; }
+	void _new_access(         PD pd ,           ::string&& f , AccessDigest ad , CD const& cd , bool p , ::string const& c ) { _new_access({},pd,true,::move(f),ad,cd,p,c) ; }
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		bool parallel = false ;
-		for( auto& [f,dd] : jerr.files ) { _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , jerr.confirm , parallel , jerr.txt ) ; parallel = true ; }
+		for( auto& [f,dd] : jerr.files ) { _new_access( fd , jerr.date , ::move(f) , jerr.digest , dd , parallel , jerr.txt ) ; parallel = true ; }
 	}
-	void _new_guards( Fd fd , Jerr&& jerr ) {    // fd for trace purpose only
+	void _new_guards( Fd fd , Jerr&& jerr ) {                                                                   // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr.txt) ;
 		for( auto& [f,_] : jerr.files ) { trace(f) ; guards.insert(::move(f)) ; }
 	}
 	void _codec( ServerReply&& sr , JobRpcReply const& jrr , ::string const& comment="codec" ) {
 		Trace trace("_codec",jrr) ;
-		_new_access( sr.fd , PD(New) , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , Yes/*confirm*/ , false/*parallel*/ , comment ) ;
+		_new_access( sr.fd , PD(New) , ::move(sr.codec_file) , {.accesses=Access::Reg} , jrr.crc , false/*parallel*/ , comment ) ;
 	}
-public : //!                                                                                    phony_ok                        crc_date confirm parallel
-	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,       ::copy(t),{.write=Yes  },{}     ,Yes    ,false  ,c) ; }
-	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,false ,::copy(t),{.write=Maybe},{}     ,Yes    ,false  ,c) ; } // new_unlnk is used for internal wash
-	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                                          }
+public : //!                                                                                    phony_ok                      crc_date parallel
+	void new_target( PD pd , ::string const& t , ::string const& c="s_target" ) { _new_access(pd,       ::copy(t),{.write=Yes},{}     ,false  ,c) ; }
+	void new_unlnk ( PD pd , ::string const& t , ::string const& c="s_unlnk"  ) { _new_access(pd,false ,::copy(t),{.write=Yes},{}     ,false  ,c) ; } // new_unlnk is used for internal wash
+	void new_guard (         ::string const& f                                ) { guards.insert(f) ;                                                }
 	//
 	void new_deps( PD , ::vmap_s<DepDigest>&& deps , ::string const& stdin={}       ) ;
 	void new_exec( PD , ::string const& exe        , ::string const&      ="s_exec" ) ;

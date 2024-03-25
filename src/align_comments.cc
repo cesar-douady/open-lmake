@@ -64,7 +64,7 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 				if (l[comment_pos+g_comment_sign.size()]=='!') comment_pos = l.size() ;
 			}
 			for ( code_len=comment_pos ; code_len&&l[code_len-1]==' ' ; code_len-- ) ;
-			res.emplace_back( lvl , kind , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start , l.substr(comment_pos) ) ;
+			res.push_back(Line{ lvl , kind , l.substr(0,start) , l.substr(start,code_len-start) , g_tab_width*lvl+code_len-start , l.substr(comment_pos) }) ;
 		}
 	}
 	return res ;

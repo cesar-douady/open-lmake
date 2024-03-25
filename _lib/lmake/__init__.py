@@ -112,23 +112,16 @@ config = pdict(
 	)
 )
 
-class SuspendAutodep :
+class Autodep :
 	"""context version of the set_autodep function (applies to this process and all processes started in the protected core)
 usage :
-	with SuspendAutodep() :
-		<code with autodep deactivated>
+	with Autodep(enable) :
+		<code with autodep activate(enable=True) or deactivated (enable=False)>
 	"""
-	level = 0
-	def __init__(self) :
-		pass
+	def __init__(self,enable) :
+		self.cur  = enable
 	def __enter__(self) :
-		if not self.__class__.level :
-			self.ld_preload = _os.environ.pop('LD_PRELOAD',None)
-			set_autodep(False)
-		self.__class__.level += 1
+		self.prev = get_autodep()
+		set_autodep(self.cur)
 	def __exit__(self,*args) :
-		self.__class__.level -= 1
-		if not self.__class__.level :
-			if self.ld_preload is not None : _os.environ['LD_PRELOAD'] = self.ld_preload
-			set_autodep(True)
-
+		set_autodep(self.prev)

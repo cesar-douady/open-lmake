@@ -59,9 +59,9 @@ namespace Backends {
 	Backend::DeferredThread*          Backend::_s_deferred_report_thread = nullptr ;
 	Backend::DeferredThread*          Backend::_s_deferred_wakeup_thread = nullptr ;
 
-	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<pair_s<Dflags>>&& deps_attrs ) {
+	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<pair_s<pair<Dflags,ExtraDflags>>>&& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
-		for( auto& [_,df] : deps_attrs ) res.emplace_back( ::move(df.first) , DepDigest( {} , df.second , true/*parallel*/ ) ) ;
+		for( auto& [_,ddfedf] : deps_attrs ) res.emplace_back( ::move(ddfedf.first) , DepDigest( {} , ddfedf.second.first , true/*parallel*/ ) ) ;
 		return res ;
 	}
 
@@ -154,7 +154,7 @@ namespace Backends {
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
 			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
-			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry(conn.seq_id,JobExec(Job(job),conn.host,start_date,New)) ) ;
+			_s_deferred_wakeup_thread->emplace_after( g_config.network_delay , DeferredEntry{conn.seq_id,JobExec(Job(job),conn.host,start_date,New)} ) ;
 		}
 	}
 
@@ -198,7 +198,7 @@ namespace Backends {
 		::pair<vmap<Node,FileAction>,vector<Node>> pre_actions       ;
 		StartCmdAttrs                              start_cmd_attrs   ;
 		::pair_ss/*script,call*/                   cmd               ;
-		::vmap_s<pair_s<Dflags>>                   deps_attrs        ;
+		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> deps_attrs        ;
 		StartRsrcsAttrs                            start_rsrcs_attrs ;
 		StartNoneAttrs                             start_none_attrs  ;
 		::pair_ss                                  start_msg_err     ;
@@ -346,7 +346,7 @@ namespace Backends {
 					,	.start        = ::move(reply)
 					,	.stderr       = start_msg_err.second
 					}) ) ;
-					serialize( ofs , JobInfoEnd( JobRpcReq(JobProc::End,jrr.job,jrr.seq_id,JobDigest(digest)) ) ) ;
+					serialize( ofs , JobInfoEnd{ JobRpcReq{JobProc::End,jrr.seq_id,jrr.job,JobDigest(digest)} } ) ;
 				}
 				job_exec = { job , reply.addr , file_date(jaf) , New } ;                                                        // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -463,7 +463,7 @@ namespace Backends {
 			dd.crc_date(dep) ;
 		}
 		::string jaf = job->ancillary_file() ;
-		serialize( OFStream(jaf,::ios::app) , JobInfoEnd(jrr) ) ;                 // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ;                 // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
 		je.end_date = file_date(jaf) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

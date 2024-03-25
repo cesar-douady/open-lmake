@@ -131,7 +131,7 @@ template<class T         > static inline constexpr bool operator!(::vector<T  > 
 // easy transformation of a container into another
 template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return { v.cbegin() , v.cend() } ; }
 template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return { v.cbegin() , v.cend() } ; }
-template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return { v.cbegin() , v.cend() } ; }
+template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.cbegin() , v.cend() ) ; }
 template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return { v.cbegin() , v.cend() } ; }
 template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return { v.cbegin() , v.cend() } ; }
 template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return { v.cbegin() , v.cend() } ; }
@@ -653,12 +653,8 @@ namespace std {
 #define _ENUM_N(...) _ENUM_N_(__VA_ARGS__, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define _ENUM_N_(                         _30,_29,_28,_27,_26,_25,_24,_23,_22,_21,_20,_19,_18,_17,_16,_15,_14,_13,_12,_11,_10,_9,_8,_7,_6,_5,_4,_3,_2,_1, n,...) n
 
-template<class T> static constexpr bool IsStdEnum = false ; // unless specialized
-
-template<class T> concept StdEnum = IsStdEnum<T> ;
-
 template<size_t Sz> static constexpr ::array<char,Sz> _enum_split0(const char* comma_sep) {
-	::array<char,Sz> res ;
+	::array<char,Sz> res {} ;
 	char* q   = res.data() ;
 	bool  sep = true       ;
 	for( const char* p=comma_sep ; *p ; p++ )
@@ -672,9 +668,9 @@ template<size_t Sz> static constexpr ::array<char,Sz> _enum_split0(const char* c
 }
 
 template<size_t Sz> static constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> const& camel0) { // at worst, snake inserts a _ before all chars, doubling the size
-	::array<char,Sz*2> res ;
-	char* q     = res.data() ;
-	bool  first = true       ;
+	::array<char,Sz*2> res   {}/*constexpr*/ ;
+	char*              q     = res.data()    ;
+	bool               first = true          ;
 	for( char c : camel0 ) {
 		if ( 'A'<=c && c<='Z' ) { { if (!first) *q++ = '_' ; } *q++ = 'a'+(c-'A') ; }
 		else                                                   *q++ =      c      ;
@@ -684,8 +680,8 @@ template<size_t Sz> static constexpr ::array<char,Sz*2> _enum_snake0(::array<cha
 }
 
 template<size_t Sz,size_t VSz> static constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
-	::array<string_view,Sz> res  ;
-	const char*             item = vals.data() ;
+	::array<string_view,Sz> res  {}/*constexpr*/ ;
+	const char*             item = vals.data()   ;
 	for( size_t i=0 ; i<Sz ; i++ ) {
 		size_t len = 0 ; while (item[len]) len++ ;
 		res[i]  = {item,len} ;
@@ -694,9 +690,18 @@ template<size_t Sz,size_t VSz> static constexpr ::array<string_view,Sz> _enum_mk
 	return res ;
 }
 
-template<StdEnum E> static constexpr uint8_t    N                  = 0 /*garbage*/ ;
-template<StdEnum E> static constexpr const char EnumName        [] = ""/*garbage*/ ;
-template<StdEnum E> static constexpr const char _EnumCamelsComma[] = ""/*garbage*/ ;
+// IsStdEnum, N, EnumName and _EnumCamelsComma templates could be defined static instead of within an anonymous namespace
+// but then, clang requires the specialization to be static as well while gcc forbids it
+// using an anonymous namespace is ok with both and provides the same functionality
+namespace {
+	template<class T> constexpr bool IsStdEnum = false ; // unless specialized
+}
+template<class T> concept StdEnum = IsStdEnum<T> ;
+namespace {
+	template<StdEnum E> constexpr uint8_t    N                  = 0 /*garbage*/ ; // specialized for each enum
+	template<StdEnum E> constexpr const char EnumName        [] = ""/*garbage*/ ; // .
+	template<StdEnum E> constexpr const char _EnumCamelsComma[] = ""/*garbage*/ ; // .
+}
 
 template<StdEnum E> static constexpr E                                           All          = E(N<E>)                                                             ;
 template<StdEnum E> static constexpr ::array<char,sizeof(_EnumCamelsComma<E>)  > _EnumCamels0 = _enum_split0<     sizeof(_EnumCamelsComma<E>)>(_EnumCamelsComma<E>) ;
@@ -753,10 +758,12 @@ template<StdEnum E> static inline E mk_enum(::string const& x) {
 #define ENUM_5( E , eq1 , eq2 , eq3 , eq4 , eq5 , ... ) enum class E : uint8_t {__VA_ARGS__,eq1,eq2,eq3,eq4,eq5} ; _ENUM(E,__VA_ARGS__)
 
 #define _ENUM(E,...) \
-	template<> constexpr bool       IsStdEnum       <E>   = true                 ; \
-	template<> constexpr uint8_t    N               <E>   = _ENUM_N(__VA_ARGS__) ; \
-	template<> constexpr const char EnumName        <E>[] = #E                   ; \
-	template<> constexpr const char _EnumCamelsComma<E>[] = #__VA_ARGS__         ;
+	namespace { \
+		template<> [[maybe_unused]] constexpr bool       IsStdEnum       <E>   = true                 ; \
+		template<> [[maybe_unused]] constexpr uint8_t    N               <E>   = _ENUM_N(__VA_ARGS__) ; \
+		template<> [[maybe_unused]] constexpr const char EnumName        <E>[] = #E                   ; \
+		template<> [[maybe_unused]] constexpr const char _EnumCamelsComma<E>[] = #__VA_ARGS__         ; \
+	}
 
 template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
@@ -784,10 +791,8 @@ template<StdEnum E> static inline void encode_enum( char* p , E e ) { encode_int
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
-	using Elem =       E     ;
-	using Val  = Uint<N<E>>  ;
-	static const BitMap None ;
-	static const BitMap All  ;
+	using Elem =       E    ;
+	using Val  = Uint<N<E>> ;
 	// cxtors & casts
 	BitMap() = default ;
 	//
@@ -822,8 +827,6 @@ template<StdEnum E> struct BitMap {
 private :
 	Val _val = 0 ;
 } ;
-template<StdEnum E> constexpr BitMap<E> BitMap<E>::None =  BitMap<E>() ;
-template<StdEnum E> constexpr BitMap<E> BitMap<E>::All  = ~BitMap<E>() ;
 //
 template<StdEnum E> static inline constexpr BitMap<E>   operator~(E e) { return ~BitMap<E>(e)  ; }
 

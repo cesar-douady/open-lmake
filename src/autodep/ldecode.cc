@@ -28,7 +28,7 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
-	JobExecRpcReply reply = Record(New).direct(JobExecRpcReq(
+	JobExecRpcReply reply = Record(New,Yes/*enable*/).direct(JobExecRpcReq(
 		JobExecRpcProc::Decode
 	,	::move(cmd_line.flag_args[+Flag::File   ])
 	,	::move(cmd_line.flag_args[+Flag::Code   ])

@@ -193,7 +193,7 @@ namespace Engine {
 		_parse_target( str , [&](FileNameIdx,VarIdx s)->void { cb(s) ; } ) ;
 	}
 
-	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags ) {
+	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
 		for( Object const& item : py_seq ) {
 			if (n_skip>0) { n_skip-- ; continue ; }
 			if (item.is_a<Str>()) {
@@ -201,22 +201,22 @@ namespace Engine {
 				bool     neg      = flag_str[0]=='-'  ;
 				if (neg) flag_str = flag_str.substr(1) ; // suppress initial - sign
 				//
-				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F::NRule     ) ) flags      .set(f ,!neg) ;
-				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<n_extra_flags) ) extra_flags.set(ef,!neg) ;
-				else                                                                                         throw to_string("unexpected flag ",flag_str," for ",key) ;
+				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F ::NRule) ) flags      .set(f ,!neg) ;
+				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<EF::NRule) ) extra_flags.set(ef,!neg) ;
+				else                                                                                     throw to_string("unexpected flag ",flag_str," for ",key) ;
 			} else if (item.is_a<Sequence>()) {
-				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , extra_flags , n_extra_flags ) ;
+				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , extra_flags ) ;
 			} else {
 				throw to_string(key,"has a flag that is not a str") ;
 			}
 		}
 	}
-	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags , EF n_extra_flags=All<EF> ) {
+	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
 		if (py.is_a<Str>()) return py.as_a<Str>() ;
 		Sequence const& py_seq = py.as_a<Sequence>() ;
 		SWEAR(py_seq.size()>=n_skip          ,key) ;
 		SWEAR(py_seq[0].is_a<Str>(),key) ;
-		_mk_flags( key , py_seq , n_skip , flags , extra_flags , n_extra_flags ) ;
+		_mk_flags( key , py_seq , n_skip , flags , extra_flags ) ;
 		return py_seq[0].as_a<Str>() ;
 	}
 
@@ -400,15 +400,15 @@ namespace Engine {
 		::string abs_dir_s = mk_abs(dir_s,*g_root_dir+'/') ;
 		//
 		for( ::string const& sd_s : g_src_dirs_s ) {
-			if (is_lcl_s(sd_s)) continue ;                                                                          // nothing to recognize inside repo
-			if (abs_dir_s.starts_with(sd_s)) { if (abs_dir_s==dir_s) return true/*keep*/ ; bad_canon(abs_dir_s) ; }
-			if (rel_dir_s.starts_with(sd_s)) { if (rel_dir_s==dir_s) return true/*keep*/ ; bad_canon(rel_dir_s) ; }
+			if (is_lcl_s(sd_s)) continue ;                                                                              // nothing to recognize inside repo
+			if (abs_dir_s.starts_with(sd_s)) { { if (abs_dir_s==dir_s) return true/*keep*/ ; } bad_canon(abs_dir_s) ; }
+			if (rel_dir_s.starts_with(sd_s)) { { if (rel_dir_s==dir_s) return true/*keep*/ ; } bad_canon(rel_dir_s) ; }
 		}
-		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                              // normal case : interpreter is outside repo typically system python or bash
+		if (kind!=DepKind::Dep) return false/*keep*/ ;                                                                  // normal case : interpreter is outside repo typically system python or bash
 		bad("outside repository and all source dirs must be suppressed") ;
 	}
 	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dynamic = false ;                                                                                                                          // if full dynamic, we are not initialized
+		full_dynamic = false ;                                                                                                       // if full dynamic, we are not initialized
 		//
 		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -416,11 +416,11 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed  = 0                                                                               ;
-			Dflags      df         { Dflag::Essential , Dflag::Static }                                              ;
+			VarIdx      n_unnamed  = 0                                                            ;
+			Dflags      df         { Dflag::Essential , Dflag::Static }                           ;
 			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
-			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )                                 ;
+			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
+			::string    parsed_dep = Attrs::subst_fstr( dep , var_idxs , n_unnamed )              ;
 			//
 			rd.add_cwd( parsed_dep , edf[ExtraDflag::Top] ) ;
 			_qualify_dep( key , parsed_dep , DepKind::Dep , dep ) ;
@@ -429,16 +429,16 @@ namespace Engine {
 				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
 				if (n_unnamed) throw to_string("dep ",key," (",dep,") ","contains some but not all unnamed static stems") ;
 			}
-			deps.emplace_back( key , DepSpec( ::move(parsed_dep) , df ) ) ;
+			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
 		if (_qualify_dep( {} , rd.interpreter[0] , rd.is_python?DepKind::Python:DepKind::Shell ))
-			deps.emplace_back( "<interpreter>" , DepSpec(::copy(rd.interpreter[0]),Dflag::Static) ) ;
+			deps.emplace_back( "<interpreter>" , DepSpec{::copy(rd.interpreter[0]),Dflag::Static,{}} ) ;
 		if (deps.size()>=Rule::NoVar) throw to_string("too many static deps : ",deps.size()) ;
 	}
 
-	::vmap_s<pair_s<Dflags>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
-		::vmap_s<pair_s<Dflags>> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair_s( parse_fstr(ds.pattern,match) , ds.dflags ) ) ;
+	::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> DynamicDepsAttrs::eval( Rule::SimpleMatch const& match ) const {
+		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> res ;
+		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , pair( parse_fstr(ds.pattern,match) , pair(ds.dflags,ds.extra_dflags) ) ) ;
 		//
 		if (is_dynamic) {
 			try {
@@ -450,14 +450,14 @@ namespace Engine {
 				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
 					if (py_val==None) continue ;
 					::string key = py_key.as_a<Str>() ;
-					Dflags      df  { Dflag::Essential , Dflag::Static }                                              ;
+					Dflags      df  { Dflag::Essential , Dflag::Static }                           ;
 					ExtraDflags edf ;
-					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf , ExtraDflag::NDep ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
+					::string    dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
 					match.rule->add_cwd( dep , edf[ExtraDflag::Top] ) ;
 					_qualify_dep( key , dep , DepKind::Dep ) ;
-					::pair_s<Dflags> e { dep , df } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          } // dep cannot be both static and dynamic
-					else                                                          res[dep_idxs.at(key)].second = e ;   // if not full_dynamic, all deps must be listed in spec
+					::pair_s<pair<Dflags,ExtraDflags>> e { dep , {df,edf} } ;
+					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,e) ;          }                // dep cannot be both static and dynamic
+					else                                                          res[dep_idxs.at(key)].second = e ;                  // if not full_dynamic, all deps must be listed in spec
 				}
 			} catch (::string const& e) { throw ::pair_ss(e/*msg*/,{}/*err*/) ; }
 		}
@@ -590,7 +590,7 @@ namespace Engine {
 				allow_ext                     = true         ;                                 // sources may lie outside repo
 				stems           .emplace_back("",".*"                ) ;
 				stem_mark_counts.push_back   (0                      ) ;
-				matches         .emplace_back("",MatchEntry(job_name)) ;
+				matches         .emplace_back("",MatchEntry{job_name}) ;
 				_compile() ;
 			break ;
 		DF}
@@ -786,22 +786,21 @@ namespace Engine {
 					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
 					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
 					// check
-					if ( target.starts_with(root_dir_s)                                    ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
-					if ( !is_lcl(target)                                                   ) throw to_string(snake(kind)," must be local : "                        ,target) ;
-					if ( !is_canon(target)                                                 ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
-					if ( +missing_stems                                                    ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
-					if (  is_official_target        && extra_tflags[ExtraTflag::ReadIsDep] ) throw to_string("cannot be a dep and matching target : "               ,target) ;
-					if ( !is_official_target        && is_special()                        ) throw           "flags are meaningless for source and anti-rules"s              ;
-					if (  is_star                   && is_special()                        ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
-					if (  is_star                   && is_stdout                           ) throw           "stdout cannot be directed to a star target"s                   ;
-					if ( tflags[Tflag::Incremental] && is_stdout                           ) throw           "stdout cannot be directed to an incremental target"s           ;
+					if ( target.starts_with(root_dir_s)             ) throw to_string(snake(kind)," must be relative to root dir : "         ,target) ;
+					if ( !is_lcl(target)                            ) throw to_string(snake(kind)," must be local : "                        ,target) ;
+					if ( !is_canon(target)                          ) throw to_string(snake(kind)," must be canonical : "                    ,target) ;
+					if ( +missing_stems                             ) throw to_string("missing stems ",missing_stems," in ",snake(kind)," : ",target) ;
+					if ( !is_official_target        && is_special() ) throw           "flags are meaningless for source and anti-rules"s              ;
+					if (  is_star                   && is_special() ) throw to_string("star ",kind,"s are meaningless for source and anti-rules")     ;
+					if (  is_star                   && is_stdout    ) throw           "stdout cannot be directed to a star target"s                   ;
+					if ( tflags[Tflag::Incremental] && is_stdout    ) throw           "stdout cannot be directed to an incremental target"s           ;
 					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top             ;
 					seen_target |= is_official_target ;
 					// record
 					/**/                     add_cwd( target   , is_top ) ;
 					if (field==job_name_key) add_cwd( job_name , is_top ) ;
-					(is_star?star_matches:static_matches[+kind]).emplace_back( field , MatchEntry(::move(target),flags) ) ;
+					(is_star?star_matches:static_matches[+kind]).emplace_back( field , MatchEntry{::move(target),flags} ) ;
 				}
 				SWEAR(+seen_target) ;                                                                                    // we should not have come up to here without a target
 				if (!job_name_key) add_cwd( job_name , seen_top ) ;
@@ -1111,14 +1110,8 @@ namespace Engine {
 			if (!ds.pattern) continue ;
 			::string flags ;
 			bool     first = true ;
-			for( Dflag f : Dflag::NRule ) {
-				if (!ds.dflags[f]) continue ;
-				//
-				if (first) { flags += " : " ; first = false ; }
-				else       { flags += " , " ;                 }
-				//
-				flags += snake(f) ;
-			}
+			for( Dflag      df  : Dflag     ::NRule ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += snake(df ) ; }
+			for( ExtraDflag edf : ExtraDflag::NRule ) if (ds.extra_dflags[edf]) { flags += first?" : ":" , " ; first = false ; flags += snake(edf) ; }
 			/**/        res << ::string(i,'\t') << ::setw(wk)<<k <<" : " ;
 			if (+flags) res << ::setw(wd)<<patterns[k] << flags ;
 			else        res <<             patterns[k]          ;

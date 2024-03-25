@@ -31,6 +31,14 @@ if __name__!='__main__' :
 		targets = { 'DE' : 'd/e' }
 		cmd     = 'echo abc > a/b/c'
 
+	class A(Rule) :
+		targets = { 'A' : 'a2' }
+		cmd     = 'ln -s b2 {A}'
+
+	class B(Rule) :
+		targets = { 'B' : 'b2' }
+		cmd     = 'echo a2 > a2'
+
 else :
 
 	import ut
@@ -40,4 +48,5 @@ else :
 
 	ut.lmake( 'hello+world' , may_rerun=1 , done=2 , new=2 ) # check link is distinguished from non-existent
 
-	ut.lmake( 'd/e' , may_rerun=1 , done=2 ) # check we acquire dep to a/b/c although we write to it
+	ut.lmake( 'd/e' , may_rerun=1 , done=2 ) # check we acquire dep to a/b/c although we write to it (a/b/c cant be written up front)
+	ut.lmake( 'b2'  , may_rerun=1 , done=2 ) # check we acquire dep to a     although we write to it (a2    can  be written up front)

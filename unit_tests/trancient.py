@@ -11,11 +11,11 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Rc(Rule) :
-		target = '{File:.*}.{Rc:\d+}'
+		target = '{File:[^/]*}.{Rc:\d+}'
 		cmd    = 'exit {Rc}'
 
 	class Ko(PyRule) :
-		target = '{File:.*}.ko'
+		target = '{File:[^/]*}.ko'
 		def cmd() :
 			try     : print(open(f'{File}.0').read())
 			except  : print(open(f'{File}.1').read())
@@ -25,4 +25,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'test.ko' , new=... , may_rerun=1 , done=1 , failed=3 , was_failed=1 , dep_err=1 , rc=1 )
+	ut.lmake( 'test.ko' , new=... , may_rerun=1 , done=1 , failed=2 , was_failed=1 , dep_err=1 , rc=1 )

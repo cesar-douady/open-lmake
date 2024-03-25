@@ -80,6 +80,7 @@ namespace Backends {
 
 		struct DeferredEntry {
 			friend ::ostream& operator<<( ::ostream& , DeferredEntry const& ) ;
+			DeferredEntry( SeqId si=0 , JobExec je={} ) : seq_id{si} , job_exec{je} {}
 			// data
 			SeqId   seq_id   = 0 ;
 			JobExec job_exec ;

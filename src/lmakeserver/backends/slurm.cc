@@ -638,6 +638,7 @@ namespace Backends::Slurm {
 		Trace trace("slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX : remember last conf read so as to pass a real update_time param & optimize call
+		if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s          ;
 		if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw to_string("cannot reach slurm daemon : ",slurm_err()) ;
 		SWEAR(conf) ;
 		Daemon res ;

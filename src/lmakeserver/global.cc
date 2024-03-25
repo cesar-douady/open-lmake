@@ -201,7 +201,7 @@ namespace Engine {
 					if (py_c2.size()!=3) throw to_string("size is ",py_c2.size(),"!=3") ;
 					fields.emplace_back() ;
 					for( size_t rgb=0 ; rgb<3 ; rgb++ ) {
-						fields[3] = ::string( "rgb"+rgb , 1 ) ;
+						fields[3] = ::string( &"rgb"[rgb] , 1 ) ;
 						size_t cc = py_c2[rgb].as_a<Int>() ;
 						if (cc>=256) throw to_string("color is ",cc,">=256") ;
 						colors[+c][r][rgb] = py_c2[rgb].as_a<Int>() ;

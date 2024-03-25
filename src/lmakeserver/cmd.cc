@@ -585,7 +585,7 @@ R"({
 							bool            porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 							::vmap_s<Entry> tab        ;
 							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool as_is=false )->void {
-								tab.emplace_back( k , Entry(v,c,as_is) ) ;
+								tab.emplace_back( k , Entry{v,c,as_is} ) ;
 							} ;
 							//
 							::string ids ;
@@ -737,10 +737,9 @@ R"({
 				for( auto const& [tn,td] : digest.targets ) {
 					Node t { tn } ;
 					::string flags_str ;
-					/**/                         flags_str +=  t->crc==Crc::None ? '!'             : '-' ;
-					/**/                         flags_str += +t->crc            ? 'W'             : '-' ;
-					/**/                         flags_str +=                      ' '                   ;
-					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf]      ? TflagChars[+tf] : '-' ;
+					/**/                         flags_str += t->crc==Crc::None ? 'U' : +t->crc ? 'W' : '-' ;
+					/**/                         flags_str += ' '                                           ;
+					for( Tflag tf : All<Tflag> ) flags_str += td.tflags[tf] ? TflagChars[+tf] : '-'         ;
 					//
 					_send_node( fd , ro , verbose , Maybe|!td.tflags[Tflag::Target]/*hide*/ , flags_str , t , lvl ) ;
 				}

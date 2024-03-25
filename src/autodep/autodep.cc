@@ -65,10 +65,8 @@ int main( int argc , char* argv[] ) {
 	deps_stream << "targets :\n" ;
 	for( auto const& [target,ai] : gather.accesses ) {
 		if (ai.digest.write==No) continue ;
-		deps_stream << ( +ai.digest.accesses    ? '<' : ' ' ) ;
-		deps_stream << ( ai.digest.write==Yes   ? '>' : ' ' ) ;
-		deps_stream << ( ai.digest.write==Maybe ? '!' : ' ' ) ;
-		deps_stream << target << '\n'                         ;
+		deps_stream << ( ai.digest.write==Maybe? "? " : "  " ) ;
+		deps_stream << target << '\n'                          ;
 	}
 	deps_stream << "deps :\n" ;
 	::string prev_dep         ;

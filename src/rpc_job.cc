@@ -192,43 +192,37 @@ JobRpcReq::JobRpcReq( SI si , JI j , JobExecRpcReq&& jerr ) : seq_id{si} , job{j
 
 ::ostream& operator<<( ::ostream& os , AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                         os << "AccessDigest("      ;
-	if      (+ad.accesses    ) { os <<      ad.accesses     ; sep = "," ; }
-	if      (+ad.dflags      ) { os <<sep<< ad.dflags       ; sep = "," ; }
-	if      (+ad.extra_dflags) { os <<sep<< ad.extra_dflags ; sep = "," ; }
-	if      (+ad.tflags      ) { os <<sep<< ad.tflags       ; sep = "," ; }
-	if      (+ad.extra_tflags) { os <<sep<< ad.extra_tflags ; sep = "," ; }
-	if      ( ad.write==Yes  ) { os <<sep<< "write"         ; sep = "," ; }
-	else if ( ad.write==Maybe)   os <<sep<< "unlnk"         ;
-	return                       os <<')'                   ;
+	/**/                         os << "AccessDigest("                          ;
+	if      (+ad.accesses    ) { os <<      ad.accesses                         ; sep = "," ; }
+	if      (+ad.dflags      ) { os <<sep<< ad.dflags                           ; sep = "," ; }
+	if      (+ad.extra_dflags) { os <<sep<< ad.extra_dflags                     ; sep = "," ; }
+	if      (+ad.tflags      ) { os <<sep<< ad.tflags                           ; sep = "," ; }
+	if      (+ad.extra_tflags) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
+	if      ( ad.write!=No   )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
+	return                       os <<')'                                       ;
 }
 
 ::ostream& operator<<( ::ostream& os , JobExecRpcReq const& jerr ) {
 	/**/                os << "JobExecRpcReq(" << jerr.proc <<','<< jerr.date ;
 	if (jerr.sync     ) os << ",sync"                                         ;
-	if (jerr.auto_date) os << ",auto_date"                                    ;
+	if (jerr.solve    ) os << ",solve"                                        ;
 	if (jerr.no_follow) os << ",no_follow"                                    ;
 	/**/                os <<',' << jerr.digest                               ;
 	if (+jerr.txt     ) os <<',' << jerr.txt                                  ;
 	if (jerr.proc>=JobExecRpcProc::HasFiles) {
-		if ( +jerr.digest.accesses && !jerr.auto_date ) {
-			os <<','<< jerr.files ;
-		} else {
-			::vector_s fs ;
-			for( auto [f,d] : jerr.files ) fs.push_back(f) ;
-			os <<','<< fs ;
-		}
+		if ( +jerr.digest.accesses && !jerr.solve ) os <<','<<               jerr.files  ;
+		else                                        os <<','<< mk_key_vector(jerr.files) ;
 	}
 	return os <<')' ;
 }
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& other) {
-	if (other.write!=No) write         = other.write        ;
-	if (      write==No) accesses     |= other.accesses     ;
-	/**/                 tflags       |= other.tflags       ;
-	/**/                 extra_tflags |= other.extra_tflags ;
-	/**/                 dflags       |= other.dflags       ;
-	/**/                 extra_dflags |= other.extra_dflags ;
+	if (write!=Yes) accesses     |= other.accesses     ;
+	/**/            write        |= other.write        ;
+	/**/            tflags       |= other.tflags       ;
+	/**/            extra_tflags |= other.extra_tflags ;
+	/**/            dflags       |= other.dflags       ;
+	/**/            extra_dflags |= other.extra_dflags ;
 	return *this ;
 }
 

@@ -19,8 +19,8 @@ struct Record {
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
 	static bool s_is_simple   (const char*) ;
-	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ;                     }
-	static void s_set_disabled(bool d     ) { SWEAR(_s_autodep_env) ; _s_autodep_env->disabled = d ; }
+	static bool s_has_tmp_view(           ) { return +s_autodep_env().tmp_view ;                      }
+	static void s_set_enable  (bool e     ) { SWEAR(_s_autodep_env) ; _s_autodep_env->disabled = !e ; }
 	//
 	static Fd s_root_fd() {
 		SWEAR(_s_autodep_env) ;
@@ -59,8 +59,11 @@ private :
 	static Fd          _s_root_fd     ;                                                                                     // a file descriptor to repo root dir
 	// cxtors & casts
 public :
-	Record(                       ) = default ;
-	Record( NewType , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {}
+	Record(                                      ) = default ;
+	Record( NewType ,                pid_t pid=0 ) : Record(New,Maybe,pid) {}
+	Record( NewType , Bool3 enable , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {                                   // avoid using bool as 2nd arg as this could be easily confused with pid_t
+		if (enable!=Maybe) s_set_enable(enable==Yes) ;
+	}
 	// services
 	Fd report_fd() const {
 		if (!_report_fd) {
@@ -93,9 +96,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(report_fd()) ;
 	}
 	//
-	void _report_access( JobExecRpcReq&& jerr                                                ) const ;
-	void _report_access( ::string&& f , Ddate d , Accesses a , Bool3 write , ::string&& c={} ) const {
-		_report_access({ JobExecRpcProc::Access , {{::move(f),d}} , {.write=write,.accesses=a} , ::move(c) }) ;
+	void _report_access( JobExecRpcReq&& jerr                                               ) const ;
+	void _report_access( ::string&& f , Ddate d , Accesses a , bool write , ::string&& c={} ) const {
+		_report_access({ JobExecRpcProc::Access , {{::move(f),d}} , {.write=Maybe&write,.accesses=a} , ::move(c) }) ;
 	}
 	// for modifying accesses (_report_update, _report_target, _report_unlnk, _report_targets) :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
@@ -106,10 +109,10 @@ private :
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
 	//                                                                                                                                  write
-	void _report_dep   ( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const { if (+a) _report_access( ::move(f) , dd , a  , No    , ::move(c) ) ; }
-	void _report_update( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const {         _report_access( ::move(f) , dd , a  , Yes   , ::move(c) ) ; }
-	void _report_target( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , Yes   , ::move(c) ) ; }
-	void _report_unlnk ( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , Maybe , ::move(c) ) ; }
+	void _report_dep   ( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const { if (+a) _report_access( ::move(f) , dd , a  , false , ::move(c) ) ; }
+	void _report_update( ::string&& f , Ddate dd , Accesses a , ::string&& c={} ) const {         _report_access( ::move(f) , dd , a  , true  , ::move(c) ) ; }
+	void _report_target( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
+	void _report_unlnk ( ::string&& f ,                         ::string&& c={} ) const {         _report_access( ::move(f) , {} , {} , true  , ::move(c) ) ; }
 	//
 	void _report_update( ::string&& f ,            Accesses a , ::string&& c={} ) const {         _report_update( ::move(f) , +a?Disk::file_date(s_root_fd(),f):Ddate() , a  , ::move(c) ) ; }
 	void _report_dep   ( ::string&& f ,            Accesses a , ::string&& c={} ) const {         _report_dep   ( ::move(f) , +a?Disk::file_date(s_root_fd(),f):Ddate() , a  , ::move(c) ) ; }
@@ -122,7 +125,7 @@ private :
 	void _report_targets( ::vector_s&& fs , ::string&& c={} ) const {
 		vmap_s<Ddate> mdd ;
 		for( ::string& f : fs ) mdd.emplace_back(::move(f),Ddate()) ;
-		_report_access({ JobExecRpcProc::Access , ::move(mdd) , {.write=Yes} , ::move(c) }) ;
+		_report_access({ JobExecRpcProc::Access , ::move(mdd) , {.write=Maybe} , ::move(c) }) ;
 	}
 	void _report_tmp( bool sync=false , ::string&& c={} ) const {
 		if      (!_tmp_cache) _tmp_cache = true ;

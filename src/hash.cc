@@ -60,11 +60,11 @@ namespace Hash {
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return Accesses::None ;                                                       // crc's are identical, cannot perceive difference
+			if (! diff                                       ) return {} ;                                                                   // crc's are identical, cannot perceive difference
 			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc match, must increase CRC size ",*this," versus ",other) ;
 		}
 		// qualify the accesses that can perceive the difference
-		Accesses res = Accesses::All ;
+		Accesses res = ~Accesses() ;
 		if (is_reg()) {
 			if      (other.is_reg()  ) res =  Access::Reg ; // regular accesses see modifications of regular files
 			else if (other==Crc::None) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
@@ -251,7 +251,7 @@ namespace Hash {
 		DF}
 	}
 
-	void _Xxh::_update ( const void* p , size_t sz )       { XXH3_64bits_update( &_state , p , sz ) ;          }
-	Crc  _Xxh::digest  (                           ) const { return { XXH3_64bits_digest(&_state) , is_lnk } ; }
+	void _Xxh::_update ( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
+	Crc  _Xxh::digest  (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
 
 }

@@ -58,7 +58,6 @@ namespace Time {
 	public :
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=sec() , .tv_nsec=nsec_in_s() } ; return ts                          ; }
 		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=sec() , .tv_usec=usec_in_s() } ; return tv                          ; }
-//		constexpr explicit operator T       () const {                                                       return sec()                       ; }
 		constexpr explicit operator double  () const {                                                       return double(_val)/TicksPerSecond ; }
 		constexpr explicit operator float   () const {                                                       return float (_val)/TicksPerSecond ; }
 		// accesses
@@ -180,7 +179,6 @@ namespace Time {
 		friend Delay ;
 		friend Ddate ;
 		friend Pdate ;
-		static const Date None ;
 		// cxtors & casts
 		using Base::Base ;
 		Date(::string_view const&) ;                                           // read a reasonable approximation of ISO8601
@@ -209,6 +207,7 @@ namespace Time {
 	struct Pdate : Date {
 		friend ::ostream& operator<<( ::ostream& , Pdate const ) ;
 		friend Delay ;
+		static const Pdate Future ;
 		// cxtors & casts
 		using Date::Date ;
 		Pdate(NewType) ;
@@ -225,6 +224,8 @@ namespace Time {
 		//
 		bool/*slept*/ sleep_until(::stop_token) const ;
 		void          sleep_until(            ) const ;
+		//
+		::string str ( uint8_t prec=0 , bool in_day=false ) const { if (*this<Future) return Date::str(prec,in_day) ; else return "Future" ; }
 	} ;
 
 	// DDate represents the date of a file, together with its tag (as the lsb's of _val)
@@ -232,10 +233,12 @@ namespace Time {
 	struct Ddate : Date {
 		friend ::ostream& operator<<( ::ostream& , Ddate const ) ;
 		friend Delay ;
+		static const Ddate Future ;
 	private :
 		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts
 	public :
+		using Date::Date ;
 		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
 		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		// accesses
@@ -260,7 +263,7 @@ namespace Time {
 		constexpr Ddate  operator- (Delay other) const { Ddate res{*this} ; res -= other ; return res   ; }
 		constexpr Delay  operator- (Ddate      ) const ;
 		//
-		::string str( uint8_t prec=0 , bool in_day=false ) const { return Date(New,_date()).str(prec,in_day) ; }
+		::string str( uint8_t prec=0 , bool in_day=false ) const { if (*this<Future) return Date(New,_date()).str(prec,in_day) ; else return "Future" ; }
 	} ;
 
 	struct FullDate {
@@ -311,13 +314,11 @@ namespace Time {
 	template<class T> requires(::is_unsigned_v  <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/::make_signed_t<T>(f))) ; }
 
 	//
-	// Date
-	//
-	constexpr Date Date::None { New , 0 } ;
-
-	//
 	// Pdate
 	//
+
+	constexpr Pdate Pdate::Future { New , Pdate::Tick(-1) } ;
+
 	inline Pdate::Pdate(NewType) {
 		TimeSpec now ;
 		::clock_gettime(CLOCK_REALTIME,&now) ;
@@ -328,6 +329,12 @@ namespace Time {
 	//
 	inline bool/*slept*/ Pdate::sleep_until(::stop_token tkn) const { return Delay::_s_sleep( tkn , *this-Pdate(New) , *this ) ; }
 	inline void          Pdate::sleep_until(                ) const { (*this-Pdate(New)).sleep_for()                           ; }
+
+	//
+	// Ddate
+	//
+
+	constexpr Ddate Ddate::Future { New , Ddate::Tick(-1) } ;
 
 }
 

@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import sys
 
 	import lmake
-	from lmake.rules import Rule,DynamicPyRule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -19,7 +19,7 @@ if __name__!='__main__' :
 		target = 'hello.py'
 		cmd    = 'echo hello=$(cat ref)'
 
-	class Test(DynamicPyRule) :
+	class Test(PyRule) :
 		target       = 'test'
 		allow_stderr = True
 		def cmd():

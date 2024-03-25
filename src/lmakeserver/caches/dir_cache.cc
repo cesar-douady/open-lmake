@@ -197,7 +197,7 @@ namespace Caches {
 		::string head_file  = _lru_file(Head)                        ;
 		auto     head       = deserialize<Lru>(IFStream(head_file))  ;
 		::string here_file  = _lru_file(entry)                       ;
-		Lru      here       { .next{head.next} , .sz{sz_} }          ;
+		Lru      here       { .next=head.next , .sz=sz_ }            ;
 		if (head.next==Head) {
 			head.next = entry ;
 			head.prev = entry ;

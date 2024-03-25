@@ -100,8 +100,11 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 	Trace trace("wash",start,g_start_info.pre_actions) ;
 	::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 	trace("unlnks",actions) ;
-	if (actions.second.second/*ok*/) for( ::string const& f : actions.first ) g_gather.new_unlnk(start,f) ;
-	else                             trace(actions.second) ;
+	if (actions.second.second/*ok*/)
+		for( ::string const& f : actions.first ) {
+			MatchFlags flags = g_match_dct.at(f) ;
+			if ( flags.is_target==Yes && static_phony(flags.tflags()) ) g_gather.new_unlnk(start,f) ; // other washed files belong to history, dont record them being erased
+		}
 	return actions.second ;
 }
 
@@ -149,94 +152,101 @@ struct Digest {
 
 Digest analyze( bool at_end , bool killed=false ) {
 	Trace trace("analyze",STR(at_end),g_gather.accesses.size()) ;
-	Digest  res              ; res.deps.reserve(g_gather.accesses.size()) ;                       // typically most of accesses are deps
+	Digest  res              ; res.deps.reserve(g_gather.accesses.size()) ;                    // typically most of accesses are deps
 	NodeIdx prev_parallel_id = 0                                     ;
 	Pdate   relax            = Pdate(New)+g_start_info.network_delay ;
 	//
 	for( auto const& [file,info] : g_gather.accesses ) {
-		info.chk() ;
 		MatchFlags   flags = g_match_dct.at(file) ;
 		AccessDigest ad    = info.digest          ;
 		switch (flags.is_target) {
-			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; break ;
-			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; break ;
-			case Maybe :                                                                       ; break ;
+			// if Ignore is in flags, it is there since the beginning
+			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
+			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; if (flags.extra_dflags()[ExtraDflag::Ignore])   ad.accesses = {} ;                   break ;
+			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
-		if (ad.extra_dflags[ExtraDflag::Ignore]) ad.accesses = {} ;                               // if reading and not a dep, file must be adequately washed and hence must be a target
 		//
-		bool is_dep =
-				( flags.is_target!=Yes || ad.extra_tflags[ExtraTflag::ReadIsDep] )
-			&&	( +ad.accesses         || ad.dflags      [Dflag     ::Static   ] )                // static deps are deemed read
+		if (ad.write==Yes)                                                                     // ignore reads after earliest confirmed write
+			for( Access a : All<Access> )
+				if (info.read[+a]>info.write) ad.accesses &= ~a ;
+		bool is_dep = ad.dflags[Dflag::Static] ;
+		if (flags.is_target!=Yes)                                                              // if a target or a side target, it is a target since the beginning
+			for( Access a : All<Access> )
+				if ( ad.accesses[a] && info.read[+a]<=info.target ) { is_dep = true ; break ; }
+		bool is_tgt =
+			ad.write!=No
+		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
+			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                // fast path : no matching, no pollution, no washing => forget it
+			)
 		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.crc_date , ad.dflags } ;
 			//
-			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = Accesses::All ;
+			if ( ad.accesses[Access::Stat] && ad.extra_dflags[ExtraDflag::StatReadData] ) dd.accesses = ~Accesses() ;
 			//
 			dd.parallel      = info.parallel_id && info.parallel_id==prev_parallel_id ;
 			prev_parallel_id = info.parallel_id                                       ;
 			//
-			if ( +dd.accesses && dd.is_date ) {                                                   // try to transform date into crc as far as possible
-				if      (                       !info.seen                  ) dd.crc(Crc::None) ; // the whole job has been executed without seeing the file (before possibly writing to it)
-				else if (                       !dd.date()                  ) dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
-				else if (                       ad.write!=No                ) {}                  // cannot check stability as we wrote to it, clash will be detecte in server if any
-				else if ( FileInfo dfi{file}  ; dfi.date!=dd.date()         ) dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
-				else if (                       !dfi                        ) dd.crc({}       ) ; // file is awkward
-				else if ( FileTag t=dfi.tag() ; !Crc::s_sense(dd.accesses,t)) dd.crc(t        ) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if ( +dd.accesses && dd.is_date ) {                                                // try to transform date into crc as far as possible
+				if      ( info.seen==Pdate::Future||info.seen>info.write ) dd.crc(Crc::None) ; // the whole job has been executed without seeing the file (before possibly writing to it)
+				else if ( !dd.date()                                     ) dd.crc({}       ) ; // file was not present initially but was seen, it is incoherent even if not present finally
+				else if ( ad.write!=No                                   ) {}                  // cannot check stability as we wrote to it, clash will be detecte in server if any
+				else if ( FileInfo dfi{file} ; dfi.date!=dd.date()       ) dd.crc({}       ) ; // file dates are incoherent from first access to end of job, dont know what has been read
+				else if ( !dfi                                           ) dd.crc({}       ) ; // file is awkward
+				else if ( !Crc::s_sense(dd.accesses,dfi.tag())           ) dd.crc(dfi.tag()) ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			}
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("dep   ",dd,flags,file) ;
 		}
-		if (!at_end) continue ;                                                                   // we are handling chk_deps and we only care about deps
+		if (!at_end) continue ;                                                                // we are handling chk_deps and we only care about deps
 		// handle targets
-		if (
-			ad.write!=No
-		||	(	+ad.accesses                                                                      // if no access at all, not a target
-			&&	!is_dep
-			&&	( ad.tflags[Tflag::Target] || !ad.tflags[Tflag::Incremental] )                    // if not touching an incremental non-official target, forget it
-			)
-		) {
-			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                      // used to ensure washing is not reported to user as a target
-			bool         unlnk = ad.write==Maybe && info.last_confirmed              ;
+		if (is_tgt) {
+			if (!info.phony_ok) ad.tflags &= ~Tflag::Phony ;                                                             // used to ensure washing is not reported to user as a target
+			//
+			bool         unlnk = !is_target(file)                                    ;
 			TargetDigest td    { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
-			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;  // if is_dep, previous target state is guaranteed by being a dep, use it
-			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;
-			switch (flags.is_target) {
+			//
+			if (is_dep                        ) td.tflags   |= Tflag::Incremental              ;                         // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (!td.tflags[Tflag::Incremental]) td.polluted  = info.crc_date.seen(ad.accesses) ;                         // polluted means that target was seen as existing before execution
+			if ( is_dep && !unlnk ) {
+				 trace("dep_and_target",ad,flags) ;
+				 append_to_string( res.msg , "read as dep before being known to be a target : " , mk_file(file) ,'\n') ;
+				 ad.tflags |= Tflag::Incremental ;                                                                       // file will have a predictible content, no reason to wash it
+			} else switch (flags.is_target) {
 				case Yes   : break ;
 				case Maybe :
-					if (unlnk       ) break ;                                                     // it is ok to write and unlink temporary files
-					if (ad.write==No) break ;                                                     // it is ok to attempt writing as long as attempt does not succeed
+					if (unlnk) break ;                                                  // it is ok to write and unlink temporary files
 				[[fallthrough]] ;
 				case No :
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
+					if (ad.write==No                      ) break ;                     // it is ok to attempt writing as long as attempt does not succeed
+					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                     // it is ok if explicitly allowed by user
 					trace("bad access",ad,flags) ;
-					if (!info.last_confirmed) append_to_string( res.msg , "maybe "                               ) ;
-					/**/                      append_to_string( res.msg , "unexpected "                          ) ;
-					if (ad.write==Yes       ) append_to_string( res.msg , "write to "                            ) ;
-					else                      append_to_string( res.msg , "unlink "                              ) ;
-					if (flags.is_target==No ) append_to_string( res.msg , "dep "                                 ) ;
-					/**/                      append_to_string( res.msg , mk_file(file,No|(ad.write==Yes)) , '\n') ;
+					if (ad.write==Maybe    ) append_to_string( res.msg , "maybe "                      ) ;
+					/**/                     append_to_string( res.msg , "unexpected "                 ) ;
+					                         append_to_string( res.msg , unlnk?"unlink ":"write to "   ) ;
+					if (flags.is_target==No) append_to_string( res.msg , "dep "                        ) ;
+					/**/                     append_to_string( res.msg , mk_file(file,No|!unlnk) , '\n') ;
 				break ;
 			}
 			if (ad.write!=No) {
 				// /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
-				if      ( !info.last_confirmed                )   relax.sleep_until() ;           // no need to optimize (could compute other crcs while waiting) as this is exceptional
+				if      ( ad.write==Maybe                     )   relax.sleep_until() ; // no need to optimize (could compute other crcs while waiting) as this is exceptional
 				if      ( unlnk                               )   td.crc = Crc::None ;
 				else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
-				else                                              res.crcs.emplace_back(res.targets.size()) ;      // record index in res.targets for deferred (parallel) crc computation
+				else                                              res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( td.tflags[Tflag::Target] && !static_phony(td.tflags) ) {                                          // unless phony, a target loses its official status if not actually produced
-				if ( ad.write!=No && info.last_confirmed ) { if (ad.write==Maybe ) td.tflags &= ~Tflag::Target ; }
-				else                                       { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
+			if ( td.tflags[Tflag::Target] && !static_phony(td.tflags) ) {                                     // unless static or phony, a target loses its official status if not actually produced
+				if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }
+				else               { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
 			}
 			if ( td.tflags[Tflag::Target] && td.tflags[Tflag::Static] ) g_missing_static_targets.erase(file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target",ad,td,file) ;
+			trace("target",ad,td,STR(unlnk),file) ;
 		}
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
@@ -426,7 +436,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [f,p] : g_missing_static_targets ) {
 			FileInfo fi{f} ;
 			if (!p) append_to_string( digest.msg , "missing static target " , mk_file(f,No/*exists*/) , '\n' ) ;
-			digest.targets.emplace_back( f , TargetDigest({Tflag::Static,Tflag::Target}) ) ;                     // report missing static targets as targets with no accesses
+			digest.targets.emplace_back( f , TargetDigest{{Tflag::Static,Tflag::Target}} ) ;                     // report missing static targets as targets with no accesses
 		}
 		//
 		end_report.msg += compute_crcs(digest) ;

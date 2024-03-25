@@ -53,7 +53,7 @@ namespace Engine {
 			bool dangling = buildable<=Buildable::No ;
 			ri.manual = manual_refresh(req) ;
 			switch (ri.manual) {
-				case Manual::Ok       :
+				case Manual::Ok      :
 				case Manual::Unlnked : break ;
 				case Manual::Empty :
 					if (!dangling) {

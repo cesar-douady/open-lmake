@@ -131,28 +131,28 @@ class HomelessRule(Rule) :
 class DirtyRule(Rule) :
 	side_targets = { '__NO_MATCH__' : ('{*:.*}','Incremental','NoWarning') }
 
-class _PyRuleBase(Rule) :
-	'base rule that handle pyc creation when importing modules in Python'
+class _PyRule(Rule) :
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file, so stat accesses must be deemed read accesses
-	side_deps = { '__PY__' : ( r'{*:(.+/)?}{*:\w+}.py' , 'StatReadData' ) } # this is actually a noop as stats are deemed to access size, but this might change
-	def cmd() :                                                   # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-		from lmake.import_machinery import fix_import
-		fix_import()
-#
-class Py2Rule(_PyRuleBase) : side_targets = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc'                         , 'Incremental' ) } # for Python2
-class Py3Rule(_PyRuleBase) : side_targets = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental' ) } # for Python3
+	side_deps        = { '__PY__'  : ( r'{*:(.+/)?}{*:\w+}.py'  , 'StatReadData' ) }      # this is actually a noop as stat syscalls are deemed to access size, but this might change
+	gen_module_deps  = False
+	mask_python_deps = False
+	def cmd() :                                                                           # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
+		if gen_module_deps or mask_python_deps :                                          # fast path :if nothing to do, do nothing
+			from lmake.import_machinery import fix_import
+			fix_import(gen_module_deps=gen_module_deps,mask_python_deps=mask_python_deps)
+	cmd.shell = ''                                                                        # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()
+class Py2Rule(_PyRule) :
+	'base rule that handle pyc creation when importing modules in Python'
+	side_targets    = { '__PYC__' : ( r'{*:(.+/)?}{*:\w+}.pyc' , 'Incremental'  ) }
+	gen_module_deps = True
+class Py3Rule(_PyRule) :
+	'base rule that handle pyc creation when importing modules in Python'
+	side_targets     = { '__PYC__' : ( r'{*:(.+/)?}__pycache__/{*:\w+}.{*:\w+-\d+}.pyc' , 'Incremental'  ) }
+	gen_module_deps  = True
+	mask_python_deps = True
 
-class _DynamicPyRuleBase(Rule) :
-	'base rule that handle import of generated modules in Python'
-	def cmd() :                                                   # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-		from lmake.import_machinery import fix_import
-		fix_import()
-class DynamicPy2Rule(Py2Rule,_DynamicPyRuleBase) : virtual = True # this class has targets and cmd, it looks like a concrete rule
-class DynamicPy3Rule(Py3Rule,_DynamicPyRuleBase) : virtual = True # .
-
-PyRule        = Py3Rule
-DynamicPyRule = DynamicPy3Rule
+PyRule = Py3Rule
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'
-	autodep = 'ld_preload'
+	autodep = 'ld_preload'                                                                               # rust use a dedicated loader that does not call auditing code when using ld_audit

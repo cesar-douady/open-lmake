@@ -14,95 +14,47 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
-ENUM_1( Order               // order of incoming date wrt AccessDigest object
-,	Write = InbetweenWrites // <Write means before first write
-,	Before                  // date<first_read
-,	BetweenReadAndWrite     //      first_read<date<first_write
-,	InbetweenWrites         //                      first_write<date<last_write
-,	After                   //                                       last_write<date
-)
-
 //
 // Gather::AccessInfo
 //
 
 ::ostream& operator<<( ::ostream& os , Gather::AccessInfo const& ai ) {
-	/**/                                                         os << "AccessInfo("                                            ;
-	if ( +ai.digest.accesses                                   ) os << "R:" <<ai.first_read                               <<',' ;
-	if (  ai.digest.write!=No                                  ) os << "W1:"<<ai.first_write<<(ai.first_confirmed?"?":"") <<',' ;
-	if (  ai.digest.write!=No && ai.first_write!=ai.last_write ) os << "WL:"<<ai.last_write <<(ai.last_confirmed ?"?":"") <<',' ;
-	if ( +ai.crc_date                                          ) os << ai.crc_date                                        <<',' ;
-	/**/                                                         os << ai.digest                                                ;
-	if ( +ai.digest.accesses                                   ) os <<','<< ai.parallel_id                                      ;
-	if (  ai.seen                                              ) os <<",seen"                                                   ;
-	return                                                       os <<')'                                                       ;
+	bool  i  = false/*garbage*/ ;
+	Pdate rd = Pdate::Future    ;
+	for( Access a : All<Access> ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
+	/**/                                            os << "AccessInfo("                                         ;
+	if ( rd!=Pdate::Future                        ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
+	if ( ai.digest.extra_tflags[ExtraTflag::Allow]) os << "T:" <<ai.target                                <<',' ;
+	if ( ai.digest.write!=No                      ) os << "W:"<<ai.write<<(ai.digest.write==Maybe?"?":"") <<',' ;
+	if (+ai.crc_date                              ) os << ai.crc_date                                     <<',' ;
+	/**/                                            os << ai.digest                                             ;
+	if (+ai.digest.accesses                       ) os <<",//"<< ai.parallel_id                                 ;
+	if ( ai.seen!=Pdate::Future                   ) os <<",seen"                                                ;
+	return                                          os <<')'                                                    ;
 }
 
-void Gather::AccessInfo::chk() const {
-	if (!digest.accesses ) SWEAR( !crc_date                                          , crc_date                              ) ; // cannot know about the file    without accessing it
-	if (!digest.accesses ) SWEAR( !seen                                                                                      ) ; // cannot see a file as existing without accessing it
-	if (!digest          ) SWEAR( !first_read && !first_write && !last_write         , first_read , first_write , last_write ) ;
-	else                   SWEAR( +first_read && +first_write && +last_write         , first_read , first_write , last_write ) ;
-	if (+digest          ) SWEAR( first_read<=first_write && first_write<=last_write , first_read , first_write , last_write ) ; // check access order
-	if ( digest.write==No) SWEAR(                            first_write==last_write ,              first_write , last_write ) ; // first_read may be earlier if a 2nd read access made it so
-	if (!digest.accesses ) SWEAR( first_read==first_write                            , first_read , first_write              ) ; // first_read                 is  set to first_write
-	if ( digest.write==No) SWEAR( first_confirmed==last_confirmed                    , first_confirmed , last_confirmed      ) ; // need 2 accesses to distinguish between first and last write
-}
-
-void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , Bool3 confirm , NodeIdx parallel_id_ ) {
-	Order order = Order::Before/*garbage*/ ;
-	if (confirm==No  ) ad.write = No ;              // if confirm==No, writes have not occurred
-	if (!ad          ) return ;
-	if ( ad.write!=No) phony_ok |= phony_ok_ ;
-	if (!digest      ) {
-		/**/              digest                                = ad           ;
-		/**/              first_confirmed = last_confirmed      = confirm==Yes ;
-		if (+digest     ) first_read = first_write = last_write = pd           ;
-		if (+ad.accesses) {
-			crc_date    = cd                   ;
-			parallel_id = parallel_id_         ;
-			seen        = cd.seen(ad.accesses) ;
-		}
-		return ;
-	}
-	//
+void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD const& cd , NodeIdx parallel_id_ ) {
 	digest.tflags       |= ad.tflags       ;
 	digest.extra_tflags |= ad.extra_tflags ;
 	digest.dflags       |= ad.dflags       ;
 	digest.extra_dflags |= ad.extra_dflags ;
 	//
-	order =
-		pd<first_read  ? Order::Before
-	:	pd<first_write ? Order::BetweenReadAndWrite
-	:	pd<last_write  ? Order::InbetweenWrites
-	:                    Order::After
-	;
-	// manage read access
-	if (order==Order::Before) {
-		if ( ad.write!=No && confirm==Yes ) {       // if written before first read, wash read access
-			digest.accesses = {}    ;
-			seen            = false ;
-		}
-		if (+ad.accesses) {
-			crc_date    = cd           ;
-			parallel_id = parallel_id_ ;
-			first_read  = pd           ;
-		}
+	bool ti =       ad.extra_tflags[ExtraTflag::Ignore] ;
+	bool di = ti || ad.extra_dflags[ExtraDflag::Ignore] ; // ti also prevents reads from being visible
+	//
+	if (!di) {
+		for( Access a : All<Access> ) if (read[+a]<=pd) goto NotFirst ;
+		crc_date    = cd           ;
+		parallel_id = parallel_id_ ;
+	NotFirst : ;
 	}
-	if ( order<Order::Write || !first_confirmed ) { // this is slightly pessimistic as there may be a confirmed write later, maintain a confirmed_write date if this is important
-		digest.accesses |= ad.accesses          ;
-		seen            |= cd.seen(ad.accesses) ;   // if read before first write, record if we have seen a file
-	}
-	// manage write access
-	if (ad.write!=No) {
-		switch (order) {
-			case Order::Before              : first_read = first_write = pd ; first_confirmed = confirm==Yes ;                       break ;
-			case Order::After               :              last_write  = pd ; last_confirmed  = confirm==Yes ; if (digest.write!=No) break ; [[fallthrough]] ; // also first write if no previous ones
-			case Order::BetweenReadAndWrite :              first_write = pd ; first_confirmed = confirm==Yes ;                       break ;
-			case Order::InbetweenWrites     : SWEAR(digest.write!=No) ;                                                              break ;                   // if idle, first_write==last_write
-		DF}
-		if ( digest.write==No || order==Order::After ) digest.write = ad.write ;                                                                               // last action survives
-	}
+	//
+	for( Access a : All<Access> ) { PD& d=read[+a] ; if ( ad.accesses[a]                     && pd<d ) { d = pd ; digest.accesses.set(a,!di) ; } }
+	/**/                          { PD& d=write    ; if ( ad.write==Yes                      && pd<d ) { d = pd ; digest.write = Yes &  !ti  ; } }
+	/**/                          { PD& d=target   ; if ( ad.extra_tflags[ExtraTflag::Allow] && pd<d )   d = pd ;                                }
+	/**/                          { PD& d=seen     ; if ( !di && cd.seen(ad.accesses)        && pd<d )   d = pd ;                                }
+	//
+	if (ad.write!=No) phony_ok |= phony_ok_ ;
 }
 
 //
@@ -115,8 +67,9 @@ void Gather::AccessInfo::update( PD pd , bool phony_ok_ , AccessDigest ad , CD c
 	return           os << ')'                      ;
 }
 
-void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , AccessDigest ad , CD const& cd , Bool3 confirm , bool parallel , ::string const& comment ) {
-	SWEAR( +file , comment ) ;
+void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , AccessDigest ad , CD const& cd , bool parallel , ::string const& comment ) {
+	SWEAR( +file , comment        ) ;
+	SWEAR( +pd   , comment , file ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
 	if (is_new) {
@@ -126,11 +79,11 @@ void Gather::_new_access( Fd fd , PD pd , bool phony_ok , ::string&& file , Acce
 		info = &accesses[it->second].second ;
 	}
 	if (!parallel) parallel_id++ ;
-	AccessInfo old_info = *info ;                                                                                                                                     // for tracing only
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , phony_ok , ad , cd , confirm , parallel_id ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , cd , confirm , parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
+	AccessInfo old_info = *info ;                                                                                                                           // for tracing only
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update( pd , phony_ok , ad , cd , parallel_id ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if ( is_new || *info!=old_info ) Trace("_new_access", fd , STR(is_new) , pd , ad , cd , parallel_id , comment , old_info , "->" , *info , it->first ) ; // only trace if something changes
 }
 
 void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdin ) {
@@ -141,7 +94,7 @@ void Gather::new_deps( PD pd , ::vmap_s<DepDigest>&& deps , ::string const& stdi
 			if (!dd.accesses) dd.date(file_date(f)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , Yes/*confirm*/ , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
+		_new_access( pd , ::move(f) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , parallel , is_stdin?"stdin"s:"s_deps"s ) ;
 		parallel = true ;
 	}
 }
@@ -151,7 +104,7 @@ void Gather::new_exec( PD pd , ::string const& exe , ::string const& c ) {
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	bool                  parallel = false                            ;
 	for( auto&& [f,a] : rp.exec(sr) ) {
-		_new_access( pd , ::move(f) , {.accesses=a} , file_date(f) , Yes/*confirm*/ , parallel , c ) ;
+		_new_access( pd , ::move(f) , {.accesses=a} , file_date(f) , parallel , c ) ;
 		parallel = true ;
 	}
 }
@@ -206,29 +159,28 @@ bool/*done*/ Gather::kill(int sig) {
 	return killed_ ;
 }
 
-void Gather::_fix_auto_date( Fd fd , JobExecRpcReq& jerr ) {
-		SWEAR( jerr.proc>=Proc::HasFiles && jerr.auto_date ) ;
+void Gather::_solve( Fd fd , JobExecRpcReq& jerr ) {
+		SWEAR( jerr.proc>=Proc::HasFiles && jerr.solve ) ;
 		::vmap_s<Ddate> files     ;
-		RealPath        real_path { autodep_env , ::move(jerr.cwd) } ;                                     // auto_date is set to false, cwd is not used anymore
+		RealPath        real_path { autodep_env , ::move(jerr.cwd) } ;                // solve is set to false, cwd is not used anymore
 		bool            read      = +jerr.digest.accesses            ;
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR(+f) ;
 			RealPath::SolveReport sr = real_path.solve(f,jerr.no_follow) ;
-			// cf Record::_solve for explanation                                                                                                        parallel
-			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , {.accesses=Access::Lnk} , file_date(lnk) , jerr.confirm , false , "auto_date.lnk" ) ;
+			// cf Record::_solve for explanation                                                                                         parallel
+			for( ::string& lnk : sr.lnks )    _new_access( fd , jerr.date , ::move  (lnk    ) , {.accesses=Access::Lnk} , file_date(lnk) , false , "solve.lnk" ) ;
 			if      (read                   ) {}
-			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , false , "auto_date.lst" ) ;
-			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , {.accesses=Access::Lnk} , Ddate()        , jerr.confirm , false , "auto_date.lst" ) ;
+			else if (sr.file_accessed==Yes  ) _new_access( fd , jerr.date , ::copy  (sr.real) , {.accesses=Access::Lnk} , Ddate()        , false , "solve.lst" ) ;
+			else if (sr.file_accessed==Maybe) _new_access( fd , jerr.date , dir_name(sr.real) , {.accesses=Access::Lnk} , Ddate()        , false , "solve.lst" ) ;
 			//
-			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write==Yes && !read && jerr.confirm!=No ; // if reading before writing, then we cannot populate tmp
+			seen_tmp |= sr.file_loc==FileLoc::Tmp && jerr.digest.write!=No && !read ; // if reading before writing, then we cannot populate tmp
 			if (sr.file_loc>FileLoc::Repo) jerr.digest.write = No ;
 			if (sr.file_loc>FileLoc::Dep ) continue ;
 			if (+dd                      ) files.emplace_back( sr.real , dd                 ) ;
 			else                           files.emplace_back( sr.real , file_date(sr.real) ) ;
 		}
-		jerr.date      = New           ;                                                                   // ensure date is posterior to links encountered while solving
-		jerr.files     = ::move(files) ;
-		jerr.auto_date = false         ;                                                                   // files are now real and dated
+		jerr.files = ::move(files) ;
+		jerr.solve = false         ;                                                  // files are now real and dated
 }
 
 Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd cstderr ) {
@@ -443,14 +395,14 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 					auto it           = slaves.find(fd) ;
 					auto& slave_entry = it->second      ;
 					try         { if (!slave_entry.first.receive_step(fd,jerr)) continue ; }
-					catch (...) { trace("no_jerr",jerr) ; jerr.proc = Proc::None ;           }                                // fd was closed, ensure no partially received jerr
+					catch (...) { trace("no_jerr",jerr) ; jerr.proc = Proc::None ;         }                                  // fd was closed, ensure no partially received jerr
 					Proc proc  = jerr.proc ;                                                                                  // capture essential info so as to be able to move jerr
 					bool sync_ = jerr.sync ;                                                                                  // .
-					if ( proc!=Proc::Access                     ) trace(kind,fd,epoll.cnt,proc) ;                             // there may be too many Access'es, only trace within _new_accesses
-					if ( proc>=Proc::HasFiles && jerr.auto_date ) _fix_auto_date(fd,jerr)       ;
+					if ( proc!=Proc::Access                 ) trace(kind,fd,epoll.cnt,proc) ;                                 // there may be too many Access'es, only trace within _new_accesses
+					if ( proc>=Proc::HasFiles && jerr.solve ) _solve(fd,jerr)               ;
 					switch (proc) {
 						case Proc::Confirm :
-							for( Jerr& j : slave_entry.second ) { j.confirm = jerr.confirm ; _new_accesses(fd,::move(j)) ; }
+							for( Jerr& j : slave_entry.second ) { j.digest.write = jerr.digest.write ; _new_accesses(fd,::move(j)) ; }
 							slave_entry.second.clear() ;
 						break ;
 						case Proc::None :
@@ -460,8 +412,8 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 						break ;
 						case Proc::Access   :
 							// for read accesses, trying is enough to trigger a dep, so confirm is useless
-							if ( jerr.digest.write!=No && jerr.confirm==Maybe ) slave_entry.second.push_back(::move(jerr)) ;  // defer until confirm resolution
-							else                                                _new_accesses(fd,::move(jerr))             ;
+							if ( jerr.digest.write==Maybe ) slave_entry.second.push_back(::move(jerr)) ;                      // defer until confirm resolution
+							else                            _new_accesses(fd,::move(jerr))             ;
 						break ;
 						case Proc::Tmp      : seen_tmp = true ;                                  break           ;
 						case Proc::Guard    : _new_guards(fd,::move(jerr)) ;                     break           ;
@@ -493,7 +445,7 @@ void Gather::reorder(bool at_end) {
 	::stable_sort(                                                                                          // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return ::pair(a.second.first_read,a.second.parallel_id) < ::pair(b.second.first_read,b.second.parallel_id) ;
+			return ::pair(a.second.first_read(),a.second.parallel_id) < ::pair(b.second.first_read(),b.second.parallel_id) ;
 		}
 	) ;
 	// first pass (backward) : note dirs of immediately following files
@@ -515,7 +467,7 @@ void Gather::reorder(bool at_end) {
 	for( auto& access : accesses ) {
 		::string const& file   = access.first         ;
 		::AccessDigest& digest = access.second.digest ;
-		if ( digest.write==No && !digest.dflags ) {
+		if ( digest.write==No && !digest.dflags && !digest.tflags ) {
 			if (!digest.accesses   ) { trace("skip_from_next",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
 			if (dirs.contains(file)) { trace("skip_from_prev",file) ; { if (!at_end) access_map.erase(file) ; } cpy = true ; continue ; }
 		}

@@ -39,7 +39,7 @@ int main( int argc , char* argv[]) {
 	} catch (::string const& e) {
 		syntax.usage(to_string("bad min len value : ",e)) ;
 	}
-	JobExecRpcReply reply = Record(New).direct(JobExecRpcReq(
+	JobExecRpcReply reply = Record(New,Yes/*enable*/).direct(JobExecRpcReq(
 		JobExecRpcProc::Encode
 	,	::move(cmd_line.flag_args[+Flag::File   ])
 	,	to_string(::cin.rdbuf())

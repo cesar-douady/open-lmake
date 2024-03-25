@@ -20,7 +20,7 @@ using namespace Time ;
 //
 
 // if strict, user might look at the st_size field which gives access to regular and link content
-static constexpr Accesses UserStatAccess = StrictUserAccesses ? Accesses::All : Accesses(Access::Stat) ;
+static constexpr Accesses UserStatAccess = StrictUserAccesses ? ~Accesses() : Accesses(Access::Stat) ;
 
 bool                                                   Record::s_static_report = false   ;
 ::vmap_s<DepDigest>                                  * Record::s_deps          = nullptr ;
@@ -72,9 +72,8 @@ bool Record::s_is_simple(const char* file) {
 void Record::_static_report(JobExecRpcReq&& jerr) const {
 	switch (jerr.proc) {
 		case JobExecRpcProc::Access  :
-			if      (jerr.digest.write==Yes  ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write to " ,f,'\n') ; // can have only deps from within server
-			else if (jerr.digest.write==Maybe) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected unlink of ",f,'\n') ; // .
-			else if (!s_deps                 ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of ",f,'\n') ; // can have no deps when no way to record them
+			if      (jerr.digest.write!=No) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected write/unlink to " ,f,'\n') ; // can have only deps from within server
+			else if (!s_deps              ) for( auto& [f,dd] : jerr.files ) append_to_string(*s_deps_err,"unexpected access of "       ,f,'\n') ; // can have no deps when no way to record them
 			else {
 				for( auto& [f,dd] : jerr.files ) s_deps->emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,dd,jerr.digest.dflags,true/*parallel*/) ) ;
 				if (+jerr.files) s_deps->back().second.parallel = false ; // parallel bit is marked false on last of a series of parallel accesses
@@ -95,8 +94,8 @@ void Record::_report_access( JobExecRpcReq&& jerr ) const {
 		bool miss = false ;
 		for( auto const& [f,dd] : jerr.files ) {
 			SWEAR( +f , jerr.txt ) ;
-			auto                                           [it,inserted] = s_access_cache->emplace(f,pair(Accesses::None,Accesses::None)) ;
-			::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                     ;
+			auto                                           [it,inserted] = s_access_cache->emplace(f,pair(Accesses(),Accesses())) ;
+			::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                             ;
 			if (jerr.digest.write==No) {
 				if (!inserted) {
 					if (+dd) { if (!( jerr.digest.accesses & ~entry.second )) continue ; } // no new seen accesses
@@ -105,7 +104,7 @@ void Record::_report_access( JobExecRpcReq&& jerr ) const {
 				/**/     entry.first /*accessed*/ |= jerr.digest.accesses ;
 				if (+dd) entry.second/*seen    */ |= jerr.digest.accesses ;
 			} else {
-				entry = {Accesses::All,Accesses::All} ;                                    // from now on, read accesses need not be reported as file has been written
+				entry = {~Accesses(),~Accesses()} ;                                        // from now on, read accesses need not be reported as file has been written
 			}
 			miss = true ;
 		}
@@ -214,8 +213,9 @@ Record::Readlnk::Readlnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::
 		static constexpr size_t BackdoorLen = (sizeof(Backdoor)-1)/sizeof(char)               ; // -1 to account for terminating null
 		if ( strncmp(file,Backdoor,BackdoorLen)==0 ) {
 			switch (file[BackdoorLen]) {
-				case 'd' : SWEAR(strcmp(file+BackdoorLen,"disable")==0) ; s_set_disabled(true ) ; break ;
-				case 'e' : SWEAR(strcmp(file+BackdoorLen,"enable" )==0) ; s_set_disabled(false) ; break ;
+				case 'a' : SWEAR(strcmp(file+BackdoorLen,"autodep")==0) ; SWEAR(sz_>=2) ; buf[0] = '0'+!s_autodep_env().disabled ; buf[1]=0 ; break ;
+				case 'd' : SWEAR(strcmp(file+BackdoorLen,"disable")==0) ; s_set_enable(false) ;                                               break ;
+				case 'e' : SWEAR(strcmp(file+BackdoorLen,"enable" )==0) ; s_set_enable(true ) ;                                               break ;
 			DF}
 		}
 	}

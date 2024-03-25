@@ -199,7 +199,7 @@ namespace Engine {
 	public :
 		RuleIdx  prio_idx    = NoIdx           ;                                //    16 bits, index to the first job of the current prio being analyzed
 		bool     single      = false           ;                                // 1<= 8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Accesses overwritten = Accesses::None  ;                                // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		Accesses overwritten ;                                                  // 3<= 8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
 		Manual   manual      = Manual::Unknown ;                                // 3<= 8 bits
 		Bool3    speculate   = Yes             ;                                // 2<= 8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 		NodeGoal goal        = NodeGoal::None  ;                                // 2<= 8 bits, asked level
@@ -223,7 +223,7 @@ namespace Engine {
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData(                                          ) = default ;
+		NodeData(                                          ) = delete ;                                                                          // if necessary, we must take care of the union
 		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
 			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
 		}
@@ -306,7 +306,7 @@ namespace Engine {
 				default                : return Maybe                         ;
 			}
 		}
-		Bool3 ok     ( ReqInfo const& cri , Accesses a=Accesses::All ) const { SWEAR(cri.done(NodeGoal::Status)) ; return +(cri.overwritten&a) ? No : ok() ; }
+		Bool3 ok     ( ReqInfo const& cri , Accesses a=~Accesses() ) const { SWEAR(cri.done(NodeGoal::Status)) ; return +(cri.overwritten&a) ? No : ok() ; }
 		bool  running( ReqInfo const& cri ) const {
 			for( Job j : conform_job_tgts(cri) )
 				for( Req r : j->running_reqs() )
@@ -407,7 +407,7 @@ namespace Engine {
 		Ddate   date   ;                                         // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
 	private :
 		union {
-			IfPlain  _if_plain  ;                                //     128 bits
+			IfPlain  _if_plain  = {} ;                           //     128 bits
 			IfDecode _if_decode ;                                //      32 bits
 			IfEncode _if_encode ;                                //      32 bits
 		} ;

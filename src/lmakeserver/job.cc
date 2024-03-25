@@ -162,7 +162,7 @@ namespace Engine {
 		Trace trace("Job",match,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
 		Rule                     rule      = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		::vmap_s<pair_s<Dflags>> dep_names ;
+		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> dep_names ;
 		try {
 			dep_names = rule->deps_attrs.eval(match) ;
 		} catch (::pair_ss const& msg_err) {
@@ -173,22 +173,24 @@ namespace Engine {
 			}
 			return ;
 		}
-		::vmap<Node,Dflags> deps ; deps.reserve(dep_names.size()) ;
-		::umap<Node,VarIdx   > dis ;
-		for( auto const& [k,dndf] : dep_names ) {
-			auto const& [dn,df] = dndf ;
-			Node d{dn} ;
+		::vector<Dep> deps ; deps.reserve(dep_names.size()) ;
+		::umap<Node,VarIdx> dis  ;
+		for( auto const& [_,dndfedf] : dep_names ) {
+			auto const& [dn,dfedf] = dndfedf                                            ;
+			auto        [df,edf  ] = dfedf                                              ;
+			Node        d          { dn }                                               ;
+			Accesses    a          = edf[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
 			//vvvvvvvvvvvvvvvvvvv
 			d->set_buildable(lvl) ;
 			//^^^^^^^^^^^^^^^^^^^
 			if ( d->buildable<=Buildable::No                    ) { trace("no_dep",d) ; return ; }
-			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok ) deps.emplace_back(d,df) ;
-			else                                                  deps[it->second].second |= df ; // uniquify deps by combining accesses and flags
+			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , df , true/*parallel*/ ) ;
+			else                                                  { deps[it->second].dflags |= df ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//           args for store           args for JobData
-		*this = Job( match.full_name(),Dflt , match,Deps(deps,Accesses::All,true/*parallel*/) ) ; // initially, static deps are deemed read, then actual accesses will be considered
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		*this = Job( match.full_name(),Dflt , match,deps ) ; // initially, static deps are deemed read, then actual accesses will be considered
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		try {
 			(*this)->tokens1 = rule->create_none_attrs.eval( *this , match , &::ref(::vmap_s<DepDigest>()) ).tokens1 ; // we cant record deps here, but we dont care, no impact on target
@@ -714,8 +716,8 @@ namespace Engine {
 						for( NodeIdx i=i_dep ; i<n_deps ; i++ )                                     // suppress deps following modified critical one, except keep static deps as no-access
 							if (deps[i].dflags[Dflag::Static]) {
 								Dep& d = deps[j++] ;
-								d          = deps[i]        ;
-								d.accesses = Accesses::None ;
+								d          = deps[i] ;
+								d.accesses = {}      ;
 							}
 						if (j!=n_deps) {
 							deps.shorten_by(n_deps-j) ;

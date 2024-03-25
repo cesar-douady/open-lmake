@@ -130,8 +130,9 @@ namespace Engine {
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
 		struct DepSpec {
-			::string pattern ;
-			Dflags   dflags  ;
+			::string    pattern      ;
+			Dflags      dflags       ;
+			ExtraDflags extra_dflags ;
 		} ;
 		// services
 		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
@@ -480,7 +481,7 @@ namespace Engine {
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return *this ; } // .
 		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return *this ; } // .
 		// services
-		::vmap_s<pair_s<Dflags>> eval( Rule::SimpleMatch const& ) const ;
+		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> eval( Rule::SimpleMatch const& ) const ;
 	} ;
 
 	struct DynamicCmd : Dynamic<Cmd> {
@@ -634,7 +635,7 @@ namespace Engine {
 		::vector_s py_matches    () const ;
 		::vector_s static_matches() const ;
 		//
-		::vmap_s<pair_s<Dflags>> const& deps() const {
+		::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> const& deps() const {
 			if (!_has_deps) {
 				_deps = rule->deps_attrs.eval(*this) ;
 				_has_deps = true ;
@@ -650,12 +651,12 @@ namespace Engine {
 		::vector_s stems ; // static stems only of course
 		// cache
 	private :
-		mutable bool                     _has_static_targets = false ;
-		mutable bool                     _has_star_targets   = false ;
-		mutable bool                     _has_deps           = false ;
-		mutable ::umap_s<VarIdx>         _static_targets     ;
-		mutable ::vector<Re::RegExpr>    _star_targets       ;
-		mutable ::vmap_s<pair_s<Dflags>> _deps               ;
+		mutable bool                                       _has_static_targets = false ;
+		mutable bool                                       _has_star_targets   = false ;
+		mutable bool                                       _has_deps           = false ;
+		mutable ::umap_s<VarIdx>                           _static_targets     ;
+		mutable ::vector<Re::RegExpr>                      _star_targets       ;
+		mutable ::vmap_s<pair_s<pair<Dflags,ExtraDflags>>> _deps               ;
 	} ;
 
 	struct RuleTgt : Rule {
@@ -822,8 +823,8 @@ namespace Engine {
 			if (fstr[ci]==Rule::StemMrkr) {
 				VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
 				VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
-				ctx_ .emplace_back(vc,i) ;
-				fixed.emplace_back(    ) ;
+				ctx_ .push_back   (CmdIdx{vc,i}) ;
+				fixed.emplace_back(            ) ;
 				fi++ ;
 			} else {
 				fixed[fi] += fstr[ci] ;

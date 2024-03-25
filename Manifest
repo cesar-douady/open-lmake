@@ -191,6 +191,7 @@ unit_tests/misc4.py
 unit_tests/misc5.py
 unit_tests/misc6.py
 unit_tests/misc7.py
+unit_tests/misc8.py
 unit_tests/modules.py
 unit_tests/name.py
 unit_tests/numba.py

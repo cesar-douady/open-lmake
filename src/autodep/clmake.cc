@@ -60,21 +60,23 @@ static Object const* _gather_arg( Tuple const& py_args , size_t idx , Dict const
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-	Tuple const& py_args   = *from_py<Tuple const>(args)   ;
-	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)   ;
-	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0 ;
-	bool         verbose   = false                         ;
-	bool         no_follow = false                         ;
-	Accesses     accesses  = Accesses::All                 ;
-	Dflags       dflags    = Dflag::Required               ;
-	if (n_kwds) {
-		/**/                           if (  const char* o  ="verbose"         ; py_kwds->contains(o  ) ) { n_kwds-- ; verbose   =     +(*py_kwds)[o  ]  ; }
-		/**/                           if (  const char* o  ="follow_symlinks" ; py_kwds->contains(o  ) ) { n_kwds-- ; no_follow =    !+(*py_kwds)[o  ]  ; }
-		for( Access a  : All<Access> ) if ( ::string     sa =snake_str(a )     ; py_kwds->contains(sa ) ) { n_kwds-- ; accesses.set(a ,+(*py_kwds)[sa ]) ; }
-		for( Dflag  df : Dflag::NDyn ) if ( ::string     sdf=snake_str(df)     ; py_kwds->contains(sdf) ) { n_kwds-- ; dflags  .set(df,+(*py_kwds)[sdf]) ; }
+	Tuple const& py_args   = *from_py<Tuple const>(args)                       ;
+	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                       ;
+	bool         no_follow = true                                              ;
+	bool         verbose   = false                                             ;
+	bool         read      = true                                              ;
+	AccessDigest ad        { .accesses=~Accesses() , .dflags=Dflag::Required } ;
+	if (py_kwds) {
+		size_t n_kwds = py_kwds->size() ;
+		/**/                                    if ( const char* s="follow_symlinks" ;                          py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
+		/**/                                    if ( const char* s="verbose"         ;                          py_kwds->contains(s) ) { n_kwds-- ; verbose   =             +(*py_kwds)[s]  ; }
+		/**/                                    if ( const char* s="read"            ;                          py_kwds->contains(s) ) { n_kwds-- ; read      =             +(*py_kwds)[s]  ; }
+		for( Dflag      df  : Dflag::NDyn     ) if ( ::string    s=snake_str(df )    ;                          py_kwds->contains(s) ) { n_kwds-- ; ad.dflags      .set(df ,+(*py_kwds)[s]) ; }
+		for( ExtraDflag edf : All<ExtraDflag> ) if ( ::string    s=snake_str(edf)    ; ExtraDflagChars[+edf] && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_dflags.set(edf,+(*py_kwds)[s]) ; }
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
+	if (!read) ad.accesses = {} ;
 	::vector_s files ;
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
@@ -83,7 +85,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		Ptr<Dict> res { New } ;
 		if (+files) {           // fast path : else, depend on no files
 			//
-			JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , {.accesses=accesses,.dflags=dflags} , no_follow , true/*sync*/ , "depend" )) ;
+			JobExecRpcReply reply = _g_record.direct(JobExecRpcReq( Proc::DepInfos , ::copy(files) , ad , no_follow , true/*sync*/ , "depend" )) ;
 			//
 			SWEAR( reply.dep_infos.size()==files.size() , reply.dep_infos.size() , files.size() ) ;
 			for( size_t i=0 ; i<reply.dep_infos.size() ; i++ ) {
@@ -98,7 +100,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 		}
 		return res->to_py_boost() ;
 	} else {
-		_g_record.direct(JobExecRpcReq( Proc::Access , ::move(files) , {.accesses=accesses,.dflags=dflags} , no_follow , "depend" )) ;
+		_g_record.direct(JobExecRpcReq( Proc::Access , ::move(files) , ad , no_follow , "depend" )) ;
 		return None.to_py_boost() ;
 	}
 }
@@ -106,15 +108,14 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args   = *from_py<Tuple const>(args)                    ;
 	Dict  const* py_kwds   =  from_py<Dict  const>(kwds)                    ;
-	size_t       n_kwds    = py_kwds ? py_kwds->size() : 0                  ;
-	bool         no_follow = false                                          ;
+	bool         no_follow = true                                           ;
 	AccessDigest ad        { .write=Yes , .extra_tflags=ExtraTflag::Allow } ;
-	if (n_kwds) {
-		/**/                          if ( const char* stf="unlink"          ; py_kwds->contains(stf) ) { n_kwds-- ; ad.write  = Maybe |                      !(*py_kwds)[stf]  ; }
-		/**/                          if ( const char* stf="follow_symlinks" ; py_kwds->contains(stf) ) { n_kwds-- ; no_follow =                              !(*py_kwds)[stf]  ; }
-		/**/                          if ( const char* stf="allow"           ; py_kwds->contains(stf) ) { n_kwds-- ; ad.extra_tflags.set(ExtraTflag::Allow   ,+(*py_kwds)[stf]) ; }
-		/**/                          if ( const char* stf="source_ok"       ; py_kwds->contains(stf) ) { n_kwds-- ; ad.extra_tflags.set(ExtraTflag::SourceOk,+(*py_kwds)[stf]) ; }
-		for( Tflag tf : Tflag::NDyn ) if ( ::string    stf=snake_str(tf)     ; py_kwds->contains(stf) ) { n_kwds-- ; ad.tflags      .set(tf                  ,+(*py_kwds)[stf]) ; }
+	if (py_kwds) {
+		size_t n_kwds = py_kwds->size() ;
+		/**/                                    if ( const char* s="follow_symlinks" ;                          py_kwds->contains(s) ) { n_kwds-- ; no_follow =             !(*py_kwds)[s]  ; }
+		/**/                                    if ( const char* s="write"           ;                          py_kwds->contains(s) ) { n_kwds-- ; ad.write  = No |        +(*py_kwds)[s]  ; }
+		for( Tflag      tf  : Tflag::NDyn     ) if ( ::string    s=snake_str(tf )    ;                          py_kwds->contains(s) ) { n_kwds-- ; ad.tflags      .set(tf ,+(*py_kwds)[s]) ; }
+		for( ExtraTflag etf : All<ExtraTflag> ) if ( ::string    s=snake_str(etf)    ; ExtraTflagChars[+etf] && py_kwds->contains(s) ) { n_kwds-- ; ad.extra_tflags.set(etf,+(*py_kwds)[s]) ; }
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
@@ -122,8 +123,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 	try                       { files = _get_files(py_args) ;             }
 	catch (::string const& e) { return py_err_set(Exception::TypeErr,e) ; }
 	//
-	JobExecRpcReq jerr { JobExecRpcProc::Access  , ::move(files) , ad , no_follow , false/*sync*/ , "ltarget" } ;
-	jerr.confirm = Yes ;
+	JobExecRpcReq jerr { JobExecRpcProc::Access , ::move(files) , ad , no_follow , false/*sync*/ , "target" } ;
 	_g_record.direct(::move(jerr)) ;
 	//
 	return None.to_py_boost() ;
@@ -201,10 +201,10 @@ static PyObject* search_sub_root_dir( PyObject* /*null*/ , PyObject* args , PyOb
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
 	if (py_args.size()>1) return py_err_set(Exception::TypeErr,"expect at most a single argument") ;
-	ssize_t n_kwds    = py_kwds ? py_kwds->size() : 0 ;
-	bool    no_follow = false                         ;
-	if (n_kwds) {
-		if ( const char* o="follow_symlinks" ; py_kwds->contains(o) ) { n_kwds-- ; no_follow = !(*py_kwds)[o] ; }
+	bool no_follow = false ;
+	if (py_kwds) {
+		ssize_t n_kwds = py_kwds->size() ;
+		if ( const char* s="follow_symlinks" ; py_kwds->contains(s) ) { n_kwds-- ; no_follow = !(*py_kwds)[s] ; }
 		//
 		if (n_kwds) return py_err_set(Exception::TypeErr,"unexpected keyword arg") ;
 	}
@@ -240,6 +240,18 @@ static PyObject* autodep_env( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	return Ptr<Str>(Record::s_autodep_env())->to_py_boost() ;
 }
 
+static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	Tuple const& py_args = *from_py<Tuple const>(args) ;
+	size_t       n_args  = py_args.size()              ;
+	if (kwds    ) return py_err_set(Exception::TypeErr,"expected no keyword args") ;
+	if (n_args>0) return py_err_set(Exception::TypeErr,"expected no args"        ) ;
+	char c[2] ;
+	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
+	int rc [[maybe_unused]] ;                                                                     // avoid compiler warning
+	rc = ::readlink( (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , c , 2 ) ;
+	return Ptr<Bool>(c[0]!='0')->to_py_boost() ;
+}
+
 static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	size_t       n_args  = py_args.size()              ;
@@ -256,16 +268,17 @@ static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 
 #define F(name,descr) { #name , reinterpret_cast<PyCFunction>(name) , METH_VARARGS|METH_KEYWORDS , descr }
 static PyMethodDef funcs[] = {
-	F( autodep_env         , "autodep_env()."                                                                        " Return the value to put in $LMAKE_AUTODEP_ENV to set the current behavior." )
-,	F( check_deps          , "check_deps(verbose=False)."                                                            " Ensure that all previously seen deps are up-to-date."                       )
-,	F( decode              , "decode(code,file,ctx)."                                                                " Return the associated value passed by encode(value,file,ctx)."              )
-,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)."        " Pretend read of all argument and mark them with flags mentioned as True."   )
-,	F( encode              , "encode(value,file,ctx,min_length=1)."                                                  " Return a code associated with value. If necessary create such a code of"
+	F( autodep_env         , "autodep_env()"                                                                         " Return the value to put in $LMAKE_AUTODEP_ENV to set the current behavior." )
+,	F( check_deps          , "check_deps(verbose=False)"                                                             " Ensure that all previously seen deps are up-to-date."                       )
+,	F( decode              , "decode(code,file,ctx)"                                                                 " Return the associated value passed by encode(value,file,ctx)."              )
+,	F( depend              , "depend(dep1,dep2,...,verbose=False,follow_symlinks=True,<dep flags=True>,...)"         " Pretend read of all argument and mark them with flags mentioned as True."   )
+,	F( encode              , "encode(value,file,ctx,min_length=1)"                                                   " Return a code associated with value. If necessary create such a code of"
 	/**/                                                                                                             " length at least min_length after a checksum computed after value."          )
-,	F( has_backend         , "has_backend(backend)."                                                                 " Return true if the corresponding backend is implememented."                 )
-,	F( search_sub_root_dir , "search_sub_root_dir(cwd=os.getcwd())."                                                 " Return the nearest hierarchical root dir relative to the actual root dir."  )
-,	F( set_autodep         , "set_autodep(active)."                                                                  " activate (True) or deactivate(Fale) autodep recording."                     )
-,	F( target              , "target(target1,target2,...,follow_symlinks=True,unlink=False,<target flags=True>,...)."" Pretend write to/unlink all arguments and mark them with flags mentioned"
+,	F( get_autodep         , "get_autodep()"                                                                         " Return whether autodep is currenly activated."                              )
+,	F( has_backend         , "has_backend(backend)"                                                                  " Return true if the corresponding backend is implememented."                 )
+,	F( search_sub_root_dir , "search_sub_root_dir(cwd=os.getcwd())"                                                  " Return the nearest hierarchical root dir relative to the actual root dir."  )
+,	F( set_autodep         , "set_autodep(active)"                                                                   " Activate (True) or deactivate(Fale) autodep recording."                     )
+,	F( target              , "target(target1,target2,...,follow_symlinks=True,unlink=False,<target flags=True>,...)" " Pretend write to/unlink all arguments and mark them with flags mentioned"
 	/**/                                                                                                             " as True."                                                                   )
 ,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 } ;
@@ -281,7 +294,7 @@ PyMODINIT_FUNC
 {
 	Ptr<Module> mod { PY_MAJOR_VERSION<3?"clmake2":"clmake" , funcs } ;
 	//
-	_g_record = New ;
+	_g_record = {New,Yes/*enable*/} ;
 	Ptr<Tuple> py_bes{ 1+HAS_SLURM } ;                      // PER_BACKEND : add an entry here
 	/**/           py_bes->set_item(0,*Ptr<Str>("local")) ;
 	if (HAS_SLURM) py_bes->set_item(1,*Ptr<Str>("slurm")) ;

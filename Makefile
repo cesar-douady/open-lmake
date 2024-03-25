@@ -33,20 +33,42 @@ STD_PATH := $(shell env -i $(BASH) -c 'echo $$PATH')
 
 MAKEFLAGS += -r -R
 
-ifeq ($(strip $(LMAKE_OPT_LVL)),)
-OPT_FLAGS   := -O3
-else ifeq ($(strip $(LMAKE_OPT_LVL)),0)
-OPT_FLAGS   := -O0 -g
-else ifeq ($(strip $(LMAKE_OPT_LVL)),1)
-OPT_FLAGS   := -O1
-else ifeq ($(strip $(LMAKE_OPT_LVL)),2)
-OPT_FLAGS   := -O2
-else ifeq ($(strip $(LMAKE_OPT_LVL)),3)
-OPT_FLAGS   := -O3
-else ifeq ($(strip $(LMAKE_OPT_LVL)),4)
-OPT_FLAGS := -O3 -DNDEBUG
-else ifeq ($(strip $(LMAKE_OPT_LVL)),5)
-OPT_FLAGS := -O3 -DNDEBUG -DNO_TRACE
+# syntax for LMAKE_OPT : [0123][gG][aA][tT]
+# - [0123] : compiler optimization level
+# - [gG]   : -g flag    if G
+# - [dD]   : -DNDEBUG   if d
+# - [tT]   : -DNO_TRACE if t
+ifeq ($(LMAKE_OPT),)
+LMAKE_OPT := 3GDT
+endif
+ifneq ($(findstring 0,$(LMAKE_OPT)),)
+OPT_FLAGS := -O0
+else ifneq ($(findstring 1,$(LMAKE_OPT)),)
+OPT_FLAGS := -O1
+else ifneq ($(findstring 2,$(LMAKE_OPT)),)
+OPT_FLAGS := -O2
+else ifneq ($(findstring 3,$(LMAKE_OPT)),)
+OPT_FLAGS := -O3
+else
+$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
+endif
+ifneq ($(findstring G,$(LMAKE_OPT)),)
+OPT_FLAGS += -g
+else ifneq ($(findstring g,$(LMAKE_OPT)),)
+else
+$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
+endif
+ifneq ($(findstring D,$(LMAKE_OPT)),)
+else ifneq ($(findstring d,$(LMAKE_OPT)),)
+OPT_FLAGS += -DNDEBUG
+else
+$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
+endif
+ifneq ($(findstring T,$(LMAKE_OPT)),)
+else ifneq ($(findstring t,$(LMAKE_OPT)),)
+OPT_FLAGS += -DNO_TRACE
+else
+$(error $$LMAKE_OPT must be [0123][gG][dD][tT])
 endif
 
 COVERAGE :=
@@ -72,31 +94,36 @@ $(error python3 version must be at least 3.6)
 endif
 
 # CC configuration
+USE_GCC   :=
+USE_CLANG :=
 ifeq ($(CC),)
-
 $(error cannot find c compiler)
-
-else ifeq ($(findstring gcc,$(CC)),gcc)
-
+else ifneq ($(findstring gcc,$(CC)),)
 ifeq ($(intcmp $(shell $(CC) -dumpversion),11,lt,eq,gt),lt)
 $(error gcc version must be at least 11)
+USE_GCC := 1
 endif
+else ifneq ($(findstring clang,$(CC)),)
+ifeq ($(intcmp $(shell $(CC) -dumpversion),15,lt,eq,gt),lt)
+$(error clang version must be at least 15)
+endif
+USE_CLANG := 1
+else
+$(error cannot recognize c compiler $(CC))
+endif
+
+ifneq ($(USE_GCC),) # for an unknown reason, clang is incompatible with -fsanitize
 # -fsanitize=address and -fsanitize=thread are exclusive of one another
-# for an unknown reason, clang is incompatible with -fsanitize
 ifeq ($(LMAKE_SAN),A)
 SAN_FLAGS := -fsanitize=address -fsanitize=undefined
 endif
 ifeq ($(LMAKE_SAN),T)
 SAN_FLAGS := -fsanitize=thread
 endif
-
-else ifeq ($(findstring clang,$(CC)),clang)
-
-ifeq ($(intcmp $(shell $(CC) -dumpversion),15,lt,eq,gt),lt)
-$(error clang version must be at least 15)
 endif
-WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions
 
+ifneq ($(USE_CLANG),)
+WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-unused-function -Wno-c++2b-extensions
 endif
 
 # this is the recommanded way to insert a , when calling functions
@@ -371,18 +398,18 @@ ALL_H := version.hh sys_config.h ext/xxhash.patched.h
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
 
-%_py2.san.o : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.i     : %.cc $(ALL_H) ; @echo preproc $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.s     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
-%_py2.o     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.san.o : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.i     : %.cc $(ALL_H) ; @echo $(CC) -E $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.s     : %.cc $(ALL_H) ; @echo $(CC) -S $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
+%_py2.o     : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY2_CC_OPTS) $(CPP_OPTS) -o $@ $<
 
-%.san.o     : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.i         : %.cc $(ALL_H) ; @echo preproc $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.s         : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
-%.o         : %.cc $(ALL_H) ; @echo compile $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.san.o     : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) $(CXX_FLAGS) -c $(SAN_FLAGS) -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.i         : %.cc $(ALL_H) ; @echo $(CC) -E $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -E                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.s         : %.cc $(ALL_H) ; @echo $(CC) -S $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -S                           $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
+%.o         : %.cc $(ALL_H) ; @echo $(CC) -c $(CXX_FLAGS)              to $@ ; $(COMPILE) $(CXX_FLAGS) -c              -frtti -fPIC $(PY_CC_OPTS)  $(CPP_OPTS) -o $@ $<
 
-%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $<
-%.d     : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $<
+%_py2.d : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY2_CC_OPTS) $(CPP_OPTS) $< 2>/dev/null || :
+%.d     : %.cc $(ALL_H) ; @$(COMPILE) $(CXX_FLAGS) -MM -MT '$(@:%.d=%.i) $(@:%.d=%.s) $(@:%.d=%.o) $(@:%.d=%.san.o) $@ ' -MF $@ $(PY_CC_OPTS)  $(CPP_OPTS) $< 2>/dev/null || :
 
 include $(patsubst %.cc,%.d, $(filter-out %.x.cc,$(filter %.cc,$(shell git ls-files))) )
 include src/py_py2.d src/autodep/clmake_py2.d

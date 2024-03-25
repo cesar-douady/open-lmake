@@ -27,7 +27,10 @@ if __name__!='__main__' :
 
 	class ShCpy(Base) :
 		targets = { 'DST' : '{File}.sh.{YesNo}.cpy' }
-		cmd     = '[ {YesNo} = y ] && ltarget {DST} ; cat>{DST} ; ltarget -s side.sh ; echo side > side.sh'
+		cmd = '''
+			[ {YesNo} = y ] && ltarget {DST} ; cat>{DST}
+			ltarget -s side.sh               ; echo side > side.sh
+		'''
 
 	class PyCpy(Base) :
 		targets = { 'DST' : '{File}.py.{YesNo}.cpy' }

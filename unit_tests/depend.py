@@ -34,7 +34,7 @@ if __name__!='__main__' :
 
 	class Src(Base) :
 		target = 'hello'
-		dep    = 'dly'                                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
+		dep    = 'dly'                                         # ensure hello construction does not start too early, so that we are sure that we have may_rerun messages, not rerun
 		cmd    = f'echo hello.{step.p>=2}.{step.link_support}'
 
 	for ad in autodeps :
@@ -59,7 +59,7 @@ if __name__!='__main__' :
 			autodep = ad
 			target  = f'{{File}}.py.dep.{ad}.{step.link_support}.cpy'
 			def cmd() :
-				lmake.depend(File,'/usr/bin/x')                                # check external dependencies are ok
+				lmake.depend(File,'/usr/bin/x') # check external dependencies are ok
 				print('yes')
 
 else :
@@ -79,7 +79,7 @@ else :
 			try                      : os.unlink(f)
 			except FileNotFoundError : pass
 		print(f'p=0\nlink_support={ls!r}',file=open('step.py','w'))
-		ut.lmake( 'Lmakefile.py' , new=1 )                                         # prevent new Lmakefile.py in case of error as python reads it to display backtrace
+		ut.lmake( 'Lmakefile.py' , new=1 )                          # prevent new Lmakefile.py in case of error as python reads it to display backtrace
 		for p in range(3) :
 			print(f'p={p!r}\nlink_support={ls!r}',file=open('step.py','w'))
 			# rerun versus may_rerun is timing dependent, but the sum is predictible

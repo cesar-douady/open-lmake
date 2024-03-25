@@ -142,9 +142,12 @@ namespace Engine {
 		JobExec( Job j    , in_addr_t h , FullDate s    , NewType       ) : Job{j} , host{h} , start_date{s} , end_date{s} {} // .
 		// services
 		// called in main thread after start
-		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
-		void             report_start(                                                                                                                   ) const ;
-		void             started     ( bool report , ::vector<Node> const& report_unlnks={} , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
+		bool/*reported*/ report_start( ReqInfo&    , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backend_msg={} ) const ;
+		bool/*reported*/ report_start( ReqInfo&                                                                                                       ) const ;
+		void             report_start(                                                                                                                ) const ;
+		void             started     ( bool report , ::vector<Node> const& report_unlnks , ::string const& stderr={} , ::string const& backecn_msg={} ) ;
+		void             started     ( bool report                                                                                                    ) ;
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
@@ -381,6 +384,13 @@ namespace Engine {
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp).job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
 
 	inline bool Job::active() const { return +*this && (*this)->active() ; }
+
+	//
+	// JobExec
+	//
+
+	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const { return report_start(ri,{}) ; }
+	inline void             JobExec::started     (bool     r )       {        started     (r ,{}) ; }
 
 	//
 	// JobTgt

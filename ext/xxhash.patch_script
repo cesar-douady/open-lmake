@@ -7,6 +7,6 @@
 
 # suppress assert that prevents empty input
 ed $1 <<"EOF"
-5738d
+6400d
 w
 EOF

@@ -627,28 +627,23 @@ If a dep does not exist, it is deemed secondary information and is shown in gray
 @item @code{-T}|@code{--inv-targets} : show jobs that produce targets either officially (listed in @code{targets} attribute) or not (listed in @code{side_targets} attribute or not)
 @item @code{-i}|@code{--info}        : show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
 If porcelaine mode (using the @code{--porcelaine} or @code{-p} option), the same information is reported as as an easy to parse Python @code{dict}.
-@item @code{-s}|@code{--script} : show the scripts used to execute the jobs.
+@item @code{-s}|@code{--script} : show the scripts used to execute the job.
 If debug is required through the @code{-d} or @code{--debug} option, a dir must be passed and generated script will write info to it using the autodep mechanism.
 Note that if job requires tmp mapping or auto mkdir, autodep is used in all cases (as it is functionally required) although minimally configured if debug is not asked.
-@item @code{-S}|@code{--exec-script} : show the scripts used to execute the jobs in a form that can be directly executed by standard @code{sh}.
-@item @code{-E}|@code{--env} : show the environment used to run the script
-@item @code{-e}|@code{--stderr} : show the stderr of the jobs.
-@item @code{-o}|@code{--stdout} : show the stdout of the jobs.
+@item @code{-E}|@code{--env}     : show the environment used to run the script
+@item @code{-e}|@code{--stderr}  : show the stderr of the jobs.
+@item @code{-o}|@code{--stdout}  : show the stdout of the jobs.
 @item @code{-b}|@code{--backend} : show some execution information from backend generated when @lmake is run with the @code{-v} flag.
 @item @code{-t}|@code{--targets} : show the targets of the jobs.
 Unless the verbose flag is specified, only existing targets are shown.
 Each line is composed of 3 fields  separated by spaces :
 @itemize @minus
-@item Info : composed of 2 characters :
-@itemize .
-@item exists : @code{-} if target exists, @code{!} if it does not (it may have been unlinked after having been written).
-@item access : @code{W} if target was written, else @code{-}.
-@end itemize
+@item Info : composed of 1 characters : @code{W} if target was written, @code{U} if target was unlinked, else @code{-}.
 @item Flags : each flag is either a letter if set, or a @code{-} if not :
 	@itemize .
 	@item @code{E} : target is essential, i.e. target is show in a future graphical tool.
 	@item @code{i} : target is incremental, i.e. it is not unlinked before job execution and read accesses are ignored
-	@item @code{m} : job can write over manual modifications, including if target happens to be a source.
+	@item @code{p} : target is phony, i.e. being non existing a considered as a particular value for that file
 	@item @code{u} : target is not uniquified if several links point to it before job execution (only meaningful for incremental targets).
 	@item @code{w} : no warning is emitted if target is either uniquified or unlinked while produced by another job.
 	@item @code{S} : target is static.
@@ -884,14 +879,16 @@ In addition to signaling an access, @code{ldepend} is used to set flag on the fi
 
 The following options are supported :
 @itemize @bullet
-@item @code{-v}|@code{--verbose}          : write lines composed of the crc and the name separated by a space for each required dependency.
-@item @code{-P}|@code{--no-follow}        : do not follow the last level symbolic link.
-@item @code{-E}|@code{--esential}         : passed dependencies will appear in the flow shown with a graphical tool.
-@item @code{-c}|@code{--critical}         : create critical deps (cf @pxref{critical-deps}).
-@item @code{-e}|@code{--ignore-error}     : ignore the error status of the passed dependencies.
-@item @code{-i}|@code{--ignore}           : dep is ignored altogether.
-@item @code{-r}|@code{--no-required}      : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok).
-@item @code{-d}|@code{--stat-ignore-data} : if dep is accessed with a stat-like access, @lmake considers data have not been accessed, which decreases the number of rebuilds.
+@item @code{-L}|@code{--follow-symlinks} : follow the last level symbolic link, default is not to follow.
+@item @code{-v}|@code{--verbose}         : write lines composed of the crc and the name separated by a space for each required dependency.
+@item @code{-R}|@code{--no-read}         : does not report an actual read, only dep flags. Default is to report a read and alter flags.
+@item @code{-c}|@code{--critical}        : create critical deps (cf @pxref{critical-deps}).
+@item @code{-E}|@code{--essential}       : passed dependencies will appear in the flow shown with a graphical tool.
+@item @code{-e}|@code{--ignore-error}    : ignore the error status of the passed dependencies.
+@item @code{-r}|@code{--no-required}     : accept that dpes may not be buildable, as for a normal read access (in that case, the read may fail, but @lmake is ok).
+@item @code{-I}|@code{--ignore}          : dep is ignored altogether.
+@item @code{-d}|@code{--stat-read-data}  : if dep is accessed with a stat-like access, ensure @lmake will consider full content has been accessed.
+Default is to optimize dependency check as much as possible.
 @end itemize
 
 @section @code{lcheck_deps}
@@ -938,19 +935,15 @@ Also, it is possible to alter the target flags for these targets. Flags accumula
 
 The following options are supported :
 @itemize @bullet
-@item @code{-u} or @code{--unlink}      : report an unlink rather than writing.
-@item @code{-P} or @code{--no-follow}   : do not follow the last level symbolic link.
-@item @code{-E} or @code{--essential}   : show when generating user oriented graphs.
-@item @code{-i} or @code{--incremental} : target is not unliked before job execution and read accesses to it are ignored.
-@item @code{-p} or @code{--phony}       : accept that target is not physically generated on disk.
-@item @code{-m} or @code{--manual-ok}   : overwriting manual modification is allowed (including if a source).
-@item @code{-u} or @code{--no-uniquify} : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
-@item @code{-w} or @code{--no-warning}  : no warning is emitted if target is either uniquified or unlinked while generated by another job.
-@item @code{-d} or @code{--read-is-dep} : if this flag is set and file is not an official target and is accessed read-only, althrough declared a target, it will be processed as a dep.
-@item @code{-a} or @code{--no-allow}    : normally, @code{ltarget} automatically makes its arguments valid targets, as if mentioned in the rule attribute @code{side_targets},
-unless they are explicitly mentioned as deps in the rule.
-When this option is used, the validity of its arguments as targets remains governed by the @code{target} and @code{side_targets} attributes of the rule.
-This is useful to report activity to @lmake when running with autodep method @code{none} without altering the normal target validity.
+@item @code{-L} or @code{--follow-symlinks} : follow the last level symbolic link, default is not to follow.
+@item @code{-W} or @code{--no-write}        : does not report an actual write, only target flags. Default is to report a write an alter flags.
+@item @code{-E} or @code{--essential}       : show when generating user oriented graphs.
+@item @code{-i} or @code{--incremental}     : target is not unliked before job execution and read accesses to it are ignored.
+@item @code{-u} or @code{--no-uniquify}     : target is not uniquified if several links are pointing to it. Only meaningful for incremental targets.
+@item @code{-w} or @code{--no-warning}      : no warning is emitted if target is either uniquified or unlinked while generated by another job.
+@item @code{-I} or @code{--ignore}          : from now on, ignore all reads and writes to target.
+@item @code{-a} or @code{--no-allow}        : unless this option is passed, @code{ltarget} makes its arguments valid targets (cf @pxref{targets-deps}).
+@item @code{-s} or @code{--source-ok}       : unless this option is passed, @code{ltarget} writing to a source is an error.
 @end itemize
 
 @section @code{ldecode}
@@ -1075,13 +1068,12 @@ The correspondance is :
 @table @asis
 @item @code{def check_deps()}
 @code{lcheck_deps}
-@item @code{def depend(*files,follow_symlinks=True,essential=True,ignore_error=False,critical=False,required=True,verbose=False)}
+@item @code{def depend(*files,follow_symlinks=True,verbose=False,read=True,critical=False,essential=False,ignore_error=False,required=True,ignore=False,stat_read_data=False)}
 @code{ldepend}
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{depend('file1','file2')} or @code{depend(('file1','file2'))}.
-@item @code{def target(*files,unlink=False,follow_symlinks=True,essential=False,incremental=False,phony=False,source_ok=False,no_uniquify=False,no_warning=False,allow=True)}
+@item @code{def target(*files,follow_symlinks=True,write=True,essential=False,incremental=False,phony=False,no_uniquify=False,no_warning=False,ignore=False,source_ok=False,allow=True)}
 @code{ltarget}
-When a keyword argument other than @code{unlink} is not mentioned, the corresponding flag is the one mentioned in the rule.
 @code{files} may be a single @code{tuple} or a @code{tuple} of @code{str}'s.
 For example, you can call @code{target('file1','file2')} or @code{target(('file1','file2'))}.
 @item @code{def decode(file,context,code)}
@@ -1092,6 +1084,16 @@ The return value is the value associated with code.
 The return value is the generated of retrieved code.
 @end table
 
+@section @code{lmake.get_autodep}
+@code{def get_autodep()}
+
+This function returns whether autodep is currently activate (@code{True}) or deactivated (@code{False}).
+When activated, the monitoring is performed normally.
+When deactivated, no access monitoring is performed, as if the @code{autodep} rule attribute is set to @code{None}.
+Note that even in that case, the @code{depend} and @code{target} functions work normally.
+
+Using the @code{Autodep} @code{class}, the context version of this function, is much easier.
+
 @section @code{lmake.set_autodep}
 @code{def set_autodep(active)}
 
@@ -1100,11 +1102,14 @@ When activated, the monitoring is performed normally.
 When deactivated, no access monitoring is performed, as if the @code{autodep} rule attribute is set to @code{None}.
 Note that even in that case, the @code{depend} and @code{target} functions work normally.
 
-Using @code{AutodepSuspend}, the context version of this function is much easier.
+Using the @code{Autodep} @code{class}, the context version of this function, is much easier.
 
-@section @code{class AutodepSuspend}
+@section @code{class Autodep}
+@code{def __init__(self,enable)}
 
-This class may be used as a context to temporarily disable the autodep machinery, as in the following example :
+This @code{class} is initialized with a single @code{bool} as argument.
+
+This class may be used as a context to temporarily enable or disable the autodep machinery and can be nested, as in the following example :
 
 @example
 @group
@@ -1113,10 +1118,12 @@ import lmake
 class Foo(Rule) :
 	targets = @{ 'DST' : 'foo' @}
 	def cmd() :
-		with lmake.AutodepSuspend() :
+		with lmake.Autodep(False) :
 			subprocess.run(('no_autodep_in_script',))
-			print(open('no_dep_on_this_file').read(),file=open(DST,'w')) # writing to DST will not be seen
+			print(open('no_dep_for_this_file').read(),file=open(DST,'w')) # writing to DST is not seen
 			lmake.target(DST)                                            # however this will report writing to DST
+			with lmake.Autodep(True) :
+				print(open('dep_recorded_for_this_file').read(),file=open(DST,'w')) # writing to DST is seen
 @end group
 @end example
 
@@ -1151,6 +1158,15 @@ Otherwise, dependencies to the original @code{.py} will be lost when the @code{.
 @code{Py2Rule} manages Python2.
 @code{Py3Rule} manages Python3.
 @code{PyRule} is an alias for @code{Py3Rule}.
+
+In addition standard attributes, the following ones may be set on these rules :
+@itemize @minus
+@item @code{gen_module_deps} : If set (the default), the import machinery is set up to ensure all deps to all logically searched files are recorded.
+This ensures dynamically generated modules will be adequately rebuilt if necessary.
+If not set, Python optimizes its search and misses module files if the enclosing directory does not exist.
+@item @code{mask_python_deps} : Only supported for Python3. If set, the import machinery is set up to prevent Python from generating deps when reading files.
+This is useful when Python absusively stats files it does not import, which occur in certain cases.
+@end itemize
 
 @subsection @code{class DynamicPy[23]Rule}
 These classes may be used as base @code{class} for Python code doing imports that are dynamically generated.
@@ -2655,22 +2671,114 @@ This is not the case with @code{std::regex}, they always must be escaped.
 
 @anchor{targets-deps}
 @section Handling an access
-When a job accesses a file the following steps are done to decide how to mangage the accessed file :
-@itemize @bullet
-@item First, if the file has been mentioned in a @code{ldepend} or @code{ltarget} (or equivalent python function), it is processed as specified by these commands.
-@item Then, the file is matched against the regular expressions appearing in the @code{targets}, @code{side_targets} and @code{side_deps} rule attributes.
-The first match decides the entry and this matching process stops.
-The order in which these matches are tried are as mentioned above, unless the @code{order} attribute is set in which case entries listed in this attribute are tried first.
+At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced : reading a file is a dep, writing to it is a target.
+And this is what is done informally, but there are a lot of corner cases.
 
-If a file is found in both of these first steps, the flags are merged, i.e. all mentioned flags apply.
-@item If a match is found, the file is a target if matched in a @code{targets} or @code{side_targets} entry, a dep if in a @code{side_deps} entry.
-@item If no match is found, a read is considered to be a dep and a write (or a unlink) to be a target.
-In that case, targets are errors unless they are unlinked by the end of job execution.
-I.e., writing to a file without declaring it somehow is an error if the file is still present when the job completes.
+The specification devised hereinafter has been carefully thought to allow @lmake to run adequate jobs to reach a stable state from any starting point.
+More specifically, think of the following sequence :
+@itemize @minus
+@item @code{git clean -ffdx}
+@item @code{lmake foo}
+@item @code{git pull}
+@item @code{lmake foo}
 @end itemize
 
-Before a job has first run, it is deemed to have only its official static targets (i.e. listed in the @code{targets} attribute) as targets and its static deps as deps.
-After that, the targets and deps acquired during the last job execution are used.
+The second @code{lmake foo} command is supposed to do the minimum work to reach the same content of @file{foo} as would be obtained with the sequence :
+@itemize @minus
+@item @code{git pull}
+@item @code{git clean -ffdx}
+@item @code{lmake foo}
+@end itemize
+
+This what stable state means : the content of @file{foo} is independent of the history and only depends on the rules and the content of sources, both being managed through @code{git} in this example.
+
+In this specification, directories are ignored (i.e. the presence or content of a directory has no impact) and symbolic links are similar to regular files whose content is the link itself.
+
+@subsection Reading and writing files
+The first point is to precisely know what reading and writing mean.
+
+Writing to file @file{foo} means :
+@itemize
+@item A system call that writes or initiate writing to @file{foo}, e.g. @code{open("foo",O_WRONLY|O_TRUNC)} or @code{symlink(...,"foo")},
+assuming the @code{autodep} rule attribute is not set to @code{'none'}.
+@item Unlinking @file{foo}, e.g. @code{unlink("foo")}, is also deemed to be writing to it.
+@item A call to @code{lmake.target('foo',write=True)}. Note that @code{True} is the default value for the @code{write} argument.
+@item The execution of @code{ltarget foo} in which the @code{-W} option is not passed.
+@item Under the condition that these actions are not preceded by a call to @code{lmake.target('foo',ignore=True)} or the execution of @code{ltarget -I foo}.
+@item Also under the condition that @file{foo} does not match a @code{targets} or @code{side_targets} entry with the @code{Ignore} flag set.
+@item Also under the condition that @file{foo} lies in the repository (i.e. under the directory containing @file{Lmakefile.py} but not in its @file{LMAKE} sub-directory).
+@end itemize
+
+Reading file @file{foo} means :
+@itemize
+@item A system call that reads or initiate reading @file{foo}, e.g. @code{open("foo",O_RDONLY)}, @code{readlink("foo",...)} or @code{stat("foo",...)},
+assuming the @code{autodep} rule attribute is not set to @code{'none'}.
+@item Unless the @code{config.link_support} attribute is set to @code{'none'},
+any access (reading or writing) to @file{foo} which follows symlinks is an implicit @code{readlink}.
+@item Unless the @code{config.link_support} attribute is set to @code{'file'} or @code{'none'},
+any access (reading or writing) to @file{foo}, whether it follows symlinks or not, is an implicit @code{readlink} of all directories leading to it.
+@item Note that some system calls can be both a read and a write, e.g. @code{open("foo", O_RDWR)} but also @code{rename("foo",...)}.
+In that case, the read occurs before the write.
+@item A call to @code{lmake.depend('foo',read=True)}. Note that @code{True} is the default value for the @code{read} argument.
+@item The execution of @code{ldepend foo} in which the @code{-R} option is not passed.
+@item Under the condition that these actions are not preceded by a call to @code{lmake.depend('foo',ignore=True)} or the execution of @code{ldepend -I foo}.
+@item Also under the condition that @file{foo} is not listed in @code{deps} or matches a @code{side_deps} entry, with the @code{Ignore} flag set.
+@item Also under the condition that @file{foo} lies in the repository (i.e. under the directory containing @file{Lmakefile.py} but not in its @file{LMAKE} sub-directory) or in a source directory.
+@end itemize
+
+@subsection Being a target
+A file may be a target from the begining of the job execution, or it may become a target during job execution.
+In the latter case, it is not a target until the point where it becomes one.
+A file cannot stop being a target : once it has become a target, this is until the end of the job execution.
+
+A file is a target from the begining of the job execution if it matches a @code{targets} or @code{side_targets} entry.
+
+A file becomes a target when it is written to (with the meaning mentioned above).
+
+@subsection Being a dep
+A file may be a dep from the begining of the job execution, or it may become a dep during job execution.
+
+A file cannot stop being a dep : once it has become a dep, this is until the end of the job execution.
+
+A file is a dep from the begining of the job execution if it listed as a @code{deps} in the rule.
+
+A file becomes a dep when it is read (with the meaning mentioned above) while not a target at that time.
+
+@subsection Errors
+Some cases lead to errors, independently of the user script.
+
+The first case is when there is clash between static declarations.
+@code{targets}, @code{side_targets}, @code{side_deps} entries may or may not contain star stems.
+In the latter case, and including the static deps listed in @code{deps}, they are static entries.
+It is an error if the same file is listed several times as a static entry.
+
+The second case is when a file is both a dep and a target.
+You may have noticed that the definition above does not preclude this case, mostly because a file may start its life as a dep and become a target.
+This is an error unless the file is finally unlinked (or was never created).
+
+The third case is when a target was not declared as such.
+@file{foo} can be declared as target by :
+@itemize
+@item matching a @code{targets} or @code{side_targets} entry.
+@item calling @code{lmake.target('foo',allow=True} (which is the default value for the @code{allow}).
+@item executing @code{ltarget foo} in which the @code{-a} option is not passed.
+@end itemize
+A target that is not declared is an error.
+
+@subsection Processing a target
+Targets are normally erased before the start of the job execution, unless they are flagged as @code{incremental}.
+In case a target is also a dep, it is automatically flagged as @code{incremental}, whether it is an error or not.
+
+@subsection Best effort
+
+@lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
+This may include erasing a file that has no associated production rule.
+Unless a file is a dep of no job, @lmake may rebuild it at any time, even when not strictly necessary.
+
+In the case @lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
+In that case, @lmake quarantines the file under the @file{LMAKE/quarantine} directory with its original name.
+This quarantine mechanism, which is not necessary for @lmake processing but is a facility for the user, is best effort.
+There are cases where @lmake cannot anticipate such an overwrite.
 
 @anchor{backends}
 @section Backends

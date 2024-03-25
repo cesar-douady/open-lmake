@@ -9,7 +9,7 @@ import re
 import time
 
 from lmake       import multi_strip
-from lmake.rules import Rule,PyRule,DynamicPyRule
+from lmake.rules import Rule,PyRule
 
 version = 1
 
@@ -146,7 +146,7 @@ class Import(BaseRule,PyRule) :
 		import hello
 		print(hello.hello(sys.stdin.read()))
 
-class DynImport(BaseRule,DynamicPyRule) :
+class DynImport(BaseRule,PyRule) :
 	target = '{File}.dyn_import'
 	dep    = '{File}'
 	def cmd() :

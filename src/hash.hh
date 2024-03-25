@@ -105,9 +105,9 @@ namespace Hash {
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		// services
 	public :
-		bool     match        ( Crc other , Accesses a=Accesses::All ) const { return !( diff_accesses(other) & a ) ; } ;
-		Accesses diff_accesses( Crc other                            ) const ;
-		bool     never_match  (             Accesses a=Accesses::All ) const ;
+		bool     match        ( Crc other , Accesses a=~Accesses() ) const { return !( diff_accesses(other) & a ) ; } ;
+		Accesses diff_accesses( Crc other                          ) const ;
+		bool     never_match  (             Accesses a=~Accesses() ) const ;
 	private :
 		uint64_t _val = +CrcSpecial::Unknown ;
 	} ;
