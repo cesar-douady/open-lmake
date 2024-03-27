@@ -50,14 +50,14 @@ namespace Py {
 	// functions
 	//
 
-	template<class T       > static inline T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
-	template<class T       > static inline T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
-	template<class T=Object> static inline T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                            return res ; }
+	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
+	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw to_string("not a ",o->type_name()) ; return o   ; }
+	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                            return res ; }
 
-	static inline void py_err_clear   () {        PyErr_Clear   () ; }
-	static inline bool py_err_occurred() { return PyErr_Occurred() ; }
+	inline void py_err_clear   () {        PyErr_Clear   () ; }
+	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
-	template<class T=Object> static inline T& py_get_sys(::string const& name) {
+	template<class T=Object> T& py_get_sys(::string const& name) {
 		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
 		if (!v) throw to_string("cannot find sys.",name) ;
 		return *from_py<T>(v) ;
@@ -67,7 +67,7 @@ namespace Py {
 
 	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//
-	static inline nullptr_t py_err_set( Exception e , ::string const& txt ) {
+	inline nullptr_t py_err_set( Exception e , ::string const& txt ) {
 		static PyObject* s_exc_tab[] = {
 			PyExc_RuntimeError           // RuntimeErr
 		,	PyExc_TypeError              // TypeErr
@@ -574,7 +574,7 @@ namespace Py {
 	// Object
 	//
 
-	template<class T> inline Ptr<T> Object::get_attr(::string const& attr) const {
+	template<class T> Ptr<T> Object::get_attr(::string const& attr) const {
 		PyObject* val = PyObject_GetAttrString(to_py(),attr.c_str()) ;
 		if (!val) throw py_err_str_clear() ;
 		return val ;

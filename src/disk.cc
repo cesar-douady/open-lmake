@@ -179,7 +179,7 @@ namespace Disk {
 		return res ;
 	}
 
-	static inline int/*n_dirs*/ _mkdir( Fd at , ::string const& dir , NfsGuard* nfs_guard , bool multi , bool unlnk_ok ) {
+	static int/*n_dirs*/ _mkdir( Fd at , ::string const& dir , NfsGuard* nfs_guard , bool multi , bool unlnk_ok ) {
 		::vector_s  to_mk { dir }   ;
 		const char* msg   = nullptr ;
 		int         res   = 0       ;
@@ -385,7 +385,7 @@ namespace Disk {
 	// - avoid ::string copying as much as possible
 	// - do not support links outside repo & tmp, except from /proc (which is meaningful)
 	// - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
-	static inline int _get_symloop_max() {                               // max number of links to follow before decreting it is a loop
+	static int _get_symloop_max() {                                      // max number of links to follow before decreting it is a loop
 		int res = ::sysconf(_SC_SYMLOOP_MAX) ;
 		if (res>=0) return res                ;
 		else        return _POSIX_SYMLOOP_MAX ;
@@ -533,10 +533,10 @@ namespace Disk {
 		::string           interpreter ; interpreter.reserve(256) ;
 		::string           root_dir_s  = _env->root_dir+'/'       ;
 		// from tmp, we can go back to repo
-		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
+		for( int i=0 ; i<=4 ; i++ ) {                                                             // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			//
-			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
+			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;                    // if we escaped from the repo, there is no more deps to gather
 			//
 			if (sr.mapped)
 				throw to_string("executing ",mk_file(sr.real)," with mapped files along its interpreter path from ",_tmp_view," to ",_env->tmp_dir," would require to modify file contents") ;
@@ -549,11 +549,11 @@ namespace Disk {
 			if (!real_stream.read(hdr,sizeof(hdr))) break ;
 			if (strncmp(hdr,"#!",2)!=0            ) break ;
 			interpreter.resize(256) ;
-			real_stream.getline(interpreter.data(),interpreter.size()) ;                     // man execve specifies that data beyond 255 chars are ignored
+			real_stream.getline(interpreter.data(),interpreter.size()) ;                          // man execve specifies that data beyond 255 chars are ignored
 			if (!real_stream.gcount()) break ;
 			interpreter.resize(real_stream.gcount()) ;
-			if      ( size_t pos = interpreter.find(' ' ) ; pos!=Npos ) interpreter.resize(pos) ;  // interpreter is the first word
-			else if ( size_t pos = interpreter.find('\0') ; pos!=Npos ) interpreter.resize(pos) ;  // interpreter is the entire line (or the first \0 delimited word)
+			if      ( size_t pos = interpreter.find(' ' ) ; pos!=Npos ) interpreter.resize(pos) ; // interpreter is the first word
+			else if ( size_t pos = interpreter.find('\0') ; pos!=Npos ) interpreter.resize(pos) ; // interpreter is the entire line (or the first \0 delimited word)
 			// recurse
 			sr = solve(interpreter,false/*no_follow*/) ;
 		}

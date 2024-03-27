@@ -44,7 +44,7 @@ namespace Engine {
 		// init
 		static void s_init() {}
 		// statics
-		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> reqs(T const& jn) {                     // sorted by start
+		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> s_reqs(T const& jn) {                   // sorted by start
 			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                                        // pessimistic
 			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;

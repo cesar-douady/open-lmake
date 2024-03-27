@@ -299,7 +299,7 @@ namespace Backends::Slurm {
 		return              os <<')'                   ;
 	}
 
-	static inline void _sort_entry(::string& s) {
+	static void _sort_entry(::string& s) {
 		if (s.find(',')==Npos) return ;
 		::vector_s v = split(s,',') ;
 		SWEAR(v.size()>1) ;
@@ -393,7 +393,7 @@ namespace Backends::Slurm {
 	}
 
 	static constexpr char LibSlurm[] = "libslurm.so" ;
-	template<class T> static inline void _load_func( void* handler , T*& dst , const char* name ) {
+	template<class T> void _load_func( void* handler , T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
 		if (!dst) throw to_string("cannot find ",name," in ",LibSlurm) ;
 	}
@@ -418,7 +418,7 @@ namespace Backends::Slurm {
 		trace("done") ;
 	}
 
-	static inline ::string slurm_err() {
+	static ::string slurm_err() {
 		return SlurmApi::strerror(errno) ;
 	}
 
@@ -549,9 +549,9 @@ namespace Backends::Slurm {
 		return { {} , Maybe|completed } ;
 	}
 
-	static inline ::string _get_log_dir    (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
-	static inline ::string _get_stderr_path(JobIdx job) { return _get_log_dir(job) + "/stderr"                   ; }
-	static inline ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                   ; }
+	static ::string _get_log_dir    (JobIdx job) { return Job(job)->ancillary_file(AncillaryTag::Backend) ; }
+	static ::string _get_stderr_path(JobIdx job) { return _get_log_dir(job) + "/stderr"                   ; }
+	static ::string _get_stdout_path(JobIdx job) { return _get_log_dir(job) + "/stdout"                   ; }
 
 	::string read_stderr(JobIdx job) {
 		Trace trace(Channel::Backend,"Slurm::read_stderr",job) ;
@@ -565,7 +565,7 @@ namespace Backends::Slurm {
 		}
 	}
 
-	static inline ::string _cmd_to_string(::vector_s const& cmd_line) {
+	static ::string _cmd_to_string(::vector_s const& cmd_line) {
 		::string res = "#!/bin/sh" ;
 		char sep = '\n' ;
 		for ( ::string const& s : cmd_line ) { append_to_string(res,sep,s) ; sep = ' ' ; }

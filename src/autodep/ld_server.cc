@@ -8,7 +8,7 @@
 thread_local bool    AutodepLock::t_active = false ;
 /**/         ::mutex AutodepLock::_s_mutex ;
 
-static inline bool started() { return AutodepLock::t_active ; } // no auto-start for server
+static bool started() { return AutodepLock::t_active ; } // no auto-start for server
 
 #define IN_SERVER
 #include "ld.x.cc"

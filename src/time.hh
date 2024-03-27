@@ -309,9 +309,9 @@ namespace Time {
 		TimeSpec ts(*this) ;
 		::nanosleep(&ts,nullptr) ;
 	}
-	template<class T> requires(::is_arithmetic_v<T>) inline constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
-	template<class T> requires(::is_signed_v    <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/                   f )) ; }
-	template<class T> requires(::is_unsigned_v  <T>) inline constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/::make_signed_t<T>(f))) ; }
+	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
+	template<class T> requires(::is_signed_v    <T>) constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/                   f )) ; }
+	template<class T> requires(::is_unsigned_v  <T>) constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/::make_signed_t<T>(f))) ; }
 
 	//
 	// Pdate

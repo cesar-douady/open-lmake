@@ -49,11 +49,11 @@ namespace Store {
 		using Base::writable ;
 		// statics
 	private :
-		static constexpr size_t _offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                             // unsigned types handle negative values modulo 2^n, which is ok
-		static constexpr size_t _offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _offset0 + sizeof(DataNv)*idx ; }
+		static constexpr size_t _Offset0 = sizeof(StructHdr)-sizeof(DataNv) ;                                               // unsigned types handle negative values modulo 2^n, which is ok
+		static constexpr size_t _s_offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return _Offset0 + sizeof(DataNv)*idx ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
-			Base::expand(_offset(1)) ;                                                                                    // 1 is the first used idx
+			Base::expand(_s_offset(1)) ;                                                                                    // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -66,7 +66,7 @@ namespace Store {
 		template<class... A> void init( NewType                                      , A&&... hdr_args ) requires( HasFile) { init( "" , true , ::forward<A>(hdr_args)... ) ; }
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
-			Base::init( name , _offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
+			Base::init( name , _s_offset(HasData?lsb_msk(NBits<Idx>):1) , writable ) ;
 			if (Base::operator+()) return ;
 			SWEAR(writable) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
@@ -78,10 +78,10 @@ namespace Store {
 		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
 		HdrNv       & hdr      (                 )       requires(HasHdr ) { SWEAR(writable) ; return _struct_hdr().hdr                                     ; }
 		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) {                   return _struct_hdr().hdr                                     ; }
-		DataNv const& at       (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
-		DataNv      & at       (Idx           idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_offset(+idx))    ; }
-		DataNv const& c_at     (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_offset(+idx))    ; }
-		Idx           idx      (DataNv const& at ) const requires(HasData) {                   return Idx(&at-reinterpret_cast<Data const*>(base+_offset0)) ; }
+		DataNv const& at       (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_s_offset(+idx))  ; }
+		DataNv      & at       (Idx           idx)       requires(HasData) { SWEAR(writable) ; return *reinterpret_cast<Data      *>(base+_s_offset(+idx))  ; }
+		DataNv const& c_at     (Idx           idx) const requires(HasData) {                   return *reinterpret_cast<Data const*>(base+_s_offset(+idx))  ; }
+		Idx           idx      (DataNv const& at ) const requires(HasData) {                   return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0)) ; }
 		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                ; }
 	private :
 		StructHdr const& _struct_hdr() const requires(HasFile) {                   return *reinterpret_cast<StructHdr const*>(base) ; }
@@ -99,7 +99,7 @@ namespace Store {
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
-			if (size()) throw_unless( _offset(size())<=Base::size , "logical size is larger than physical size" ) ;
+			if (size()) throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
 		void _clear() {
@@ -115,10 +115,10 @@ namespace Store {
 			{	ULock lock{_mutex} ;
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
-				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ;                        // ensure no arithmetic overflow before checking capacity
-				Base::expand(_offset(new_sz)) ;
-				fence() ;                                                                                                 // update state when it is legal to do so
-				_size() = new_sz ;                                                                                        // once allocation is done, no reason to maintain lock
+				swear( new_sz>=old_sz && new_sz<=lsb_msk(NBits<Idx>) ,"index overflow on ",name) ;                          // ensure no arithmetic overflow before checking capacity
+				Base::expand(_s_offset(new_sz)) ;
+				fence() ;                                                                                                   // update state when it is legal to do so
+				_size() = new_sz ;                                                                                          // once allocation is done, no reason to maintain lock
 			}
 			Idx res{old_sz} ;
 			new(&at(res)) Data(::forward<A>(args)...) ;

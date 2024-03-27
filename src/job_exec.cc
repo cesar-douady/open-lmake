@@ -25,21 +25,21 @@ using namespace Time ;
 
 static constexpr int NConnectionTrials = 3 ; // number of times to try connect when connecting to server
 
-template<class T> struct PatternDict {
-	static constexpr T NotFound = {} ;
+struct PatternDict {
+	static constexpr MatchFlags NotFound = {} ;
 	// services
-	T const& at(::string const& x) const {
+	MatchFlags const& at(::string const& x) const {
 		if ( auto it=knowns.find(x) ; it!=knowns.end() )     return it->second ;
 		for( auto const& [p,r] : patterns ) if (+p.match(x)) return r          ;
 		/**/                                                 return NotFound   ;
 	}
-	void add( bool star , ::string const& key , T const& val ) {
+	void add( bool star , ::string const& key , MatchFlags const& val ) {
 		if (star) patterns.emplace_back( RegExpr(key,true/*fast*/,true/*no_group*/) , val ) ;
 		else      knowns  .emplace     (         key                                , val ) ;
 	}
 	// data
-	::umap_s<T>       knowns    = {} ;
-	::vmap<RegExpr,T> patterns  = {} ;
+	::umap_s<MatchFlags>       knowns   = {} ;
+	::vmap<RegExpr,MatchFlags> patterns = {} ;
 } ;
 
 ServerSockFd            g_server_fd              ;
@@ -51,9 +51,10 @@ JobRpcReply             g_start_info             ;
 SeqId                   g_seq_id                 = 0/*garbage*/ ;
 JobIdx                  g_job                    = 0/*garbage*/ ;
 ::atomic<bool>          g_killed                 = false        ; // written by thread S and read by main thread
-PatternDict<MatchFlags> g_match_dct              ;
+PatternDict             g_match_dct              ;
 NfsGuard                g_nfs_guard              ;
 ::umap_s<bool/*phony*/> g_missing_static_targets ;
+::vector_s              g_washed                 ;
 
 void kill_thread_func(::stop_token stop) {
 	t_thread_key = 'K' ;
@@ -96,16 +97,11 @@ bool/*keep_fd*/ handle_server_req( JobServerRpcReq&& jsrr , SlaveSockFd const& )
 	return false ;
 }
 
-::pair_s<bool/*ok*/> wash(Pdate start) {
-	Trace trace("wash",start,g_start_info.pre_actions) ;
-	::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
+::pair_s<bool/*ok*/> wash() {
+	Trace trace("wash",g_start_info.pre_actions) ;
+	::pair_s<bool/*ok*/> actions = do_file_actions( ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 	trace("unlnks",actions) ;
-	if (actions.second.second/*ok*/)
-		for( ::string const& f : actions.first ) {
-			MatchFlags flags = g_match_dct.at(f) ;
-			if ( flags.is_target==Yes && static_phony(flags.tflags()) ) g_gather.new_unlnk(start,f) ; // other washed files belong to history, dont record them being erased
-		}
-	return actions.second ;
+	return actions ;
 }
 
 ::map_ss prepare_env(JobRpcReq& end_report) {
@@ -231,23 +227,30 @@ Digest analyze( bool at_end , bool killed=false ) {
 					/**/                     append_to_string( res.msg , mk_file(file,No|!unlnk) , '\n') ;
 				break ;
 			}
-			if (ad.write!=No) {
+			switch (ad.write) {
+				case No    : break ;
 				// /!\ if a write is interrupted, it may continue past the end of the process when accessing a network disk
-				if      ( ad.write==Maybe                     )   relax.sleep_until() ; // no need to optimize (could compute other crcs while waiting) as this is exceptional
-				if      ( unlnk                               )   td.crc = Crc::None ;
-				else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
-				else                                              res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
-			}
+				case Maybe : relax.sleep_until() ; [[fallthrough]] ; // no need to optimize (could compute other crcs while waiting) as this is exceptional
+				case Yes   :
+					if      ( unlnk                               )   td.crc = Crc::None ;
+					else if ( killed || !td.tflags[Tflag::Target] ) { FileInfo fi{file} ; td.crc = Crc(fi.tag()) ; td.date = fi.date ; } // no crc if meaningless
+					else                                              res.crcs.emplace_back(res.targets.size()) ; // record index in res.targets for deferred (parallel) crc computation
+				break ;
+			DF}
 			if ( td.tflags[Tflag::Target] && !static_phony(td.tflags) ) {                                     // unless static or phony, a target loses its official status if not actually produced
 				if (ad.write==Yes) { if (unlnk           ) td.tflags &= ~Tflag::Target ; }
 				else               { if (!is_target(file)) td.tflags &= ~Tflag::Target ; }
 			}
-			if ( td.tflags[Tflag::Target] && td.tflags[Tflag::Static] ) g_missing_static_targets.erase(file) ;
+			if ( td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && (td.tflags[Tflag::Phony]||td.crc!=Crc::None) ) g_missing_static_targets.erase(file) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target",ad,td,STR(unlnk),file) ;
 		}
+	}
+	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
+		trace("wash",t) ;
+		res.targets.emplace_back( t , TargetDigest{.extra_tflags=ExtraTflag::Wash,.crc=Crc::None} ) ;
 	}
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
@@ -406,10 +409,12 @@ int main( int argc , char* argv[] ) {
 		/**/                       g_gather.timeout      = g_start_info.timeout     ;
 		/**/                       g_gather.kill_job_cb  = kill_job                 ;
 		//
-		::pair_s<bool/*ok*/> wash_report = wash(start_overhead) ;
+		trace("wash",g_start_info.pre_actions) ;
+		::pair_s<bool/*ok*/> wash_report = do_file_actions( g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard , g_start_info.hash_algo ) ;
 		end_report.msg += wash_report.first ;
 		if (!wash_report.second) { end_report.digest.status = Status::LateLostErr ; goto End ; }
 		g_gather.new_deps( start_overhead , ::move(g_start_info.deps) , g_start_info.stdin ) ;
+		for( auto const& [t,f] : g_match_dct.knowns ) if (f.is_target==Yes) g_gather.new_unlnk(start_overhead,t) ;
 		//
 		Fd child_stdin ;
 		if (+g_start_info.stdin) child_stdin = open_read(g_start_info.stdin) ;
@@ -430,7 +435,6 @@ int main( int argc , char* argv[] ) {
 		Pdate         end_job   = New      ;                          // as early as possible after child ends
 		struct rusage rsrcs     ; getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		trace("start_job",start_job,"end_job",end_job) ;
-		//
 		//
 		Digest digest = analyze(true/*at_end*/,killed) ;
 		for( auto const& [f,p] : g_missing_static_targets ) {

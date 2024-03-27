@@ -30,7 +30,7 @@ namespace Engine {
 			for( Node hd=Node(d.first)->dir() ; +hd ; hd = hd->dir() )
 				if (!locked_dirs.insert(hd).second) break ;            // if dir contains a dep, it cannot be rmdir'ed
 		//
-		// remove old_targets
+		// remove old targets
 		for( Target t : targets ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
@@ -352,10 +352,10 @@ namespace Engine {
 		//
 		if ( !lost && status>Status::Early ) { // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			::uset<Node> from_here ;
+			::uset<Node> old_targets ;
 			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) {
 				t->actual_job().clear() ;                                                              // ensure targets we no more generate do not keep pointing to us
-				from_here.insert(t)     ;
+				old_targets.insert(t)   ;
 			}
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
@@ -372,7 +372,7 @@ namespace Engine {
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-					if ( +start_date.d && target->date>start_date.d && !from_here.contains(target) ) { // if no start_date.d, job did not execute, it cannot generate a clash
+					if ( +start_date.d && target->date>start_date.d && !old_targets.contains(target) ) { // if no start_date.d, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
@@ -1032,7 +1032,7 @@ namespace Engine {
 						//
 						vmap<Node,FileAction> fas     = pre_actions(match).first ;
 						::vmap_s<FileAction>  actions ; for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config.hash_algo ).second/*msg*/ ;
+						::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard , g_config.hash_algo ) ;
 						//
 						if ( +dfa_msg.first || !dfa_msg.second ) {
 							run_status = RunStatus::Err ;

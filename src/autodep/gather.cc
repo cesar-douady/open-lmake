@@ -476,6 +476,5 @@ void Gather::reorder(bool at_end) {
 		i_dst++ ;
 	}
 	accesses.resize(i_dst) ;
-	if (at_end) access_map.clear() ;                                                                        // safer not to leave outdated info
-	else        for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;         // always recompute access_map as accesses has been sorted
+	for( NodeIdx i=0 ; i<accesses.size() ; i++ ) access_map.at(accesses[i].first) = i ;                     // always recompute access_map as accesses has been sorted
 }

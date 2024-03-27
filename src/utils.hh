@@ -71,9 +71,9 @@ template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;            
 template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
 template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
-template<class T> static inline constexpr T        copy    (T const& x) { return x ; }
-template<class T> static inline constexpr T      & ref     (T     && x) { return x ; }
-template<class T> static inline constexpr T const& constify(T const& x) { return x ; }
+template<class T> constexpr T        copy    (T const& x) { return x ; }
+template<class T> constexpr T      & ref     (T     && x) { return x ; }
+template<class T> constexpr T const& constify(T const& x) { return x ; }
 
 //
 // std lib name simplification
@@ -111,20 +111,20 @@ template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>   
 template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
 /**/                               using vmap_ss  = ::vmap_s       <       string  > ;
 
-template<class T,size_t N> static inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-template<class T,size_t N> static inline constexpr bool operator!(::array <T,N> const& a) { return !+a                  ; }
-template<class T,class  U> static inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-template<class T,class  U> static inline constexpr bool operator!(::pair  <T,U> const& p) { return !+p                  ; }
-template<class K,class  V> static inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> static inline constexpr bool operator!(::map   <K,V> const& m) { return !+m                  ; }
-template<class K,class  V> static inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> static inline constexpr bool operator!(::umap  <K,V> const& m) { return !+m                  ; }
-template<class K         > static inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-template<class K         > static inline constexpr bool operator!(::set   <K  > const& s) { return !+s                  ; }
-template<class K         > static inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-template<class K         > static inline constexpr bool operator!(::uset  <K  > const& s) { return !+s                  ; }
-template<class T         > static inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
-template<class T         > static inline constexpr bool operator!(::vector<T  > const& v) { return !+v                  ; }
+template<class T,size_t N> constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
+template<class T,size_t N> constexpr bool operator!(::array <T,N> const& a) { return !+a                  ; }
+template<class T,class  U> constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
+template<class T,class  U> constexpr bool operator!(::pair  <T,U> const& p) { return !+p                  ; }
+template<class K,class  V> constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> constexpr bool operator!(::map   <K,V> const& m) { return !+m                  ; }
+template<class K,class  V> constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> constexpr bool operator!(::umap  <K,V> const& m) { return !+m                  ; }
+template<class K         > constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+template<class K         > constexpr bool operator!(::set   <K  > const& s) { return !+s                  ; }
+template<class K         > constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+template<class K         > constexpr bool operator!(::uset  <K  > const& s) { return !+s                  ; }
+template<class T         > constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+template<class T         > constexpr bool operator!(::vector<T  > const& v) { return !+v                  ; }
 
 #define VT(T) typename T::value_type
 
@@ -186,7 +186,7 @@ template<class T>          VT(T)             max          ( T const& x          
 
 #undef TVT
 
-template<class T> static inline T& grow( ::vector<T>& v , uint32_t i ) {
+template<class T> T& grow( ::vector<T>& v , uint32_t i ) {
 	if(i>=v.size()) v.resize(i+1) ;
 	return v[i] ;
 }
@@ -210,11 +210,11 @@ protected :
 using OFakeStream = FakeStream<::ostream> ;
 using IFakeStream = FakeStream<::istream> ;
 
-static inline void _set_cloexec(::filebuf* fb) {
+inline void _set_cloexec(::filebuf* fb) {
 	int fd = np_get_fd(*fb) ;
 	if (fd>=0) ::fcntl(fd,F_SETFD,FD_CLOEXEC) ;
 }
-static inline void sanitize(::ostream& os) {
+inline void sanitize(::ostream& os) {
 	os.exceptions(~os.goodbit) ;
 	os<<::left<<::boolalpha ;
 }
@@ -253,25 +253,25 @@ struct IStringStream : ::istringstream {
 // string
 //
 
-static inline bool operator+(::string      const& s) { return !s.empty() ; }
-static inline bool operator!(::string      const& s) { return !+s        ; }
-static inline bool operator+(::string_view const& s) { return !s.empty() ; }
-static inline bool operator!(::string_view const& s) { return !+s        ; }
+inline bool operator+(::string      const& s) { return !s.empty() ; }
+inline bool operator!(::string      const& s) { return !+s        ; }
+inline bool operator+(::string_view const& s) { return !s.empty() ; }
+inline bool operator!(::string_view const& s) { return !+s        ; }
 
 static constexpr size_t Npos = ::string::npos ;
 
-template<class... A> static inline ::string to_string(A const&... args) {
+template<class... A> ::string to_string(A const&... args) {
 	OStringStream res ;
 	[[maybe_unused]] bool _[] = { false , (res<<args,false)... } ;
 	return res.str() ;
 }
 //
-static inline ::string to_string(::string const& s) { return  s  ; } // fast path
-static inline ::string to_string(const char*     s) { return  s  ; } // .
-static inline ::string to_string(char            c) { return {c} ; } // .
-static inline ::string to_string(                 ) { return {}  ; } // .
+inline ::string to_string(::string const& s) { return  s  ; } // fast path
+inline ::string to_string(const char*     s) { return  s  ; } // .
+inline ::string to_string(char            c) { return {c} ; } // .
+inline ::string to_string(                 ) { return {}  ; } // .
 
-template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
+template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
 	static constexpr bool IsBool = is_same_v<I,bool> ;
 	if ( empty_ok && !txt ) return 0 ;
 	::conditional_t<IsBool,size_t,I> res = 0/*garbage*/ ;
@@ -282,9 +282,9 @@ template<::integral I,IsOneOf<::string,::string_view> S> static inline I from_st
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
 	else                   return res ;
 }
-template<::integral I> static inline I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
+template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt,strlen(txt)) , empty_ok , hex ) ; }
 //
-template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F from_string( S const& txt , bool empty_ok=false ) {
+template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S const& txt , bool empty_ok=false ) {
 	if ( empty_ok && !txt ) return 0 ;
 	F res = 0/*garbage*/ ;
 	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -293,14 +293,14 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> static inline F f
 	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
 	else                 return res ;
 }
-template<::floating_point F> static inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
+template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt,strlen(txt)) , empty_ok ) ; }
 
 ::string mk_py_str   (::string const&) ;
 ::string mk_json_str (::string const&) ;
 ::string mk_shell_str(::string const&) ;
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
-static inline constexpr bool is_space(char c) {
+inline constexpr bool is_space(char c) {
 	switch (c) {
 		case '\f' :
 		case '\n' :
@@ -313,32 +313,32 @@ static inline constexpr bool is_space(char c) {
 }
 
 // ::isprint is too high level as it accesses environment, which may not be available during static initialization
-static inline constexpr bool is_printable(char c) {
+inline constexpr bool is_printable(char c) {
 	return uint8_t(c)>=0x20 && uint8_t(c)<=0x7e ;
 }
-static inline bool is_printable(::string const& s) {
+inline bool is_printable(::string const& s) {
 	for( char c : s ) if (!is_printable(c)) return false ;
 	/**/                                    return true  ;
 }
 
-template<char Delimiter=0>               ::string mk_printable(::string const&    ) ;
-template<char Delimiter=0> static inline ::string mk_printable(::string     && txt) {
+template<char Delimiter=0> ::string mk_printable(::string const&    ) ;
+template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
 	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
 template<char Delimiter=0> ::pair_s<size_t> parse_printable( ::string const& , size_t pos=0 ) ;
 
-static inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
-static inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
-static inline ::string ensure_nl   (::string     && txt) { set_nl   (txt) ; return txt ;                    }
-static inline ::string ensure_no_nl(::string     && txt) { set_no_nl(txt) ; return txt ;                    }
-static inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;               }
-static inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
+inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
+inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
+inline ::string ensure_nl   (::string     && txt) { set_nl   (txt) ; return txt ;                    }
+inline ::string ensure_no_nl(::string     && txt) { set_no_nl(txt) ; return txt ;                    }
+inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;               }
+inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
 
-template<class T> static inline void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
-/**/              static inline void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
-/**/              static inline void _append_to_string( ::string& dst , const char*     s ) { dst +=                        s   ; } // .
-/**/              static inline void _append_to_string( ::string& dst , char            c ) { dst +=                        c   ; } // .
+template<class T> void _append_to_string( ::string& dst , T&&             x ) { dst += to_string(::forward<T>(x)) ; }
+inline            void _append_to_string( ::string& dst , ::string const& s ) { dst +=                        s   ; } // fast path
+inline            void _append_to_string( ::string& dst , const char*     s ) { dst +=                        s   ; } // .
+inline            void _append_to_string( ::string& dst , char            c ) { dst +=                        c   ; } // .
 template<class... A> void append_to_string( ::string& dst , A&&... args ) {
 	[[maybe_unused]] bool _[] = { false , (_append_to_string(dst,::forward<A>(args)),false)... } ;
 }
@@ -347,8 +347,8 @@ template<class... A> void append_line_to_string( ::string& dst , A&&... args ) {
 	append_to_string(dst,::forward<A>(args)...) ;
 }
 
-template<char C='\t',size_t N=1> static inline ::string indent( ::string const& s , size_t i=1 ) {
-	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                                         // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
+template<char C='\t',size_t N=1> ::string indent( ::string const& s , size_t i=1 ) {
+	::string res ; res.reserve(s.size()+N*(s.size()>>4)) ;                           // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
 	bool     sol = true ;
 	for( char c : s ) {
 		if (sol) for( size_t k=0 ; k<i*N ; k++ ) res += C ;
@@ -358,14 +358,14 @@ template<char C='\t',size_t N=1> static inline ::string indent( ::string const& 
 	return res ;
 }
 
-static inline bool is_identifier(::string const& s) {
+inline bool is_identifier(::string const& s) {
 	/**/              if (!s                               ) return false ;
 	/**/              if (!( ::isalpha(s[0]) || s[0]=='_' )) return false ;
 	for( char c : s ) if (!( ::isalnum(c   ) || c   =='_' )) return false ;
 	/**/                                                     return true  ;
 }
 
-static inline ::string strip(::string const& txt) {
+inline ::string strip(::string const& txt) {
 	size_t start = 0          ;
 	size_t end   = txt.size() ;
 	while ( start<end && ::is_space(txt[start])) start++ ;
@@ -374,7 +374,7 @@ static inline ::string strip(::string const& txt) {
 }
 
 // split into space separated words
-static inline ::vector_s split(::string_view const& txt) {
+inline ::vector_s split(::string_view const& txt) {
 	::vector_s res ;
 	for( size_t pos=0 ;;) {
 		for( ; pos<txt.size() && is_space(txt[pos]) ; pos++ ) ;
@@ -387,7 +387,7 @@ static inline ::vector_s split(::string_view const& txt) {
 }
 
 // split on sep
-static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
+inline ::vector_s split( ::string_view const& txt , char sep , size_t n_sep=Npos ) {
 	::vector_s res ;
 	size_t     pos = 0 ;
 	for( size_t i=0 ; i<n_sep ; i++ ) {
@@ -400,7 +400,7 @@ static inline ::vector_s split( ::string_view const& txt , char sep , size_t n_s
 	return res ;
 }
 
-static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char sep='\n' ) {
+inline ::string_view first_lines( ::string_view const& txt , size_t n_sep , char sep='\n' ) {
 	size_t pos = -1 ;
 	for( size_t i=0 ; i<n_sep ; i++ ) {
 		pos = txt.find(sep,pos+1) ;
@@ -409,14 +409,14 @@ static inline ::string_view first_lines( ::string_view const& txt , size_t n_sep
 	return txt.substr(0,pos+1) ;
 }
 
-template<::integral I> static inline I decode_int(const char* p) {
+template<::integral I> I decode_int(const char* p) {
 	I r = 0 ;
 	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
 	return r ;
 }
 
-template<::integral I> static inline void encode_int( char* p , I x ) {
-	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ;      // little endian
+template<::integral I> void encode_int( char* p , I x ) {
+	for( uint8_t i=0 ; i<sizeof(I) ; i++ ) p[i] = char(x>>(i*8)) ; // little endian
 }
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
@@ -432,9 +432,9 @@ template<       ::integral I> ::string to_string_with_units  (I               x)
 
 extern thread_local char t_thread_key ;
 
-static bool/*done*/ kill_self      ( int sig                        ) ;
-/**/   void         set_sig_handler( int sig , void (*handler)(int) ) ;
-/**/   void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
+bool/*done*/ kill_self      ( int sig                        ) ;
+void         set_sig_handler( int sig , void (*handler)(int) ) ;
+void         write_backtrace( ::ostream& os , int hide_cnt   ) ;
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	static bool busy = false ;
@@ -457,7 +457,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	::abort() ;
 }
 
-[[noreturn]] static inline void unreachable() {
+[[noreturn]] inline void unreachable() {
 	#ifdef __has_builtin
 		#if __has_builtin(__builtin_unreachable)
 			__builtin_unreachable() ;
@@ -469,7 +469,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	#endif
 }
 
-template<class... A> [[noreturn]] static inline void fail( A const&... args [[maybe_unused]] ) {
+template<class... A> [[noreturn]] void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail @" , args... ) ;
 	#else
@@ -477,10 +477,10 @@ template<class... A> [[noreturn]] static inline void fail( A const&... args [[ma
 	#endif
 }
 
-template<class... A> static inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw to_string(args...) ; }
-template<class... A> static inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw to_string(args...) ; }
+template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw to_string(args...) ; }
+template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw to_string(args...) ; }
 
-template<class... A> static inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
+template<class... A> constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
 	#else
@@ -488,11 +488,11 @@ template<class... A> static inline constexpr void swear( bool cond , A const&...
 	#endif
 }
 
-template<class... A> [[noreturn]] static inline void fail_prod( A const&... args ) {
+template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
 	crash( 1 , SIGABRT , "fail @ " , args... ) ;
 }
 
-template<class... A> static inline constexpr void swear_prod( bool cond , A const&... args ) {
+template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 	if (!cond) crash( 1 , SIGABRT , "assertion violation @" , args... ) ;
 }
 
@@ -505,13 +505,15 @@ template<class... A> static inline constexpr void swear_prod( bool cond , A cons
 
 #define DF default : FAIL() ; // for use at end of switch statements
 
-static inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
-	swear_prod(pid>1,"killing process ",pid) ;                                          // ensure no system wide catastrophe !
-	bool proc_killed  =             ::kill( pid,sig)==0 ;                               // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
-	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                               // kill group if asked so, whether proc was killed or not
+inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
+	swear_prod(pid>1,"killing process ",pid) ;                                  // ensure no system wide catastrophe !
+	bool proc_killed  =             ::kill( pid,sig)==0 ;                       // kill process before process group as maybe, setpgid(0,0) has not been called in the child yet
+	bool group_killed = as_group && ::kill(-pid,sig)==0 ;                       // kill group if asked so, whether proc was killed or not
 	return proc_killed || group_killed ;
 }
-static inline bool/*done*/ kill_self(int sig) { return kill_process(::getpid(),sig) ; } // raise kills the thread, not the process
+inline bool/*done*/ kill_self(int sig) {                                        // raise kills the thread, not the process
+	return kill_process(::getpid(),sig) ;
+}
 
 //
 // vector_view
@@ -597,7 +599,7 @@ template<        class V> using vmap_view_c_s  = vmap_view_c  <::string,V > ;
 // math
 //
 
-static constexpr inline uint8_t n_bits(size_t n) { return sizeof(size_t)*8-::countl_zero(n-1) ; } // number of bits to store n states
+constexpr inline uint8_t n_bits(size_t n) { return sizeof(size_t)*8-::countl_zero(n-1) ; } // number of bits to store n states
 
 #define SCI static constexpr inline
 template<::integral T=size_t> SCI T    bit_msk ( bool x ,             uint8_t b            ) {                           return T(x)<<b                                     ; }
@@ -614,10 +616,10 @@ template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t ls
 template<::integral T       > SCI T    bits    ( T    x , uint8_t w , uint8_t lsb , T    v ) {                           return (x&~bits_msk<T>(w,lsb)) | bits_msk(v,w,lsb) ; } // set bits
 #undef SCI
 
-template<class N,class D> static constexpr inline N round_down(N n,D d) { return n - n%d             ; }
-template<class N,class D> static constexpr inline N div_down  (N n,D d) { return n/d                 ; }
-template<class N,class D> static constexpr inline N round_up  (N n,D d) { return round_down(n+d-1,d) ; }
-template<class N,class D> static constexpr inline N div_up    (N n,D d) { return div_down  (n+d-1,d) ; }
+template<class N,class D> constexpr N round_down(N n,D d) { return n - n%d             ; }
+template<class N,class D> constexpr N div_down  (N n,D d) { return n/d                 ; }
+template<class N,class D> constexpr N round_up  (N n,D d) { return round_down(n+d-1,d) ; }
+template<class N,class D> constexpr N div_up    (N n,D d) { return div_down  (n+d-1,d) ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
@@ -628,7 +630,7 @@ static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 namespace std {
 
-	#define OP(...) static inline ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
+	#define OP(...) inline ::ostream& operator<<( ::ostream& os , __VA_ARGS__ )
 	template<class T,size_t N> OP(             T    const  a[N] ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
 	template<class T,size_t N> OP( array      <T,N> const& a    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : a ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
 	template<class T         > OP( vector     <T  > const& v    ) { os <<'[' ; const char* sep="" ; for( T    const&  x    : v ) { os<<sep<<x         ; sep="," ; } return os <<']' ; }
@@ -640,8 +642,8 @@ namespace std {
 	template<class A,class B > OP( pair       <A,B> const& p    ) { return os <<'('<< p.first <<','<< p.second <<')' ;                                                                }
 	#undef OP
 
-	static inline ::ostream& operator<<( ::ostream& os , uint8_t const i ) { return os<<uint32_t(i) ; } // avoid output a char when actually a int
-	static inline ::ostream& operator<<( ::ostream& os , int8_t  const i ) { return os<<int32_t (i) ; } // .
+	inline ::ostream& operator<<( ::ostream& os , uint8_t const i ) { return os<<uint32_t(i) ; } // avoid output a char when actually a int
+	inline ::ostream& operator<<( ::ostream& os , int8_t  const i ) { return os<<int32_t (i) ; } // .
 
 }
 
@@ -653,7 +655,7 @@ namespace std {
 #define _ENUM_N(...) _ENUM_N_(__VA_ARGS__, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define _ENUM_N_(                         _30,_29,_28,_27,_26,_25,_24,_23,_22,_21,_20,_19,_18,_17,_16,_15,_14,_13,_12,_11,_10,_9,_8,_7,_6,_5,_4,_3,_2,_1, n,...) n
 
-template<size_t Sz> static constexpr ::array<char,Sz> _enum_split0(const char* comma_sep) {
+template<size_t Sz> constexpr ::array<char,Sz> _enum_split0(const char* comma_sep) {
 	::array<char,Sz> res {} ;
 	char* q   = res.data() ;
 	bool  sep = true       ;
@@ -667,7 +669,7 @@ template<size_t Sz> static constexpr ::array<char,Sz> _enum_split0(const char* c
 	return res ;
 }
 
-template<size_t Sz> static constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> const& camel0) { // at worst, snake inserts a _ before all chars, doubling the size
+template<size_t Sz> constexpr ::array<char,Sz*2> _enum_snake0(::array<char,Sz> const& camel0) { // at worst, snake inserts a _ before all chars, doubling the size
 	::array<char,Sz*2> res   {}/*constexpr*/ ;
 	char*              q     = res.data()    ;
 	bool               first = true          ;
@@ -679,7 +681,7 @@ template<size_t Sz> static constexpr ::array<char,Sz*2> _enum_snake0(::array<cha
 	return res ;
 }
 
-template<size_t Sz,size_t VSz> static constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
+template<size_t Sz,size_t VSz> constexpr ::array<string_view,Sz> _enum_mk_tab(::array<char,VSz> const& vals) {
 	::array<string_view,Sz> res  {}/*constexpr*/ ;
 	const char*             item = vals.data()   ;
 	for( size_t i=0 ; i<Sz ; i++ ) {
@@ -694,7 +696,7 @@ template<size_t Sz,size_t VSz> static constexpr ::array<string_view,Sz> _enum_mk
 // but then, clang requires the specialization to be static as well while gcc forbids it
 // using an anonymous namespace is ok with both and provides the same functionality
 namespace {
-	template<class T> constexpr bool IsStdEnum = false ; // unless specialized
+	template<class T> constexpr bool IsStdEnum = false ;                          // unless specialized
 }
 template<class T> concept StdEnum = IsStdEnum<T> ;
 namespace {
@@ -712,7 +714,7 @@ template<StdEnum E> static constexpr ::array<::string_view,N<E>                >
 template<class   T> static constexpr size_t NBits    = sizeof(T)*8  ;
 template<StdEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<StdEnum E> static inline ::ostream& operator<<( ::ostream& os , E e ) {
+template<StdEnum E> ::ostream& operator<<( ::ostream& os , E e ) {
 	if (e<All<E>) return os << camel(e)        ;
 	else          return os << "N+"<<(+e-N<E>) ;
 }
@@ -724,7 +726,7 @@ template<StdEnum E> ::string      snake_str (E e) { return ::string(EnumSnakes<E
 template<StdEnum E> const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
 template<StdEnum E> const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
 
-template<StdEnum E> static inline ::umap_s<E> _mk_enum_tab() {
+template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
 	::umap_s<E> res ;
 	for( E e : All<E> ) {
 		res[camel_str(e)] = e ;
@@ -732,18 +734,18 @@ template<StdEnum E> static inline ::umap_s<E> _mk_enum_tab() {
 	}
 	return res ;
 }
-template<StdEnum E> static inline ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
+template<StdEnum E> ::pair<E,bool/*ok*/> _mk_enum(::string const& x) {
 	static ::umap_s<E> const s_tab = _mk_enum_tab<E>() ;
 	auto it = s_tab.find(x) ;
 	if (it==s_tab.end()) return {{}        ,false/*ok*/} ;
 	else                 return {it->second,true /*ok*/} ;
 }
 
-template<StdEnum E> static inline bool can_mk_enum(::string const& x) {
+template<StdEnum E> bool can_mk_enum(::string const& x) {
 	return _mk_enum<E>(x).second ;
 }
 
-template<StdEnum E> static inline E mk_enum(::string const& x) {
+template<StdEnum E> E mk_enum(::string const& x) {
 	::pair<E,bool/*ok*/> res = _mk_enum<E>(x) ;
 	if (!res.second) throw to_string("cannot make enum ",EnumName<E>," from ",x) ;
 	return res.first ;
@@ -768,26 +770,26 @@ template<StdEnum E> static inline E mk_enum(::string const& x) {
 template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
 
-template<StdEnum E> static inline constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
-template<StdEnum E> static inline constexpr bool        operator!(E e) { return !+e            ; }
+template<StdEnum E> constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
+template<StdEnum E> constexpr bool        operator!(E e) { return !+e            ; }
 //
-template<StdEnum E> static inline constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> static inline constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> static inline constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
-template<StdEnum E> static inline constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
-template<StdEnum E> static inline constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
-template<StdEnum E> static inline constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
+template<StdEnum E> constexpr E          operator+ (E  e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> constexpr E&         operator+=(E& e,EnumInt<E> i) {                e = E(+e+ i) ; return e  ; }
+template<StdEnum E> constexpr E          operator- (E  e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> constexpr EnumInt<E> operator- (E  e,E          o) { EnumInt<E> d ; d =   +e-+o  ; return d  ; }
+template<StdEnum E> constexpr E&         operator-=(E& e,EnumInt<E> i) {                e = E(+e- i) ; return e  ; }
+template<StdEnum E> constexpr E          operator++(E& e             ) {                e = E(+e+ 1) ; return e  ; }
+template<StdEnum E> constexpr E          operator++(E& e,int         ) { E e_ = e ;     e = E(+e+ 1) ; return e_ ; }
+template<StdEnum E> constexpr E          operator--(E& e             ) {                e = E(+e- 1) ; return e  ; }
+template<StdEnum E> constexpr E          operator--(E& e,int         ) { E e_ = e ;     e = E(+e- 1) ; return e_ ; }
 //
-template<StdEnum E> static inline constexpr E  operator& (E  e,E o) {           return ::min(e,o) ; }
-template<StdEnum E> static inline constexpr E  operator| (E  e,E o) {           return ::max(e,o) ; }
-template<StdEnum E> static inline constexpr E& operator&=(E& e,E o) { e = e&o ; return e          ; }
-template<StdEnum E> static inline constexpr E& operator|=(E& e,E o) { e = e|o ; return e          ; }
+template<StdEnum E> constexpr E  operator& (E  e,E o) {           return ::min(e,o) ; }
+template<StdEnum E> constexpr E  operator| (E  e,E o) {           return ::max(e,o) ; }
+template<StdEnum E> constexpr E& operator&=(E& e,E o) { e = e&o ; return e          ; }
+template<StdEnum E> constexpr E& operator|=(E& e,E o) { e = e|o ; return e          ; }
 //
-template<StdEnum E> static inline E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
-template<StdEnum E> static inline void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
+template<StdEnum E> E    decode_enum( const char* p ) { return E(decode_int<EnumUint<E>>(p)) ; }
+template<StdEnum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;                     }
 
 template<StdEnum E> struct BitMap {
 	template<StdEnum> friend ::ostream& operator<<( ::ostream& , BitMap const ) ;
@@ -828,9 +830,9 @@ private :
 	Val _val = 0 ;
 } ;
 //
-template<StdEnum E> static inline constexpr BitMap<E>   operator~(E e) { return ~BitMap<E>(e)  ; }
+template<StdEnum E> constexpr BitMap<E> operator~(E e) { return ~BitMap<E>(e)  ; }
 
-template<StdEnum E> static inline BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
+template<StdEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	BitMap<E> res ;
 	for( ::string const& s : split(x,sep) ) res |= mk_enum<E>(s) ;
 	return res ;
@@ -848,8 +850,8 @@ template<StdEnum E> struct EnumIterator {
 	E val ;
 } ;
 
-template<StdEnum E> static inline EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
-template<StdEnum E> static inline EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
+template<StdEnum E> EnumIterator<E> begin(E  ) { return EnumIterator<E>(E(0)) ; }
+template<StdEnum E> EnumIterator<E> end  (E e) { return EnumIterator<E>(e   ) ; }
 
 template<StdEnum E> ::ostream& operator<<( ::ostream& os , BitMap<E> const bm ) {
 	os <<'(' ;
@@ -877,35 +879,35 @@ ENUM(Bool3
 static constexpr Bool3 No    = Bool3::No    ;
 static constexpr Bool3 Maybe = Bool3::Maybe ;
 static constexpr Bool3 Yes   = Bool3::Yes   ;
-static inline Bool3  operator~  ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
-static inline Bool3  operator!  ( Bool3  b             ) {                return ~b                                                                  ; }
-static inline Bool3  operator|  ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
-static inline Bool3  operator&  ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
-static inline Bool3  operator|  ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
-static inline Bool3  operator&  ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
-static inline Bool3& operator|= ( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
-static inline Bool3& operator&= ( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
-static inline Bool3  common     ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
-static inline Bool3  common     ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
-static inline Bool3  common     ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
-static inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
+inline Bool3  operator~  ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
+inline Bool3  operator!  ( Bool3  b             ) {                return ~b                                                                  ; }
+inline Bool3  operator|  ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
+inline Bool3  operator&  ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
+inline Bool3  operator|  ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
+inline Bool3  operator&  ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
+inline Bool3& operator|= ( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline Bool3& operator&= ( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline Bool3  common     ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
+inline Bool3  common     ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
+inline Bool3  common     ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
+inline Bool3  common     ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
 // miscellaneous
 //
 
-static inline bool has_env(::string const& name) {
+inline bool has_env(::string const& name) {
 	return ::getenv(name.c_str()) ;
 }
-static inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
+inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
 	if ( const char* c_path = ::getenv(name.c_str()) ) return c_path ;
 	else                                               return dflt   ;
 }
-static inline void set_env( ::string const& name , ::string const& val ) {
+inline void set_env( ::string const& name , ::string const& val ) {
 	int rc = ::setenv( name.c_str() , val.c_str() , true ) ;
 	swear_prod(rc==0,"cannot setenv ",name," to ",val) ;
 }
-static inline void del_env(::string const& name) {
+inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
 	swear_prod(rc==0,"cannot unsetenv ",name) ;
 }
@@ -952,9 +954,9 @@ private :
 	Mutex _mutex ;
 } ;
 
-static inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
+inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
 
-template<class T> static inline T clone(T const& x) { return x ; } // simply clone a value
+template<class T> T clone(T const& x) { return x ; } // simply clone a value
 
 template<class T,bool Fence=false> struct Save {
 	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
@@ -994,7 +996,7 @@ template<class... A> [[noreturn]] void exit( Rc rc , A const&... args ) {
 // string
 //
 
-static constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
+inline constexpr bool _can_be_delimiter(char c) {                   // ensure delimiter does not clash with encoding
 	if ( c=='\\'          ) return false ;
 	if ( 'a'<=c && c<='z' ) return false ;
 	if ( '0'<=c && c<='9' ) return false ;
@@ -1052,7 +1054,7 @@ template<char Delimiter> ::pair_s<size_t/*end_pos*/> parse_printable( ::string c
 	return {res,p-start} ;
 }
 
-static constexpr inline int _unit_val(char u) {
+constexpr inline int _unit_val(char u) {
 	switch (u) {
 		case 'E' : return  60 ; break ;
 		case 'P' : return  50 ; break ;

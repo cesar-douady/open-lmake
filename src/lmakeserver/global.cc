@@ -14,7 +14,7 @@ namespace Engine {
 
 	ThreadQueue<EngineClosure> g_engine_queue ;
 
-	static inline ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
+	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
 			SWEAR(!sep) ;      // cannot have a sep if we have no room to put it
 			return ::move(t) ;

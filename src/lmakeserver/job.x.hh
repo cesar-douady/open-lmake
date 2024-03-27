@@ -120,9 +120,6 @@ namespace Engine {
 		bool is_static_phony(        ) const { return Job::side<1>() ;                          }
 		void is_static_phony(bool isp)       { { if (isp) SWEAR(+*this) ; } Job::side<1>(isp) ; }
 		bool sure           (        ) const ;
-		//
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) Idx  side(     ) const = delete ;                     // { return Job::side<W,LSB+1>( ) ; }
-		template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB<=NGuardBits ) void side(Idx s)       = delete ;                     // {        Job::side<W,LSB+1>(s) ; }
 		// services
 		bool produces(Node) const ;
 	} ;
@@ -403,7 +400,7 @@ namespace Engine {
 	inline bool JobTgt::produces(Node t) const {
 		if ((*this)->missing()      ) return false                             ; // missing jobs produce nothing
 		if ((*this)->err()          ) return true                              ; // jobs in error are deemed to produce all their potential targets
-		if (sure()                  ) return true                              ; // fast path
+		if (sure()                  ) return true                              ;
 		if (t->has_actual_job(*this)) return t->actual_tflags()[Tflag::Target] ; // .
 		//
 		auto it = ::lower_bound( (*this)->targets , {t,{}} ) ;
@@ -444,7 +441,7 @@ namespace Engine {
 		_set_pressure_raw(ri,pressure) ;
 	}
 
-	template<class... A> inline void JobData::audit_end(A&&... args) const {
+	template<class... A> void JobData::audit_end(A&&... args) const {
 		JobExec(idx(),New,New).audit_end(::forward<A>(args)...) ;
 	}
 
@@ -476,7 +473,7 @@ namespace Engine {
 		if (&cri==&Req::s_store[+cri.req].jobs.dflt) return req_info(cri.req)         ; // allocate
 		else                                         return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
-	inline ::vector<Req> JobData::reqs() const { return Req::reqs(*this) ; }
+	inline ::vector<Req> JobData::reqs() const { return Req::s_reqs(*this) ; }
 
 	inline bool JobData::has_req(Req r) const {
 		return Req::s_store[+r].jobs.contains(idx()) ;

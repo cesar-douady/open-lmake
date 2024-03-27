@@ -15,8 +15,8 @@ extern ::string* g_lmake_dir     ; // pointer to avoid init/fini order hazards, 
 extern ::string* g_root_dir      ; // pointer to avoid init/fini order hazards, absolute              , root of repository
 extern ::string* g_exe_name      ; // pointer to avoid init/fini order hazards, absolute              , executable name for user messages
 
-/**/          void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
-static inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
+/**/   void app_init( Bool3 chk_version_=Yes , bool cd_root=true ) ;                           // if chk_version_==Maybe, it is ok to initialize stored version
+inline void app_init(                          bool cd_root      ) { app_init(Yes,cd_root) ; }
 
 void chk_version( bool may_init=false , ::string const& admin_dir=AdminDir ) ;
 

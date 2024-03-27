@@ -10,11 +10,11 @@ using namespace Disk ;
 ::ostream& operator<<( ::ostream& os , AutodepEnv const& ade ) {
 	os << "AutodepEnv(" ;
 	if (ade.active) {
-		/**/                  os <<      static_cast<RealPathEnv const&>(ade) ;
-		/**/                  os <<','<< ade.service                          ;
-		if ( ade.auto_mkdir ) os <<",auto_mkdir"                              ;
-		if ( ade.ignore_stat) os <<",ignore_stat"                             ;
-		if (!ade.disabled   ) os <<",disabled"                                ;
+		/**/                 os <<      static_cast<RealPathEnv const&>(ade) ;
+		/**/                 os <<','<< ade.service                          ;
+		if (ade.auto_mkdir ) os <<",auto_mkdir"                              ;
+		if (ade.ignore_stat) os <<",ignore_stat"                             ;
+		if (ade.disabled   ) os <<",disabled"                                ;
 	}
 	return os <<')' ;
 }

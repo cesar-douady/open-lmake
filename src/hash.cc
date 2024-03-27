@@ -143,10 +143,10 @@ namespace Hash {
 		return { *reinterpret_cast<uint64_t const*>(_hash) , is_lnk } ;
 	}
 
-	static inline void _round1( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( ((b&c)|((~b)&d)) + a + m , s ) ; }
-	static inline void _round2( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( ((d&b)|((~d)&c)) + a + m , s ) ; }
-	static inline void _round3( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( (b^c^d         ) + a + m , s ) ; }
-	static inline void _round4( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( (c^(b|(~d))    ) + a + m , s ) ; }
+	static void _round1( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( ((b&c)|((~b)&d)) + a + m , s ) ; }
+	static void _round2( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( ((d&b)|((~d)&c)) + a + m , s ) ; }
+	static void _round3( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( (b^c^d         ) + a + m , s ) ; }
+	static void _round4( uint32_t& a , uint32_t b , uint32_t c , uint32_t d , uint32_t m , int s ) { a = b + ::rotl( (c^(b|(~d))    ) + a + m , s ) ; }
 	//
 	void _Md5::_update64(const uint32_t _data[BlkSz]) {
 		uint32_t a = _hash[0] ;

@@ -424,7 +424,7 @@ namespace Engine {
 		return ri.done() ;
 	}
 
-	static inline bool _must_regenerate( NodeData const& nd , NodeReqInfo& ri ) {
+	static bool _must_regenerate( NodeData const& nd , NodeReqInfo& ri ) {
 		SWEAR(ri.done_>=ri.goal) ;                                                                       // must be done to ask for regeneration
 		Job cj = nd.conform_job() ;
 		if (!cj                ) return false ;                                                          // no hope to regenerate, proceed as a done target
@@ -652,7 +652,7 @@ namespace Engine {
 		}
 	}
 
-	static inline ::pair<Manual,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileInfo const& fi ) {
+	static ::pair<Manual,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileInfo const& fi ) {
 		Manual m = nd.manual(fi) ;
 		if (m<Manual::Changed) return {m,false/*refreshed*/} ;      // file was not modified
 		if (nd.crc==Crc::None) return {m,false/*refreshed*/} ;      // file appeared, it cannot be steady

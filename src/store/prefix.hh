@@ -33,16 +33,16 @@ namespace Store {
 		template<bool S,class Char> using VecStr   = ::conditional_t<S,Str   <Char>,Vec<Char>> ;
 		template<bool S,class Char> using ItemChar = ::conditional_t<S,AsChar<Char>,    Char > ;
 		//
-		template<class Char> inline void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::c_vector_view<Char>(from,sz) ) res.push_back(c) ; }
-		template<class Char> inline void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
+		template<class Char> void append( ::vector             <Char> & res , Char const* from , size_t sz ) { for( Char const& c : ::c_vector_view<Char>(from,sz) ) res.push_back(c) ; }
+		template<class Char> void append( ::basic_string<AsChar<Char>>& res , Char const* from , size_t sz ) { res.append(from,sz) ;                                                    }
 
-		template<bool Reverse,class Char> inline Char const& char_at( VecView<Char> const& name , size_t pos ) {
+		template<bool Reverse,class Char> Char const& char_at( VecView<Char> const& name , size_t pos ) {
 			return name[ Reverse ? name.size()-1-pos : pos ] ;
 		}
-		template<bool Reverse,class Char> inline Char const& char_at( VecView<Char> const& name , VecView<Char> const& psfx , size_t pos ) {
+		template<bool Reverse,class Char> Char const& char_at( VecView<Char> const& name , VecView<Char> const& psfx , size_t pos ) {
 			return pos<name.size() ? char_at<Reverse>(name,pos) : char_at<Reverse>(psfx,pos-name.size()) ;
 		}
-		template<class Char> inline size_t size( VecView<Char> const& name , VecView<Char> const& psfx ) {
+		template<class Char> size_t size( VecView<Char> const& name , VecView<Char> const& psfx ) {
 			return name.size() + psfx.size() ;
 		}
 
@@ -89,8 +89,8 @@ namespace Store {
 			// data
 			uint8_t val ;
 		} ;
-		static inline KindIterator begin(Nxt n) { return n                       ; }
-		static inline KindIterator end  (Nxt  ) { return Nxt(ItemKind::Terminal) ; }
+		inline KindIterator begin(Nxt n) { return n                       ; }
+		inline KindIterator end  (Nxt  ) { return Nxt(ItemKind::Terminal) ; }
 
 		template<class Idx,class Char> struct ItemBase {
 			static_assert(IsTrivial<Char>) ;

@@ -79,12 +79,12 @@ namespace std {
 
 namespace Backends {
 
-	template<class I> static inline I from_string_rsrc( ::string const& k , ::string const& v ) {
+	template<class I> I from_string_rsrc( ::string const& k , ::string const& v ) {
 		if ( k=="mem" || k=="tmp" ) return from_string_with_units<'M',I>(v) ;
 		else                        return from_string_with_units<    I>(v) ;
 	}
 
-	template<class I> static inline ::string to_string_rsrc( ::string const& k , I v ) {
+	template<class I> ::string to_string_rsrc( ::string const& k , I v ) {
 		if ( k=="mem" || k=="tmp" ) return to_string_with_units<'M'>(v) ;
 		else                        return to_string_with_units     (v) ;
 	}

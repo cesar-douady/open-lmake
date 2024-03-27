@@ -17,24 +17,24 @@ template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::istre
 template<class T> concept Serializable = HasSerdes<T> || HasSerdeser<T> ;
 
 // serdes method should be const when serializing but is not because C++ does not let constness be template arg dependent
-/**/                                                               static inline void serdes( ::ostream&                                                    ) {                                       }
-/**/                                                               static inline void serdes( ::istream&                                                    ) {                                       }
-template<HasSerdes     T                                         > static inline void serdes( ::ostream& os , T  const& x                                   ) { const_cast<T&>(x).serdes(os) ;        }
-template<HasSerdes     T                                         > static inline void serdes( ::istream& is , T       & x                                   ) {                x .serdes(is) ;        }
-template<HasSerdeser   T                                         > static inline void serdes( ::ostream& os , T  const& x                                   ) { Serdeser<T>::s_serdes(os,x)  ;        }
-template<HasSerdeser   T                                         > static inline void serdes( ::istream& is , T       & x                                   ) { Serdeser<T>::s_serdes(is,x)  ;        }
-template< Serializable T1 , Serializable T2 , Serializable... Ts > static inline void serdes( ::ostream& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
-template< Serializable T1 , Serializable T2 , Serializable... Ts > static inline void serdes( ::istream& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
+inline                                                             void serdes( ::ostream&                                                    ) {                                       }
+inline                                                             void serdes( ::istream&                                                    ) {                                       }
+template<HasSerdes     T                                         > void serdes( ::ostream& os , T  const& x                                   ) { const_cast<T&>(x).serdes(os) ;        }
+template<HasSerdes     T                                         > void serdes( ::istream& is , T       & x                                   ) {                x .serdes(is) ;        }
+template<HasSerdeser   T                                         > void serdes( ::ostream& os , T  const& x                                   ) { Serdeser<T>::s_serdes(os,x)  ;        }
+template<HasSerdeser   T                                         > void serdes( ::istream& is , T       & x                                   ) { Serdeser<T>::s_serdes(is,x)  ;        }
+template< Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( ::ostream& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
+template< Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( ::istream& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
 //
-template<Serializable T> static inline void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
-template<Serializable T> static inline ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
-template<Serializable T> static inline void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                    }
-template<Serializable T> static inline T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res       ; }
+template<Serializable T> void     serialize  ( ::ostream& os , T const& x ) {                     serdes(os ,x  ) ; os.flush()       ; }
+template<Serializable T> ::string serialize  (                 T const& x ) { OStringStream res ; serdes(res,x  ) ; return res.str() ; }
+template<Serializable T> void     deserialize( ::istream& is , T      & x ) {                     serdes(is ,x  ) ;                    }
+template<Serializable T> T        deserialize( ::istream& is              ) { T             res ; serdes(is ,res) ; return res       ; }
 //
-template<Serializable T> static inline void serialize  ( ::ostream&&     os , T const& x ) {        serialize  <T>(os              ,x) ; }
-template<Serializable T> static inline void deserialize( ::istream&&     is , T      & x ) {        deserialize<T>(is              ,x) ; }
-template<Serializable T> static inline T    deserialize( ::istream&&     is              ) { return deserialize<T>(is                ) ; }
-template<Serializable T> static inline T    deserialize( ::string const& s               ) { return deserialize<T>(IStringStream(s)  ) ; }
+template<Serializable T> void serialize  ( ::ostream&&     os , T const& x ) {        serialize  <T>(os              ,x) ; }
+template<Serializable T> void deserialize( ::istream&&     is , T      & x ) {        deserialize<T>(is              ,x) ; }
+template<Serializable T> T    deserialize( ::istream&&     is              ) { return deserialize<T>(is                ) ; }
+template<Serializable T> T    deserialize( ::string const& s               ) { return deserialize<T>(IStringStream(s)  ) ; }
 
 // make objects hashable as soon as they define serdes(::ostream) &&  serdes(::istream)
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>

@@ -37,7 +37,7 @@ struct Pipe {
 	Fd write ; // write side of the pipe
 } ;
 
-static inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
+inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block ) {
 	sigset_t new_mask ;
 	sigset_t old_mask ;
 	::sigemptyset(&new_mask) ;
@@ -48,7 +48,7 @@ static inline bool/*all_done*/ set_sig( ::vector<int> const& sigs , bool block )
 	for( int s : sigs ) if (::sigismember(&old_mask,s)==block) return false ;
 	return true ;
 }
-static inline Fd open_sig_fd(::vector<int> const& sigs) {
+inline Fd open_sig_fd(::vector<int> const& sigs) {
 	swear_prod(set_sig(sigs,true/*block*/),"some of signals",sigs,"are already blocked") ;
 	//
 	sigset_t mask ;
@@ -57,12 +57,12 @@ static inline Fd open_sig_fd(::vector<int> const& sigs) {
 	//
 	return ::signalfd( -1 , &mask , SFD_CLOEXEC ) ;
 }
-static inline void close_sig_fd( Fd fd , ::vector<int> const& sigs ) {
+inline void close_sig_fd( Fd fd , ::vector<int> const& sigs ) {
 	fd.close() ;
 	set_sig(sigs,false/*block*/) ;
 }
 
-static inline bool is_sig_sync(int sig) {
+inline bool is_sig_sync(int sig) {
 	switch (sig) {
 		case SIGILL  :
 		case SIGTRAP :
@@ -74,7 +74,7 @@ static inline bool is_sig_sync(int sig) {
 	}
 }
 
-static inline ::string wstatus_str(int wstatus) {
+inline ::string wstatus_str(int wstatus) {
 	if (WIFEXITED  (wstatus)) return WEXITSTATUS(wstatus) ? to_string("exit ",WEXITSTATUS(wstatus))  : "ok"s   ;
 	if (WIFSIGNALED(wstatus)) return to_string("signal ",WTERMSIG(wstatus),'-',::strsignal(WTERMSIG(wstatus))) ;
 	else                      return "??"                                                                      ;

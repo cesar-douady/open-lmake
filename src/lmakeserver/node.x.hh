@@ -448,7 +448,7 @@ namespace Engine {
 		if (&cri==&Req::s_store[+cri.req].nodes.dflt) return req_info(cri.req)         ; // allocate
 		else                                          return const_cast<ReqInfo&>(cri) ; // already allocated, no look up
 	}
-	inline ::vector<Req> NodeData::reqs() const { return Req::reqs(*this) ; }
+	inline ::vector<Req> NodeData::reqs() const { return Req::s_reqs(*this) ; }
 
 	inline bool NodeData::waiting() const {
 		for( Req r : reqs() ) if (c_req_info(r).waiting()) return true ;
@@ -495,7 +495,7 @@ namespace Engine {
 		return prio_job_tgts(prio_idx) ;
 	}
 
-	template<class RI> inline void NodeData::add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) {
+	template<class RI> void NodeData::add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) {
 		ri.add_watcher(watcher,wri) ;
 		set_pressure(ri,pressure) ;
 	}

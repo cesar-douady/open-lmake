@@ -123,7 +123,7 @@ endif
 endif
 
 ifneq ($(USE_CLANG),)
-WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-unused-function -Wno-c++2b-extensions
+WARNING_FLAGS += -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 endif
 
 # this is the recommanded way to insert a , when calling functions

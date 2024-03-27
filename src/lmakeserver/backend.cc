@@ -65,7 +65,7 @@ namespace Backends {
 		return res ;
 	}
 
-	static inline bool _localize( Tag t , ReqIdx ri ) {
+	static bool _localize( Tag t , ReqIdx ri ) {
 		::unique_lock lock{Req::s_reqs_mutex} ;                                 // taking Req::s_reqs_mutex is compulsery to derefence req
 		return Req(ri)->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
 	}
@@ -441,8 +441,8 @@ namespace Backends {
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()       ) { trace("not_in_tab"                             ) ; return false ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jrr.seq_id) { trace("bad_seq_id",entry.conn.seq_id,jrr.seq_id) ; return false ; }
-			je = JobExec( job , entry.conn.host , entry.start_date ) ;
-			rsrcs    = ::move(entry.rsrcs)                           ;
+			je    = JobExec( job , entry.conn.host , entry.start_date ) ;
+			rsrcs = ::move(entry.rsrcs)                                 ;
 			_s_small_ids.release(entry.conn.small_id) ;
 			trace("release_start_tab",job,entry) ;
 			// if we have no fd, job end was invented by heartbeat, no acknowledge
@@ -462,8 +462,9 @@ namespace Backends {
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
+		for( auto& [tn,td] : jrr.digest.targets ) if (td.extra_tflags[ExtraTflag::Wash]) td.date = je.start_date.d ; // adjust wash date as start_date was not available in job
 		::string jaf = job->ancillary_file() ;
-		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ;                 // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
+		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
 		je.end_date = file_date(jaf) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

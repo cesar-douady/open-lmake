@@ -21,11 +21,10 @@ using namespace Hash ;
 	return                              os <<')'                      ;
 }
 
-::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
-	::uset_s   keep_dirs ;
-	::vector_s unlnks    ;
-	::string   msg       ;
-	bool       ok        = true ;
+::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard , Algo ha ) {
+	::uset_s keep_dirs ;
+	::string msg       ;
+	bool     ok        = true ;
 	//
 	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
@@ -43,10 +42,10 @@ using namespace Hash ;
 					else      append_to_string(msg,"failed to quarantine ",mk_file(f),'\n') ;
 				} else {
 					done = unlnk(nfs_guard.change(f)) ;
-					if (!done) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
+					if (!done ) append_to_string(msg,"failed to unlink ",mk_file(f),'\n') ;
 				}
-				if (done) unlnks.push_back(f) ;
-				else      ok = false ;
+				if ( done && unlnks ) unlnks->push_back(f) ;
+				ok &= done ;
 			} break ;
 			case FileActionTag::Rmdir :
 				if (!keep_dirs.contains(f))
@@ -55,7 +54,7 @@ using namespace Hash ;
 			break ;
 		DF}
 	}
-	return {unlnks,{msg,ok}} ;
+	return {msg,ok} ;
 }
 
 //

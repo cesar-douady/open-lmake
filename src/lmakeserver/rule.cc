@@ -144,11 +144,8 @@ namespace Engine {
 			case Re        : throw to_string("spurious { in ",str) ;
 		DF}
 	}
-	static inline void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
+	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
 		_parse_py( str , unnamed_star_idx , [](::string const&)->void{} , cb_stem ) ;
-	}
-	static inline void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncFixed const& cb_fixed ) {
-		_parse_py( str , unnamed_star_idx , cb_fixed , [](::string const&,bool,bool,::string const*)->void{} ) ;
 	}
 
 	// star stems are represented by a StemMrkr followed by the stem idx
@@ -174,7 +171,7 @@ namespace Engine {
 		return res ;
 	}
 	// provide shortcut when pos is unused
-	static inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb , Escape escape=Escape::None , VarIdx stop_above=-1 ) {
+	static ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb , Escape escape=Escape::None , VarIdx stop_above=-1 ) {
 		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb(s) ; } , escape , stop_above ) ;
 	}
 
@@ -187,10 +184,6 @@ namespace Engine {
 				cb(i,stem) ;
 			}
 		}
-	}
-	// provide shortcut when pos is unused
-	static inline void _parse_target( ::string const& str , ::function<void(VarIdx)> const& cb ) {
-		_parse_target( str , [&](FileNameIdx,VarIdx s)->void { cb(s) ; } ) ;
 	}
 
 	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {

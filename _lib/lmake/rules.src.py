@@ -138,6 +138,10 @@ class _PyRule(Rule) :
 	mask_python_deps = False
 	def cmd() :                                                                           # this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 		if gen_module_deps or mask_python_deps :                                          # fast path :if nothing to do, do nothing
+			try : import lmake
+			except ModuleNotFoundError :
+				import sys
+				sys.path[0:0] = (_lmake_dir+'/lib',)
 			from lmake.import_machinery import fix_import
 			fix_import(gen_module_deps=gen_module_deps,mask_python_deps=mask_python_deps)
 	cmd.shell = ''                                                                        # support shell cmd's that may launch python as a subprocess XXX : manage to execute fix_import()

@@ -28,15 +28,16 @@ if __name__!='__main__' :
 	class ShCpy(Base) :
 		targets = { 'DST' : '{File}.sh.{YesNo}.cpy' }
 		cmd = '''
-			[ {YesNo} = y ] && ltarget {DST} ; cat>{DST}
-			ltarget -s side.sh               ; echo side > side.sh
+			[ {YesNo} = y ] && ( ltarget {DST} ; cat>{DST} )
+			ltarget -s side.sh ; echo side > side.sh
 		'''
 
 	class PyCpy(Base) :
 		targets = { 'DST' : '{File}.py.{YesNo}.cpy' }
 		def cmd() :
-			if YesNo=='y' : lmake.target(DST)
-			open(DST,'w').write(sys.stdin.read())
+			if YesNo=='y' :
+				lmake.target(DST)
+				open(DST,'w').write(sys.stdin.read())
 			lmake.target('side.py',source_ok=True)
 			print('side',file=open('side.py','w'))
 

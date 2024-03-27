@@ -121,7 +121,7 @@ namespace Engine {
 				if (py_dct.contains(key)) return acquire( dst , &py_dct[key] , min , max ) ;
 				else                      return false                                    ;
 		}
-		static inline void acquire_env( ::vmap_ss& dst , Py::Dict const& py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
+		inline void acquire_env( ::vmap_ss& dst , Py::Dict const& py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
 		//
 		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) ;
 	} ;

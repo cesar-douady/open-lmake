@@ -369,13 +369,13 @@ namespace Engine::Persistent {
 		for( RuleTgt rt : view() ) if (rt.old()) { pop() ; break ; }
 	}
 
-	template<class Disk,class Item> static inline void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
+	template<class Disk,class Item> void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
 		bool modified = false ;
 		if      (add ) for( Item i : items ) modified |= mem.insert(i).second ;
 		else if (+mem) for( Item i : items ) modified |= mem.erase (i)        ; // fast path : no need to update mem if it is already empty
 		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
 	}
-	template<class Disk,class Item> inline void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
+	template<class Disk,class Item> void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
 		::uset<Item> mem = mk_uset<Item>(disk) ;
 		_s_update(disk,mem,add,items) ;
 	}
@@ -391,10 +391,10 @@ namespace Engine::Persistent {
 	//
 	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
 	// cxtors & casts
-	template<class... A> inline JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
+	template<class... A> JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
 		*this = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
 	}
-	template<class... A> inline JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
+	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		Name name_ = _name_file.insert(name_sfx.first,name_sfx.second) ;
 		*this = _name_file.c_at(+name_).job() ;
 		if (+*this) {

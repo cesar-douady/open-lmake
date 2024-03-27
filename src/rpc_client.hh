@@ -41,7 +41,7 @@ ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other comma
 ,	Stdout     // if proc==Show
 ,	Targets    // if proc==Show
 )
-static inline bool is_mark_glb(ReqKey key) {
+inline bool is_mark_glb(ReqKey key) {
 	switch (key) {
 		case ReqKey::Clear  :
 		case ReqKey::List   : return true  ;

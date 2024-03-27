@@ -105,7 +105,7 @@ namespace Engine::Makefiles {
 		return {} ;
 	}
 
-	static inline ::string _deps_file( ::string const& action , bool new_ ) {
+	static ::string _deps_file( ::string const& action , bool new_ ) {
 		if (new_) return to_string(PrivateAdminDir,'/',action,"_new_deps") ;
 		else      return to_string(AdminDir       ,'/',action,"_deps"    ) ;
 	}

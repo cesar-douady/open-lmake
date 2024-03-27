@@ -24,7 +24,7 @@ struct AutoCloseFdPair {
 
 extern AutoCloseFdPair g_server_fds ;
 
-static inline Rc mk_rc(Bool3 ok) {
+inline Rc mk_rc(Bool3 ok) {
 	switch (ok) {
 		case Yes   : return Rc::Ok     ;
 		case Maybe : return Rc::Format ;

@@ -42,7 +42,7 @@ void load_exec(::string const& /*file*/) {} // the auditing mechanism tells us a
 void         elf_deps  ( Record& /*r*/ , Record::Solve const& , const char* /*ld_library_path*/ , ::string&& /*comment*/="elf_dep"  ) {             }
 Record::Read search_elf( Record& /*r*/ , const char* /*file*/ ,                                   ::string&& /*comment*/="elf_srch" ) { return {} ; }
 
-static inline bool started() { return true ; }
+static bool started() { return true ; }
 
 #define LD_AUDIT 1
 #include "ld_common.x.cc"
@@ -166,7 +166,7 @@ Qualify :
 	/**/                                                               return {true ,is_libc} ;
 }
 
-template<class Sym> static inline uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
+template<class Sym> uintptr_t _la_symbind( Sym* sym , unsigned int /*ndx*/ , uintptr_t* /*ref_cook*/ , uintptr_t* def_cook , unsigned int* /*flags*/ , const char* sym_name ) {
 	//
 	auditer() ;                                                                   // force Audit static init
 	if (g_force_orig) goto Ignore ;                                               // avoid recursion loop

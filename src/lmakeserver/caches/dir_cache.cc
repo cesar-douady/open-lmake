@@ -93,7 +93,7 @@ namespace Caches {
 		append_to_string(res,"rule-",::string(rule->cmd_crc)) ;
 		return res ;
 	}
-	static inline ::string _unique_name( Job job , ::string const& repo ) { return to_string(_unique_name(job),'/',repo) ; }
+	static ::string _unique_name( Job job , ::string const& repo ) { return to_string(_unique_name(job),'/',repo) ; }
 	// END_OF_VERSIONING
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz ) {
@@ -159,9 +159,8 @@ namespace Caches {
 			break ;
 		DF}
 	}
-	static inline void _copy(             ::string const& src_file , Fd dst_at , ::string const& dst_file , bool ud , bool ro ) { _copy( Fd::Cwd , src_file , dst_at  , dst_file , ud , ro ) ; }
-	static inline void _copy( Fd src_at , ::string const& src_file ,             ::string const& dst_file , bool ud , bool ro ) { _copy( src_at  , src_file , Fd::Cwd , dst_file , ud , ro ) ; }
-	static inline void _copy(             ::string const& src_file ,             ::string const& dst_file , bool ud , bool ro ) { _copy( Fd::Cwd , src_file , Fd::Cwd , dst_file , ud , ro ) ; }
+	static void _copy(             ::string const& src_file , Fd dst_at , ::string const& dst_file , bool ud , bool ro ) { _copy( Fd::Cwd , src_file , dst_at  , dst_file , ud , ro ) ; }
+	static void _copy( Fd src_at , ::string const& src_file ,             ::string const& dst_file , bool ud , bool ro ) { _copy( src_at  , src_file , Fd::Cwd , dst_file , ud , ro ) ; }
 
 	DirCache::Sz DirCache::_lru_remove(::string const& entry) {
 		SWEAR(entry!=Head) ;

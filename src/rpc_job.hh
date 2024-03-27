@@ -41,7 +41,9 @@ struct FileAction {
 	Hash::Crc     crc  ;                                                                                // expected (else, quarantine)
 	Disk::Ddate   date ;                                                                                // .
 } ;
-::pair<vector_s/*unlnks*/,pair_s<bool/*ok*/>/*msg*/> do_file_actions( ::vmap_s<FileAction>&& pre_actions , Disk::NfsGuard& nfs_guard , Algo ) ;
+/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* unlnks/*out*/ , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    , Algo   ) ;
+inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& unlnks/*out*/ , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(&unlnks,::move(pa),ng,a) ; }
+inline ::pair_s<bool/*ok*/> do_file_actions(                             ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng , Algo a ) { return do_file_actions(nullptr,::move(pa),ng,a) ; }
 
 ENUM_2( Dflag                          // flags for deps
 ,	NRule = Required                   // number of Dflag's allowed in rule definition
@@ -99,7 +101,7 @@ static constexpr char TflagChars[] = {
 } ;
 static_assert(::size(TflagChars)==N<Tflag>) ;
 using Tflags = BitMap<Tflag> ;
-static inline bool static_phony(Tflags tf) {
+inline bool static_phony(Tflags tf) {
 	return tf[Tflag::Target] && (tf[Tflag::Static]||tf[Tflag::Phony]) ;
 }
 
@@ -109,12 +111,14 @@ ENUM_1( ExtraTflag
 ,	Ignore
 ,	SourceOk                                // ok to overwrite source files
 ,	Allow                                   // writing to this target is allowed (for use in clmake.target and ltarget)
+,	Wash                                    // target was unlinked when washing before job execution
 )
 static constexpr char ExtraTflagChars[] = {
 	0                                       // Top
 ,	'I'                                     // Ignore
 ,	's'                                     // SourceOk
 ,	'a'                                     // Allow
+,	0                                       // Wash
 } ;
 static_assert(::size(ExtraTflagChars)==N<ExtraTflag>) ;
 using ExtraTflags = BitMap<ExtraTflag> ;
@@ -250,8 +254,8 @@ ENUM_3( Status                                    // result of job execution
 ,	Ok                                            // job execution ended successfully
 ,	Err                                           // job execution ended in error
 )
-static inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
-static inline Bool3 is_ok  (Status s) {
+inline bool  is_lost(Status s) { return s<=Status::LateLostErr && s>=Status::EarlyLost ; }
+inline Bool3 is_ok  (Status s) {
 	static constexpr Bool3 IsOkTab[] = {
 		Maybe                                     // New
 	,	Maybe                                     // EarlyChkDeps
@@ -269,7 +273,7 @@ static inline Bool3 is_ok  (Status s) {
 	static_assert(sizeof(IsOkTab)==N<Status>) ;
 	return IsOkTab[+s] ;
 }
-static inline Status mk_err(Status s) {
+inline Status mk_err(Status s) {
 	switch (s) {
 		case Status::New       : return Status::EarlyErr     ;
 		case Status::EarlyLost : return Status::EarlyLostErr ;
@@ -277,7 +281,7 @@ static inline Status mk_err(Status s) {
 		case Status::Ok        : return Status::Err          ;
 	DF}
 }
-static inline JobReasonTag mk_reason(Status s) {
+inline JobReasonTag mk_reason(Status s) {
 	static constexpr JobReasonTag ReasonTab[] = {
 		JobReasonTag::New                         // New
 	,	JobReasonTag::ChkDeps                     // EarlyChkDeps

@@ -8,7 +8,7 @@
 // ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop
 static bool _g_started = false ;
 
-static inline bool started() { return _g_started ; }
+static bool started() { return _g_started ; }
 
 #define LD_PRELOAD_JEMALLOC
 #include "ld.x.cc"

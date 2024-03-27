@@ -8,7 +8,7 @@
 #include "fd.hh"
 #include "time.hh"
 
-#define STR(x) Trace::str((x),#x)
+#define STR(x) Trace::s_str((x),#x)
 
 extern ::string* g_trace_file ; // pointer to avoid init/fini order hazards, relative to admin dir
 
@@ -25,7 +25,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		// statics
 		static void s_start         (Channels=DfltChannels) {}
 		static void s_new_trace_file(::string const&      ) {}
-		template<class T> static ::string str( T const& , ::string const& ) { return {} ; }
+		template<class T> static ::string s_str( T const& , ::string const& ) { return {} ; }
 		// static data
 		static bool             s_backup_trace ;
 		static ::atomic<size_t> s_sz           ;
@@ -51,23 +51,23 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void _s_open() ;
 		//
 	public :
-		template<class T> static ::string str( T const& v , ::string const& s ) { return s+"="+to_string(v) ; }
-		/**/              static ::string str( bool     v , ::string const& s ) { return v ? s : '!'+s      ; }
-		/**/              static ::string str( uint8_t  v , ::string const& s ) { return str(int(v),s)      ; } // avoid confusion with char
-		/**/              static ::string str( int8_t   v , ::string const& s ) { return str(int(v),s)      ; } // avoid confusion with char
+		template<class T> static ::string s_str( T const& v , ::string const& s ) { return s+"="+to_string(v) ; }
+		/**/              static ::string s_str( bool     v , ::string const& s ) { return v ? s : '!'+s      ; }
+		/**/              static ::string s_str( uint8_t  v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
+		/**/              static ::string s_str( int8_t   v , ::string const& s ) { return s_str(int(v),s)    ; } // avoid confusion with char
 		// static data
 		static              bool             s_backup_trace ;
-		static              ::atomic<size_t> s_sz           ;                                                   // max overall size of trace, beyond, trace wraps
+		static              ::atomic<size_t> s_sz           ;                                                     // max overall size of trace, beyond, trace wraps
 		static              Channels         s_channels     ;
 	private :
-		static size_t  _s_pos   ;                                                                               // current line number
-		static bool    _s_ping  ;                                                                               // ping-pong to distinguish where trace stops in the middle of a trace
+		static size_t  _s_pos   ;                                                                                 // current line number
+		static bool    _s_ping  ;                                                                                 // ping-pong to distinguish where trace stops in the middle of a trace
 		static Fd      _s_fd    ;
 		static ::mutex _s_mutex ;
 		//
 		static thread_local int            _t_lvl  ;
-		static thread_local bool           _t_hide ;                                                            // if true <=> do not generate trace
-		static thread_local OStringStream* _t_buf  ;                                                            // pointer to avoid init/fini order hazards
+		static thread_local bool           _t_hide ;                                                              // if true <=> do not generate trace
+		static thread_local OStringStream* _t_buf  ;                                                              // pointer to avoid init/fini order hazards
 		//
 		// cxtors & casts
 	public :
@@ -85,10 +85,10 @@ static constexpr Channels DfltChannels = ~Channels() ;
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
-		template<bool P            > void _output(::string const& x) { *_t_buf << (P?mk_printable(x):x) ; }     // make printable if asked to do so
-		template<bool P            > void _output(uint8_t         x) { *_t_buf << int(x)                ; }     // avoid confusion with char
-		template<bool P            > void _output(int8_t          x) { *_t_buf << int(x)                ; }     // avoid confusion with char
-		template<bool P            > void _output(bool            x) = delete ;                                 // bool is not explicit enough, use strings
+		template<bool P            > void _output(::string const& x) { *_t_buf << (P?mk_printable(x):x) ; }       // make printable if asked to do so
+		template<bool P            > void _output(uint8_t         x) { *_t_buf << int(x)                ; }       // avoid confusion with char
+		template<bool P            > void _output(int8_t          x) { *_t_buf << int(x)                ; }       // avoid confusion with char
+		template<bool P            > void _output(bool            x) = delete ;                                   // bool is not explicit enough, use strings
 		// data
 		SaveInc<int > _sav_lvl  ;
 		Save   <bool> _sav_hide ;
