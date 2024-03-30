@@ -248,18 +248,13 @@ namespace Engine {
 		bool overflow     = (*this)->_send_err( intermediate , job->rule->name , +target?target->name():job->name() , n_err , lvl ) ;
 		if (overflow) return true ;
 		//
-		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) {
-			try {
-				// show first stderr
-				Rule::SimpleMatch match          ;
-				IFStream          job_stream     { job->ancillary_file() }                                      ;
-				auto              report_start   = deserialize<JobInfoStart>(job_stream)                        ;
-				auto              report_end     = deserialize<JobInfoEnd  >(job_stream)                        ;
-				EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,report_start.rsrcs) ;
-				seen_stderr = (*this)->audit_stderr( report_end.end.msg , report_end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
-			} catch(...) {
-				(*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-			}
+		if ( !seen_stderr && job->run_status==RunStatus::Ok && !job->rule->is_special() ) { // show first stderr
+			Rule::SimpleMatch match          ;
+			JobInfo           job_info       = job->job_info()                                                ;
+			EndNoneAttrs      end_none_attrs = job->rule->end_none_attrs.eval(job,match,job_info.start.rsrcs) ;
+			//
+			if (!job_info.end.end.proc) (*this)->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
+			else                        seen_stderr = (*this)->audit_stderr( job_info.end.end.msg , job_info.end.end.digest.stderr , end_none_attrs.max_stderr_len , lvl+1 ) ;
 		}
 		if (intermediate)
 			for( Dep const& d : job->deps )
@@ -437,11 +432,15 @@ namespace Engine {
 		if (+clash_nodes) {
 			::vmap<Node,NodeIdx> clash_nodes_ = mk_vmap(clash_nodes) ;
 			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx> const& a , ::pair<Node,NodeIdx> b ) { return a.second<b.second ; } ) ;       // sort in discovery order
-			audit_info( Color::Warning ,
-				"These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n"
-				"Re-executing this lmake commands is strongly recommanded\n"
-			) ;
+			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
+			if (job->rule->special!=Special::Req) {
+				audit_info( Color::Warning , to_string("consider : lmake -R ",mk_shell_str(job->rule->name)," -J ",mk_shell_str(job->name())) ) ;
+			} else {
+				::string dl ;
+				for( Dep const& d : job->deps ) append_to_string(dl,' ',mk_shell_str(d->name())) ;
+				audit_info( Color::Warning , to_string("consider : lmake",dl) ) ;
+			}
 		}
 	}
 

@@ -12,30 +12,82 @@ namespace Store {
 	// free list sizes are linear until LinearSz, then logarithmic
 	// single allocation is LinearSz==0
 	namespace Alloc {
-		template<class H,class I,size_t LinearSz=0,bool HasData=true> struct Hdr {
-			static constexpr uint8_t NFree = LinearSz ? LinearSz+NBits<I>-n_bits(LinearSz+1) : 1 ;
-			NoVoid<H>        hdr    ;
-			uint8_t          n_free = 0 ;                                           // starting at n_free, there is no element in free list
-			::array<I,NFree> free   ;
+
+		// sz to bucket mapping
+		// bucket and sz functions must be such that :
+		// = bucket(1   )==0            i.e. first bucket is for size 1
+		// - bucket(sz+1)>=bucket(sz)   i.e. buckets are sorted
+		// - bucket(sz+1)<=bucket(sz)+1 i.e. there are less buckets than sizes
+		// - bucket(sz(b)  )==b         i.e. sz is the inverse function of bucket
+		// - bucket(sz(b)+1)==b+1       i.e. sz returns the largest size that first in a bucket
+		// This implementation chooses a integer to float conversion.
+		// LinearSz is the largest size up to which there is a bucket for each size.
+		// For example, if LinearSz==4, bucket sizes are : 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, ...
+
+		template<uint8_t Mantissa> constexpr size_t bucket(size_t sz) {
+			if (Mantissa==0) return 0 ;
+			// linear area
+			if (sz<=(1<<Mantissa)) return sz-1 ;
+			// logarithmic range
+			constexpr uint8_t Mantissa1 = Mantissa ? Mantissa-1 : 0 ; // actually Mantissa-1, with a protection to avoid compilation error when Mantissa==0
+			uint8_t sz_bits  = n_bits(sz)                       ;
+			uint8_t exp      = sz_bits-Mantissa                 ;
+			uint8_t mantissa = ((sz-1)>>exp)+1 - (1<<Mantissa1) ;     // msb is always 1, mask it as in IEEE float format
+			return (size_t(exp+1)<<Mantissa1) + mantissa - 1 ;        // adjust the +1's and -1's to provide a regular function
+		}
+
+		template<uint8_t Mantissa> constexpr size_t sz(size_t bucket) {
+			if (Mantissa==0) return 1 ;
+			// linear area
+			if (bucket<(1<<Mantissa)) return bucket+1 ;
+			// logarithmic range
+			constexpr uint8_t Mantissa1 = Mantissa ? Mantissa-1 : 0 ;                             // actually Mantissa-1, with a protection to avoid compilation error when Mantissa==0
+			uint8_t exp      = ((bucket+1)>>Mantissa1) - 1                                      ;
+			size_t  mantissa = (size_t(1)<<Mantissa1) + bucket - (size_t(exp+1)<<Mantissa1) + 1 ;
+			return mantissa<<exp ;
+		}
+
+		#if 0
+			// static check (enable to debug)
+			template<size_t Mantissa> constexpr bool chk() {
+				constexpr size_t N = 4<<Mantissa ;
+				/**/                                            if ( bucket<Mantissa>(1                ) != 0                     ) return false ;
+				for( size_t s=1 ; s<                 N  ; s++ ) if ( bucket<Mantissa>(s+1              ) <  bucket<Mantissa>(s)   ) return false ;
+				for( size_t s=1 ; s<                 N  ; s++ ) if ( bucket<Mantissa>(s+1              ) >  bucket<Mantissa>(s)+1 ) return false ;
+				for( size_t b=0 ; b<bucket<Mantissa>(N) ; b++ ) if ( bucket<Mantissa>(sz<Mantissa>(b)  ) != b                     ) return false ;
+				for( size_t b=0 ; b<bucket<Mantissa>(N) ; b++ ) if ( bucket<Mantissa>(sz<Mantissa>(b)+1) != b+1                   ) return false ;
+				return true ;
+			}
+			static_assert(chk<1>()) ;
+			static_assert(chk<2>()) ;
+			static_assert(chk<3>()) ;
+			static_assert(chk<4>()) ;
+		#endif
+
+		template<class H,class I,uint8_t Mantissa=0,bool HasData=true> struct Hdr {
+			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
+			NoVoid<H>        hdr  ;
+			::array<I,NFree> free ;
 		} ;
-		template<class H,class I,size_t LinearSz> struct Hdr<H,I,LinearSz,false> {
-			static constexpr uint8_t NFree = 0 ;
+		template<class H,class I,uint8_t Mantissa> struct Hdr<H,I,Mantissa,false> {
+			static constexpr size_t NFree = 0 ;
 			NoVoid<H> hdr ;
 		} ;
 		template<class I,class D> struct Data {
-			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                       // else waste memory
+			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                           // else waste memory
 			template<class... A> Data(A&&... args) : data{::forward<A>(args)...} {}
 			union {
-				NoVoid<D> data ;                                                    // when data is used
-				I         nxt  ;                                                    // when data is in free list
+				NoVoid<D> data ;                                                        // when data is used
+				I         nxt  ;                                                        // when data is in free list
 			} ;
 			~Data() { data.~NoVoid<D>() ; }
 		} ;
+
 	}
-	template<bool AutoLock,class Hdr_,class Idx_,class Data_,size_t LinearSz=0> struct AllocFile
-	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,LinearSz,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !LinearSz, Multi is useless
-	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,LinearSz,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // but easier to code
-		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,LinearSz,IsNotVoid<Data_>> ;
+	template<bool AutoLock,class Hdr_,class Idx_,class Data_,uint8_t Mantissa=0> struct AllocFile
+	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is useless ...
+	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... but easier to code
+		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;
 		using BaseData =                                                                                          Alloc::Data<Idx_,Data_> ;
 		//
 		using Hdr    = Hdr_                 ;
@@ -50,7 +102,7 @@ namespace Store {
 		static constexpr bool HasHdr    = !is_void_v<Hdr >         ;
 		static constexpr bool HasData   = !is_void_v<Data>         ;
 		static constexpr bool HasDataSz = ::Store::HasDataSz<Data> ;
-		static constexpr bool Multi     = LinearSz && HasData      ;
+		static constexpr bool Multi     = Mantissa && HasData      ;
 		//
 		template<class... A> Idx emplace_back( Idx n , A&&... args ) = delete ;
 		using Base::clear    ;
@@ -107,10 +159,8 @@ namespace Store {
 
 		// statics
 	private :
-		static uint8_t _s_bucket(Sz      sz    ) requires( Multi) { return sz<=LinearSz ? sz-1 : LinearSz+n_bits(sz)-n_bits(LinearSz+1)             ; }
-		static uint8_t _s_bucket(Sz      sz    ) requires(!Multi) { SWEAR(sz==1,sz) ; return 0 ;                                                      }
-		static Sz      _s_sz    (uint8_t bucket) requires( Multi) { return bucket<LinearSz ? bucket+1 : Sz(1)<<(bucket+n_bits(LinearSz+1)-LinearSz) ; } // inverse _s_bucket & return max possible val
-		static Sz      _s_sz    (uint8_t bucket) requires(!Multi) { SWEAR(bucket==0,bucket) ; return 1 ;                                              } // .
+		static Sz _s_bucket(Sz sz    ) { return Alloc::bucket<Mantissa>(sz    ) ; }
+		static Sz _s_sz    (Sz bucket) { return Alloc::sz    <Mantissa>(bucket) ; }
 		// cxtors
 	public :
 		using Base::Base ;
@@ -129,8 +179,8 @@ namespace Store {
 			return Base::idx(base_at) ;
 		}
 	private :
-		Idx const& _free(uint8_t bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
-		Idx      & _free(uint8_t bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
+		Idx const& _free(Sz bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
+		Idx      & _free(Sz bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
 	public :
 		Lst lst() const requires( !Multi && HasData ) { return Lst(*this) ; }
 		// services
@@ -160,29 +210,13 @@ namespace Store {
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
 			ULock lock{_mutex} ;
 			SWEAR(writable) ;
-			uint8_t bucket = _s_bucket(sz    ) ;                                                                               // XXX : implement smaller granularity than 2x
-			Idx&    free   = _free    (bucket) ;
-			Idx     res    = free              ;
-			if (+res) {
-				free = Base::at(res).nxt ;
-			} else {                                                                                                           // try find a larger bucket and split it if above linear zone
-				uint8_t avail_bucket = BaseHdr::NFree ;
-				if (bucket>=LinearSz) {
-					for( avail_bucket = bucket+1 ; avail_bucket<Base::hdr().n_free ; avail_bucket++ ) if (+_free(avail_bucket)) break ;
-				}
-				//                                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (avail_bucket>=Base::hdr().n_free) return Base::emplace_back( _s_sz(bucket) , ::forward<A>(args)... ) ;     // no space available
-				//                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				res                 = _free(avail_bucket) ;
-				_free(avail_bucket) = Base::at(res).nxt   ;
-				fence() ;                                                                                                      // ensure free list is always consistent
-				for( uint8_t i=avail_bucket-1 ; i>=bucket ; i-- ) {                                                            // put upper half in adequate free list
-					Idx upper(+res+_s_sz(i)) ;
-					Base::at(upper).nxt = 0 ;                                                                                  // free list was initially empty
-					fence() ;                                                                                                  // ensure free list is always consistent
-					_free(i) = upper ;
-				}
-			}
+			Sz   bucket = _s_bucket(sz    ) ;
+			Idx& free   = _free    (bucket) ;
+			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			if (!free) return Base::emplace_back( _s_sz(bucket) , ::forward<A>(args)... ) ;
+			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			Idx res = free ;
+			free = Base::at(res).nxt ;
 			fence() ;                                                                                                          // ensure free list is always consistent
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Base::emplace(res,::forward<A>(args)...) ;
@@ -193,15 +227,15 @@ namespace Store {
 			if (!new_sz) { _pop(idx,old_sz) ; return ; }
 			SWEAR( writable && new_sz<=old_sz , new_sz , old_sz ) ;
 			ULock lock{_mutex} ;
-			uint8_t old_bucket = _s_bucket(old_sz) ;
-			uint8_t new_bucket = _s_bucket(new_sz) ;
+			Sz old_bucket = _s_bucket(old_sz) ;
+			Sz new_bucket = _s_bucket(new_sz) ;
 			// deallocate extra room
 			new_sz = _s_sz(new_bucket) ;
 			old_sz = _s_sz(old_bucket) ;
 			while (old_sz>new_sz) {                                                                                            // deallocate as much as possible in a single bucket and iterate
-				Sz      extra_sz        = old_sz-new_sz       ;
-				uint8_t extra_bucket    = _s_bucket(extra_sz) ;                                                                // the bucket that can contain extra_sz
-				Sz      extra_bucket_sz = _s_sz(extra_bucket) ;                             SWEAR(extra_bucket_sz>=extra_sz) ; // _s_sz returns the largest size that fits in extra_bucket
+				Sz extra_sz        = old_sz-new_sz       ;
+				Sz extra_bucket    = _s_bucket(extra_sz) ;                                                                // the bucket that can contain extra_sz
+				Sz extra_bucket_sz = _s_sz(extra_bucket) ;                                  SWEAR(extra_bucket_sz>=extra_sz) ; // _s_sz returns the largest size that fits in extra_bucket
 				{ if (extra_bucket_sz>extra_sz) extra_bucket_sz = _s_sz(--extra_bucket) ; } SWEAR(extra_bucket_sz<=extra_sz) ; // but we want the largest bucket that fits in extra_sz
 				//
 				old_sz -= extra_bucket_sz ;
@@ -216,19 +250,18 @@ namespace Store {
 			Base::pop(idx) ;
 			_dealloc(idx,_s_bucket(sz)) ;
 		}
-		void _dealloc( Idx idx , uint8_t bucket ) requires( HasData) {
+		void _dealloc( Idx idx , Sz bucket ) requires( HasData) {
 			Idx& free = _free(bucket) ;
-			Base::at(idx).nxt  = free                             ;
-			Base::hdr().n_free = ::max(Base::hdr().n_free,bucket) ;
+			Base::at(idx).nxt = free ;
 			fence() ;                                                                                                          // ensure free list is always consistent
 			free = idx ;
 		}
 	} ;
-	template<bool AutoLock,class Hdr,class Idx,class Data,size_t LinearSz> void AllocFile<AutoLock,Hdr,Idx,Data,LinearSz>::chk() const requires(!is_void_v<Data>) {
+	template<bool AutoLock,class Hdr,class Idx,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;
-		for( uint8_t bucket = 0 ; bucket<BaseHdr::NFree ; bucket++ ) {
+		for( Sz bucket = 0 ; bucket<BaseHdr::NFree ; bucket++ ) {
 			Sz sz = _s_sz(bucket) ;
 			for( Idx idx=_free(bucket) ; +idx ; idx=Base::at(idx).nxt ) {
 				throw_unless( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , "free list out of range at ",idx ) ;

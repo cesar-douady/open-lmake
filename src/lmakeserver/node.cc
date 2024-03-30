@@ -38,13 +38,11 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , NodeData const& nd ) {
-		/**/                   os << '(' << nd.crc         ;
-		if (nd.crc!=Crc::None) os << ',' << nd.date        ;
-		/**/                   os << ','                   ;
-		if (!nd.match_ok()   ) os << '~'                   ;
-		/**/                   os << "job:"                ;
-		if (nd.is_plain()    ) os << +Job(nd.actual_job()) ;
-		return                 os << ")"                   ;
+		/**/                os <<'('<< nd.crc <<','<< nd.date ;
+		if (!nd.match_ok()) os << ",~job:"                    ;
+		/**/                os << ",job:"                     ;
+		if (nd.is_plain() ) os << +Job(nd.actual_job())       ;
+		return              os << ")"                         ;
 	}
 
 	Manual NodeData::manual_wash( ReqInfo& ri , bool lazy ) {
@@ -94,7 +92,7 @@ namespace Engine {
 		bool        frozen    = idx().frozen()              ;
 		const char* msg       = frozen ? "frozen" : "src"   ;
 		NfsGuard    nfs_guard { g_config.reliable_dirs }    ;
-		FileInfo    fi        { nfs_guard.access(name_) }  ;
+		FileInfo    fi        { nfs_guard.access(name_) }   ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,fi.date) ;
 		if (frozen) for( Req r : reqs_  ) r->frozen_nodes.emplace(idx(),r->frozen_nodes.size()) ;
 		if (!fi) {
@@ -104,7 +102,7 @@ namespace Engine {
 			refresh(Crc::None) ;
 			//^^^^^^^^^^^^^^^^
 		} else {
-			if ( crc.valid() && crc.exists() && fi.date==date ) return false/*updated*/ ;
+			if ( crc.valid() && fi.date==date.d ) return false/*updated*/ ;
 			Crc   crc_  = Crc::Reg ;
 			Ddate date_ ;
 			while ( crc_==Crc::Reg || crc_==Crc::Lnk ) crc_ = Crc(date_,name_,g_config.hash_algo) ;                           // ensure file is stable when computing crc
@@ -401,7 +399,7 @@ namespace Engine {
 	Codec :
 		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (date>req->start_date.d) ri.overwritten = Access::Reg ;                                     // date is only updated when actual content is modified and codec cannot be links
+			if (newer(req->start_date)         ) ri.overwritten = Access::Reg ;                            // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto Done ;
 		}
@@ -417,7 +415,7 @@ namespace Engine {
 			goto ActuallyDone ;
 		}
 	ActuallyDone :
-		actual_job().clear() ;
+		actual_job() = {} ;
 	Done :
 		ri.done_ = ri.goal ;                                                                               // disk is de facto updated
 	NotDone :
@@ -605,7 +603,7 @@ namespace Engine {
 
 	void NodeData::mk_old() {
 		Trace trace("mk_old",idx()) ;
-		if ( +actual_job() && actual_job()->rule.old() ) actual_job().clear() ; // old jobs may be collected, do not refer to them anymore
+		if ( +actual_job() && actual_job()->rule.old() ) actual_job() = {} ; // old jobs may be collected, do not refer to them anymore
 		_set_match_gen(false/*ok*/) ;
 	}
 
@@ -638,19 +636,14 @@ namespace Engine {
 		if (+crc_) refresh(crc_) ;
 	}
 
-	bool/*modified*/ NodeData::refresh( Crc crc_ , Ddate date_ ) {
-		if (crc.match(crc_)) {
-			Trace trace("refresh_idle",idx(),date,"->",date_) ;
-			date = date_ ;
-			return false ;
-		} else {
-			Trace trace("refresh",idx(),reqs(),crc,"->",crc_,date,"->",date_) ;
-			crc  = {}    ; fence() ;
-			date = date_ ; fence() ;
-			crc  = crc_  ;                                              // ensure crc is never associated with a wrong date, even in case of crash
-			for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; // target is not conform on disk any more
-			return true ;
-		}
+	bool/*modified*/ NodeData::refresh( Crc crc_ , FullDate const& fd ) {
+		bool modified = !crc.match(crc_) ;
+		//
+		Trace trace( "refresh" , STR(modified) , idx() , reqs() , crc ,"->", crc_ , date ,"->", fd ) ;
+		//
+		if (modified) { crc_date(crc_,fd) ; for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; } // target is not conform on disk any more
+		else            date = fd ;
+		return modified ;
 	}
 
 	static ::pair<Manual,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileInfo const& fi ) {
@@ -662,10 +655,10 @@ namespace Engine {
 		if ( m==Manual::Empty && nd.crc==Crc::Empty ) {             // fast path : no need to open file
 			nd.date = file_date(ndn) ;
 		} else {
-			Ddate ndd ;
-			Crc   crc { ndd , ndn , g_config.hash_algo } ;
+			Ddate dd ;
+			Crc   crc { dd , ndn , g_config.hash_algo } ;
 			if (!nd.crc.match(crc)) return {m,false/*refreshed*/} ; // real modif
-			nd.date = ndd ;
+			nd.date = dd ;
 		}
 		return {Manual::Ok,true/*refreshed*/} ;                     // file is steady
 	}
@@ -693,14 +686,6 @@ namespace Engine {
 
 
 	//
-	// Deps
-	//
-
-	::ostream& operator<<( ::ostream& os , Deps const& ds ) {
-		return os << c_vector_view<Dep>(ds) ;
-	}
-
-	//
 	// Dep
 	//
 
@@ -718,6 +703,110 @@ namespace Engine {
 		::string res ; res.reserve(N<Dflag>) ;
 		for( Dflag df : All<Dflag> ) res.push_back( dflags[df] ? DflagChars[+df] : '-' ) ;
 		return res ;
+	}
+
+	//
+	// Deps
+	//
+
+	::ostream& operator<<( ::ostream& os , DepsIter::Digest const& did ) {
+		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
+	}
+
+	::ostream& operator<<( ::ostream& os , Deps const& ds ) {
+		return os << c_vector_view<Dep>(ds) ;
+	}
+
+	static void _append_dep( ::vector<Dep>& deps , Dep const& dep , size_t& hole ) {
+		bool can_compress = !dep.is_date && +dep.accesses && dep.crc()==Crc::None && !dep.dflags && !dep.parallel ;
+		if (hole==Npos) {
+			if (can_compress) {                                                                       // create new open chunk
+				/**/ hole                                        = deps.size()         ;
+				Dep& hdr                                         = deps.emplace_back() ;
+				/**/ hdr.sz                                      = 1                   ;
+				/**/ hdr.chunk_accesses                          = dep.accesses        ;
+				/**/ static_cast<Node*>(&deps.emplace_back())[0] = dep                 ;
+			} else {                                                                                  // create a chunk just for dep
+				deps.push_back(dep) ;
+			}
+		} else {
+			Dep& hdr = deps[hole] ;
+			if ( can_compress && dep.accesses==hdr.chunk_accesses && hdr.sz<lsb_msk(Dep::NSzBits) ) { // append dep to open chunk
+				uint8_t i = hdr.sz%Dep::NodesPerDep ;
+				if (i==0) deps.emplace_back() ;
+				static_cast<Node*>(&deps.back())[i] = dep ;
+				hdr.sz++ ;
+			} else {                                                                                  // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
+				uint8_t  sz                 = hdr.sz             ;
+				Accesses chunk_accesses     = hdr.chunk_accesses ;
+				/**/     hdr                = dep                ;
+				/**/     hdr.sz             = sz                 ;
+				/**/     hdr.chunk_accesses = chunk_accesses     ;
+				/**/     hole               = Npos               ;
+			}
+		}
+	}
+	static void _fill_hole(Dep& hdr) {
+		SWEAR(hdr.sz!=0) ;
+		uint8_t  sz                 = hdr.sz-1           ;
+		Accesses chunk_accesses     = hdr.chunk_accesses ;
+		/**/     hdr                = { static_cast<Node*>(&hdr+1)[sz] , hdr.chunk_accesses , Crc::None } ;
+		/**/     hdr.sz             = sz                 ;
+		/**/     hdr.chunk_accesses = chunk_accesses     ;
+	}
+	static void _fill_hole( ::vector<Dep>& deps , size_t hole ) {
+		if (hole==Npos) return ;
+		Dep& d = deps[hole] ;
+		_fill_hole(d) ;
+		if (d.sz%Dep::NodesPerDep==0) deps.pop_back() ;
+	}
+
+	Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
+		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                          // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t        hole = Npos ;
+		for( auto const& [d,df] : deps ) _append_dep( ds , {d,accesses,df,parallel} , hole ) ;
+		_fill_hole(ds,hole) ;
+		*this = {ds} ;
+	}
+
+	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
+		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                                      // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t        hole = Npos ;
+		for( auto const& d : deps ) _append_dep( ds , {d,accesses,dflags,parallel} , hole ) ;
+		_fill_hole(ds,hole) ;
+		*this = {ds} ;
+	}
+
+	void Deps::assign(::vector<Dep> const& deps) {
+		::vector<Dep> ds   ;        ds.reserve(deps.size()) ;                                      // reserving deps.size() is comfortable and guarantees no reallocaiton
+		size_t        hole = Npos ;
+		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
+		_fill_hole(ds,hole) ;
+		DepsBase::assign(ds) ;
+	}
+
+	void Deps::replace_tail( DepsIter it , ::vector<Dep> const& deps ) {
+		// close current chunk
+		Dep* cur_dep = const_cast<Dep*>(it.hdr) ;
+		if (it.i_chunk!=0) {
+			cur_dep->sz = it.i_chunk ;
+			_fill_hole(*cur_dep) ;
+			cur_dep = &cur_dep->next() ;
+		}
+		// create new tail
+		::vector<Dep> ds ;
+		size_t        hole = Npos ;
+		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
+		_fill_hole(ds,hole) ;
+		// splice it
+		NodeIdx tail_sz = cur_dep-items() ;
+		if (ds.size()<=tail_sz) {
+			for( Dep const& d : ds ) *cur_dep++ = d ;                               // copy all
+			shorten_by(tail_sz-ds.size()) ;                                         // and shorten
+		} else {
+			for( Dep const& d : ::vector_view(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
+			append(::vector_view( &ds[tail_sz] , ds.size()-tail_sz ) ) ;            // and append for the remaining
+		}
 	}
 
 }

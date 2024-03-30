@@ -194,7 +194,7 @@ namespace Engine {
 		void reset() {
 			if (step()>Step::Dep) step(Step::Dep) ;
 			missing_dsk                 = false ;
-			i_dep                       = 0     ;
+			iter                        = {}    ;
 			reasons.first               = {}    ;
 			stamped_err   = proto_err   = {}    ;                        // no errors in dep as no dep analyzed yet
 			stamped_modif = proto_modif = false ;
@@ -215,24 +215,24 @@ namespace Engine {
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
 		::pair<JobReason,JobReason> reasons            ;                 //  36+36<=128 bits, reasons to run job when deps are ready
-		NodeIdx                     i_dep              = 0     ;         // ~20   <= 32 bits, deps up to this one statisfy required action
+		DepsIter::Digest            iter               ;                 // ~28   <= 64 bits, deps up to this one statisfy required action
 		uint8_t                     n_submits          = 0     ;         //           8 bits, number of times job has been submitted to avoid infinite loop
 		bool                        new_cmd         :1 = false ;         //           1 bit , if true <=> cmd has been modified
 		bool                        full            :1 = false ;         //           1 bit , if true <=>, job result is asked, else only makable
 		bool                        missing_dsk     :1 = false ;         //           1 bit , if true <=>, a dep has been checked but not on disk
-		RunStatus                   stamped_err     :2 = {}    ;         //           2 bits, errors seen in dep until i_dep before    last parallel chunk, Maybe means missing static
-		RunStatus                   proto_err       :2 = {}    ;         //           2 bits, errors seen in dep until i_dep including last parallel chunk, Maybe means missing static
-		bool                        stamped_modif   :1 = false ;         //           1 bit , modifs seen in dep until i_dep before    last parallel chunk
-		bool                        proto_modif     :1 = false ;         //           1 bit , modifs seen in dep until i_dep including last parallel chunk
+		RunStatus                   stamped_err     :2 = {}    ;         //           2 bits, errors seen in dep until iter before    last parallel chunk, Maybe means missing static
+		RunStatus                   proto_err       :2 = {}    ;         //           2 bits, errors seen in dep until iter including last parallel chunk, Maybe means missing static
+		bool                        stamped_modif   :1 = false ;         //           1 bit , modifs seen in dep until iter before    last parallel chunk
+		bool                        proto_modif     :1 = false ;         //           1 bit , modifs seen in dep until iter including last parallel chunk
 		bool                        start_reported  :1 = false ;         //           1 bit , if true <=> start message has been reported to user
 		bool                        speculative_deps:1 = false ;         //           1 bit , if true <=> job is waiting for speculative deps only
 		Bool3                       speculate       :2 = Yes   ;         //           2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
 		bool                        reported        :1 = false ;         //           1 bit , used for delayed report when speculating
 		BackendTag                  backend         :2 = {}    ;         //           2 bits
 	private :
-		Step _step :3 = {} ;                                             //       3 bits
+		Step _step :3 = {} ;                                             //           3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==40) ;                              // check expected size
+	static_assert(sizeof(JobReqInfo)==48) ;                              // check expected size
 
 }
 
@@ -311,10 +311,12 @@ namespace Engine {
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                               ) const ;            // thread-safe
+		void     end_exec      (                               ) const ;          // thread-safe
 		::string ancillary_file(AncillaryTag=AncillaryTag::Data) const ;
+		JobInfo  job_info      (                               ) const { return  {                ancillary_file() } ; }
+		void     write_job_info(JobInfo const& ji              ) const { ji.write(Disk::dir_guard(ancillary_file())) ; }
 		::string special_stderr(Node                           ) const ;
-		::string special_stderr(                               ) const ;            // cannot declare a default value for incomplete type Node
+		::string special_stderr(                               ) const ;          // cannot declare a default value for incomplete type Node
 		//
 		void              invalidate_old() ;
 		Rule::SimpleMatch simple_match  () const ;                                  // thread-safe
@@ -348,6 +350,7 @@ namespace Engine {
 		bool/*maybe_new_deps*/ _submit_plain    ( ReqInfo& , JobReason , CoarseDelay pressure ) ;
 		void                   _set_pressure_raw( ReqInfo& ,             CoarseDelay          ) const ;
 		// data
+		// START_OF_VERSIONING
 	public :
 		//Name           name                     ;                                 //     32 bits, inherited
 		Node             asking                   ;                                 //     32 bits,        last target needing this job
@@ -355,13 +358,14 @@ namespace Engine {
 		Deps             deps                     ;                                 // 31<=32 bits, owned
 		Rule             rule                     ;                                 //     16 bits,        can be retrieved from full_name, but would be slower
 		CoarseDelay      exec_time                ;                                 //     16 bits,        for plain jobs
-		ExecGen          exec_gen  :NExecGenBits  = 0     ;                         //   <= 8 bits,        for plain jobs, cmd generation of rule
-		mutable MatchGen match_gen :NMatchGenBits = 0     ;                         //   <= 8 bits,        if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                  = 0     ;                         //   <= 8 bits,        for plain jobs, number of tokens - 1 for eta computation
+		ExecGen          exec_gen  :NExecGenBits  = 0     ;                         //      8 bits,        for plain jobs, cmd generation of rule
+		mutable MatchGen match_gen :NMatchGenBits = 0     ;                         //      8 bits,        if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                  = 0     ;                         //      8 bits,        for plain jobs, number of tokens - 1 for eta computation
 		RunStatus        run_status:3             = {}    ;                         //      3 bits
 		Status           status    :4             = {}    ;                         //      4 bits
 	private :
 		mutable bool     _sure     :1             = false ;                         //      1 bit
+		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(JobData)==24) ;                                            // check expected size
 

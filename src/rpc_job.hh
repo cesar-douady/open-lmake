@@ -405,24 +405,24 @@ template<class B> ::ostream& operator<<( ::ostream& , DepDigestBase<B> const& ) 
 template<class B> struct DepDigestBase : NoVoid<B> {
 	friend ::ostream& operator<< <>( ::ostream& , DepDigestBase const& ) ;
 	using Base = NoVoid<B> ;
-	static constexpr bool HasBase = !::is_same_v<B,void> ;
+	static constexpr bool    HasBase = !::is_same_v<B,void> ;
 	//
 	using Tag   = FileTag     ;
 	using Crc   = Hash::Crc   ;
 	using Ddate = Time::Ddate ;
 	//cxtors & casts
 	constexpr DepDigestBase(                                                           bool p=false ) :                                       parallel{p} { crc     ({}) ; }
-	constexpr DepDigestBase(          Accesses a ,                     Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
-	constexpr DepDigestBase(          Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
-	constexpr DepDigestBase(          Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
-	constexpr DepDigestBase(          Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) :           dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
-	constexpr DepDigestBase( Base b , Accesses a ,                     Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     ({}) ; }
-	constexpr DepDigestBase( Base b , Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc     (c ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { date    (d ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) : Base{b} , dflags(dfs) , accesses{a} , parallel{p} { crc_date(cd) ; }
+	constexpr DepDigestBase(          Accesses a ,                     Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc     ({}) ; }
+	constexpr DepDigestBase(          Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc     (c ) ; }
+	constexpr DepDigestBase(          Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { date    (d ) ; }
+	constexpr DepDigestBase(          Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc_date(cd) ; }
+	constexpr DepDigestBase( Base b , Accesses a ,                     Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc     ({}) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Crc            c  , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc     (c ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Ddate          d  , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { date    (d ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , CrcDate const& cd , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc_date(cd) ; }
 	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
-	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :           dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
-	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , dflags(dd.dflags) , accesses{dd.accesses} , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
+	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :           accesses{dd.accesses} , dflags(dd.dflags) , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
+	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b} , accesses{dd.accesses} , dflags(dd.dflags) , parallel{dd.parallel} , _crc{} { crc_date(dd) ; }
 	//
 	constexpr bool operator==(DepDigestBase const& other) const {
 		if constexpr (HasBase) if (Base::operator!=(other) ) return false              ;
@@ -478,14 +478,17 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		}
 	}
 	// data
-	Dflags   dflags     ;                                                        //   6< 8 bits
-	Accesses accesses   ;                                                        //   3< 8 bits
-	bool     parallel:1 = false ;                                                //      1 bit
-	bool     is_date :1 = false ;                                                //      1 bit
+	static constexpr uint8_t NSzBits = 6 ;
+	Accesses accesses         ;                                                  //   3< 8 bits
+	Dflags   dflags           ;                                                  //   6< 8 bits
+	bool     parallel:1       = false ;                                          //      1 bit
+	bool     is_date :1       = false ;                                          //      1 bit
+	uint8_t  sz      :NSzBits = 0     ;                                          //      6 bits, number of items in chunk following header (semantically before)
+	Accesses chunk_accesses   ;                                                  //   3< 8 bits
 private :
 	union {
-		Crc   _crc  = {} ;                                                       // ~46<64 bits
-		Ddate _date ;                                                            // ~45<64 bits
+		Crc   _crc  = {} ;                                                       // ~45<64 bits
+		Ddate _date ;                                                            // ~40<64 bits
 	} ;
 } ;
 // END_OF_VERSIONING
@@ -591,7 +594,7 @@ struct JobRpcReq {
 	::string  msg         ;           // if proc == Start |                      LiveOut  | Decode | Encode | End
 	::string  file        ;           // if proc ==                                         Decode | Encode
 	::string  ctx         ;           // if proc ==                                         Decode | Encode
-	uint8_t   min_len     ;           // if proc ==                                                  Encode
+	uint8_t   min_len     = 0       ; // if proc ==                                                  Encode
 } ;
 
 struct MatchFlags {
@@ -959,6 +962,18 @@ struct JobInfoEnd {
 	friend ::ostream& operator<<( ::ostream& , JobInfoEnd const& ) ;
 	// data
 	JobRpcReq end = {} ;
+} ;
+
+struct JobInfo {
+	// cxtors & casts
+	JobInfo(                                       ) = default ;
+	JobInfo( ::string const& ancillary_file        ) ;
+	JobInfo( JobInfoStart&& jis , JobInfoEnd&& jie ) : start{::move(jis)} , end{::move(jie)} {}
+	// ervices
+	void write(::string const& filename) const ;
+	// data
+	JobInfoStart start ;
+	JobInfoEnd   end   ;
 } ;
 
 //

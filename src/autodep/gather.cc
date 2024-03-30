@@ -299,8 +299,8 @@ Status Gather::exec_child( ::vector_s const& args , Fd cstdin , Fd cstdout , Fd 
 		return false ;
 	} ;
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if (status==Status::New)   status = status_ ;                                                                               // else there is already another reason
-		if (+msg_              ) { set_nl(msg) ; msg += msg_ ; }
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                                                         // else there is already another reason
+		if ( +msg_                                     ) append_line_to_string(msg,msg_) ;
 	} ;
 	//
 	SWEAR(!slaves) ;

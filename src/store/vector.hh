@@ -72,10 +72,10 @@ namespace Store {
 
 	}
 
-	template<bool AutoLock,class Hdr_,class Idx_,class Item_,class Sz=IntIdx<Idx_>,size_t MinSz=1,size_t LinearSz=16*MinSz> struct VectorFile
-	:	              AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Vector::Chunk<Idx_,Item_,Sz,MinSz>::s_n_items(LinearSz) >
-	{	using Base  = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Vector::Chunk<Idx_,Item_,Sz,MinSz>::s_n_items(LinearSz) > ;
-		using Chunk =                                              Vector::Chunk<Idx_,Item_,Sz,MinSz>                                                             ;
+	template<bool AutoLock,class Hdr_,class Idx_,class Item_,class Sz=IntIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
+	:	              AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa >
+	{	using Base  = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa > ;
+		using Chunk =                                              Vector::Chunk<Idx_,Item_,Sz,MinSz>              ;
 		//
 		using Hdr   = Hdr_  ;
 		using Idx   = Idx_  ;
@@ -171,7 +171,7 @@ namespace Store {
 			IdxSz  new_n = Chunk::s_n_items(chunk.sz+v.size()) ;
 			// reallocate
 			if (new_n>old_n) {
-				::vector<Item> both = mk_vector(view(idx)) ;
+				::vector<Item> both = mk_vector<Item>(view(idx)) ;
 				for( Item const& x : v ) both.emplace_back(x) ;
 				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				/**/   Base::pop    (idx                            ) ;

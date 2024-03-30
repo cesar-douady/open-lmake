@@ -8,9 +8,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	lmake.manifest = (
-		'Lmakefile.py'
-	,)
+	lmake.manifest = ('Lmakefile.py',)
 
 	class Base(PyRule) :
 		stems = {
@@ -66,7 +64,7 @@ else :
 
 	import ut
 
-	ut.lmake( 'chk'   , new=1 , done=7 , may_rerun=2 , rerun=1 , steady=1 )
+	ut.lmake( 'chk'   , new=1 , done=8 , may_rerun=2                      )
 	ut.lmake( 'chk'                                                       ) # ensure up to date
-	ut.lmake( 'chk.w' , new=0 , done=6 , may_rerun=2 , rerun=2 , steady=2 )
+	ut.lmake( 'chk.w' , new=0 , done=7 , may_rerun=2 , rerun=1 , steady=1 )
 	ut.lmake( 'chk.w'                                                     ) # ensure up to date

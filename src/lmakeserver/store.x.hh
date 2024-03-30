@@ -263,20 +263,20 @@ namespace Engine::Persistent {
 
 	//                                           autolock header     index             key       data       misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false  , JobHdr   , Job             ,           JobData                     > ;
-	using DepsFile     = Store::VectorFile      < false  , void     , Deps            ,           Dep      , NodeIdx , 4      > ;
-	using TargetsFile  = Store::VectorFile      < false  , void     , Targets         ,           Target                      > ;
+	using JobFile      = Store::AllocFile       < false , JobHdr   , Job             ,           JobData                     > ;
+	using DepsFile     = Store::VectorFile      < false , void     , Deps            ,           Dep      , NodeIdx , 4      > ; // Deps are compressed when Crc==None
+	using TargetsFile  = Store::VectorFile      < false , void     , Targets         ,           Target                      > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false  , NodeHdr  , Node            ,           NodeData                    > ;
-	using JobTgtsFile  = Store::VectorFile      < false  , void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
+	using NodeFile     = Store::AllocFile       < false , NodeHdr  , Node            ,           NodeData                    > ;
+	using JobTgtsFile  = Store::VectorFile      < false , void     , JobTgts::Vector ,           JobTgt   , RuleIdx          > ;
 	// rules
-	using RuleStrFile  = Store::VectorFile      < false  , void     , RuleStr         ,           char     , uint32_t         > ;
-	using RuleFile     = Store::AllocFile       < false  , MatchGen , Rule            ,           RuleStr                     > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false  , void     , RuleTgts        , RuleTgt , void     , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false  , void     , PsfxIdx         , char    , PsfxIdx  , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
-	using PfxFile      = Store::MultiPrefixFile < false  , void     , PsfxIdx         , char    , RuleTgts , false/*Reverse*/ > ;
+	using RuleStrFile  = Store::VectorFile      < false , void     , RuleStr         ,           char     , uint32_t         > ;
+	using RuleFile     = Store::AllocFile       < false , MatchGen , Rule            ,           RuleStr                     > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< false , void     , RuleTgts        , RuleTgt , void     , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< false , void     , PsfxIdx         , char    , PsfxIdx  , true /*Reverse*/ > ; // map sfxes to root of pfxes, no lock : static
+	using PfxFile      = Store::MultiPrefixFile < false , void     , PsfxIdx         , char    , RuleTgts , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true   , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
+	using NameFile     = Store::SinglePrefixFile< true  , void     , Name            , char    , JobNode                     > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 

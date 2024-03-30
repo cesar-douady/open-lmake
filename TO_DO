@@ -29,14 +29,12 @@ items :
 
 * improve lshow -i
 	- generate info on nodes
-* use Pdate (end of job) rather than Ddate (target date) to detect clash
-	- Ddate are not reliable
-	- ok to detect manual, nothing else
 * manage 32 bits executables
 	- compile ld_audit.so (and co) in both 32 & 64 bits
 	- put adequate $PLATFORM in LD_PRELOAD
 * generate meaningful message in case of I/O error such as disk full
 ! before erasing a dir, check for phony targets, not only files on disk
+	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? mimic slurm killing procedure
 	- use PR_SET_CHILD_SUBREAPER (cf man 2 prctl) to ensure we get all sub-processes
 	- follow process hierarchy
@@ -108,10 +106,9 @@ items :
 	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
 	- generalize tmp mapping
 * implement cache v2 (copy & link) :
-	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level
 	- use link instead of copy
-	- warning : only when mtime is used instead of ctime
+		- for disk level
 ! support direct rebuild of deps
 	- specify a target flag 'direct' for use by pattern
 	- specify a dep    flag 'direct' for dynamic use (through ldepend)
@@ -184,10 +181,6 @@ items :
 		- most importantly sufixes
 		? maybe a pre-pass searching for infix is advisable
 * no req_info for non-buildable nodes
-* make deps be a sequence of non-buildable nodes followed by a buildable node
-	- invent a new concept
-		- deps chain : Job -> NodeSeq -> Node -> Job
-	- store in a prefix file for best sharing and easy retieval
 * there can be 1 backend thread per backend
 	- with one master socket
 	- and everything replicated per backend (including mutexes, tables, etc.)

@@ -805,7 +805,7 @@ $(LMAKE_ENV)/stamp : $(LMAKE_ALL_FILES) $(LMAKE_ENV)/Manifest $(patsubst %,$(LMA
 	@touch $@
 	@echo init $(LMAKE_ENV)-cache
 $(LMAKE_ENV)/tok : $(LMAKE_ENV)/stamp $(LMAKE_ENV)/Lmakefile.py
-	@set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) ; wait $$! ; touch $(@F)
+	@set -e ; cd $(LMAKE_ENV) ; export CC=$(CC) ; $(ROOT_DIR)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; $(ROOT_DIR)/bin/lmake lmake.tar.gz >$(@F) || rm -f $(@F) ; wait $$! || rm -f $(@F)
 
 #
 # archive

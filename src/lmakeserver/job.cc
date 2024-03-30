@@ -40,7 +40,7 @@ namespace Engine {
 			else if (!t.tflags[Tflag::Incremental]) fat = FileActionTag::Unlnk    ;
 			else if ( t.tflags[Tflag::NoUniquify ]) fat = FileActionTag::None     ;
 			else                                    fat = FileActionTag::Uniquify ;
-			FileAction fa { fat , t->crc , t->crc==Crc::None?Ddate():t->date } ;
+			FileAction fa { fat , t->crc , t->date.d } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
@@ -125,7 +125,7 @@ namespace Engine {
 	//
 
 	::ostream& operator<<( ::ostream& os , JobReqInfo const& ri ) {
-		return os<<"JRI(" << ri.req <<','<< (ri.full?"full":"makable") <<','<< ri.speculate <<','<< ri.step()<<':'<<ri.i_dep <<':'<< ri.n_wait <<')' ;
+		return os<<"JRI(" << ri.req <<','<< (ri.full?"full":"makable") <<','<< ri.speculate <<','<< ri.step()<<':'<<ri.iter <<':'<< ri.n_wait <<')' ;
 	}
 
 	//
@@ -352,11 +352,7 @@ namespace Engine {
 		//
 		if ( !lost && status>Status::Early ) { // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			::uset<Node> old_targets ;
-			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) {
-				t->actual_job().clear() ;                                                                // ensure targets we no more generate do not keep pointing to us
-				old_targets.insert(t)   ;
-			}
+			for( Node t : (*this)->targets ) if (t->has_actual_job(*this)) t->actual_job() = {} ;  // ensure targets we no more generate do not keep pointing to us
 			//
 			::vector<Target> targets ; targets.reserve(digest.targets.size()) ;
 			for( auto const& [tn,td] : digest.targets ) {
@@ -366,25 +362,28 @@ namespace Engine {
 				Crc    crc             = td.crc                 ;
 				bool   target_modified = false                  ;
 				//
-				SWEAR( !( tflags[Tflag::Target] && crc==Crc::None && !static_phony ) , tn , td ) ;       // else job_exec should have suppressed the Target flag
+				SWEAR( !( tflags[Tflag::Target] && crc==Crc::None && !static_phony ) , tn , td ) ; // else job_exec should have suppressed the Target flag
 				//
 				target->set_buildable() ;
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-					if ( +start_date.d && target->date>start_date.d && !old_targets.contains(target) ) { // if no start_date.d, job did not execute, it cannot generate a clash
+					if ( +start_date.p && target->date.p>start_date.p ) {                          // if no start_date.p, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
 						// For us, it's ok, we will rerun.
-						// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user, all that is wrong
+						// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user,
+						// and all that is wron.
 						// This is too complex and too rare to detect (and ideally handle).
 						// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
-						if (crc.valid())
-							target_reason |= {JobReasonTag::ClashTarget,+target} ;     // crc is actually unreliable, rerun
-						if ( target->crc.valid() && !target->is_src_anti() ) {         // existing crc was believed to be reliable but actually was not (if no execution, there is no problem)
-							trace("critical_clash",start_date.d,target->date) ;
-							for( Req r : target->reqs() ) {
+						if ( crc.valid() && td.tflags[Tflag::Target] ) {                           // official targets should have a valid crc, but if not, we dont care
+							trace("clash",start_date.p,target->date.p) ;
+							target_reason |= {JobReasonTag::ClashTarget,+target} ;                 // crc is actually unreliable, rerun
+						}
+						if ( target->crc.valid() && target->has_actual_job() && target->actual_tflags()[Tflag::Target] && !target->is_src_anti() ) { // existing crc was believed to be reliable ...
+							trace("critical_clash",start_date.p,target->date.p) ;                                                                    // ... but actually was not (if no execution, ...
+							for( Req r : target->reqs() ) {                                                                                          // ... there is no problem)
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 								target->req_info(r).reset() ;                          // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 							}
@@ -403,8 +402,8 @@ namespace Engine {
 					SourceOk : ;
 					}
 					//
-					target_modified  = target->refresh( crc , crc==Crc::None?end_date.d:td.date ) ;
-					modified        |= target_modified && tflags[Tflag::Target]                   ;
+					target_modified  = target->refresh( crc , { td.date , td.extra_tflags[ExtraTflag::Wash]?start_date.p:end_date.p } ) ;
+					modified        |= target_modified && tflags[Tflag::Target]                                                         ;
 				}
 				if ( crc==Crc::None && !static_phony ) {
 					target->actual_job   () = {}    ;
@@ -419,6 +418,8 @@ namespace Engine {
 					targets.emplace_back( target , tflags ) ;
 					if (td.polluted) target_reason |= {JobReasonTag::PrevTarget,+target} ;
 					trace("target",target,td,STR(target_modified)) ;
+				} else {
+					trace("not_target",target,td) ;
 				}
 			}
 			::sort(targets) ;                                                          // ease search in targets
@@ -521,33 +522,26 @@ namespace Engine {
 		bool update_deps = seen_dep_date && full_ok                                  ; // if full_ok, all deps have been resolved and we can update the record for a more reliable info
 		bool update_msg  = all_done && (+err_reason||+local_msg||+severe_msg)        ; // if recorded local_msg was incomplete, update it
 		if ( update_deps || update_msg ) {
-			::string jaf = (*this)->ancillary_file() ;
-			try {
-				IFStream is{jaf} ;
-				auto report_start = deserialize<JobInfoStart>(is) ;
-				auto report_end   = deserialize<JobInfoEnd  >(is) ;
-				bool updated      = false                         ;
-				if (update_msg) {
-					append_line_to_string( report_end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : local_msg , severe_msg ) ;
-					updated = true ;
-				}
-				if (update_deps) {
-					::vmap_s<DepDigest>& dds =report_end.end.digest.deps ;
-					SWEAR(dds.size()==(*this)->deps.size()) ;
-					for( NodeIdx di=0 ; di<dds.size() ; di++ ) {
-						DepDigest& dd = dds[di].second ;
-						if (!dd.is_date) continue ;
-						dd.crc_date((*this)->deps[di]) ;
+			JobInfo ji      = (*this)->job_info() ;
+			bool    updated = false               ;
+			if (update_msg) {
+				append_line_to_string( ji.end.end.msg , +err_reason ? reason_str(err_reason)+'\n' : local_msg , severe_msg ) ;
+				updated = true ;
+			}
+			if (update_deps) {
+				::vmap_s<DepDigest>& dds = ji.end.end.digest.deps ;
+				NodeIdx              di  = 0                      ;
+				for( Dep const& d : (*this)->deps ) {
+					DepDigest& dd = dds[di].second ;
+					if (dd.is_date) {
+						dd.crc_date(d) ;
 						updated |= !dd.is_date ;                                       // in case of ^C, dep.make may not transform date into crc
 					}
+					di++ ;
 				}
-				if (updated) {
-					OFStream os{jaf} ;
-					serialize(os,report_start) ;
-					serialize(os,report_end  ) ;
-				}
+				SWEAR(di==dds.size()) ;                                                // deps must be coherent between ancillary file and internal info
 			}
-			catch (...) {}                                                             // in case ancillary file cannot be read, dont record and ignore
+			if (updated) (*this)->write_job_info(ji) ;
 		}
 		// as soon as job is done for a req, it is meaningful and justifies to be cached, in practice all reqs agree most of the time
 		if ( full_ok && +cache_none_attrs.key ) {                                      // cache only successful results
@@ -620,10 +614,10 @@ namespace Engine {
 		Trace trace("set_pressure",idx(),ri,pressure) ;
 		Req         req          = ri.req                               ;
 		CoarseDelay dep_pressure = ri.pressure + best_exec_time().first ;
-		switch (ri.step()) { //!                                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			case JobStep::Dep    : for( Dep const& d : deps.subvec(ri.i_dep) ) d->        set_pressure( d->req_info(req) ,                            dep_pressure  ) ; break ;
-			case JobStep::Queued :                                             Backend::s_set_pressure( ri.backend       , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
-			default : ; //!                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		switch (ri.step()) { //!                                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			case JobStep::Dep    : for( DepsIter it{deps,ri.iter }; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,                  dep_pressure  ) ; break ;
+			case JobStep::Queued :                                                          Backend::s_set_pressure( ri.backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
+			default : ; //!                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}
 
@@ -692,7 +686,6 @@ namespace Engine {
 				bool need_run = r.need_run() || ri.reason().need_run() ;
 				return ri.full && care && (need_run||archive) ;
 			} ;
-			Idx n_deps = deps.size() ;
 		RestartAnalysis :                                                                       // restart analysis here when it is discovered we need deps to run the job
 			bool stamped_seen_waiting = false ;
 			bool proto_seen_waiting   = false ;
@@ -703,30 +696,26 @@ namespace Engine {
 			ri.speculative_deps               = false      ;                                    // initially, we are not speculatively waiting
 			ri.stamped_modif = ri.proto_modif = ri.new_cmd ;
 			//
-			for ( auto [cur_i_dep,cur_reason] = ::pair(ri.i_dep,ri.reasons.first) ; SWEAR(cur_i_dep<=n_deps,cur_i_dep,n_deps),true ; cur_i_dep++ ) {
+			JobReason cur_reason = ri.reasons.first ;
+			for ( DepsIter iter {deps,ri.iter} ; true ; iter++ ) {
 				if (!proto_seen_waiting) {
-					ri.i_dep         = cur_i_dep  ;                                             // fast path : info is recorded in ri, next time, restart analysis here
-					ri.reasons.first = cur_reason ;
+					ri.iter          = iter.digest(deps) ;                                      // fast path : info is recorded in ri, next time, restart analysis here
+					ri.reasons.first = cur_reason        ;
 				}
 				//
-				bool       seen_all = cur_i_dep==n_deps                     ;
-				Dep const& dep      = seen_all ? Sentinel : deps[cur_i_dep] ;                   // use empty dep as sentinel
+				bool       seen_all = iter==deps.end()            ;
+				Dep const& dep      = seen_all ? Sentinel : *iter ;                             // use empty dep as sentinel
 				if ( !dep.parallel || seen_all ) {
 					ri.stamped_err   = ri.proto_err   ;                                         // proto become stamped upon sequential dep
 					ri.stamped_modif = ri.proto_modif ;                                         // .
-					if ( critical_modif && !seen_all ) {
-						NodeIdx j = cur_i_dep ;
-						for( NodeIdx i=cur_i_dep ; i<n_deps ; i++ )                             // suppress deps following modified critical one, except keep static deps as no-access
-							if (deps[i].dflags[Dflag::Static]) {
-								Dep& d = deps[j++] ;
-								d          = deps[i] ;
-								d.accesses = {}      ;
-							}
-						if (j!=n_deps) {
-							deps.shorten_by(n_deps-j) ;
-							n_deps   = j             ;
-							seen_all = cur_i_dep==n_deps ;
+					if ( critical_modif && !seen_all ) {                                        // suppress deps following modified critical one, except static deps as no-access
+						::vector<Dep> static_deps ;
+						for( DepsIter it=iter ; it!=deps.end() ; it++ ) if (it->dflags[Dflag::Static]) {
+							static_deps.push_back(*it) ;
+							static_deps.back().accesses = {} ;
 						}
+						deps.replace_tail(iter,static_deps) ;
+						seen_all = !static_deps ;
 					}
 					if ( seen_all || critical_waiting ) break ;
 					stamped_seen_waiting = proto_seen_waiting ;
@@ -864,9 +853,8 @@ namespace Engine {
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
-			IFStream job_stream { ancillary_file() }                                      ;
-			/**/                  deserialize<JobInfoStart>(job_stream)                   ;
-			::string stderr     = deserialize<JobInfoEnd  >(job_stream).end.digest.stderr ;
+			JobInfo         ji     = job_info()               ;
+			::string const& stderr = ji.end.end.digest.stderr ;
 			//
 			if (ja.report!=JobReport::Hit) {                                                 // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 				SWEAR(req->stats.ended(JobReport::Rerun)>0) ;
@@ -935,8 +923,7 @@ namespace Engine {
 				else       return           "frozen file does not exist while not phony\n"                     ;
 			case Special::Infinite : {
 				::string res ;
-				for( Dep const& d : ::c_vector_view(deps.items(),g_config.n_errs(deps.size())) ) append_to_string( res , d->name() , '\n' ) ;
-				if ( g_config.errs_overflow(deps.size())                                       ) append_to_string( res , "..."     , '\n' ) ;
+				for( Dep const& d : deps ) append_to_string( res , d->name() , '\n' ) ;
 				return res ;
 			}
 			default :
@@ -954,31 +941,28 @@ namespace Engine {
 		//
 		switch (special) {
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                                                                                              // only case where we are here without special rule
+				SWEAR(frozen_) ;                                               // only case where we are here without special rule
 				SpecialStep special_step = SpecialStep::Idle        ;
 				Node        worst_target ;
 				Bool3       modified     = No                       ;
 				NfsGuard    nfs_guard    { g_config.reliable_dirs } ;
 				for( Target t : targets ) {
-					::string    tn    = t->name()                         ;
-					FileInfo    fi    { nfs_guard.access(tn) }            ;
-					bool        plain = t->crc.valid() && t->crc.exists() ;
-					SpecialStep ss    = {}/*garbage*/                     ;
-					if ( plain && +fi && fi.date==t->date ) {
+					::string    tn = t->name()              ;
+					FileInfo    fi { nfs_guard.access(tn) } ;
+					SpecialStep ss = {}/*garbage*/          ;
+					if ( t->crc.valid() && fi.date==t->date.d ) {
 						ss = SpecialStep::Idle ;
 					} else {
-						Trace trace("src",fi.date,t->date) ;
-						Crc   crc  { tn , g_config.hash_algo } ;
-						Ddate date = fi.date ;                                                                                                // we cant do much if !fi as we have no date to put here
-						modified |= crc.match(t->crc) ? No : !plain ? Maybe : Yes ;
-						//vvvvvvvvvvvvvvvvvvvvvv
-						t->refresh( crc , date ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^
-						// if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
-						if      (!crc.valid()                                        )                             ss = SpecialStep::Err  ;
-						else if (+fi                                                 )                             ss = SpecialStep::Ok   ;
-						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] )                             ss = SpecialStep::Err  ;
-						else                                                           { t->actual_job().clear() ; ss = SpecialStep::Idle ; } // unlink of a star target is nothing
+						Ddate dd  ;
+						Crc   crc { dd , tn , g_config.hash_algo } ;
+						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
+						Trace trace( "frozen" , t->crc ,"->", crc , t->date ,"->", dd ) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvv
+						t->refresh( crc , {dd,{}} ) ; // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
+						//^^^^^^^^^^^^^^^^^^^^^^^^^
+						if      ( crc!=Crc::None || t.tflags[Tflag::Phony]           )                          ss = SpecialStep::Ok   ;
+						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] )                          ss = SpecialStep::Err  ;
+						else                                                           { t->actual_job() = {} ; ss = SpecialStep::Idle ; } // unlink of a star or side target is nothing
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
@@ -1157,15 +1141,15 @@ namespace Engine {
 	}
 
 	bool/*ok*/ JobData::forget( bool targets_ , bool deps_ ) {
-		Trace trace("Jforget",idx(),STR(targets_),STR(deps_),deps,deps.size()) ;
-		for( Req r : running_reqs() ) { (void)r ; return false ; }               // ensure job is not running
+		Trace trace("Jforget",idx(),STR(targets_),STR(deps_),mk_vector<Dep>(deps)) ;
+		for( Req r : running_reqs() ) { (void)r ; return false ; }                   // ensure job is not running
 		status = Status::New ;
-		fence() ;                                                                // once status is New, we are sure target is not up to date, we can safely modify it
+		fence() ;                                                                    // once status is New, we are sure target is not up to date, we can safely modify it
 		run_status = RunStatus::Ok ;
 		if (deps_) {
-			NodeIdx j = 0 ;
-			for( Dep const& d : deps ) if (d.dflags[Dflag::Static]) deps[j++] = d ;
-			if (j!=deps.size()) deps.shorten_by(deps.size()-j) ;
+			::vector<Dep> static_deps ;
+			for( Dep const& d : deps )  if (d.dflags[Dflag::Static]) static_deps.push_back(d) ;
+			deps.assign(static_deps) ;
 		}
 		if (!rule->is_special()) {
 			exec_gen = 0 ;

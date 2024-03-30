@@ -262,21 +262,30 @@ JobExecRpcReply::JobExecRpcReply( JobRpcReply const& jrr ) {
 }
 
 //
-// JobInfoStart
+// JobInfo
 //
 
 ::ostream& operator<<( ::ostream& os , JobInfoStart const& jis ) {
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
 }
 
-//
-// JobInfoEnd
-//
-
 ::ostream& operator<<( ::ostream& os , JobInfoEnd const& jie ) {
 	return os << "JobInfoEnd(" << jie.end <<')' ;
 }
 
+JobInfo::JobInfo(::string const& filename) {
+	try {
+		IFStream job_stream { filename } ;
+		deserialize(job_stream,start) ;
+		deserialize(job_stream,end  ) ;
+	} catch (...) {}                    // we get what we get
+}
+
+void JobInfo::write(::string const& filename) const {
+	OFStream os{filename} ;
+	serialize(os,start) ;
+	serialize(os,end  ) ;
+}
 //
 // codec
 //

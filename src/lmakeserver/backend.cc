@@ -336,8 +336,8 @@ namespace Backends {
 				,	.stderr = start_msg_err.second
 				} ;
 				trace("early",digest) ;
-				{	OFStream ofs { dir_guard(jaf) } ;
-					serialize( ofs , JobInfoStart({
+				JobInfo ji {
+					{
 						.eta          = eta
 					,	.submit_attrs = ::move(submit_attrs)
 					,	.rsrcs        = rsrcs
@@ -345,9 +345,10 @@ namespace Backends {
 					,	.pre_start    = jrr
 					,	.start        = ::move(reply)
 					,	.stderr       = start_msg_err.second
-					}) ) ;
-					serialize( ofs , JobInfoEnd{ JobRpcReq{JobProc::End,jrr.seq_id,jrr.job,JobDigest(digest)} } ) ;
-				}
+					}
+				,	{	{ JobProc::End , jrr.seq_id , jrr.job , ::copy(digest) } }
+				} ;
+				ji.write(jaf) ;
 				job_exec = { job , reply.addr , file_date(jaf) , New } ;                                                        // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_actions.second) , ""s , ::move(jrr.msg            ) ) ;
@@ -462,7 +463,6 @@ namespace Backends {
 			dep.acquire_crc() ;
 			dd.crc_date(dep) ;
 		}
-		for( auto& [tn,td] : jrr.digest.targets ) if (td.extra_tflags[ExtraTflag::Wash]) td.date = je.start_date.d ; // adjust wash date as start_date was not available in job
 		::string jaf = job->ancillary_file() ;
 		serialize( OFStream(jaf,::ios::app) , JobInfoEnd{jrr} ) ; // /!\ _s_starting_job ensures ancillary file is written by _s_handle_job_start before we append to it
 		job->end_exec() ;
@@ -560,25 +560,22 @@ namespace Backends {
 				status       = _s_release_start_entry(it,hbs) ;
 				trace("handle_job",job,entry,status) ;
 			}
-			{	::string jaf = Job(job)->ancillary_file() ;
-				JobDigest jd { .status=status  } ;
+			{	Job       j  { job            } ;
+				JobDigest jd { .status=status } ;
 				if (status==Status::EarlyLostErr) {                                                          // if we do not retry, record run info
-					JobInfoStart jis {
-						.eta          = eta
-					,	.submit_attrs = submit_attrs
-					,	.rsrcs        = rsrcs
-					,	.host         = conn.host
-					,	.pre_start    { JobProc::None , conn.seq_id , job }
-					,	.start        { JobProc::None                     }
+					JobInfo ji {
+						{	.eta          = eta
+						,	.submit_attrs = submit_attrs
+						,	.rsrcs        = rsrcs
+						,	.host         = conn.host
+						,	.pre_start    { JobProc::None , conn.seq_id , job }
+						,	.start        { JobProc::None                     }
+						}
+					,	{	.end { JobProc::End , conn.seq_id , job , ::copy(jd) , ::copy(lost_report.first) } }
 					} ;
-					JobInfoEnd jie {
-						.end { JobProc::End , conn.seq_id , job , ::copy(jd) , ::copy(lost_report.first) }
-					} ;
-					OFStream os { dir_guard(jaf) } ;
-					serialize( os , jis ) ;
-					serialize( os , jie ) ;
+					j->write_job_info(ji) ;
 				}
-				JobExec je { job , file_date(jaf) , New } ;                                                  // job starts and ends, no host
+				JobExec je { j , file_date(j->ancillary_file()) , New } ;                                    // job starts and ends, no host
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( JobProc::Start , ::copy(je) , false/*report_now*/                                    ) ;
 				g_engine_queue.emplace( JobProc::End   , ::move(je) , ::move(rsrcs) , ::move(jd) , ::move(lost_report.first) ) ;

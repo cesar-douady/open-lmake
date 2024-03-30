@@ -157,10 +157,11 @@ namespace Engine {
 			w                = ::max( w , k.size() ) ;
 			rev_map[d.first] = k                     ;
 		}
-		for( NodeIdx d=0 ; d<job->deps.size() ; d++ ) {
-			Dep const& dep     = job->deps[d]                                                                           ;
-			bool       cdp     = d  >0                && dep           .parallel                                        ;
-			bool       ndp     = d+1<job->deps.size() && job->deps[d+1].parallel                                        ;
+		::vector<bool> parallel ;  for( Dep const& d : job->deps ) parallel.push_back(d.parallel) ; // first pass to count deps as they are compressed and size is not known upfront
+		NodeIdx d      = 0 ;
+		for( Dep const& dep : job->deps ) {
+			bool       cdp     = d  >0               && parallel[d  ]                                                   ;
+			bool       ndp     = d+1<parallel.size() && parallel[d+1]                                                   ;
 			::string   dep_key = dep.dflags[Dflag::Static] ? rev_map.at(dep->name()) : ""s                              ;
 			::string   pfx     = to_string( dep.dflags_str() ,' ', dep.accesses_str() , ' ' , ::setw(w) , dep_key ,' ') ;
 			if      ( !cdp && !ndp ) pfx.push_back(' ' ) ;
@@ -168,6 +169,7 @@ namespace Engine {
 			else if (  cdp &&  ndp ) pfx.push_back('|' ) ;
 			else                     pfx.push_back('\\') ;
 			_send_node( fd , ro , show_deps==Yes , (Maybe&!dep.dflags[Dflag::Required])|hide , pfx , dep , lvl+1 ) ;
+			d++ ;
 		}
 	}
 
@@ -438,13 +440,13 @@ R"({
 		if (!job                   ) throw "no job found"s                                    ;
 		if (job->rule->is_special()) throw to_string("cannot debug ",job->rule->name," jobs") ;
 		//
-		IFStream     job_stream   { job->ancillary_file() } ;
-		JobInfoStart report_start ;
-		JobInfoEnd   report_end   ;
-		try         { deserialize(job_stream,report_start) ; } catch (...) { audit( fd , ro , Color::Err , "no info available" ) ; return false ; }
-		try         { deserialize(job_stream,report_end  ) ; } catch (...) {                                                                      } // we can debug w/o report_end
+		JobInfo job_info = job->job_info() ;
+		if (!job_info.start.start.proc) {
+			audit( fd , ro , Color::Err , "no info available" ) ;
+			return false ;
+		}
 		//
-		JobRpcReply const& start       = report_start.start                      ;
+		JobRpcReply const& start       = job_info.start.start                    ;
 		bool               redirected  = +start.stdin || +start.stdout           ;
 		::string           dbg_dir     = job->ancillary_file(AncillaryTag::Dbg)  ;
 		::string           script_file = dbg_dir+"/script"                       ;
@@ -457,12 +459,12 @@ R"({
 		,	"coolchyni.beyond-debug"
 		} ;
 		//
-		::string script = _mk_script( job , ro.flags , report_start , report_end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
-		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,              dbg_dir , redirected                ) ;
-		::string vscode = _mk_vscode( job ,            report_start , report_end , dbg_dir ,                    vs_ext ) ;
+		::string script = _mk_script( job , ro.flags , job_info.start , job_info.end , dbg_dir , true/*with_cmd*/ , vs_ext ) ;
+		::string cmd    = _mk_cmd   ( job , ro.flags , start        ,                  dbg_dir , redirected                ) ;
+		::string vscode = _mk_vscode( job ,            job_info.start , job_info.end , dbg_dir ,                    vs_ext ) ;
 		//
-		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ;                                                            // make executable
-		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ;                                                            // .
+		OFStream(dir_guard(script_file)) << script ; ::chmod(script_file.c_str(),0755) ; // make executable
+		OFStream(dir_guard(cmd_file   )) << cmd    ; ::chmod(cmd_file   .c_str(),0755) ; // .
 		OFStream(dir_guard(vscode_file)) << vscode ;
 		//
 		audit( fd , ro , script_file , true/*as_is*/ ) ;
@@ -506,16 +508,11 @@ R"({
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
 		Rule             rule         = job->rule                  ;
-		IFStream         job_stream   { job->ancillary_file() }    ;
-		JobInfoStart     report_start ;
-		JobInfoEnd       report_end   ;
+		JobInfo          job_info     = job->job_info()            ;
 		bool             has_start    = false                      ;
 		bool             has_end      = false                      ;
 		bool             verbose      = ro.flags[ReqFlag::Verbose] ;
-		JobDigest const& digest       = report_end.end.digest      ;
-		try { deserialize(job_stream,report_start) ; has_start = true ; } catch (...) { goto Go ; }
-		try { deserialize(job_stream,report_end  ) ; has_end   = true ; } catch (...) { goto Go ; }
-	Go :
+		JobDigest const& digest       = job_info.end.end.digest    ;
 		switch (ro.key) {
 			case ReqKey::Cmd        :
 			case ReqKey::Env        :
@@ -538,8 +535,8 @@ R"({
 						break ;
 					DF}
 				} else {
-					JobRpcReq   const& pre_start  = report_start.pre_start        ;
-					JobRpcReply const& start      = report_start.start            ;
+					JobRpcReq   const& pre_start  = job_info.start.pre_start      ;
+					JobRpcReply const& start      = job_info.start.start          ;
 					bool               redirected = +start.stdin || +start.stdout ;
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
@@ -547,14 +544,14 @@ R"({
 					switch (ro.key) {
 						case ReqKey::Env : {
 							if (!has_start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							::vmap_ss env = _mk_env(start.env,report_end.end.dynamic_env) ;
+							::vmap_ss env = _mk_env(start.env,job_info.end.end.dynamic_env) ;
 							size_t    w   = 0                                   ;
 							for( auto const& [k,v] : env ) w = ::max(w,k.size()) ;
 							for( auto const& [k,v] : env ) audit( fd , ro , to_string(::setw(w),k," : ",v) , true/*as_is*/ , lvl ) ;
 						} break ;
-						case ReqKey::ExecScript : //!                                                                                                                       as_is
-							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                                              , true , lvl ) ;
-							else            audit( fd , ro ,              _mk_script(job,ro.flags,report_start,report_end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
+						case ReqKey::ExecScript : //!                                                                                                                           as_is
+							if (!has_start) audit( fd , ro , Color::Err , "no info available"                                                                                  , true , lvl ) ;
+							else            audit( fd , ro ,              _mk_script(job,ro.flags,job_info.start,job_info.end,ro.flag_args[+ReqFlag::Debug],false/*with_cmd*/) , true , lvl ) ;
 						break ;
 						case ReqKey::Cmd : { //!                                                                     as_is
 							if (!has_start) audit( fd , ro , Color::Err , "no info available"                       , true , lvl ) ;
@@ -571,9 +568,9 @@ R"({
 							if (has_start) {
 								if (verbose) audit( fd , ro , Color::Note , pre_start.msg  , false/*as_is*/  , lvl+1 ) ;
 							}
-							if (has_end) { //!                                                   as_is
-								if (verbose) audit( fd , ro , Color::Note , report_end.end.msg , false , lvl+1 ) ;
-								/**/         audit( fd , ro ,               digest.stderr      , true  , lvl+1 ) ;
+							if (has_end) { //!                                                     as_is
+								if (verbose) audit( fd , ro , Color::Note , job_info.end.end.msg , false , lvl+1 ) ;
+								/**/         audit( fd , ro ,               digest.stderr        , true  , lvl+1 ) ;
 							}
 						break ;
 						case ReqKey::Info : {
@@ -611,7 +608,7 @@ R"({
 								else            push_entry("required by",localize(mk_file(    n         ->name()),ro.startup_dir_s)) ;
 							}
 							if (has_start) {
-								JobInfoStart const& rs       = report_start                                     ;
+								JobInfoStart const& rs       = job_info.start                                   ;
 								SubmitAttrs  const& sa       = rs.submit_attrs                                  ;
 								::string            cwd      = rs.start.cwd_s.substr(0,rs.start.cwd_s.size()-1) ;
 								::string            tmp_dir  = rs.start.autodep_env.tmp_dir                     ;
@@ -641,7 +638,7 @@ R"({
 								if (sa.tag!=BackendTag::Local        ) push_entry("backend"    ,snake_str(sa.tag)                          ) ;
 							}
 							//
-							::map_ss allocated_rsrcs = mk_map(report_start.rsrcs        ) ;
+							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
 							::map_ss required_rsrcs  ;
 							try {
 								Rule::SimpleMatch match ;
@@ -669,9 +666,9 @@ R"({
 								}
 							}
 							//
-							if (+report_start.pre_start.msg) push_entry("start message",localize(report_start.pre_start.msg,ro.startup_dir_s)               ) ;
-							if (+report_start.stderr       ) push_entry("start stderr" ,report_start.stderr                                  ,Color::Warning) ;
-							if (+report_end.end.msg        ) push_entry("message"      ,localize(report_end.end        .msg,ro.startup_dir_s)               ) ;
+							if (+job_info.start.pre_start.msg) push_entry("start message",localize(job_info.start.pre_start.msg,ro.startup_dir_s)               ) ;
+							if (+job_info.start.stderr       ) push_entry("start stderr" ,job_info.start.stderr                                  ,Color::Warning) ;
+							if (+job_info.end.end.msg        ) push_entry("message"      ,localize(job_info.end.end        .msg,ro.startup_dir_s)               ) ;
 							// generate output
 							if (porcelaine) {
 								auto audit_rsrcs = [&]( ::string const& k , ::map_ss const& rsrcs , bool allocated )->void {

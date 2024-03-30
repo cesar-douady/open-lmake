@@ -173,6 +173,10 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , ::string&& c ) : Solve{r,::move(
 	if (file_loc==FileLoc::Repo) r._report_guard( ::move(real) ,                         ::move(c) ) ;
 }
 
+// note : in case the file is open WR_ONLY w/o O_TRUNC, it is true that the final content depends on the initial content.
+// However :
+// - if it is an official target, it is not a dep, whether you declare reading it or not
+// - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
 static bool _do_stat (int flags) { return flags&O_PATH                                                        ; }
 static bool _do_read (int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_WRONLY && !(flags&O_TRUNC) ; }
 static bool _do_write(int flags) { return !_do_stat(flags) && (flags&O_ACCMODE)!=O_RDONLY                     ; }

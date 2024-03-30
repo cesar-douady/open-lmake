@@ -96,19 +96,15 @@ int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
 	app_init() ;
 	//
-	IFStream job_stream{argv[1]} ;
-	try {
-		auto report_start = deserialize<JobInfoStart>(job_stream) ;
-		::cout << "eta  : " << report_start.eta                  <<'\n' ;
-		::cout << "host : " << SockFd::s_host(report_start.host) <<'\n' ;
-		print_submit_attrs(report_start.submit_attrs) ;
-		::cout << "rsrcs :\n" ; _print_map(report_start.rsrcs) ;
-		print_pre_start   (report_start.pre_start   ) ;
-		print_start       (report_start.start       ) ;
-	} catch(...) {}
-	try {
-		auto report_end = deserialize<JobInfoEnd>(job_stream) ;
-		print_end(report_end.end) ;
-	} catch(...) {}
+	JobInfo job_info { argv[1] } ;
+	//
+	::cout << "eta  : " << job_info.start.eta                  <<'\n' ;
+	::cout << "host : " << SockFd::s_host(job_info.start.host) <<'\n' ;
+	print_submit_attrs(job_info.start.submit_attrs) ;
+	::cout << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
+	print_pre_start   (job_info.start.pre_start   ) ;
+	print_start       (job_info.start.start       ) ;
+	//
+	print_end(job_info.end.end) ;
 	return 0 ;
 }

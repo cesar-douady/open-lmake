@@ -272,28 +272,24 @@ namespace Caches {
 		::vector_s  copied ;
 		Trace trace("DirCache::download",job,id,jn) ;
 		try {
-			JobInfoStart report_start ;
-			JobInfoEnd   report_end   ;
-			{	LockedFd lock { dfd , false/*exclusive*/ }      ;                                   // because we read the data , shared is ok
-				IFStream is   { to_string(dir,'/',jn,"/data") } ;
-				deserialize(is,report_start) ;
-				deserialize(is,report_end  ) ;
+			JobInfo job_info ;
+			{	LockedFd lock { dfd , false/*exclusive*/ } ;                                        // because we read the data , shared is ok
+				job_info = { to_string(dir,'/',jn,"/data") } ;
 				// update some info
-				report_start.pre_start.job = +job ;                                                 // id is not stored in cache
-				report_start.submit_attrs.reason = reason ;
+				job_info.start.pre_start.job       = +job   ;                                       // id is not stored in cache
+				job_info.start.submit_attrs.reason = reason ;
 				//
-				for( NodeIdx ti=0 ; ti<report_end.end.digest.targets.size() ; ti++ ) {
-					auto&           entry = report_end.end.digest.targets[ti] ;
-					::string const& tn    = entry.first                       ;
+				for( NodeIdx ti=0 ; ti<job_info.end.end.digest.targets.size() ; ti++ ) {
+					auto&           entry = job_info.end.end.digest.targets[ti] ;
+					::string const& tn    = entry.first                         ;
 					copied.push_back(tn) ;
 					nfs_guard.change(tn) ;
 					_copy( dfd , to_string(ti) , tn , true/*unlnk_dst*/ , false/*mk_read_only*/ ) ;
 					entry.second.date = file_date(tn) ;                                             // target date is not stored in cache
 				}
+				job_info.end.end.digest.end_date = New ;                                            // date must be after files are copied
 				copied.push_back(job->ancillary_file()) ;
-				OFStream os { dir_guard(copied.back()) } ;
-				serialize(os,report_start) ;
-				serialize(os,report_end  ) ;
+				job_info.write(dir_guard(copied.back())) ;
 			}
 			// ensure we take a single lock at a time to avoid deadlocks
 			// upload is the only one to take several locks
@@ -302,7 +298,7 @@ namespace Caches {
 				_lru_first(jn,sz_) ;
 				trace("done",sz_) ;
 			}
-			return report_end.end.digest ;
+			return job_info.end.end.digest ;
 		} catch(::string const& e) {
 			for( ::string const& f : copied ) unlnk(f) ;                                            // clean up partial job
 			trace("failed") ;
@@ -314,38 +310,34 @@ namespace Caches {
 		::string jn = _unique_name(job,repo) ;
 		Trace trace("DirCache::upload",job,jn) ;
 		//
-		JobInfoStart report_start ;
-		JobInfoEnd   report_end   ;
-		try {
-			IFStream is { job->ancillary_file() } ;
-			deserialize(is,report_start) ;
-			deserialize(is,report_end  ) ;
-		} catch (::string const& e) {
-			trace("no_ancillary_file",e) ;
+		JobInfo job_info = job->job_info() ;
+		if (!job_info.end.end.proc) {                                     // we need a full report to cache job
+			trace("no_ancillary_file") ;
 			return false/*ok*/ ;
 		}
 		// remove useless info
-		report_start.pre_start.seq_id    = 0  ;                                                      // no seq_id   since no execution
-		report_start.start    .small_id  = 0  ;                                                      // no small_id since no execution
-		report_start.pre_start.job       = 0  ;                                                      // job_id may not be the same in the destination repo
-		report_start.eta                 = {} ;                                                      // dont care about timing info in cache
-		report_start.submit_attrs.reason = {} ;                                                      // cache does not care about original reason
-		report_start.rsrcs.clear() ;                                                                 // caching resources is meaningless as they have no impact on content
-		for( auto& [tn,td] : report_end.end.digest.targets ) {
-			SWEAR(!td.polluted) ; // cannot be a candidate for upload as this must have failed
+		job_info.start.pre_start.seq_id    = 0  ;                         // no seq_id   since no execution
+		job_info.start.start    .small_id  = 0  ;                         // no small_id since no execution
+		job_info.start.pre_start.job       = 0  ;                         // job_id may not be the same in the destination repo
+		job_info.start.eta                 = {} ;                         // dont care about timing info in cache
+		job_info.start.submit_attrs.reason = {} ;                         // cache does not care about original reason
+		job_info.start.rsrcs.clear() ;                                    // caching resources is meaningless as they have no impact on content
+		for( auto& [tn,td] : job_info.end.end.digest.targets ) {
+			SWEAR(!td.polluted) ;                                         // cannot be a candidate for upload as this must have failed
 			td.date.clear() ;
 			td.extra_tflags = {} ;
 		}
+		job_info.end.end.digest.end_date = {} ;
 		// check deps
-		for( auto const& [dn,dd] : report_end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
+		for( auto const& [dn,dd] : job_info.end.end.digest.deps ) if (dd.is_date) return false/*ok*/ ;
 		//
 		mkdir(dir_fd,jn) ;
 		AutoCloseFd dfd = open_read(dir_fd,jn) ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
-		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                                               // because we manipulate LRU and because we take several locks, need exclusive
-		LockedFd lock { dfd    , true/*exclusive*/ } ;                                               // because we write the data , need exclusive
+		LockedFd lock2{ dir_fd , true/*exclusive*/ } ;                    // because we manipulate LRU and because we take several locks, need exclusive
+		LockedFd lock { dfd    , true/*exclusive*/ } ;                    // because we write the data , need exclusive
 		//
 		Sz old_sz = _lru_remove(jn) ;
 		Sz new_sz = 0               ;
@@ -356,8 +348,10 @@ namespace Caches {
 			// store meta-data
 			::string data_file = to_string(dir,'/',jn,"/data") ;
 			::string deps_file = to_string(dir,'/',jn,"/deps") ;
-			{ OFStream os { data_file } ; serialize(os,report_start) ; serialize(os,report_end) ; }
-			{ OFStream os { deps_file } ; serialize(os,report_end.end.digest.deps) ;              }  // store deps in a compact format so that matching is fast
+			//
+			job_info.write(data_file) ;
+			serialize(OFStream(deps_file),job_info.end.end.digest.deps) ; // store deps in a compact format so that matching is fast
+			//
 			/**/                                       new_sz += FileInfo(data_file           ).sz ;
 			/**/                                       new_sz += FileInfo(deps_file           ).sz ;
 			for( auto const& [tn,_] : digest.targets ) new_sz += FileInfo(nfs_guard.access(tn)).sz ;
@@ -367,8 +361,8 @@ namespace Caches {
 				_copy( digest.targets[ti].first , dfd , to_string(ti) , false/*unlnk_dst*/ , true/*mk_read_only*/ ) ;
 		} catch (::string const& e) {
 			trace("failed",e) ;
-			unlnk_inside(dfd) ;                                                                      // clean up in case of partial execution
-			_mk_room( made_room?new_sz:old_sz , 0 ) ;                                                // finally, we did not populate the entry
+			unlnk_inside(dfd) ;                                           // clean up in case of partial execution
+			_mk_room( made_room?new_sz:old_sz , 0 ) ;                     // finally, we did not populate the entry
 			return false/*ok*/ ;
 		}
 		_lru_first(jn,new_sz) ;

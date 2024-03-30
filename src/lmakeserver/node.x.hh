@@ -151,9 +151,12 @@ namespace Engine {
 	struct Dep : DepDigestBase<Node> {
 		friend ::ostream& operator<<( ::ostream& , Dep const& ) ;
 		using Base = DepDigestBase<Node> ;
+		static const uint8_t NodesPerDep ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
+		Dep const& next() const { return *(this+1+div_up(sz,NodesPerDep)) ; }
+		Dep      & next()       { return *(this+1+div_up(sz,NodesPerDep)) ; }
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
 		// services
@@ -161,10 +164,56 @@ namespace Engine {
 		void acquire_crc() ;
 	} ;
 	static_assert(sizeof(Dep)==16) ;
+	inline constexpr uint8_t Dep::NodesPerDep = sizeof(Dep)/sizeof(Node) ; static_assert(sizeof(Dep)%sizeof(Node)==0) ;
 
 	//
 	// Deps
 	//
+
+	struct DepsIter {
+		struct Digest {
+			friend ::ostream& operator<<( ::ostream& , Digest const& ) ;
+			NodeIdx hdr     = 0 ;
+			uint8_t i_chunk = 0 ;
+		} ;
+		// cxtors & casts
+		DepsIter(                     ) = default ;
+		DepsIter( DepsIter const& dit ) : hdr{dit.hdr} , i_chunk{dit.i_chunk} {}
+		DepsIter( Dep const* d        ) : hdr{d      }                        {}
+		DepsIter( Deps , Digest       ) ;
+		//
+		DepsIter& operator=(DepsIter const& dit) {
+			hdr     = dit.hdr     ;
+			i_chunk = dit.i_chunk ;
+			return *this ;
+		}
+		// accesses
+		bool operator==(DepsIter const& dit) const { return hdr==dit.hdr && i_chunk==dit.i_chunk ; }
+		Digest digest  (Deps               ) const ;
+		// services
+		Dep const* operator->() const { return &**this ; }
+		Dep const& operator* () const {
+			if (i_chunk==hdr->sz) return *hdr ;
+			static_cast<Node&>(tmpl) = static_cast<Node const*>(hdr+1)[i_chunk] ;
+			tmpl.accesses            = hdr->chunk_accesses                      ;
+			return tmpl ;
+		}
+		DepsIter& operator++(int) { return ++*this ; }
+		DepsIter& operator++(   ) {
+			if (i_chunk==hdr->sz) {                                               // go to next chunk
+				/**/         i_chunk = 0                                        ; // Node's in chunk are semanticly located before header
+				/**/         hdr     = &hdr->next()                             ;
+				if (hdr->sz) tmpl    = { hdr->chunk_accesses , Crc::None , {} } ; // prepare tmpl when first accessing it (assumes sequential access)
+			} else {                                                              // go to next item in chunk
+				i_chunk++ ;
+			}
+			return *this ;
+		}
+		// data
+		Dep const*  hdr     = nullptr        ;                                    // pointer to current chunk header
+		uint8_t     i_chunk = 0              ;                                    // current index in chunk
+		mutable Dep tmpl    = {{},Crc::None} ;                                    // template to store uncompressed Dep's
+	} ;
 
 	struct Deps : DepsBase {
 		friend ::ostream& operator<<( ::ostream& , Deps const& ) ;
@@ -172,6 +221,21 @@ namespace Engine {
 		using DepsBase::DepsBase ;
 		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel ) ;
 		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel ) ;
+		// accesses
+		Dep const& operator[](size_t i) const = delete ; // deps are compressed, cannot do random accesses
+		Dep      & operator[](size_t i)       = delete ; // .
+		NodeIdx    size      (        ) const = delete ; // .
+		// services
+		DepsIter begin() const {
+			Dep const* first = items() ;
+			return {first} ;
+		}
+		DepsIter end() const {
+			Dep const* last1 = items()+DepsBase::size() ;
+			return {last1} ;
+		}
+		void assign      (            ::vector<Dep> const& ) ;
+		void replace_tail( DepsIter , ::vector<Dep> const& ) ;
 	} ;
 
 }
@@ -218,12 +282,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                                      // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                  // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData(                                          ) = delete ;                                                                          // if necessary, we must take care of the union
+		NodeData(                                          ) = delete ;      // if necessary, we must take care of the union
 		NodeData( Name n , bool no_dir , bool locked=false ) : DataBase{n} {
 			if (!no_dir) dir() = Node(_dir_name(),false/*no_dir*/,locked) ;
 		}
@@ -254,10 +318,17 @@ namespace Engine {
 		Codec::Code      & codec_code   ()       { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
 		Codec::Code const& codec_code   () const { SWEAR( is_encode() , buildable ) ; return _if_encode.code       ; }
 		//
+		bool newer   (            FullDate const& fd ) const { return crc==Crc::None ? date.p>fd.p : date.d>fd.d ; }
+		void crc_date( Crc crc_ , FullDate const& fd ) {
+			crc  = {}   ; fence() ;                                          // ensure crc is never associated with a wrong date, even in case of crash
+			date = fd   ; fence() ;                                          // .
+			crc  = crc_ ;
+		}
+		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                           // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;       // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -370,8 +441,8 @@ namespace Engine {
 		//
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
-		bool/*modified*/ refresh( Crc , Ddate={} ) ;
-		void             refresh(                ) ;
+		bool/*modified*/ refresh( Crc , FullDate const& ={} ) ;
+		void             refresh(                           ) ;
 	private :
 		void         _set_buildable_raw( Req      , DepDepth                         ) ;        // req is for error reporting only
 		bool/*done*/ _make_pre         ( ReqInfo&                                    ) ;
@@ -388,38 +459,40 @@ namespace Engine {
 		//
 		void _set_match_gen(bool ok) ;
 		// data
+		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			Node     dir        ;                                //  31<=32 bits, shared
-			JobTgts  job_tgts   ;                                //      32 bits, owned , ordered by prio, valid if match_ok
-			RuleTgts rule_tgts  ;                                // ~20<=32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			Job      actual_job ;                                //  31<=32 bits, shared, job that generated node
+			Node     dir        ;                                //  31   < 32 bits, shared
+			JobTgts  job_tgts   ;                                //         32 bits, owned , ordered by prio, valid if match_ok
+			RuleTgts rule_tgts  ;                                // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			Job      actual_job ;                                //  31   < 32 bits, shared, job that generated node
 		} ;
 		struct IfDecode {
-			Codec::Val val ;                                     //      32 bits,         offset in association file where the association line can be found
+			Codec::Val val ;                                     //         32 bits,         offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Codec::Code code ;                                   //      32 bits,         offset in association file where the association line can be found
+			Codec::Code code ;                                   //         32 bits,         offset in association file where the association line can be found
 		} ;
-		//Name  name   ;                                         //      32 bits, inherited
-		Watcher asking ;                                         //      32 bits,         last watcher needing this node
-		Crc     crc    = Crc::None ;                             // ~45<=64 bits,         disk file CRC when file's mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second.
-		Ddate   date   ;                                         // ~40<=64 bits,         deemed mtime (in ns) or when it was known non-existent. 40 bits : lifetime=30 years @ 1ms resolution
+		//Name   name   ;                                        //         32 bits, inherited
+		Watcher  asking ;                                        //         32 bits,         last watcher needing this node
+		Crc      crc    = Crc::None ;                            // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		FullDate date   ;                                        // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                           //     128 bits
-			IfDecode _if_decode ;                                //      32 bits
-			IfEncode _if_encode ;                                //      32 bits
+			IfPlain  _if_plain  = {} ;                           //         28 bits
+			IfDecode _if_decode ;                                //         32 bits
+			IfEncode _if_encode ;                                //         32 bits
 		} ;
 	public :
-		MatchGen  match_gen:NMatchGenBits = 0                  ; //       8 bits,         if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		Buildable buildable:4             = Buildable::Unknown ; //       4 bits,         data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		bool      polluted :1             = false              ; //       1 bit ,         if true <=  node was polluted when produced by actual_job
+		MatchGen  match_gen:NMatchGenBits = 0                  ; //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		Buildable buildable:4             = Buildable::Unknown ; //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		bool      polluted :1             = false              ; //          1 bit ,          if true <=  node was polluted when produced by actual_job
 	private :
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //      16 bits,         index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		Tflags  _actual_tflags ;                                 //       8 bits,         tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;         //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                                 //          8 bits,          tflags associated with actual_job
+		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==48) ;                        // check expected size
+	static_assert(sizeof(NodeData)==56) ;                        // check expected size
 
 }
 
@@ -468,20 +541,20 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
-	inline Manual NodeData::manual(Ddate d,bool empty) const {
+	inline Manual NodeData::manual(Ddate dd,bool empty) const {
 		Manual res = {}/*garbage*/ ;
 		if (crc==Crc::None) {
-			if      (!d     ) return Manual::Ok      ;
-			else if (empty  ) res =  Manual::Empty   ;
-			else              res =  Manual::Modif   ;
+			if      (!dd       ) return Manual::Ok      ;
+			else if (empty     ) res =  Manual::Empty   ;
+			else                 res =  Manual::Modif   ;
 		} else {
-			if      (!d     ) res =  Manual::Unlnked ;
-			else if (d==date) return Manual::Ok      ;
-			else if (empty  ) res =  Manual::Empty   ;
-			else                res =  Manual::Modif   ;
+			if      (!dd       ) res =  Manual::Unlnked ;
+			else if (dd==date.d) return Manual::Ok      ;
+			else if (empty     ) res =  Manual::Empty   ;
+			else                 res =  Manual::Modif   ;
 		}
 		//
-		Trace("manual",idx(),d,crc,date,res,STR(empty)) ;
+		Trace("manual",idx(),dd,crc,date,res,STR(empty)) ;
 		return res ;
 	}
 
@@ -524,27 +597,11 @@ namespace Engine {
 	inline void NodeData::refresh() {
 		FileInfo fi = Disk::FileInfo{name()} ;
 		switch (manual(fi)) {
-			case Manual::Ok      :                           break ;
-			case Manual::Unlnked : refresh( Crc::None    ) ; break ;
-			case Manual::Empty   :
-			case Manual::Modif   : refresh( {} , fi.date ) ; break ;
+			case Manual::Ok      :                                      break ;
+			case Manual::Unlnked : refresh( Crc::None  , Pdate(New) ) ; break ;
+			case Manual::Empty   : refresh( Crc::Empty , fi.date    ) ; break ;
+			case Manual::Modif   : refresh( {}         , fi.date    ) ; break ;
 		DF}
-	}
-
-	//
-	// Deps
-	//
-
-	inline Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
-		::vector<Dep> ds ; ds.reserve(deps.size()) ;
-		for( auto const& [d,df] : deps ) { ds.emplace_back( d , accesses , df , parallel ) ; }
-		*this = Deps(ds) ;
-	}
-
-	inline Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
-		::vector<Dep> ds ; ds.reserve(deps.size()) ;
-		for( auto const& d : deps ) ds.emplace_back( d , accesses , dflags , parallel ) ;
-		*this = Deps(ds) ;
 	}
 
 	//
@@ -556,9 +613,18 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if ( is_date && (*this)->crc.valid() && (*this)->crc.exists() && date()==(*this)->date ) crc((*this)->crc) ;
+		if ( is_date && (*this)->crc.valid() && (*this)->crc!=Crc::None && date()==(*this)->date.d ) crc((*this)->crc) ;
 	}
 
+	//
+	// Deps
+	//
+
+	inline DepsIter::DepsIter( Deps ds , Digest d ) : hdr{+ds?ds.items()+d.hdr:nullptr} , i_chunk{d.i_chunk} {}
+
+	inline DepsIter::Digest DepsIter::digest(Deps ds) const {
+		return { hdr?NodeIdx(hdr-ds.items()):0 , i_chunk } ;
+	}
 }
 
 #endif

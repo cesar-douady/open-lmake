@@ -218,47 +218,42 @@ namespace Engine::Persistent {
 		::vector<Rule>   rules    = rule_lst() ;
 		::umap<Crc,Rule> rule_tab ; for( Rule r : Rule::s_lst() ) rule_tab[r->cmd_crc] = r ; SWEAR(rule_tab.size()==rules.size()) ;
 		for( ::string const& jd : walk(from_dir,from_dir) ) {
-			{	IFStream     job_stream   { jd } ;
-				JobInfoStart report_start ;
-				JobInfoEnd   report_end   ;
-				try {
-					deserialize(job_stream,report_start) ;
-					deserialize(job_stream,report_end  ) ;
-				} catch (...) { goto NextJob ; }
+			{	JobInfo job_info { jd } ;
+				if (!job_info.end.end.proc) goto NextJob ;
 				// qualify report
-				if (report_start.pre_start.proc!=JobProc::Start) goto NextJob ;
-				if (report_start.start    .proc!=JobProc::Start) goto NextJob ;
-				if (report_end  .end      .proc!=JobProc::End  ) goto NextJob ;
-				if (report_end  .end.digest.status!=Status::Ok ) goto NextJob ;         // repairing jobs in error is useless
+				if (job_info.start.pre_start.proc!=JobProc::Start) goto NextJob ;
+				if (job_info.start.start    .proc!=JobProc::Start) goto NextJob ;
+				if (job_info.end  .end      .proc!=JobProc::End  ) goto NextJob ;
+				if (job_info.end  .end.digest.status!=Status::Ok ) goto NextJob ;       // repairing jobs in error is useless
 				// find rule
-				auto it = rule_tab.find(report_start.rule_cmd_crc) ;
+				auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
 				if (it==rule_tab.end()) goto NextJob ;                                  // no rule
 				Rule rule = it->second ;
 				// find targets
-				::vector<Target> targets ; targets.reserve(report_end.end.digest.targets.size()) ;
-				for( auto const& [tn,td] : report_end.end.digest.targets ) {
+				::vector<Target> targets ; targets.reserve(job_info.end.end.digest.targets.size()) ;
+				for( auto const& [tn,td] : job_info.end.end.digest.targets ) {
+					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ; // this is not a target
 					if ( !td.crc.valid()                               ) goto NextJob ; // XXX : handle this case
 					if ( td.date!=file_date(tn)                        ) goto NextJob ; // if dates do not match, we will rerun the job anyway, no interest to repair
-					if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue     ; // this is not a target
 					//
 					Node t{tn} ;
-					t->refresh(td.crc,td.date) ;
+					t->refresh( td.crc , {td.date,{}} ) ;                               // if file does not exist, the Epoch as a date is fine
 					targets.emplace_back( t , td.tflags ) ;
 				}
 				::sort(targets) ;                                                       // ease search in targets
 				// find deps
-				::vector<Dep> deps ; deps.reserve(report_end.end.digest.deps.size()) ;
-				for( auto const& [dn,dd] : report_end.end.digest.deps ) {
+				::vector<Dep> deps ; deps.reserve(job_info.end.end.digest.deps.size()) ;
+				for( auto const& [dn,dd] : job_info.end.end.digest.deps ) {
 					Dep dep { Node(dn) , dd } ;
 					if ( dep.is_date                         ) goto NextJob ;           // dep could not be identified when job ran, hum, better not to repair that
 					if ( +dep.accesses && !dep.crc().valid() ) goto NextJob ;           // no valid crc, no interest to repair as job will rerun anyway
 					deps.emplace_back(dep) ;
 				}
 				// set job
-				Job job { {rule,::move(report_start.stems)} } ;
+				Job job { {rule,::move(job_info.start.stems)} } ;
 				job->targets.assign(targets) ;
 				job->deps   .assign(deps   ) ;
-				job->status = report_end.end.digest.status ;
+				job->status = job_info.end.end.digest.status ;
 				job->exec_ok(true) ;                                                    // pretend job just ran
 				// set target actual_job's
 				for( Target t : targets ) {
@@ -266,9 +261,7 @@ namespace Engine::Persistent {
 					t->actual_tflags() = t.tflags ;
 				}
 				// restore job_data
-				OFStream job_data_stream {dir_guard(job->ancillary_file()) } ;
-				serialize(job_data_stream,report_start) ;
-				serialize(job_data_stream,report_end  ) ;
+				job->write_job_info(job_info) ;
 			}
 		NextJob : ;
 		}
