@@ -185,7 +185,8 @@ namespace Engine {
 				default           : return false ;
 			}
 		}
-		bool done(bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
+		bool      done  (bool is_full=false) const { return step()>=Step::Done && (!is_full||full) ; }
+		JobReason reason(                  ) const { return reasons.first | reasons.second ;         }
 		//
 		Step step(      ) const { return _step ; }
 		void step(Step s) ;
@@ -193,7 +194,8 @@ namespace Engine {
 		void reset() {
 			if (step()>Step::Dep) step(Step::Dep) ;
 			missing_dsk                 = false ;
-			dep_lvl                     = 0     ;
+			i_dep                       = 0     ;
+			reasons.first               = {}    ;
 			stamped_err   = proto_err   = {}    ;                        // no errors in dep as no dep analyzed yet
 			stamped_modif = proto_modif = false ;
 		}
@@ -212,25 +214,25 @@ namespace Engine {
 		}
 		// data
 		// req independent (identical for all Req's) : these fields are there as there is no Req-independent non-persistent table
-		JobReason    reason             ;                                //  36<=64 bits, reason to run job when deps are ready
-		NodeIdx      dep_lvl            = 0     ;                        // ~20<=32 bits, deps up to this one statisfy required action
-		uint8_t      n_submits          = 0     ;                        //       8 bits, number of times job has been submitted to avoid infinite loop
-		bool         new_cmd         :1 = false ;                        //       1 bit , if true <=> cmd has been modified
-		bool         full            :1 = false ;                        //       1 bit , if true <=>, job result is asked, else only makable
-		bool         missing_dsk     :1 = false ;                        //       1 bit , if true <=>, a dep has been checked but not on disk
-		RunStatus    stamped_err     :2 = {}    ;                        //       2 bits, errors seen in dep until dep_lvl before    last parallel chunk, Maybe means missing static
-		RunStatus    proto_err       :2 = {}    ;                        //       2 bits, errors seen in dep until dep_lvl including last parallel chunk, Maybe means missing static
-		bool         stamped_modif   :1 = false ;                        //       1 bit , modifs seen in dep until dep_lvl before    last parallel chunk
-		bool         proto_modif     :1 = false ;                        //       1 bit , modifs seen in dep until dep_lvl including last parallel chunk
-		bool         start_reported  :1 = false ;                        //       1 bit , if true <=> start message has been reported to user
-		bool         speculative_deps:1 = false ;                        //       1 bit , if true <=> job is waiting for speculative deps only
-		Bool3        speculate       :2 = Yes   ;                        //       2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
-		bool         reported        :1 = false ;                        //       1 bit , used for delayed report when speculating
-		BackendTag   backend         :2 = {}    ;                        //       2 bits
+		::pair<JobReason,JobReason> reasons            ;                 //  36+36<=128 bits, reasons to run job when deps are ready
+		NodeIdx                     i_dep              = 0     ;         // ~20   <= 32 bits, deps up to this one statisfy required action
+		uint8_t                     n_submits          = 0     ;         //           8 bits, number of times job has been submitted to avoid infinite loop
+		bool                        new_cmd         :1 = false ;         //           1 bit , if true <=> cmd has been modified
+		bool                        full            :1 = false ;         //           1 bit , if true <=>, job result is asked, else only makable
+		bool                        missing_dsk     :1 = false ;         //           1 bit , if true <=>, a dep has been checked but not on disk
+		RunStatus                   stamped_err     :2 = {}    ;         //           2 bits, errors seen in dep until i_dep before    last parallel chunk, Maybe means missing static
+		RunStatus                   proto_err       :2 = {}    ;         //           2 bits, errors seen in dep until i_dep including last parallel chunk, Maybe means missing static
+		bool                        stamped_modif   :1 = false ;         //           1 bit , modifs seen in dep until i_dep before    last parallel chunk
+		bool                        proto_modif     :1 = false ;         //           1 bit , modifs seen in dep until i_dep including last parallel chunk
+		bool                        start_reported  :1 = false ;         //           1 bit , if true <=> start message has been reported to user
+		bool                        speculative_deps:1 = false ;         //           1 bit , if true <=> job is waiting for speculative deps only
+		Bool3                       speculate       :2 = Yes   ;         //           2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool                        reported        :1 = false ;         //           1 bit , used for delayed report when speculating
+		BackendTag                  backend         :2 = {}    ;         //           2 bits
 	private :
 		Step _step :3 = {} ;                                             //       3 bits
 	} ;
-	static_assert(sizeof(JobReqInfo)==32) ;                              // check expected size
+	static_assert(sizeof(JobReqInfo)==40) ;                              // check expected size
 
 }
 

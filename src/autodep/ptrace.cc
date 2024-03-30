@@ -91,18 +91,18 @@ void AutodepPtrace::s_prepare_child() {
 	if (WIFSTOPPED(wstatus)) {
 		int sig   = WSTOPSIG(wstatus) ;
 		int event = wstatus>>16       ;
-		if (sig==(SIGTRAP|0x80)) goto DoSyscall ;                                                    // if HAS_SECCOMP => syscall exit, else syscall enter or exit
+		if (sig==(SIGTRAP|0x80)) goto DoSyscall ;                                        // if HAS_SECCOMP => syscall exit, else syscall enter or exit
 		switch (event) {
 			#if HAS_SECCOMP
-				case PTRACE_EVENT_SECCOMP : SWEAR(!info.on_going) ; goto DoSyscall ;                 // syscall enter
+				case PTRACE_EVENT_SECCOMP : SWEAR(!info.on_going) ; goto DoSyscall ;     // syscall enter
 			#endif
-			case 0  : if (sig==SIGTRAP)         sig = 0 ; goto NextSyscall ;                         // other stop reasons, wash spurious SIGTRAP, ignore
-			default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                         // ignore other events
+			case 0  : if (sig==SIGTRAP)         sig = 0 ; goto NextSyscall ;             // other stop reasons, wash spurious SIGTRAP, ignore
+			default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;             // ignore other events
 		}
 	DoSyscall :
 		{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab(true/*for_ptrace*/) ;
 			sig = 0 ;
-			#if HAS_PTRACE_GET_SYSCALL_INFO                                                          // use portable calls if implemented
+			#if HAS_PTRACE_GET_SYSCALL_INFO                                              // use portable calls if implemented
 				struct ptrace_syscall_info syscall_info ;
 				::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info ) ;
 			#endif
@@ -110,35 +110,35 @@ void AutodepPtrace::s_prepare_child() {
 				#if HAS_PTRACE_GET_SYSCALL_INFO
 					SWEAR( syscall_info.op==(HAS_SECCOMP?PTRACE_SYSCALL_INFO_SECCOMP:PTRACE_SYSCALL_INFO_ENTRY) ) ;
 					#if HAS_SECCOMP
-						auto& entry_info = syscall_info.seccomp ;                                    // access available info upon syscall entry, i.e. seccomp field when seccomp is     used
+						auto& entry_info = syscall_info.seccomp ;                        // access available info upon syscall entry, i.e. seccomp field when seccomp is     used
 					#else
-						auto& entry_info = syscall_info.entry   ;                                    // access available info upon syscall entry, i.e. entry   field when seccomp is not used
+						auto& entry_info = syscall_info.entry   ;                        // access available info upon syscall entry, i.e. entry   field when seccomp is not used
 					#endif
 					int syscall = entry_info.nr ;
 				#else
-					int syscall = np_ptrace_get_syscall(pid) ;                                       // use non-portable calls if portable accesses are not implemented
+					int syscall = np_ptrace_get_nr(pid) ;                           // use non-portable calls if portable accesses are not implemented
 				#endif
 				SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
 				SyscallDescr const& descr = tab[syscall] ;
 				if (HAS_SECCOMP) SWEAR(+descr,"should not be awaken for nothing") ;
 				if (+descr) {
 					info.idx = syscall ;
-					#if HAS_PTRACE_GET_SYSCALL_INFO                                                  // use portable calls if implemented
+					#if HAS_PTRACE_GET_SYSCALL_INFO                                      // use portable calls if implemented
 						// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unesigned long long
 						static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<remove_reference_t<decltype(entry_info.args[0])>> ) ;
 						uint64_t* args = reinterpret_cast<uint64_t*>(entry_info.args) ;
 					#else
-						::array<uint64_t,6> arg_array = np_ptrace_get_args(pid) ;                    // use non-portable calls if portable accesses are not implemented
-						uint64_t *          args      = arg_array.data()        ;                    // we need a variable to hold the data while we pass the pointer
+						::array<uint64_t,6> arg_array = np_ptrace_get_args(pid) ;        // use non-portable calls if portable accesses are not implemented
+						uint64_t *          args      = arg_array.data()        ;        // we need a variable to hold the data while we pass the pointer
 					#endif
-					SWEAR(!info.ctx,syscall) ;                                                       // ensure following SWEAR on info.ctx is pertinent
+					SWEAR(!info.ctx,syscall) ;                                           // ensure following SWEAR on info.ctx is pertinent
 					descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
 					info.has_exit_proc = descr.exit ;
-					if (!info.has_exit_proc) SWEAR(!info.ctx,syscall) ;                              // no need for a context if we are not called at exit
+					if (!info.has_exit_proc) SWEAR(!info.ctx,syscall) ;                  // no need for a context if we are not called at exit
 				} else {
 					info.has_exit_proc = false ;
 				}
-				info.on_going = !HAS_SECCOMP || info.has_exit_proc ;                                 // if using seccomp and we have no exit proc, we skip the syscall-exit
+				info.on_going = !HAS_SECCOMP || info.has_exit_proc ;                     // if using seccomp and we have no exit proc, we skip the syscall-exit
 				if (info.has_exit_proc) goto SyscallExit ;
 				else                    goto NextSyscall ;
 			} else {
@@ -147,14 +147,14 @@ void AutodepPtrace::s_prepare_child() {
 				#endif
 				if (HAS_SECCOMP) SWEAR(info.has_exit_proc,"should not have been stopped on exit") ;
 				if (info.has_exit_proc) {
-					#if HAS_PTRACE_GET_SYSCALL_INFO                                                                         // use portable calls if implemented
+					#if HAS_PTRACE_GET_SYSCALL_INFO                                      // use portable calls if implemented
 						int64_t res = syscall_info.exit.rval ;
 					#else
-						int64_t res = np_ptrace_get_res(pid) ;                                                              // use non-portable calls if portable accesses are not implemented
+						int64_t res = np_ptrace_get_res(pid) ;                           // use non-portable calls if portable accesses are not implemented
 					#endif
 					int64_t new_res = tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
-					if (new_res!=res) FAIL("modified syscall result ",new_res,"!=",res," not yet implemented for ptrace") ; // there is no such cases for now, if it arises, new_res must be reported
-					info.ctx = nullptr ;                                                                                    // ctx is used to retain some info between syscall entry and exit
+					if (new_res!=res) np_ptrace_set_res( pid , new_res ) ;
+					info.ctx = nullptr ;                                                 // ctx is used to retain some info between syscall entry and exit
 				}
 				info.on_going = false ;
 				goto NextSyscall ;
@@ -166,9 +166,9 @@ void AutodepPtrace::s_prepare_child() {
 	SyscallExit :
 		::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig ) ;
 		goto Done ;
-	} else if ( WIFEXITED(wstatus) || WIFSIGNALED(wstatus) ) {                                                              // not sure we are informed that a process exits
+	} else if ( WIFEXITED(wstatus) || WIFSIGNALED(wstatus) ) {                           // not sure we are informed that a process exits
 		if (pid==child_pid) return {true/*done*/,wstatus} ;
-		PidInfo::s_tab.erase(pid) ;                                                                                         // free resources if possible
+		PidInfo::s_tab.erase(pid) ;                                                      // free resources if possible
 	} else {
 		fail("unrecognized wstatus ",wstatus," for pid ",pid) ;
 	}

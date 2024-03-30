@@ -286,17 +286,17 @@ public :
 		Read() = default ;
 		Read( Record& , Path&& , bool no_follow , bool keep_real , bool allow_tmp_map , ::string&& comment ) ;
 	} ;
-	struct Readlnk : Solve {
+	struct Readlink : Solve {
 		// cxtors & casts
-		Readlnk() = default ;
+		Readlink() = default ;
 		// buf and sz are only used when mapping tmp
-		Readlnk( Record&   , Path&&   , char* buf , size_t sz , ::string&& comment ) ;
-		Readlnk( Record& r , Path&& p ,                         ::string&& c       ) : Readlnk{r,::move(p),nullptr/*buf*/,0/*sz*/,::move(c)} {}
+		Readlink( Record& , Path&& , char* buf , size_t sz , ::string&& comment ) ;
 		// services
 		ssize_t operator()( Record& , ssize_t len=0 ) ;
 		// data
-		char*  buf = nullptr/*garbage*/ ;
-		size_t sz  = 0      /*garbage*/ ;
+		char*  buf      = nullptr ;
+		size_t sz       = 0       ;
+		bool   emulated = false   ;                                                                                               // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts
@@ -342,3 +342,9 @@ private :
 	mutable AutoCloseFd _report_fd ;
 	mutable bool        _tmp_cache = false ; // record that tmp usage has been reported, no need to report any further
 } ;
+
+template<bool Writable=false> ::ostream& operator<<( ::ostream& os , Record::_Path<Writable> const& p ) {
+	/**/               os << "Path("      ;
+	if (p.at!=Fd::Cwd) os << p.at   <<',' ;
+	return             os << p.file <<')' ;
+}

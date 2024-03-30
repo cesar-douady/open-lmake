@@ -203,7 +203,7 @@ namespace Engine {
 		}
 		if ( +to_forget || +to_raise ) {
 			(*this)->audit_info( Color::Note , "consider :\n" ) ;
-			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget -d "           , n , 1 ) ;
+			for( Node n : to_forget ) (*this)->audit_node( Color::Note , "lforget - d"           , n , 1 ) ;
 			if (+to_raise)            (*this)->audit_info( Color::Note , "add to Lmakefile.py :" ,     1 ) ;
 			for( Rule r : to_raise  ) (*this)->audit_info( Color::Note , to_string(r->name,".prio = ",r->prio,"+1") , 2 ) ;
 		}

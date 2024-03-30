@@ -24,6 +24,21 @@ if __name__!='__main__' :
 		target = 'b'
 		cmd = 'cat a'
 
+	class C1(Rule) :
+		target = 'c1'
+		dep    = 'c2'
+		cmd    = 'cat'
+
+	class C2(Rule) :
+		target = 'c2'
+		dep    = 'c1'
+		cmd    = 'cat'
+
+	class D(Rule) :
+		target = 'd'
+		dep    = 'd'
+		cmd    = 'cat'
+
 else :
 
 	import subprocess as sp
@@ -31,9 +46,12 @@ else :
 	import ut
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'b' , may_rerun=2 ,          rc=1 )
+	ut.lmake( 'b' , may_rerun=2 , rc=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'b' , steady=0 , rc=1 )                                          # loop is solved, but lmake cant cope with the situation
-	sp.run(('lforget','-d','a'),check=True)                                    # follow recommandation
-	ut.lmake( 'b' , steady=2 , rc=0 )                                          # loop is solved
+	ut.lmake( 'b' , steady=0 , rc=1 )        # loop is solved, but lmake cant cope with the situation
+	sp.run(('lforget','-d','a'),check=True)  # follow recommandation
+	ut.lmake( 'b' , steady=2 , rc=0 )        # loop is solved
+
+	ut.lmake( 'c1' , rc=1 )
+	ut.lmake( 'd'  , rc=1 )

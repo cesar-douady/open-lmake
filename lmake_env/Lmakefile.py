@@ -92,8 +92,8 @@ class Unpack(BaseRule) :
 # it is unacceptable to have a pack inside a pack, as this creates ambiguities
 class AntiPackPack(BaseRule,AntiRule) :
 	targets = {
-		'TAR' : '{Dir}.{DirExt:(patched_)?dir}/{File}.tar.gz'
-	,	'ZIP' : '{Dir}.{DirExt               }/{File}.zip'
+		'TAR' : '{Dir}..dir/{File}.tar.gz'
+	,	'ZIP' : '{Dir}..dir/{File}.zip'
 	}
 
 class Untar(Unpack) :
@@ -133,38 +133,6 @@ class Unzip(Unpack) :
 					print(member.filename,file=manifest)
 					n_files += 1
 		print(f'unzip {n_files} files',file=sys.stderr)
-
-class PatchDir(BaseRule) :
-	targets = {
-		'PATCHED_FILE'     : 'ext/{Dir}.patched_dir/{File*}'
-	,	'PATCHED_MANIFEST' : 'ext/{Dir}.patched_manifest'
-	}
-	deps = {
-		'MANIFEST'     : 'ext/{Dir}.manifest'
-	,	'PATCH_SCRIPT' : 'ext/{Dir}.patch_script'
-	}
-	def cmd() :
-		sdir = f'ext/{Dir}.dir'
-		pdir = f'ext/{Dir}.patched_dir'
-		with open(PATCHED_MANIFEST,'w') as pm :
-			for f in open(MANIFEST).read().splitlines() :
-				src  = f'{sdir}/{f}'
-				dest = f'{pdir}/{f}'
-				dir_guard(dest)
-				open(dest,'w').write(open(src,'r').read())
-				print(f,file=pm)
-		run((osp.abspath(PATCH_SCRIPT),),cwd=pdir,stdin=DEVNULL,stderr=STDOUT,check=True)
-
-class PatchFile(BaseRule) :
-	targets = { 'DST' : 'ext/{DirS}{ File}.patched.{Ext}' }
-	deps = {
-		'SRC'          : 'ext/{DirS}{File}.{Ext}'
-	,	'PATCH_SCRIPT' : 'ext/{DirS}{File}.patch_script'
-	}
-	def cmd() :
-		dir = ('ext/'+DirS)[:-1]
-		open(DST,'w').write(open(SRC,'r').read())
-		run((osp.abspath(PATCH_SCRIPT),File+'.patched.'+Ext),cwd=dir,stdin=DEVNULL,stderr=STDOUT,check=True)
 
 class ConfigH(BaseRule) :
 	targets      = { 'CONFIG_H'   : 'ext/{DirS}config.h'  }

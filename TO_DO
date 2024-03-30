@@ -104,6 +104,9 @@ items :
 * implement a lshow -r to see what is running now and -B to see BOM (list of sources)
 	- implement a generic walk through deps
 	- use it for check_deps, which will prevent jobs post critical deps to be run
+* improve job isolation by using namespaces
+	- much like faketree : https://github.com/enfabrica/enkit/tree/master/faketree
+	- generalize tmp mapping
 * implement cache v2 (copy & link) :
 	- put typeid(StartInfo,EndInfo,...) as version tag to ensure no inter-version clashes
 	- 2 levels : disk level, global level

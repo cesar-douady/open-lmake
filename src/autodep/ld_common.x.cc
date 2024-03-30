@@ -82,20 +82,20 @@ template<class Action,int NP=1> struct AuditAction : Ctx,Action {
 	template<class T> T operator()(T res) { save_errno() ; return Action::operator()(auditer(),res) ; }
 } ;
 //                                         n paths
-using Chdir   = AuditAction<Record::Chdir        > ;
-using Chmod   = AuditAction<Record::Chmod        > ;
-using Hide    = AuditAction<Record::Hide   ,0    > ;
-using Mkdir   = AuditAction<Record::Mkdir        > ;
-using Lnk     = AuditAction<Record::Lnk    ,2    > ;
-using Open    = AuditAction<Record::Open         > ;
-using Read    = AuditAction<Record::Read         > ;
-using Readlnk = AuditAction<Record::Readlnk      > ;
-using Rename  = AuditAction<Record::Rename ,2    > ;
-using Solve   = AuditAction<Record::Solve        > ;
-using Stat    = AuditAction<Record::Stat         > ;
-using Symlnk  = AuditAction<Record::Symlnk       > ;
-using Unlnk   = AuditAction<Record::Unlnk        > ;
-using WSolve  = AuditAction<Record::WSolve       > ;
+using Chdir    = AuditAction<Record::Chdir         > ;
+using Chmod    = AuditAction<Record::Chmod         > ;
+using Hide     = AuditAction<Record::Hide    ,0    > ;
+using Mkdir    = AuditAction<Record::Mkdir         > ;
+using Lnk      = AuditAction<Record::Lnk     ,2    > ;
+using Open     = AuditAction<Record::Open          > ;
+using Read     = AuditAction<Record::Read          > ;
+using Readlink = AuditAction<Record::Readlink      > ;
+using Rename   = AuditAction<Record::Rename  ,2    > ;
+using Solve    = AuditAction<Record::Solve         > ;
+using Stat     = AuditAction<Record::Stat          > ;
+using Symlnk   = AuditAction<Record::Symlnk        > ;
+using Unlnk    = AuditAction<Record::Unlnk         > ;
+using WSolve   = AuditAction<Record::WSolve        > ;
 
 #ifdef LD_PRELOAD
 
@@ -458,14 +458,14 @@ struct Mkstemp : WSolve {
 		// once init phase is passed, we proceed normally
 		ssize_t readlink(CC* p,char* b,size_t sz) NE {
 			if (!started()) return __readlink_chk(p,b,sz,sz) ;
-			HEADER1(readlink,p,(p,b,sz)) ; Readlnk r{p ,b,sz,"readlink"} ; return r(orig(F(r),b,sz)) ;
+			HEADER1(readlink,p,(p,b,sz)) ; Readlink r{p ,b,sz,"readlink"} ; return r(orig(F(r),b,sz)) ;
 		}
 	#else
-		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HEADER1(readlink      ,p,(p,b,sz    )) ; Readlnk r{p ,b,sz,"readlink"       } ; return r(orig(F(r),b,sz    )) ; }
-		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk,p,(p,b,sz,bsz)) ; Readlnk r{p ,b,sz,"__readlink__chk"} ; return r(orig(F(r),b,sz,bsz)) ; }
+		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HEADER1(readlink      ,p,(p,b,sz    )) ; Readlink r{p ,b,sz,"readlink"       } ; return r(orig(F(r),b,sz    )) ; }
+		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlink_chk,p,(p,b,sz,bsz)) ; Readlink r{p ,b,sz,"__readlink__chk"} ; return r(orig(F(r),b,sz,bsz)) ; }
 	#endif
-	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlnk r{{d,p},b,sz,"readlinkat"      } ; return r(orig(P(r),b,sz    )) ; }
-	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlnk r{{d,p},b,sz,"__readlinkat_chk"} ; return r(orig(P(r),b,sz,bsz)) ; }
+	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HEADER1(readlinkat      ,p,(d,p,b,sz    )) ; Readlink r{{d,p},b,sz,"readlinkat"      } ; return r(orig(P(r),b,sz    )) ; }
+	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HEADER1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; Readlink r{{d,p},b,sz,"__readlinkat_chk"} ; return r(orig(P(r),b,sz,bsz)) ; }
 
 	// rename
 	#ifdef RENAME_EXCHANGE

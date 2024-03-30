@@ -304,8 +304,6 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	Trace trace("crc",targets->size(),crcs->size()) ;
 	NodeIdx cnt = 0 ;                                           // cnt is for trace only
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
-trace(ci);
-trace((*crcs)[ci]);
 		::pair_s<TargetDigest>& e      = (*targets)[(*crcs)[ci]] ;
 		Pdate                   before = New                     ;
 		e.second.crc = Crc( e.second.date/*out*/ , e.first , g_start_info.hash_algo ) ;

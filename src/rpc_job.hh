@@ -165,9 +165,9 @@ ENUM_3( JobReasonTag                                // see explanations in table
 ,	DepOverwritten
 ,	DepDangling
 ,	DepErr
-,	DepMissingRequired
+,	DepMissingRequired                              // this is actually an error
 // with missing
-,	DepMissingStatic
+,	DepMissingStatic                                // this prevents the job from being selected
 )
 static constexpr const char* JobReasonTagStrs[] = {
 	"no reason"                                     // None
@@ -337,7 +337,6 @@ struct JobReason {
 		if (tag<Tag::HasNode) SWEAR(node==0,tag,node) ;
 		return JobReasonTagStrs[+tag] ;
 	}
-
 	// data
 	Tag     tag  = JobReasonTag::None ;
 	NodeIdx node = 0                  ;

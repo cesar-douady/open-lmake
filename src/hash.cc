@@ -3,6 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "fd.hh"
 #include "hash.hh"
 
 namespace Hash {
@@ -18,34 +19,53 @@ namespace Hash {
 		else                              return os << "Crc("<<special<<')'                                    ;
 	}
 
-	Crc::Crc( FileInfo const& fi , ::string const& filename , Algo algo ) {
-		FileTag tag = fi.tag() ;
-		switch (tag) {
-			case FileTag::Reg :
-			case FileTag::Exe :
-				if (!fi.sz) {
-					*this = Empty ;
-				} else {
-					FileMap map{filename} ;
-					if (!map) return ;
-					switch (algo) { //!                   vvvvvvvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
-						case Algo::Md5 : { Md5 ctx{tag} ; ctx.update(map.data,map.sz) ; *this = ::move(ctx).digest() ; } break ;
-						case Algo::Xxh : { Xxh ctx{tag} ; ctx.update(map.data,map.sz) ; *this =        ctx .digest() ; } break ;
-					DF} //!                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
-				}
-			break ;
-			case FileTag::Lnk : {
-				::string lnk_target = read_lnk(filename) ;
-				switch (algo) { //!                   vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
-					case Algo::Md5 : { Md5 ctx{tag} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ; // ensure CRC is distinguished from a regular file with same content
-					case Algo::Xxh : { Xxh ctx{tag} ; ctx.update(lnk_target) ; *this =        ctx .digest() ; } break ; // .
-				DF} //!                               ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
-			} break ;
-			case FileTag::None :
-			case FileTag::Dir  : *this = None ; break ;                                                                 // directories are deemed not to exist
-			default : ;
+	Crc::Crc( ::string const& filename , Algo algo ) {
+		// use low level operations to ensure no time-of-check-to time-of-use hasards
+		*this = None ;
+		if ( AutoCloseFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
+			switch (algo) {
+				case Algo::Md5 : {
+					Md5  ctx       { FileTag::Reg } ;
+					bool has_data  = false          ;
+					char buf[4096] ;
+					for(;;) {
+						ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
+						if      (cnt> 0) { has_data = true ; ctx.update(buf,cnt) ; }
+						else if (cnt==0) break ;
+						else switch (errno) {
+							case EAGAIN :
+							case EINTR  : continue ;
+							case EISDIR : return   ;
+							default     : throw to_string("I/O error while reading file ",filename) ;
+						}
+					}
+					if (has_data) *this = ::move(ctx).digest() ;
+					else          *this = Empty                ;
+				} break ;
+				case Algo::Xxh : {
+					Xxh  ctx       { FileTag::Reg } ;
+					bool has_data  = false          ;
+					char buf[4096] ;
+					for(;;) {
+						ssize_t cnt = ::read( fd , buf , sizeof(buf) ) ;
+						if      (cnt> 0) { has_data = true ; ctx.update(buf,cnt) ; }
+						else if (cnt==0) break ;
+						else switch (errno) {
+							case EAGAIN :
+							case EINTR  : continue ;
+							default     : throw to_string("I/O error while reading file ",filename) ;
+						}
+					}
+					if (has_data) *this = ctx.digest() ;
+					else          *this = Empty        ;
+				} break ;
+			DF}
+		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
+			switch (algo) { //!                            vvvvvvvvvvvvvvvvvvvvvv           vvvvvvvvvvvvvvvvvvvv
+				case Algo::Md5 : { Md5 ctx{FileTag::Lnk} ; ctx.update(lnk_target) ; *this = ::move(ctx).digest() ; } break ;
+				case Algo::Xxh : { Xxh ctx{FileTag::Lnk} ; ctx.update(lnk_target) ; *this =        ctx .digest() ; } break ;
+			DF} //!                                        ^^^^^^^^^^^^^^^^^^^^^^           ^^^^^^^^^^^^^^^^^^^^
 		}
-		if (file_date(filename)!=fi.date) *this = Crc(tag)  ;                                                           // file was moving, crc is unreliable
 	}
 
 	Crc::operator ::string() const {

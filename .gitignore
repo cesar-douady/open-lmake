@@ -25,7 +25,6 @@ __pycache__
 *.d
 *.hh.gch
 *.so
-/ext/**.patched*
 *.stamp
 */stamp
 *.inc_stamp

@@ -205,42 +205,50 @@ Record::Read::Read( Record& r , Path&& path , bool no_follow , bool keep_real , 
 	else                       r._report_dep( ::move(real) , accesses|Access::Reg , ::move(c) ) ;
 }
 
-Record::Readlnk::Readlnk( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,true/*allow_tmp_map*/,c} , buf{buf_} , sz{sz_} {
-	if (file_loc<=FileLoc::Dep) {
-		r._report_dep( ::copy(real) , accesses|Access::Lnk , ::move(c) ) ;
-	} else if (file_loc==FileLoc::Admin) {
-		static constexpr char Backdoor[]    = ADMIN_DIR "/" PRIVATE_ADMIN_SUBDIR "/backdoor/" ;
-		static constexpr size_t BackdoorLen = (sizeof(Backdoor)-1)/sizeof(char)               ; // -1 to account for terminating null
-		if ( strncmp(file,Backdoor,BackdoorLen)==0 ) {
-			switch (file[BackdoorLen]) {
-				case 'a' : SWEAR(strcmp(file+BackdoorLen,"autodep")==0) ; SWEAR(sz_>=2) ; buf[0] = '0'+!s_autodep_env().disabled ; buf[1]=0 ; break ;
-				case 'd' : SWEAR(strcmp(file+BackdoorLen,"disable")==0) ; s_set_enable(false) ;                                               break ;
-				case 'e' : SWEAR(strcmp(file+BackdoorLen,"enable" )==0) ; s_set_enable(true ) ;                                               break ;
-			DF}
-		}
-	}
+Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , ::string&& c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,true/*allow_tmp_map*/,c} , buf{buf_} , sz{sz_} {
+	if (file_loc<=FileLoc::Dep) r._report_dep( ::copy(real) , accesses|Access::Lnk , ::move(c) ) ;
 }
 
-ssize_t Record::Readlnk::operator()( Record& , ssize_t len ) {
-	if ( Record::s_has_tmp_view() && file_loc==FileLoc::Proc && len>0 ) { // /proc may contain links to tmp_dir that we must show to job as pointing to tmp_view
-		::string const& tmp_dir  = s_autodep_env().tmp_dir  ;
-		::string const& tmp_view = s_autodep_env().tmp_view ;
-		size_t          ulen     = len                      ;
-		if (ulen<sz) {                                                                                                                                      // easy, we have the full info
-			if (::string_view(buf,ulen).starts_with(tmp_dir) && (ulen==tmp_dir.size()||buf[tmp_dir.size()]=='/') ) {                                        // match, do the subtitution
-				if (tmp_view.size()>tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() , ::min(ulen-tmp_dir.size(),sz-tmp_view.size()) ) ; // memmove takes care of overlap
-				/**/                                ::memcpy ( buf                 , tmp_view.c_str()   ,                              tmp_view.size()  ) ; // memcopy does not but is fast
-				if (tmp_view.size()<tmp_dir.size()) ::memmove( buf+tmp_view.size() , buf+tmp_dir.size() ,       ulen-tmp_dir.size()                     ) ; // no risk of buffer overflow
-				len = ::min( ulen+tmp_view.size()-tmp_dir.size() , sz ) ;
+ssize_t Record::Readlink::operator()( Record& , ssize_t len ) {
+	switch (file_loc) {
+		case FileLoc::Proc :                                                                                  // /proc may contain links to tmp_dir that we must show to job as pointing to tmp_view
+			if ( Record::s_has_tmp_view() && len>0 ) {
+				::string const& tmp_dir  = s_autodep_env().tmp_dir  ;
+				::string const& tmp_view = s_autodep_env().tmp_view ;
+				size_t          tdsz     = tmp_dir .size()          ;
+				size_t          tvsz     = tmp_view.size()          ;
+				size_t          ulen     = len                      ;
+				if (ulen<sz) {                                                                                // easy, we have the full info
+					if (::string_view(buf,ulen).starts_with(tmp_dir) && (ulen==tdsz||buf[tdsz]=='/') ) {      // match, do the subtitution
+						if (tvsz>tdsz) ::memmove( &buf[tvsz] , &buf     [tdsz] , ::min(ulen-tdsz,sz-tvsz) ) ; // memmove takes care of overlap
+						/**/           ::memcpy ( &buf[0   ] , &tmp_view[0   ] , tvsz                     ) ; // memcopy does not but is fast
+						if (tvsz<tdsz) ::memmove( &buf[tvsz] , &buf     [tdsz] , ulen-tdsz                ) ; // no risk of buffer overflow
+						len = ::min( ulen+tvsz-tdsz , sz ) ;
+					}
+				} else {                                                                                      // difficult, we only have part of the info, this should be rare, no need to optimize
+					::string target = ::read_lnk(real) ;                                                      // restart access from scratch, we enough memory
+					if ( target.starts_with(tmp_dir) && (target[tdsz]==0||target[tdsz]=='/') ) {
+						/**/         ::memcpy( &buf[0   ] , &tmp_view[0   ] , ::min(sz    ,tvsz               ) ) ; // no overlap
+						if (sz>tvsz) ::memcpy( &buf[tvsz] , &target  [tdsz] , ::min(sz-tvsz,target.size()-tdsz) ) ; // .
+						len = ::min( target.size()+tvsz-tdsz , sz ) ;
+					}
+				}
+				emulated = true ;
 			}
-		} else {                                                                                                 // difficult, we only have part of the info, this should be rare, no need to optimize
-			::string target = ::read_lnk(real) ;                                                                 // restart access from scratch, we enough memory
-			if ( target.starts_with(tmp_dir) && (target.size()==tmp_dir.size()||target[tmp_dir.size()]=='/') ) {
-				/**/                    ::memcpy( buf                 , tmp_view.c_str()              , ::min(sz                ,tmp_view.size()             ) ) ; // no overlap
-				if (sz>tmp_view.size()) ::memcpy( buf+tmp_view.size() , target.c_str()+tmp_dir.size() , ::min(sz-tmp_view.size(),target.size()-tmp_dir.size()) ) ; // .
-				len = ::min( target.size()+tmp_view.size()-tmp_dir.size() , sz ) ;
+		break ;
+		case FileLoc::Admin : {                                                                                     // Admin may contain accesses to backdoor we must emulate
+			static constexpr char   Backdoor[]  = ADMIN_DIR "/" PRIVATE_ADMIN_SUBDIR "/backdoor/" ;
+			static constexpr size_t BackdoorLen = (sizeof(Backdoor)-1)/sizeof(char)               ;                 // -1 to account for terminating null
+			if ( strncmp(file,Backdoor,BackdoorLen)==0 ) {
+				switch (file[BackdoorLen]) {
+					case 'a' : SWEAR(strcmp(file+BackdoorLen,"autodep")==0) ; buf[0]='0'+!s_autodep_env().disabled ; len=1 ; break ;
+					case 'd' : SWEAR(strcmp(file+BackdoorLen,"disable")==0) ; s_set_enable(false) ;                  len=0 ; break ;
+					case 'e' : SWEAR(strcmp(file+BackdoorLen,"enable" )==0) ; s_set_enable(true ) ;                  len=0 ; break ;
+				DF}
+				emulated = true ;
 			}
-		}
+		} break ;
+		default : ;
 	}
 	return len ;
 }

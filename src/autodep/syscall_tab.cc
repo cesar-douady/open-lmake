@@ -36,18 +36,50 @@
 	return {buf,sz} ;
 }
 
-static ::string _get_str( pid_t pid , uint64_t val ) {
-	if (!pid) return {reinterpret_cast<const char*>(val)} ;
+// return null terminated string pointed by src in process pid's space
+static ::string _get_str( pid_t pid , uint64_t src ) {
+	if (!pid) return {reinterpret_cast<const char*>(src)} ;
 	::string res ;
 	errno = 0 ;
 	for(;;) {
-		uint64_t offset = val%sizeof(long)                                               ;
-		long     word   = ptrace( PTRACE_PEEKDATA , pid , val-offset , nullptr/*data*/ ) ;
+		uint64_t offset = src%sizeof(long)                                               ;
+		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
 		if (errno) throw 0 ;
 		char buf[sizeof(long)] ; ::memcpy( buf , &word , sizeof(long) ) ;
 		for( uint64_t len=0 ; len<sizeof(long)-offset ; len++ ) if (!buf[offset+len]) { res.append( buf+offset , len                 ) ; return res ; }
 		/**/                                                                            res.append( buf+offset , sizeof(long)-offset ) ;
-		val += sizeof(long)-offset ;
+		src += sizeof(long)-offset ;
+	}
+}
+
+// copy src to process pid's space @ dst
+static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
+	SWEAR(pid) ;
+	errno = 0 ;
+	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                 // invariant : copy src[i:sz] to dst
+		uint64_t offset = dst%sizeof(long) ;
+		long     word   = 0/*garbage*/     ;
+		chunk = ::min( sizeof(long) - offset , sz ) ;
+		if ( offset || offset+chunk<sizeof(long) ) {                                // partial word
+			word = ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
+			if (errno) throw 0 ;
+		}
+		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
+		ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
+		if (errno) throw 0 ;
+	}
+}
+
+// copy src to process pid's space @ dst
+static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
+	SWEAR(pid) ;
+	errno = 0 ;
+	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) { // invariant : copy src[i:sz] to dst
+		uint64_t offset = src%sizeof(long) ;
+		long     word   = ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
+		if (errno) throw 0 ;
+		chunk = ::min( sizeof(long) - offset , sz ) ;
+		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
 	}
 }
 
@@ -132,9 +164,9 @@ static void _entry_getcwd( void* & ctx , Record& , pid_t , uint64_t args[6] , co
 	ctx = sz ;
 }
 static int64_t/*res*/ _exit_getcwd( void* ctx , Record& , pid_t pid , int64_t res ) {
-	if (!res                     ) return res ;                                              // in case of error, man getcwd says buffer is undefined => nothing to do
-	if (!Record::s_has_tmp_view()) return res ;                                              // no tmp mapping                                        => nothing to do
-	SWEAR(pid==0,pid) ;                                                                      // tmp mapping is not supported with ptrace (need to report fixed result to caller)
+	if (!res                     ) return res ;                                       // in case of error, man getcwd says buffer is undefined => nothing to do
+	if (!Record::s_has_tmp_view()) return res ;                                       // no tmp mapping                                        => nothing to do
+	SWEAR(pid==0,pid) ;                                                               // tmp mapping is not supported with ptrace (need to report fixed result to caller)
 	char*   buf = reinterpret_cast<char*  >(res) ;
 	size_t* sz  = reinterpret_cast<size_t*>(ctx) ;
 	res = fix_cwd(buf,*sz,res).second ;
@@ -185,19 +217,28 @@ static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_
 }
 
 // read_lnk
+using RLB = ::pair<Record::Readlink,uint64_t/*buf*/> ;
 template<bool At> void _entry_read_lnk( void* & ctx , Record& r , pid_t pid , uint64_t args[6] , const char* comment ) {
 	try {
-		Record::Readlnk* rl = new Record::Readlnk( r , _path<At>(pid,args+0) , comment ) ;
-		ctx = rl ;
-		_update<At>(args+0,*rl) ;
+		uint64_t orig_buf = args[At+1]                                                                               ;
+		size_t   sz       = args[At+2]                                                                               ;
+		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf)                                   ;
+		RLB*     rlb      = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , comment ) , orig_buf ) ;
+		ctx = rlb ;
+		_update<At>(args+0,rlb->first) ;
 	} catch (int) {}
 }
 static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (!ctx) return res ;
-	Record::Readlnk* rl = static_cast<Record::Readlnk*>(ctx) ;
-	SWEAR( pid==0 || !Record::s_has_tmp_view() , pid ) ;       // tmp mapping is not supported with ptrace (need to report new value to caller)
-	(*rl)(r,res) ;
-	delete rl ;
+	RLB* rlb = static_cast<RLB*>(ctx) ;
+	SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
+	if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
+	res = (rlb->first)(r,res) ;
+	if (pid) {
+		if (rlb->first.emulated) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual use space
+		delete[] rlb->first.buf ;
+	}
+	delete rlb ;
 	return res ;
 }
 

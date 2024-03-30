@@ -245,7 +245,8 @@ namespace Engine {
 			case Buildable::SrcDir :
 			case Buildable::Anti   : SWEAR(!rule_tgts(),rule_tgts()) ; goto Return ;
 			case Buildable::Decode :
-			case Buildable::Encode :                                   goto Return ;
+			case Buildable::Encode :
+			case Buildable::Loop   :                                   goto Return ;
 			default : ;
 		}
 		status(NodeStatus::Unknown) ;
@@ -639,15 +640,15 @@ namespace Engine {
 
 	bool/*modified*/ NodeData::refresh( Crc crc_ , Ddate date_ ) {
 		if (crc.match(crc_)) {
-			Trace trace("refresh",idx(),date,"->",date_) ;
+			Trace trace("refresh_idle",idx(),date,"->",date_) ;
 			date = date_ ;
 			return false ;
 		} else {
-			Trace trace("refresh",idx(),crc,"->",crc_,date,"->",date_) ;
+			Trace trace("refresh",idx(),reqs(),crc,"->",crc_,date,"->",date_) ;
 			crc  = {}    ; fence() ;
 			date = date_ ; fence() ;
-			crc  = crc_  ;                                                                             // ensure crc is never associated with a wrong date, even in case of crash
-			for( Req r : reqs() ) { trace("overwrite",*this) ; req_info(r).reset(NodeGoal::Status) ; } // target is not conform on disk any more
+			crc  = crc_  ;                                              // ensure crc is never associated with a wrong date, even in case of crash
+			for( Req r : reqs() ) req_info(r).reset(NodeGoal::Status) ; // target is not conform on disk any more
 			return true ;
 		}
 	}

@@ -245,11 +245,12 @@ static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 	size_t       n_args  = py_args.size()              ;
 	if (kwds    ) return py_err_set(Exception::TypeErr,"expected no keyword args") ;
 	if (n_args>0) return py_err_set(Exception::TypeErr,"expected no args"        ) ;
-	char c[2] ;
+	char c = 0/*garbage*/ ;
 	// we have a private Record with a private AutodepEnv, so we must go through the backdoor to alter the regular AutodepEnv
-	int rc [[maybe_unused]] ;                                                                     // avoid compiler warning
-	rc = ::readlink( (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , c , 2 ) ;
-	return Ptr<Bool>(c[0]!='0')->to_py_boost() ;
+	int rc [[maybe_unused]] = ::readlink( (PrivateAdminDir+"/backdoor/autodep"s ).c_str() , &c , 1 ) ;
+	SWEAR( c=='0' || c=='1' , int(c) ) ;
+	SWEAR( rc==1            , rc     ) ;
+	return Ptr<Bool>(c!='0')->to_py_boost() ;
 }
 
 static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {

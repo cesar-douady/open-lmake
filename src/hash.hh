@@ -13,7 +13,7 @@
 #else
 	#define XXH_DEBUGLEVEL 1
 #endif
-#include "xxhash.patched.h"
+#include "xxhash.h"
 
 #include "disk.hh"
 #include "serialize.hh"
@@ -66,15 +66,9 @@ namespace Hash {
 			return !crc.match(crc,a) ;
 		}
 		// cxtors & casts
-		constexpr Crc(                                                           ) = default ;
-		constexpr Crc( uint64_t v , bool is_lnk                                  ) : _val{v}                                        { if (is_lnk) _val |= 0x1 ; else _val &= ~0x1 ; }
-		/**/      Crc(                         ::string const& filename , Algo a ) : Crc{ Disk::FileInfo(filename) , filename , a } {}
-		/**/      Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
-			Disk::FileInfo fi{filename} ;
-			d     = fi.date            ;
-			*this = Crc(fi,filename,a) ;
-		}
-		Crc(FileTag tag) {
+		constexpr Crc(                          ) = default ;
+		constexpr Crc( uint64_t v , bool is_lnk ) : _val{bit(v,0,is_lnk)} {}
+		constexpr Crc(FileTag tag) {
 			switch (tag) {
 				case FileTag::Reg  :
 				case FileTag::Exe  : *this = Crc::Reg     ; break ;
@@ -84,9 +78,14 @@ namespace Hash {
 				default            : *this = Crc::Unknown ; break ;
 			}
 		}
+		Crc(                         ::string const& filename , Algo a ) ;
+		Crc( Time::Ddate&/*out*/ d , ::string const& filename , Algo a ) {
+			d     = Disk::file_date(filename) ;
+			*this = Crc(filename,a)           ;
+			if (Disk::file_date(filename)!=d) *this = Crc(d.tag()) ; // file was moving, association date<=>crc is not reliable
+		}
 	private :
-		constexpr Crc( CrcSpecial special                                      ) : _val{+special} {}
-		/**/      Crc( Disk::FileInfo const& , ::string const& filename , Algo ) ;
+		constexpr Crc( CrcSpecial special ) : _val{+special} {}
 		//
 		constexpr operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
 	public :

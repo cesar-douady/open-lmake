@@ -314,20 +314,16 @@ namespace Disk {
 	//
 
 	FileMap::FileMap( Fd at , ::string const& filename ) {
-		FileInfo fi{at,filename,false/*no_follow*/} ;
-		if (!fi.is_reg()) return ;
-		sz = fi.sz ;
-		if (!sz) {
-			_ok = true ;
-			return ;
-		}
 		_fd = open_read(at,filename) ;
 		if (!_fd) return ;
-		data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
-		if (data==MAP_FAILED) {
-			_fd.detach() ;      // report error
-			data = nullptr ;    // avoid garbage info
-			return ;
+		sz = FileInfo(_fd,{},false/*no_follow*/).sz ;
+		if (sz) {
+			data = static_cast<const uint8_t*>(::mmap( nullptr , sz , PROT_READ , MAP_PRIVATE , _fd , 0 )) ;
+			if (data==MAP_FAILED) {
+				_fd.detach() ;      // report error
+				data = nullptr ;    // avoid garbage info
+				return ;
+			}
 		}
 		_ok = true ;
 	}

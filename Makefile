@@ -299,14 +299,6 @@ ext/%.dir.stamp : ext/%.zip
 	@mkdir -p $(@:%.stamp=%)
 	unzip -d $(@:%.stamp=%) $<
 	touch $@
-ext/%.patched.stamp : ext/%.dir.stamp ext/%.patch_script
-	rm -rf $(@:%.stamp=%)
-	cp -r $(@:%.patched.stamp=%.dir) $(@:%.patched.stamp=%.patched)
-	cd $(@:%.patched.stamp=%.patched) ; $(ROOT_DIR)/$(@:%.patched.stamp=%.patch_script)
-	touch $@
-ext/%.patched.h : ext/%.h ext/%.patch_script
-	cp $< $@
-	cd $(@D) ; $(ROOT_DIR)/$(@:%.patched.h=%.patch_script) $(@F)
 
 .SECONDARY :
 
@@ -394,7 +386,7 @@ $(STORE_LIB)/big_test.dir/tok : $(STORE_LIB)/big_test.py LMAKE
 # engine
 #
 
-ALL_H := version.hh sys_config.h ext/xxhash.patched.h
+ALL_H := version.hh sys_config.h ext/xxhash.h
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CPP_OPTS := -iquote ext -iquote $(SRC) -iquote $(SRC_ENGINE) -iquote . -idirafter /usr/include/linux
