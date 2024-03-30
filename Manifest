@@ -9,6 +9,7 @@ _bin/ut_launch
 _bin/version
 _lib/lmake/__init__.py
 _lib/lmake/auto_sources.py
+_lib/lmake/custom_importer.py
 _lib/lmake/import_machinery.py
 _lib/lmake/rules.src.py
 _lib/lmake/sources.src.py

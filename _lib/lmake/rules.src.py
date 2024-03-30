@@ -157,6 +157,10 @@ class Py3Rule(_PyRule) :
 
 PyRule = Py3Rule
 
+class DynamicPyRule(Rule):
+	def cmd() :
+		import lmake.custom_importer
+
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'
 	autodep = 'ld_preload'                                                                               # rust use a dedicated loader that does not call auditing code when using ld_audit

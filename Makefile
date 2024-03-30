@@ -215,6 +215,7 @@ LMAKE_SERVER_PY_FILES := \
 	$(LIB)/lmake/__init__.py         \
 	$(LIB)/lmake/auto_sources.py     \
 	$(LIB)/lmake/import_machinery.py \
+	$(LIB)/lmake/custom_importer.py  \
 	$(LIB)/lmake/rules.py            \
 	$(LIB)/lmake/sources.py          \
 	$(LIB)/lmake/utils.py            \
